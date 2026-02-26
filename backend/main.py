@@ -46,6 +46,33 @@ _patient_store: dict = {}
 async def _seed_demo_patient() -> None:
     """Pre-populate demo patient so chat works without running the full pipeline."""
     _patient_store["maria_001"] = {
+        "name": "Maria L.",
+        "phone": "",
+        "pipeline_type": "post_op",
+        "voice_audio_url": None,
+        "battlecard_html": "",
+        "avatar_url": None,
+        "voice_script": (
+            "Hi Maria, I'm your personal care guide from the surgical team. "
+            "I'm here to make sure you feel confident and supported as you recover at home. "
+            "You just had a lumpectomy and sentinel node biopsy, and you're starting an important "
+            "medication called olaparib to protect against the cancer returning. "
+            "The most important thing right now: take olaparib 300 milligrams every morning and "
+            "300 milligrams every evening — about 12 hours apart — every single day. "
+            "I recommend setting phone alarms right now so you never miss a dose. "
+            "If you do miss one, just skip it and take the next one on schedule. Never double up. "
+            "You may feel some fatigue over the coming days — that's completely normal because "
+            "your blood count is slightly low, and your body is healing. "
+            "There are a few things that need a call to us right away: "
+            "a fever of 100.4 degrees or higher means call us immediately. "
+            "Shortness of breath or chest pain means call 911 — don't wait. "
+            "Vomiting that won't stop, diarrhea that doesn't improve, or new bruising — call us. "
+            "Your follow-up appointment is in about 4 weeks at the oncology clinic "
+            "for a blood count recheck. We'll see how your body is tolerating the olaparib. "
+            "Before that appointment — or any time — call us if something worries you. "
+            "You are never bothering us. Calling early is always the right choice. "
+            "You are strong, you have a great team behind you, and you've got this, Maria."
+        ),
         "structured_data": {
             "patient_name": "Maria L.",
             "procedure_name": "Lumpectomy + Sentinel Node Biopsy",
@@ -187,6 +214,39 @@ async def process_patient(bundle: EHRBundle, background_tasks: BackgroundTasks):
     )
 
 
+@app.get("/api/patient/{patient_id}/audio")
+async def get_patient_audio(patient_id: str):
+    """
+    Returns the voice audio URL for a patient, generating it on-demand if needed.
+    The audio is synthesized from the stored voice_script via ElevenLabs.
+    """
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    store = _patient_store[patient_id]
+
+    # Return cached URL if the audio file still exists on disk
+    cached_url = store.get("voice_audio_url")
+    if cached_url:
+        import urllib.parse, re
+        filename = cached_url.split("/audio/")[-1]
+        from pathlib import Path
+        if Path(f"/tmp/{filename}").exists():
+            return {"audio_url": cached_url}
+
+    # Generate audio from voice_script
+    voice_script = store.get("voice_script")
+    if not voice_script:
+        raise HTTPException(status_code=422, detail="No voice script available for this patient")
+
+    audio_url = await ElevenLabsClient().synthesize(voice_script, patient_id)
+    if not audio_url:
+        raise HTTPException(status_code=503, detail="ElevenLabs not configured — set ELEVENLABS_API_KEY")
+
+    store["voice_audio_url"] = audio_url
+    return {"audio_url": audio_url}
+
+
 @app.get("/api/patient/{patient_id}/battlecard")
 async def get_battlecard(patient_id: str):
     """Return the pre-generated battlecard HTML for the patient dashboard."""
@@ -260,31 +320,43 @@ async def avatar_chat(req: ChatRequest):
 
     patient_data = _patient_store[req.patient_id]
 
-    from prompts.avatar import build_avatar_system_prompt
-    from anthropic import Anthropic
+    try:
+        from prompts.avatar import build_avatar_system_prompt
+        from anthropic import Anthropic
 
-    client        = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    system_prompt = build_avatar_system_prompt(patient_data["structured_data"])
+        client        = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        system_prompt = build_avatar_system_prompt(patient_data["structured_data"])
 
-    messages = [{"role": m["role"], "content": m["content"]}
-                for m in req.conversation_history]
-    messages.append({"role": "user", "content": req.message})
+        messages = [{"role": m["role"], "content": m["content"]}
+                    for m in req.conversation_history]
+        messages.append({"role": "user", "content": req.message})
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=350,
-        system=system_prompt,
-        messages=messages,
-    )
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=350,
+            system=system_prompt,
+            messages=messages,
+        )
 
-    reply_text = response.content[0].text
-    audio_url  = await ElevenLabsClient().synthesize(reply_text, f"{req.patient_id}_chat")
+        reply_text = response.content[0].text
+        audio_url  = await ElevenLabsClient().synthesize(reply_text, f"{req.patient_id}_chat")
 
-    return ChatResponse(
-        response=reply_text,
-        patient_id=req.patient_id,
-        audio_url=audio_url,
-    )
+        return ChatResponse(
+            response=reply_text,
+            patient_id=req.patient_id,
+            audio_url=audio_url,
+        )
+
+    except Exception as exc:
+        print(f"[avatar_chat] error: {exc}")
+        return ChatResponse(
+            response=(
+                "I'm having a brief technical issue. "
+                "For urgent questions, please call your care team directly."
+            ),
+            patient_id=req.patient_id,
+            audio_url=None,
+        )
 
 
 # ─── Background Tasks ─────────────────────────────────────────
