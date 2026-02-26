@@ -73,7 +73,13 @@ class ExtractionLayer:
             messages=[{"role": "user", "content": EXTRACTION_PROMPT + combined}],
         )
 
-        extracted: Dict[str, Any] = json.loads(response.content[0].text)
+        raw_text = response.content[0].text.strip()
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("\n", 1)[1] if "\n" in raw_text else raw_text[3:]
+            if raw_text.endswith("```"):
+                raw_text = raw_text[:-3].strip()
+
+        extracted: Dict[str, Any] = json.loads(raw_text)
 
         # Always preserve identity from ingest metadata
         extracted["patient_id"]   = raw_package["metadata"]["patient_id"]
