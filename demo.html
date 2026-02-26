@@ -348,25 +348,8 @@ document.getElementById('playPauseBtn').addEventListener('click', () => {
   else { btn.textContent = '▶ Play'; lrg.textContent = '▶'; }
 });
 
-// ── Chat (AI-powered via Anthropic) ──────────────────────────
-const SYSTEM_PROMPT = `You are Maria L.'s medical care guide after her Lumpectomy + Sentinel Node Biopsy for triple-negative breast cancer (BRCA1 mutation).
-
-Answer ONLY from this patient data. Use 2-3 short sentences. Warm, conversational tone. End with a check-in question.
-
-Patient data:
-- Olaparib 300mg twice daily (morning + evening, 12hrs apart) for 12 months
-- Ondansetron 8mg every 8 hours as needed for nausea
-- Loperamide 2mg after first loose stool, then 2mg each (max 8mg/day) for diarrhea
-- Blood count slightly low (Hgb 10.6) — mild anemia expected
-- CALL DOCTOR: fever 100.4+, vomiting won't stop, diarrhea won't improve, new bleeding/bruising, worsening fatigue/lightheadedness/racing heart
-- ER: shortness of breath, chest pain, severe dizziness, can't keep fluids down
-- Follow-up: oncology clinic in 4 weeks
-- Do NOT double-up missed doses, no new supplements without approval, use contraception during therapy
-- BRCA1 mutation — born with it, nothing she did caused it
-
-If asked anything outside this data, say: "I can only discuss what's in your discharge papers. Please call your care team for other questions."`;
-
-const API_KEY = '';
+// ── Chat (ElevenLabs voice via backend) ──────────────────────
+const BACKEND_URL = 'NGROK_PLACEHOLDER';
 let history = [];
 
 document.querySelectorAll('.suggestion-chip').forEach(chip => {
@@ -393,29 +376,26 @@ async function sendMessage() {
 
   const typingEl = showTyping();
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(`${BACKEND_URL}/api/avatar/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
-        system: SYSTEM_PROMPT,
-        messages: history
+        patient_id: 'maria_001',
+        message: text,
+        conversation_history: history
       })
     });
     const data = await res.json();
-    const reply = data.content[0].text;
+    const reply = data.response;
     typingEl.remove();
     history.push({ role: 'assistant', content: reply });
     addMessage(reply, 'assistant');
+    if (data.audio_url) {
+      new Audio(data.audio_url).play().catch(() => {});
+    }
   } catch(e) {
     typingEl.remove();
-    addMessage("I'm having trouble connecting. For urgent questions, please call your care team.", 'assistant');
+    addMessage("I'm having trouble connecting to the care guide. For urgent questions, please call your care team.", 'assistant');
   }
 }
 

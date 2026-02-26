@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Recovery Plan | CareGuide</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ─── Header ─────────────────────────────────────────── -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">+</div>
+        <span>CareGuide</span>
+      </div>
+      <div class="patient-badge">
+        <span class="patient-name" id="patientName">Maria L.</span>
+        <span class="patient-date" id="visitDate">Jan 30, 2026</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── Main ──────────────────────────────────────────── -->
+  <main class="main-content">
+    <div class="page-wrapper">
+
+      <!-- Recovery Plan Card -->
+      <div class="recovery-card">
+
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="procedure-badge">
+            <span class="badge-icon">⚕</span>
+            <div>
+              <h1 class="card-title" id="cardTitle">Post Surgery Recovery Plan</h1>
+              <p class="card-subtitle" id="cardSubtitle">Lumpectomy + Sentinel Node Biopsy</p>
+            </div>
+          </div>
+          <div class="card-status">
+            <span class="status-dot"></span>
+            <span>Resources Ready</span>
+          </div>
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+
+          <!-- ── Section 1: Post Discharge Resources ─────── -->
+          <div class="panel resources-panel">
+            <h2 class="panel-title">Post Discharge Resources</h2>
+
+            <!-- Tabs -->
+            <div class="resource-tabs" role="tablist">
+              <button class="tab-btn active" data-tab="video" role="tab" aria-selected="true">
+                <span class="tab-icon">▶</span> Watch Your Recovery Video
+              </button>
+              <button class="tab-btn" data-tab="battlecard" role="tab" aria-selected="false">
+                <span class="tab-icon">📋</span> Quick Reference Guide
+              </button>
+            </div>
+
+            <!-- Video Tab -->
+            <div class="tab-content active" id="tab-video" role="tabpanel">
+              <div class="video-wrapper">
+                <div class="video-player" id="videoPlayer">
+                  <div class="video-overlay" id="videoOverlay">
+                    <button class="play-btn-large" id="playBtnLarge" aria-label="Play video">▶</button>
+                    <p class="video-label">Your personalized recovery video</p>
+                    <span class="video-duration">~4–5 min</span>
+                  </div>
+                  <!--
+                    Production: replace overlay with ElevenLabs audio + looping clinical visuals
+                    <audio id="recoveryAudio" src="ELEVENLABS_AUDIO_URL" preload="metadata"></audio>
+                  -->
+                </div>
+                <div class="video-controls">
+                  <button class="control-btn" id="playPauseBtn">▶ Play</button>
+                  <div class="progress-bar" id="progressBar" role="progressbar">
+                    <div class="progress-fill" id="progressFill"></div>
+                  </div>
+                  <span class="time-display" id="timeDisplay">0:00 / 4:30</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Battlecard Tab -->
+            <div class="tab-content" id="tab-battlecard" role="tabpanel">
+              <div class="battlecard-wrapper" id="battlecardContainer">
+                <div class="loading-state">
+                  <div class="loading-spinner"></div>
+                  <p>Loading your quick reference guide…</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <!-- ── Section 2: AI Care Guide ─────────────────── -->
+          <div class="panel avatar-panel" id="avatarPanel">
+            <h2 class="panel-title">Ask Your Care Guide</h2>
+            <p class="panel-subtitle">
+              Your AI care guide can answer questions about your recovery,
+              medications, and what symptoms to watch for.
+            </p>
+
+            <div class="avatar-interface">
+
+              <!-- Tavus Avatar Video -->
+              <div class="avatar-video-container">
+                <div class="tavus-embed" id="tavusContainer">
+                  <!--
+                    Production: replace placeholder with Tavus conversational avatar
+                    <iframe
+                      src="TAVUS_CONVERSATION_URL"
+                      allow="camera; microphone"
+                      allowfullscreen
+                    ></iframe>
+                  -->
+                  <div class="avatar-placeholder">
+                    <div class="avatar-circle">👩‍⚕️</div>
+                    <p class="avatar-name">Care Guide</p>
+                    <p class="avatar-status">Ready to help</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Chat Interface -->
+              <div class="chat-container">
+                <div class="chat-messages" id="chatMessages" aria-live="polite">
+                  <div class="message assistant-message">
+                    <div class="message-bubble">
+                      Hi Maria! I've reviewed your discharge summary and I'm here to help.
+                      What questions do you have about your recovery?
+                    </div>
+                    <span class="message-time">Just now</span>
+                  </div>
+                </div>
+
+                <!-- Suggested Questions -->
+                <div class="suggested-questions" id="suggestedQuestions">
+                  <button class="suggestion-chip" data-q="How do I take olaparib?">How do I take olaparib?</button>
+                  <button class="suggestion-chip" data-q="What are my red flag symptoms?">Red flag symptoms?</button>
+                  <button class="suggestion-chip" data-q="What about the nausea?">What about nausea?</button>
+                </div>
+
+                <div class="chat-input-area">
+                  <input
+                    type="text"
+                    id="chatInput"
+                    class="chat-input"
+                    placeholder="Ask about medications, recovery, when to call your doctor…"
+                    autocomplete="off"
+                    aria-label="Type your question"
+                  />
+                  <button class="send-btn" id="sendBtn" aria-label="Send message">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <path d="M22 2L11 13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                      <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+            </div><!-- /.avatar-interface -->
+          </div><!-- /.avatar-panel -->
+
+        </div><!-- /.card-body -->
+      </div><!-- /.recovery-card -->
+
+      <!-- Still Have Questions Footer -->
+      <div class="questions-footer">
+        <div class="questions-content">
+          <div>
+            <p class="questions-heading">Still have questions?</p>
+            <p class="questions-sub">Your care guide is available 24/7</p>
+          </div>
+          <div class="questions-actions">
+            <button class="questions-btn primary" id="openAvatarBtn">
+              💬 Talk to Your Care Guide
+            </button>
+            <a href="tel:" class="questions-btn secondary" id="callTeamBtn">
+              📞 Call Care Team
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.page-wrapper -->
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
