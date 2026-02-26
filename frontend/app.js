@@ -29,8 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initChat();
   initSuggestedQuestions();
   initFooterActions();
+  initQuestionsButton();
   loadBattlecard();
   loadTavusAvatar();
+  loadDischargeInstructions();
 });
 
 // ─── Patient Info ─────────────────────────────────────────────
@@ -66,6 +68,21 @@ function initTabs() {
       document.getElementById(`tab-${target}`).classList.add('active');
     });
   });
+}
+
+// ─── "Any further questions?" Button ──────────────────────────
+function initQuestionsButton() {
+  const btn = document.getElementById('questionsBtn');
+  btn?.addEventListener('click', showCareGuide);
+}
+
+function showCareGuide() {
+  const section = document.getElementById('careGuideSection');
+  if (section) {
+    section.style.display = 'block';
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => document.getElementById('chatInput')?.focus(), 600);
+  }
 }
 
 // ─── Video Player ─────────────────────────────────────────────
@@ -144,11 +161,111 @@ async function loadBattlecard() {
     const res = await fetch(`${API_BASE}/api/patient/${PATIENT.id}/battlecard`);
     if (!res.ok) throw new Error('Not found');
     const data = await res.json();
+    if (!data.html) throw new Error('Empty battlecard');
     container.innerHTML = data.html;
   } catch {
-    // Render embedded demo battlecard so the UI works without a running server
     container.innerHTML = getDemoBattlecard();
   }
+}
+
+// ─── Discharge Instructions ───────────────────────────────────
+async function loadDischargeInstructions() {
+  const container = document.getElementById('dischargeContainer');
+  if (!container) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/patient/${PATIENT.id}/discharge`);
+    if (!res.ok) throw new Error('Not found');
+    const data = await res.json();
+    container.innerHTML = renderDischargeInstructions(data.structured_data, data.voice_script);
+  } catch {
+    container.innerHTML = '<p style="padding:24px;color:#6B7280;">Discharge instructions are not yet available.</p>';
+  }
+}
+
+function renderDischargeInstructions(sd, voiceScript) {
+  const medsHtml = (sd.medications || []).map(m => `
+    <div class="di-med-card">
+      <div class="di-med-name">${esc(m.name)}</div>
+      <div class="di-med-detail">${esc(m.dose)} · ${esc(m.route)} · ${esc(m.frequency)}</div>
+      ${m.notes ? `<div class="di-med-notes">${esc(m.notes)}</div>` : ''}
+    </div>
+  `).join('');
+
+  const redFlagsHtml = (sd.red_flags || []).map(f =>
+    `<li>${esc(f)}</li>`
+  ).join('');
+
+  const normalHtml = (sd.normal_symptoms || []).map(s =>
+    `<li>${esc(s)}</li>`
+  ).join('');
+
+  const diagnosesHtml = (sd.key_diagnoses || []).map(d =>
+    `<li>${esc(d)}</li>`
+  ).join('');
+
+  const followUp = sd.follow_up || {};
+
+  return `
+<div class="di">
+  <div class="di-header">
+    <h2>Discharge Instructions</h2>
+    <p>${esc(sd.patient_name || '')} · ${esc(sd.procedure_name || '')}</p>
+  </div>
+
+  <div class="di-section">
+    <h3>📋 Diagnoses</h3>
+    <ul>${diagnosesHtml}</ul>
+  </div>
+
+  <div class="di-section">
+    <h3>⚠️ Allergies</h3>
+    <p>${esc((sd.allergies || []).join(', ') || 'None reported')}</p>
+  </div>
+
+  <div class="di-section">
+    <h3>💊 Medications</h3>
+    ${medsHtml}
+  </div>
+
+  <div class="di-section">
+    <h3>📝 Post-Operative Instructions</h3>
+    <p>${esc(sd.post_op_instructions || sd.pre_op_instructions || '')}</p>
+  </div>
+
+  <div class="di-section di-red-flags">
+    <h3>🚨 Warning Signs — When to Call</h3>
+    <ul>${redFlagsHtml}</ul>
+  </div>
+
+  <div class="di-section di-normal">
+    <h3>ℹ️ What's Normal After Surgery</h3>
+    <ul>${normalHtml}</ul>
+  </div>
+
+  <div class="di-section">
+    <h3>📅 Follow-Up Appointment</h3>
+    <p><strong>${esc(followUp.date || 'TBD')}</strong> — ${esc(followUp.provider || '')}</p>
+    ${followUp.notes ? `<p class="di-followup-notes">${esc(followUp.notes)}</p>` : ''}
+  </div>
+
+  <div class="di-section di-primary">
+    <h3>⭐ Primary Concern</h3>
+    <p>${esc(sd.primary_concern || '')}</p>
+  </div>
+
+  ${voiceScript ? `
+  <div class="di-section">
+    <h3>🎧 Your Recovery Message</h3>
+    <p class="di-voice-script">${esc(voiceScript)}</p>
+  </div>` : ''}
+</div>`;
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.appendChild(document.createTextNode(str || ''));
+  return d.innerHTML;
 }
 
 // ─── Tavus Avatar ─────────────────────────────────────────────
@@ -171,7 +288,6 @@ function initSuggestedQuestions() {
       const q = chip.dataset.q;
       document.getElementById('chatInput').value = q;
       sendMessage();
-      // Hide suggestions after first use
       document.getElementById('suggestedQuestions').style.display = 'none';
     });
   });
@@ -265,11 +381,7 @@ function getChatHistory() {
 
 // ─── Footer ───────────────────────────────────────────────────
 function initFooterActions() {
-  document.getElementById('openAvatarBtn')?.addEventListener('click', () => {
-    const panel = document.getElementById('avatarPanel');
-    panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTimeout(() => document.getElementById('chatInput')?.focus(), 600);
-  });
+  document.getElementById('openAvatarBtn')?.addEventListener('click', showCareGuide);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -285,8 +397,6 @@ function escapeHtml(str) {
 }
 
 // ─── Demo Battlecard (embedded fallback) ──────────────────────
-// This renders when the backend is not yet running, so designers
-// and stakeholders can preview the full UI immediately.
 function getDemoBattlecard() {
   return `
 <style>
@@ -309,14 +419,12 @@ function getDemoBattlecard() {
   .tag-new{background:#EDE9FE;color:#5B21B6}
   .tag-support{background:#D1FAE5;color:#065F46}
   .med-warn{font-size:12px;color:#B45309;margin-top:6px;font-weight:500}
-  /* Timeline */
   .timeline{position:relative;padding-left:28px}
   .timeline::before{content:'';position:absolute;left:10px;top:6px;bottom:6px;width:2px;background:#E5E7EB}
   .tl-item{position:relative;margin-bottom:16px}
   .tl-dot{position:absolute;left:-28px;top:2px;width:20px;height:20px;background:#2563EB;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 0 0 2px #2563EB}
   .tl-label{font-weight:700;font-size:13px;color:#2563EB;margin-bottom:3px}
   .tl-content{font-size:13px;color:#374151}
-  /* Do/Don't */
   .do-dont{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .can-do{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:14px}
   .cant-do{background:#FFF1F2;border:1px solid #FECDD3;border-radius:8px;padding:14px}
@@ -324,7 +432,6 @@ function getDemoBattlecard() {
   .cant-do h4{color:#9F1239;font-size:13px;font-weight:700;margin-bottom:8px}
   .can-do li,.cant-do li{font-size:13px;margin-left:16px;margin-bottom:4px}
   .can-do li{color:#14532D} .cant-do li{color:#881337}
-  /* Symptom boxes */
   .normal-box{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:14px;margin-bottom:14px}
   .normal-box h4{color:#1D4ED8;font-size:13px;font-weight:700;margin-bottom:8px}
   .normal-box li{font-size:13px;color:#1E40AF;margin-left:16px;margin-bottom:3px}
@@ -340,15 +447,12 @@ function getDemoBattlecard() {
 </style>
 
 <div class="bc">
-
-  <!-- Header -->
   <div class="bc-head">
     <h1>Adjuvant Therapy After Lumpectomy</h1>
     <p>Post-Surgery Discharge Quick Action Card</p>
     <div class="bc-patient">Maria L. · MRN 00877123 · Jan 30, 2026</div>
   </div>
 
-  <!-- The ONE Thing -->
   <div class="bc-priority">
     <h2>⭐ The ONE Most Important Thing</h2>
     <p>
@@ -358,28 +462,23 @@ function getDemoBattlecard() {
     </p>
   </div>
 
-  <!-- Medications -->
   <div class="bc-section">
     <h3>💊 Your Medications — Take Exactly As Prescribed</h3>
-
     <div class="med-card new">
       <div class="med-name">Olaparib <span class="med-tag tag-new">NEW</span></div>
       <div class="med-dose">300 mg · by mouth · twice daily (morning + evening, ~12 hrs apart)</div>
       <div class="med-warn">⚠ Take on a schedule — same times every day · Do NOT double up if you miss a dose</div>
     </div>
-
     <div class="med-card support">
       <div class="med-name">Ondansetron <span class="med-tag tag-support">FOR NAUSEA</span></div>
       <div class="med-dose">8 mg · by mouth · every 8 hours as needed</div>
     </div>
-
     <div class="med-card support">
       <div class="med-name">Loperamide <span class="med-tag tag-support">FOR DIARRHEA</span></div>
       <div class="med-dose">2 mg after first loose stool, then 2 mg after each loose stool · max 8 mg/day</div>
     </div>
   </div>
 
-  <!-- Timeline -->
   <div class="bc-section">
     <h3>📅 What Happens Next</h3>
     <div class="timeline">
@@ -406,7 +505,6 @@ function getDemoBattlecard() {
     </div>
   </div>
 
-  <!-- What you can / can't do -->
   <div class="bc-section">
     <h3>✓ What You Can / Can't Do</h3>
     <div class="do-dont">
@@ -431,10 +529,8 @@ function getDemoBattlecard() {
     </div>
   </div>
 
-  <!-- Symptom Triage -->
   <div class="bc-section">
     <h3>🩺 Know Your Symptoms</h3>
-
     <div class="normal-box">
       <h4>ℹ What's Normal After Surgery</h4>
       <ul>
@@ -443,7 +539,6 @@ function getDemoBattlecard() {
         <li>Minor tenderness at the surgical site</li>
       </ul>
     </div>
-
     <div class="call-box">
       <h4>⚠ Call Your Doctor Today If</h4>
       <ul>
@@ -453,7 +548,6 @@ function getDemoBattlecard() {
         <li>Worsening fatigue, lightheadedness, or racing heartbeat</li>
       </ul>
     </div>
-
     <div class="er-box">
       <h4>🚨 Go to ER Immediately If</h4>
       <ul>
@@ -465,12 +559,10 @@ function getDemoBattlecard() {
     </div>
   </div>
 
-  <!-- Contact -->
   <div class="contact-box">
     <p>📞 You are <strong>never</strong> bothering us. Calling early prevents bigger problems.</p>
     <p style="margin-top:8px">Call your oncology team any time — including nights and weekends.</p>
     <p style="margin-top:10px;font-size:12px;color:#9CA3AF">Tell them you are on cancer treatment when calling the ER.</p>
   </div>
-
 </div>`;
 }

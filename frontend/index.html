@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Your Recovery Plan | CareGuide</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="/static/styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
@@ -50,7 +50,12 @@
 
           <!-- ── Section 1: Post Discharge Resources ─────── -->
           <div class="panel resources-panel">
-            <h2 class="panel-title">Post Discharge Resources</h2>
+            <div class="panel-title-row">
+              <h2 class="panel-title">Post Discharge Resources</h2>
+              <button class="questions-trigger-btn" id="questionsBtn">
+                💬 Any further questions?
+              </button>
+            </div>
 
             <!-- Tabs -->
             <div class="resource-tabs" role="tablist">
@@ -59,6 +64,9 @@
               </button>
               <button class="tab-btn" data-tab="battlecard" role="tab" aria-selected="false">
                 <span class="tab-icon">📋</span> Quick Reference Guide
+              </button>
+              <button class="tab-btn" data-tab="discharge" role="tab" aria-selected="false">
+                <span class="tab-icon">📄</span> Discharge Instructions
               </button>
             </div>
 
@@ -71,10 +79,6 @@
                     <p class="video-label">Your personalized recovery video</p>
                     <span class="video-duration">~4–5 min</span>
                   </div>
-                  <!--
-                    Production: replace overlay with ElevenLabs audio + looping clinical visuals
-                    <audio id="recoveryAudio" src="ELEVENLABS_AUDIO_URL" preload="metadata"></audio>
-                  -->
                 </div>
                 <div class="video-controls">
                   <button class="control-btn" id="playPauseBtn">▶ Play</button>
@@ -95,82 +99,85 @@
                 </div>
               </div>
             </div>
+
+            <!-- Discharge Instructions Tab -->
+            <div class="tab-content" id="tab-discharge" role="tabpanel">
+              <div class="discharge-wrapper" id="dischargeContainer">
+                <div class="loading-state">
+                  <div class="loading-spinner"></div>
+                  <p>Loading your discharge instructions…</p>
+                </div>
+              </div>
+            </div>
+
           </div>
-
-          <div class="section-divider"></div>
-
-          <!-- ── Section 2: AI Care Guide ─────────────────── -->
-          <div class="panel avatar-panel" id="avatarPanel">
-            <h2 class="panel-title">Ask Your Care Guide</h2>
-            <p class="panel-subtitle">
-              Your AI care guide can answer questions about your recovery,
-              medications, and what symptoms to watch for.
-            </p>
-
-            <div class="avatar-interface">
-
-              <!-- Tavus Avatar Video -->
-              <div class="avatar-video-container">
-                <div class="tavus-embed" id="tavusContainer">
-                  <!--
-                    Production: replace placeholder with Tavus conversational avatar
-                    <iframe
-                      src="TAVUS_CONVERSATION_URL"
-                      allow="camera; microphone"
-                      allowfullscreen
-                    ></iframe>
-                  -->
-                  <div class="avatar-placeholder">
-                    <div class="avatar-circle">👩‍⚕️</div>
-                    <p class="avatar-name">Care Guide</p>
-                    <p class="avatar-status">Ready to help</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Chat Interface -->
-              <div class="chat-container">
-                <div class="chat-messages" id="chatMessages" aria-live="polite">
-                  <div class="message assistant-message">
-                    <div class="message-bubble">
-                      Hi Maria! I've reviewed your discharge summary and I'm here to help.
-                      What questions do you have about your recovery?
-                    </div>
-                    <span class="message-time">Just now</span>
-                  </div>
-                </div>
-
-                <!-- Suggested Questions -->
-                <div class="suggested-questions" id="suggestedQuestions">
-                  <button class="suggestion-chip" data-q="How do I take olaparib?">How do I take olaparib?</button>
-                  <button class="suggestion-chip" data-q="What are my red flag symptoms?">Red flag symptoms?</button>
-                  <button class="suggestion-chip" data-q="What about the nausea?">What about nausea?</button>
-                </div>
-
-                <div class="chat-input-area">
-                  <input
-                    type="text"
-                    id="chatInput"
-                    class="chat-input"
-                    placeholder="Ask about medications, recovery, when to call your doctor…"
-                    autocomplete="off"
-                    aria-label="Type your question"
-                  />
-                  <button class="send-btn" id="sendBtn" aria-label="Send message">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                      <path d="M22 2L11 13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-                      <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2.5"
-                        stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-            </div><!-- /.avatar-interface -->
-          </div><!-- /.avatar-panel -->
 
         </div><!-- /.card-body -->
       </div><!-- /.recovery-card -->
+
+      <!-- ── Care Guide Section (separate, hidden by default) ── -->
+      <div class="care-guide-card" id="careGuideSection" style="display: none;">
+        <div class="panel avatar-panel" id="avatarPanel">
+          <h2 class="panel-title">Ask Your Care Guide</h2>
+          <p class="panel-subtitle">
+            Your AI care guide can answer questions about your recovery,
+            medications, and what symptoms to watch for.
+          </p>
+
+          <div class="avatar-interface">
+
+            <!-- Tavus Avatar Video -->
+            <div class="avatar-video-container">
+              <div class="tavus-embed" id="tavusContainer">
+                <div class="avatar-placeholder">
+                  <div class="avatar-circle">👩‍⚕️</div>
+                  <p class="avatar-name">Care Guide</p>
+                  <p class="avatar-status">Ready to help</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Chat Interface -->
+            <div class="chat-container">
+              <div class="chat-messages" id="chatMessages" aria-live="polite">
+                <div class="message assistant-message">
+                  <div class="message-bubble">
+                    Hi Maria! I've reviewed your discharge summary and I'm here to help.
+                    What questions do you have about your recovery?
+                  </div>
+                  <span class="message-time">Just now</span>
+                </div>
+              </div>
+
+              <!-- Suggested Questions -->
+              <div class="suggested-questions" id="suggestedQuestions">
+                <button class="suggestion-chip" data-q="How do I take olaparib?">How do I take olaparib?</button>
+                <button class="suggestion-chip" data-q="What are my red flag symptoms?">Red flag symptoms?</button>
+                <button class="suggestion-chip" data-q="What about the nausea?">What about nausea?</button>
+              </div>
+
+              <div class="chat-input-area">
+                <input
+                  type="text"
+                  id="chatInput"
+                  class="chat-input"
+                  placeholder="Ask about medications, recovery, when to call your doctor…"
+                  autocomplete="off"
+                  aria-label="Type your question"
+                />
+                <button class="send-btn" id="sendBtn" aria-label="Send message">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M22 2L11 13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2.5"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+          </div><!-- /.avatar-interface -->
+        </div><!-- /.avatar-panel -->
+      </div><!-- /.care-guide-card -->
 
       <!-- Still Have Questions Footer -->
       <div class="questions-footer">
@@ -193,6 +200,6 @@
     </div><!-- /.page-wrapper -->
   </main>
 
-  <script src="app.js"></script>
+  <script src="/static/app.js"></script>
 </body>
 </html>

@@ -273,6 +273,18 @@ async def get_dashboard_config(patient_id: str):
     }
 
 
+@app.get("/api/patient/{patient_id}/discharge")
+async def get_discharge_instructions(patient_id: str):
+    """Return the full structured discharge instructions for rendering."""
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    d = _patient_store[patient_id]
+    return {
+        "structured_data": d["structured_data"],
+        "voice_script": d.get("voice_script", ""),
+    }
+
+
 @app.get("/patient/{patient_id}", response_class=HTMLResponse)
 async def patient_dashboard(patient_id: str):
     """
