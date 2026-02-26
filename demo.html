@@ -336,17 +336,62 @@ document.getElementById('battlecardContainer').innerHTML = `
   </div>
 </div>`;
 
-// ── Video Player (demo) ───────────────────────────────────────
-document.getElementById('playBtnLarge').addEventListener('click', () => {
-  document.getElementById('playPauseBtn').textContent = '⏸ Pause';
-  document.getElementById('playBtnLarge').textContent = '⏸';
-});
-document.getElementById('playPauseBtn').addEventListener('click', () => {
-  const btn = document.getElementById('playPauseBtn');
-  const lrg = document.getElementById('playBtnLarge');
-  if (btn.textContent.includes('Play')) { btn.textContent = '⏸ Pause'; lrg.textContent = '⏸'; }
-  else { btn.textContent = '▶ Play'; lrg.textContent = '▶'; }
-});
+// ── Video Player (ElevenLabs voice via backend) ───────────────
+let _recoveryAudio = null;
+let _audioLoading  = false;
+
+async function _loadAndPlay() {
+  if (_audioLoading) return;
+
+  // If we already have audio, just toggle play/pause
+  if (_recoveryAudio) {
+    if (_recoveryAudio.paused) {
+      _recoveryAudio.play();
+    } else {
+      _recoveryAudio.pause();
+    }
+    return;
+  }
+
+  // First click: fetch the audio URL from the backend then play
+  _audioLoading = true;
+  document.getElementById('playPauseBtn').textContent = '⏳ Loading...';
+  document.getElementById('playBtnLarge').textContent = '⏳';
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/patient/maria_001/audio`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Server error ${res.status}`);
+    }
+    const { audio_url } = await res.json();
+
+    _recoveryAudio = new Audio(audio_url);
+    _recoveryAudio.addEventListener('ended', () => {
+      document.getElementById('playPauseBtn').textContent = '▶ Play';
+      document.getElementById('playBtnLarge').textContent = '▶';
+    });
+    _recoveryAudio.addEventListener('pause', () => {
+      document.getElementById('playPauseBtn').textContent = '▶ Play';
+      document.getElementById('playBtnLarge').textContent = '▶';
+    });
+    _recoveryAudio.addEventListener('play', () => {
+      document.getElementById('playPauseBtn').textContent = '⏸ Pause';
+      document.getElementById('playBtnLarge').textContent = '⏸';
+    });
+    await _recoveryAudio.play();
+  } catch (e) {
+    console.error('[video player]', e);
+    document.getElementById('playPauseBtn').textContent = '▶ Play';
+    document.getElementById('playBtnLarge').textContent = '▶';
+    alert('Could not load recovery audio: ' + e.message);
+  } finally {
+    _audioLoading = false;
+  }
+}
+
+document.getElementById('playBtnLarge').addEventListener('click', _loadAndPlay);
+document.getElementById('playPauseBtn').addEventListener('click', _loadAndPlay);
 
 // ── Chat (ElevenLabs voice via backend) ──────────────────────
 const BACKEND_URL = 'https://elysium-health-production.up.railway.app';
