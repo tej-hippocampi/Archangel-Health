@@ -175,7 +175,7 @@ async def upload_page():
 
 
 # ─── New Two-Resource Pipeline ────────────────────────────────
-@app.post("/api/process-discharge", response_model=DischargeResponse)
+@app.post("/api/process-discharge")
 async def process_discharge(input_data: DischargeInput):
     """
     Full two-resource pipeline:
@@ -188,54 +188,77 @@ async def process_discharge(input_data: DischargeInput):
 
     patient_id = input_data.patient_id or f"pt_{uuid.uuid4().hex[:8]}"
 
-    # 1. Extract structured data from raw discharge notes
-    raw_package = {
-        "metadata": {
+    try:
+        # 1. Extract structured data from raw discharge notes
+        print(f"[pipeline] Starting extraction for {patient_id}...")
+        raw_package = {
+            "metadata": {
+                "patient_id": patient_id,
+                "patient_name": input_data.patient_name,
+                "phone_number": "",
+            },
+            "clinical_data": {
+                "clinical_notes": input_data.discharge_notes,
+                "after_visit_summary": input_data.discharge_notes,
+                "pmh": "",
+                "procedure_context": "",
+                "medication_list": "",
+                "allergies": "",
+                "problem_list": "",
+            },
+        }
+
+        structured_data = await ExtractionLayer().extract(raw_package)
+        print(f"[pipeline] Extraction complete. Generating resources...")
+
+        # 2. Generate two resource sets (diagnosis + treatment)
+        generator = GenerationLayer()
+        resources = await generator.generate_two_resources(structured_data)
+        print(f"[pipeline] Generation complete. Synthesizing audio...")
+
+        # 3. Synthesize audio for both via ElevenLabs
+        el_client = ElevenLabsClient()
+        diag_audio = await el_client.synthesize(
+            resources["diagnosis"]["voice_script"], f"{patient_id}_diagnosis"
+        )
+        treat_audio = await el_client.synthesize(
+            resources["treatment"]["voice_script"], f"{patient_id}_treatment"
+        )
+        print(f"[pipeline] Audio synthesis complete. Storing results...")
+
+        # 4. Build dashboard URL
+        base_url = os.getenv("BASE_URL", "http://localhost:8000")
+        dashboard_url = f"{base_url}/patient/{patient_id}"
+
+        # 5. Store everything
+        _patient_store[patient_id] = {
+            "name": input_data.patient_name,
+            "phone": "",
+            "pipeline_type": "post_op",
+            "voice_audio_url": diag_audio,
+            "battlecard_html": resources["diagnosis"]["battlecard_html"],
+            "avatar_url": None,
+            "voice_script": resources["diagnosis"]["voice_script"],
+            "structured_data": structured_data,
+            "resources": {
+                "diagnosis": {
+                    "voice_script": resources["diagnosis"]["voice_script"],
+                    "battlecard_html": resources["diagnosis"]["battlecard_html"],
+                    "voice_audio_url": diag_audio,
+                },
+                "treatment": {
+                    "voice_script": resources["treatment"]["voice_script"],
+                    "battlecard_html": resources["treatment"]["battlecard_html"],
+                    "voice_audio_url": treat_audio,
+                },
+            },
+        }
+
+        print(f"[pipeline] Done! Dashboard: {dashboard_url}")
+
+        return {
             "patient_id": patient_id,
-            "patient_name": input_data.patient_name,
-            "phone_number": "",
-        },
-        "clinical_data": {
-            "clinical_notes": input_data.discharge_notes,
-            "after_visit_summary": input_data.discharge_notes,
-            "pmh": "",
-            "procedure_context": "",
-            "medication_list": "",
-            "allergies": "",
-            "problem_list": "",
-        },
-    }
-
-    structured_data = await ExtractionLayer().extract(raw_package)
-
-    # 2. Generate two resource sets (diagnosis + treatment)
-    generator = GenerationLayer()
-    resources = await generator.generate_two_resources(structured_data)
-
-    # 3. Synthesize audio for both via ElevenLabs
-    el_client = ElevenLabsClient()
-    diag_audio = await el_client.synthesize(
-        resources["diagnosis"]["voice_script"], f"{patient_id}_diagnosis"
-    )
-    treat_audio = await el_client.synthesize(
-        resources["treatment"]["voice_script"], f"{patient_id}_treatment"
-    )
-
-    # 4. Build dashboard URL
-    base_url = os.getenv("BASE_URL", "http://localhost:8000")
-    dashboard_url = f"{base_url}/patient/{patient_id}"
-
-    # 5. Store everything
-    _patient_store[patient_id] = {
-        "name": input_data.patient_name,
-        "phone": "",
-        "pipeline_type": "post_op",
-        "voice_audio_url": diag_audio,
-        "battlecard_html": resources["diagnosis"]["battlecard_html"],
-        "avatar_url": None,
-        "voice_script": resources["diagnosis"]["voice_script"],
-        "structured_data": structured_data,
-        "resources": {
+            "dashboard_url": dashboard_url,
             "diagnosis": {
                 "voice_script": resources["diagnosis"]["voice_script"],
                 "battlecard_html": resources["diagnosis"]["battlecard_html"],
@@ -246,24 +269,12 @@ async def process_discharge(input_data: DischargeInput):
                 "battlecard_html": resources["treatment"]["battlecard_html"],
                 "voice_audio_url": treat_audio,
             },
-        },
-    }
+            "structured_data": structured_data,
+        }
 
-    return DischargeResponse(
-        patient_id=patient_id,
-        dashboard_url=dashboard_url,
-        diagnosis=ResourceSet(
-            voice_script=resources["diagnosis"]["voice_script"],
-            battlecard_html=resources["diagnosis"]["battlecard_html"],
-            voice_audio_url=diag_audio,
-        ),
-        treatment=ResourceSet(
-            voice_script=resources["treatment"]["voice_script"],
-            battlecard_html=resources["treatment"]["battlecard_html"],
-            voice_audio_url=treat_audio,
-        ),
-        structured_data=structured_data,
-    )
+    except Exception as exc:
+        print(f"[pipeline] ERROR: {type(exc).__name__}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(exc)}")
 
 
 # ─── Legacy Process Patient ───────────────────────────────────
