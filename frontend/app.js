@@ -3,9 +3,7 @@
    Two-resource mode: Diagnosis + Treatment tabs
    ═══════════════════════════════════════════════════════════ */
 
-const API_BASE = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : '';
+const API_BASE = window.location.origin;
 
 const PATIENT = window.__PATIENT__ || {
   id:           'maria_001',
