@@ -90,5 +90,4 @@ class ElevenLabsClient:
 
         filepath.write_bytes(audio_bytes)
 
-        base_url = os.getenv("BASE_URL", "http://localhost:8000")
-        return f"{base_url}/audio/{filename}"
+        return f"/audio/{filename}"

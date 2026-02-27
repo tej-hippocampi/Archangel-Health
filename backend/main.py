@@ -340,7 +340,7 @@ async def get_patient_audio(patient_id: str):
         filename = cached_url.split("/audio/")[-1]
         from pathlib import Path
         if Path(f"/tmp/{filename}").exists():
-            return {"audio_url": cached_url}
+            return {"audio_url": f"/audio/{filename}"}
     voice_script = store.get("voice_script")
     if not voice_script:
         raise HTTPException(status_code=422, detail="No voice script available for this patient")
@@ -428,13 +428,17 @@ async def avatar_chat(req: ChatRequest):
         from prompts.avatar import build_avatar_system_prompt
         from anthropic import Anthropic
 
-        client        = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        system_prompt = build_avatar_system_prompt(patient_data["structured_data"])
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+        clean_data = {k: v for k, v in patient_data["structured_data"].items()
+                      if k != "_raw_clinical"}
+        system_prompt = build_avatar_system_prompt(clean_data)
 
         messages = [{"role": m["role"], "content": m["content"]}
                     for m in req.conversation_history]
         messages.append({"role": "user", "content": req.message})
 
+        print(f"[avatar_chat] Sending to Claude for patient {req.patient_id}...")
         response = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=350,
@@ -443,12 +447,15 @@ async def avatar_chat(req: ChatRequest):
         )
 
         reply_text = response.content[0].text
-        audio_url  = await ElevenLabsClient().synthesize(reply_text, f"{req.patient_id}_chat")
+        print(f"[avatar_chat] Got response ({len(reply_text)} chars), synthesizing audio...")
+        audio_url = await ElevenLabsClient().synthesize(reply_text, f"{req.patient_id}_chat")
 
         return ChatResponse(response=reply_text, patient_id=req.patient_id, audio_url=audio_url)
 
     except Exception as exc:
-        print(f"[avatar_chat] error: {exc}")
+        import traceback
+        print(f"[avatar_chat] ERROR: {type(exc).__name__}: {exc}")
+        traceback.print_exc()
         return ChatResponse(
             response="I'm having a brief technical issue. For urgent questions, please call your care team directly.",
             patient_id=req.patient_id, audio_url=None,

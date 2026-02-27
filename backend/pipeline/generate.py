@@ -115,7 +115,16 @@ class GenerationLayer:
             system=system,
             messages=[{"role": "user", "content": user}],
         )
-        return response.content[0].text
+        text = response.content[0].text.strip()
+        if text.startswith("```"):
+            first_newline = text.find("\n")
+            if first_newline != -1:
+                text = text[first_newline + 1:]
+            else:
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3].strip()
+        return text
 
     def _format_clinical_input(self, d: Dict[str, Any]) -> str:
         """Convert structured EHR fields into a clean clinical text block for prompts."""
