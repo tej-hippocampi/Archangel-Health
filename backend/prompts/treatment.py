@@ -193,64 +193,495 @@ Finally, follow-up.
 You can replay this anytime… and it's okay to share it with your partner or your mom."""
 
 
-TREATMENT_BATTLECARD_PROMPT = """# TREATMENT & RED FLAGS BATTLECARD — SYSTEM PROMPT
+TREATMENT_BATTLECARD_PROMPT = """# POST-OP BATTLECARD GENERATION SYSTEM PROMPT
 
-Extract treatment and warning sign information from the `[Voice Script]`
-and format as a scannable HTML action card.
+Extract highest-priority actionable information from the `[Treatment and Red Flags Voice Script]` and format as scannable HTML post-op discharge reference card.
 
 ## OBJECTIVE
-One-page card that is a patient's go-to reference for:
-what medications to take, what's normal, and when to call for help.
-This card should live on their fridge or bedside table.
+One-page card showing exactly what to do after surgery, which symptoms are normal vs. emergency, and when to get help.
 
 ## EXTRACTION PRIORITIES
-1. **The ONE Thing**: Critical compliance action
-2. **Medication Schedule**: Every med with exact dose, time, warnings
-3. **Activity Rules**: What they can/can't do and when
-4. **Normal vs. Call vs. ER**: Three-tier symptom triage
-5. **Follow-Up Schedule**: Appointments and blood work
+1. **The ONE Thing**: Critical compliance action (usually: take meds as prescribed OR know your red flags)
+2. **Medications**: New/changed meds with exact doses, frequencies, critical warnings
+3. **Recovery Timeline**: What happens when (today, first 3 days, first week, follow-ups)
+4. **Activity & Diet**: What you can/can't do, when restrictions lift, wound care
+5. **Normal vs Call vs ER**: Three-tier symptom framework
+6. **Follow-up**: Specific appointments with dates
 
-## HTML STRUCTURE
-
-Return a self-contained HTML fragment (no <html>/<body> tags).
-Include all CSS in a <style> block at the top.
-Use CareGuide design language (Inter font, blue primary #2563EB).
+## STRUCTURE
 
 **Header**
-- "Your Treatment & Recovery Action Card"
-- Patient name + procedure + date
+- Procedure name + "Discharge Card" or "Quick Action Card"
 
 **Sections**
-1. **⭐ The ONE Most Important Thing** — orange priority box with the
-   single critical action and why it matters
-2. **💊 Your Medications** — card for each medication:
-   - Name (bold), dose, frequency, route
-   - Color-coded left border: purple=NEW, blue=CONTINUE, red=STOP
-   - Warning notes in amber text below if applicable
-   - "If you miss a dose:" instruction
-3. **✓ What You Can / Can't Do** — two-column grid:
-   - Green "You CAN" box with allowed activities
-   - Red "Do NOT" box with restrictions
-   Include timeframes where mentioned
-4. **🩺 Know Your Symptoms** — three boxes:
-   - Blue info box: "What's Normal After Surgery" — 3-4 expected symptoms
-   - Yellow alert box: "Call Your Doctor Today If" — 3-4 call triggers
-   - Red alert box: "Go to ER Immediately If" — 3-4 emergencies
-5. **📅 What Happens Next** — timeline with follow-up appointments,
-   blood work schedule, expected milestones
-6. **📞 Contact** — "You are never bothering us" reminder + call instruction
+1. **Your Medications — Take Exactly As Prescribed**
+   - Each med: name, dose, frequency
+   - Bold critical warnings (don't stop suddenly, take with food, etc.)
 
-## FORMATTING RULES
-- Medication cards: rounded corners, left border accent, stacked layout
-- Symptom boxes: distinct background colors (blue/yellow/red)
-- Timeline: connected dots with labels
-- Icons: 💊 ⭐ ✓ ✗ 🩺 📅 📞 🚨 ⚠
-- Font: 'Inter', sans-serif
-- Font sizes: titles 16px bold, body 13–14px
-- Max width 820px, centered
+2. **What Happens Next** — Timeline dots
+   - Day 0 (today), Day 3-7, Week 1-2, follow-up appointments
+   - Actions under each dot
+
+3. **What You Can/Can't Do**
+   - Activity restrictions with timeframes
+   - Wound care instructions
+   - Diet progression if applicable
+
+4. **What's Normal After Surgery** — Info box
+   - Expected symptoms (mild pain, fatigue, drainage amount/color)
+
+5. **Call Your Doctor Today If** — Yellow alert
+   - 3-4 worrisome signs requiring same-day contact
+
+6. **Go to ER Immediately If** — Red alert
+   - 3-4 emergency red flags
+
+7. **Contact Box** — Reminder to call team with questions
+
+## FORMATTING
+- Medications: Card format with left border accent, name bold, dose/frequency on second line
+- Timeline: Visual dots connected by line, labels underneath
+- Normal symptoms: Light blue info box
+- Call doctor: Yellow alert box
+- ER: Red alert box
+- Icons: 💊 meds, 📅 timeline, ✓ can do, ✗ can't do, 📞 call, 🚨 emergency
+- Font: Titles 16px bold, body 13-14px, timeline 11-12px
 
 ## CONSTRAINTS
-- Extract only from voice script — no additions
+- Extract only from voice script—no additions
 - Use exact med names, doses, times from script
+- Use exact follow-up dates/providers from script
 - Maximum 4 items per alert box
-- ZERO HALLUCINATIONS: Only use information present in voice script"""
+- Copy HTML/CSS from `[Example Battlecard HTML]` exactly
+
+ZERO HALLUCINATIONS: Only use information present in voice script.
+
+---
+
+[Example Battlecard HTML]
+
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    .card {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        background: white;
+        max-width: 700px;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+        overflow: hidden;
+    }
+
+    .header {
+        background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+        color: white;
+        padding: 28px 24px;
+        text-align: center;
+    }
+
+    .header h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        letter-spacing: -0.5px;
+    }
+
+    .header p {
+        font-size: 15px;
+        opacity: 0.95;
+        font-weight: 500;
+    }
+
+    .content {
+        padding: 24px;
+    }
+
+    .strategy-box {
+        background: linear-gradient(135deg, #ede9fe 0%, #e0e7ff 100%);
+        border: 3px solid #8b5cf6;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 24px;
+        text-align: center;
+    }
+
+    .strategy-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #5b21b6;
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .strategy-content {
+        font-size: 16px;
+        color: #1a1a1a;
+        line-height: 1.7;
+    }
+
+    .meds-section {
+        margin-bottom: 24px;
+    }
+
+    .section-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+        border-bottom: 3px solid #8b5cf6;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .med-card {
+        background: #fafafa;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+        border-left: 5px solid #8b5cf6;
+        position: relative;
+    }
+
+    .med-priority {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        background: #8b5cf6;
+        color: white;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .med-name {
+        font-size: 20px;
+        font-weight: 700;
+        color: #5b21b6;
+        margin-bottom: 12px;
+    }
+
+    .med-role {
+        background: white;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        font-size: 14px;
+        color: #1a1a1a;
+        line-height: 1.6;
+    }
+
+    .med-instructions {
+        background: #ede9fe;
+        padding: 14px;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #1a1a1a;
+        line-height: 1.6;
+    }
+
+    .safety-box {
+        background: #fff3cd;
+        border: 3px solid #ffc107;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .safety-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #856404;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .safety-items {
+        display: grid;
+        gap: 12px;
+    }
+
+    .safety-item {
+        background: white;
+        padding: 14px;
+        border-radius: 8px;
+        font-size: 15px;
+        color: #1a1a1a;
+        line-height: 1.6;
+        border-left: 4px solid #ffc107;
+    }
+
+    .safety-item strong {
+        color: #856404;
+    }
+
+    .normal-box {
+        background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .normal-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #065f46;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .normal-subtitle {
+        font-size: 13px;
+        color: #047857;
+        margin-bottom: 12px;
+        font-weight: 600;
+    }
+
+    .normal-items {
+        display: grid;
+        gap: 10px;
+    }
+
+    .normal-item {
+        background: white;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        color: #1a1a1a;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .checkmark {
+        color: #10b981;
+        font-weight: 700;
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+
+    .alert-danger {
+        background: #fee;
+        border: 3px solid #dc3545;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .alert-title {
+        font-weight: 700;
+        font-size: 18px;
+        margin-bottom: 16px;
+        color: #dc3545;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .alert-grid {
+        display: grid;
+        gap: 12px;
+    }
+
+    .alert-item {
+        background: white;
+        padding: 14px;
+        border-radius: 8px;
+        font-size: 15px;
+        color: #1a1a1a;
+        line-height: 1.6;
+        border-left: 4px solid #dc3545;
+        font-weight: 500;
+    }
+
+    .support-box {
+        background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+    }
+
+    .support-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #9f1239;
+        margin-bottom: 12px;
+    }
+
+    .support-items {
+        display: grid;
+        gap: 10px;
+    }
+
+    .support-item {
+        background: white;
+        padding: 14px;
+        border-radius: 8px;
+        font-size: 15px;
+        color: #1a1a1a;
+        line-height: 1.6;
+    }
+
+    .highlight {
+        background: #fef08a;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 700;
+    }
+</style>
+
+<div class="card">
+    <div class="header">
+        <h1>💊 YOUR MEDICATIONS & WHEN TO SEEK CARE</h1>
+        <p>Post-Surgery Pain Management Guide</p>
+    </div>
+
+    <div class="content">
+        <!-- STRATEGY -->
+        <div class="strategy-box">
+            <div class="strategy-title">🎯 Your Pain Medication Plan</div>
+            <div class="strategy-content">
+                You are using <strong>three medications together</strong> for pain control.<br>
+                Each medication has a different role.<br>
+                Using them correctly helps control pain and protect healing.
+            </div>
+        </div>
+
+        <!-- MEDICATIONS -->
+        <div class="meds-section">
+            <div class="section-title">
+                <span>📋</span>
+                How to Take Each Medication
+            </div>
+
+            <div class="med-card">
+                <div class="med-priority">Level 1</div>
+                <div class="med-name">Acetaminophen</div>
+                <div class="med-role">
+                    <strong>Your scheduled base medication</strong>
+                </div>
+                <div class="med-instructions">
+                    Take every 8 hours around the clock
+                </div>
+            </div>
+
+            <div class="med-card">
+                <div class="med-priority">Level 2</div>
+                <div class="med-name">Ibuprofen</div>
+                <div class="med-role">
+                    <strong>For pain or swelling</strong> that still bothers you
+                </div>
+                <div class="med-instructions">
+                    Take with food when needed
+                </div>
+            </div>
+
+            <div class="med-card">
+                <div class="med-priority">Level 3</div>
+                <div class="med-name">Oxycodone</div>
+                <div class="med-role">
+                    <strong>Only for breakthrough pain</strong> not controlled by the others
+                </div>
+                <div class="med-instructions">
+                    Use only when acetaminophen + ibuprofen aren't enough
+                </div>
+            </div>
+        </div>
+
+        <!-- SAFETY -->
+        <div class="safety-box">
+            <div class="safety-title">
+                <span>⚠️</span>
+                Important Medication Safety Points
+            </div>
+
+            <div class="safety-items">
+                <div class="safety-item">
+                    Do not exceed <span class="highlight">4,000 mg of acetaminophen</span> in one day
+                </div>
+                <div class="safety-item">
+                    <strong>Feeling foggy or forgetful</strong> can happen with anesthesia and opioids
+                </div>
+                <div class="safety-item">
+                    It is okay to use a <strong>written schedule</strong> or ask a family member to help
+                </div>
+            </div>
+        </div>
+
+        <!-- WHAT'S NORMAL -->
+        <div class="normal-box">
+            <div class="normal-title">
+                <span>✓</span>
+                What Is Normal Right Now
+            </div>
+            <div class="normal-subtitle">These symptoms do NOT mean the repair has failed</div>
+
+            <div class="normal-items">
+                <div class="normal-item">
+                    <span class="checkmark">✓</span>
+                    <span>Pain and swelling at their peak 2-3 days after surgery</span>
+                </div>
+                <div class="normal-item">
+                    <span class="checkmark">✓</span>
+                    <span>Bruising around the shoulder or upper arm</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- RED FLAGS -->
+        <div class="alert-danger">
+            <div class="alert-title">
+                <span>🚨</span>
+                RED FLAGS — WHEN TO SEEK CARE
+            </div>
+
+            <div class="alert-grid">
+                <div class="alert-item">
+                    Fever greater than 100.4°F
+                </div>
+                <div class="alert-item">
+                    Increasing redness, warmth, or drainage from the incisions
+                </div>
+                <div class="alert-item">
+                    Pain that keeps worsening and is not helped by medication
+                </div>
+                <div class="alert-item">
+                    New numbness, tingling, or weakness in the arm or hand
+                </div>
+                <div class="alert-item">
+                    Chest pain or shortness of breath
+                </div>
+            </div>
+        </div>
+
+        <!-- EMOTIONAL SUPPORT -->
+        <div class="support-box">
+            <div class="support-title">💙 What to Remember Emotionally</div>
+
+            <div class="support-items">
+                <div class="support-item">
+                    Confusion about medications is <strong>common</strong> after surgery
+                </div>
+                <div class="support-item">
+                    Needing reminders or help right now is <strong>not a failure</strong>
+                </div>
+                <div class="support-item">
+                    Reaching out to the clinic with questions is <strong>always appropriate</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>"""
