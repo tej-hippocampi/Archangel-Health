@@ -228,6 +228,42 @@
 
     .mic-hint { font-size: 12px; color: var(--text-dim); }
 
+    .controls-row { display: flex; align-items: center; gap: 12px; }
+
+    .text-input-row {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+    .text-fallback {
+      flex: 1;
+      padding: 10px 16px;
+      background: var(--surface);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 24px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      outline: none;
+    }
+    .text-fallback:focus { border-color: var(--orb-primary); }
+    .text-fallback::placeholder { color: var(--text-dim); }
+    .send-text-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--orb-primary);
+      color: #fff;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .send-text-btn:hover { background: var(--orb-secondary); }
+
     /* ── Live Transcript ─────────────────── */
     .live-transcript {
       width: 100%;
@@ -294,8 +330,14 @@
     </div>
 
     <div class="controls">
-      <button class="mic-btn" id="micBtn" aria-label="Toggle microphone">🎙</button>
+      <div class="controls-row">
+        <button class="mic-btn" id="micBtn" aria-label="Toggle microphone">🎙</button>
+      </div>
       <span class="mic-hint" id="micHint">Tap to speak</span>
+      <div class="text-input-row">
+        <input type="text" class="text-fallback" id="textInput" placeholder="Or type your question here..." autocomplete="off" />
+        <button class="send-text-btn" id="sendTextBtn">→</button>
+      </div>
     </div>
   </div>
 
@@ -309,11 +351,14 @@
     const micBtn       = document.getElementById('micBtn');
     const micHint      = document.getElementById('micHint');
     const liveEl       = document.getElementById('liveTranscript');
+    const textInput    = document.getElementById('textInput');
+    const sendTextBtn  = document.getElementById('sendTextBtn');
 
     let conversationHistory = [];
     let isListening = false;
     let recognition = null;
     let currentAudio = null;
+    let micAvailable = true;
 
     document.getElementById('patientName').textContent = PATIENT.name || 'Patient';
 
@@ -321,8 +366,10 @@
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      statusEl.textContent = 'Speech recognition not supported in this browser. Try Chrome.';
-      micBtn.disabled = true;
+      micAvailable = false;
+      micBtn.style.opacity = '0.3';
+      micHint.textContent = 'Speech not supported — type below';
+      statusEl.textContent = 'Type your question below';
     }
 
     function createRecognition() {
@@ -343,23 +390,32 @@
 
       r.onresult = (e) => {
         let interim = '';
-        let final = '';
+        let finalText = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
           if (e.results[i].isFinal) {
-            final += e.results[i][0].transcript;
+            finalText += e.results[i][0].transcript;
           } else {
             interim += e.results[i][0].transcript;
           }
         }
-        liveEl.textContent = final || interim;
-        if (final) {
-          handleUserMessage(final.trim());
+        liveEl.textContent = finalText || interim;
+        if (finalText) {
+          handleUserMessage(finalText.trim());
         }
       };
 
       r.onerror = (e) => {
-        if (e.error !== 'no-speech' && e.error !== 'aborted') {
-          addMessage(`Mic error: ${e.error}`, 'system');
+        console.log('Speech recognition error:', e.error);
+        if (e.error === 'network') {
+          statusEl.textContent = 'Mic needs internet — type your question below';
+          micAvailable = false;
+          micBtn.style.opacity = '0.3';
+          micHint.textContent = 'Mic unavailable — use text input';
+        } else if (e.error === 'not-allowed') {
+          statusEl.textContent = 'Mic blocked — allow microphone in browser settings, or type below';
+          micHint.textContent = 'Mic blocked — use text input';
+        } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
+          statusEl.textContent = 'Mic issue — type your question below';
         }
         stopListening();
       };
@@ -373,6 +429,11 @@
 
     // ── Mic Button ───────────────────────────
     micBtn.addEventListener('click', () => {
+      if (!micAvailable) {
+        textInput.focus();
+        return;
+      }
+
       if (currentAudio) {
         currentAudio.pause();
         currentAudio = null;
@@ -381,15 +442,34 @@
       if (isListening) {
         recognition?.stop();
       } else {
-        recognition = createRecognition();
-        recognition.start();
+        try {
+          recognition = createRecognition();
+          recognition.start();
+        } catch (err) {
+          statusEl.textContent = 'Could not start mic — type your question below';
+          micAvailable = false;
+          textInput.focus();
+        }
       }
     });
+
+    // ── Text Input (always works) ────────────
+    sendTextBtn.addEventListener('click', sendTextMessage);
+    textInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); sendTextMessage(); }
+    });
+
+    function sendTextMessage() {
+      const text = textInput.value.trim();
+      if (!text) return;
+      textInput.value = '';
+      handleUserMessage(text);
+    }
 
     function stopListening() {
       isListening = false;
       micBtn.classList.remove('active');
-      micHint.textContent = 'Tap to speak';
+      if (micAvailable) micHint.textContent = 'Tap to speak';
       liveEl.classList.remove('active');
     }
 
@@ -401,7 +481,6 @@
       addMessage(text, 'patient');
       conversationHistory.push({ role: 'user', content: text });
 
-      // Keep rolling window of last 10 exchanges
       if (conversationHistory.length > 20) {
         conversationHistory = conversationHistory.slice(-20);
       }
@@ -426,20 +505,18 @@
         conversationHistory.push({ role: 'assistant', content: reply });
         addMessage(reply, 'assistant');
 
-        // Play audio if available from ElevenLabs
         if (data.audio_url) {
           setState('speaking');
           statusEl.textContent = 'Speaking...';
           await playAudio(data.audio_url);
         } else {
-          // Fallback to browser TTS
           setState('speaking');
           statusEl.textContent = 'Speaking...';
           await speakBrowser(reply);
         }
 
         setState('idle');
-        statusEl.textContent = 'Tap the mic to continue';
+        statusEl.textContent = micAvailable ? 'Tap the mic or type to continue' : 'Type your next question';
 
       } catch (err) {
         setState('idle');
@@ -454,10 +531,7 @@
         currentAudio = new Audio(url);
         currentAudio.addEventListener('ended', () => { currentAudio = null; resolve(); });
         currentAudio.addEventListener('error', () => { currentAudio = null; resolve(); });
-        currentAudio.play().catch(() => {
-          currentAudio = null;
-          resolve();
-        });
+        currentAudio.play().catch(() => { currentAudio = null; resolve(); });
       });
     }
 
@@ -475,9 +549,7 @@
     }
 
     // ── UI Helpers ───────────────────────────
-    function setState(state) {
-      orbContainer.dataset.state = state;
-    }
+    function setState(state) { orbContainer.dataset.state = state; }
 
     function addMessage(text, role) {
       const el = document.createElement('div');

@@ -368,6 +368,38 @@ body {
   flex-shrink: 0;
 }
 
+/* ─── Speed Control ─────────────────────────────────────── */
+.speed-control {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.speed-btn {
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.15);
+  color: rgba(255,255,255,.5);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.speed-btn:hover {
+  background: rgba(255,255,255,.2);
+  color: rgba(255,255,255,.8);
+}
+
+.speed-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
 /* ─── Battlecard ─────────────────────────────────────────── */
 .battlecard-wrapper {
   border: 1px solid var(--gray-200);

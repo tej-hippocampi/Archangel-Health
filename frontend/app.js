@@ -103,6 +103,24 @@ function noDataMsg(name) {
   return `<p style="padding:24px;color:#6B7280;">No ${name} available yet.</p>`;
 }
 
+// ─── Speed Control ────────────────────────────────────────────
+const audioPlayers = {};
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.speed-btn');
+  if (!btn) return;
+  const control = btn.closest('.speed-control');
+  const playerPrefix = control.dataset.player;
+  const speed = parseFloat(btn.dataset.speed);
+
+  control.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  if (audioPlayers[playerPrefix]) {
+    audioPlayers[playerPrefix].playbackRate = speed;
+  }
+});
+
 // ─── Audio Player ─────────────────────────────────────────────
 function initAudioPlayer(prefix, audioUrl) {
   const playPauseBtn = document.getElementById(`${prefix}PlayPauseBtn`);
@@ -113,6 +131,7 @@ function initAudioPlayer(prefix, audioUrl) {
   const progressBar  = document.getElementById(`${prefix}ProgressBar`);
 
   const audio = new Audio(audioUrl);
+  audioPlayers[prefix] = audio;
   let isPlaying = false;
 
   audio.addEventListener('loadedmetadata', () => {
