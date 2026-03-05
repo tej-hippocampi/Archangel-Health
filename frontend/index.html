@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Your Recovery Plan | CareGuide</title>
+  <title>Your Recovery Plan | Archangel Health</title>
   <link rel="stylesheet" href="/static/styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 </head>
@@ -20,7 +20,7 @@
               <path d="M12 8c-2.2 0-4 1.8-4 4s1.8 4 4 4 4-1.8 4-4-1.8-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" fill="#fff"/>
             </svg>
           </div>
-          <span>CareGuide</span>
+          <span>Archangel Health</span>
         </a>
       </div>
       <a href="/" class="back-to-roster" id="backToRoster" style="display:none;font-size:13px;font-weight:500;color:#6B7280;text-decoration:none;">← Back to Patient Roster</a>
@@ -89,23 +89,23 @@
         </div>
       </div>
 
-      <!-- Care Guide Section (shown on "Any further questions?" click) -->
+      <!-- Archangel Health guide section (shown on "Any further questions?" click) -->
       <div class="care-guide-card" id="careGuideSection" style="display: none;">
         <div class="panel avatar-panel" id="avatarPanel">
-          <h2 class="panel-title">Ask Your Care Guide</h2>
+          <h2 class="panel-title">Ask Archangel Health</h2>
           <p class="panel-subtitle">
-            Your AI care guide has full context of your discharge materials and can answer
+            Your AI guide has full context of your discharge materials and can answer
             questions about your diagnosis, medications, and what symptoms to watch for.
           </p>
           <div class="panel-actions" style="margin-bottom:16px;">
-            <a class="voice-avatar-btn" id="voiceAvatarBtn" href="#">🎙️ Voice Care Guide</a>
+            <a class="voice-avatar-btn" id="voiceAvatarBtn" href="#">🎙️ Voice guide</a>
           </div>
           <div class="avatar-interface">
             <div class="avatar-video-container">
               <div class="tavus-embed" id="tavusContainer">
                 <div class="avatar-placeholder">
                   <div class="avatar-circle">👩‍⚕️</div>
-                  <p class="avatar-name">Care Guide</p>
+                  <p class="avatar-name">Archangel Health</p>
                   <p class="avatar-status">Ready to help</p>
                 </div>
               </div>
@@ -146,15 +146,15 @@
         <div class="questions-content">
           <div>
             <p class="questions-heading">Still have questions?</p>
-            <p class="questions-sub">Your care guide is available 24/7</p>
+            <p class="questions-sub">Your guide is available 24/7</p>
           </div>
           <div class="questions-actions">
             <button type="button" class="questions-btn primary" id="openAvatarBtn">
-              💬 Talk to Your Care Guide
+              💬 Talk to Archangel Health
             </button>
-            <a href="tel:" class="questions-btn secondary" id="callTeamBtn">
-              📞 Call Care Team
-            </a>
+            <button type="button" class="questions-btn secondary" id="callTeamBtn">
+              📞 Call Your Care Team
+            </button>
           </div>
         </div>
       </div>
@@ -195,7 +195,7 @@
           </div>
         </div>
         <p class="detail-footer-cta">
-          <a href="#" class="detail-voice-link" id="voiceLinkDiagnosis">Talk to Your Care Guide</a>
+          <a href="#" class="detail-voice-link" id="voiceLinkDiagnosis">Talk to Archangel Health</a>
         </p>
       </div>
     </div>
@@ -235,9 +235,20 @@
           </div>
         </div>
         <p class="detail-footer-cta">
-          <a href="#" class="detail-voice-link" id="voiceLinkTreatment">Talk to Your Care Guide</a>
+          <a href="#" class="detail-voice-link" id="voiceLinkTreatment">Talk to Archangel Health</a>
         </p>
       </div>
+    </div>
+  </div>
+
+  <!-- Call care team popup -->
+  <div class="call-team-overlay" id="callTeamOverlay" aria-hidden="true">
+    <div class="call-team-popup">
+      <h3 class="call-team-title">Call your care team</h3>
+      <p class="call-team-sub">Use the number below to reach your doctor’s office.</p>
+      <p class="call-team-phone" id="callTeamPhoneDisplay">—</p>
+      <a href="#" class="call-team-tel-link" id="callTeamTelLink">📞 Call now</a>
+      <button type="button" class="call-team-close" id="callTeamClose">Close</button>
     </div>
   </div>
 

@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SignInDialog } from "@/app/components/SignInDialog";
 import { SignUpDialog } from "@/app/components/SignUpDialog";
 import ArchangelHealthLogo from "@/app/components/ArchangelHealthLogo";
-import { Button } from "@/app/components/ui/button";
+import * as authApi from "@/lib/auth-api";
 
 // Dashboard link after login: env or default to backend in dev
 const env = (import.meta as unknown as { env: { VITE_DASHBOARD_URL?: string; VITE_API_URL?: string; DEV?: boolean } }).env;
@@ -14,18 +14,51 @@ const DASHBOARD_URL =
   (env?.DEV ? "http://localhost:8000" : "");
 
 function LandingContent() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, token } = useAuth();
   const [signInOpen, setSignInOpen] = useState(false);
   const [signUpOpen, setSignUpOpen] = useState(false);
+  const [signUpInitialStep, setSignUpInitialStep] = useState<"role" | "patient-codes">("role");
 
-  // After login, redirect to dashboard when available (e.g. backend at localhost:8000)
+  // After login, redirect to dashboard only if doctor has completed onboarding (has profile)
   useEffect(() => {
-    if (user && DASHBOARD_URL) {
-      window.location.href = DASHBOARD_URL;
+    if (!user || !DASHBOARD_URL || !token) return;
+    let cancelled = false;
+    authApi.getDoctorProfile(token).then((profile) => {
+      if (!cancelled && profile) {
+        window.location.href = DASHBOARD_URL + "#auth=" + encodeURIComponent(token);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [user, token]);
+
+  // When landing with ?signout=1 or pathname /auth/signout (from doctor dashboard Sign out), clear auth and clean URL
+  const { logout: authLogout } = useAuth();
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const isSignoutQuery = params.get("signout") === "1";
+    const isSignoutPath = window.location.pathname === "/auth/signout";
+    if (isSignoutQuery || isSignoutPath) {
+      authLogout();
+      params.delete("signout");
+      const newSearch = params.toString();
+      const newUrl = (isSignoutPath ? "/" : window.location.pathname) + (newSearch ? "?" + newSearch : "") + window.location.hash;
+      window.history.replaceState(null, "", newUrl);
     }
-  }, [user]);
+  }, [authLogout]);
+
+  // When landing with #recovery-plan (e.g. from email "View your recovery plan" link), open Sign up dialog on patient code step
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash === "#recovery-plan") {
+      setSignUpInitialStep("patient-codes");
+      setSignUpOpen(true);
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
 
   return (
+    <>
     <div className="hero relative min-h-screen w-full overflow-hidden bg-[#0a0a0b]">
       {/* Animated GIF Background - FIRST CHILD */}
       <img
@@ -63,7 +96,7 @@ function LandingContent() {
                     className="auth-btn auth-btn-primary inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium text-[#0a0a0b] bg-[#f5f5f7] hover:bg-[#e0e0e5] transition-colors"
                   >
                     {user.name
-                      ? `Dr. ${user.name.trim().split(" ").slice(0, 2).join(" ")}`
+                      ? user.name.trim().split(" ").slice(0, 2).join(" ")
                       : "Doctor Portal"}
                   </a>
                 )}
@@ -86,7 +119,7 @@ function LandingContent() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSignUpOpen(true)}
+                  onClick={() => { setSignUpInitialStep("role"); setSignUpOpen(true); }}
                   className="auth-btn auth-btn-primary inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium text-[#0a0a0b] bg-[#f5f5f7] hover:bg-[#00ffff] hover:text-[#0a0a0b] transition-all shadow-[0_0_20px_rgba(0,255,255,0.2)]"
                 >
                   Sign up
@@ -125,9 +158,6 @@ function LandingContent() {
           </motion.div>
         </div>
       </div>
-
-      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
-      <SignUpDialog open={signUpOpen} onOpenChange={setSignUpOpen} />
 
       <style>{`
         .hero { position: relative; overflow: hidden; }
@@ -177,6 +207,10 @@ function LandingContent() {
         }
       `}</style>
     </div>
+
+    <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
+    <SignUpDialog open={signUpOpen} onOpenChange={setSignUpOpen} initialStep={signUpInitialStep} />
+    </>
   );
 }
 

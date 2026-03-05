@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   CareGuide Patient Dashboard — app.js
+   Archangel Health Patient Dashboard — app.js
    All resource data is injected into window.__PATIENT__ by the server.
    No secondary API calls needed for battlecards or audio.
    ═══════════════════════════════════════════════════════════ */
@@ -37,7 +37,36 @@ function initPatientInfo() {
     setText('cardTitle', 'Pre-Surgery Preparation Plan');
   }
   const callBtn = document.getElementById('callTeamBtn');
-  if (callBtn && PATIENT.phoneTeam) callBtn.href = `tel:${PATIENT.phoneTeam}`;
+  const overlay = document.getElementById('callTeamOverlay');
+  if (callBtn && overlay) {
+    callBtn.addEventListener('click', function () {
+      const phoneDisplay = document.getElementById('callTeamPhoneDisplay');
+      const telLink = document.getElementById('callTeamTelLink');
+      const phone = PATIENT.phoneTeam || '';
+      if (phone) {
+        phoneDisplay.textContent = phone;
+        telLink.href = 'tel:' + phone.replace(/\s/g, '');
+        telLink.style.display = '';
+      } else {
+        phoneDisplay.textContent = 'No office phone on file. Please contact your care team via your discharge paperwork.';
+        telLink.style.display = 'none';
+      }
+      overlay.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    });
+  }
+  document.getElementById('callTeamClose')?.addEventListener('click', function () {
+    const o = document.getElementById('callTeamOverlay');
+    if (o) { o.classList.remove('is-open'); o.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
+  });
+  document.getElementById('callTeamOverlay')?.addEventListener('click', function (e) {
+    if (e.target === this) {
+      this.classList.remove('is-open');
+      this.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+  });
 
   if (PATIENT.doctorView) {
     const backBtn = document.getElementById('backToRoster');

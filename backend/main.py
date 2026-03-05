@@ -5,12 +5,14 @@ FastAPI backend: EHR → Pipeline → Dashboard → SMS
 
 import os
 import json
+import secrets
+import string
 from typing import Optional, List
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, APIRouter, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -27,16 +29,20 @@ from auth import (
     UserCreate,
     UserLogin,
     UserOut,
+    DoctorOnboard,
+    DoctorProfileOut,
     register_user,
     authenticate_user,
     get_current_user_optional,
     get_current_user,
     create_access_token,
+    get_doctor_profile,
+    set_doctor_profile,
 )
 
 # ─── App Setup ────────────────────────────────────────────────
 app = FastAPI(
-    title="CareGuide Surgical Patient Platform",
+    title="Archangel Health Surgical Patient Platform",
     description="Personalized surgical education videos generated from EHR data.",
     version="0.2.0",
 )
@@ -72,81 +78,7 @@ def _apply_cache_bust(html: str) -> str:
     return html
 
 
-# ─── Demo Seed ────────────────────────────────────────────────
-@app.on_event("startup")
-async def _seed_demo_patient() -> None:
-    """Pre-populate demo patient so the dashboard works without running the full pipeline."""
-    _patient_store["maria_001"] = {
-        "name": "Maria L.",
-        "phone": "",
-        "email": "",
-        "pipeline_type": "post_op",
-        "voice_audio_url": None,
-        "battlecard_html": "",
-        "avatar_url": None,
-        "voice_script": (
-            "Hi Maria, I'm your personal care guide from the surgical team. "
-            "I'm here to make sure you feel confident and supported as you recover at home. "
-            "You just had a lumpectomy and sentinel node biopsy, and you're starting an important "
-            "medication called olaparib to protect against the cancer returning. "
-            "The most important thing right now: take olaparib 300 milligrams every morning and "
-            "300 milligrams every evening — about 12 hours apart — every single day. "
-            "I recommend setting phone alarms right now so you never miss a dose. "
-            "If you do miss one, just skip it and take the next one on schedule. Never double up. "
-            "You may feel some fatigue over the coming days — that's completely normal because "
-            "your blood count is slightly low, and your body is healing. "
-            "There are a few things that need a call to us right away: "
-            "a fever of 100.4 degrees or higher means call us immediately. "
-            "Shortness of breath or chest pain means call 911 — don't wait. "
-            "Vomiting that won't stop, diarrhea that doesn't improve, or new bruising — call us. "
-            "Your follow-up appointment is in about 4 weeks at the oncology clinic "
-            "for a blood count recheck. We'll see how your body is tolerating the olaparib. "
-            "Before that appointment — or any time — call us if something worries you. "
-            "You are never bothering us. Calling early is always the right choice. "
-            "You are strong, you have a great team behind you, and you've got this, Maria."
-        ),
-        "structured_data": {
-            "patient_name": "Maria L.",
-            "procedure_name": "Lumpectomy + Sentinel Node Biopsy",
-            "allergies": ["NKDA"],
-            "key_diagnoses": [
-                "Triple-negative breast cancer",
-                "BRCA1 mutation (germline)",
-            ],
-            "medications": [
-                {"name": "Olaparib", "dose": "300mg", "frequency": "twice daily (12 hrs apart)", "route": "oral", "status": "CONTINUE", "notes": "Take for 12 months at the same times every day."},
-                {"name": "Ondansetron", "dose": "8mg", "frequency": "every 8 hrs as needed", "route": "oral", "status": "CONTINUE", "notes": "For nausea — take as soon as you feel off."},
-                {"name": "Loperamide", "dose": "2mg after first loose stool, then 2mg each (max 8mg/day)", "frequency": "as needed", "route": "oral", "status": "CONTINUE", "notes": "For diarrhea."},
-            ],
-            "red_flags": [
-                "Fever 100.4°F or higher → call doctor immediately",
-                "Shortness of breath or chest pain → call 911 / ER",
-                "Vomiting that won't stop → call doctor",
-                "Diarrhea that won't improve → call doctor",
-                "New or worsening bleeding or bruising → call doctor",
-                "Severe dizziness, can't keep fluids down → ER",
-                "Worsening fatigue, lightheadedness, racing heart → call doctor",
-            ],
-            "normal_symptoms": [
-                "Mild fatigue (blood count slightly low — Hgb 10.6, mild anemia expected)",
-                "Mild soreness at incision site",
-                "Light bruising",
-            ],
-            "post_op_instructions": (
-                "Take olaparib exactly as prescribed — do NOT double up missed doses. "
-                "No new supplements or herbal products without oncology approval. "
-                "Use effective contraception during olaparib therapy. "
-                "BRCA1 mutation is genetic — not caused by lifestyle."
-            ),
-            "primary_concern": "Understanding olaparib schedule and when to call the care team",
-            "follow_up": {
-                "date": "4 weeks from discharge",
-                "provider": "Oncology clinic",
-                "notes": "Blood count recheck",
-            },
-        },
-        "resources": None,
-    }
+# ─── Patient store starts empty (no demo seed) ─────────────────
 
 # ─── Request / Response Models ────────────────────────────────
 class EHRBundle(BaseModel):
@@ -211,7 +143,7 @@ async def auth_register(body: UserCreate):
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": UserOut(email=user["email"], name=user.get("name")),
+        "user": UserOut(email=user["email"], name=user.get("name"), role=user.get("role")),
     }
 
 
@@ -225,7 +157,7 @@ async def auth_login(body: UserLogin):
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": UserOut(email=user["email"], name=user.get("name")),
+        "user": UserOut(email=user["email"], name=user.get("name"), role=user.get("role")),
     }
 
 
@@ -233,6 +165,66 @@ async def auth_login(body: UserLogin):
 async def auth_me(user: UserOut = Depends(get_current_user)):
     """Return current user from Bearer token."""
     return user
+
+
+@app.get("/auth/signout")
+async def auth_signout():
+    """Redirect to landing page with signout=1 so landing can clear auth state."""
+    landing_url = (os.getenv("LANDING_URL") or "http://localhost:5173").strip().rstrip("/")
+    signout_url = f"{landing_url}?signout=1"
+    return RedirectResponse(url=signout_url, status_code=302)
+
+
+def _generate_resource_code() -> str:
+    """Generate a random alphanumeric resource code (8 chars)."""
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(8))
+
+
+# ─── Doctor profile & onboarding ──────────────────────────────
+@app.get("/api/doctor/profile", response_model=DoctorProfileOut)
+async def doctor_profile(user: UserOut = Depends(get_current_user)):
+    """Return current doctor's profile (requires onboarding to be done)."""
+    profile = get_doctor_profile(user.email)
+    if not profile:
+        raise HTTPException(
+            status_code=404,
+            detail="Doctor profile not found. Complete onboarding first.",
+        )
+    return DoctorProfileOut(**profile)
+
+
+@app.post("/api/doctor/onboard", response_model=DoctorProfileOut)
+async def doctor_onboard(body: DoctorOnboard, user: UserOut = Depends(get_current_user)):
+    """Set doctor profile and generate clinic code. Email must match current user."""
+    if user.email.lower() != body.email.lower():
+        raise HTTPException(status_code=400, detail="Email must match your account.")
+    try:
+        profile = set_doctor_profile(
+            user.email,
+            name=body.name,
+            office_phone=body.office_phone,
+            doctor_type=body.doctor_type,
+            hospital_affiliations=body.hospital_affiliations,
+        )
+        return DoctorProfileOut(**profile)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ─── Patient access by codes (for landing code-entry form) ───────
+@app.get("/api/patient/by-codes")
+async def patient_by_codes(clinic_code: str, resource_code: str):
+    """Resolve clinic_code + resource_code to patient_id and dashboard URL."""
+    clinic_code = (clinic_code or "").strip().upper()
+    resource_code = (resource_code or "").strip().upper()
+    if not clinic_code or not resource_code:
+        raise HTTPException(status_code=400, detail="Clinic code and resource code are required.")
+    for pid, d in _patient_store.items():
+        if (d.get("clinic_code") or "").upper() == clinic_code and (d.get("resource_code") or "").upper() == resource_code:
+            base_url = os.getenv("BASE_URL", "http://localhost:8000")
+            return {"patient_id": pid, "dashboard_url": f"{base_url}/patient/{pid}"}
+    raise HTTPException(status_code=404, detail="No patient found for these codes. Check and try again.")
 
 
 # ─── Doctor Portal ────────────────────────────────────────────
@@ -293,6 +285,7 @@ async def doctor_patient_view(patient_id: str):
             },
         }
 
+    phone_team = d.get("office_phone") or os.getenv("CARE_TEAM_PHONE", "")
     patient_json = json.dumps({
         "id":           patient_id,
         "name":         d["name"],
@@ -302,7 +295,7 @@ async def doctor_patient_view(patient_id: str):
         "visitDate":    d["structured_data"].get("procedure_date", ""),
         "audioUrl":     d.get("voice_audio_url") or None,
         "tavusUrl":     d.get("avatar_url") or None,
-        "phoneTeam":    os.getenv("CARE_TEAM_PHONE", ""),
+        "phoneTeam":    phone_team,
         "hasResources": resources_json is not None,
         "resources":    resources_json,
         "doctorView":   True,
@@ -350,7 +343,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 # ─── Send to Patient ──────────────────────────────────────────
 @app.post("/api/send-to-patient/{patient_id}")
 async def send_to_patient(patient_id: str):
-    """Send the patient dashboard link via SMS (Twilio) and email."""
+    """Send the patient dashboard link via SMS (Twilio) and email. Email includes clinic/resource codes and link to code-entry page."""
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
 
@@ -360,7 +353,12 @@ async def send_to_patient(patient_id: str):
     phone = d.get("phone", "")
     email = d.get("email", "")
     base_url = os.getenv("BASE_URL", "http://localhost:8000")
+    landing_url = (os.getenv("LANDING_URL") or "").strip().rstrip("/")
     dashboard_url = f"{base_url}/patient/{patient_id}"
+    clinic_code = (d.get("clinic_code") or "").strip()
+    resource_code = (d.get("resource_code") or "").strip()
+    # Link must go to landing page so patient can enter codes; never use backend root (doctor dashboard)
+    recovery_plan_entry_url = f"{landing_url}/#recovery-plan" if landing_url else dashboard_url
 
     results = {"sms": None, "email": None}
 
@@ -369,7 +367,8 @@ async def send_to_patient(patient_id: str):
         try:
             sms_body = (
                 f"Hi {first_name}, your post-surgery recovery resources from your care team are ready. "
-                f"View your personalized recovery plan here: {dashboard_url} "
+                f"View your personalized recovery plan here: {recovery_plan_entry_url} "
+                f"Use Clinic Code: {clinic_code or 'N/A'}, Resource Code: {resource_code or 'N/A'}. "
                 f"(Best viewed on a computer)"
             )
             sid = TwilioClient().send(to=phone, body=sms_body)
@@ -385,19 +384,30 @@ async def send_to_patient(patient_id: str):
             from_email = os.getenv("SENDGRID_FROM_EMAIL", "noreply@archangelhealth.ai")
             from_name = os.getenv("SENDGRID_FROM_NAME", "Archangel Health")
 
+            codes_block = ""
+            if clinic_code or resource_code:
+                codes_block = (
+                    f'<p style="font-size:15px;color:#374151;line-height:1.6;margin-bottom:12px;">'
+                    f'Your access codes (save these):</p>'
+                    f'<p style="font-size:14px;color:#111827;margin-bottom:8px;">'
+                    f'<strong>Clinic Code:</strong> <b style="font-size:16px;letter-spacing:.05em;">{clinic_code or "—"}</b></p>'
+                    f'<p style="font-size:14px;color:#111827;margin-bottom:16px;">'
+                    f'<strong>Resource Code:</strong> <b style="font-size:16px;letter-spacing:.05em;">{resource_code or "—"}</b></p>'
+                )
             html_body = f"""
             <div style="font-family:-apple-system,sans-serif;max-width:500px;margin:0 auto;padding:24px;">
                 <div style="background:linear-gradient(135deg,#1A3C8F,#2563EB);color:#fff;padding:24px;border-radius:12px;text-align:center;margin-bottom:20px;">
-                    <h1 style="font-size:20px;margin-bottom:6px;">CareGuide</h1>
+                    <h1 style="font-size:20px;margin-bottom:6px;">Archangel Health</h1>
                     <p style="font-size:14px;opacity:.85;">Your Recovery Resources Are Ready</p>
                 </div>
                 <p style="font-size:15px;color:#374151;line-height:1.6;margin-bottom:16px;">
                     Hi {first_name}, your care team has prepared personalized recovery resources for you, including voice explanations and quick reference guides.
                 </p>
-                <a href="{dashboard_url}" style="display:block;text-align:center;background:#2563EB;color:#fff;padding:14px 24px;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;margin-bottom:16px;">
+                {codes_block}
+                <a href="{recovery_plan_entry_url}" style="display:block;text-align:center;background:#2563EB;color:#fff;padding:14px 24px;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;margin-bottom:16px;">
                     View Your Recovery Plan
                 </a>
-                <p style="font-size:13px;color:#6B7280;text-align:center;">Best viewed on a computer or tablet.</p>
+                <p style="font-size:13px;color:#6B7280;text-align:center;">Use your Clinic Code and Resource Code above to access your plan. Best viewed on a computer or tablet.</p>
             </div>
             """
 
@@ -408,7 +418,7 @@ async def send_to_patient(patient_id: str):
                 message = Mail(
                     from_email=(from_email, from_name),
                     to_emails=email,
-                    subject="Your Recovery Resources Are Ready - CareGuide",
+                    subject="Your Recovery Resources Are Ready - Archangel Health",
                     html_content=html_body,
                 )
                 sg = SendGridAPIClient(api_key)
@@ -427,7 +437,7 @@ async def send_to_patient(patient_id: str):
                 smtp_pass = os.getenv("SMTP_PASS")
                 if smtp_host and smtp_user and smtp_pass:
                     msg = MIMEMultipart("alternative")
-                    msg["Subject"] = "Your Recovery Resources Are Ready - CareGuide"
+                    msg["Subject"] = "Your Recovery Resources Are Ready - Archangel Health"
                     msg["From"] = smtp_user
                     msg["To"] = email
                     msg.attach(MIMEText(html_body, "html"))
@@ -452,17 +462,30 @@ async def send_to_patient(patient_id: str):
 
 # ─── New Two-Resource Pipeline ────────────────────────────────
 @app.post("/api/process-discharge")
-async def process_discharge(input_data: DischargeInput):
+async def process_discharge(
+    input_data: DischargeInput,
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+):
     """
     Full two-resource pipeline:
       Raw discharge notes → Extract → Generate (Diagnosis + Treatment)
                          → ElevenLabs audio for each → Store
 
+    If called by an authenticated doctor with a profile, assigns clinic_code, resource_code, and office_phone to the patient.
     Returns both resource sets for immediate display.
     """
     import uuid
 
     patient_id = input_data.patient_id or f"pt_{uuid.uuid4().hex[:8]}"
+    clinic_code = None
+    resource_code = None
+    office_phone = None
+    if user and user.role == "doctor":
+        profile = get_doctor_profile(user.email)
+        if profile:
+            clinic_code = profile["clinic_code"]
+            office_phone = profile.get("office_phone") or ""
+            resource_code = _generate_resource_code()
 
     try:
         # 1. Extract structured data from raw discharge notes
@@ -506,7 +529,7 @@ async def process_discharge(input_data: DischargeInput):
         base_url = os.getenv("BASE_URL", "http://localhost:8000")
         dashboard_url = f"{base_url}/patient/{patient_id}"
 
-        # 5. Store everything
+        # 5. Store everything (include clinic_code, resource_code, office_phone when from authenticated doctor)
         _patient_store[patient_id] = {
             "name": input_data.patient_name,
             "phone": input_data.phone_number or "",
@@ -517,6 +540,9 @@ async def process_discharge(input_data: DischargeInput):
             "avatar_url": None,
             "voice_script": resources["diagnosis"]["voice_script"],
             "structured_data": structured_data,
+            "clinic_code": clinic_code,
+            "resource_code": resource_code,
+            "office_phone": office_phone,
             "resources": {
                 "diagnosis": {
                     "voice_script": resources["diagnosis"]["voice_script"],
@@ -533,9 +559,11 @@ async def process_discharge(input_data: DischargeInput):
 
         print(f"[pipeline] Done! Dashboard: {dashboard_url}")
 
-        return {
+        out = {
             "patient_id": patient_id,
             "dashboard_url": dashboard_url,
+            "clinic_code": clinic_code,
+            "resource_code": resource_code,
             "diagnosis": {
                 "voice_script": resources["diagnosis"]["voice_script"],
                 "battlecard_html": resources["diagnosis"]["battlecard_html"],
@@ -548,6 +576,7 @@ async def process_discharge(input_data: DischargeInput):
             },
             "structured_data": structured_data,
         }
+        return out
 
     except Exception as exc:
         print(f"[pipeline] ERROR: {type(exc).__name__}: {exc}")
@@ -654,6 +683,7 @@ async def get_dashboard_config(patient_id: str):
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
     d = _patient_store[patient_id]
+    phone_team = d.get("office_phone") or os.getenv("CARE_TEAM_PHONE", "")
     return {
         "id":            patient_id,
         "name":          d["name"],
@@ -662,7 +692,7 @@ async def get_dashboard_config(patient_id: str):
         "visitDate":     d["structured_data"].get("procedure_date", ""),
         "audioUrl":      d["voice_audio_url"],
         "tavusUrl":      d["avatar_url"],
-        "phoneTeam":     os.getenv("CARE_TEAM_PHONE", ""),
+        "phoneTeam":     phone_team,
         "hasResources":  d.get("resources") is not None,
     }
 
@@ -730,6 +760,7 @@ async def patient_dashboard(patient_id: str):
             },
         }
 
+    phone_team = d.get("office_phone") or os.getenv("CARE_TEAM_PHONE", "")
     patient_json = {
         "id":           patient_id,
         "name":         d["name"],
@@ -739,7 +770,7 @@ async def patient_dashboard(patient_id: str):
         "visitDate":    d["structured_data"].get("procedure_date", ""),
         "audioUrl":     d.get("voice_audio_url") or None,
         "tavusUrl":     d.get("avatar_url") or None,
-        "phoneTeam":    os.getenv("CARE_TEAM_PHONE", ""),
+        "phoneTeam":    phone_team,
         "hasResources": resources_json is not None,
         "resources":    resources_json,
     }

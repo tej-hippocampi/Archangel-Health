@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Doctor Portal | CareGuide</title>
+  <title>Doctor Portal | Archangel Health</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
@@ -23,8 +23,11 @@
     .header { background: #fff; border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
     .header-inner { max-width: 1000px; margin: 0 auto; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
     .logo { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; color: var(--primary); }
-    .logo-icon { width: 34px; height: 34px; background: var(--primary); border-radius: 9px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; font-weight: 700; }
+    .logo-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--primary); padding: 4px; }
+    .logo-icon svg { width: 100%; height: 100%; }
     .header-badge { display: flex; align-items: center; gap: 8px; background: var(--primary-light); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--primary); }
+    .signout-link { font-size: 13px; font-weight: 500; color: var(--gray-600); text-decoration: none; }
+    .signout-link:hover { color: var(--gray-900); }
 
     /* Main */
     .main { max-width: 1000px; margin: 0 auto; padding: 28px 24px 60px; }
@@ -64,6 +67,7 @@
     .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
     .status-ready { background: #D1FAE5; color: #065F46; }
     .status-pending { background: #FEF3C7; color: #92400E; }
+    .status-loading { background: #DBEAFE; color: #1D4ED8; }
     .action-btns { display: flex; gap: 8px; }
     .view-btn {
       padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
@@ -73,29 +77,30 @@
     .view-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
     .view-btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
     .view-btn.primary:hover { background: var(--primary-dark); }
-    .empty-state { text-align: center; padding: 48px 24px; color: var(--gray-500); }
-    .empty-state p { font-size: 15px; margin-bottom: 8px; }
-    .empty-state span { font-size: 13px; }
+    .empty-state { text-align: center; padding: 64px 32px; color: var(--gray-600); background: linear-gradient(180deg, var(--gray-50) 0%, #fff 100%); border-radius: 16px; margin: 0 1px 1px 1px; }
+    .empty-state-icon { font-size: 48px; margin-bottom: 20px; opacity: 0.6; }
+    .empty-state p { font-size: 17px; font-weight: 600; color: var(--gray-800); margin-bottom: 10px; line-height: 1.4; }
+    .empty-state span { font-size: 14px; color: var(--gray-500); display: block; margin-bottom: 24px; max-width: 320px; margin-left: auto; margin-right: auto; }
+    .empty-state .add-from-empty { margin-top: 8px; }
 
-    /* Add Patient Modal */
+    /* Add Patient Modal — sticky header/footer, scrollable body */
     .modal-overlay {
       display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5);
-      z-index: 200; justify-content: flex-start; align-items: flex-start;
-      padding: 40px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      z-index: 200; justify-content: center; align-items: center;
+      padding: 24px;
     }
     .modal-overlay.active { display: flex; }
     .modal {
-      background: #fff; border-radius: 16px; width: 100%; max-width: 600px;
-      margin: auto;
+      background: #fff; border-radius: 16px; width: 100%; max-width: 600px; max-height: 90vh;
       box-shadow: 0 25px 60px rgba(0,0,0,.25); animation: modal-in .25s ease-out;
-      flex-shrink: 0;
+      display: flex; flex-direction: column; overflow: hidden;
     }
     @keyframes modal-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-    .modal-header { padding: 24px 28px 0; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: #fff; border-radius: 16px 16px 0 0; z-index: 1; }
-    .modal-header h2 { font-size: 20px; font-weight: 700; color: var(--gray-900); }
+    .modal-header { flex: 0 0 auto; padding: 20px 28px; display: flex; justify-content: space-between; align-items: center; background: #fff; border-bottom: 1px solid var(--gray-100); }
+    .modal-header h2 { font-size: 20px; font-weight: 700; color: var(--gray-900); margin: 0; }
     .modal-close { width: 32px; height: 32px; border: none; background: var(--gray-100); border-radius: 8px; font-size: 18px; cursor: pointer; color: var(--gray-500); display: flex; align-items: center; justify-content: center; }
     .modal-close:hover { background: var(--gray-200); }
-    .modal-body { padding: 24px 28px; }
+    .modal-body { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding: 24px 28px; -webkit-overflow-scrolling: touch; }
     .form-group { margin-bottom: 18px; }
     .form-group label { display: block; font-size: 14px; font-weight: 600; color: var(--gray-700); margin-bottom: 6px; }
     .form-group input, .form-group textarea {
@@ -104,7 +109,7 @@
     }
     .form-group input:focus, .form-group textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
     .form-group textarea { min-height: 160px; resize: vertical; line-height: 1.6; }
-    .modal-footer { padding: 16px 28px 24px; display: flex; justify-content: flex-end; gap: 10px; position: sticky; bottom: 0; background: #fff; border-radius: 0 0 16px 16px; border-top: 1px solid var(--gray-100); }
+    .modal-footer { flex: 0 0 auto; padding: 16px 28px 20px; display: flex; justify-content: flex-end; gap: 10px; background: #fff; border-top: 1px solid var(--gray-100); }
     .btn-cancel { padding: 10px 20px; border: 1px solid var(--gray-200); border-radius: 10px; font-family: var(--font); font-size: 14px; font-weight: 500; cursor: pointer; background: #fff; color: var(--gray-600); }
     .btn-submit {
       padding: 10px 24px; border: none; border-radius: 10px; font-family: var(--font);
@@ -114,13 +119,18 @@
     .btn-submit:hover { background: var(--primary-dark); }
     .btn-submit:disabled { opacity: .5; cursor: not-allowed; }
 
-    /* Processing overlay */
-    .processing-overlay { display: none; text-align: center; padding: 32px; }
+    /* Processing overlay — progress bar */
+    .processing-overlay { display: none; text-align: center; padding: 32px 28px; }
     .processing-overlay.active { display: block; }
     .processing-overlay .spinner { width: 36px; height: 36px; border: 3px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 14px; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .processing-overlay p { font-size: 14px; color: var(--gray-500); }
     .processing-overlay .step { font-size: 12px; color: var(--gray-400); margin-top: 6px; }
+    .progress-bar-wrap { width: 100%; height: 8px; background: var(--gray-200); border-radius: 4px; overflow: hidden; margin-top: 16px; }
+    .progress-bar-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width .3s ease; width: 0%; }
+    .progress-pct { font-size: 13px; font-weight: 600; color: var(--primary); margin-top: 8px; }
+    .generating-banner { background: var(--primary-light); border: 1px solid rgba(37,99,235,.3); border-radius: 10px; padding: 12px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 14px; font-weight: 600; color: var(--primary); }
+    .generating-pct { font-variant-numeric: tabular-nums; }
     .error-msg { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; padding: 12px 16px; color: #991B1B; font-size: 13px; margin-top: 14px; display: none; }
     .error-msg.active { display: block; }
 
@@ -165,6 +175,16 @@
     .toast.error { background: #991B1B; }
     @keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
+    /* Doctor profile modal */
+    .profile-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 250; justify-content: center; align-items: center; padding: 20px; }
+    .profile-modal-overlay.active { display: flex; }
+    .profile-modal { background: #fff; border-radius: 16px; max-width: 400px; width: 100%; padding: 24px; box-shadow: 0 25px 60px rgba(0,0,0,.25); }
+    .profile-modal h3 { font-size: 18px; font-weight: 700; color: var(--gray-900); margin-bottom: 20px; }
+    .profile-modal .profile-row { margin-bottom: 12px; font-size: 14px; }
+    .profile-modal .profile-label { color: var(--gray-500); font-weight: 500; }
+    .profile-modal .profile-value { color: var(--gray-900); margin-top: 2px; }
+    .profile-modal .profile-value.code { font-family: monospace; font-size: 16px; letter-spacing: .08em; }
+
     @media (max-width: 768px) {
       .stats-row { grid-template-columns: 1fr; }
       .roster-table th:nth-child(3), .roster-table td:nth-child(3) { display: none; }
@@ -177,10 +197,44 @@
   <div class="header">
     <div class="header-inner">
       <div class="logo">
-        <div class="logo-icon">+</div>
-        <span>CareGuide</span>
+        <div class="logo-icon">
+          <svg width="34" height="34" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="58" y="20" width="4" height="80" fill="#fff" rx="2"/>
+            <circle cx="60" cy="28" r="12" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.9"/>
+            <circle cx="60" cy="28" r="4" fill="#00ffff" opacity="0.6"/>
+            <path d="M60 45 Q50 50 48 58 Q46 66 54 70" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M60 55 Q70 60 72 68 Q74 76 66 80" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <circle cx="47" cy="58" r="3.5" fill="#fff"/>
+            <circle cx="73" cy="68" r="3.5" fill="#fff"/>
+            <path d="M60 100 L56 92 L64 92 Z" fill="#fff"/>
+            <rect x="48" y="88" width="24" height="3" fill="#fff" rx="1.5" opacity="0.9"/>
+            <g transform="translate(60, 60)">
+              <rect x="-1.5" y="-8" width="3" height="16" fill="#fff" rx="1" opacity="0.9"/>
+              <rect x="-8" y="-1.5" width="16" height="3" fill="#fff" rx="1" opacity="0.9"/>
+              <circle cx="0" cy="0" r="2.5" fill="#00ffff" opacity="0.5"/>
+            </g>
+          </svg>
+        </div>
+        <span>Archangel Health</span>
       </div>
-      <div class="header-badge">👨‍⚕️ Doctor Portal</div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <a href="/auth/signout" class="signout-link" id="signOutLink">Sign out</a>
+        <button type="button" class="header-badge" id="doctorProfileBtn" style="cursor:pointer;border:none;">👨‍⚕️ Doctor Portal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Doctor profile modal -->
+  <div class="profile-modal-overlay" id="profileModalOverlay">
+    <div class="profile-modal">
+      <h3>Your profile</h3>
+      <div class="profile-row"><div class="profile-label">Name</div><div class="profile-value" id="profileName">—</div></div>
+      <div class="profile-row"><div class="profile-label">Email</div><div class="profile-value" id="profileEmail">—</div></div>
+      <div class="profile-row"><div class="profile-label">Office phone</div><div class="profile-value" id="profilePhone">—</div></div>
+      <div class="profile-row"><div class="profile-label">Type of doctor</div><div class="profile-value" id="profileType">—</div></div>
+      <div class="profile-row"><div class="profile-label">Hospital affiliations</div><div class="profile-value" id="profileHospitalAffiliations">—</div></div>
+      <div class="profile-row"><div class="profile-label">Code of the clinic</div><div class="profile-value code" id="profileClinicCode">—</div></div>
+      <button type="button" class="btn-cancel" style="margin-top:16px;width:100%;" id="profileModalClose">Close</button>
     </div>
   </div>
 
@@ -209,6 +263,10 @@
     </div>
 
     <div class="roster-card">
+      <div class="generating-banner" id="generatingBanner" style="display:none;">
+        <span class="generating-text">Generating resources…</span>
+        <span class="generating-pct" id="generatingPct">0%</span>
+      </div>
       <table class="roster-table" id="rosterTable">
         <thead>
           <tr>
@@ -223,8 +281,10 @@
         </tbody>
       </table>
       <div class="empty-state" id="emptyState" style="display:none;">
-        <p>No patients yet</p>
-        <span>Click "+ Add Patient" to process discharge notes</span>
+        <div class="empty-state-icon" aria-hidden="true">📋</div>
+        <p>You have no patients on your roster.</p>
+        <span>Click on Add New Patient to begin.</span>
+        <button type="button" class="add-btn add-from-empty" id="addPatientFromEmpty">+ Add New Patient</button>
       </div>
     </div>
 
@@ -275,6 +335,9 @@
         <div class="spinner"></div>
         <p>Generating resources...</p>
         <div class="step" id="processingStep">Extracting clinical data</div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBarFill"></div></div>
+        <div class="progress-pct" id="progressPct">0%</div>
+        <p style="font-size:12px;color:var(--gray-400);margin-top:12px;">You can close this and continue — generation will finish in the background.</p>
       </div>
       <div class="error-msg" id="errorMsg"></div>
       <div class="modal-footer" id="modalFooter">
@@ -286,6 +349,31 @@
 
   <script>
     const API = window.location.origin;
+    const AUTH_KEY = 'archangel_doctor_token';
+
+    // Read token from hash (landing redirects with #auth=TOKEN), store and clear hash
+    (function initAuth() {
+      const hash = window.location.hash || '';
+      const m = hash.match(/#auth=(.+)/);
+      if (m && m[1]) {
+        try {
+          const token = decodeURIComponent(m[1]);
+          sessionStorage.setItem(AUTH_KEY, token);
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (e) {}
+      }
+    })();
+
+    function getAuthToken() {
+      return sessionStorage.getItem(AUTH_KEY);
+    }
+
+    function authHeaders() {
+      const token = getAuthToken();
+      const h = { 'Content-Type': 'application/json' };
+      if (token) h['Authorization'] = 'Bearer ' + token;
+      return h;
+    }
 
     const rosterBody   = document.getElementById('rosterBody');
     const emptyState   = document.getElementById('emptyState');
@@ -296,27 +384,100 @@
     const errorMsg     = document.getElementById('errorMsg');
     const stepEl       = document.getElementById('processingStep');
 
+    // ── Load doctor profile and update header ─────────────────────────
+    async function loadDoctorProfile() {
+      const token = getAuthToken();
+      if (!token) return;
+      try {
+        const [meRes, profileRes] = await Promise.all([
+          fetch(`${API}/api/auth/me`, { headers: { Authorization: 'Bearer ' + token } }),
+          fetch(`${API}/api/doctor/profile`, { headers: { Authorization: 'Bearer ' + token } }),
+        ]);
+        if (meRes.ok && profileRes.ok) {
+          const me = await meRes.json();
+          const profile = await profileRes.json();
+          const btn = document.getElementById('doctorProfileBtn');
+          if (btn) btn.textContent = (profile.name || me.name || me.email || 'Doctor');
+          window.__DOCTOR_PROFILE__ = profile;
+        }
+      } catch (e) {}
+    }
+
+    // ── Profile modal ─────────────────────────
+    document.getElementById('doctorProfileBtn').addEventListener('click', function() {
+      const profile = window.__DOCTOR_PROFILE__;
+      const overlay = document.getElementById('profileModalOverlay');
+      if (profile) {
+        document.getElementById('profileName').textContent = profile.name || '—';
+        document.getElementById('profileEmail').textContent = profile.email || '—';
+        document.getElementById('profilePhone').textContent = profile.office_phone || '—';
+        document.getElementById('profileType').textContent = profile.doctor_type || '—';
+        document.getElementById('profileHospitalAffiliations').textContent = profile.hospital_affiliations || '—';
+        document.getElementById('profileClinicCode').textContent = profile.clinic_code || '—';
+      }
+      overlay.classList.add('active');
+    });
+    document.getElementById('profileModalClose').addEventListener('click', function() {
+      document.getElementById('profileModalOverlay').classList.remove('active');
+    });
+    document.getElementById('profileModalOverlay').addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('active');
+    });
+
     // ── Load Roster ─────────────────────────
     async function loadRoster() {
-      const res = await fetch(`${API}/api/patients`);
+      const res = await fetch(`${API}/api/patients`, { headers: authHeaders() });
       const data = await res.json();
       const patients = data.patients || [];
+      const pending = window.__PENDING_PATIENT__;
+      const hasPending = pending && pending.name;
 
-      document.getElementById('totalPatients').textContent = patients.length;
+      const totalCount = patients.length + (hasPending ? 1 : 0);
+      document.getElementById('totalPatients').textContent = totalCount;
       document.getElementById('resourcesReady').textContent = patients.filter(p => p.hasResources).length;
-      document.getElementById('pendingCount').textContent = patients.filter(p => !p.hasResources).length;
+      document.getElementById('pendingCount').textContent = patients.filter(p => !p.hasResources).length + (hasPending ? 1 : 0);
 
-      if (patients.length === 0) {
+      if (patients.length === 0 && !hasPending) {
         rosterBody.innerHTML = '';
         emptyState.style.display = 'block';
         document.querySelector('.roster-table').style.display = 'none';
+        document.getElementById('generatingBanner').style.display = 'none';
         return;
       }
 
       emptyState.style.display = 'none';
       document.querySelector('.roster-table').style.display = 'table';
 
-      rosterBody.innerHTML = patients.map(p => {
+      const gen = window.__GENERATING__;
+      if (gen && gen.active) {
+        document.getElementById('generatingBanner').style.display = 'flex';
+        document.getElementById('generatingPct').textContent = (gen.pct || 0) + '%';
+      } else {
+        document.getElementById('generatingBanner').style.display = 'none';
+      }
+
+      let rows = '';
+      if (hasPending) {
+        const pct = (gen && gen.pct) || 0;
+        rows += `
+        <tr class="pending-row">
+          <td class="patient-name-cell">${esc(pending.name)}</td>
+          <td class="procedure-cell">—</td>
+          <td class="date-cell">—</td>
+          <td>
+            <span class="status-badge status-loading">
+              ⟳ Loading… ${pct}%
+            </span>
+          </td>
+          <td>
+            <div class="action-btns">
+              <span class="view-btn" style="opacity:0.6;cursor:default;">View Dashboard</span>
+              <button class="send-btn-cell" disabled>📩 Send to Patient</button>
+            </div>
+          </td>
+        </tr>`;
+      }
+      rows += patients.map(p => {
         const hasContact = p.phone || p.email;
         return `
         <tr>
@@ -325,7 +486,7 @@
           <td class="date-cell">${esc(p.date || '—')}</td>
           <td>
             <span class="status-badge ${p.hasResources ? 'status-ready' : 'status-pending'}">
-              ${p.hasResources ? '● Ready' : '○ Demo'}
+              ${p.hasResources ? '● Ready' : '○ Pending'}
             </span>
           </td>
           <td>
@@ -338,6 +499,7 @@
           </td>
         </tr>`;
       }).join('');
+      rosterBody.innerHTML = rows;
     }
 
     // ── Modal ────────────────────────────────
@@ -345,15 +507,25 @@
       modalOverlay.classList.add('active');
       resetModal();
     });
+    document.getElementById('addPatientFromEmpty')?.addEventListener('click', () => {
+      modalOverlay.classList.add('active');
+      resetModal();
+    });
     document.getElementById('modalClose').addEventListener('click', closeModal);
     document.getElementById('cancelBtn').addEventListener('click', closeModal);
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 
-    function closeModal() {
+    let generationInProgress = false;
+    function closeModal(skipReset) {
       modalOverlay.classList.remove('active');
+      if (skipReset || generationInProgress) {
+        if (generationInProgress) showToast('Generation continues in the background.', 'success');
+        return;
+      }
       resetModal();
     }
     function resetModal() {
+      generationInProgress = false;
       modalForm.style.display = 'block';
       modalFooter.style.display = 'flex';
       processing.classList.remove('active');
@@ -420,8 +592,8 @@
       }
     }
 
-    // ── Submit ───────────────────────────────
-    document.getElementById('submitBtn').addEventListener('click', async () => {
+    // ── Submit (background generation + progress bar) ───────────────────────────────
+    document.getElementById('submitBtn').addEventListener('click', () => {
       const name  = document.getElementById('patientName').value.trim();
       const phone = document.getElementById('patientPhone').value.trim();
       const email = document.getElementById('patientEmail').value.trim();
@@ -437,27 +609,57 @@
       processing.classList.add('active');
       errorMsg.classList.remove('active');
 
+      const progressFill = document.getElementById('progressBarFill');
+      const progressPctEl = document.getElementById('progressPct');
+      generationInProgress = true;
+      window.__GENERATING__ = { active: true, pct: 0 };
+      window.__PENDING_PATIENT__ = { name: name, pct: 0 };
+      loadRoster();
+
       let stepIdx = 0;
-      const interval = setInterval(() => {
+      const stepInterval = setInterval(() => {
         stepIdx = (stepIdx + 1) % steps.length;
         stepEl.textContent = steps[stepIdx];
       }, 4000);
 
-      try {
-        const res = await fetch(`${API}/api/process-discharge`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            patient_name: name,
-            discharge_notes: notes,
-            phone_number: phone,
-            email: email,
-          }),
-        });
-        clearInterval(interval);
+      // Simulated progress 0–90% over ~25s, then 100% on done
+      let simPct = 0;
+      const progressInterval = setInterval(() => {
+        if (simPct < 90) {
+          simPct += Math.random() * 6 + 4;
+          simPct = Math.min(90, Math.floor(simPct));
+          window.__GENERATING__.pct = simPct;
+          if (progressFill) progressFill.style.width = simPct + '%';
+          if (progressPctEl) progressPctEl.textContent = simPct + '%';
+          loadRoster();
+        }
+      }, 2000);
 
-        if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Processing failed'); }
+      const requestPromise = fetch(`${API}/api/process-discharge`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          patient_name: name,
+          discharge_notes: notes,
+          phone_number: phone,
+          email: email,
+        }),
+      });
 
+      requestPromise.then(async (res) => {
+        clearInterval(stepInterval);
+        clearInterval(progressInterval);
+        generationInProgress = false;
+        window.__GENERATING__ = { active: false, pct: 0 };
+        window.__PENDING_PATIENT__ = null;
+        if (progressFill) progressFill.style.width = '100%';
+        if (progressPctEl) progressPctEl.textContent = '100%';
+        loadRoster();
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Processing failed');
+        }
         const data = await res.json();
         closeModal();
         document.getElementById('patientName').value = '';
@@ -468,17 +670,21 @@
         uploadContent.style.display = 'block';
         uploadSuccess.style.display = 'none';
         await loadRoster();
-
+        showToast('Patient added! Resources ready.', 'success');
         window.open(`/doctor/patient/${data.patient_id}`, '_blank');
-
-      } catch (err) {
-        clearInterval(interval);
+      }).catch((err) => {
+        clearInterval(stepInterval);
+        clearInterval(progressInterval);
+        generationInProgress = false;
+        window.__GENERATING__ = { active: false, pct: 0 };
+        window.__PENDING_PATIENT__ = null;
         processing.classList.remove('active');
         modalForm.style.display = 'block';
         modalFooter.style.display = 'flex';
-        errorMsg.textContent = `Error: ${err.message}`;
+        errorMsg.textContent = 'Error: ' + (err.message || 'Processing failed');
         errorMsg.classList.add('active');
-      }
+        showToast(err.message || 'Processing failed', 'error');
+      });
     });
 
     // ── Send to Patient ──────────────────────
@@ -530,6 +736,7 @@
     }
 
     // ── Init ─────────────────────────────────
+    loadDoctorProfile();
     loadRoster();
   </script>
 </body>
