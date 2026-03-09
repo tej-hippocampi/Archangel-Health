@@ -3,6 +3,7 @@ CareGuide — Surgical Patient Video Platform
 FastAPI backend: EHR → Pipeline → Dashboard → SMS
 """
 
+import asyncio
 import os
 import json
 import secrets
@@ -515,13 +516,11 @@ async def process_discharge(
         resources = await generator.generate_two_resources(structured_data)
         print(f"[pipeline] Generation complete. Synthesizing audio...")
 
-        # 3. Synthesize audio for both via ElevenLabs
+        # 3. Synthesize audio for both via ElevenLabs in parallel
         el_client = ElevenLabsClient()
-        diag_audio = await el_client.synthesize(
-            resources["diagnosis"]["voice_script"], f"{patient_id}_diagnosis"
-        )
-        treat_audio = await el_client.synthesize(
-            resources["treatment"]["voice_script"], f"{patient_id}_treatment"
+        diag_audio, treat_audio = await asyncio.gather(
+            el_client.synthesize(resources["diagnosis"]["voice_script"], f"{patient_id}_diagnosis"),
+            el_client.synthesize(resources["treatment"]["voice_script"], f"{patient_id}_treatment"),
         )
         print(f"[pipeline] Audio synthesis complete. Storing results...")
 

@@ -7,10 +7,11 @@ Supports two generation modes:
   2. Two-resource split: structured_data → { diagnosis: ..., treatment: ... }
 """
 
+import asyncio
 import os
 from typing import Any, Dict, Tuple
 
-from anthropic import Anthropic
+from anthropic import AsyncAnthropic
 
 from prompts.preop  import PREOP_VOICE_PROMPT,  PREOP_BATTLECARD_PROMPT
 from prompts.postop import POSTOP_VOICE_PROMPT, POSTOP_BATTLECARD_PROMPT
@@ -20,7 +21,7 @@ from prompts.treatment import TREATMENT_VOICE_PROMPT, TREATMENT_BATTLECARD_PROMP
 
 class GenerationLayer:
     def __init__(self) -> None:
-        self.client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        self.client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
     async def generate(
         self,
@@ -40,13 +41,13 @@ class GenerationLayer:
 
         clinical_input = self._format_clinical_input(structured_data)
 
-        voice_script = self._call_claude(
+        voice_script = await self._call_claude(
             system=voice_sys,
             user=f"[Clinical Input Layer]\n\n{clinical_input}\n\nGenerate the voice script.",
             max_tokens=2000,
         )
 
-        battlecard_html = self._call_claude(
+        battlecard_html = await self._call_claude(
             system=battlecard_sys,
             user=f"[Voice Script]\n\n{voice_script}\n\nGenerate the battlecard HTML.",
             max_tokens=8000,
@@ -60,6 +61,7 @@ class GenerationLayer:
     ) -> Dict[str, Dict[str, str]]:
         """
         Two-resource generation: produces separate Diagnosis and Treatment materials.
+        Runs voice scripts in parallel, then battlecards in parallel — ~2x faster.
 
         Returns:
         {
@@ -69,30 +71,32 @@ class GenerationLayer:
         """
         clinical_input = self._format_clinical_input(structured_data)
 
-        # --- Diagnosis resource ---
-        diagnosis_voice = self._call_claude(
-            system=DIAGNOSIS_VOICE_PROMPT,
-            user=f"[Clinical Input Layer]\n\n{clinical_input}\n\nGenerate the voice script. HARD LIMIT: 550-600 words maximum.",
-            max_tokens=1500,
+        # Phase 1: generate both voice scripts in parallel
+        diagnosis_voice, treatment_voice = await asyncio.gather(
+            self._call_claude(
+                system=DIAGNOSIS_VOICE_PROMPT,
+                user=f"[Clinical Input Layer]\n\n{clinical_input}\n\nGenerate the voice script. HARD LIMIT: 550-600 words maximum.",
+                max_tokens=1500,
+            ),
+            self._call_claude(
+                system=TREATMENT_VOICE_PROMPT,
+                user=f"[Clinical Input Layer]\n\n{clinical_input}\n\nGenerate the voice script. HARD LIMIT: 550-600 words maximum.",
+                max_tokens=1500,
+            ),
         )
 
-        diagnosis_battlecard = self._call_claude(
-            system=DIAGNOSIS_BATTLECARD_PROMPT,
-            user=f"[Voice Script]\n\n{diagnosis_voice}\n\nGenerate the battlecard HTML.",
-            max_tokens=8000,
-        )
-
-        # --- Treatment & Red Flags resource ---
-        treatment_voice = self._call_claude(
-            system=TREATMENT_VOICE_PROMPT,
-            user=f"[Clinical Input Layer]\n\n{clinical_input}\n\nGenerate the voice script. HARD LIMIT: 550-600 words maximum.",
-            max_tokens=1500,
-        )
-
-        treatment_battlecard = self._call_claude(
-            system=TREATMENT_BATTLECARD_PROMPT,
-            user=f"[Voice Script]\n\n{treatment_voice}\n\nGenerate the battlecard HTML.",
-            max_tokens=8000,
+        # Phase 2: generate both battlecards in parallel (each needs its voice script)
+        diagnosis_battlecard, treatment_battlecard = await asyncio.gather(
+            self._call_claude(
+                system=DIAGNOSIS_BATTLECARD_PROMPT,
+                user=f"[Voice Script]\n\n{diagnosis_voice}\n\nGenerate the battlecard HTML.",
+                max_tokens=8000,
+            ),
+            self._call_claude(
+                system=TREATMENT_BATTLECARD_PROMPT,
+                user=f"[Voice Script]\n\n{treatment_voice}\n\nGenerate the battlecard HTML.",
+                max_tokens=8000,
+            ),
         )
 
         return {
@@ -108,8 +112,8 @@ class GenerationLayer:
 
     # ── Private ──────────────────────────────────────────────
 
-    def _call_claude(self, system: str, user: str, max_tokens: int) -> str:
-        response = self.client.messages.create(
+    async def _call_claude(self, system: str, user: str, max_tokens: int) -> str:
+        response = await self.client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=max_tokens,
             system=system,

@@ -7,7 +7,7 @@ import json
 import os
 from typing import Any, Dict
 
-from anthropic import Anthropic
+from anthropic import AsyncAnthropic
 
 EXTRACTION_SYSTEM = """You are a clinical NLP extraction system.
 Parse raw EHR text and return ONLY a single valid JSON object — no markdown, no commentary.
@@ -57,7 +57,7 @@ Extract the following fields from the EHR sections below and return as JSON:
 
 class ExtractionLayer:
     def __init__(self) -> None:
-        self.client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        self.client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
     async def extract(self, raw_package: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -66,7 +66,7 @@ class ExtractionLayer:
         """
         combined = self._combine(raw_package["clinical_data"])
 
-        response = self.client.messages.create(
+        response = await self.client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=2500,
             system=EXTRACTION_SYSTEM,

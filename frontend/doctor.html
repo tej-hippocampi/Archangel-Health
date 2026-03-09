@@ -657,8 +657,15 @@
         loadRoster();
 
         if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.detail || 'Processing failed');
+          let errMsg = `Server error (${res.status})`;
+          try {
+            const ct = res.headers.get('content-type') || '';
+            if (ct.includes('application/json')) {
+              const err = await res.json();
+              errMsg = err.detail || errMsg;
+            }
+          } catch {}
+          throw new Error(errMsg);
         }
         const data = await res.json();
         closeModal();
