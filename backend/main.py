@@ -10,7 +10,7 @@ import secrets
 import string
 from typing import Optional, List
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, APIRouter, Depends
+from fastapi import FastAPI, HTTPException, BackgroundTasks, APIRouter, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -852,6 +852,14 @@ async def _send_sms(phone: str, name: str, dashboard_url: str) -> None:
 # ─── Internal & Admin Tools ───────────────────────────────────
 app.include_router(internal_router)
 app.include_router(admin_router)
+
+
+@app.get("/", response_class=RedirectResponse, include_in_schema=False)
+async def root_redirect(request: Request):
+    host = request.headers.get("host", "")
+    if "admin." in host:
+        return RedirectResponse(url="/admin", status_code=301)
+    return RedirectResponse(url="/docs", status_code=302)
 
 @app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)
 async def prompt_lab_page():
