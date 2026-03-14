@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prompt Lab — Internal</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--gray-100);
+      color: var(--gray-800);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Auth Gate ───────────────────────────────────────── */
+    #auth-overlay {
+      position: fixed; inset: 0;
+      background: rgba(15,23,42,0.85);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    #auth-overlay.hidden { display: none; }
+    .auth-box {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      padding: 40px;
+      width: 400px;
+      box-shadow: var(--shadow-lg);
+      text-align: center;
+    }
+    .auth-box h2 { font-size: 1.4rem; margin-bottom: 8px; color: var(--gray-900); }
+    .auth-box p  { font-size: 0.875rem; color: var(--gray-500); margin-bottom: 24px; }
+    .auth-box input {
+      width: 100%; padding: 10px 14px;
+      border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+      font-size: 0.9rem; margin-bottom: 12px;
+      font-family: monospace;
+    }
+    .auth-box button {
+      width: 100%; padding: 10px;
+      background: var(--primary); color: #fff;
+      border: none; border-radius: var(--radius-sm);
+      font-size: 0.9rem; cursor: pointer; font-weight: 600;
+    }
+    .auth-box button:hover { background: var(--primary-dark); }
+
+    /* ── Top Bar ─────────────────────────────────────────── */
+    .topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 20px;
+      background: #fff;
+      border-bottom: 1px solid var(--gray-200);
+      flex-shrink: 0;
+    }
+    .topbar h1 { font-size: 1.1rem; font-weight: 700; color: var(--gray-900); }
+    .badge-internal {
+      font-size: 0.65rem; font-weight: 600; text-transform: uppercase;
+      background: var(--gray-200); color: var(--gray-600);
+      border-radius: 4px; padding: 2px 6px; letter-spacing: 0.05em;
+    }
+    .topbar-right { margin-left: auto; }
+    .topbar-right button {
+      font-size: 0.8rem; background: none; border: 1px solid var(--gray-200);
+      border-radius: var(--radius-sm); padding: 4px 10px; cursor: pointer;
+      color: var(--gray-600);
+    }
+    .topbar-right button:hover { background: var(--gray-100); }
+
+    /* ── Main Layout ─────────────────────────────────────── */
+    .main-layout {
+      display: flex; flex: 1; overflow: hidden;
+    }
+
+    /* ── Left Panel ──────────────────────────────────────── */
+    .left-panel {
+      width: 400px; min-width: 340px;
+      background: #fff;
+      border-right: 1px solid var(--gray-200);
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .panel-section {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .panel-section-title {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--gray-400); margin-bottom: 12px;
+    }
+    .field { margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label {
+      display: block; font-size: 0.8rem; font-weight: 600;
+      color: var(--gray-700); margin-bottom: 4px;
+    }
+    .field select, .field input[type="text"] {
+      width: 100%; padding: 8px 10px;
+      border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+      font-size: 0.875rem; font-family: var(--font);
+      background: #fff; color: var(--gray-800);
+    }
+    .field select:focus, .field input:focus {
+      outline: none; border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.1);
+    }
+    #custom-voice-row { display: none; }
+
+    textarea {
+      width: 100%; resize: vertical;
+      border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.78rem; line-height: 1.5;
+      padding: 10px; color: var(--gray-800);
+    }
+    textarea:focus { outline: none; border-color: var(--primary); }
+
+    #notes-input {
+      background: #fff; height: 180px;
+      font-family: var(--font); font-size: 0.82rem;
+    }
+    #original-prompt { background: var(--gray-50); height: 220px; }
+    #edit-prompt     { background: #fff; height: 220px; }
+
+    .char-count {
+      font-size: 0.72rem; color: var(--gray-400);
+      text-align: right; margin-top: 4px;
+    }
+
+    .btn-row { display: flex; gap: 8px; margin-top: 4px; }
+    .btn {
+      flex: 1; padding: 9px 14px; border: none;
+      border-radius: var(--radius-sm); font-size: 0.875rem;
+      font-weight: 600; cursor: pointer; transition: background 0.15s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-primary:disabled { background: var(--gray-300); cursor: not-allowed; }
+    .btn-secondary { background: var(--gray-100); color: var(--gray-700); border: 1px solid var(--gray-200); }
+    .btn-secondary:hover { background: var(--gray-200); }
+
+    /* ── Right Panel ─────────────────────────────────────── */
+    .right-panel {
+      flex: 1; overflow-y: auto;
+      display: flex; flex-direction: column;
+      padding: 20px; gap: 20px;
+    }
+
+    /* ── Empty state ─────────────────────────────────────── */
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: var(--gray-400); text-align: center; gap: 8px;
+    }
+    .empty-state .icon { font-size: 2.5rem; }
+    .empty-state p { font-size: 0.875rem; }
+
+    /* ── Results ─────────────────────────────────────────── */
+    .results-columns {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+
+    .result-col {
+      background: #fff; border-radius: var(--radius);
+      border: 1px solid var(--gray-200);
+      overflow: hidden;
+    }
+
+    .col-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--gray-50);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .col-header h3 { font-size: 0.875rem; font-weight: 700; color: var(--gray-800); }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid var(--gray-200);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .spinner.active { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .result-section { padding: 14px 16px; border-bottom: 1px solid var(--gray-100); }
+    .result-section:last-child { border-bottom: none; }
+    .result-label {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--gray-400); margin-bottom: 8px;
+    }
+    .word-count-badge {
+      display: inline-block;
+      font-size: 0.72rem; color: var(--gray-500);
+      background: var(--gray-100);
+      padding: 2px 8px; border-radius: 20px; margin-bottom: 8px;
+    }
+    audio { width: 100%; margin-top: 4px; }
+    .audio-placeholder {
+      font-size: 0.8rem; color: var(--gray-400); font-style: italic;
+    }
+
+    .battlecard-frame {
+      width: 100%; height: 520px; border: none;
+      border-radius: var(--radius-sm);
+      background: var(--gray-50);
+    }
+    .battlecard-text {
+      max-height: 520px; overflow-y: auto;
+      background: var(--gray-50); border-radius: var(--radius-sm);
+      padding: 12px; font-size: 0.8rem; white-space: pre-wrap;
+      font-family: monospace;
+    }
+
+    .script-preview { font-size: 0.85rem; color: var(--gray-700); line-height: 1.6; }
+    .toggle-full {
+      display: inline-block; margin-top: 6px;
+      font-size: 0.78rem; color: var(--primary); cursor: pointer;
+      background: none; border: none; padding: 0;
+    }
+    .full-script {
+      max-height: 300px; overflow-y: auto;
+      background: var(--gray-50); border-radius: var(--radius-sm);
+      padding: 10px; font-size: 0.78rem; line-height: 1.6;
+      margin-top: 8px; white-space: pre-wrap; display: none;
+    }
+
+    /* ── Avatar chat bubble ───────────────────────────────── */
+    .chat-test {
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .chat-bubble-user {
+      align-self: flex-end;
+      background: var(--primary); color: #fff;
+      border-radius: 16px 16px 4px 16px;
+      padding: 10px 14px; font-size: 0.85rem; max-width: 85%;
+      line-height: 1.5;
+    }
+    .chat-bubble-avatar {
+      align-self: flex-start;
+      background: var(--gray-100); color: var(--gray-800);
+      border-radius: 16px 16px 16px 4px;
+      padding: 10px 14px; font-size: 0.85rem; max-width: 85%;
+      line-height: 1.5;
+    }
+    .avatar-label {
+      font-size: 0.7rem; color: var(--gray-400);
+      margin-bottom: 4px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .error-msg {
+      font-size: 0.8rem; color: var(--danger);
+      background: #fff5f5; border: 1px solid #fecaca;
+      border-radius: var(--radius-sm); padding: 8px 12px;
+      margin-top: 8px;
+    }
+
+    /* ── Save Bar ────────────────────────────────────────── */
+    .save-bar {
+      background: #fff;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: none;
+    }
+    .save-bar.visible { display: block; }
+    .save-bar-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .save-bar-label { font-size: 0.875rem; color: var(--gray-700); }
+    .save-bar-label code {
+      font-family: monospace; font-size: 0.8rem;
+      background: var(--gray-100); padding: 1px 6px; border-radius: 4px;
+    }
+    #commit-msg-input {
+      flex: 1; min-width: 200px;
+      padding: 7px 10px; border: 1px solid var(--gray-200);
+      border-radius: var(--radius-sm); font-size: 0.875rem; font-family: var(--font);
+    }
+    #commit-msg-input:focus { outline: none; border-color: var(--primary); }
+    .btn-save { background: #d97706; color: #fff; white-space: nowrap; }
+    .btn-save:hover { background: #b45309; }
+    .btn-save:disabled { background: var(--gray-300); cursor: not-allowed; }
+    .btn-push { background: var(--success); color: #fff; white-space: nowrap; display: none; }
+    .btn-push:hover { background: #059669; }
+    .btn-push:disabled { background: var(--gray-300); cursor: not-allowed; }
+    .save-status { font-size: 0.8rem; margin-top: 10px; }
+    .save-status.success { color: #059669; }
+    .save-status.error   { color: var(--danger); }
+    #git-output {
+      margin-top: 12px; display: none;
+      background: #111827; color: #d1fae5;
+      border-radius: var(--radius-sm); padding: 12px;
+      font-family: monospace; font-size: 0.78rem;
+      white-space: pre-wrap; max-height: 180px; overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Auth Gate ──────────────────────────────────────────────── -->
+<div id="auth-overlay">
+  <div class="auth-box">
+    <h2>Prompt Lab</h2>
+    <p>Enter your internal access token to continue.</p>
+    <input type="password" id="token-input" placeholder="Internal token..." />
+    <button id="token-submit">Enter</button>
+  </div>
+</div>
+
+<!-- ── Top Bar ────────────────────────────────────────────────── -->
+<div class="topbar">
+  <h1>Prompt Lab</h1>
+  <span class="badge-internal">internal</span>
+  <div class="topbar-right">
+    <button id="logout-btn">Sign out</button>
+  </div>
+</div>
+
+<!-- ── Main Layout ────────────────────────────────────────────── -->
+<div class="main-layout">
+
+  <!-- Left Panel -->
+  <div class="left-panel">
+
+    <!-- Configure -->
+    <div class="panel-section">
+      <div class="panel-section-title">Configure</div>
+      <div class="field">
+        <label for="prompt-select">Prompt</label>
+        <select id="prompt-select"><option>Loading...</option></select>
+      </div>
+      <div class="field">
+        <label for="voice-select">Voice</label>
+        <select id="voice-select"><option>Loading...</option></select>
+      </div>
+      <div class="field" id="custom-voice-row">
+        <label for="custom-voice-input">Custom Voice ID</label>
+        <input type="text" id="custom-voice-input" placeholder="ElevenLabs voice ID..." />
+      </div>
+    </div>
+
+    <!-- Avatar test message (shown only for avatar type) -->
+    <div class="panel-section" id="test-msg-section" style="display:none;">
+      <div class="panel-section-title">Test Message</div>
+      <div class="field">
+        <label for="test-msg-input">What the patient says</label>
+        <input type="text" id="test-msg-input"
+          value="What medications should I be taking, and when?" />
+      </div>
+      <p style="font-size:0.75rem;color:var(--gray-400);margin-top:4px;">
+        The avatar will reply to this message using your edited prompt + the notes below.
+      </p>
+    </div>
+
+    <!-- Discharge Notes -->
+    <div class="panel-section">
+      <div class="panel-section-title">Clinical / Discharge Notes</div>
+      <textarea
+        id="notes-input"
+        placeholder="Paste discharge notes, clinical notes, or any patient info here..."
+      ></textarea>
+      <div class="char-count"><span id="notes-count">0</span> chars</div>
+    </div>
+
+    <!-- Current Prompt -->
+    <div class="panel-section">
+      <div class="panel-section-title">Current Prompt</div>
+      <textarea id="original-prompt" readonly></textarea>
+    </div>
+
+    <!-- Edit Prompt -->
+    <div class="panel-section">
+      <div class="panel-section-title">Edit Prompt</div>
+      <textarea id="edit-prompt"></textarea>
+      <div class="char-count"><span id="char-count">0</span> chars</div>
+    </div>
+
+    <!-- Actions -->
+    <div class="panel-section">
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="reset-btn">Reset</button>
+        <button class="btn btn-primary" id="run-btn">▶ Run Both</button>
+      </div>
+      <div id="run-error" class="error-msg" style="display:none;"></div>
+    </div>
+
+  </div><!-- /left-panel -->
+
+  <!-- Right Panel -->
+  <div class="right-panel" id="right-panel">
+
+    <!-- Empty state -->
+    <div class="empty-state" id="empty-state">
+      <div class="icon">⚗️</div>
+      <p>Paste your clinical notes, pick a prompt, and hit <strong>Run Both</strong>.</p>
+    </div>
+
+    <!-- Results (hidden until first run) -->
+    <div class="results-columns" id="results-columns" style="display:none;">
+
+      <!-- Original Column -->
+      <div class="result-col">
+        <div class="col-header">
+          <h3>Original</h3>
+          <div class="spinner" id="spinner-original"></div>
+        </div>
+        <div id="result-original"></div>
+      </div>
+
+      <!-- Custom Column -->
+      <div class="result-col">
+        <div class="col-header">
+          <h3>Custom</h3>
+          <div class="spinner" id="spinner-custom"></div>
+        </div>
+        <div id="result-custom"></div>
+      </div>
+
+    </div>
+
+    <!-- Save Bar -->
+    <div class="save-bar" id="save-bar">
+      <div class="save-bar-top">
+        <span class="save-bar-label">Save changes to <code id="save-file-path"></code>?</span>
+        <input type="text" id="commit-msg-input" />
+        <button class="btn btn-save" id="save-btn">Save to Codebase</button>
+        <button class="btn btn-push" id="push-btn">Push to GitHub</button>
+      </div>
+      <div class="save-status" id="save-status"></div>
+      <pre id="git-output"></pre>
+    </div>
+
+  </div><!-- /right-panel -->
+
+</div><!-- /main-layout -->
+
+<script>
+  // ── State ─────────────────────────────────────────────────────
+  let token = localStorage.getItem('internal_token') || '';
+  let prompts = [];
+  let currentPromptId = null;
+  let currentPromptType = null;
+  let customRunDone = false;
+
+  function headers() {
+    return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+  }
+
+  // ── Auth ──────────────────────────────────────────────────────
+  const authOverlay = document.getElementById('auth-overlay');
+  function showAuth() { authOverlay.classList.remove('hidden'); }
+  function hideAuth() { authOverlay.classList.add('hidden'); }
+
+  if (token) hideAuth();
+
+  document.getElementById('token-submit').addEventListener('click', () => {
+    const val = document.getElementById('token-input').value.trim();
+    if (!val) return;
+    localStorage.setItem('internal_token', val);
+    token = val;
+    hideAuth();
+    init();
+  });
+  document.getElementById('token-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('token-submit').click();
+  });
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    localStorage.removeItem('internal_token');
+    token = '';
+    showAuth();
+  });
+
+  // ── Init ──────────────────────────────────────────────────────
+  async function init() {
+    const [promptsData, voicesData] = await Promise.all([
+      apiFetch('/internal/prompts'),
+      apiFetch('/internal/voices'),
+    ]);
+    if (!promptsData || !voicesData) return;
+
+    prompts = promptsData;
+
+    const promptSel = document.getElementById('prompt-select');
+    promptSel.innerHTML = promptsData.map(p =>
+      `<option value="${p.id}">${p.label}</option>`
+    ).join('');
+
+    const voiceSel = document.getElementById('voice-select');
+    voiceSel.innerHTML = voicesData.map(v =>
+      `<option value="${v.id}">${v.label}</option>`
+    ).join('');
+
+    promptSel.addEventListener('change', onPromptChange);
+    voiceSel.addEventListener('change', onVoiceChange);
+    onPromptChange();
+  }
+
+  function onPromptChange() {
+    const sel = document.getElementById('prompt-select');
+    const p = prompts.find(x => x.id === sel.value);
+    if (!p) return;
+    currentPromptId = p.id;
+    currentPromptType = p.type;
+    document.getElementById('original-prompt').value = p.content;
+    document.getElementById('edit-prompt').value = p.content;
+    updateCharCount();
+    document.getElementById('commit-msg-input').value = `feat(prompts): update ${p.label}`;
+    const fileMap = {
+      diagnosis: 'backend/prompts/diagnosis.py',
+      treatment: 'backend/prompts/treatment.py',
+      preop:     'backend/prompts/preop.py',
+      postop:    'backend/prompts/postop.py',
+      avatar:    'backend/prompts/avatar.py',
+    };
+    const key = Object.keys(fileMap).find(k => currentPromptId.startsWith(k));
+    document.getElementById('save-file-path').textContent = fileMap[key] || 'backend/prompts/...';
+
+    // Show test message input only for avatar type
+    document.getElementById('test-msg-section').style.display =
+      p.type === 'avatar' ? 'block' : 'none';
+
+    // Reset results when switching prompts
+    document.getElementById('empty-state').style.display = 'flex';
+    document.getElementById('results-columns').style.display = 'none';
+    document.getElementById('save-bar').classList.remove('visible');
+    customRunDone = false;
+  }
+
+  function onVoiceChange() {
+    const sel = document.getElementById('voice-select');
+    document.getElementById('custom-voice-row').style.display =
+      sel.value === 'custom' ? 'block' : 'none';
+  }
+
+  // ── Char counts ───────────────────────────────────────────────
+  const editPrompt = document.getElementById('edit-prompt');
+  const notesInput = document.getElementById('notes-input');
+
+  function updateCharCount() {
+    document.getElementById('char-count').textContent =
+      editPrompt.value.length.toLocaleString();
+  }
+  editPrompt.addEventListener('input', updateCharCount);
+  notesInput.addEventListener('input', () => {
+    document.getElementById('notes-count').textContent =
+      notesInput.value.length.toLocaleString();
+  });
+
+  // ── Reset ─────────────────────────────────────────────────────
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    const p = prompts.find(x => x.id === currentPromptId);
+    if (p) { editPrompt.value = p.content; updateCharCount(); }
+  });
+
+  // ── Run Both ─────────────────────────────────────────────────
+  document.getElementById('run-btn').addEventListener('click', runBoth);
+
+  async function runBoth() {
+    const notes = notesInput.value.trim();
+    if (!notes) {
+      showRunError('Please paste clinical/discharge notes before running.');
+      return;
+    }
+
+    const runBtn = document.getElementById('run-btn');
+    runBtn.disabled = true;
+    document.getElementById('run-error').style.display = 'none';
+
+    // Show results grid, hide empty state
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('results-columns').style.display = 'grid';
+
+    // Clear previous results
+    document.getElementById('result-original').innerHTML = '';
+    document.getElementById('result-custom').innerHTML = '';
+
+    const voiceSel = document.getElementById('voice-select');
+    const voiceId = voiceSel.value === 'custom'
+      ? (document.getElementById('custom-voice-input').value.trim() || null)
+      : voiceSel.value;
+
+    const [originalResult, customResult] = await Promise.all([
+      runOne('original', document.getElementById('original-prompt').value, notes, voiceId),
+      runOne('custom',   editPrompt.value, notes, voiceId),
+    ]);
+
+    runBtn.disabled = false;
+
+    if (customResult && !customResult._error) {
+      customRunDone = true;
+      document.getElementById('save-bar').classList.add('visible');
+    }
+  }
+
+  async function runOne(side, systemPrompt, dischargeNotes, voiceId) {
+    const spinner = document.getElementById(`spinner-${side}`);
+    spinner.classList.add('active');
+
+    const body = {
+      prompt_id:       currentPromptId,
+      system_prompt:   systemPrompt,
+      discharge_notes: dischargeNotes,
+      preview_words:   75,
+      voice_id:        voiceId,
+      test_message:    document.getElementById('test-msg-input').value.trim()
+                         || "What medications should I be taking, and when?",
+    };
+
+    const data = await apiFetch('/internal/run', { method: 'POST', body: JSON.stringify(body) }, side);
+    spinner.classList.remove('active');
+
+    if (!data) return { _error: true };
+
+    renderResult(side, data);
+    return data;
+  }
+
+  // ── Render result ─────────────────────────────────────────────
+  function renderResult(side, data) {
+    const container = document.getElementById(`result-${side}`);
+
+    if (data.type === 'avatar') {
+      const audioHtml = data.audio_url
+        ? `<audio controls src="${data.audio_url}" style="width:100%;margin-top:8px;"></audio>`
+        : `<p class="audio-placeholder" style="margin-top:6px;">ElevenLabs not configured — audio skipped</p>`;
+
+      container.innerHTML = `
+        <div class="result-section">
+          <div class="result-label">Chat Test</div>
+          <div class="chat-test">
+            <div>
+              <div class="avatar-label">Patient</div>
+              <div class="chat-bubble-user">${escapeHtml(data.test_message)}</div>
+            </div>
+            <div>
+              <div class="avatar-label">Avatar</div>
+              <div class="chat-bubble-avatar">${escapeHtml(data.response)}</div>
+              ${audioHtml}
+            </div>
+          </div>
+        </div>`;
+      return;
+    }
+
+    if (data.type === 'battlecard') {
+      // Battlecard-only output
+      const isHtml = data.battlecard_html && data.battlecard_html.trim().startsWith('<');
+      if (isHtml) {
+        container.innerHTML = `
+          <div class="result-section">
+            <div class="result-label">Battlecard</div>
+            <iframe class="battlecard-frame" srcdoc="${escapeAttr(data.battlecard_html)}"></iframe>
+          </div>`;
+      } else {
+        container.innerHTML = `
+          <div class="result-section">
+            <div class="result-label">Output</div>
+            <div class="battlecard-text">${escapeHtml(data.battlecard_html || '')}</div>
+          </div>`;
+      }
+      return;
+    }
+
+    // Voice-only output
+    let audioHtml;
+    if (!data.audio_url) {
+      audioHtml = `<p class="audio-placeholder">ElevenLabs not configured — audio skipped</p>`;
+    } else {
+      audioHtml = `
+        <span class="word-count-badge">~${data.estimated_seconds}s · ${data.word_count} words</span>
+        <audio controls src="${data.audio_url}"></audio>`;
+    }
+
+    container.innerHTML = `
+      <div class="result-section">
+        <div class="result-label">30-second Preview</div>
+        ${audioHtml}
+      </div>
+      <div class="result-section">
+        <div class="result-label">Script Preview <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--gray-500)">(first 75 words)</span></div>
+        <p class="script-preview" id="sp-${side}">${escapeHtml(data.voice_script_preview || '')}</p>
+        <button class="toggle-full" data-full-id="fs-${side}">See full script ▼</button>
+        <div class="full-script" id="fs-${side}">${escapeHtml(data.voice_script_full || '')}</div>
+      </div>`;
+
+    // Wire up toggle
+    container.querySelector('.toggle-full').addEventListener('click', function() {
+      const target = document.getElementById(this.dataset.fullId);
+      const open = target.style.display === 'block';
+      target.style.display = open ? 'none' : 'block';
+      this.textContent = open ? 'See full script ▼' : 'Hide full script ▲';
+    });
+  }
+
+  // ── Save ──────────────────────────────────────────────────────
+  document.getElementById('save-btn').addEventListener('click', async () => {
+    const saveBtn    = document.getElementById('save-btn');
+    const saveStatus = document.getElementById('save-status');
+    saveBtn.disabled = true;
+    saveStatus.textContent = 'Saving...';
+    saveStatus.className = 'save-status';
+
+    const data = await apiFetch(`/internal/prompts/${currentPromptId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ content: editPrompt.value }),
+    });
+
+    saveBtn.disabled = false;
+    if (data && data.success) {
+      saveStatus.textContent = `✓ Saved to ${data.file_written}`;
+      saveStatus.className = 'save-status success';
+      document.getElementById('push-btn').style.display = 'inline-flex';
+      const p = prompts.find(x => x.id === currentPromptId);
+      if (p) p.content = editPrompt.value;
+      document.getElementById('original-prompt').value = editPrompt.value;
+    } else {
+      saveStatus.textContent = 'Error saving — check server logs.';
+      saveStatus.className = 'save-status error';
+    }
+  });
+
+  document.getElementById('push-btn').addEventListener('click', async () => {
+    const pushBtn    = document.getElementById('push-btn');
+    const gitOutput  = document.getElementById('git-output');
+    const saveStatus = document.getElementById('save-status');
+    pushBtn.disabled = true;
+    gitOutput.style.display = 'block';
+    gitOutput.textContent   = 'Pushing to GitHub...';
+
+    const commitMsg = document.getElementById('commit-msg-input').value.trim()
+      || `feat(prompts): update ${currentPromptId}`;
+
+    const data = await apiFetch('/internal/git/push', {
+      method: 'POST',
+      body: JSON.stringify({ prompt_id: currentPromptId, commit_message: commitMsg }),
+    });
+
+    pushBtn.disabled = false;
+    if (data && data.success) {
+      gitOutput.textContent = data.output || '(no output)';
+      saveStatus.textContent = '✓ Pushed successfully. Verify on GitHub.';
+      saveStatus.className = 'save-status success';
+    } else {
+      gitOutput.textContent = (data && (data.error || data.output)) || 'Unknown error';
+      saveStatus.textContent = 'Push failed — see output above.';
+      saveStatus.className = 'save-status error';
+    }
+  });
+
+  // ── Helpers ───────────────────────────────────────────────────
+  async function apiFetch(path, opts = {}, errorLabel = '') {
+    try {
+      const res = await fetch(path, {
+        ...opts,
+        headers: { ...headers(), ...(opts.headers || {}) },
+      });
+      if (res.status === 401) { showAuth(); return null; }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const label = errorLabel ? `[${errorLabel}] ` : '';
+        showRunError(`${label}${err.detail || `HTTP ${res.status}`}`);
+        return null;
+      }
+      return await res.json();
+    } catch (e) {
+      showRunError(String(e));
+      return null;
+    }
+  }
+
+  function showRunError(msg) {
+    const el = document.getElementById('run-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function escapeAttr(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────
+  if (token) init();
+</script>
+</body>
+</html>

@@ -26,6 +26,8 @@ from pipeline.generate import GenerationLayer
 from integrations.elevenlabs   import ElevenLabsClient
 from integrations.tavus        import TavusClient
 from integrations.twilio_client import TwilioClient
+from routers.internal import router as internal_router
+from routers.admin    import router as admin_router
 from auth import (
     UserCreate,
     UserLogin,
@@ -57,6 +59,7 @@ app.add_middleware(
 )
 
 _patient_store: dict = {}
+app.state.patient_store = _patient_store
 
 
 def _frontend_cache_version() -> str:
@@ -844,6 +847,22 @@ async def _send_sms(phone: str, name: str, dashboard_url: str) -> None:
         f"(Best viewed on a computer)"
     )
     TwilioClient().send(to=phone, body=body)
+
+
+# ─── Internal & Admin Tools ───────────────────────────────────
+app.include_router(internal_router)
+app.include_router(admin_router)
+
+@app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)
+async def prompt_lab_page():
+    with open(os.path.join(os.path.dirname(__file__), "../frontend/prompt-lab.html")) as f:
+        return f.read()
+
+@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/admin/", response_class=HTMLResponse, include_in_schema=False)
+async def admin_page():
+    with open(os.path.join(os.path.dirname(__file__), "../frontend/admin.html")) as f:
+        return f.read()
 
 
 # ─── Static Files ─────────────────────────────────────────────
