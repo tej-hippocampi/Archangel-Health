@@ -91,6 +91,7 @@ Text normalization examples:
 - "100.4°F" → "one hundred point four degrees Fahrenheit"
 - "1000mg" → "one thousand milligrams"
 - "300mg" → "three hundred milligrams"
+- "mg" → "milligrams" (ALWAYS expand — never leave "mg" in the script)
 - "Dr." → "Doctor"
 - "q8h" → "every eight hours"
 - "BID" → "twice daily"
@@ -126,7 +127,8 @@ Non-verbal tags:
 ### Tips for Medical TTS
 - Always spell out drug names phonetically if unusual
 - Use "by mouth" instead of "oral" or "PO"
-- Say "one thousand milligrams" not "1000mg"
+- ALWAYS write out "milligrams" in full — NEVER use "mg" anywhere in the script
+- Say "one thousand milligrams" not "1000mg" or "1000 mg"
 - Say "every eight hours" not "q8h"
 - Say "one hundred point four degrees Fahrenheit" not "100.4°F"
 - For medication layers, explain them as "base layer", "add-on layer", "backup layer" for clarity
