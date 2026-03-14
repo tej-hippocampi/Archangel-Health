@@ -233,8 +233,11 @@ async def patient_by_codes(clinic_code: str, resource_code: str):
 
 # ─── Doctor Portal ────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
-async def doctor_portal():
-    """Serves the doctor dashboard — patient roster + add patient."""
+async def doctor_portal(request: Request):
+    """Serves the doctor dashboard, or redirects to /admin for the admin subdomain."""
+    host = request.headers.get("host", "")
+    if "admin." in host:
+        return RedirectResponse(url="/admin", status_code=301)
     html_path = os.path.join(os.path.dirname(__file__), "../frontend/doctor.html")
     with open(html_path) as f:
         return HTMLResponse(content=f.read())
@@ -853,13 +856,6 @@ async def _send_sms(phone: str, name: str, dashboard_url: str) -> None:
 app.include_router(internal_router)
 app.include_router(admin_router)
 
-
-@app.get("/", response_class=RedirectResponse, include_in_schema=False)
-async def root_redirect(request: Request):
-    host = request.headers.get("host", "")
-    if "admin." in host:
-        return RedirectResponse(url="/admin", status_code=301)
-    return RedirectResponse(url="/docs", status_code=302)
 
 @app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)
 async def prompt_lab_page():
