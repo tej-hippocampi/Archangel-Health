@@ -105,9 +105,10 @@ def _build_recovery_resources_email_html(
     logo_image_src_safe = html_lib.escape(logo_image_src, quote=True) if logo_image_src else ""
     hero_image_block = ""
     if hero_image_src_safe:
-        hero_image_block = f'<img src="{hero_image_src_safe}" alt="Classical medical painting" style="display:block;width:100%;height:360px;object-fit:cover;border:0;" />'
+        # Use width-driven sizing (not object-fit crop) for consistent email rendering.
+        hero_image_block = f'<img src="{hero_image_src_safe}" alt="Classical medical painting" width="680" style="display:block;width:100%;max-width:680px;height:auto;border:0;" />'
     else:
-        hero_image_block = '<div style="display:block;width:100%;height:360px;background:linear-gradient(135deg,#0f172a,#1e293b 45%,#1d4ed8);"></div>'
+        hero_image_block = '<div style="display:block;width:100%;height:230px;background:linear-gradient(135deg,#0f172a,#1e293b 45%,#1d4ed8);"></div>'
     logo_block = ""
     if logo_image_src_safe:
         logo_block = f'<img src="{logo_image_src_safe}" alt="Archangel Health logo" width="64" height="64" style="display:block;width:64px;height:64px;margin:14px auto;border:0;" />'
@@ -127,40 +128,33 @@ def _build_recovery_resources_email_html(
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="680" style="width:680px;max-width:680px;background:#ffffff;border-radius:14px;overflow:hidden;margin:0 auto;">
               <tr>
                 <td style="padding:0;background:#0f172a;">
-                  <div style="position:relative;background:#0f172a;">
-                    {hero_image_block}
-                    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.45);">
-                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" height="360">
-                        <tr>
-                          <td align="center" valign="top" style="padding:18px 24px 0 24px;">
-                            <div style="width:92px;height:92px;border-radius:16px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.24);margin:0 auto 16px auto;">
-                              {logo_block}
-                            </div>
-                            <div style="font-family:Georgia,serif;color:#ffffff;font-size:62px;line-height:1.06;font-weight:700;text-shadow:0 3px 10px rgba(0,0,0,0.45);">
-                              Archangel Health
-                            </div>
-                            <div style="height:1px;width:120px;background:rgba(255,255,255,0.52);margin:14px auto 0 auto;"></div>
-                            <div style="display:inline-block;min-width:520px;background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.32);border-radius:12px;padding:14px 22px;margin-top:20px;">
+                  {hero_image_block}
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding:16px 24px 20px 24px;background:#0b1228;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr>
+                      <td align="center" style="padding:0;">
+                        <div style="width:92px;height:92px;border-radius:16px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.24);margin:0 auto 16px auto;">
+                          {logo_block}
+                        </div>
+                        <div style="font-family:Georgia,serif;color:#ffffff;font-size:62px;line-height:1.06;font-weight:700;text-shadow:0 3px 10px rgba(0,0,0,0.45);">
+                          Archangel Health
+                        </div>
+                        <div style="height:1px;width:120px;background:rgba(255,255,255,0.52);margin:14px auto 0 auto;"></div>
+                        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="88%" style="max-width:520px;margin:20px auto 0 auto;background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.32);border-radius:12px;">
+                          <tr>
+                            <td align="center" style="padding:14px 22px;">
                               <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#bfdbfe;font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;">
                                 Your Care Package
                               </div>
                               <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#ffffff;font-size:20px;line-height:1.12;font-weight:700;margin-top:5px;">
                                 Recovery Resources Ready
                               </div>
-                            </div>
-                          </td>
-                        </tr>
-                      </table>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:0;background:#0f172a;">
-                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                    <tr>
-                      <td align="center" style="padding:0 24px 0 24px;background:rgba(0,0,0,0.42);height:0;line-height:0;font-size:0;">
-                        <!-- Spacer row keeps dark hero finish consistent in clients that flatten positioned overlays -->
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
                   </table>
