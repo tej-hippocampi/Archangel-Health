@@ -297,6 +297,203 @@ They are mandatory TEAM participants. Direct pitch:
 
 ---
 
+---
+
+## 11. What Archangel Solves — Software Against TEAM's Pain Points
+
+This maps every measurable TEAM problem to a software module Archangel can own.
+
+### The Beachhead: Information Transfer PRO-PM
+
+CMS directly surveys patients after discharge with 5 questions:
+1. Did someone explain your medications in a way you understood?
+2. Did you know what warning signs to watch for?
+3. Did you know who to call if something went wrong?
+4. Did you understand your follow-up appointment schedule?
+5. Did you feel ready to go home?
+
+Every single one of these is a feature Archangel already delivers:
+- Medications in plain language → treatment battlecard + voice script
+- Warning signs → red flag module (spine-specific: cauda equina, CSF leak)
+- Who to call → care team contact button in dashboard
+- Follow-up schedule → captured from EHR, displayed in dashboard
+- Ready to go home → the avatar handles anxiety and questions in real time
+
+The hospital's score on this measure flows directly into CQS → reconciliation ±15%.
+**This is the only quality measure 100% within the hospital's control on day one.**
+Lead every conversation with this. It is the beachhead.
+
+### Software Module Map
+
+| TEAM Pain Point | Industry Baseline | Archangel Module | Expected Impact |
+|---|---|---|---|
+| Information Transfer PRO-PM | ~50% patient clarity | Personalized discharge education + survey collection | → 80%+ clarity score |
+| PROMIS completion rate | 45% | SMS-delivered PROMIS pre/post, embedded in dashboard | → 78%+ |
+| 30-day readmission rate | 15% | Red flag triage engine (avatar + battlecard) | → 8% |
+| Avoidable ER visits | ~20% of episodes | Symptom triage: normal vs call vs ER | Reduce by 40–60% |
+| PCP referral documentation | Inconsistent | Referral confirmation workflow | 100% documented |
+| CQS score | 52% avg | Composite of above improvements | → 71%+ |
+| Episodes under target price | 52% | Fewer readmissions + ER visits + quality bonus | → 71%+ |
+| Avg savings per episode | $1,200 | Readmission reduction + quality adjustment | → $3,400 |
+
+---
+
+## 12. The 7 Core Modules to Build
+
+### Module 1 — Information Transfer PRO-PM Engine (HIGHEST PRIORITY)
+**What it does:** Delivers personalized discharge education AND collects CMS's 5 survey
+questions at Day 7 and Day 30. Reports score to hospital admin dashboard.
+
+**Why it's #1:** This is the only TEAM quality measure Archangel directly controls.
+Every other metric is downstream of this. A hospital that improves from 50% to 80%
+on Information Transfer gains ~15% on their reconciliation — on a $20M annual episode
+budget, that's $3M. The math sells itself.
+
+**Components to build:**
+- Post-education 5-question micro-survey in patient dashboard (after watching/reading)
+- Day 7 SMS nudge: "Quick 2-min check-in" → survey link → logs response
+- Day 30 SMS nudge: "Final episode check-in" → survey + PROMIS → logs response
+- Hospital admin view: completion rate + score breakdown per episode
+
+---
+
+### Module 2 — PROMIS Survey Collection
+**What it does:** Delivers validated PROMIS pre-op survey before surgery and post-op
+PROMIS at Day 30. Measures functional improvement delta.
+
+**Why it matters:** PROMIS completion is tracked as a quality measure (THA/TKA
+PRO-PM). Industry average is 45%. Hitting 78%+ directly improves CQS.
+
+**Components to build:**
+- Pre-op PROMIS trigger: when doctor uploads pre-op note → SMS survey to patient
+- Post-op PROMIS trigger: Day 30 of episode → SMS survey to patient
+- Mobile-optimized survey UI (embedded in patient dashboard, accessible via SMS link)
+- Hospital dashboard: completion rate, pre vs post score delta per procedure type
+
+---
+
+### Module 3 — Episode Management Engine
+**What it does:** Creates and tracks the 30-day episode lifecycle. This is the
+operational backbone and the billing basis.
+
+**Why it matters:** Archangel's revenue = active episodes × $1,000/month. The hospital
+needs to see exactly who is in an active episode. This module makes that visible
+and generates the invoice automatically.
+
+**Components to build:**
+- Episode object: episode_id, patient_id, procedure (MS-DRG/HCPCS), anchor_date,
+  discharge_date, close_date (discharge + 30), status (open/closed)
+- Day counter in patient dashboard: "Day 12 of 30" — makes the episode real to patient
+- Active episode table in doctor portal: all open episodes, day in window, risk flags
+- Invoice generation: count active patients per calendar month → billing record
+
+---
+
+### Module 4 — Red Flag Triage Engine (Avoidable ER Reduction)
+**What it does:** When a patient describes a symptom to the avatar, Archangel
+categorizes it as Normal / Call Surgeon / Go to ER — and logs the interaction.
+
+**Why it matters:** Every unnecessary ER visit costs $2,000–$5,000 against the episode.
+A patient who panics about normal ankle swelling and drives to the ER just cost the
+hospital $3,000. Archangel prevents that by giving the patient a confident answer
+at 2am instead of defaulting to "when in doubt, go to the ER."
+
+**Components to build:**
+- Triage decision logic in avatar system prompt (spine-specific protocols):
+  - NORMAL: swelling, fatigue, constipation, mild pain, minor tingling
+  - CALL SURGEON TODAY: uncontrolled pain, wound drainage, fever 100.4–101.4°F
+  - ER IMMEDIATELY: loss of bowel/bladder control, sudden leg weakness, fever
+    >101.5°F + back pain, severe headache (CSF leak)
+- Keyword detection in avatar responses to log triage category
+- Hospital admin view: triage logs per episode, ER avoidance count
+
+---
+
+### Module 5 — Care Transitions & PCP Referral Documentation
+**What it does:** Tracks and documents that the hospital referred the patient to
+primary care on discharge (TEAM-required) and that key follow-up touchpoints occurred.
+
+**Why it matters:** TEAM explicitly requires PCP referral documentation. CQS includes
+a care transitions component. Hospitals that fail to document this lose quality points
+and face audit risk.
+
+**Components to build:**
+- PCP referral field in doctor portal: enter PCP name + contact at time of discharge
+- Patient SMS: "Your follow-up appointment with Dr. [PCP] is scheduled. Here's how
+  to prepare." (delivered at discharge)
+- Touch log: Day 7 check-in, Day 14 PCP visit confirmation, Day 21 PT, Day 30 close
+- Doctor portal: visual touch timeline per patient — green checkmarks per milestone
+
+---
+
+### Module 6 — Hospital Performance Dashboard
+**What it does:** Gives the hospital a real-time view of their TEAM performance —
+active episodes, quality scores, projected CQS, readmission count, and Archangel's
+impact vs industry baseline.
+
+**Why it matters:** This is what keeps the hospital renewing. They can see the delta
+between their Archangel-supported episodes and industry baseline in the same table.
+This dashboard IS the renewal conversation.
+
+**Components to build:**
+- Active episode count + trend (are we growing or shrinking episode volume?)
+- Information Transfer PRO-PM score vs industry (50% → 80%)
+- PROMIS completion rate vs industry (45% → 78%)
+- 30-day readmission count + rate vs industry (15% → 8%)
+- Projected CQS adjustment (conservative/base/optimistic scenarios)
+- Estimated savings vs target price per episode cohort
+- Export: monthly PDF report for hospital CFO / value-based care team
+
+---
+
+### Module 7 — Performance Bonus Tracking
+**What it does:** Tracks the outcome metrics that justify Archangel's contract bonuses
+if the hospital opts into performance-based pricing.
+
+**Bonus triggers (suggested):**
+- 30-day readmission rate drops below 10% for a quarterly cohort
+- PROMIS completion above 75% for a quarter
+- Information Transfer PRO-PM score above 80% for a quarter
+
+**Components to build:**
+- Cohort aggregation logic: group episodes by quarter, calculate rates
+- Bonus calculation: contractual thresholds → bonus amount owed
+- Bonus report: exportable summary for billing reconciliation
+
+---
+
+## 13. Revised Pricing Model
+
+### Per Patient, Per Month, Per Episode
+- **Base rate:** $1,000 per patient per active episode month
+- **Episode duration:** ~1 month (TEAM is a 30-day window)
+- **Invoice date:** Monthly, based on active episode count that month
+- **Payment split:** 50% at episode open (discharge day), 50% at episode close (Day 31)
+
+### Performance Bonus Layer (Optional Add-On)
+- +$200/patient if quarterly readmission rate < 10%
+- +$150/patient if PROMIS completion rate > 75%
+- +$100/patient if Information Transfer PRO-PM score > 80%
+- Structured as quarterly reconciliation, mirroring TEAM's own reconciliation model
+
+### Revenue Scaling
+| Monthly Episodes | Base Revenue | Potential w/ Bonuses |
+|---|---|---|
+| 50 | $50,000 | $57,500 |
+| 100 | $100,000 | $115,000 |
+| 200 | $200,000 | $230,000 |
+| 500 (multi-site) | $500,000 | $575,000 |
+
+### Why $1,000 Is Defensible
+- TEAM spinal fusion episode value: $25,000–$50,000
+- Archangel at $1,000 = 2–4% of episode value
+- One avoided readmission ($15,000–$30,000): pays for 15–30 patients
+- One CQS improvement from 52% → 71%: on $20M episode budget = $2.85M
+  additional reconciliation. Archangel's annual cost for 100 episodes = $1.2M.
+  ROI: 2.4:1 minimum.
+
+---
+
 ## Sources
 - [CMS TEAM Model Overview](https://www.cms.gov/priorities/innovation/innovation-models/team-model)
 - [TEAM Fact Sheet (PDF)](https://www.cms.gov/files/document/team-model-fs.pdf)
