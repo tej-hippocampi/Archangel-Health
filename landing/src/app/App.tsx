@@ -210,7 +210,7 @@ function LandingContent() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="section-header-center"
+              className="section-header-center section-header-team"
             >
               <h2 className="section-title">Three TEAM performance drivers, built into one platform.</h2>
             </motion.div>
@@ -461,6 +461,10 @@ const styles = `
   .section-header-center {
     text-align: center;
     margin-bottom: 3rem;
+  }
+
+  .section-header-team {
+    margin-top: -0.4rem;
   }
 
   .section-title {
