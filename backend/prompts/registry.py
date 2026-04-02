@@ -10,7 +10,7 @@ from .avatar import AVATAR_BEHAVIOR_TEMPLATE
 
 PROMPT_REGISTRY: dict = {
     "avatar_chat": {
-        "label": "Voice Avatar — Chat Persona",
+        "label": "Digital Care Companion — Chat Persona",
         "content": AVATAR_BEHAVIOR_TEMPLATE,
         "file": "backend/prompts/avatar.py",
         "variable": "AVATAR_BEHAVIOR_TEMPLATE",

@@ -1,6 +1,6 @@
 """
-AI Avatar System Prompt Builder
-Generates a patient-specific system prompt for the conversational voice avatar
+Digital Care Companion System Prompt Builder
+Generates a patient-specific system prompt for the conversational Digital Care Companion
 and the text-based chat fallback endpoint.
 
 AVATAR_BEHAVIOR_TEMPLATE is the editable base — uses [PATIENT_NAME], [PROCEDURE],
@@ -13,7 +13,7 @@ from typing import Any, Dict
 
 AVATAR_BEHAVIOR_TEMPLATE = """## Core Mission
 
-You are [PATIENT_NAME]'s personal medical guide after their [PROCEDURE].
+You are [PATIENT_NAME]'s Digital Care Companion after their [PROCEDURE].
 Your goal is clarity, comfort, and confidence in their recovery.
 Prevent unnecessary ED/urgent care visits through clear, calm education.
 

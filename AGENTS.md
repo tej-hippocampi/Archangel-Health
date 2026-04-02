@@ -35,7 +35,7 @@ Copy `.env.example` to `.env`. Set `BASE_URL=http://localhost:8000` for local de
 | `/api/patient/{id}/config` | GET | Dashboard config JSON |
 | `/api/patient/{id}/battlecard` | GET | Battlecard HTML |
 | `/api/patient/{id}/audio` | GET | Voice audio URL |
-| `/api/avatar/chat` | POST | AI chat (requires `ANTHROPIC_API_KEY`) |
+| `/api/digital-care-companion/chat` | POST | AI chat (requires `ANTHROPIC_API_KEY`) |
 | `/api/process-patient` | POST | Full EHR pipeline |
 | `/api/auth/register` | POST | Landing: create account (email, password, optional name) |
 | `/api/auth/login` | POST | Landing: sign in (email, password) |

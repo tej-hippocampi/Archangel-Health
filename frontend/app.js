@@ -104,18 +104,31 @@ function initOverlays() {
 
   const voiceLinkDiag = document.getElementById('voiceLinkDiagnosis');
   const voiceLinkTreat = document.getElementById('voiceLinkTreatment');
-  if (voiceLinkDiag) voiceLinkDiag.href = `/patient/${PATIENT.id}/voice`;
-  if (voiceLinkTreat) voiceLinkTreat.href = `/patient/${PATIENT.id}/voice`;
+  if (voiceLinkDiag) voiceLinkDiag.href = `/patient/${PATIENT.id}/digital-care-companion`;
+  if (voiceLinkTreat) voiceLinkTreat.href = `/patient/${PATIENT.id}/digital-care-companion`;
 }
 
 function initQuestionsButton() {
   document.getElementById('questionsBtn')?.addEventListener('click', goToVoiceGuide);
   const voiceBtn = document.getElementById('voiceAvatarBtn');
-  if (voiceBtn) voiceBtn.href = `/patient/${PATIENT.id}/voice`;
+  if (voiceBtn) voiceBtn.href = `/patient/${PATIENT.id}/digital-care-companion`;
+}
+
+async function trackPatientEvent(eventType, payload = {}) {
+  if (!PATIENT?.id) return;
+  try {
+    await fetch(`${window.location.origin}/api/patient/${PATIENT.id}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_type: eventType, payload }),
+    });
+  } catch (_err) {
+    // Non-blocking analytics/event call.
+  }
 }
 
 function goToVoiceGuide() {
-  window.location.href = `/patient/${PATIENT.id}/voice`;
+  window.location.href = `/patient/${PATIENT.id}/digital-care-companion`;
 }
 
 function showCareGuide() {
@@ -160,6 +173,7 @@ function noDataMsg(name) {
 
 // ─── Speed Control ────────────────────────────────────────────
 const audioPlayers = {};
+const watchedEventSent = new Set();
 
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.speed-btn');
@@ -205,7 +219,16 @@ function initAudioPlayer(prefix, audioUrl) {
   });
 
   function toggle() { isPlaying ? doPause() : doPlay(); }
-  function doPlay() { audio.play(); setPlay(true); if (overlay) overlay.style.opacity = '0'; }
+  function doPlay() {
+    audio.play();
+    setPlay(true);
+    if (overlay) overlay.style.opacity = '0';
+    if (!watchedEventSent.has(prefix)) {
+      watchedEventSent.add(prefix);
+      const ev = prefix === 'diag' ? 'diagnosis_video_watched' : 'treatment_video_watched';
+      trackPatientEvent(ev, { source: 'patient_dashboard' });
+    }
+  }
   function doPause() { audio.pause(); setPlay(false); if (overlay) overlay.style.opacity = '1'; }
   function setPlay(val) {
     isPlaying = val;
@@ -254,7 +277,7 @@ async function sendMessage() {
   const typingEl = showTyping();
 
   try {
-    const res = await fetch(`${window.location.origin}/api/avatar/chat`, {
+    const res = await fetch(`${window.location.origin}/api/digital-care-companion/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -276,11 +299,48 @@ async function sendMessage() {
       appendMessage(data.response + '\n\n⚠️ Check your server terminal — the actual error is printed there.', 'assistant');
     } else {
       appendMessage(data.response, 'assistant');
+      if (data.escalation && data.escalation.requires_consent) {
+        appendConsentPrompt(data.escalation.escalation_id);
+      }
     }
   } catch (err) {
     typingEl.remove();
     appendMessage(`Connection error: ${err.message}. Is the server running?`, 'error');
   }
+}
+
+function appendConsentPrompt(escalationId) {
+  const messages = document.getElementById('chatMessages');
+  const wrap = document.createElement('div');
+  wrap.className = 'message assistant-message';
+  wrap.innerHTML = `
+    <div class="message-bubble">
+      <div style="margin-bottom:8px;">Share this with your care navigator?</div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" data-consent="yes" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;">Yes</button>
+        <button type="button" data-consent="no" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;">No</button>
+      </div>
+    </div>
+    <span class="message-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+  `;
+  wrap.querySelectorAll('[data-consent]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const consent = btn.getAttribute('data-consent');
+      try {
+        await fetch(`${window.location.origin}/api/escalations/consent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ escalation_id: escalationId, consent }),
+        });
+        appendMessage(consent === 'yes' ? 'Consent shared. A navigator will follow up.' : 'Understood. I will not share this right now.', 'assistant');
+      } catch (_e) {
+        appendMessage('Could not save consent right now. Please try again.', 'error');
+      }
+      wrap.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    });
+  });
+  messages.appendChild(wrap);
+  messages.scrollTop = messages.scrollHeight;
 }
 
 function appendMessage(text, role) {
