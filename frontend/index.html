@@ -6,6 +6,27 @@
   <title>Your Recovery Plan | Archangel Health</title>
   <link rel="stylesheet" href="/static/styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    .episode-top-tabs {
+      display: inline-flex;
+      gap: 0;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 14px;
+      background: #fff;
+    }
+    .episode-top-tab {
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      text-decoration: none;
+      border-right: 1px solid #e2e8f0;
+    }
+    .episode-top-tab:last-child { border-right: none; }
+    .episode-top-tab.active { background: #eff6ff; color: #1d4ed8; }
+  </style>
 </head>
 <body>
 
@@ -34,6 +55,10 @@
   <!-- ─── Main (Dashboard: two cards only) ────────────────── -->
   <main class="main-content">
     <div class="page-wrapper">
+      <div class="episode-top-tabs">
+        <a href="#" class="episode-top-tab" id="preOperationTab">Pre Operation</a>
+        <a href="#" class="episode-top-tab active" id="postOperationTab">Post Operation</a>
+      </div>
 
       <!-- Recovery Plan Card -->
       <div class="recovery-card">
@@ -158,6 +183,7 @@
           </div>
         </div>
       </div>
+
     </div>
   </main>
 

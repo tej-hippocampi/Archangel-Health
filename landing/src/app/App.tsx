@@ -5,6 +5,7 @@ import { SignInDialog } from "@/app/components/SignInDialog";
 import { SignUpDialog } from "@/app/components/SignUpDialog";
 import ArchangelHealthLogo from "@/app/components/ArchangelHealthLogo";
 import RecoveryResourcesEmailPreview from "@/app/components/RecoveryResourcesEmailPreview";
+import TeamCalculator from "@/app/components/TeamCalculator";
 import * as authApi from "@/lib/auth-api";
 
 const HIPPOCRATES_BG = "/hippocrates-email-bg.png";
@@ -247,6 +248,20 @@ function LandingContent() {
                 delay={0.3}
               />
             </div>
+          </div>
+        </section>
+
+        <section className="section section-dark section-calc">
+          <div className="section-container" style={{ textAlign: "center" }}>
+            <h2 className="section-title" style={{ marginBottom: "1rem" }}>Understand TEAM financial impact before contracting.</h2>
+            <a
+              href="/team-calculator"
+              className="hero-demo-button"
+              style={{ display: "inline-flex" }}
+            >
+              <img src={HIPPOCRATES_BG} alt="" className="hippocrates-bg-button" />
+              <span className="hero-demo-button-text">Open TEAM calculator</span>
+            </a>
           </div>
         </section>
 
@@ -635,6 +650,88 @@ const styles = `
     opacity: 1;
   }
 
+  .section-calc {
+    padding-top: 1.5rem;
+  }
+
+  .team-calc-shell {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px;
+    background: linear-gradient(140deg, rgba(19, 19, 22, 0.95) 0%, rgba(10, 10, 11, 0.98) 100%);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .team-calc-panel {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background: rgba(14, 14, 16, 0.9);
+    padding: 1rem;
+  }
+
+  .team-calc-title {
+    margin: 0 0 0.4rem;
+    font-size: 1.2rem;
+    letter-spacing: -0.02em;
+  }
+
+  .team-calc-sub {
+    margin: 0 0 1rem;
+    color: rgba(245, 245, 247, 0.7);
+    font-size: 0.9rem;
+  }
+
+  .team-calc-label {
+    display: grid;
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.82rem;
+    color: rgba(245, 245, 247, 0.9);
+  }
+
+  .team-calc-label input {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    padding: 0.6rem 0.75rem;
+    background: rgba(255, 255, 255, 0.02);
+    color: #f5f5f7;
+    font-size: 0.94rem;
+  }
+
+  .team-calc-metric {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 0.7rem 0.8rem;
+    margin-bottom: 0.55rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .team-calc-metric span {
+    color: rgba(245, 245, 247, 0.8);
+    font-size: 0.82rem;
+  }
+
+  .team-calc-metric strong {
+    font-size: 1rem;
+  }
+
+  .team-calc-metric.savings strong {
+    color: #22d3ee;
+  }
+
+  .team-calc-chart {
+    margin-top: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.01);
+    padding: 0.4rem 0.5rem 0;
+  }
+
   .footer {
     padding: 4rem 1.5rem 2rem;
     background: #0a0a0b;
@@ -730,6 +827,10 @@ const styles = `
     .footer-contact {
       text-align: left;
     }
+
+    .team-calc-shell {
+      grid-template-columns: 1fr;
+    }
   }
 
   @media (min-width: 768px) {
@@ -745,9 +846,16 @@ const styles = `
 `;
 
 export default function App() {
+  const isTeamCalculatorRoute =
+    typeof window !== "undefined" &&
+    window.location.pathname === "/team-calculator";
   const isEmailPreviewRoute =
     typeof window !== "undefined" &&
     (window.location.pathname === "/email-preview" || window.location.search.includes("emailPreview=1"));
+
+  if (isTeamCalculatorRoute) {
+    return <TeamCalculator />;
+  }
 
   if (isEmailPreviewRoute) {
     return <RecoveryResourcesEmailPreview />;

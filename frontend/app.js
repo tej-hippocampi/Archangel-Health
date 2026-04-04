@@ -72,6 +72,15 @@ function initPatientInfo() {
     const backBtn = document.getElementById('backToRoster');
     if (backBtn) backBtn.style.display = 'inline';
   }
+
+  const preTab = document.getElementById('preOperationTab');
+  const postTab = document.getElementById('postOperationTab');
+  if (preTab) preTab.href = `/patient/${PATIENT.id}/pre-op`;
+  if (postTab) postTab.href = `/patient/${PATIENT.id}`;
+  if (preTab && postTab) {
+    preTab.classList.remove('active');
+    postTab.classList.add('active');
+  }
 }
 
 // ─── Overlays (click Diagnosis or Treatment → full-screen that section only) ─
@@ -112,6 +121,8 @@ function initQuestionsButton() {
   document.getElementById('questionsBtn')?.addEventListener('click', goToVoiceGuide);
   const voiceBtn = document.getElementById('voiceAvatarBtn');
   if (voiceBtn) voiceBtn.href = `/patient/${PATIENT.id}/digital-care-companion`;
+  const preOpBtn = document.getElementById('openPreOpBtn');
+  if (preOpBtn) preOpBtn.href = `/patient/${PATIENT.id}/pre-op`;
 }
 
 async function trackPatientEvent(eventType, payload = {}) {

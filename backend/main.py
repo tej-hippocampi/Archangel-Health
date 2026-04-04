@@ -12,7 +12,7 @@ import secrets
 import string
 from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, APIRouter, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -114,6 +114,174 @@ TIER_1_RESPONSE = (
     "Please call 911 or go to the emergency room right now. "
     "I'm also notifying your care team. Do not wait."
 )
+
+AI_DISCLAIMER = (
+    "This was created with AI assistance. AI can make mistakes. This is not medical advice or a diagnosis. "
+    "Always talk to a doctor about your health. If this is an emergency, call 911."
+)
+
+SPECIALTY_FORM_LIBRARY_PATH = os.path.join(os.path.dirname(__file__), "intake_form_library.json")
+SPECIALTY_FRAMEWORK_PATH = os.path.join(os.path.dirname(__file__), "intake_frameworks.json")
+_preop_intake_sessions: Dict[str, Dict[str, Any]] = {}
+
+DEFAULT_FORM_LIBRARY: Dict[str, Dict[str, Any]] = {
+    "Orthopedic": {
+        "template_name": "Orthopedic Intake Form",
+        "header_fields": ["Patient Name", "DOB", "MRN", "Procedure", "Surgeon", "Surgery Date"],
+        "sections": {
+            "Pre-Op Testing Acknowledgment": [
+                "Blood work ordered/reviewed",
+                "EKG reviewed if indicated",
+                "Imaging reviewed for operative site",
+            ],
+            "Medication Instructions Acknowledged": [
+                "Blood thinner stop date reviewed",
+                "NSAID stop guidance reviewed",
+                "Diabetes medication plan reviewed",
+            ],
+            "Day-of-Surgery Prep": [
+                "NPO timing confirmed",
+                "CHG wash instructions confirmed",
+                "Arrival time and check-in location confirmed",
+            ],
+            "Home Preparation Confirmed": [
+                "Ride home arranged",
+                "Caregiver support confirmed",
+                "Home safety adjustments reviewed",
+            ],
+            "Consent Forms": [
+                "Procedure consent",
+                "Anesthesia consent",
+                "HIPAA acknowledgement",
+            ],
+        },
+        "final_review_fields": [
+            "Questions from patient / items needing follow-up",
+            "Additional instructions given",
+            "Reviewed by (staff name / role)",
+            "Date",
+            "Patient initials confirming review",
+            "Patient signature",
+        ],
+    },
+    "Cardiac": {
+        "template_name": "Cardiac Surgical Intake Form",
+        "header_fields": ["Patient Name", "DOB", "MRN", "Procedure", "Surgeon", "Surgery Date"],
+        "sections": {
+            "Pre-Op Testing Acknowledgment": [
+                "Cardiac clearance reviewed",
+                "Echo/EKG reviewed",
+                "Recent labs reviewed",
+            ],
+            "Medication Instructions Acknowledged": [
+                "Anticoagulant hold/restart plan reviewed",
+                "Beta blocker instructions reviewed",
+                "Diabetes/insulin peri-op instructions reviewed",
+            ],
+            "Day-of-Surgery Prep": [
+                "NPO timing confirmed",
+                "Morning medication plan confirmed",
+                "Arrival and admission details reviewed",
+            ],
+            "Home Preparation Confirmed": [
+                "Discharge support arranged",
+                "Transportation plan confirmed",
+            ],
+            "Consent Forms": [
+                "Procedure consent",
+                "Blood product consent",
+                "Anesthesia consent",
+            ],
+        },
+        "final_review_fields": [
+            "Questions from patient / items needing follow-up",
+            "Additional instructions given",
+            "Reviewed by (staff name / role)",
+            "Date",
+            "Patient initials confirming review",
+            "Patient signature",
+        ],
+    },
+    "Spine": {
+        "template_name": "Spine Procedure Intake Form",
+        "header_fields": ["Patient Name", "DOB", "MRN", "Procedure", "Surgeon", "Surgery Date"],
+        "sections": {
+            "Pre-Op Testing Acknowledgment": [
+                "Spine imaging reviewed",
+                "Neuro baseline documented",
+                "Pre-op labs reviewed",
+            ],
+            "Medication Instructions Acknowledged": [
+                "Blood thinner stop date reviewed",
+                "Pain medication plan reviewed",
+                "Supplements/herbal hold list reviewed",
+            ],
+            "Day-of-Surgery Prep": [
+                "NPO timing confirmed",
+                "Skin prep instructions confirmed",
+                "Arrival time and location confirmed",
+            ],
+            "Home Preparation Confirmed": [
+                "Post-op support person confirmed",
+                "Home mobility support reviewed",
+            ],
+            "Consent Forms": [
+                "Procedure consent",
+                "Implant consent",
+                "Anesthesia consent",
+            ],
+        },
+        "final_review_fields": [
+            "Questions from patient / items needing follow-up",
+            "Additional instructions given",
+            "Reviewed by (staff name / role)",
+            "Date",
+            "Patient initials confirming review",
+            "Patient signature",
+        ],
+    },
+    "General Surgery": {
+        "template_name": "General Surgery Intake Form",
+        "header_fields": ["Patient Name", "DOB", "MRN", "Procedure", "Surgeon", "Surgery Date"],
+        "sections": {
+            "Pre-Op Testing Acknowledgment": [
+                "Required labs reviewed",
+                "Procedure-specific imaging reviewed",
+            ],
+            "Medication Instructions Acknowledged": [
+                "Medication hold list reviewed",
+                "Morning-of-surgery medication plan reviewed",
+            ],
+            "Day-of-Surgery Prep": [
+                "NPO timing confirmed",
+                "Arrival and registration timing confirmed",
+            ],
+            "Home Preparation Confirmed": [
+                "Discharge transportation arranged",
+                "Recovery support available",
+            ],
+            "Consent Forms": [
+                "Procedure consent",
+                "Anesthesia consent",
+            ],
+        },
+        "final_review_fields": [
+            "Questions from patient / items needing follow-up",
+            "Additional instructions given",
+            "Reviewed by (staff name / role)",
+            "Date",
+            "Patient initials confirming review",
+            "Patient signature",
+        ],
+    },
+}
+
+DEFAULT_FRAMEWORKS: Dict[str, str] = {
+    "Orthopedic": "Ask one question at a time. Cover PEAR for joint/spine symptoms with emphasis on mobility limits and prior orthopedic surgeries.",
+    "Cardiac": "Ask one question at a time. Cover PEAR with emphasis on cardiopulmonary symptoms, exertional tolerance, and anticoagulation history.",
+    "Spine": "Ask one question at a time. Cover PEAR with emphasis on neuro symptoms, radiation pattern, motor weakness, prior spine interventions.",
+    "General Surgery": "Ask one question at a time. Cover PEAR with emphasis on abdominal symptoms, bowel patterns, prior abdominal surgery, infection risk.",
+}
 
 
 def _seed_demo_patient_if_empty() -> None:
@@ -542,6 +710,153 @@ async def _evaluate_semantic_escalation_llm(message: str, conversation_history: 
     return None
 
 
+def _load_json_file(path: str, fallback: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        if os.path.isfile(path):
+            with open(path, "r") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return json.loads(json.dumps(fallback))
+
+
+def _save_json_file(path: str, payload: Dict[str, Any]) -> None:
+    with open(path, "w") as f:
+        json.dump(payload, f, indent=2)
+
+
+def _load_form_library() -> Dict[str, Any]:
+    return _load_json_file(SPECIALTY_FORM_LIBRARY_PATH, DEFAULT_FORM_LIBRARY)
+
+
+def _save_form_library(library: Dict[str, Any]) -> None:
+    _save_json_file(SPECIALTY_FORM_LIBRARY_PATH, library)
+
+
+def _load_frameworks() -> Dict[str, Any]:
+    return _load_json_file(SPECIALTY_FRAMEWORK_PATH, DEFAULT_FRAMEWORKS)
+
+
+def _save_frameworks(frameworks: Dict[str, Any]) -> None:
+    _save_json_file(SPECIALTY_FRAMEWORK_PATH, frameworks)
+
+
+def _specialty_from_procedure(procedure_name: str) -> str:
+    proc = (procedure_name or "").lower()
+    if any(k in proc for k in ("spine", "lumbar", "cervical", "fusion")):
+        return "Spine"
+    if any(k in proc for k in ("cabg", "cardiac", "coronary", "heart")):
+        return "Cardiac"
+    if any(k in proc for k in ("knee", "hip", "orthopedic", "arthro", "joint")):
+        return "Orthopedic"
+    return "General Surgery"
+
+
+def _blank_form_from_template(patient: dict, template: Dict[str, Any]) -> Dict[str, Any]:
+    sd = patient.get("structured_data") or {}
+    header = {
+        "Patient Name": patient.get("name", ""),
+        "DOB": sd.get("date_of_birth", ""),
+        "MRN": sd.get("mrn", ""),
+        "Procedure": sd.get("procedure_name", ""),
+        "Surgeon": sd.get("surgeon_name", ""),
+        "Surgery Date": sd.get("procedure_date", ""),
+    }
+    sections = {}
+    for section_name, items in (template.get("sections") or {}).items():
+        sections[section_name] = [{"label": item, "status": "N/A", "comments": ""} for item in (items or [])]
+    final_review = {field: "" for field in (template.get("final_review_fields") or [])}
+    return {"header": header, "sections": sections, "finalReview": final_review}
+
+
+def _build_prefill_from_session(patient: dict, session: Dict[str, Any], template: Dict[str, Any]) -> Dict[str, Any]:
+    form = _blank_form_from_template(patient, template)
+    answers = session.get("answers", {})
+    pattern = answers.get("pattern", "")
+    exposure = answers.get("exposure", "")
+    anatomy = answers.get("anatomy", "")
+    root = answers.get("root", "")
+    for sec_items in form["sections"].values():
+        for item in sec_items:
+            item["status"] = "Yes"
+            item["comments"] = f"Auto-filled from intake: {pattern[:65]}" if pattern else "Auto-filled from intake interview."
+    form["finalReview"]["Questions from patient / items needing follow-up"] = anatomy or "Needs follow-up clarification."
+    form["finalReview"]["Additional instructions given"] = exposure or "Reviewed preparation instructions."
+    form["finalReview"]["Reviewed by (staff name / role)"] = "Digital Care Companion"
+    form["finalReview"]["Date"] = date.today().isoformat()
+    form["finalReview"]["Patient initials confirming review"] = (patient.get("name", "P")[:2]).upper()
+    form["finalReview"]["Patient signature"] = patient.get("name", "")
+    if root:
+        form["header"]["MRN"] = form["header"].get("MRN") or "Pending"
+    return {
+        "header": form["header"],
+        "preOpTesting": form["sections"].get("Pre-Op Testing Acknowledgment", []),
+        "medicationInstructions": form["sections"].get("Medication Instructions Acknowledged", []),
+        "dayOfSurgery": form["sections"].get("Day-of-Surgery Prep", []),
+        "homePreparation": form["sections"].get("Home Preparation Confirmed", []),
+        "consentForms": form["sections"].get("Consent Forms", []),
+        "finalReview": form["finalReview"],
+        "templateName": template.get("template_name", "Pre-Op Intake Form"),
+    }
+
+
+def _care_message_for_tier(tier: int, patient_data: dict) -> str:
+    if tier == 1:
+        return TIER_1_RESPONSE
+    if tier == 2:
+        doctor_phone = patient_data.get("office_phone") or os.getenv("CARE_TEAM_PHONE", "")
+        return (
+            "This is something your surgeon needs to hear about today. "
+            f"Please call {doctor_phone or 'your surgeon office'} as soon as possible. "
+            "I'm flagging this for your care team now."
+        )
+    return (
+        "I want to make sure you get the right support for this. "
+        "I'm going to let your care navigator know so they can follow up with you directly. Is that okay?"
+    )
+
+
+async def _classify_and_create_escalation(
+    *,
+    patient_id: str,
+    message: str,
+    conversation_history: List[dict],
+    source: str,
+) -> Optional[Dict[str, Any]]:
+    patient_data = _patient_store[patient_id]
+    snapshot = list(conversation_history or []) + [{"role": "user", "content": message}]
+    if source != "chat":
+        snapshot.append({"role": "system", "content": f"Origin: {source}"})
+
+    tier = None
+    trigger_type = source
+    if _detect_hard_tier_1(message):
+        tier = 1
+        trigger_type = f"{source}:hard_keyword"
+    else:
+        semantic = await _evaluate_semantic_escalation_llm(message, conversation_history)
+        if semantic and semantic.get("tier") in (2, 3):
+            tier = semantic.get("tier")
+            trigger_type = f"{source}:{semantic.get('trigger_type', 'semantic')}"
+    if tier is None:
+        return None
+    esc_id = _team_store.create_escalation(
+        patient_id=patient_id,
+        tier=int(tier),
+        trigger_type=trigger_type,
+        message=message,
+        conversation_snapshot=snapshot,
+    )
+    return {
+        "tier": int(tier),
+        "escalation_id": esc_id,
+        "requires_consent": int(tier) == 3 and source == "chat",
+        "response": _care_message_for_tier(int(tier), patient_data),
+    }
+
+
 # ─── Patient store starts empty (no demo seed) ─────────────────
 
 # ─── Request / Response Models ────────────────────────────────
@@ -618,6 +933,38 @@ class EscalationResolveRequest(BaseModel):
 class EscalationConsentRequest(BaseModel):
     escalation_id: int
     consent: str
+
+
+class PreOpInput(BaseModel):
+    patient_name: str
+    preparation_notes: str
+    patient_id: Optional[str] = None
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+    doctor_office_phone: Optional[str] = None
+    doctor_clinic_code: Optional[str] = None
+    resource_code: Optional[str] = None
+    procedure_type: Optional[str] = None
+
+
+class IntakeStartRequest(BaseModel):
+    patient_id: str
+
+
+class IntakeAnswerRequest(BaseModel):
+    patient_id: str
+    message: str
+    conversation_history: List[dict] = []
+
+
+class IntakeSubmitRequest(BaseModel):
+    patient_id: str
+    form_data: Dict[str, Any]
+
+
+class CareTeamNotificationRequest(BaseModel):
+    patient_id: str
+    message: str
 
 
 # ─── Auth (Elysium Health landing) ────────────────────────────
@@ -780,6 +1127,7 @@ async def get_discharge_materials(patient_id: str):
         "patient_id": patient_id,
         "diagnosis": resources.get("diagnosis"),
         "treatment": resources.get("treatment"),
+        "preop": resources.get("preop"),
     }
 
 
@@ -792,7 +1140,10 @@ async def track_patient_event(patient_id: str, body: EventTrackRequest):
         "email_sent",
         "diagnosis_video_watched",
         "treatment_video_watched",
+        "preop_video_watched",
         "avatar_chat",
+        "care_team_notification",
+        "preop_intake_submitted",
         "survey_pending",
         "survey_completed",
         "sms_sent",
@@ -865,6 +1216,8 @@ async def list_escalations():
     out = []
     for row in rows:
         patient = _patient_store.get(row["patient_id"], {})
+        trigger = row["trigger_type"]
+        origin = "Care Team Notification" if str(trigger).startswith("care_team_notification") else "Chat"
         out.append(
             {
                 "id": row["id"],
@@ -872,6 +1225,7 @@ async def list_escalations():
                 "patient_name": patient.get("name", row["patient_id"]),
                 "tier": row["tier"],
                 "trigger_type": row["trigger_type"],
+                "origin": origin,
                 "message": row.get("message", ""),
                 "consent": row.get("consent"),
                 "consent_at": row.get("consent_at"),
@@ -1365,6 +1719,113 @@ async def process_discharge(
         raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(exc)}")
 
 
+@app.post("/api/process-preop")
+async def process_preop(
+    input_data: PreOpInput,
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+):
+    """
+    Pre-op resource pipeline:
+      Surgical prep notes -> Extract -> Generate pre-op voice + battlecard -> ElevenLabs audio -> Store
+    """
+    import uuid
+
+    patient_id = input_data.patient_id or f"preop_{uuid.uuid4().hex[:8]}"
+    clinic_code = None
+    resource_code = None
+    office_phone = None
+    if user and user.role == "doctor":
+        profile = get_doctor_profile(user.email)
+        if profile:
+            clinic_code = profile["clinic_code"]
+            office_phone = profile.get("office_phone") or ""
+            resource_code = _generate_resource_code()
+    if not office_phone:
+        office_phone = (input_data.doctor_office_phone or "").strip() or None
+    if not clinic_code:
+        clinic_code = (input_data.doctor_clinic_code or "").strip().upper() or None
+    if input_data.resource_code:
+        resource_code = (input_data.resource_code or "").strip().upper() or None
+    if clinic_code and not resource_code:
+        resource_code = _generate_resource_code()
+
+    try:
+        raw_package = {
+            "metadata": {
+                "patient_id": patient_id,
+                "patient_name": input_data.patient_name,
+                "phone_number": input_data.phone_number or "",
+            },
+            "clinical_data": {
+                "clinical_notes": input_data.preparation_notes,
+                "after_visit_summary": input_data.preparation_notes,
+                "pmh": "",
+                "procedure_context": input_data.procedure_type or "",
+                "medication_list": "",
+                "allergies": "",
+                "problem_list": "",
+            },
+        }
+        structured_data = await ExtractionLayer().extract(raw_package)
+        if input_data.procedure_type and not structured_data.get("procedure_name"):
+            structured_data["procedure_name"] = input_data.procedure_type
+        structured_data["pre_op_instructions"] = (
+            structured_data.get("pre_op_instructions")
+            or input_data.preparation_notes
+        )
+
+        generator = GenerationLayer()
+        preop_voice, preop_battlecard = await generator.generate(structured_data, "pre_op")
+        preop_audio = await ElevenLabsClient().synthesize(preop_voice, f"{patient_id}_preop")
+
+        base_url = os.getenv("BASE_URL", "http://localhost:8000")
+        dashboard_url = f"{base_url}/patient/{patient_id}/pre-op"
+        specialty = _specialty_from_procedure(structured_data.get("procedure_name", ""))
+        _patient_store[patient_id] = {
+            "name": input_data.patient_name,
+            "phone": input_data.phone_number or "",
+            "email": input_data.email or "",
+            "pipeline_type": "pre_op",
+            "voice_audio_url": preop_audio,
+            "battlecard_html": preop_battlecard,
+            "avatar_url": None,
+            "voice_script": preop_voice,
+            "structured_data": structured_data,
+            "clinic_code": clinic_code,
+            "resource_code": resource_code,
+            "office_phone": office_phone,
+            "specialty": specialty,
+            "resources": {
+                "preop": {
+                    "voice_script": preop_voice,
+                    "battlecard_html": preop_battlecard,
+                    "voice_audio_url": preop_audio,
+                }
+            },
+        }
+        _team_store.ensure_episode(
+            patient_id=patient_id,
+            procedure_type=structured_data.get("procedure_name", ""),
+            clinic_code=clinic_code or "",
+            resource_code=resource_code or "",
+        )
+        return {
+            "patient_id": patient_id,
+            "dashboard_url": dashboard_url,
+            "clinic_code": clinic_code,
+            "resource_code": resource_code,
+            "preop": {
+                "voice_script": preop_voice,
+                "battlecard_html": preop_battlecard,
+                "voice_audio_url": preop_audio,
+            },
+            "structured_data": structured_data,
+            "specialty": specialty,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Pre-op pipeline failed: {exc}")
+
+
 # ─── Legacy Process Patient ───────────────────────────────────
 @app.post("/api/process-patient", response_model=ProcessResponse)
 async def process_patient(bundle: EHRBundle, background_tasks: BackgroundTasks):
@@ -1520,6 +1981,30 @@ async def digital_care_companion_page(patient_id: str):
     return HTMLResponse(content=html)
 
 
+@app.get("/patient/{patient_id}/pre-op", response_class=HTMLResponse)
+async def pre_op_page(patient_id: str):
+    """Serves the pre-operative preparation page."""
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    d = _patient_store[patient_id]
+    patient_json = json.dumps(
+        {
+            "id": patient_id,
+            "name": d["name"],
+            "firstName": d["name"].split()[0],
+            "procedure": d["structured_data"].get("procedure_name", ""),
+            "phoneTeam": d.get("office_phone") or os.getenv("CARE_TEAM_PHONE", ""),
+            "preop_resource": (d.get("resources") or {}).get("preop"),
+        }
+    )
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/pre-op.html")
+    with open(html_path) as f:
+        html = f.read()
+    inject = f"<script>window.__PATIENT__ = {patient_json};</script>"
+    html = html.replace("</head>", f"{inject}\n</head>")
+    return HTMLResponse(content=html)
+
+
 @app.get("/patient/{patient_id}", response_class=HTMLResponse)
 async def patient_dashboard(patient_id: str):
     if patient_id not in _patient_store:
@@ -1588,61 +2073,22 @@ async def digital_care_companion_chat(req: ChatRequest):
 
     patient_data = _patient_store[req.patient_id]
     _team_store.log_event(patient_id=req.patient_id, event_type="avatar_chat", payload={"source": "chat"})
-    conversation_snapshot = list(req.conversation_history or []) + [{"role": "user", "content": req.message}]
-
-    if _detect_hard_tier_1(req.message):
-        esc_id = _team_store.create_escalation(
-            patient_id=req.patient_id,
-            tier=1,
-            trigger_type="hard_keyword",
-            message=req.message,
-            conversation_snapshot=conversation_snapshot,
-        )
+    escalation = await _classify_and_create_escalation(
+        patient_id=req.patient_id,
+        message=req.message,
+        conversation_history=req.conversation_history,
+        source="chat",
+    )
+    if escalation:
         return ChatResponse(
-            response=TIER_1_RESPONSE,
+            response=escalation["response"],
             patient_id=req.patient_id,
             audio_url=None,
-            escalation={"tier": 1, "escalation_id": esc_id, "requires_consent": False},
-        )
-
-    semantic = await _evaluate_semantic_escalation_llm(req.message, req.conversation_history)
-    if semantic and semantic.get("tier") == 2:
-        doctor_phone = patient_data.get("office_phone") or os.getenv("CARE_TEAM_PHONE", "")
-        msg = (
-            "This is something your surgeon needs to hear about today. "
-            f"Please call {doctor_phone or 'your surgeon office'} as soon as possible. "
-            "I'm flagging this for your care team now."
-        )
-        esc_id = _team_store.create_escalation(
-            patient_id=req.patient_id,
-            tier=2,
-            trigger_type=semantic.get("trigger_type", "semantic"),
-            message=req.message,
-            conversation_snapshot=conversation_snapshot,
-        )
-        return ChatResponse(
-            response=msg,
-            patient_id=req.patient_id,
-            audio_url=None,
-            escalation={"tier": 2, "escalation_id": esc_id, "requires_consent": False},
-        )
-    if semantic and semantic.get("tier") == 3:
-        msg = (
-            "I want to make sure you get the right support for this. "
-            "I'm going to let your care navigator know so they can follow up with you directly. Is that okay?"
-        )
-        esc_id = _team_store.create_escalation(
-            patient_id=req.patient_id,
-            tier=3,
-            trigger_type=semantic.get("trigger_type", "semantic"),
-            message=req.message,
-            conversation_snapshot=conversation_snapshot,
-        )
-        return ChatResponse(
-            response=msg,
-            patient_id=req.patient_id,
-            audio_url=None,
-            escalation={"tier": 3, "escalation_id": esc_id, "requires_consent": True},
+            escalation={
+                "tier": escalation["tier"],
+                "escalation_id": escalation["escalation_id"],
+                "requires_consent": escalation["requires_consent"],
+            },
         )
 
     try:
@@ -1654,6 +2100,14 @@ async def digital_care_companion_chat(req: ChatRequest):
         clean_data = {k: v for k, v in patient_data["structured_data"].items()
                       if k != "_raw_clinical"}
         system_prompt = build_avatar_system_prompt(clean_data)
+        if patient_data.get("pipeline_type") == "pre_op":
+            prep_notes = clean_data.get("pre_op_instructions") or clean_data.get("clinical_notes") or ""
+            system_prompt += (
+                "\n\n## Pre-Op Scope Override\n"
+                "This patient is in a PRE-OP episode. Only discuss surgical preparation, including medication hold/start instructions, dietary restrictions, and activity restrictions.\n"
+                "Do not provide post-op recovery advice unless explicitly present in pre-op notes.\n"
+                f"Primary preparation notes:\n{prep_notes}\n"
+            )
 
         messages = [{"role": m["role"], "content": m["content"]}
                     for m in req.conversation_history]
@@ -1681,6 +2135,154 @@ async def digital_care_companion_chat(req: ChatRequest):
             response="I'm having a brief technical issue. For urgent questions, please call your care team directly.",
             patient_id=req.patient_id, audio_url=None,
         )
+
+
+def _next_missing_lens(session: Dict[str, Any]) -> Optional[str]:
+    for lens in ("pattern", "exposure", "anatomy", "root"):
+        if not (session.get("answers", {}).get(lens) or "").strip():
+            return lens
+    return None
+
+
+def _lens_question(lens: str, specialty: str) -> str:
+    frameworks = _load_frameworks()
+    specialty_note = frameworks.get(specialty) or frameworks.get("General Surgery") or ""
+    prompts = {
+        "pattern": "Pattern: When did your symptoms start, how have they changed, and what makes them better or worse?",
+        "exposure": "Exposure: What does your daily activity look like (occupation, exercise, repetitive movement, substance use, prior surgeries)?",
+        "anatomy": "Anatomy: Where exactly is the issue, does it radiate anywhere, how severe is it, and what does it stop you from doing?",
+        "root": "Root: Please share age, sex, ethnicity, BMI (if known), family history, current medications, allergies, conditions, and prior anesthesia reactions.",
+    }
+    return f"{prompts.get(lens, '')} {specialty_note}".strip()
+
+
+def _with_disclaimer(text: str) -> str:
+    return f"{text}\n\n{AI_DISCLAIMER}"
+
+
+@app.post("/api/pre-op/intake/start")
+async def preop_intake_start(body: IntakeStartRequest):
+    if body.patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = _patient_store[body.patient_id]
+    procedure = (patient.get("structured_data") or {}).get("procedure_name", "")
+    specialty = patient.get("specialty") or _specialty_from_procedure(procedure)
+    session = {
+        "patient_id": body.patient_id,
+        "specialty": specialty,
+        "answers": {"pattern": "", "exposure": "", "anatomy": "", "root": ""},
+        "last_lens": "pattern",
+    }
+    _preop_intake_sessions[body.patient_id] = session
+    question = _lens_question("pattern", specialty)
+    return {
+        "patient_id": body.patient_id,
+        "response": "Hi, I am your pre-op Digital Care Companion. I will ask one question at a time to complete your surgical intake.\n" + question,
+        "interview_complete": False,
+    }
+
+
+@app.post("/api/pre-op/intake/answer")
+async def preop_intake_answer(body: IntakeAnswerRequest):
+    if body.patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = _patient_store[body.patient_id]
+    procedure = (patient.get("structured_data") or {}).get("procedure_name", "")
+    specialty = patient.get("specialty") or _specialty_from_procedure(procedure)
+    session = _preop_intake_sessions.get(body.patient_id) or {
+        "patient_id": body.patient_id,
+        "specialty": specialty,
+        "answers": {"pattern": "", "exposure": "", "anatomy": "", "root": ""},
+        "last_lens": "pattern",
+    }
+    current_lens = session.get("last_lens") or _next_missing_lens(session) or "pattern"
+    if body.message.strip() and not (session["answers"].get(current_lens) or "").strip():
+        session["answers"][current_lens] = body.message.strip()
+    next_lens = _next_missing_lens(session)
+    if next_lens:
+        session["last_lens"] = next_lens
+        _preop_intake_sessions[body.patient_id] = session
+        return {
+            "patient_id": body.patient_id,
+            "response": _lens_question(next_lens, specialty),
+            "interview_complete": False,
+        }
+
+    library = _load_form_library()
+    template = library.get(specialty) or library.get("General Surgery") or next(iter(library.values()))
+    prefill = _build_prefill_from_session(patient, session, template)
+    _preop_intake_sessions[body.patient_id] = session
+    return {
+        "patient_id": body.patient_id,
+        "response": "Thanks. I have all four PEAR lenses. I generated your pre-filled intake form preview for review.",
+        "interview_complete": True,
+        "prefill_form": prefill,
+        "specialty": specialty,
+        "template_name": template.get("template_name", "Pre-Op Intake Form"),
+    }
+
+
+@app.post("/api/pre-op/intake/submit")
+async def preop_intake_submit(body: IntakeSubmitRequest):
+    if body.patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = _patient_store[body.patient_id]
+    specialty = patient.get("specialty") or _specialty_from_procedure((patient.get("structured_data") or {}).get("procedure_name", ""))
+    library = _load_form_library()
+    template = library.get(specialty) or library.get("General Surgery") or {}
+    submission_id = _team_store.save_preop_intake_submission(
+        patient_id=body.patient_id,
+        specialty=specialty,
+        form_template_name=template.get("template_name", "Pre-Op Intake Form"),
+        form_data=body.form_data or {},
+    )
+    _team_store.log_event(
+        patient_id=body.patient_id,
+        event_type="preop_intake_submitted",
+        payload={"submission_id": submission_id, "specialty": specialty},
+    )
+    return {"ok": True, "submission_id": submission_id}
+
+
+@app.get("/api/doctor/patient/{patient_id}/latest-intake")
+async def doctor_latest_intake(patient_id: str, user: UserOut = Depends(get_current_user)):
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    submission = _team_store.get_latest_preop_intake_submission(patient_id)
+    return {"patient_id": patient_id, "submission": submission}
+
+
+@app.post("/api/pre-op/notify-care-team")
+async def preop_notify_care_team(body: CareTeamNotificationRequest):
+    if body.patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    _team_store.log_event(
+        patient_id=body.patient_id,
+        event_type="care_team_notification",
+        payload={"source": "preop_notify"},
+    )
+    escalation = await _classify_and_create_escalation(
+        patient_id=body.patient_id,
+        message=body.message,
+        conversation_history=[],
+        source="care_team_notification",
+    )
+    if escalation:
+        return {
+            "ok": True,
+            "response": escalation["response"],
+            "escalation": {
+                "tier": escalation["tier"],
+                "escalation_id": escalation["escalation_id"],
+                "requires_consent": False,
+                "origin": "Care Team Notification",
+            },
+        }
+    return {
+        "ok": True,
+        "response": "Your note was sent to your care team for follow-up.",
+        "escalation": None,
+    }
 
 
 # ─── Background Tasks ─────────────────────────────────────────

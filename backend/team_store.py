@@ -84,10 +84,20 @@ class TeamStore:
                     UNIQUE(patient_id, reminder_date)
                 );
 
+                CREATE TABLE IF NOT EXISTS preop_intake_submissions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT NOT NULL,
+                    specialty TEXT,
+                    form_template_name TEXT,
+                    form_data_json TEXT NOT NULL,
+                    submitted_at TEXT NOT NULL
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_event_logs_patient ON event_logs(patient_id);
                 CREATE INDEX IF NOT EXISTS idx_event_logs_occured ON event_logs(occurred_at);
                 CREATE INDEX IF NOT EXISTS idx_escalations_patient ON escalations(patient_id);
                 CREATE INDEX IF NOT EXISTS idx_escalations_created ON escalations(created_at);
+                CREATE INDEX IF NOT EXISTS idx_preop_intake_patient ON preop_intake_submissions(patient_id);
                 """
             )
 
@@ -325,5 +335,42 @@ class TeamStore:
             rec = dict(row)
             rec["conversation_snapshot"] = json.loads(rec.get("conversation_snapshot") or "[]")
             rec["resolved"] = bool(rec.get("resolved"))
+            return rec
+
+    def save_preop_intake_submission(
+        self,
+        *,
+        patient_id: str,
+        specialty: str,
+        form_template_name: str,
+        form_data: Dict[str, Any],
+        submitted_at: Optional[str] = None,
+    ) -> int:
+        ts = submitted_at or _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO preop_intake_submissions (patient_id, specialty, form_template_name, form_data_json, submitted_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (patient_id, specialty, form_template_name, json.dumps(form_data or {}), ts),
+            )
+            return int(cur.lastrowid)
+
+    def get_latest_preop_intake_submission(self, patient_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM preop_intake_submissions
+                WHERE patient_id = ?
+                ORDER BY submitted_at DESC, id DESC
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).fetchone()
+            if not row:
+                return None
+            rec = dict(row)
+            rec["form_data"] = json.loads(rec.get("form_data_json") or "{}")
             return rec
 

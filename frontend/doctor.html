@@ -173,6 +173,23 @@
     .roster-row:hover { background: #f9fbff; }
     .roster-cell.name { font-weight: 600; color: #0f172a; }
     .roster-cell.muted { color: var(--muted); }
+    .name-wrap { display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
+    .episode-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .03em;
+      padding: 2px 7px;
+      text-transform: uppercase;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      color: #334155;
+      white-space: nowrap;
+    }
+    .episode-pill.pre { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .episode-pill.post { background: #ecfdf5; border-color: #bbf7d0; color: #15803d; }
 
     /* Episode modal */
     .timeline-title { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 12px; }
@@ -287,6 +304,105 @@
     }
     .status-chip.ok { background: #dcfce7; color: #166534; }
     .status-chip.pending { background: #f3f4f6; color: #374151; }
+
+    /* Analytics */
+    .analytics-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .analytics-stat {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 12px;
+    }
+    .analytics-stat .k {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 5px;
+    }
+    .analytics-stat .v {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .analytics-table td, .analytics-table th { white-space: nowrap; }
+    .analytics-subtabs {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 12px;
+      background: #fff;
+    }
+    .analytics-subtab-btn {
+      border: none;
+      background: transparent;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      cursor: pointer;
+      border-right: 1px solid var(--line);
+    }
+    .analytics-subtab-btn:last-child { border-right: none; }
+    .analytics-subtab-btn.active { background: #eff6ff; color: #1d4ed8; }
+    .analytics-subpage { display: none; }
+    .analytics-subpage.active { display: block; }
+    .progress-list { display: grid; gap: 10px; }
+    .progress-item .label { font-size: 12px; color: #475569; margin-bottom: 6px; }
+    .progress-track {
+      height: 10px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-fill { height: 100%; background: #2563eb; }
+    .progress-pct {
+      position: absolute;
+      right: 8px;
+      top: -1px;
+      font-size: 10px;
+      color: #0f172a;
+      font-weight: 700;
+    }
+    .episode-step {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+      background: #fff;
+    }
+    .episode-step-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+    .episode-choice-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .episode-choice {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 12px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .episode-choice h4 { font-size: 14px; margin: 0 0 4px; }
+    .episode-choice p { margin: 0; font-size: 12px; color: #64748b; }
+    .episode-choice:hover { border-color: #93c5fd; background: #f8fbff; }
 
     /* Modals */
     .modal-overlay {
@@ -419,6 +535,8 @@
       .resolved-counter { font-size: 28px; text-align: left; }
       .form-row { grid-template-columns: 1fr; }
       .tabs { grid-template-columns: 1fr; }
+      .analytics-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .analytics-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -452,6 +570,7 @@
         <button class="tab-btn active" data-tab="roster">Patient Roster</button>
         <button class="tab-btn" data-tab="escalation">Escalation Log</button>
         <button class="tab-btn" data-tab="compliance">Compliance</button>
+        <button class="tab-btn" data-tab="analytics">Population Analytics</button>
       </nav>
 
       <div class="sidebar-bottom">
@@ -516,6 +635,77 @@
               </thead>
               <tbody id="complianceBody"></tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Population Analytics -->
+      <section class="page" id="tab-analytics">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Population Analytics</h1>
+            <p class="page-sub">Demo-only analytics shell with 50 sample patients and realistic variation.</p>
+          </div>
+        </div>
+
+        <div class="analytics-subtabs">
+          <button type="button" class="analytics-subtab-btn active" data-analytics-tab="overall">Overall</button>
+          <button type="button" class="analytics-subtab-btn" data-analytics-tab="preop">Pre-Op</button>
+          <button type="button" class="analytics-subtab-btn" data-analytics-tab="postop">Post-Op</button>
+        </div>
+
+        <div class="analytics-subpage active" id="analytics-overall">
+          <div class="analytics-stats" id="analyticsOverallStats"></div>
+        </div>
+
+        <div class="analytics-subpage" id="analytics-preop">
+          <div class="analytics-stats" id="analyticsPreopStats"></div>
+          <div class="panel">
+            <div class="panel-head">Pre-Op Completion Progress</div>
+            <div class="panel-body"><div class="progress-list" id="preopProgressList"></div></div>
+          </div>
+        </div>
+
+        <div class="analytics-subpage" id="analytics-postop">
+          <div class="analytics-stats" id="analyticsPostopStats"></div>
+          <div class="analytics-grid">
+            <div class="panel">
+              <div class="panel-head">Episode Phase Breakdown</div>
+              <div class="panel-body"><canvas id="phaseChart" height="170"></canvas></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">Platform Engagement</div>
+              <div class="panel-body"><canvas id="engagementChart" height="170"></canvas></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">Escalations by Tier</div>
+              <div class="panel-body"><canvas id="tierChart" height="170"></canvas></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">Survey Completion % (D7/D14/D30)</div>
+              <div class="panel-body"><canvas id="surveyCompletionChart" height="170"></canvas></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">Post-Op Patient Table</div>
+            <div class="panel-body" style="overflow:auto;">
+              <table class="table analytics-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Procedure Type</th>
+                    <th>Episode Day</th>
+                    <th>Day 7 Score</th>
+                    <th>Day 14 Score</th>
+                    <th>Day 30 Score</th>
+                    <th>Composite Score</th>
+                    <th>Escalation Count</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="analyticsTableBody"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -657,6 +847,21 @@
         <button class="modal-close" id="addPatientClose">×</button>
       </div>
       <div class="modal-body-patient" id="modalForm">
+        <div class="episode-step" id="episodeTypeStep">
+          <div class="episode-step-title">Step 1 — Choose Episode Type</div>
+          <div class="episode-choice-grid">
+            <button type="button" class="episode-choice" id="choosePreOpBtn">
+              <h4>Pre-Op</h4>
+              <p>Surgical preparation workflow and intake resources.</p>
+            </button>
+            <button type="button" class="episode-choice" id="choosePostOpBtn">
+              <h4>Post-Op</h4>
+              <p>Existing post-discharge workflow (unchanged).</p>
+            </button>
+          </div>
+        </div>
+
+        <div id="patientFormFields" style="display:none;">
         <div class="form-group">
           <label for="patientName">Patient Name *</label>
           <input type="text" id="patientName" placeholder="e.g. Maria L." required />
@@ -672,7 +877,7 @@
           </div>
         </div>
         <div class="form-group">
-          <label>Discharge Notes *</label>
+          <label id="notesLabel">Discharge Notes *</label>
           <div class="upload-area" id="uploadArea">
             <div class="upload-content" id="uploadContent">
               <span class="upload-icon">📄</span>
@@ -688,6 +893,7 @@
           </div>
           <div class="or-divider"><span>or paste text below</span></div>
           <textarea id="dischargeNotes" placeholder="Paste the full post-discharge notes, after-visit summary, medication list, clinical notes..."></textarea>
+        </div>
         </div>
       </div>
       <div class="processing-overlay" id="processing">
@@ -705,6 +911,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script>
     const PROFILE_KEY = "archangel_doctor_profile_ui_v2";
     const API = window.location.origin;
@@ -714,6 +921,7 @@
     let selectedTimeline = null;
     let escalations = [];
     let pdfText = "";
+    let selectedEpisodeType = null;
 
     function byId(id) { return document.getElementById(id); }
     function esc(str) { return String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
@@ -733,6 +941,188 @@
       return data;
     }
 
+    const ANALYTICS_PATIENTS = (() => {
+      const names = [
+        "James Wilson","Aisha Khan","Michael Thompson","Sophia Lee","Noah Patel","Emma Garcia","Liam Brooks","Olivia Cruz","Ethan Kim","Mia Turner",
+        "Lucas Reed","Ava Foster","Mason Diaz","Ella Bennett","Logan Ward","Harper Cox","Jacob Long","Amelia Hayes","Jackson Ross","Evelyn Bell",
+        "Aiden Bailey","Abigail Howard","Sebastian Jenkins","Scarlett Perry","Carter Gray","Grace Simmons","Wyatt Coleman","Chloe Richardson","Luke Hughes","Lily Bryant",
+        "Owen Ramirez","Aria Murphy","Gabriel James","Nora Cook","Henry Morris","Zoey Price","Levi Griffin","Hannah Kelly","Isaac Peterson","Layla Butler",
+        "Caleb Gonzales","Stella Barnes","Ryan Powell","Lucy Hill","Nathan Flores","Aurora Adams","Adrian Young","Brooklyn Rivera","Connor Evans","Paisley Scott"
+      ];
+      return names.map((name, idx) => {
+        const d7 = 45 + ((idx * 7) % 56);
+        const d14 = Math.min(100, d7 + 5 + (idx % 12));
+        const d30 = Math.min(100, d14 + 4 + (idx % 8));
+        const comp = Math.round((d7 + d14 + d30) / 3);
+        const episodeType = idx < 22 ? "pre_op" : "post_op";
+        const inSurgery = idx >= 8 && idx < 14;
+        return {
+          name,
+          procedure: idx % 2 ? "Lumbar Fusion" : "Cervical Fusion",
+          episodeType,
+          intakeCompleted: idx % 3 !== 0,
+          battlecardViewed: idx % 4 !== 0,
+          episodeDay: 1 + (idx % 30),
+          d7,
+          d14,
+          d30,
+          composite: comp,
+          escalations: idx % 5 === 0 ? 2 : idx % 3 === 0 ? 1 : 0,
+          tier1: idx % 17 === 0 ? 1 : 0,
+          tier2: idx % 7 === 0 ? 1 : 0,
+          tier3: idx % 4 === 0 ? 1 : 0,
+          opened: idx % 8 !== 0,
+          watched: idx % 6 !== 0,
+          chatted: idx % 5 !== 0,
+          inSurgery,
+          status: idx % 6 === 0 ? "Closed" : "Active",
+        };
+      });
+    })();
+
+    let analyticsCharts = [];
+
+    function destroyAnalyticsCharts() {
+      analyticsCharts.forEach((c) => c && c.destroy && c.destroy());
+      analyticsCharts = [];
+    }
+
+    function renderAnalytics() {
+      const rows = ANALYTICS_PATIENTS;
+      const preRows = rows.filter((r) => r.episodeType === "pre_op");
+      const postRows = rows.filter((r) => r.episodeType === "post_op");
+      const active = rows.filter((r) => r.status === "Active").length;
+      const avg = (arr) => Math.round(arr.reduce((a, b) => a + b, 0) / (arr.length || 1));
+      const avgD7 = avg(postRows.map((r) => r.d7));
+      const avgD14 = avg(postRows.map((r) => r.d14));
+      const avgD30 = avg(postRows.map((r) => r.d30));
+      const t1 = postRows.reduce((a, r) => a + r.tier1, 0);
+      const t2 = postRows.reduce((a, r) => a + r.tier2, 0);
+      const t3 = postRows.reduce((a, r) => a + r.tier3, 0);
+      const platformOpenRate = Math.round((postRows.filter((r) => r.opened).length / postRows.length) * 100);
+      const diagnosisWatchRate = Math.round((postRows.filter((r) => r.watched).length / postRows.length) * 100);
+      const companionRate = Math.round((postRows.filter((r) => r.chatted).length / postRows.length) * 100);
+      const readmitRate = Math.round((postRows.filter((r) => r.composite < 55).length / postRows.length) * 100);
+      const pcpReferralPct = Math.round((postRows.filter((r, i) => i % 4 !== 0).length / postRows.length) * 100);
+      const d7CompPct = Math.round((postRows.filter((r) => r.d7 > 0).length / postRows.length) * 100);
+      const d14CompPct = Math.round((postRows.filter((r) => r.d14 > 0).length / postRows.length) * 100);
+      const d30CompPct = Math.round((postRows.filter((r) => r.d30 > 0).length / postRows.length) * 100);
+      const median = (arr) => {
+        const x = [...arr].sort((a, b) => a - b);
+        const mid = Math.floor(x.length / 2);
+        return x.length % 2 ? x[mid] : Math.round((x[mid - 1] + x[mid]) / 2);
+      };
+      const d7Median = median(postRows.map((r) => r.d7));
+      const d14Median = median(postRows.map((r) => r.d14));
+      const d30Median = median(postRows.map((r) => r.d30));
+
+      byId("analyticsOverallStats").innerHTML = `
+        <div class="analytics-stat"><div class="k">Total patients</div><div class="v">${rows.length}</div></div>
+        <div class="analytics-stat"><div class="k">Pre-Op patient count</div><div class="v">${preRows.length}</div></div>
+        <div class="analytics-stat"><div class="k">Post-Op patient count</div><div class="v">${postRows.length}</div></div>
+        <div class="analytics-stat"><div class="k">In surgery (in hospital)</div><div class="v">${rows.filter((r) => r.inSurgery).length}</div></div>
+      `;
+
+      byId("analyticsPreopStats").innerHTML = `
+        <div class="analytics-stat"><div class="k">Total pre-op patients</div><div class="v">${preRows.length}</div></div>
+        <div class="analytics-stat"><div class="k">Intake form completed</div><div class="v">${preRows.filter((r) => r.intakeCompleted).length}</div></div>
+        <div class="analytics-stat"><div class="k">Opened platform</div><div class="v">${preRows.filter((r) => r.opened).length}</div></div>
+        <div class="analytics-stat"><div class="k">Completed pre-op video</div><div class="v">${preRows.filter((r) => r.watched).length}</div></div>
+        <div class="analytics-stat"><div class="k">Viewed battlecard</div><div class="v">${preRows.filter((r) => r.battlecardViewed).length}</div></div>
+      `;
+      const preopProgress = [
+        ["Intake completion", Math.round((preRows.filter((r) => r.intakeCompleted).length / preRows.length) * 100)],
+        ["Platform opened", Math.round((preRows.filter((r) => r.opened).length / preRows.length) * 100)],
+        ["Pre-op video completed", Math.round((preRows.filter((r) => r.watched).length / preRows.length) * 100)],
+        ["Battlecard viewed", Math.round((preRows.filter((r) => r.battlecardViewed).length / preRows.length) * 100)],
+      ];
+      byId("preopProgressList").innerHTML = preopProgress.map(([label, val]) => `
+        <div class="progress-item">
+          <div class="label">${esc(label)}</div>
+          <div class="progress-track"><div class="progress-fill" style="width:${val}%"></div><span class="progress-pct">${val}%</span></div>
+        </div>
+      `).join("");
+
+      byId("analyticsPostopStats").innerHTML = `
+        <div class="analytics-stat"><div class="k">Patients in Day 1-7</div><div class="v">${postRows.filter((r) => r.episodeDay <= 7).length}</div></div>
+        <div class="analytics-stat"><div class="k">Patients in Day 8-14</div><div class="v">${postRows.filter((r) => r.episodeDay > 7 && r.episodeDay <= 14).length}</div></div>
+        <div class="analytics-stat"><div class="k">Patients in Day 15-21</div><div class="v">${postRows.filter((r) => r.episodeDay > 14 && r.episodeDay <= 21).length}</div></div>
+        <div class="analytics-stat"><div class="k">Patients in Day 22-30</div><div class="v">${postRows.filter((r) => r.episodeDay > 21).length}</div></div>
+        <div class="analytics-stat"><div class="k">Readmission rate</div><div class="v">${readmitRate}%</div></div>
+        <div class="analytics-stat"><div class="k">PCP summary/referral sent</div><div class="v">${pcpReferralPct}%</div></div>
+        <div class="analytics-stat"><div class="k">D7 % / mean / median</div><div class="v">${d7CompPct}% / ${avgD7} / ${d7Median}</div></div>
+        <div class="analytics-stat"><div class="k">D14 % / mean / median</div><div class="v">${d14CompPct}% / ${avgD14} / ${d14Median}</div></div>
+        <div class="analytics-stat"><div class="k">D30 % / mean / median</div><div class="v">${d30CompPct}% / ${avgD30} / ${d30Median}</div></div>
+      `;
+
+      byId("analyticsTableBody").innerHTML = postRows.map((r) => `
+        <tr>
+          <td><strong>${esc(r.name)}</strong></td>
+          <td>${esc(r.procedure)}</td>
+          <td>Day ${esc(r.episodeDay)}</td>
+          <td>${esc(r.d7)}</td>
+          <td>${esc(r.d14)}</td>
+          <td>${esc(r.d30)}</td>
+          <td>${esc(r.composite)}</td>
+          <td>${esc(r.escalations)}</td>
+          <td>${r.status === "Active" ? '<span class="status-chip ok">Active</span>' : '<span class="status-chip pending">Closed</span>'}</td>
+        </tr>
+      `).join("");
+
+      if (!window.Chart) return;
+      destroyAnalyticsCharts();
+      const phaseCounts = [
+        postRows.filter((r) => r.episodeDay <= 7).length,
+        postRows.filter((r) => r.episodeDay > 7 && r.episodeDay <= 14).length,
+        postRows.filter((r) => r.episodeDay > 14 && r.episodeDay <= 21).length,
+        postRows.filter((r) => r.episodeDay > 21).length,
+      ];
+      analyticsCharts.push(
+        new Chart(byId("phaseChart"), {
+          type: "bar",
+          data: {
+            labels: ["Day 1-7", "Day 8-14", "Day 15-21", "Day 22-30"],
+            datasets: [{ label: "Patients", data: phaseCounts, backgroundColor: "#2563eb" }],
+          },
+          options: { responsive: true, plugins: { legend: { display: false } } },
+        })
+      );
+      analyticsCharts.push(
+        new Chart(byId("engagementChart"), {
+          type: "bar",
+          data: {
+            labels: ["Platform Open", "Diagnosis Video", "Treatment Video", "Companion Chat"],
+            datasets: [{ label: "Rate %", data: [platformOpenRate, diagnosisWatchRate, diagnosisWatchRate - 6, companionRate], backgroundColor: ["#16a34a", "#2563eb", "#0ea5e9", "#7c3aed"] }],
+          },
+          options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } },
+        })
+      );
+      analyticsCharts.push(
+        new Chart(byId("tierChart"), {
+          type: "doughnut",
+          data: {
+            labels: ["Tier 1", "Tier 2", "Tier 3"],
+            datasets: [{ data: [t1, t2, t3], backgroundColor: ["#dc2626", "#d97706", "#2563eb"] }],
+          },
+          options: { responsive: true },
+        })
+      );
+      analyticsCharts.push(
+        new Chart(byId("surveyCompletionChart"), {
+          type: "bar",
+          data: {
+            labels: ["Day 7", "Day 14", "Day 30"],
+            datasets: [{ data: [d7CompPct, d14CompPct, d30CompPct], backgroundColor: ["#2563eb", "#1d4ed8", "#1e40af"] }],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { min: 0, max: 100 } },
+          },
+        })
+      );
+    }
+
     function setupTabs() {
       document.querySelectorAll(".tab-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -744,18 +1134,49 @@
       });
     }
 
+    function setupAnalyticsSubtabs() {
+      const buttons = Array.from(document.querySelectorAll(".analytics-subtab-btn"));
+      const pages = {
+        overall: byId("analytics-overall"),
+        preop: byId("analytics-preop"),
+        postop: byId("analytics-postop"),
+      };
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          buttons.forEach((b) => b.classList.remove("active"));
+          Object.values(pages).forEach((p) => p && p.classList.remove("active"));
+          btn.classList.add("active");
+          const key = btn.dataset.analyticsTab;
+          if (pages[key]) pages[key].classList.add("active");
+        });
+      });
+    }
+
     async function loadPatients() {
       const data = await apiJson("/api/patients");
-      PATIENTS.splice(0, PATIENTS.length, ...(data.patients || []));
+      PATIENTS.splice(0, PATIENTS.length, ...((data.patients || []).map((p) => ({
+        ...p,
+        episodeType: inferEpisodeType(p),
+      }))));
       renderRoster();
       renderCompliance();
+    }
+
+    function inferEpisodeType(patient) {
+      const raw = String(patient?.episodeType || patient?.pipelineType || "").toLowerCase();
+      return raw.includes("pre") ? "pre_op" : "post_op";
+    }
+
+    function episodePillHtml(episodeType) {
+      const pre = episodeType === "pre_op";
+      return `<span class="episode-pill ${pre ? "pre" : "post"}">${pre ? "Pre-Op" : "Post-Op"}</span>`;
     }
 
     function renderRoster(list = PATIENTS) {
       byId("rosterCount").textContent = `${PATIENTS.length} patients`;
       byId("rosterList").innerHTML = list.map((p) => `
         <div class="roster-row" data-pid="${esc(p.id)}">
-          <div class="roster-cell name">${esc(p.name)}</div>
+          <div class="roster-cell name"><span class="name-wrap">${episodePillHtml(inferEpisodeType(p))}<span>${esc(p.name)}</span></span></div>
           <div class="roster-cell muted">${esc(p.phone || "—")}</div>
           <div class="roster-cell muted">${esc(p.email || "—")}</div>
           <div class="roster-cell muted">Day ${esc(p.episode?.currentDay ?? "—")}</div>
@@ -886,8 +1307,9 @@
         <div class="esc-item" data-id="${esc(e.id)}">
           <div class="esc-top">
             <div>
-              <div class="esc-name">${esc(e.patient_name)}</div>
+              <div class="esc-name"><span class="name-wrap">${episodePillHtml(inferEpisodeType(PATIENTS.find((p) => p.id === e.patient_id) || {}))}<span>${esc(e.patient_name)}</span></span></div>
               <div class="esc-meta">Tier ${esc(e.tier)} • ${esc(fmt(e.created_at))}</div>
+              <div class="esc-meta">Origin: ${esc(e.origin || "Chat")}</div>
               <div class="esc-meta">Trigger: ${esc(e.trigger_type)}</div>
               ${e.tier === 3 ? `<div class="esc-meta">Consent: ${esc((e.consent || "pending").toUpperCase())}${e.consent_at ? ` at ${esc(fmt(e.consent_at))}` : ""}</div>` : ""}
             </div>
@@ -1081,14 +1503,25 @@
     }
 
     const addPatientModal = byId("addPatientModal");
+    function applyEpisodeTypeFormState() {
+      const isPre = selectedEpisodeType === "pre_op";
+      byId("notesLabel").textContent = isPre ? "Patient-Specific Surgical Preparation Notes *" : "Discharge Notes *";
+      byId("dischargeNotes").placeholder = isPre
+        ? "Paste patient-specific surgical preparation notes, medication holds, fasting instructions, logistics, and checklist details..."
+        : "Paste the full post-discharge notes, after-visit summary, medication list, clinical notes...";
+      byId("submitBtn").textContent = "Generate Resources";
+    }
     function resetAddPatientModal() {
       byId("modalForm").style.display = "block";
-      byId("modalFooter").style.display = "flex";
+      byId("modalFooter").style.display = "none";
+      byId("episodeTypeStep").style.display = "block";
+      byId("patientFormFields").style.display = "none";
       byId("processing").classList.remove("active");
       byId("errorMsg").classList.remove("active");
       byId("progressBarFill").style.width = "0%";
       byId("progressPct").textContent = "0%";
       byId("processingStep").textContent = "Extracting clinical data";
+      selectedEpisodeType = null;
     }
     function openAddPatientModal() { resetAddPatientModal(); addPatientModal.classList.add("active"); }
     function closeAddPatientModal() { addPatientModal.classList.remove("active"); }
@@ -1098,6 +1531,20 @@
       byId("addPatientClose").addEventListener("click", closeAddPatientModal);
       byId("cancelBtn").addEventListener("click", closeAddPatientModal);
       addPatientModal.addEventListener("click", (e) => { if (e.target === addPatientModal) closeAddPatientModal(); });
+      byId("choosePreOpBtn").addEventListener("click", () => {
+        selectedEpisodeType = "pre_op";
+        byId("episodeTypeStep").style.display = "none";
+        byId("patientFormFields").style.display = "block";
+        byId("modalFooter").style.display = "flex";
+        applyEpisodeTypeFormState();
+      });
+      byId("choosePostOpBtn").addEventListener("click", () => {
+        selectedEpisodeType = "post_op";
+        byId("episodeTypeStep").style.display = "none";
+        byId("patientFormFields").style.display = "block";
+        byId("modalFooter").style.display = "flex";
+        applyEpisodeTypeFormState();
+      });
 
       const uploadArea = byId("uploadArea");
       const pdfInput = byId("pdfInput");
@@ -1143,6 +1590,10 @@
       });
 
       byId("submitBtn").addEventListener("click", async () => {
+        if (!selectedEpisodeType) {
+          showToast("Please choose Pre-Op or Post-Op first.", "error");
+          return;
+        }
         const name = byId("patientName").value.trim();
         const phone = byId("patientPhone").value.trim();
         const email = byId("patientEmail").value.trim();
@@ -1160,23 +1611,41 @@
         byId("processing").classList.add("active");
         byId("progressBarFill").style.width = "30%";
         byId("progressPct").textContent = "30%";
-        byId("processingStep").textContent = "Generating diagnosis and treatment resources";
+        byId("processingStep").textContent = selectedEpisodeType === "pre_op"
+          ? "Generating pre-op preparation resources"
+          : "Generating diagnosis and treatment resources";
         try {
-          await apiJson("/api/process-discharge", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              patient_name: name,
-              phone_number: phone,
-              email,
-              discharge_notes: notes,
-              doctor_office_phone: doctorOfficePhone,
-              doctor_clinic_code: doctorClinicCode,
-            }),
-          });
+          if (selectedEpisodeType === "post_op") {
+            await apiJson("/api/process-discharge", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                patient_name: name,
+                phone_number: phone,
+                email,
+                discharge_notes: notes,
+                doctor_office_phone: doctorOfficePhone,
+                doctor_clinic_code: doctorClinicCode,
+              }),
+            });
+          } else {
+            await apiJson("/api/process-preop", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                patient_name: name,
+                phone_number: phone,
+                email,
+                preparation_notes: notes,
+                doctor_office_phone: doctorOfficePhone,
+                doctor_clinic_code: doctorClinicCode,
+                procedure_type: "",
+              }),
+            });
+          }
           byId("progressBarFill").style.width = "100%";
           byId("progressPct").textContent = "100%";
-          showToast("Patient added. Resources generated.", "success");
+          showToast(selectedEpisodeType === "pre_op" ? "Pre-op patient added. Resources generated." : "Patient added. Resources generated.", "success");
           closeAddPatientModal();
           byId("patientName").value = "";
           byId("patientPhone").value = "";
@@ -1210,11 +1679,13 @@
     }
 
     setupTabs();
+    setupAnalyticsSubtabs();
     setupGlobalModals();
     setupProfile();
     setupAddPatientFlow();
     setupRosterSearch();
     setupPatientActions();
+    renderAnalytics();
     loadPatients().catch((e) => showToast(e.message, "error"));
     loadEscalations().catch((e) => showToast(e.message, "error"));
   </script>

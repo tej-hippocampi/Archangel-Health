@@ -288,6 +288,38 @@
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    .editor-body { padding: 24px 32px; display: grid; gap: 16px; }
+    .editor-card {
+      background: #fff;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+    .editor-card h3 { font-size: 0.95rem; color: var(--gray-800); margin-bottom: 10px; }
+    .editor-grid { display: grid; gap: 10px; }
+    .editor-grid.two { grid-template-columns: 1fr 1fr; }
+    .editor-card input, .editor-card select, .editor-card textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-sm);
+      font-family: var(--font);
+      font-size: 0.84rem;
+    }
+    .editor-card textarea { min-height: 160px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+    .editor-save {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    .editor-status { margin-top: 8px; font-size: 0.8rem; color: var(--gray-500); }
   </style>
 </head>
 <body>
@@ -343,6 +375,15 @@
         <div class="nav-label">Tools</div>
         <button class="nav-item" data-tab="prompt-lab">
           <span class="icon">⚗️</span> Prompt Lab
+        </button>
+        <button class="nav-item" data-tab="preop-prompts">
+          <span class="icon">🧾</span> Pre-Op Prompt Editor
+        </button>
+        <button class="nav-item" data-tab="intake-library">
+          <span class="icon">📚</span> Intake Form Library
+        </button>
+        <button class="nav-item" data-tab="intake-frameworks">
+          <span class="icon">🧠</span> Intake Framework Editor
         </button>
       </nav>
 
@@ -423,6 +464,94 @@
         </div>
       </div>
 
+      <div class="tab-page" id="tab-preop-prompts">
+        <div class="page-header">
+          <div>
+            <h2>Pre-Op Prompt Editor</h2>
+            <p>Edit and save pre-op video and battlecard prompts</p>
+          </div>
+        </div>
+        <div class="editor-body">
+          <div class="editor-card">
+            <h3>Pre-Op Video Prompt</h3>
+            <textarea id="preopVoicePromptInput"></textarea>
+            <div class="editor-actions"><button class="editor-save" id="savePreopVoicePromptBtn">Save</button></div>
+          </div>
+          <div class="editor-card">
+            <h3>Pre-Op Battlecard Prompt</h3>
+            <textarea id="preopBattlecardPromptInput"></textarea>
+            <div class="editor-actions"><button class="editor-save" id="savePreopBattlePromptBtn">Save</button></div>
+            <div class="editor-status" id="preopPromptStatus"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-page" id="tab-intake-library">
+        <div class="page-header">
+          <div>
+            <h2>Intake Form Library</h2>
+            <p>Manage specialty-tagged intake templates</p>
+          </div>
+        </div>
+        <div class="editor-body">
+          <div class="editor-card">
+            <div class="editor-grid two">
+              <div>
+                <label>Specialty</label>
+                <select id="intakeLibrarySpecialty"></select>
+              </div>
+              <div>
+                <label>Template Name</label>
+                <input id="intakeLibraryTemplateName" type="text" />
+              </div>
+            </div>
+            <div class="editor-grid">
+              <div>
+                <label>Header Fields (one per line)</label>
+                <textarea id="intakeLibraryHeaderFields"></textarea>
+              </div>
+              <div>
+                <label>Sections JSON</label>
+                <textarea id="intakeLibrarySectionsJson"></textarea>
+              </div>
+              <div>
+                <label>Final Review Fields (one per line)</label>
+                <textarea id="intakeLibraryFinalFields"></textarea>
+              </div>
+            </div>
+            <div class="editor-actions"><button class="editor-save" id="saveIntakeLibraryBtn">Save Template</button></div>
+            <div class="editor-status" id="intakeLibraryStatus"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-page" id="tab-intake-frameworks">
+        <div class="page-header">
+          <div>
+            <h2>Intake Framework Editor</h2>
+            <p>Edit PEAR framework prompts by specialty</p>
+          </div>
+        </div>
+        <div class="editor-body">
+          <div class="editor-card">
+            <div class="editor-grid two">
+              <div>
+                <label>Specialty</label>
+                <select id="frameworkSpecialty"></select>
+              </div>
+            </div>
+            <div class="editor-grid">
+              <div>
+                <label>Framework Prompt</label>
+                <textarea id="frameworkPromptInput"></textarea>
+              </div>
+            </div>
+            <div class="editor-actions"><button class="editor-save" id="saveFrameworkBtn">Save Framework</button></div>
+            <div class="editor-status" id="frameworkStatus"></div>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /main-content -->
   </div><!-- /shell -->
 </div><!-- /app -->
@@ -432,6 +561,9 @@
   let adminToken = localStorage.getItem('admin_token') || '';
   let internalSecret = localStorage.getItem('internal_token') || '';
   let labReady = false;
+  let preopPromptsLoaded = false;
+  let intakeLibrary = {};
+  let intakeFrameworks = {};
 
   function authHeaders() {
     return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` };
@@ -499,6 +631,9 @@
     document.getElementById('login-page').classList.add('hidden');
     document.getElementById('app').classList.add('visible');
     loadStats();
+    loadPreopPromptEditor();
+    loadIntakeLibrary();
+    loadIntakeFrameworks();
   }
 
   // ── Sign out ──────────────────────────────────────────────────
@@ -526,6 +661,15 @@
 
       if (btn.dataset.tab === 'prompt-lab' && !labReady) {
         loadPromptLab();
+      }
+      if (btn.dataset.tab === 'preop-prompts' && !preopPromptsLoaded) {
+        loadPreopPromptEditor();
+      }
+      if (btn.dataset.tab === 'intake-library' && !Object.keys(intakeLibrary).length) {
+        loadIntakeLibrary();
+      }
+      if (btn.dataset.tab === 'intake-frameworks' && !Object.keys(intakeFrameworks).length) {
+        loadIntakeFrameworks();
       }
     });
   });
@@ -640,6 +784,120 @@
   function esc(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
+
+  async function loadPreopPromptEditor() {
+    try {
+      const data = await fetch('/admin/preop-prompts', { headers: authHeaders() }).then(r => r.json());
+      if (!data.preop_voice) return;
+      document.getElementById('preopVoicePromptInput').value = data.preop_voice.content || '';
+      document.getElementById('preopBattlecardPromptInput').value = data.preop_battlecard.content || '';
+      preopPromptsLoaded = true;
+    } catch (_e) {}
+  }
+
+  async function savePreopPrompt(promptId, content) {
+    const res = await fetch(`/admin/preop-prompts/${promptId}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ content }),
+    });
+    if (!res.ok) throw new Error('Unable to save prompt');
+  }
+
+  document.getElementById('savePreopVoicePromptBtn').addEventListener('click', async () => {
+    const status = document.getElementById('preopPromptStatus');
+    try {
+      await savePreopPrompt('preop_voice', document.getElementById('preopVoicePromptInput').value);
+      status.textContent = 'Saved pre-op video prompt.';
+    } catch (e) { status.textContent = e.message; }
+  });
+  document.getElementById('savePreopBattlePromptBtn').addEventListener('click', async () => {
+    const status = document.getElementById('preopPromptStatus');
+    try {
+      await savePreopPrompt('preop_battlecard', document.getElementById('preopBattlecardPromptInput').value);
+      status.textContent = 'Saved pre-op battlecard prompt.';
+    } catch (e) { status.textContent = e.message; }
+  });
+
+  async function loadIntakeLibrary() {
+    try {
+      const data = await fetch('/admin/intake-form-library', { headers: authHeaders() }).then(r => r.json());
+      intakeLibrary = data.library || {};
+      const sel = document.getElementById('intakeLibrarySpecialty');
+      sel.innerHTML = Object.keys(intakeLibrary).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+      if (!sel.value && Object.keys(intakeLibrary).length) sel.value = Object.keys(intakeLibrary)[0];
+      renderIntakeLibrarySelection();
+    } catch (_e) {}
+  }
+
+  function renderIntakeLibrarySelection() {
+    const specialty = document.getElementById('intakeLibrarySpecialty').value;
+    const t = intakeLibrary[specialty] || {};
+    document.getElementById('intakeLibraryTemplateName').value = t.template_name || '';
+    document.getElementById('intakeLibraryHeaderFields').value = (t.header_fields || []).join('\n');
+    document.getElementById('intakeLibrarySectionsJson').value = JSON.stringify(t.sections || {}, null, 2);
+    document.getElementById('intakeLibraryFinalFields').value = (t.final_review_fields || []).join('\n');
+  }
+  document.getElementById('intakeLibrarySpecialty').addEventListener('change', renderIntakeLibrarySelection);
+
+  document.getElementById('saveIntakeLibraryBtn').addEventListener('click', async () => {
+    const specialty = document.getElementById('intakeLibrarySpecialty').value.trim();
+    const status = document.getElementById('intakeLibraryStatus');
+    try {
+      const payload = {
+        specialty,
+        template_name: document.getElementById('intakeLibraryTemplateName').value.trim(),
+        header_fields: document.getElementById('intakeLibraryHeaderFields').value.split('\n').map(v => v.trim()).filter(Boolean),
+        sections: JSON.parse(document.getElementById('intakeLibrarySectionsJson').value || '{}'),
+        final_review_fields: document.getElementById('intakeLibraryFinalFields').value.split('\n').map(v => v.trim()).filter(Boolean),
+      };
+      const res = await fetch(`/admin/intake-form-library/${encodeURIComponent(specialty)}`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('Unable to save template');
+      status.textContent = 'Template saved.';
+      await loadIntakeLibrary();
+    } catch (e) {
+      status.textContent = e.message;
+    }
+  });
+
+  async function loadIntakeFrameworks() {
+    try {
+      const data = await fetch('/admin/intake-frameworks', { headers: authHeaders() }).then(r => r.json());
+      intakeFrameworks = data.frameworks || {};
+      const sel = document.getElementById('frameworkSpecialty');
+      sel.innerHTML = Object.keys(intakeFrameworks).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+      if (!sel.value && Object.keys(intakeFrameworks).length) sel.value = Object.keys(intakeFrameworks)[0];
+      renderFrameworkSelection();
+    } catch (_e) {}
+  }
+
+  function renderFrameworkSelection() {
+    const specialty = document.getElementById('frameworkSpecialty').value;
+    document.getElementById('frameworkPromptInput').value = intakeFrameworks[specialty] || '';
+  }
+  document.getElementById('frameworkSpecialty').addEventListener('change', renderFrameworkSelection);
+
+  document.getElementById('saveFrameworkBtn').addEventListener('click', async () => {
+    const specialty = document.getElementById('frameworkSpecialty').value.trim();
+    const prompt = document.getElementById('frameworkPromptInput').value;
+    const status = document.getElementById('frameworkStatus');
+    try {
+      const res = await fetch(`/admin/intake-frameworks/${encodeURIComponent(specialty)}`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ specialty, prompt }),
+      });
+      if (!res.ok) throw new Error('Unable to save framework');
+      status.textContent = 'Framework saved.';
+      await loadIntakeFrameworks();
+    } catch (e) {
+      status.textContent = e.message;
+    }
+  });
 </script>
 </body>
 </html>
