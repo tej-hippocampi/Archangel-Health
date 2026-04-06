@@ -40,16 +40,25 @@ class GenerationLayer:
             battlecard_sys = POSTOP_BATTLECARD_PROMPT
 
         clinical_input = self._format_clinical_input(structured_data)
+        voice_kb = self._voice_script_knowledge_base()
+        voice_user = f"[Clinical Input Layer]\n\n{clinical_input}\n\nGenerate the voice script."
+        if pipeline_type == "pre_op" and voice_kb:
+            voice_user = (
+                f"[Clinical Input Layer]\n\n{clinical_input}\n\n"
+                f"[Voice Script Knowledge Base]\n\n{voice_kb}\n\n"
+                "Generate the voice script."
+            )
 
         voice_script = await self._call_claude(
             system=voice_sys,
-            user=f"[Clinical Input Layer]\n\n{clinical_input}\n\nGenerate the voice script.",
+            user=voice_user,
             max_tokens=2000,
         )
+        battlecard_input_label = "[Pre-Op Voice Script]" if pipeline_type == "pre_op" else "[Voice Script]"
 
         battlecard_html = await self._call_claude(
             system=battlecard_sys,
-            user=f"[Voice Script]\n\n{voice_script}\n\nGenerate the battlecard HTML.",
+            user=f"{battlecard_input_label}\n\n{voice_script}\n\nGenerate the battlecard HTML.",
             max_tokens=8000,
         )
 
@@ -190,3 +199,13 @@ class GenerationLayer:
             lines += ["", "⚠ MISSING CRITICAL DATA:"] + [f"  - {m}" for m in missing]
 
         return "\n".join(lines)
+
+    def _voice_script_knowledge_base(self) -> str:
+        """
+        Reuse the same ElevenLabs best-practices block used by post-discharge prompts.
+        """
+        start = TREATMENT_VOICE_PROMPT.find("[Voice Script Knowledge Base]")
+        end = TREATMENT_VOICE_PROMPT.find("[Example Voice Script]")
+        if start == -1 or end == -1 or end <= start:
+            return ""
+        return TREATMENT_VOICE_PROMPT[start:end].strip()

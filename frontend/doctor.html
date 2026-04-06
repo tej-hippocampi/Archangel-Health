@@ -104,6 +104,18 @@
     .btn:hover { background: #f9fafb; }
     .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+    .btn.sent, .btn.sent:hover {
+      background: #e5e7eb;
+      border-color: #d1d5db;
+      color: #475569;
+      cursor: not-allowed;
+    }
+    .btn.sent, .btn.sent:hover {
+      background: #e5e7eb;
+      border-color: #d1d5db;
+      color: #475569;
+      cursor: not-allowed;
+    }
 
     .panel {
       border: 1px solid var(--line);
@@ -806,6 +818,36 @@
     </div>
   </div>
 
+  <!-- Pre-Op patient detail modal -->
+  <div class="modal-overlay" id="preopDetailModal">
+    <div class="modal" style="max-width: 900px;">
+      <div class="modal-head">
+        <div class="modal-title" id="preopDetailModalTitle">Pre-Op Patient Detail</div>
+        <button class="modal-close" data-close="preopDetailModal">×</button>
+      </div>
+      <div class="modal-body">
+        <h2 class="timeline-title" id="preopDetailHeading">Pre-Op Preparation Detail</h2>
+        <div class="panel">
+          <div class="panel-head"><span>Pre-Op Details</span></div>
+          <div class="panel-body">
+            <div class="stats-grid" id="preopStatsGrid"></div>
+          </div>
+        </div>
+        <div class="panel" style="margin-bottom:0;">
+          <div class="panel-head"><span>Prep Materials</span></div>
+          <div class="panel-body">
+            <p style="font-size:14px;color:var(--muted);">Use these actions to review and send materials for this pre-op patient.</p>
+            <div class="actions-row">
+              <button class="btn" id="viewPrepMaterialsBtn">View Preparation Materials</button>
+              <button class="btn primary" id="sendPrepMaterialsBtn">Send Preparation Materials</button>
+              <button class="btn" id="switchToPostOpBtn">Switch to Post-Op</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Survey modal -->
   <div class="modal-overlay" id="surveyModal">
     <div class="modal">
@@ -876,6 +918,10 @@
             <input type="email" id="patientEmail" placeholder="patient@email.com" />
           </div>
         </div>
+        <div class="form-group" id="scheduledSurgeryDateWrap" style="display:none;">
+          <label for="scheduledSurgeryDate">Scheduled Surgery Date *</label>
+          <input type="date" id="scheduledSurgeryDate" />
+        </div>
         <div class="form-group">
           <label id="notesLabel">Discharge Notes *</label>
           <div class="upload-area" id="uploadArea">
@@ -914,14 +960,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script>
     const PROFILE_KEY = "archangel_doctor_profile_ui_v2";
+    const AUTH_TOKEN_KEY = "archangel_doctor_auth_token";
     const API = window.location.origin;
     const PATIENTS = [];
     const pcpDrafts = {};
     let selectedPatient = null;
+    let selectedPreopPatient = null;
     let selectedTimeline = null;
     let escalations = [];
     let pdfText = "";
     let selectedEpisodeType = null;
+    const sentPreparationMaterials = new Set();
 
     function byId(id) { return document.getElementById(id); }
     function esc(str) { return String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
@@ -934,8 +983,20 @@
       return Number.isNaN(d.getTime()) ? String(ts || "—") : d.toLocaleString();
     }
 
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const hashAuthToken = hashParams.get("auth");
+    if (hashAuthToken) {
+      localStorage.setItem(AUTH_TOKEN_KEY, hashAuthToken);
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || "";
+
     async function apiJson(path, options = {}) {
-      const res = await fetch(`${API}${path}`, options);
+      const headers = new Headers(options.headers || {});
+      if (authToken && !headers.has("Authorization")) {
+        headers.set("Authorization", `Bearer ${authToken}`);
+      }
+      const res = await fetch(`${API}${path}`, { ...options, headers });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `Request failed: ${res.status}`);
       return data;
@@ -1154,12 +1215,40 @@
 
     async function loadPatients() {
       const data = await apiJson("/api/patients");
-      PATIENTS.splice(0, PATIENTS.length, ...((data.patients || []).map((p) => ({
+      const normalized = normalizePatientsForRoster((data.patients || []).map((p) => ({
         ...p,
         episodeType: inferEpisodeType(p),
-      }))));
+      })));
+      PATIENTS.splice(0, PATIENTS.length, ...normalized);
       renderRoster();
       renderCompliance();
+    }
+
+    function normalizePatientsForRoster(patients) {
+      // If both pre-op and post-op records exist for same person/contact, prefer post-op record.
+      const pickedByKey = new Map();
+      patients.forEach((p) => {
+        const key = [p.name || "", p.email || "", p.phone || ""].map((x) => String(x).trim().toLowerCase()).join("|");
+        if (!key.replace(/\|/g, "")) {
+          pickedByKey.set(`id:${p.id}`, p);
+          return;
+        }
+        const existing = pickedByKey.get(key);
+        if (!existing) {
+          pickedByKey.set(key, p);
+          return;
+        }
+        const existingType = inferEpisodeType(existing);
+        const incomingType = inferEpisodeType(p);
+        if (incomingType === "post_op" && existingType !== "post_op") {
+          pickedByKey.set(key, p);
+          return;
+        }
+        if (incomingType === existingType) {
+          pickedByKey.set(key, p);
+        }
+      });
+      return Array.from(pickedByKey.values());
     }
 
     function inferEpisodeType(patient) {
@@ -1170,6 +1259,16 @@
     function episodePillHtml(episodeType) {
       const pre = episodeType === "pre_op";
       return `<span class="episode-pill ${pre ? "pre" : "post"}">${pre ? "Pre-Op" : "Post-Op"}</span>`;
+    }
+
+    function openPatientDetail(pid) {
+      const patient = PATIENTS.find((p) => p.id === pid);
+      if (!patient) return;
+      if (inferEpisodeType(patient) === "pre_op") {
+        openPreopDetail(pid);
+        return;
+      }
+      openTimeline(pid);
     }
 
     function renderRoster(list = PATIENTS) {
@@ -1183,7 +1282,7 @@
         </div>
       `).join("");
       byId("rosterList").querySelectorAll(".roster-row").forEach((row) => {
-        row.addEventListener("click", () => openTimeline(row.dataset.pid));
+        row.addEventListener("click", () => openPatientDetail(row.dataset.pid));
       });
     }
 
@@ -1213,7 +1312,7 @@
             if (!patient) return;
             input.value = patient.name;
             close();
-            openTimeline(pid);
+            openPatientDetail(pid);
           });
         });
       });
@@ -1274,6 +1373,33 @@
         btn.addEventListener("click", () => openSurveyModal(patient.id, Number(btn.dataset.surveyDay), patient.name));
       });
       byId("timelineModal").classList.add("active");
+    }
+
+    function updatePrepSendButtonState(pid) {
+      const sent = sentPreparationMaterials.has(pid);
+      const btn = byId("sendPrepMaterialsBtn");
+      if (!btn) return;
+      btn.textContent = sent ? "Sent Preparation Materials" : "Send Preparation Materials";
+      btn.disabled = sent;
+      btn.classList.toggle("sent", sent);
+      btn.classList.toggle("primary", !sent);
+    }
+
+    function openPreopDetail(pid) {
+      const patient = PATIENTS.find((p) => p.id === pid);
+      if (!patient) return;
+      selectedPreopPatient = patient;
+      byId("preopDetailModalTitle").textContent = `${patient.name} Pre-Op Detail`;
+      byId("preopDetailHeading").textContent = `${patient.name} Pre-Op Preparation`;
+      const rows = [
+        ["Scheduled Surgery Date", patient.date || "—"],
+        ["Procedure Type", patient.procedure || "—"],
+      ];
+      byId("preopStatsGrid").innerHTML = rows.map(([k, v]) => `
+        <div class="stat"><div class="stat-label">${esc(k)}</div><div class="stat-value">${esc(v)}</div></div>
+      `).join("");
+      updatePrepSendButtonState(pid);
+      byId("preopDetailModal").classList.add("active");
     }
 
     async function openSurveyModal(patientId, day, patientName) {
@@ -1380,24 +1506,23 @@
     }
 
     async function setupProfile() {
-      const localProfileRaw = localStorage.getItem(PROFILE_KEY);
-      if (localProfileRaw) applyProfile(JSON.parse(localProfileRaw));
+      const normalizeProfile = (remote) => ({
+        fullName: remote.name || remote.fullName || "",
+        email: remote.email || "",
+        officePhone: remote.office_phone || remote.officePhone || "",
+        typeOfDoctor: remote.doctor_type || remote.typeOfDoctor || "",
+        hospitalAffiliation: remote.hospital_affiliations || remote.hospitalAffiliation || "",
+        clinicCode: remote.clinic_code || remote.clinicCode || "",
+      });
       try {
         const remote = await apiJson("/api/doctor/profile");
-        const profile = {
-          fullName: remote.name,
-          email: remote.email,
-          officePhone: remote.office_phone,
-          typeOfDoctor: remote.doctor_type,
-          hospitalAffiliation: remote.hospital_affiliations,
-          clinicCode: remote.clinic_code,
-        };
+        const profile = normalizeProfile(remote);
         localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
         applyProfile(profile);
         byId("onboardingModal").classList.remove("active");
       } catch (_e) {
-        if (localProfileRaw) byId("onboardingModal").classList.remove("active");
-        else byId("onboardingModal").classList.add("active");
+        localStorage.removeItem(PROFILE_KEY);
+        byId("onboardingModal").classList.add("active");
       }
 
       byId("saveOnboardingBtn").addEventListener("click", async () => {
@@ -1411,7 +1536,7 @@
           return;
         }
         try {
-          const remote = await apiJson("/api/doctor/onboard", {
+          await apiJson("/api/doctor/onboard", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1422,32 +1547,14 @@
               hospital_affiliations: hospitalAffiliation,
             }),
           });
-          const profile = {
-            fullName: remote.name,
-            email: remote.email,
-            officePhone: remote.office_phone,
-            typeOfDoctor: remote.doctor_type,
-            hospitalAffiliation: remote.hospital_affiliations,
-            clinicCode: remote.clinic_code,
-          };
+          const latest = await apiJson("/api/doctor/profile");
+          const profile = normalizeProfile(latest);
           localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
           applyProfile(profile);
           byId("onboardingModal").classList.remove("active");
           showToast("Profile saved.", "success");
         } catch (e) {
-          // Localhost demo fallback when auth token is missing.
-          const fallback = {
-            fullName,
-            email,
-            officePhone,
-            typeOfDoctor,
-            hospitalAffiliation,
-            clinicCode: "LOCALDEMO",
-          };
-          localStorage.setItem(PROFILE_KEY, JSON.stringify(fallback));
-          applyProfile(fallback);
-          byId("onboardingModal").classList.remove("active");
-          showToast("Profile saved locally (demo mode).", "success");
+          showToast(e.message || "Could not save onboarding profile.", "error");
         }
       });
 
@@ -1458,6 +1565,11 @@
       byId("sidebarName").textContent = profile.fullName;
       byId("sidebarSpecialty").textContent = profile.typeOfDoctor;
       byId("sidebarAvatar").textContent = initials(profile.fullName);
+      byId("onboardFullName").value = profile.fullName || "";
+      byId("onboardEmail").value = profile.email || "";
+      byId("onboardOfficePhone").value = profile.officePhone || "";
+      byId("onboardType").value = profile.typeOfDoctor || "";
+      byId("onboardHospital").value = profile.hospitalAffiliation || "";
     }
 
     function openProfileDetail() {
@@ -1502,6 +1614,43 @@
       });
     }
 
+    function setupPreopPatientActions() {
+      byId("viewPrepMaterialsBtn").addEventListener("click", () => {
+        if (!selectedPreopPatient) return;
+        window.open(`/patient/${encodeURIComponent(selectedPreopPatient.id)}/pre-op?doctor_view=1`, "_blank");
+      });
+      byId("sendPrepMaterialsBtn").addEventListener("click", async () => {
+        if (!selectedPreopPatient) return;
+        if (sentPreparationMaterials.has(selectedPreopPatient.id)) return;
+        try {
+          await apiJson(`/api/send-to-patient/${encodeURIComponent(selectedPreopPatient.id)}`, { method: "POST" });
+          sentPreparationMaterials.add(selectedPreopPatient.id);
+          updatePrepSendButtonState(selectedPreopPatient.id);
+          showToast(`Preparation materials sent to ${selectedPreopPatient.name}`, "success");
+        } catch (e) {
+          showToast(e.message || "Failed to send preparation materials.", "error");
+        }
+      });
+      byId("switchToPostOpBtn").addEventListener("click", () => {
+        if (!selectedPreopPatient) return;
+        openAddPatientModal();
+        selectedEpisodeType = "post_op";
+        byId("episodeTypeStep").style.display = "none";
+        byId("patientFormFields").style.display = "block";
+        byId("modalFooter").style.display = "flex";
+        applyEpisodeTypeFormState();
+        byId("patientName").value = selectedPreopPatient.name || "";
+        byId("patientPhone").value = selectedPreopPatient.phone || "";
+        byId("patientEmail").value = selectedPreopPatient.email || "";
+        byId("dischargeNotes").value = "";
+        byId("scheduledSurgeryDate").value = "";
+        pdfText = "";
+        byId("uploadContent").style.display = "block";
+        byId("uploadSuccess").style.display = "none";
+        byId("preopDetailModal").classList.remove("active");
+      });
+    }
+
     const addPatientModal = byId("addPatientModal");
     function applyEpisodeTypeFormState() {
       const isPre = selectedEpisodeType === "pre_op";
@@ -1509,6 +1658,8 @@
       byId("dischargeNotes").placeholder = isPre
         ? "Paste patient-specific surgical preparation notes, medication holds, fasting instructions, logistics, and checklist details..."
         : "Paste the full post-discharge notes, after-visit summary, medication list, clinical notes...";
+      byId("scheduledSurgeryDateWrap").style.display = isPre ? "block" : "none";
+      byId("scheduledSurgeryDate").required = isPre;
       byId("submitBtn").textContent = "Generate Resources";
     }
     function resetAddPatientModal() {
@@ -1522,6 +1673,7 @@
       byId("progressPct").textContent = "0%";
       byId("processingStep").textContent = "Extracting clinical data";
       selectedEpisodeType = null;
+      byId("scheduledSurgeryDate").value = "";
     }
     function openAddPatientModal() { resetAddPatientModal(); addPatientModal.classList.add("active"); }
     function closeAddPatientModal() { addPatientModal.classList.remove("active"); }
@@ -1597,6 +1749,7 @@
         const name = byId("patientName").value.trim();
         const phone = byId("patientPhone").value.trim();
         const email = byId("patientEmail").value.trim();
+        const scheduledSurgeryDate = byId("scheduledSurgeryDate").value;
         const notes = pdfText || byId("dischargeNotes").value.trim();
         const rawProfile = localStorage.getItem(PROFILE_KEY);
         const profile = rawProfile ? JSON.parse(rawProfile) : null;
@@ -1604,6 +1757,10 @@
         const doctorClinicCode = profile?.clinicCode || "";
         if (!name || !notes) {
           showToast("Patient name and discharge notes are required.", "error");
+          return;
+        }
+        if (selectedEpisodeType === "pre_op" && !scheduledSurgeryDate) {
+          showToast("Scheduled surgery date is required for pre-op patients.", "error");
           return;
         }
         byId("modalForm").style.display = "none";
@@ -1640,6 +1797,7 @@
                 doctor_office_phone: doctorOfficePhone,
                 doctor_clinic_code: doctorClinicCode,
                 procedure_type: "",
+                scheduled_surgery_date: scheduledSurgeryDate,
               }),
             });
           }
@@ -1650,6 +1808,7 @@
           byId("patientName").value = "";
           byId("patientPhone").value = "";
           byId("patientEmail").value = "";
+          byId("scheduledSurgeryDate").value = "";
           byId("dischargeNotes").value = "";
           pdfText = "";
           byId("uploadContent").style.display = "block";
@@ -1685,6 +1844,7 @@
     setupAddPatientFlow();
     setupRosterSearch();
     setupPatientActions();
+    setupPreopPatientActions();
     renderAnalytics();
     loadPatients().catch((e) => showToast(e.message, "error"));
     loadEscalations().catch((e) => showToast(e.message, "error"));

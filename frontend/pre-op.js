@@ -10,6 +10,7 @@ const DISCLAIMER =
   "This was created with AI assistance. AI can make mistakes. This is not medical advice or a diagnosis. Always talk to a doctor about your health. If this is an emergency, call 911.";
 
 const API = window.location.origin;
+const IS_DOCTOR_VIEW = new URLSearchParams(window.location.search).get("doctor_view") === "1";
 const conversation = [];
 let pearStarted = false;
 let prefillData = null;
@@ -298,7 +299,19 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("patientName").textContent = PATIENT.name || "Patient";
   document.getElementById("patientProcedure").textContent = PATIENT.procedure ? `Procedure: ${PATIENT.procedure}` : "Pre-Op Preparation";
   const back = document.getElementById("backToDashboard");
-  if (back) back.href = `/patient/${PATIENT.id}`;
+  if (back) {
+    if (IS_DOCTOR_VIEW) {
+      back.style.display = "inline";
+      back.href = "/";
+      back.addEventListener("click", (e) => {
+        e.preventDefault();
+        window.location.assign("/");
+      });
+    } else {
+      back.style.display = "none";
+      back.removeAttribute("href");
+    }
+  }
   const postTab = document.getElementById("postOperationTab");
   if (postTab) postTab.href = `/patient/${PATIENT.id}`;
   const preTab = document.getElementById("preOperationTab");

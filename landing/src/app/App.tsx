@@ -255,7 +255,7 @@ function LandingContent() {
           <div className="section-container" style={{ textAlign: "center" }}>
             <h2 className="section-title" style={{ marginBottom: "1rem" }}>Understand TEAM financial impact before contracting.</h2>
             <a
-              href="/team-calculator"
+              href="/?team-calculator=1"
               className="hero-demo-button"
               style={{ display: "inline-flex" }}
             >
@@ -848,7 +848,8 @@ const styles = `
 export default function App() {
   const isTeamCalculatorRoute =
     typeof window !== "undefined" &&
-    window.location.pathname === "/team-calculator";
+    (window.location.pathname === "/team-calculator" ||
+      new URLSearchParams(window.location.search).get("team-calculator") === "1");
   const isEmailPreviewRoute =
     typeof window !== "undefined" &&
     (window.location.pathname === "/email-preview" || window.location.search.includes("emailPreview=1"));
