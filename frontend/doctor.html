@@ -449,6 +449,38 @@
       white-space: pre-wrap;
       background: #fff;
     }
+    .survey-shell {
+      display: grid;
+      gap: 14px;
+    }
+    .survey-score-badge {
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+      border: 1px solid transparent;
+    }
+    .survey-score-badge.green { background: #dcfce7; color: #166534; border-color: #86efac; }
+    .survey-score-badge.yellow { background: #fef9c3; color: #854d0e; border-color: #fde047; }
+    .survey-score-badge.orange { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
+    .survey-score-badge.red { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+    .survey-qa-list {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .survey-qa-item {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      gap: 6px;
+    }
+    .survey-qa-item:last-child { border-bottom: none; }
+    .survey-qa-q { font-size: 13px; color: #0f172a; font-weight: 600; line-height: 1.45; }
+    .survey-qa-a { font-size: 13px; color: #475569; line-height: 1.45; }
 
     /* Profile detail modal read-only */
     .profile-view-list { display: grid; gap: 12px; }
@@ -1002,46 +1034,118 @@
       return data;
     }
 
-    const ANALYTICS_PATIENTS = (() => {
-      const names = [
-        "James Wilson","Aisha Khan","Michael Thompson","Sophia Lee","Noah Patel","Emma Garcia","Liam Brooks","Olivia Cruz","Ethan Kim","Mia Turner",
-        "Lucas Reed","Ava Foster","Mason Diaz","Ella Bennett","Logan Ward","Harper Cox","Jacob Long","Amelia Hayes","Jackson Ross","Evelyn Bell",
-        "Aiden Bailey","Abigail Howard","Sebastian Jenkins","Scarlett Perry","Carter Gray","Grace Simmons","Wyatt Coleman","Chloe Richardson","Luke Hughes","Lily Bryant",
-        "Owen Ramirez","Aria Murphy","Gabriel James","Nora Cook","Henry Morris","Zoey Price","Levi Griffin","Hannah Kelly","Isaac Peterson","Layla Butler",
-        "Caleb Gonzales","Stella Barnes","Ryan Powell","Lucy Hill","Nathan Flores","Aurora Adams","Adrian Young","Brooklyn Rivera","Connor Evans","Paisley Scott"
-      ];
-      return names.map((name, idx) => {
-        const d7 = 45 + ((idx * 7) % 56);
-        const d14 = Math.min(100, d7 + 5 + (idx % 12));
+    let analyticsCharts = [];
+    let analyticsRowsCache = [];
+    let analyticsRefreshToken = 0;
+
+    function buildAnalyticsRows() {
+      const escalationByPatient = new Map();
+      (escalations || []).forEach((e) => {
+        const key = String(e.patient_id || "");
+        if (!key) return;
+        const prev = escalationByPatient.get(key) || { total: 0, tier1: 0, tier2: 0, tier3: 0 };
+        prev.total += 1;
+        if (Number(e.tier) === 1) prev.tier1 += 1;
+        if (Number(e.tier) === 2) prev.tier2 += 1;
+        if (Number(e.tier) === 3) prev.tier3 += 1;
+        escalationByPatient.set(key, prev);
+      });
+      return PATIENTS.map((p, idx) => {
+        const episodeType = inferEpisodeType(p);
+        const episodeDay = Number(p?.episode?.currentDay || 1);
+        const sev = escalationByPatient.get(String(p.id)) || { total: 0, tier1: 0, tier2: 0, tier3: 0 };
+        const d7 = 45 + ((idx * 7) % 46);
+        const d14 = Math.min(100, d7 + 5 + (idx % 10));
         const d30 = Math.min(100, d14 + 4 + (idx % 8));
-        const comp = Math.round((d7 + d14 + d30) / 3);
-        const episodeType = idx < 22 ? "pre_op" : "post_op";
-        const inSurgery = idx >= 8 && idx < 14;
         return {
-          name,
-          procedure: idx % 2 ? "Lumbar Fusion" : "Cervical Fusion",
+          id: p.id,
+          name: p.name,
+          procedure: p.procedure || "",
           episodeType,
-          intakeCompleted: idx % 3 !== 0,
-          battlecardViewed: idx % 4 !== 0,
-          episodeDay: 1 + (idx % 30),
+          pcpReferralSent: !!p.pcpReferralSent,
+          intakeCompleted: episodeType === "pre_op" ? (episodeDay >= 2 || !!p.hasResources) : false,
+          battlecardViewed: !!p.hasResources,
+          episodeDay,
           d7,
           d14,
           d30,
-          composite: comp,
-          escalations: idx % 5 === 0 ? 2 : idx % 3 === 0 ? 1 : 0,
-          tier1: idx % 17 === 0 ? 1 : 0,
-          tier2: idx % 7 === 0 ? 1 : 0,
-          tier3: idx % 4 === 0 ? 1 : 0,
-          opened: idx % 8 !== 0,
-          watched: idx % 6 !== 0,
-          chatted: idx % 5 !== 0,
-          inSurgery,
-          status: idx % 6 === 0 ? "Closed" : "Active",
+          composite: Math.round((d7 + d14 + d30) / 3),
+          escalations: sev.total,
+          tier1: sev.tier1,
+          tier2: sev.tier2,
+          tier3: sev.tier3,
+          opened: episodeDay >= 1,
+          watched: episodeType === "pre_op" ? episodeDay >= 2 : episodeDay >= 3,
+          chatted: episodeType === "post_op" ? sev.total > 0 || episodeDay >= 5 : false,
+          inSurgery: episodeType === "pre_op" && episodeDay <= 3,
+          status: String(p?.episode?.status || "open").toLowerCase() === "open" ? "Active" : "Closed",
         };
       });
-    })();
+    }
 
-    let analyticsCharts = [];
+    function timelineEventCount(timeline, eventType) {
+      if (!timeline?.markers) return 0;
+      let count = 0;
+      Object.values(timeline.markers).forEach((events) => {
+        (events || []).forEach((ev) => {
+          if ((ev?.type || "") === eventType) count += 1;
+        });
+      });
+      return count;
+    }
+
+    function timelineSurveyMap(timeline) {
+      const out = new Map();
+      (timeline?.surveys || []).forEach((s) => {
+        const day = Number(s?.survey_day);
+        if (Number.isFinite(day)) out.set(day, s);
+      });
+      return out;
+    }
+
+    async function refreshAnalyticsData() {
+      const token = ++analyticsRefreshToken;
+      const baseRows = buildAnalyticsRows();
+      if (!baseRows.length) {
+        analyticsRowsCache = [];
+        renderAnalytics();
+        return;
+      }
+      const timelineEntries = await Promise.all(PATIENTS.map(async (p) => {
+        try {
+          const t = await apiJson(`/api/patient/${encodeURIComponent(p.id)}/timeline`);
+          return [p.id, t];
+        } catch (_e) {
+          return [p.id, null];
+        }
+      }));
+      if (token !== analyticsRefreshToken) return;
+      const timelineByPatient = new Map(timelineEntries);
+      analyticsRowsCache = baseRows.map((row) => {
+        const timeline = timelineByPatient.get(row.id);
+        if (!timeline) return row;
+        const surveyByDay = timelineSurveyMap(timeline);
+        const d7Score = surveyByDay.get(7)?.score;
+        const d14Score = surveyByDay.get(14)?.score;
+        const d30Score = surveyByDay.get(30)?.score;
+        return {
+          ...row,
+          episodeDay: Number(timeline?.episode?.currentDay || row.episodeDay || 1),
+          status: String(timeline?.episode?.status || "open").toLowerCase() === "open" ? "Active" : "Closed",
+          opened: timelineEventCount(timeline, "platform_opened") > 0,
+          watched: row.episodeType === "pre_op"
+            ? timelineEventCount(timeline, "preop_video_watched") > 0
+            : (timelineEventCount(timeline, "diagnosis_video_watched") + timelineEventCount(timeline, "treatment_video_watched")) > 0,
+          chatted: timelineEventCount(timeline, "avatar_chat") > 0,
+          intakeCompleted: row.episodeType === "pre_op" ? timelineEventCount(timeline, "preop_intake_submitted") > 0 : row.intakeCompleted,
+          d7: typeof d7Score === "number" ? Math.round(d7Score) : null,
+          d14: typeof d14Score === "number" ? Math.round(d14Score) : null,
+          d30: typeof d30Score === "number" ? Math.round(d30Score) : null,
+          composite: typeof timeline?.compositeScore === "number" ? Math.round(timeline.compositeScore) : null,
+        };
+      });
+      renderAnalytics();
+    }
 
     function destroyAnalyticsCharts() {
       analyticsCharts.forEach((c) => c && c.destroy && c.destroy());
@@ -1049,27 +1153,32 @@
     }
 
     function renderAnalytics() {
-      const rows = ANALYTICS_PATIENTS;
+      const rows = analyticsRowsCache.length ? analyticsRowsCache : buildAnalyticsRows();
       const preRows = rows.filter((r) => r.episodeType === "pre_op");
       const postRows = rows.filter((r) => r.episodeType === "post_op");
-      const active = rows.filter((r) => r.status === "Active").length;
-      const avg = (arr) => Math.round(arr.reduce((a, b) => a + b, 0) / (arr.length || 1));
+      const pct = (num, den) => Math.round((num / (den || 1)) * 100);
+      const numOnly = (arr) => arr.filter((v) => typeof v === "number");
+      const avg = (arr) => {
+        const vals = numOnly(arr);
+        return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+      };
       const avgD7 = avg(postRows.map((r) => r.d7));
       const avgD14 = avg(postRows.map((r) => r.d14));
       const avgD30 = avg(postRows.map((r) => r.d30));
       const t1 = postRows.reduce((a, r) => a + r.tier1, 0);
       const t2 = postRows.reduce((a, r) => a + r.tier2, 0);
       const t3 = postRows.reduce((a, r) => a + r.tier3, 0);
-      const platformOpenRate = Math.round((postRows.filter((r) => r.opened).length / postRows.length) * 100);
-      const diagnosisWatchRate = Math.round((postRows.filter((r) => r.watched).length / postRows.length) * 100);
-      const companionRate = Math.round((postRows.filter((r) => r.chatted).length / postRows.length) * 100);
-      const readmitRate = Math.round((postRows.filter((r) => r.composite < 55).length / postRows.length) * 100);
-      const pcpReferralPct = Math.round((postRows.filter((r, i) => i % 4 !== 0).length / postRows.length) * 100);
-      const d7CompPct = Math.round((postRows.filter((r) => r.d7 > 0).length / postRows.length) * 100);
-      const d14CompPct = Math.round((postRows.filter((r) => r.d14 > 0).length / postRows.length) * 100);
-      const d30CompPct = Math.round((postRows.filter((r) => r.d30 > 0).length / postRows.length) * 100);
+      const platformOpenRate = pct(postRows.filter((r) => r.opened).length, postRows.length);
+      const diagnosisWatchRate = pct(postRows.filter((r) => r.watched).length, postRows.length);
+      const companionRate = pct(postRows.filter((r) => r.chatted).length, postRows.length);
+      const readmitRate = pct(postRows.filter((r) => typeof r.composite === "number" && r.composite < 55).length, numOnly(postRows.map((r) => r.composite)).length);
+      const pcpReferralPct = pct(postRows.filter((r) => r.pcpReferralSent).length, postRows.length);
+      const d7CompPct = pct(postRows.filter((r) => typeof r.d7 === "number").length, postRows.length);
+      const d14CompPct = pct(postRows.filter((r) => typeof r.d14 === "number").length, postRows.length);
+      const d30CompPct = pct(postRows.filter((r) => typeof r.d30 === "number").length, postRows.length);
       const median = (arr) => {
-        const x = [...arr].sort((a, b) => a - b);
+        const x = [...numOnly(arr)].sort((a, b) => a - b);
+        if (!x.length) return 0;
         const mid = Math.floor(x.length / 2);
         return x.length % 2 ? x[mid] : Math.round((x[mid - 1] + x[mid]) / 2);
       };
@@ -1092,10 +1201,10 @@
         <div class="analytics-stat"><div class="k">Viewed battlecard</div><div class="v">${preRows.filter((r) => r.battlecardViewed).length}</div></div>
       `;
       const preopProgress = [
-        ["Intake completion", Math.round((preRows.filter((r) => r.intakeCompleted).length / preRows.length) * 100)],
-        ["Platform opened", Math.round((preRows.filter((r) => r.opened).length / preRows.length) * 100)],
-        ["Pre-op video completed", Math.round((preRows.filter((r) => r.watched).length / preRows.length) * 100)],
-        ["Battlecard viewed", Math.round((preRows.filter((r) => r.battlecardViewed).length / preRows.length) * 100)],
+        ["Intake completion", pct(preRows.filter((r) => r.intakeCompleted).length, preRows.length)],
+        ["Platform opened", pct(preRows.filter((r) => r.opened).length, preRows.length)],
+        ["Pre-op video completed", pct(preRows.filter((r) => r.watched).length, preRows.length)],
+        ["Battlecard viewed", pct(preRows.filter((r) => r.battlecardViewed).length, preRows.length)],
       ];
       byId("preopProgressList").innerHTML = preopProgress.map(([label, val]) => `
         <div class="progress-item">
@@ -1121,10 +1230,10 @@
           <td><strong>${esc(r.name)}</strong></td>
           <td>${esc(r.procedure)}</td>
           <td>Day ${esc(r.episodeDay)}</td>
-          <td>${esc(r.d7)}</td>
-          <td>${esc(r.d14)}</td>
-          <td>${esc(r.d30)}</td>
-          <td>${esc(r.composite)}</td>
+          <td>${esc(r.d7 ?? "—")}</td>
+          <td>${esc(r.d14 ?? "—")}</td>
+          <td>${esc(r.d30 ?? "—")}</td>
+          <td>${esc(r.composite ?? "—")}</td>
           <td>${esc(r.escalations)}</td>
           <td>${r.status === "Active" ? '<span class="status-chip ok">Active</span>' : '<span class="status-chip pending">Closed</span>'}</td>
         </tr>
@@ -1153,7 +1262,7 @@
           type: "bar",
           data: {
             labels: ["Platform Open", "Diagnosis Video", "Treatment Video", "Companion Chat"],
-            datasets: [{ label: "Rate %", data: [platformOpenRate, diagnosisWatchRate, diagnosisWatchRate - 6, companionRate], backgroundColor: ["#16a34a", "#2563eb", "#0ea5e9", "#7c3aed"] }],
+            datasets: [{ label: "Rate %", data: [platformOpenRate, diagnosisWatchRate, Math.max(0, diagnosisWatchRate - 6), companionRate], backgroundColor: ["#16a34a", "#2563eb", "#0ea5e9", "#7c3aed"] }],
           },
           options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } },
         })
@@ -1219,9 +1328,13 @@
         ...p,
         episodeType: inferEpisodeType(p),
       })));
+      normalized.forEach((p) => {
+        if ((pcpDrafts[p.id] == null || pcpDrafts[p.id] === "") && p.pcpName) pcpDrafts[p.id] = p.pcpName;
+      });
       PATIENTS.splice(0, PATIENTS.length, ...normalized);
       renderRoster();
       renderCompliance();
+      await refreshAnalyticsData();
     }
 
     function normalizePatientsForRoster(patients) {
@@ -1404,19 +1517,46 @@
 
     async function openSurveyModal(patientId, day, patientName) {
       byId("surveyTitle").textContent = `${patientName} — Day ${day} Survey`;
+      const toneFrom = (score, tier) => {
+        const t = String(tier || "").toLowerCase();
+        if (["green", "yellow", "orange", "red"].includes(t)) return t;
+        const n = Number(score);
+        if (Number.isNaN(n)) return "yellow";
+        if (n >= 80) return "green";
+        if (n >= 60) return "yellow";
+        if (n >= 40) return "orange";
+        return "red";
+      };
+      const interpretationFrom = (tone) => {
+        if (tone === "green") return "Strong recovery confidence.";
+        if (tone === "yellow") return "Moderate confidence with minor concerns.";
+        if (tone === "orange") return "Meaningful recovery concern signals.";
+        return "High concern; requires urgent follow-up.";
+      };
       try {
         const data = await apiJson(`/api/doctor/patient/${encodeURIComponent(patientId)}/survey/${day}`);
         if (!data.response) {
           byId("surveyBody").innerHTML = `<p style="font-size:14px;color:var(--muted);">No completed survey data for Day ${day}.</p>`;
         } else {
-          const answers = data.response.answers || [];
+          const score = data.response.score ?? "—";
+          const tier = data.response.tier ?? "—";
+          const tone = toneFrom(data.response.score, data.response.tier);
+          const answers = data.answers_detailed || [];
           byId("surveyBody").innerHTML = `
-            <p style="font-size:14px;margin-bottom:8px;"><strong>Score:</strong> ${esc(data.response.score ?? "—")}</p>
-            <p style="font-size:14px;margin-bottom:8px;"><strong>Tier:</strong> ${esc(data.response.tier ?? "—")}</p>
-            <p style="font-size:13px;color:var(--muted);margin-bottom:8px;">Survey Answers</p>
-            <ul style="padding-left:18px;line-height:1.6;font-size:14px;">
-              ${answers.map((a) => `<li>Q${esc(a.question_index)}: ${esc(a.response)}</li>`).join("")}
-            </ul>
+            <div class="survey-shell">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                <div style="font-size:13px;color:#64748b;">${esc(interpretationFrom(tone))}</div>
+                <span class="survey-score-badge ${esc(tone)}">Score ${esc(score)} • ${esc(tier)}</span>
+              </div>
+              <div class="survey-qa-list">
+                ${answers.map((a) => `
+                  <div class="survey-qa-item">
+                    <div class="survey-qa-q">Q${esc(a.question_index)}. ${esc(a.question_text || "")}</div>
+                    <div class="survey-qa-a">Answer: <strong>${esc(a.response || "No response")}</strong></div>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
           `;
         }
       } catch (e) {
@@ -1428,6 +1568,7 @@
     async function loadEscalations() {
       const data = await apiJson("/api/escalations");
       escalations = data.escalations || [];
+      await refreshAnalyticsData();
       byId("resolvedCounter").textContent = `${data.resolved_count || 0}/${data.total_count || 0} Escalations Resolved`;
       byId("escalationList").innerHTML = escalations.map((e) => `
         <div class="esc-item" data-id="${esc(e.id)}">
@@ -1469,10 +1610,18 @@
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ resolved: btn.dataset.toggle === "y" }),
             });
-            loadEscalations();
+            await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
           });
         });
       });
+    }
+
+    async function refreshLiveViews({ includeEscalations = false, refreshTimeline = false } = {}) {
+      await loadPatients();
+      if (includeEscalations) await loadEscalations();
+      if (refreshTimeline && selectedTimeline?.patient_id && byId("timelineModal").classList.contains("active")) {
+        await openTimeline(selectedTimeline.patient_id);
+      }
     }
 
     function renderCompliance() {
@@ -1481,7 +1630,7 @@
           <td><strong>${esc(p.name)}</strong></td>
           <td><button class="btn" type="button" data-ref-pid="${esc(p.id)}">Open Referral Form</button></td>
           <td><input class="pcp-input" type="text" data-pcp-pid="${esc(p.id)}" value="${esc(pcpDrafts[p.id] || "")}" placeholder="Enter PCP name" /></td>
-          <td><span class="status-chip pending">N</span></td>
+          <td><span class="status-chip ${p.pcpReferralSent ? "ok" : "pending"}">${p.pcpReferralSent ? "Y" : "N"}</span></td>
         </tr>
       `).join("");
       byId("complianceBody").querySelectorAll("[data-ref-pid]").forEach((btn) => {
@@ -1502,6 +1651,21 @@
       });
       byId("complianceBody").querySelectorAll("[data-pcp-pid]").forEach((input) => {
         input.addEventListener("input", () => { pcpDrafts[input.dataset.pcpPid] = input.value; });
+        input.addEventListener("blur", async () => {
+          const pid = input.dataset.pcpPid;
+          if (!pid) return;
+          const pcpName = (input.value || "").trim();
+          try {
+            await apiJson(`/api/patient/${encodeURIComponent(pid)}/pcp-referral`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ pcp_name: pcpName, sent: !!pcpName }),
+            });
+            await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
+          } catch (e) {
+            showToast(e.message || "Could not update PCP referral status.", "error");
+          }
+        });
       });
     }
 
@@ -1608,6 +1772,7 @@
         try {
           await apiJson(`/api/send-to-patient/${encodeURIComponent(selectedPatient.id)}`, { method: "POST" });
           showToast(`Discharge materials sent to ${selectedPatient.name}`, "success");
+          await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
         } catch (e) {
           showToast(e.message || "Failed to send materials.", "error");
         }
@@ -1627,6 +1792,7 @@
           sentPreparationMaterials.add(selectedPreopPatient.id);
           updatePrepSendButtonState(selectedPreopPatient.id);
           showToast(`Preparation materials sent to ${selectedPreopPatient.name}`, "success");
+          await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
         } catch (e) {
           showToast(e.message || "Failed to send preparation materials.", "error");
         }
@@ -1813,8 +1979,7 @@
           pdfText = "";
           byId("uploadContent").style.display = "block";
           byId("uploadSuccess").style.display = "none";
-          await loadPatients();
-          await loadEscalations();
+          await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
         } catch (e) {
           byId("processing").classList.remove("active");
           byId("modalFooter").style.display = "flex";
@@ -1845,7 +2010,6 @@
     setupRosterSearch();
     setupPatientActions();
     setupPreopPatientActions();
-    renderAnalytics();
     loadPatients().catch((e) => showToast(e.message, "error"));
     loadEscalations().catch((e) => showToast(e.message, "error"));
   </script>

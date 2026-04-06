@@ -7,6 +7,8 @@ import asyncio
 import os
 import re
 import json
+import random
+import sqlite3
 import html as html_lib
 import secrets
 import string
@@ -46,6 +48,7 @@ from auth import (
     get_doctor_profile,
     set_doctor_profile,
 )
+import auth as auth_module
 from team_store import TeamStore
 
 # ─── App Setup ────────────────────────────────────────────────
@@ -284,50 +287,299 @@ DEFAULT_FRAMEWORKS: Dict[str, str] = {
 }
 
 
-def _seed_demo_patient_if_empty() -> None:
-    """Local demo convenience: ensure doctor portal has one visible patient."""
-    if _patient_store:
-        return
-    if os.getenv("SEED_DEMO_PATIENT", "1").strip() in ("0", "false", "False"):
-        return
-    patient_id = "demo_spine_001"
-    structured_data = {
-        "patient_name": "James R.",
-        "procedure_name": "L4-L5 Lumbar Fusion",
-        "procedure_date": date.today().isoformat(),
-    }
-    _patient_store[patient_id] = {
-        "name": "James R.",
-        "phone": "+1 (214) 555-0101",
-        "email": "james.demo@example.com",
-        "pipeline_type": "post_op",
-        "voice_audio_url": None,
-        "battlecard_html": "<div><h2>Demo Battlecard</h2><p>Demo content.</p></div>",
-        "avatar_url": None,
-        "voice_script": "This is a demo Digital Care Companion script.",
-        "structured_data": structured_data,
-        "clinic_code": "DEMOCLIN",
-        "resource_code": "DEMO0001",
-        "office_phone": os.getenv("CARE_TEAM_PHONE", ""),
-        "resources": {
-            "diagnosis": {
-                "voice_script": "Diagnosis demo script",
-                "battlecard_html": "<div><h3>Diagnosis</h3><p>Demo diagnosis card.</p></div>",
-                "voice_audio_url": None,
-            },
-            "treatment": {
-                "voice_script": "Treatment demo script",
-                "battlecard_html": "<div><h3>Treatment</h3><p>Demo treatment card.</p></div>",
-                "voice_audio_url": None,
-            },
-        },
-    }
-    _team_store.ensure_episode(
-        patient_id=patient_id,
-        procedure_type=structured_data.get("procedure_name", ""),
-        clinic_code="DEMOCLIN",
-        resource_code="DEMO0001",
+DEMO_DOCTOR_EMAIL = "manan.vyas@cedarssinai.com"
+DEMO_DOCTOR_PASSWORD = "ArchangelDemo2024!"
+DEMO_CLINIC_CODE = "CDRSNAI1"
+
+
+def _is_demo_mode() -> bool:
+    return os.getenv("DEMO_MODE", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _disable_scheduler_in_demo() -> bool:
+    return os.getenv("DEMO_DISABLE_TEAM_SCHEDULER", "1").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _demo_seed_strategy() -> str:
+    strategy = os.getenv("DEMO_SEED_STRATEGY", "preserve").strip().lower()
+    return "reset" if strategy == "reset" else "preserve"
+
+
+def _ensure_demo_doctor() -> None:
+    users = auth_module._get_users()  # noqa: SLF001
+    key = DEMO_DOCTOR_EMAIL.lower().strip()
+    if key not in users:
+        register_user(DEMO_DOCTOR_EMAIL, DEMO_DOCTOR_PASSWORD, "Dr. Manan Vyas")
+        users = auth_module._get_users()  # noqa: SLF001
+    users[key].update(
+        {
+            "email": key,
+            "password_hash": auth_module.pwd_context.hash(DEMO_DOCTOR_PASSWORD),  # noqa: SLF001
+            "name": "Dr. Manan Vyas",
+            "role": "doctor",
+            "office_phone": "(310) 555-0100",
+            "doctor_type": "General Surgeon",
+            "hospital_affiliations": "Cedars-Sinai Medical Center",
+            "clinic_code": DEMO_CLINIC_CODE,
+        }
     )
+    auth_module._persist_users()  # noqa: SLF001
+
+
+def _build_demo_battlecard(title: str, bullets: List[str]) -> str:
+    bullet_html = "".join(f"<li>{html_lib.escape(item)}</li>" for item in bullets)
+    return (
+        "<div style='font-family:Inter,Arial,sans-serif;max-width:700px;margin:0 auto;"
+        "border:1px solid #dbe5ec;border-radius:12px;overflow:hidden;background:#fff;'>"
+        f"<div style='background:#0ea5b3;color:#fff;padding:12px 14px;font-weight:700;'>{html_lib.escape(title)}</div>"
+        f"<ul style='margin:0;padding:14px 20px 16px 32px;color:#1f2937;font-size:14px;line-height:1.55;'>{bullet_html}</ul>"
+        "</div>"
+    )
+
+
+def _demo_patient_blueprint() -> List[Dict[str, Any]]:
+    names = [
+        "Thenuk Rodrigo",
+        "James Wilson", "Aisha Khan", "Michael Thompson", "Sophia Lee", "Noah Patel", "Emma Garcia",
+        "Liam Brooks", "Olivia Cruz", "Ethan Kim", "Mia Turner", "Lucas Reed", "Ava Foster",
+        "Mason Diaz", "Ella Bennett", "Logan Ward", "Harper Cox", "Jacob Long", "Amelia Hayes",
+        "Jackson Ross", "Evelyn Bell", "Aiden Bailey", "Abigail Howard", "Sebastian Jenkins",
+        "Scarlett Perry", "Carter Gray", "Grace Simmons", "Wyatt Coleman", "Chloe Richardson",
+        "Luke Hughes", "Lily Bryant", "Owen Ramirez", "Aria Murphy", "Gabriel James", "Nora Cook",
+        "Henry Morris", "Zoey Price", "Levi Griffin", "Hannah Kelly", "Isaac Peterson", "Layla Butler",
+        "Caleb Gonzales", "Stella Barnes", "Ryan Powell", "Lucy Hill", "Nathan Flores", "Aurora Adams",
+        "Adrian Young",
+    ]
+    procedures = [
+        "Laparoscopic Appendectomy", "Laparoscopic Cholecystectomy", "Inguinal Hernia Repair", "Umbilical Hernia Repair",
+        "Hiatal Hernia Repair", "Colectomy", "Bowel Resection", "Sigmoidectomy", "Thyroidectomy",
+        "Whipple Procedure", "Gastric Bypass", "Splenectomy", "Gastrectomy", "Nissen Fundoplication",
+        "Adrenalectomy", "Pancreatectomy",
+    ]
+    rows: List[Dict[str, Any]] = []
+    for idx, name in enumerate(names):
+        first, last = name.split(" ", 1)
+        pipeline = "pre_op" if idx < 22 else "post_op"
+        patient_id = f"demo_{first.lower()}_{last.lower()}_{idx+1:03d}".replace(" ", "_")
+        procedure = procedures[idx % len(procedures)]
+        if name == "Thenuk Rodrigo":
+            patient_id = "demo_thenuk_001"
+            pipeline = "post_op"
+            procedure = "Inguinal Hernia Repair"
+
+        rows.append(
+            {
+                "idx": idx,
+                "id": patient_id,
+                "name": name,
+                "first": first,
+                "last": last,
+                "pipeline_type": pipeline,
+                "procedure_name": procedure,
+                "pcp_referral_sent": idx % 4 != 0,  # ~75%
+            }
+        )
+    return rows
+
+
+def _seed_demo_patient_store() -> List[Dict[str, Any]]:
+    today = date.today()
+    rows = _demo_patient_blueprint()
+    _patient_store.clear()
+    for row in rows:
+        i = row["idx"]
+        is_pre = row["pipeline_type"] == "pre_op"
+        procedure_date = (today + timedelta(days=(i % 15) + 2)) if is_pre else (today - timedelta(days=(i % 20)))
+        phone = f"+1 (310) 555-{1000 + i:04d}"
+        email = f"{row['first'].lower()}.{row['last'].lower()}@email.com".replace(" ", "")
+        resource_code = f"CDR{i+1:05d}"[-8:]
+        preop_resource = {
+            "voice_script": (
+                f"[reassuring] Hey {row['first']}... your surgery prep is straightforward. "
+                "Follow fasting and medication hold instructions. Confirm your ride and arrive early."
+            ),
+            "battlecard_html": _build_demo_battlecard(
+                f"{row['procedure_name']} - Pre-Op Preparation Card",
+                [
+                    "What to expect from check-in through recovery",
+                    "Day before surgery checklist and fasting plan",
+                    "Day of surgery arrival instructions",
+                    "What to bring and warning signs to report",
+                ],
+            ),
+            "voice_audio_url": None,
+        }
+        diagnosis = {
+            "voice_script": f"[clear] {row['first']}, your {row['procedure_name']} was completed and findings were reviewed.",
+            "battlecard_html": _build_demo_battlecard(
+                f"{row['procedure_name']} - Diagnosis Summary",
+                ["Procedure completed", "Clinical findings explained", "Expected recovery milestones outlined"],
+            ),
+            "voice_audio_url": None,
+        }
+        treatment = {
+            "voice_script": f"[reassuring] {row['first']}, follow medication timing, wound care, activity limits, and warning signs.",
+            "battlecard_html": _build_demo_battlecard(
+                f"{row['procedure_name']} - Recovery Plan",
+                ["Medication and pain-control plan", "Diet and mobility progression", "When to call your care team"],
+            ),
+            "voice_audio_url": None,
+        }
+        pcp_name = None
+
+        resources = {"preop": preop_resource} if is_pre else {"diagnosis": diagnosis, "treatment": treatment}
+        _patient_store[row["id"]] = {
+            "name": row["name"],
+            "phone": phone,
+            "email": email,
+            "pipeline_type": row["pipeline_type"],
+            "voice_audio_url": None,
+            "battlecard_html": (resources.get("preop") or resources.get("diagnosis") or {}).get("battlecard_html"),
+            "avatar_url": None,
+            "voice_script": (resources.get("preop") or resources.get("diagnosis") or {}).get("voice_script"),
+            "structured_data": {
+                "patient_name": row["name"],
+                "procedure_name": row["procedure_name"],
+                "procedure_date": procedure_date.isoformat(),
+                "status": "scheduled" if is_pre else "completed",
+                "pcp_referral_sent": row["pcp_referral_sent"],
+                "pcp_name": pcp_name,
+            },
+            "clinic_code": DEMO_CLINIC_CODE,
+            "resource_code": resource_code,
+            "office_phone": os.getenv("CARE_TEAM_PHONE", ""),
+            "resources": resources,
+            "pcp_referral_sent": row["pcp_referral_sent"],
+            "pcp_name": pcp_name,
+        }
+    return rows
+
+
+def _clear_demo_sqlite_rows(patient_ids: List[str]) -> None:
+    if not patient_ids:
+        return
+    placeholders = ",".join("?" for _ in patient_ids)
+    with sqlite3.connect(_team_store.db_path) as conn:
+        conn.execute(f"DELETE FROM escalations WHERE patient_id IN ({placeholders})", patient_ids)
+        conn.execute(f"DELETE FROM survey_responses WHERE patient_id IN ({placeholders})", patient_ids)
+        conn.execute(f"DELETE FROM survey_sends WHERE patient_id IN ({placeholders})", patient_ids)
+        conn.execute(f"DELETE FROM daily_reminders WHERE patient_id IN ({placeholders})", patient_ids)
+        conn.execute(f"DELETE FROM event_logs WHERE patient_id IN ({placeholders})", patient_ids)
+        conn.execute(f"DELETE FROM episodes WHERE patient_id IN ({placeholders})", patient_ids)
+
+
+def _seed_demo_sqlite(rows: List[Dict[str, Any]], strategy: str) -> None:
+    clinic_episodes = [ep for ep in _team_store.list_active_episodes() if (ep.get("clinic_code") or "").upper() == DEMO_CLINIC_CODE]
+    if strategy == "preserve" and len(clinic_episodes) >= len(rows):
+        return
+    patient_ids = [r["id"] for r in rows]
+    if strategy == "reset":
+        _clear_demo_sqlite_rows(patient_ids)
+
+    rng = random.Random(42)
+    today = date.today()
+    post_ids = [r["id"] for r in rows if r["pipeline_type"] == "post_op"]
+    pre_ids = [r["id"] for r in rows if r["pipeline_type"] == "pre_op"]
+    open_dates: Dict[str, date] = {}
+
+    for row in rows:
+        i = int(row["idx"])
+        if row["id"] == "demo_thenuk_001":
+            # Day 17 in episode (current_day = diff + 1).
+            open_date = today - timedelta(days=16)
+        else:
+            open_date = today if row["pipeline_type"] == "pre_op" else (today - timedelta(days=(i % 18)))
+        _team_store.ensure_episode(
+            patient_id=row["id"],
+            open_date=open_date.isoformat(),
+            procedure_type=row["procedure_name"],
+            clinic_code=DEMO_CLINIC_CODE,
+            resource_code=_patient_store[row["id"]]["resource_code"],
+        )
+        open_dates[row["id"]] = open_date
+
+    def _event(pid: str, day_offset: int, event_type: str, payload: Optional[Dict[str, Any]] = None) -> None:
+        ts = datetime.combine(open_dates[pid] + timedelta(days=max(0, day_offset)), datetime.utcnow().time()).replace(microsecond=0)
+        _team_store.log_event(patient_id=pid, event_type=event_type, occurred_at=ts.isoformat(), payload=payload or {})
+
+    for pid in post_ids:
+        if rng.random() < 0.85:
+            _event(pid, 0, "platform_opened")
+        if rng.random() < 0.70:
+            _event(pid, 1, "diagnosis_video_watched")
+        if rng.random() < 0.60:
+            _event(pid, 2, "treatment_video_watched")
+        if rng.random() < 0.35:
+            _event(pid, 3, "avatar_chat")
+        if _patient_store[pid].get("pcp_referral_sent"):
+            _event(pid, 4, "email_sent", {"channel": "pcp_summary_referral"})
+    for pid in pre_ids:
+        if rng.random() < 0.85:
+            _event(pid, 0, "platform_opened")
+        if rng.random() < 0.65:
+            _event(pid, 1, "preop_video_watched")
+        if rng.random() < 0.55:
+            _event(pid, 2, "preop_intake_submitted")
+
+    thenuk_id = "demo_thenuk_001"
+    thenuk_answers = []
+    thenuk_answer_options = ["Strongly Agree", "Agree", "Strongly Agree", "Agree", "Strongly Agree"]
+    for idx, _question in enumerate(DAY_14_QUESTIONS, start=1):
+        thenuk_answers.append({"question_index": idx, "response": thenuk_answer_options[idx - 1]})
+    thenuk_score = _score_survey_answers(thenuk_answers)
+    thenuk_day7_answers = [
+        {"question_index": 1, "response": "Very Clear"},
+        {"question_index": 2, "response": "Somewhat Clear"},
+        {"question_index": 3, "response": "Not Clear"},
+        {"question_index": 4, "response": "Somewhat Clear"},
+        {"question_index": 5, "response": "Very Clear"},
+        {"question_index": 6, "response": "Somewhat Clear"},
+        {"question_index": 7, "response": "Not Clear"},
+        {"question_index": 8, "response": "Somewhat Clear"},
+        {"question_index": 9, "response": "Very Clear"},
+    ]
+    thenuk_day7_score = _score_survey_answers(thenuk_day7_answers)
+    _team_store.save_survey_response(
+        patient_id=thenuk_id,
+        survey_day=7,
+        answers=thenuk_day7_answers,
+        score=thenuk_day7_score.get("score"),
+        tier=thenuk_day7_score.get("tier"),
+    )
+    _event(thenuk_id, 7, "survey_completed", {"survey_day": 7, "score": thenuk_day7_score.get("score")})
+    _team_store.save_survey_response(
+        patient_id=thenuk_id,
+        survey_day=14,
+        answers=thenuk_answers,
+        score=thenuk_score.get("score"),
+        tier=thenuk_score.get("tier"),
+    )
+    _event(thenuk_id, 14, "survey_completed", {"survey_day": 14, "score": thenuk_score.get("score")})
+
+    escalation_ids = post_ids[:12]
+    tiers = ([1] * 4) + ([2] * 8) + ([3] * 8)
+    for i, tier in enumerate(tiers):
+        pid = escalation_ids[i % len(escalation_ids)]
+        day = 2 + (i % 12)
+        _team_store.create_escalation(
+            patient_id=pid,
+            tier=tier,
+            trigger_type="care_team_notification_demo",
+            message=f"Demo escalation tier {tier} for symptom concern",
+            conversation_snapshot=[
+                {"role": "patient", "content": "I have worsening symptoms."},
+                {"role": "assistant", "content": "Thanks for sharing this. I am escalating to your care team."},
+            ],
+            created_at=(datetime.combine(open_dates[pid] + timedelta(days=day), datetime.utcnow().time()).replace(microsecond=0).isoformat()),
+        )
+
+
+async def _seed_demo_mode_data() -> None:
+    if not _is_demo_mode():
+        return
+    _ensure_demo_doctor()
+    rows = _seed_demo_patient_store()
+    _seed_demo_sqlite(rows, _demo_seed_strategy())
 
 
 def _frontend_cache_version() -> str:
@@ -864,6 +1116,11 @@ class EventTrackRequest(BaseModel):
     payload: Optional[dict] = None
 
 
+class PCPReferralUpdateRequest(BaseModel):
+    pcp_name: Optional[str] = None
+    sent: bool = True
+
+
 class SurveySubmitRequest(BaseModel):
     clinic_code: str
     resource_code: str
@@ -1051,6 +1308,8 @@ async def list_patients():
             "name": d.get("name", "Unknown"),
             "procedure": sd.get("procedure_name", ""),
             "date": sd.get("procedure_date", ""),
+            "pcpReferralSent": bool(d.get("pcp_referral_sent") or sd.get("pcp_referral_sent")),
+            "pcpName": (d.get("pcp_name") or sd.get("pcp_name") or ""),
             "hasResources": d.get("resources") is not None,
             "pipelineType": d.get("pipeline_type", "post_op"),
             "phone": d.get("phone", ""),
@@ -1101,6 +1360,27 @@ async def track_patient_event(patient_id: str, body: EventTrackRequest):
         raise HTTPException(status_code=400, detail="Unsupported event_type")
     _team_store.log_event(patient_id=patient_id, event_type=event_type, payload=body.payload or {})
     return {"ok": True}
+
+
+@app.patch("/api/patient/{patient_id}/pcp-referral")
+async def update_pcp_referral(patient_id: str, body: PCPReferralUpdateRequest):
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    p = _patient_store[patient_id]
+    sd = p.get("structured_data") or {}
+    pcp_name = (body.pcp_name or "").strip()
+    sent = bool(body.sent)
+    p["pcp_referral_sent"] = sent
+    p["pcp_name"] = pcp_name or None
+    sd["pcp_referral_sent"] = sent
+    sd["pcp_name"] = pcp_name or None
+    p["structured_data"] = sd
+    _team_store.log_event(
+        patient_id=patient_id,
+        event_type="email_sent" if sent else "care_team_notification",
+        payload={"channel": "pcp_summary_referral", "pcp_name": pcp_name},
+    )
+    return {"ok": True, "pcpReferralSent": sent, "pcpName": pcp_name}
 
 
 @app.get("/api/patient/{patient_id}/timeline")
@@ -1317,10 +1597,33 @@ async def get_doctor_survey(patient_id: str, day: int, user: UserOut = Depends(g
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
     survey = _team_store.get_survey_response(patient_id, day)
+    question_set = _question_set_for_day(day)["questions"]
+    answers_detailed: List[Dict[str, Any]] = []
+    if survey:
+        raw_answers = survey.get("answers") or []
+        by_index: Dict[int, str] = {}
+        for ans in raw_answers:
+            idx_raw = ans.get("question_index") or ans.get("id")
+            try:
+                idx = int(idx_raw)
+            except Exception:
+                idx = 0
+            if idx > 0:
+                by_index[idx] = str(ans.get("response") or ans.get("value") or "").strip()
+        for i, q in enumerate(question_set, start=1):
+            answers_detailed.append(
+                {
+                    "question_index": i,
+                    "question_text": q,
+                    "response": by_index.get(i, "No response"),
+                }
+            )
     return {
         "patient_id": patient_id,
         "day": day,
         "response": survey,
+        "question_set": question_set,
+        "answers_detailed": answers_detailed,
         "composite_score": _team_store.get_composite_score(patient_id),
         "doctor_only": True,
     }
@@ -2349,7 +2652,11 @@ async def _team_scheduler_loop() -> None:
 
 @app.on_event("startup")
 async def startup_team_scheduler():
-    _seed_demo_patient_if_empty()
+    await _seed_demo_mode_data()
+    if _is_demo_mode() and _disable_scheduler_in_demo():
+        print("[demo-seed] team scheduler disabled for demo startup stability.")
+        app.state.team_scheduler_task = None
+        return
     app.state.team_scheduler_task = asyncio.create_task(_team_scheduler_loop())
 
 
