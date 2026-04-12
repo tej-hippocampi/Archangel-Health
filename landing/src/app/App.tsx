@@ -1,12 +1,9 @@
-import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { SignInDialog } from "@/app/components/SignInDialog";
-import { SignUpDialog } from "@/app/components/SignUpDialog";
-import ArchangelHealthLogo from "@/app/components/ArchangelHealthLogo";
+import { AuthProvider } from "@/contexts/AuthContext";
 import RecoveryResourcesEmailPreview from "@/app/components/RecoveryResourcesEmailPreview";
 import TeamCalculator from "@/app/components/TeamCalculator";
-import * as authApi from "@/lib/auth-api";
+import TeamWhitepaperPage from "@/app/components/TeamWhitepaperPage";
+import { SiteHeader, parseLandingView } from "@/app/components/SiteHeader";
 
 const HIPPOCRATES_BG = "/hippocrates-email-bg.png";
 
@@ -48,121 +45,10 @@ function DriverCard({ title, bullets, whyItMatters, delay = 0 }: DriverCardProps
   );
 }
 
-// Dashboard link after login: env or default to backend in dev
-const env = (import.meta as unknown as { env: { VITE_DASHBOARD_URL?: string; VITE_API_URL?: string; DEV?: boolean } }).env;
-const DASHBOARD_URL =
-  env?.VITE_DASHBOARD_URL ??
-  env?.VITE_API_URL ??
-  (env?.DEV ? "http://localhost:8000" : "");
-
 function LandingContent() {
-  const { user, loading, logout, token } = useAuth();
-  const [signInOpen, setSignInOpen] = useState(false);
-  const [signUpOpen, setSignUpOpen] = useState(false);
-  const [signUpInitialStep, setSignUpInitialStep] = useState<"role" | "patient-codes">("role");
-
-  // After login, redirect to dashboard only if doctor has completed onboarding (has profile)
-  useEffect(() => {
-    if (!user || !DASHBOARD_URL || !token) return;
-    let cancelled = false;
-    authApi.getDoctorProfile(token).then((profile) => {
-      if (!cancelled && profile) {
-        window.location.href = DASHBOARD_URL + "#auth=" + encodeURIComponent(token);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [user, token]);
-
-  // When landing with ?signout=1 or pathname /auth/signout (from doctor dashboard Sign out), clear auth and clean URL
-  const { logout: authLogout } = useAuth();
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const isSignoutQuery = params.get("signout") === "1";
-    const isSignoutPath = window.location.pathname === "/auth/signout";
-    if (isSignoutQuery || isSignoutPath) {
-      authLogout();
-      params.delete("signout");
-      const newSearch = params.toString();
-      const newUrl = (isSignoutPath ? "/" : window.location.pathname) + (newSearch ? "?" + newSearch : "") + window.location.hash;
-      window.history.replaceState(null, "", newUrl);
-    }
-  }, [authLogout]);
-
-  // When landing with #recovery-plan (e.g. from email "View your recovery plan" link), open Sign up dialog on patient code step
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.location.hash === "#recovery-plan") {
-      setSignUpInitialStep("patient-codes");
-      setSignUpOpen(true);
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
-    }
-  }, []);
-
   return (
     <>
       <div className="app-container">
-        <div className="hero-logo">
-          <ArchangelHealthLogo />
-        </div>
-
-        <nav
-          className="auth-nav absolute top-6 right-6 md:top-8 md:right-8 flex items-center justify-end gap-3"
-          style={{ zIndex: 100, pointerEvents: "auto" }}
-          aria-label="Account"
-        >
-          {!loading && (
-            <>
-              {user ? (
-                <>
-                  <span className="text-[#f5f5f7]/95 text-sm font-medium max-w-[140px] truncate">
-                    {user.email}
-                  </span>
-                  {DASHBOARD_URL && (
-                    <a
-                      href={DASHBOARD_URL}
-                      className="auth-btn auth-btn-primary inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium text-[#0a0a0b] bg-[#f5f5f7] hover:bg-[#e0e0e5] transition-colors"
-                    >
-                      {user.name
-                        ? user.name.trim().split(" ").slice(0, 2).join(" ")
-                        : "Doctor Portal"}
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    onClick={logout}
-                    className="auth-btn inline-flex items-center justify-center rounded-full border border-[rgba(255,255,255,0.3)] px-4 py-2 text-sm font-medium text-[#f5f5f7] hover:bg-white/10 transition-colors"
-                  >
-                    Sign out
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setSignInOpen(true)}
-                    className="auth-btn inline-flex items-center justify-center rounded-full border border-[rgba(255,255,255,0.3)] px-4 py-2 text-sm font-medium text-[#f5f5f7] hover:bg-white/10 transition-colors"
-                  >
-                    Sign in
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSignUpInitialStep("role");
-                      setSignUpOpen(true);
-                    }}
-                    className="auth-btn auth-btn-primary inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium text-[#0a0a0b] bg-[#f5f5f7] hover:bg-[#00ffff] hover:text-[#0a0a0b] transition-all shadow-[0_0_20px_rgba(0,255,255,0.2)]"
-                  >
-                    Sign up
-                  </button>
-                </>
-              )}
-            </>
-          )}
-        </nav>
-
         <section className="hero-section">
           <img
             src="https://static.scientificamerican.com/dam/m/37bca03526cc32df/original/AI-pill-gif-healthspans.gif?m=1741035098.088&w=1200"
@@ -255,7 +141,7 @@ function LandingContent() {
           <div className="section-container" style={{ textAlign: "center" }}>
             <h2 className="section-title" style={{ marginBottom: "1rem" }}>Understand TEAM financial impact before contracting.</h2>
             <a
-              href="/?team-calculator=1"
+              href="/team-calculator"
               className="hero-demo-button"
               style={{ display: "inline-flex" }}
             >
@@ -286,9 +172,6 @@ function LandingContent() {
 
         <style>{styles}</style>
       </div>
-
-      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
-      <SignUpDialog open={signUpOpen} onOpenChange={setSignUpOpen} initialStep={signUpInitialStep} />
     </>
   );
 }
@@ -315,13 +198,6 @@ const styles = `
     position: relative;
   }
 
-  .hero-logo > div {
-    position: absolute !important;
-    top: 1.5rem !important;
-    left: 1.5rem !important;
-    z-index: 100 !important;
-  }
-
   .auth-btn {
     cursor: pointer;
     outline: none;
@@ -333,10 +209,6 @@ const styles = `
 
   .auth-btn-primary:hover {
     box-shadow: 0 0 24px rgba(0, 255, 255, 0.35);
-  }
-
-  .auth-nav {
-    position: absolute !important;
   }
 
   .hero-section {
@@ -834,11 +706,6 @@ const styles = `
   }
 
   @media (min-width: 768px) {
-    .hero-logo > div {
-      top: 2rem !important;
-      left: 2rem !important;
-    }
-
     .hero-headline {
       letter-spacing: -0.04em;
     }
@@ -846,25 +713,22 @@ const styles = `
 `;
 
 export default function App() {
-  const isTeamCalculatorRoute =
-    typeof window !== "undefined" &&
-    (window.location.pathname === "/team-calculator" ||
-      new URLSearchParams(window.location.search).get("team-calculator") === "1");
   const isEmailPreviewRoute =
     typeof window !== "undefined" &&
     (window.location.pathname === "/email-preview" || window.location.search.includes("emailPreview=1"));
-
-  if (isTeamCalculatorRoute) {
-    return <TeamCalculator />;
-  }
 
   if (isEmailPreviewRoute) {
     return <RecoveryResourcesEmailPreview />;
   }
 
+  const view = parseLandingView();
+
   return (
     <AuthProvider>
-      <LandingContent />
+      <SiteHeader activeView={view} />
+      {view === "home" && <LandingContent />}
+      {view === "whitepaper" && <TeamWhitepaperPage />}
+      {view === "calculator" && <TeamCalculator />}
     </AuthProvider>
   );
 }

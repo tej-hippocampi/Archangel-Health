@@ -6,14 +6,24 @@
 import { motion } from "motion/react";
 import MedicalGuardianLogo from "./MedicalGuardianLogo";
 
-export default function ArchangelHealthLogo() {
+type ArchangelHealthLogoProps = {
+  /** `fixed` = legacy hero corner; `inline` = site header row */
+  variant?: "fixed" | "inline";
+};
+
+export default function ArchangelHealthLogo({ variant = "fixed" }: ArchangelHealthLogoProps) {
+  const positionClass =
+    variant === "inline"
+      ? "relative z-[100] flex items-center gap-3"
+      : "fixed top-6 left-6 md:top-8 md:left-8 z-[100] flex items-center gap-3";
+
   return (
     <>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1, delay: 0.2 }}
-        className="fixed top-6 left-6 md:top-8 md:left-8 z-[100] flex items-center gap-3"
+        className={positionClass}
       >
         <MedicalGuardianLogo
           width={36}
