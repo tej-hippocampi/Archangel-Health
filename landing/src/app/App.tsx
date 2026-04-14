@@ -4,6 +4,8 @@ import RecoveryResourcesEmailPreview from "@/app/components/RecoveryResourcesEma
 import TeamCalculator from "@/app/components/TeamCalculator";
 import TeamWhitepaperPage from "@/app/components/TeamWhitepaperPage";
 import { SiteHeader, parseLandingView } from "@/app/components/SiteHeader";
+import OnboardingWizard from "@/app/components/OnboardingWizard";
+import TenantSignIn from "@/app/components/TenantSignIn";
 
 const HIPPOCRATES_BG = "/hippocrates-email-bg.png";
 
@@ -719,6 +721,24 @@ export default function App() {
 
   if (isEmailPreviewRoute) {
     return <RecoveryResourcesEmailPreview />;
+  }
+
+  const path = typeof window !== "undefined" ? window.location.pathname : "/";
+  const onboardMatch = path.match(/^\/onboard\/([^/]+)\/?$/);
+  if (onboardMatch) {
+    return (
+      <AuthProvider>
+        <OnboardingWizard token={decodeURIComponent(onboardMatch[1])} />
+      </AuthProvider>
+    );
+  }
+  const tenantSignInMatch = path.match(/^\/t\/([^/]+)\/sign-in\/?$/);
+  if (tenantSignInMatch) {
+    return (
+      <AuthProvider>
+        <TenantSignIn slug={decodeURIComponent(tenantSignInMatch[1])} />
+      </AuthProvider>
+    );
   }
 
   const view = parseLandingView();

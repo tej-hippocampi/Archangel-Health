@@ -1,8 +1,17 @@
+import hashlib
 import json
 import os
+import re
+import secrets
 import sqlite3
+import string
+import uuid
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
+
+from passlib.context import CryptContext
+
+_pwd = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
 def _utcnow_iso() -> str:
@@ -98,8 +107,491 @@ class TeamStore:
                 CREATE INDEX IF NOT EXISTS idx_escalations_patient ON escalations(patient_id);
                 CREATE INDEX IF NOT EXISTS idx_escalations_created ON escalations(created_at);
                 CREATE INDEX IF NOT EXISTS idx_preop_intake_patient ON preop_intake_submissions(patient_id);
+
+                CREATE TABLE IF NOT EXISTS health_systems (
+                    id TEXT PRIMARY KEY,
+                    slug TEXT NOT NULL UNIQUE,
+                    name TEXT,
+                    surgery_department TEXT,
+                    phone TEXT,
+                    health_system_code TEXT,
+                    status TEXT NOT NULL DEFAULT 'pending_onboarding',
+                    onboarding_token_hash TEXT,
+                    onboarding_token_expires_at TEXT,
+                    onboarding_completed_at TEXT,
+                    director_email TEXT,
+                    director_first_name TEXT,
+                    director_last_name TEXT,
+                    onboarding_step INTEGER NOT NULL DEFAULT 0,
+                    last_generated_invite_url TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS otp_challenges (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    health_system_id TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    code_hash TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    consumed_at TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS team_members (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    health_system_id TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(health_system_id, email)
+                );
+
+                CREATE TABLE IF NOT EXISTS audit_sign_ins (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    health_system_id TEXT NOT NULL,
+                    user_email TEXT NOT NULL,
+                    display_name TEXT,
+                    role TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS preop_intake_sessions (
+                    patient_id TEXT PRIMARY KEY,
+                    session_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_team_members_hs ON team_members(health_system_id);
+                CREATE INDEX IF NOT EXISTS idx_audit_hs ON audit_sign_ins(health_system_id);
+                CREATE INDEX IF NOT EXISTS idx_otp_hs ON otp_challenges(health_system_id);
                 """
             )
+        self._migrate_schema()
+
+    def _migrate_schema(self) -> None:
+        """Add nullable columns to legacy tables (SQLite).
+
+        episodes.clinic_code is retained (no physical RENAME); responses expose health_system_code as an alias.
+        """
+        with self._conn() as conn:
+            self._add_column_if_missing(conn, "episodes", "health_system_id", "TEXT")
+            self._add_column_if_missing(conn, "escalations", "health_system_id", "TEXT")
+
+    @staticmethod
+    def _add_column_if_missing(conn: sqlite3.Connection, table: str, col: str, decl: str) -> None:
+        cur = conn.execute(f"PRAGMA table_info({table})")
+        names = {row[1] for row in cur.fetchall()}
+        if col not in names:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+
+    @staticmethod
+    def _hash_onboarding_token(raw_token: str) -> str:
+        pepper = os.getenv("AUTH_SECRET", "change-me-in-production-elysium")
+        return hashlib.sha256(f"{pepper}:{raw_token}".encode()).hexdigest()
+
+    @staticmethod
+    def _generate_health_system_code() -> str:
+        alphabet = string.ascii_uppercase + string.digits
+        return "".join(secrets.choice(alphabet) for _ in range(8))
+
+    @staticmethod
+    def _slugify(s: str) -> str:
+        s = (s or "").lower().strip()
+        s = re.sub(r"[^a-z0-9]+", "-", s)
+        s = re.sub(r"-+", "-", s).strip("-")
+        return s[:48] or "health-system"
+
+    def ensure_demo_health_system(
+        self,
+        *,
+        hs_id: str,
+        slug: str,
+        name: str,
+        health_system_code: str,
+    ) -> None:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO health_systems (
+                    id, slug, name, surgery_department, phone, health_system_code, status,
+                    onboarding_token_hash, onboarding_token_expires_at, onboarding_completed_at,
+                    director_email, director_first_name, director_last_name, onboarding_step,
+                    last_generated_invite_url, created_at
+                )
+                VALUES (?, ?, ?, '', '', ?, 'active', NULL, NULL, ?, NULL, NULL, NULL, 99, NULL, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    slug = excluded.slug,
+                    name = excluded.name,
+                    health_system_code = COALESCE(health_systems.health_system_code, excluded.health_system_code),
+                    status = 'active',
+                    onboarding_completed_at = COALESCE(health_systems.onboarding_completed_at, excluded.onboarding_completed_at)
+                """,
+                (hs_id, slug, name, health_system_code, now, now),
+            )
+
+    def create_health_system_invite(self, *, invite_base_url: str) -> Dict[str, Any]:
+        """Admin: new pending health system + one-time onboarding URL (token shown once)."""
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = self._hash_onboarding_token(raw_token)
+        expires = (datetime.utcnow() + timedelta(days=30)).replace(microsecond=0).isoformat()
+        now = _utcnow_iso()
+        invite_url = f"{invite_base_url.rstrip('/')}/onboard/{raw_token}"
+        hs_id = ""
+        slug = ""
+        for _ in range(30):
+            hs_id = str(uuid.uuid4())
+            slug = f"pending-{secrets.token_hex(4)}"
+            try:
+                with self._conn() as conn:
+                    conn.execute(
+                        """
+                        INSERT INTO health_systems (
+                            id, slug, name, surgery_department, phone, health_system_code, status,
+                            onboarding_token_hash, onboarding_token_expires_at, onboarding_completed_at,
+                            director_email, director_first_name, director_last_name, onboarding_step,
+                            last_generated_invite_url, created_at
+                        )
+                        VALUES (?, ?, NULL, NULL, NULL, NULL, 'pending_onboarding', ?, ?, NULL,
+                                NULL, NULL, NULL, 0, ?, ?)
+                        """,
+                        (hs_id, slug, token_hash, expires, invite_url, now),
+                    )
+                break
+            except sqlite3.IntegrityError:
+                continue
+        else:
+            raise RuntimeError("Could not allocate unique slug for health system invite")
+        url = f"{invite_base_url.rstrip('/')}/onboard/{raw_token}"
+        return {
+            "health_system_id": hs_id,
+            "slug": slug,
+            "onboarding_url": url,
+            "expires_at": expires,
+        }
+
+    def list_health_systems_admin(self) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM health_systems ORDER BY datetime(created_at) DESC"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_health_system_by_id(self, hs_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM health_systems WHERE id = ?", (hs_id,)).fetchone()
+            return dict(row) if row else None
+
+    def get_health_system_by_code(self, code: str) -> Optional[Dict[str, Any]]:
+        c = (code or "").strip()
+        if not c:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM health_systems WHERE upper(trim(health_system_code)) = upper(trim(?)) LIMIT 1",
+                (c,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_health_system_by_slug(self, slug: str) -> Optional[Dict[str, Any]]:
+        s = (slug or "").strip()
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM health_systems WHERE slug = ?", (s,)).fetchone()
+            if not row:
+                row = conn.execute("SELECT * FROM health_systems WHERE lower(slug) = lower(?)", (s,)).fetchone()
+            return dict(row) if row else None
+
+    def get_health_system_by_onboarding_token(self, raw_token: str) -> Optional[Dict[str, Any]]:
+        h = self._hash_onboarding_token(raw_token.strip())
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM health_systems WHERE onboarding_token_hash = ?",
+                (h,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def onboarding_token_valid(self, row: Dict[str, Any]) -> bool:
+        if not row.get("onboarding_token_hash"):
+            return False
+        exp = row.get("onboarding_token_expires_at") or ""
+        try:
+            if datetime.fromisoformat(exp) < datetime.utcnow():
+                return False
+        except Exception:
+            return False
+        return True
+
+    def update_health_system_director_identity(
+        self,
+        hs_id: str,
+        *,
+        first_name: str,
+        last_name: str,
+        email: str,
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE health_systems SET
+                    director_first_name = ?, director_last_name = ?, director_email = ?,
+                    onboarding_step = CASE WHEN onboarding_step < 1 THEN 1 ELSE onboarding_step END
+                WHERE id = ?
+                """,
+                (first_name.strip(), last_name.strip(), email.lower().strip(), hs_id),
+            )
+
+    def create_otp_challenge(self, hs_id: str, email: str, raw_code: str) -> int:
+        expires = (datetime.utcnow() + timedelta(minutes=15)).replace(microsecond=0).isoformat()
+        code_hash = _pwd.hash(raw_code)
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO otp_challenges (health_system_id, email, code_hash, expires_at, consumed_at, created_at)
+                VALUES (?, ?, ?, ?, NULL, ?)
+                """,
+                (hs_id, email.lower().strip(), code_hash, expires, now),
+            )
+            return int(cur.lastrowid)
+
+    def verify_otp_challenge(self, hs_id: str, email: str, raw_code: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM otp_challenges
+                WHERE health_system_id = ? AND email = ? AND consumed_at IS NULL
+                ORDER BY id DESC LIMIT 1
+                """,
+                (hs_id, email.lower().strip()),
+            ).fetchone()
+            if not row:
+                return False
+            rec = dict(row)
+            try:
+                if datetime.fromisoformat(rec["expires_at"]) < datetime.utcnow():
+                    return False
+            except Exception:
+                return False
+            if not _pwd.verify(raw_code.strip(), rec["code_hash"]):
+                return False
+            conn.execute(
+                "UPDATE otp_challenges SET consumed_at = ? WHERE id = ?",
+                (_utcnow_iso(), rec["id"]),
+            )
+            conn.execute(
+                """
+                UPDATE health_systems SET
+                    onboarding_step = CASE WHEN onboarding_step < 2 THEN 2 ELSE onboarding_step END
+                WHERE id = ?
+                """,
+                (hs_id,),
+            )
+            return True
+
+    def update_health_system_org_details(
+        self,
+        hs_id: str,
+        *,
+        name: str,
+        surgery_department: str,
+        phone: str,
+    ) -> None:
+        code = self._generate_health_system_code()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE health_systems SET
+                    name = ?, surgery_department = ?, phone = ?,
+                    health_system_code = COALESCE(health_system_code, ?),
+                    onboarding_step = CASE WHEN onboarding_step < 3 THEN 3 ELSE onboarding_step END
+                WHERE id = ?
+                """,
+                (name.strip(), surgery_department.strip(), phone.strip(), code, hs_id),
+            )
+
+    def hash_team_password(self, raw: str) -> str:
+        return _pwd.hash(raw)
+
+    def verify_team_password(self, raw: str, hashed: str) -> bool:
+        return _pwd.verify(raw, hashed)
+
+    def insert_team_member(
+        self,
+        hs_id: str,
+        *,
+        email: str,
+        name: str,
+        role: str,
+        password_hash: str,
+    ) -> int:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO team_members (health_system_id, email, name, role, password_hash, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(health_system_id, email) DO UPDATE SET
+                    name = excluded.name,
+                    role = excluded.role,
+                    password_hash = excluded.password_hash
+                """,
+                (hs_id, email.lower().strip(), name.strip(), role, password_hash, now),
+            )
+            return int(cur.lastrowid)
+
+    def list_team_members(self, hs_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, health_system_id, email, name, role, created_at FROM team_members WHERE health_system_id = ? ORDER BY id ASC",
+                (hs_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_team_member(self, hs_id: str, email: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM team_members WHERE health_system_id = ? AND email = ?",
+                (hs_id, email.lower().strip()),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def find_team_member_by_email_any_hs(self, email: str) -> Optional[Dict[str, Any]]:
+        """First team_members row for this email (any health system), for landing-auth guardrails."""
+        em = (email or "").lower().strip()
+        if not em:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM team_members WHERE email = ? ORDER BY id ASC LIMIT 1",
+                (em,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def authenticate_team_member(self, slug: str, email: str, password: str) -> Optional[Dict[str, Any]]:
+        hs = self.get_health_system_by_slug(slug)
+        if not hs or hs.get("status") != "active":
+            return None
+        m = self.get_team_member(hs["id"], email)
+        if not m:
+            return None
+        if not self.verify_team_password(password, m["password_hash"]):
+            return None
+        return {"member": m, "health_system": hs}
+
+    def complete_onboarding_finalize(
+        self,
+        hs_id: str,
+        *,
+        director_email: str,
+        director_first_name: str,
+        director_last_name: str,
+        director_password_hash: str,
+    ) -> Dict[str, Any]:
+        """Single-use token consumed; director account created/updated; HS active."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM health_systems WHERE id = ?", (hs_id,)).fetchone()
+            if not row:
+                raise ValueError("health_system not found")
+            name = f"{director_first_name} {director_last_name}".strip()
+            conn.execute(
+                """
+                UPDATE health_systems SET
+                    status = 'active',
+                    onboarding_completed_at = ?,
+                    onboarding_step = 99,
+                    director_email = ?
+                WHERE id = ?
+                """,
+                (now, director_email.lower().strip(), hs_id),
+            )
+            conn.execute(
+                """
+                INSERT INTO team_members (health_system_id, email, name, role, password_hash, created_at)
+                VALUES (?, ?, ?, 'director', ?, ?)
+                ON CONFLICT(health_system_id, email) DO UPDATE SET
+                    name = excluded.name,
+                    role = 'director',
+                    password_hash = excluded.password_hash
+                """,
+                (hs_id, director_email.lower().strip(), name, director_password_hash, now),
+            )
+        return self.get_health_system_by_id(hs_id) or {}
+
+    def maybe_update_slug_from_name(self, hs_id: str, desired_base: str) -> str:
+        base = self._slugify(desired_base)
+        with self._conn() as conn:
+            for suffix in ["", f"-{secrets.token_hex(2)}", f"-{secrets.token_hex(3)}"]:
+                cand = (base + suffix).strip("-")
+                try:
+                    conn.execute(
+                        "UPDATE health_systems SET slug = ? WHERE id = ?",
+                        (cand, hs_id),
+                    )
+                    return cand
+                except sqlite3.IntegrityError:
+                    continue
+        return base
+
+    def append_audit_sign_in(
+        self,
+        *,
+        health_system_id: str,
+        user_email: str,
+        display_name: str,
+        role: str,
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO audit_sign_ins (health_system_id, user_email, display_name, role, occurred_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (health_system_id, user_email.lower().strip(), display_name, role, _utcnow_iso()),
+            )
+
+    def list_audit_sign_ins(self, health_system_id: str, *, limit: int = 500) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM audit_sign_ins
+                WHERE health_system_id = ?
+                ORDER BY datetime(occurred_at) DESC
+                LIMIT ?
+                """,
+                (health_system_id, limit),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def save_preop_intake_session(self, patient_id: str, session: Dict[str, Any]) -> None:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO preop_intake_sessions (patient_id, session_json, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(patient_id) DO UPDATE SET
+                    session_json = excluded.session_json,
+                    updated_at = excluded.updated_at
+                """,
+                (patient_id, json.dumps(session), now),
+            )
+
+    def get_preop_intake_session(self, patient_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT session_json FROM preop_intake_sessions WHERE patient_id = ?",
+                (patient_id,),
+            ).fetchone()
+            if not row:
+                return None
+            return json.loads(row["session_json"] or "{}")
+
+    def delete_preop_intake_session(self, patient_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute("DELETE FROM preop_intake_sessions WHERE patient_id = ?", (patient_id,))
 
     def ensure_episode(
         self,
@@ -109,6 +601,7 @@ class TeamStore:
         procedure_type: str = "",
         clinic_code: str = "",
         resource_code: str = "",
+        health_system_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         today = date.today()
         episode_open = date.fromisoformat(open_date) if open_date else today
@@ -117,12 +610,13 @@ class TeamStore:
         with self._conn() as conn:
             conn.execute(
                 """
-                INSERT INTO episodes (patient_id, open_date, close_date, status, procedure_type, clinic_code, resource_code, created_at)
-                VALUES (?, ?, ?, 'open', ?, ?, ?, ?)
+                INSERT INTO episodes (patient_id, open_date, close_date, status, procedure_type, clinic_code, resource_code, health_system_id, created_at)
+                VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?)
                 ON CONFLICT(patient_id) DO UPDATE SET
                     procedure_type = excluded.procedure_type,
                     clinic_code = COALESCE(excluded.clinic_code, episodes.clinic_code),
-                    resource_code = COALESCE(excluded.resource_code, episodes.resource_code)
+                    resource_code = COALESCE(excluded.resource_code, episodes.resource_code),
+                    health_system_id = COALESCE(excluded.health_system_id, episodes.health_system_id)
                 """,
                 (
                     patient_id,
@@ -131,6 +625,7 @@ class TeamStore:
                     procedure_type,
                     clinic_code or None,
                     resource_code or None,
+                    health_system_id,
                     created_at,
                 ),
             )
@@ -282,13 +777,14 @@ class TeamStore:
         message: str,
         conversation_snapshot: List[Dict[str, Any]],
         created_at: Optional[str] = None,
+        health_system_id: Optional[str] = None,
     ) -> int:
         ts = created_at or _utcnow_iso()
         with self._conn() as conn:
             cur = conn.execute(
                 """
-                INSERT INTO escalations (patient_id, tier, trigger_type, message, resolved, created_at, conversation_snapshot)
-                VALUES (?, ?, ?, ?, 0, ?, ?)
+                INSERT INTO escalations (patient_id, tier, trigger_type, message, resolved, created_at, conversation_snapshot, health_system_id)
+                VALUES (?, ?, ?, ?, 0, ?, ?, ?)
                 """,
                 (
                     patient_id,
@@ -297,6 +793,7 @@ class TeamStore:
                     message,
                     ts,
                     json.dumps(conversation_snapshot),
+                    health_system_id,
                 ),
             )
             return int(cur.lastrowid)

@@ -21,6 +21,8 @@ The demo patient dashboard is available at `http://localhost:8000/patient/maria_
 ### Environment variables
 Copy `.env.example` to `.env`. Set `BASE_URL=http://localhost:8000` for local dev. Set `AUTH_SECRET` to a long random string for landing auth (JWT). External API keys (Anthropic, ElevenLabs, Tavus, Twilio) are optional for basic UI testing — the app gracefully degrades without them. Chat requires `ANTHROPIC_API_KEY` for real AI responses.
 
+Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`** and a **verified** `SENDGRID_FROM_EMAIL` in the same SendGrid account (or working `SMTP_*`). Without this, `/api/onboarding/request-otp` returns 503; check the backend terminal for `[email_utils] SendGrid HTTP …` diagnostics.
+
 ### Gotchas
 - **Static file paths**: `frontend/index.html` uses `/static/` prefixed paths. FastAPI mounts the `frontend/` directory at `/static`. If the HTML is served at `/patient/{id}`, relative paths won't resolve — always use `/static/styles.css` and `/static/app.js`.
 - **No tests or linter**: The codebase has no test suite or linting configuration (`pyproject.toml`, `.flake8`, etc.).

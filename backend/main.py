@@ -6,7 +6,9 @@ FastAPI backend: EHR → Pipeline → Dashboard → SMS
 import asyncio
 import os
 import re
+from pathlib import Path
 import json
+import tempfile
 import random
 import sqlite3
 import html as html_lib
@@ -16,14 +18,19 @@ from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, APIRouter, Depends, Request
+from fastapi import FastAPI, HTTPException, BackgroundTasks, APIRouter, Depends, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load env from predictable paths (uvicorn cwd is often repo root, not backend/).
+_backend_dir = Path(__file__).resolve().parent
+_repo_root = _backend_dir.parent
+# override=True so values from these files win over stale shell exports during local dev.
+load_dotenv(_repo_root / ".env", override=True)
+load_dotenv(_backend_dir / ".env", override=True)
 
 from pipeline.ingest   import IngestLayer
 from pipeline.extract  import ExtractionLayer
@@ -34,6 +41,12 @@ from integrations.tavus        import TavusClient
 from integrations.twilio_client import TwilioClient
 from routers.internal import router as internal_router
 from routers.admin    import router as admin_router
+from routers.onboarding import router as onboarding_router
+from routers.tenant_portal import router as tenant_portal_router
+from staff_context import StaffContext, get_staff_context_optional
+from tenant_constants import DEMO_HEALTH_SYSTEM_ID, DEMO_HEALTH_SYSTEM_SLUG
+from tenant_jwt import decode_tenant_staff_token
+from email_utils import is_email_transport_configured, send_html_email as _send_html_email_impl
 from auth import (
     UserCreate,
     UserLogin,
@@ -70,6 +83,14 @@ _patient_store: dict = {}
 app.state.patient_store = _patient_store
 _team_store = TeamStore()
 app.state.team_store = _team_store
+
+
+def _assert_staff_can_access_patient(patient_id: str, staff: Optional[StaffContext]) -> None:
+    if staff is None or staff.source != "tenant" or not staff.tenant_id:
+        return
+    d = _patient_store.get(patient_id)
+    if not d or (d.get("health_system_id") or "") != staff.tenant_id:
+        raise HTTPException(status_code=404, detail="Patient not found")
 
 SURVEY_DAY_CONFIG = {7: 6, 14: 13, 30: 29}  # days from open_date
 
@@ -125,7 +146,6 @@ AI_DISCLAIMER = (
 
 SPECIALTY_FORM_LIBRARY_PATH = os.path.join(os.path.dirname(__file__), "intake_form_library.json")
 SPECIALTY_FRAMEWORK_PATH = os.path.join(os.path.dirname(__file__), "intake_frameworks.json")
-_preop_intake_sessions: Dict[str, Dict[str, Any]] = {}
 
 DEFAULT_FORM_LIBRARY: Dict[str, Dict[str, Any]] = {
     "Orthopedic": {
@@ -305,6 +325,64 @@ def _demo_seed_strategy() -> str:
     return "reset" if strategy == "reset" else "preserve"
 
 
+def _demo_patient_store_persistence_enabled() -> bool:
+    if not _is_demo_mode():
+        return False
+    v = os.getenv("DEMO_PERSIST_PATIENT_STORE", "1").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+def _demo_patient_store_snapshot_path() -> Optional[str]:
+    if not _demo_patient_store_persistence_enabled():
+        return None
+    p = (os.getenv("DEMO_PATIENT_STORE_PATH") or "").strip()
+    if p:
+        return os.path.abspath(p)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_dir, "demo_patient_store.json")
+
+
+def _load_demo_patient_store_snapshot() -> None:
+    path = _demo_patient_store_snapshot_path()
+    if not path or not os.path.isfile(path):
+        return
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"[demo-persist] failed to load snapshot {path}: {e}")
+        return
+    if not isinstance(data, dict):
+        print(f"[demo-persist] snapshot must be a JSON object, got {type(data).__name__}")
+        return
+    for pid, entry in data.items():
+        if isinstance(entry, dict):
+            _patient_store[str(pid)] = entry
+
+
+def _persist_demo_patient_store() -> None:
+    path = _demo_patient_store_snapshot_path()
+    if not path:
+        return
+    parent = os.path.dirname(path) or "."
+    try:
+        os.makedirs(parent, exist_ok=True)
+        payload = json.dumps(_patient_store, indent=2, default=str, ensure_ascii=False)
+        fd, tmp_path = tempfile.mkstemp(prefix=".demo_patient_store_", suffix=".tmp", dir=parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(payload)
+            os.replace(tmp_path, path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+    except OSError as e:
+        print(f"[demo-persist] failed to write snapshot {path}: {e}")
+
+
 def _ensure_demo_doctor() -> None:
     users = auth_module._get_users()  # noqa: SLF001
     key = DEMO_DOCTOR_EMAIL.lower().strip()
@@ -340,6 +418,8 @@ def _build_demo_battlecard(title: str, bullets: List[str]) -> str:
 def _demo_patient_blueprint() -> List[Dict[str, Any]]:
     names = [
         "Thenuk Rodrigo",
+        "Tej Patel",
+        "Arya Bhatia",
         "James Wilson", "Aisha Khan", "Michael Thompson", "Sophia Lee", "Noah Patel", "Emma Garcia",
         "Liam Brooks", "Olivia Cruz", "Ethan Kim", "Mia Turner", "Lucas Reed", "Ava Foster",
         "Mason Diaz", "Ella Bennett", "Logan Ward", "Harper Cox", "Jacob Long", "Amelia Hayes",
@@ -366,6 +446,14 @@ def _demo_patient_blueprint() -> List[Dict[str, Any]]:
             patient_id = "demo_thenuk_001"
             pipeline = "post_op"
             procedure = "Inguinal Hernia Repair"
+        elif name == "Tej Patel":
+            patient_id = "demo_tej_patel_001"
+            pipeline = "post_op"
+            procedure = "Laparoscopic Cholecystectomy"
+        elif name == "Arya Bhatia":
+            patient_id = "demo_arya_bhatia_001"
+            pipeline = "post_op"
+            procedure = "Laparoscopic Appendectomy"
 
         rows.append(
             {
@@ -430,6 +518,7 @@ def _seed_demo_patient_store() -> List[Dict[str, Any]]:
         resources = {"preop": preop_resource} if is_pre else {"diagnosis": diagnosis, "treatment": treatment}
         _patient_store[row["id"]] = {
             "name": row["name"],
+            "health_system_id": DEMO_HEALTH_SYSTEM_ID,
             "phone": phone,
             "email": email,
             "pipeline_type": row["pipeline_type"],
@@ -495,6 +584,7 @@ def _seed_demo_sqlite(rows: List[Dict[str, Any]], strategy: str) -> None:
             procedure_type=row["procedure_name"],
             clinic_code=DEMO_CLINIC_CODE,
             resource_code=_patient_store[row["id"]]["resource_code"],
+            health_system_id=DEMO_HEALTH_SYSTEM_ID,
         )
         open_dates[row["id"]] = open_date
 
@@ -571,15 +661,24 @@ def _seed_demo_sqlite(rows: List[Dict[str, Any]], strategy: str) -> None:
                 {"role": "assistant", "content": "Thanks for sharing this. I am escalating to your care team."},
             ],
             created_at=(datetime.combine(open_dates[pid] + timedelta(days=day), datetime.utcnow().time()).replace(microsecond=0).isoformat()),
+            health_system_id=_patient_store.get(pid, {}).get("health_system_id") or DEMO_HEALTH_SYSTEM_ID,
         )
 
 
 async def _seed_demo_mode_data() -> None:
     if not _is_demo_mode():
         return
+    _team_store.ensure_demo_health_system(
+        hs_id=DEMO_HEALTH_SYSTEM_ID,
+        slug=DEMO_HEALTH_SYSTEM_SLUG,
+        name="Cedars-Sinai Surgical Care",
+        health_system_code=DEMO_CLINIC_CODE,
+    )
     _ensure_demo_doctor()
     rows = _seed_demo_patient_store()
+    _load_demo_patient_store_snapshot()
     _seed_demo_sqlite(rows, _demo_seed_strategy())
+    _persist_demo_patient_store()
 
 
 def _frontend_cache_version() -> str:
@@ -669,7 +768,7 @@ def _build_recovery_resources_email_html(
 
               <tr>
                 <td style="padding:10px 28px 0 28px;">
-                  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#64748b;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;text-align:center;margin-bottom:10px;">Clinic Code</div>
+                  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#64748b;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;text-align:center;margin-bottom:10px;">Health System Code</div>
                   <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;padding:18px;text-align:center;">
                     <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Courier New',monospace;color:#111827;font-size:34px;font-weight:800;letter-spacing:0.15em;line-height:1.2;">{clinic_code_safe}</div>
                   </div>
@@ -1045,6 +1144,7 @@ async def _classify_and_create_escalation(
         trigger_type=trigger_type,
         message=message,
         conversation_snapshot=snapshot,
+        health_system_id=patient_data.get("health_system_id"),
     )
     return {
         "tier": int(tier),
@@ -1189,6 +1289,19 @@ async def auth_register(body: UserCreate):
 @app.post("/api/auth/login")
 async def auth_login(body: UserLogin):
     """Sign in; returns access token and user."""
+    tm = _team_store.find_team_member_by_email_any_hs(body.email)
+    if tm:
+        hs = _team_store.get_health_system_by_id(tm.get("health_system_id") or "")
+        slug = (hs or {}).get("slug") or "your-workspace"
+        landing = (os.getenv("LANDING_URL") or "http://localhost:5173").strip().rstrip("/")
+        tenant_url = f"{landing}/t/{slug}/sign-in"
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This account signs in through your health system workspace, not the public demo site. "
+                f"Use: {tenant_url}"
+            ),
+        )
     user = authenticate_user(body.email, body.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -1222,20 +1335,48 @@ def _generate_resource_code() -> str:
 
 # ─── Doctor profile & onboarding ──────────────────────────────
 @app.get("/api/doctor/profile", response_model=DoctorProfileOut)
-async def doctor_profile(user: UserOut = Depends(get_current_user)):
-    """Return current doctor's profile (requires onboarding to be done)."""
+async def doctor_profile(
+    authorization: Optional[str] = Header(None),
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+):
+    """Return current doctor's profile (landing auth) or tenant staff profile."""
+    token = ""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.removeprefix("Bearer ").strip()
+    td = decode_tenant_staff_token(token) if token else None
+    if td:
+        hs = _team_store.get_health_system_by_id(td.get("tid") or "")
+        if not hs:
+            raise HTTPException(status_code=404, detail="Health system not found.")
+        role = (td.get("role") or "doctor").lower()
+        dtype = "Director of TEAM Initiative" if role == "director" else "Care Team"
+        code = hs.get("health_system_code") or ""
+        return DoctorProfileOut(
+            name=td.get("name") or "",
+            email=td.get("sub") or "",
+            office_phone=hs.get("phone") or "",
+            doctor_type=dtype,
+            hospital_affiliations=hs.get("name") or "",
+            clinic_code=code,
+            health_system_code=code,
+            tenant_slug=hs.get("slug"),
+        )
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     profile = get_doctor_profile(user.email)
     if not profile:
         raise HTTPException(
             status_code=404,
             detail="Doctor profile not found. Complete onboarding first.",
         )
+    profile.setdefault("health_system_code", profile.get("clinic_code") or "")
+    profile.setdefault("tenant_slug", None)
     return DoctorProfileOut(**profile)
 
 
 @app.post("/api/doctor/onboard", response_model=DoctorProfileOut)
 async def doctor_onboard(body: DoctorOnboard, user: UserOut = Depends(get_current_user)):
-    """Set doctor profile and generate clinic code. Email must match current user."""
+    """Set doctor profile and generate health system code. Email must match current user."""
     if user.email.lower() != body.email.lower():
         raise HTTPException(status_code=400, detail="Email must match your account.")
     try:
@@ -1246,6 +1387,7 @@ async def doctor_onboard(body: DoctorOnboard, user: UserOut = Depends(get_curren
             doctor_type=body.doctor_type,
             hospital_affiliations=body.hospital_affiliations,
         )
+        profile.setdefault("health_system_code", profile.get("clinic_code") or "")
         return DoctorProfileOut(**profile)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -1253,23 +1395,28 @@ async def doctor_onboard(body: DoctorOnboard, user: UserOut = Depends(get_curren
 
 # ─── Patient access by codes (for landing code-entry form) ───────
 @app.get("/api/patient/by-codes")
-async def patient_by_codes(clinic_code: str, resource_code: str):
-    """Resolve clinic_code + resource_code to patient_id and dashboard URL."""
-    clinic_code = (clinic_code or "").strip().upper()
+async def patient_by_codes(
+    clinic_code: Optional[str] = None,
+    resource_code: str = "",
+    health_system_code: Optional[str] = None,
+):
+    """Resolve health system (clinic) code + resource_code to patient_id and dashboard URL."""
+    cc = (health_system_code or clinic_code or "").strip().upper()
     resource_code = (resource_code or "").strip().upper()
-    if not clinic_code or not resource_code:
-        raise HTTPException(status_code=400, detail="Clinic code and resource code are required.")
+    if not cc or not resource_code:
+        raise HTTPException(status_code=400, detail="Health system code and resource code are required.")
     for pid, d in _patient_store.items():
-        if (d.get("clinic_code") or "").upper() == clinic_code and (d.get("resource_code") or "").upper() == resource_code:
+        if (d.get("clinic_code") or "").upper() == cc and (d.get("resource_code") or "").upper() == resource_code:
             base_url = os.getenv("BASE_URL", "http://localhost:8000")
             _team_store.ensure_episode(
                 patient_id=pid,
                 procedure_type=(d.get("structured_data") or {}).get("procedure_name", ""),
                 clinic_code=d.get("clinic_code") or "",
                 resource_code=d.get("resource_code") or "",
+                health_system_id=d.get("health_system_id"),
             )
             # Explicitly mark successful code-based platform entry.
-            _team_store.log_event(patient_id=pid, event_type="platform_opened", payload={"clinic_code": clinic_code})
+            _team_store.log_event(patient_id=pid, event_type="platform_opened", payload={"clinic_code": cc})
             is_preop = (d.get("pipeline_type") or "").lower() == "pre_op"
             dashboard_path = f"/patient/{pid}/pre-op" if is_preop else f"/patient/{pid}"
             return {"patient_id": pid, "dashboard_url": f"{base_url}{dashboard_path}"}
@@ -1289,16 +1436,20 @@ async def doctor_portal(request: Request):
 
 
 @app.get("/api/patients")
-async def list_patients():
+async def list_patients(staff: Optional[StaffContext] = Depends(get_staff_context_optional)):
     """Return all patients in the store for the doctor roster."""
     patients = []
     for pid, d in _patient_store.items():
+        if staff and staff.source == "tenant" and staff.tenant_id:
+            if (d.get("health_system_id") or "") != staff.tenant_id:
+                continue
         sd = d.get("structured_data") or {}
         episode = _team_store.get_episode(pid) or _team_store.ensure_episode(
             patient_id=pid,
             procedure_type=sd.get("procedure_name", ""),
             clinic_code=d.get("clinic_code") or "",
             resource_code=d.get("resource_code") or "",
+            health_system_id=d.get("health_system_id"),
         )
         open_dt = date.fromisoformat(episode["open_date"])
         day_in_episode = max(1, (date.today() - open_dt).days + 1)
@@ -1314,6 +1465,7 @@ async def list_patients():
             "pipelineType": d.get("pipeline_type", "post_op"),
             "phone": d.get("phone", ""),
             "email": d.get("email", ""),
+            "health_system_code": d.get("clinic_code") or "",
             "episode": {
                 "openDate": episode["open_date"],
                 "closeDate": episode["close_date"],
@@ -1325,9 +1477,13 @@ async def list_patients():
 
 
 @app.get("/api/patient/{patient_id}/discharge-materials")
-async def get_discharge_materials(patient_id: str):
+async def get_discharge_materials(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     d = _patient_store[patient_id]
     resources = d.get("resources") or {}
     return {
@@ -1339,9 +1495,14 @@ async def get_discharge_materials(patient_id: str):
 
 
 @app.post("/api/patient/{patient_id}/events")
-async def track_patient_event(patient_id: str, body: EventTrackRequest):
+async def track_patient_event(
+    patient_id: str,
+    body: EventTrackRequest,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     allowed = {
         "platform_opened",
         "email_sent",
@@ -1363,9 +1524,14 @@ async def track_patient_event(patient_id: str, body: EventTrackRequest):
 
 
 @app.patch("/api/patient/{patient_id}/pcp-referral")
-async def update_pcp_referral(patient_id: str, body: PCPReferralUpdateRequest):
+async def update_pcp_referral(
+    patient_id: str,
+    body: PCPReferralUpdateRequest,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     p = _patient_store[patient_id]
     sd = p.get("structured_data") or {}
     pcp_name = (body.pcp_name or "").strip()
@@ -1380,13 +1546,18 @@ async def update_pcp_referral(patient_id: str, body: PCPReferralUpdateRequest):
         event_type="email_sent" if sent else "care_team_notification",
         payload={"channel": "pcp_summary_referral", "pcp_name": pcp_name},
     )
+    _persist_demo_patient_store()
     return {"ok": True, "pcpReferralSent": sent, "pcpName": pcp_name}
 
 
 @app.get("/api/patient/{patient_id}/timeline")
-async def get_patient_timeline(patient_id: str):
+async def get_patient_timeline(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     d = _patient_store[patient_id]
     sd = d.get("structured_data") or {}
     episode = _team_store.get_episode(patient_id) or _team_store.ensure_episode(
@@ -1394,6 +1565,7 @@ async def get_patient_timeline(patient_id: str):
         procedure_type=sd.get("procedure_name", ""),
         clinic_code=d.get("clinic_code") or "",
         resource_code=d.get("resource_code") or "",
+        health_system_id=d.get("health_system_id"),
     )
     open_dt = date.fromisoformat(episode["open_date"])
     close_dt = date.fromisoformat(episode["close_date"])
@@ -1439,11 +1611,14 @@ async def get_patient_timeline(patient_id: str):
 
 
 @app.get("/api/escalations")
-async def list_escalations():
+async def list_escalations(staff: Optional[StaffContext] = Depends(get_staff_context_optional)):
     rows = _team_store.list_escalations()
     out = []
     for row in rows:
         patient = _patient_store.get(row["patient_id"], {})
+        if staff and staff.source == "tenant" and staff.tenant_id:
+            if (patient.get("health_system_id") or "") != staff.tenant_id:
+                continue
         trigger = row["trigger_type"]
         origin = "Care Team Notification" if str(trigger).startswith("care_team_notification") else "Chat"
         out.append(
@@ -1467,10 +1642,15 @@ async def list_escalations():
 
 
 @app.patch("/api/escalations/{escalation_id}/resolved")
-async def set_escalation_resolved(escalation_id: int, body: EscalationResolveRequest):
+async def set_escalation_resolved(
+    escalation_id: int,
+    body: EscalationResolveRequest,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     row = _team_store.get_escalation(escalation_id)
     if not row:
         raise HTTPException(status_code=404, detail="Escalation not found")
+    _assert_staff_can_access_patient(row["patient_id"], staff)
     _team_store.set_escalation_resolved(escalation_id, body.resolved)
     return {"ok": True, "resolved": body.resolved}
 
@@ -1591,11 +1771,19 @@ async def submit_survey(body: SurveySubmitRequest):
 
 
 @app.get("/api/doctor/patient/{patient_id}/survey/{day}")
-async def get_doctor_survey(patient_id: str, day: int, user: UserOut = Depends(get_current_user)):
+async def get_doctor_survey(
+    patient_id: str,
+    day: int,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+):
+    if not staff and not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     if day not in (7, 14, 30):
         raise HTTPException(status_code=400, detail="Day must be 7, 14, or 30")
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     survey = _team_store.get_survey_response(patient_id, day)
     question_set = _question_set_for_day(day)["questions"]
     answers_detailed: List[Dict[str, Any]] = []
@@ -1630,10 +1818,14 @@ async def get_doctor_survey(patient_id: str, day: int, user: UserOut = Depends(g
 
 
 @app.get("/doctor/patient/{patient_id}", response_class=HTMLResponse)
-async def doctor_patient_view(patient_id: str):
+async def doctor_patient_view(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     """Doctor's view of a patient dashboard (same as patient view but with back-to-roster nav)."""
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
 
     d = _patient_store[patient_id]
 
@@ -1716,10 +1908,14 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 # ─── Send to Patient ──────────────────────────────────────────
 @app.post("/api/send-to-patient/{patient_id}")
-async def send_to_patient(patient_id: str):
+async def send_to_patient(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     """Send the patient dashboard link via SMS (Twilio) and email. Email includes clinic/resource codes and link to code-entry page."""
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
 
     d = _patient_store[patient_id]
     name = d.get("name", "Patient")
@@ -1742,7 +1938,7 @@ async def send_to_patient(patient_id: str):
             sms_body = (
                 f"Hi {first_name}, your post-surgery recovery resources from your care team are ready. "
                 f"View your personalized recovery plan here: {recovery_plan_entry_url} "
-                f"Use Clinic Code: {clinic_code or 'N/A'}, Resource Code: {resource_code or 'N/A'}. "
+                f"Use Health System Code: {clinic_code or 'N/A'}, Resource Code: {resource_code or 'N/A'}. "
                 f"(Best viewed on a computer)"
             )
             sid = TwilioClient().send(to=phone, body=sms_body)
@@ -1753,60 +1949,30 @@ async def send_to_patient(patient_id: str):
             print(f"[send] SMS error: {e}")
             results["sms"] = f"error: {str(e)}"
 
-    # Email via SendGrid Web API (or SMTP fallback if no API key)
+    # Email via shared email_utils (same SendGrid/SMTP path as onboarding OTP)
     if email:
         try:
-            api_key = os.getenv("SENDGRID_API_KEY")
-            from_email = os.getenv("SENDGRID_FROM_EMAIL", "noreply@archangelhealth.ai")
-            from_name = os.getenv("SENDGRID_FROM_NAME", "Archangel Health")
-
             html_body = _render_recovery_email_html(
                 first_name=first_name,
                 clinic_code=clinic_code,
                 resource_code=resource_code,
                 recovery_plan_entry_url=recovery_plan_entry_url,
             )
-
-            if api_key:
-                from sendgrid import SendGridAPIClient
-                from sendgrid.helpers.mail import Mail
-
-                message = Mail(
-                    from_email=(from_email, from_name),
-                    to_emails=email,
-                    subject="Your Recovery Resources Are Ready - Archangel Health",
-                    html_content=html_body,
-                )
-                sg = SendGridAPIClient(api_key)
-                response = sg.send(message)
-                results["email"] = "sent" if response.status_code in (200, 202) else f"error: {response.status_code}"
-                if results["email"] == "sent":
-                    _team_store.log_event(patient_id=patient_id, event_type="email_sent", payload={"channel": "email_initial"})
-                    print(f"[send] SendGrid email sent → {email}")
+            if not is_email_transport_configured():
+                results["email"] = "sendgrid_not_configured"
+                print(f"[send] Email skipped — SENDGRID_API_KEY / SMTP not configured. Would send to: {email}")
             else:
-                # Fallback: SMTP
-                import smtplib
-                from email.mime.text import MIMEText
-                from email.mime.multipart import MIMEMultipart
-
-                smtp_host = os.getenv("SMTP_HOST")
-                smtp_user = os.getenv("SMTP_USER")
-                smtp_pass = os.getenv("SMTP_PASS")
-                if smtp_host and smtp_user and smtp_pass:
-                    msg = MIMEMultipart("alternative")
-                    msg["Subject"] = "Your Recovery Resources Are Ready - Archangel Health"
-                    msg["From"] = smtp_user
-                    msg["To"] = email
-                    msg.attach(MIMEText(html_body, "html"))
-                    with smtplib.SMTP(smtp_host, int(os.getenv("SMTP_PORT", "587"))) as server:
-                        server.starttls()
-                        server.login(smtp_user, smtp_pass)
-                        server.send_message(msg)
+                sent_ok = await _send_html_email_impl(
+                    email,
+                    "Your Recovery Resources Are Ready - Archangel Health",
+                    html_body,
+                )
+                if sent_ok:
                     results["email"] = "sent"
                     _team_store.log_event(patient_id=patient_id, event_type="email_sent", payload={"channel": "email_initial"})
+                    print(f"[send] Email sent → {email}")
                 else:
-                    results["email"] = "sendgrid_not_configured"
-                    print(f"[send] Email skipped — SENDGRID_API_KEY and SMTP not configured. Would send to: {email}")
+                    results["email"] = "error: send_failed"
 
         except Exception as e:
             print(f"[send] Email error: {e}")
@@ -1840,6 +2006,7 @@ async def email_template_preview(
 async def process_discharge(
     input_data: DischargeInput,
     user: Optional[UserOut] = Depends(get_current_user_optional),
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
     """
     Full two-resource pipeline:
@@ -1855,12 +2022,25 @@ async def process_discharge(
     clinic_code = None
     resource_code = None
     office_phone = None
+    health_system_id: Optional[str] = None
     if user and user.role == "doctor":
         profile = get_doctor_profile(user.email)
         if profile:
             clinic_code = profile["clinic_code"]
             office_phone = profile.get("office_phone") or ""
             resource_code = _generate_resource_code()
+            hs_row = _team_store.get_health_system_by_code(profile["clinic_code"] or "")
+            if hs_row:
+                health_system_id = hs_row["id"]
+    if staff and staff.source == "tenant" and staff.tenant_id:
+        health_system_id = staff.tenant_id
+        if not clinic_code:
+            clinic_code = (staff.health_system_code or "").strip().upper() or None
+        if not resource_code:
+            resource_code = _generate_resource_code()
+        hs = _team_store.get_health_system_by_id(staff.tenant_id)
+        if hs and not office_phone:
+            office_phone = (hs.get("phone") or "").strip() or None
     if not office_phone:
         office_phone = (input_data.doctor_office_phone or "").strip() or None
     if not clinic_code:
@@ -1913,6 +2093,7 @@ async def process_discharge(
         # 5. Store everything (include clinic_code, resource_code, office_phone when from authenticated doctor)
         _patient_store[patient_id] = {
             "name": input_data.patient_name,
+            "health_system_id": health_system_id,
             "phone": input_data.phone_number or "",
             "email": input_data.email or "",
             "pipeline_type": "post_op",
@@ -1942,7 +2123,9 @@ async def process_discharge(
             procedure_type=structured_data.get("procedure_name", ""),
             clinic_code=clinic_code or "",
             resource_code=resource_code or "",
+            health_system_id=health_system_id,
         )
+        _persist_demo_patient_store()
 
         print(f"[pipeline] Done! Dashboard: {dashboard_url}")
 
@@ -1974,6 +2157,7 @@ async def process_discharge(
 async def process_preop(
     input_data: PreOpInput,
     user: Optional[UserOut] = Depends(get_current_user_optional),
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
     """
     Pre-op resource pipeline:
@@ -1985,12 +2169,25 @@ async def process_preop(
     clinic_code = None
     resource_code = None
     office_phone = None
+    health_system_id: Optional[str] = None
     if user and user.role == "doctor":
         profile = get_doctor_profile(user.email)
         if profile:
             clinic_code = profile["clinic_code"]
             office_phone = profile.get("office_phone") or ""
             resource_code = _generate_resource_code()
+            hs_row = _team_store.get_health_system_by_code(profile["clinic_code"] or "")
+            if hs_row:
+                health_system_id = hs_row["id"]
+    if staff and staff.source == "tenant" and staff.tenant_id:
+        health_system_id = staff.tenant_id
+        if not clinic_code:
+            clinic_code = (staff.health_system_code or "").strip().upper() or None
+        if not resource_code:
+            resource_code = _generate_resource_code()
+        hs = _team_store.get_health_system_by_id(staff.tenant_id)
+        if hs and not office_phone:
+            office_phone = (hs.get("phone") or "").strip() or None
     if not office_phone:
         office_phone = (input_data.doctor_office_phone or "").strip() or None
     if not clinic_code:
@@ -2037,6 +2234,7 @@ async def process_preop(
         specialty = _specialty_from_procedure(structured_data.get("procedure_name", ""))
         _patient_store[patient_id] = {
             "name": input_data.patient_name,
+            "health_system_id": health_system_id,
             "phone": input_data.phone_number or "",
             "email": input_data.email or "",
             "pipeline_type": "pre_op",
@@ -2063,7 +2261,9 @@ async def process_preop(
             procedure_type=structured_data.get("procedure_name", ""),
             clinic_code=clinic_code or "",
             resource_code=resource_code or "",
+            health_system_id=health_system_id,
         )
+        _persist_demo_patient_store()
         return {
             "patient_id": patient_id,
             "dashboard_url": dashboard_url,
@@ -2083,8 +2283,13 @@ async def process_preop(
 
 # ─── Legacy Process Patient ───────────────────────────────────
 @app.post("/api/process-patient", response_model=ProcessResponse)
-async def process_patient(bundle: EHRBundle, background_tasks: BackgroundTasks):
+async def process_patient(
+    bundle: EHRBundle,
+    background_tasks: BackgroundTasks,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     """Legacy full pipeline (single resource set)."""
+    health_system_id = staff.tenant_id if (staff and staff.source == "tenant" and staff.tenant_id) else None
     raw_package = IngestLayer().process(bundle.model_dump())
     structured_data = await ExtractionLayer().extract(raw_package)
     pipeline_type = ClassificationLayer().classify(structured_data)
@@ -2103,6 +2308,7 @@ async def process_patient(bundle: EHRBundle, background_tasks: BackgroundTasks):
     dashboard_url = f"{base_url}/patient/{bundle.patient_id}"
     _patient_store[bundle.patient_id] = {
         "name":                bundle.patient_name,
+        "health_system_id":    health_system_id,
         "phone":               bundle.phone_number,
         "pipeline_type":       pipeline_type,
         "voice_audio_url":     audio_url,
@@ -2117,7 +2323,9 @@ async def process_patient(bundle: EHRBundle, background_tasks: BackgroundTasks):
         procedure_type=structured_data.get("procedure_name", ""),
         clinic_code="",
         resource_code="",
+        health_system_id=health_system_id,
     )
+    _persist_demo_patient_store()
     background_tasks.add_task(
         _send_sms, phone=bundle.phone_number, name=bundle.patient_name, dashboard_url=dashboard_url,
     )
@@ -2130,10 +2338,14 @@ async def process_patient(bundle: EHRBundle, background_tasks: BackgroundTasks):
 
 # ─── Resource Endpoints ───────────────────────────────────────
 @app.get("/api/patient/{patient_id}/resources")
-async def get_patient_resources(patient_id: str):
+async def get_patient_resources(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     """Return the two-resource sets (diagnosis + treatment) if available."""
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     resources = _patient_store[patient_id].get("resources")
     if not resources:
         raise HTTPException(status_code=404, detail="No split resources generated for this patient")
@@ -2151,13 +2363,18 @@ async def get_patient_resources(patient_id: str):
         if key in resources and "battlecard_html" in resources[key]:
             resources[key]["battlecard_html"] = clean_html(resources[key]["battlecard_html"])
 
+    _persist_demo_patient_store()
     return resources
 
 
 @app.get("/api/patient/{patient_id}/audio")
-async def get_patient_audio(patient_id: str):
+async def get_patient_audio(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     store = _patient_store[patient_id]
     cached_url = store.get("voice_audio_url")
     if cached_url:
@@ -2172,20 +2389,29 @@ async def get_patient_audio(patient_id: str):
     if not audio_url:
         raise HTTPException(status_code=503, detail="ElevenLabs not configured — set ELEVENLABS_API_KEY")
     store["voice_audio_url"] = audio_url
+    _persist_demo_patient_store()
     return {"audio_url": audio_url}
 
 
 @app.get("/api/patient/{patient_id}/battlecard")
-async def get_battlecard(patient_id: str):
+async def get_battlecard(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     return {"html": _patient_store[patient_id]["battlecard_html"]}
 
 
 @app.get("/api/patient/{patient_id}/config")
-async def get_dashboard_config(patient_id: str):
+async def get_dashboard_config(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     d = _patient_store[patient_id]
     phone_team = d.get("office_phone") or os.getenv("CARE_TEAM_PHONE", "")
     return {
@@ -2202,9 +2428,13 @@ async def get_dashboard_config(patient_id: str):
 
 
 @app.get("/api/patient/{patient_id}/discharge")
-async def get_discharge_instructions(patient_id: str):
+async def get_discharge_instructions(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     d = _patient_store[patient_id]
     return {
         "structured_data": d["structured_data"],
@@ -2214,10 +2444,14 @@ async def get_discharge_instructions(patient_id: str):
 
 @app.get("/patient/{patient_id}/digital-care-companion", response_class=HTMLResponse)
 @app.get("/patient/{patient_id}/voice", response_class=HTMLResponse)
-async def digital_care_companion_page(patient_id: str):
+async def digital_care_companion_page(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     """Serves the Digital Care Companion conversation interface."""
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
 
     d = _patient_store[patient_id]
     patient_json = json.dumps({
@@ -2237,10 +2471,14 @@ async def digital_care_companion_page(patient_id: str):
 
 
 @app.get("/patient/{patient_id}/pre-op", response_class=HTMLResponse)
-async def pre_op_page(patient_id: str):
+async def pre_op_page(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     """Serves the pre-operative preparation page."""
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     d = _patient_store[patient_id]
     patient_json = json.dumps(
         {
@@ -2261,9 +2499,13 @@ async def pre_op_page(patient_id: str):
 
 
 @app.get("/patient/{patient_id}", response_class=HTMLResponse)
-async def patient_dashboard(patient_id: str):
+async def patient_dashboard(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
 
     d = _patient_store[patient_id]
     if (d.get("pipeline_type") or "").lower() == "pre_op":
@@ -2324,9 +2566,13 @@ async def patient_dashboard(patient_id: str):
 
 @app.post("/api/digital-care-companion/chat", response_model=ChatResponse)
 @app.post("/api/avatar/chat", response_model=ChatResponse)
-async def digital_care_companion_chat(req: ChatRequest):
+async def digital_care_companion_chat(
+    req: ChatRequest,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if req.patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(req.patient_id, staff)
 
     patient_data = _patient_store[req.patient_id]
     _team_store.log_event(patient_id=req.patient_id, event_type="avatar_chat", payload={"source": "chat"})
@@ -2430,7 +2676,7 @@ async def preop_intake_start(body: IntakeStartRequest):
         "answers": {"pattern": "", "exposure": "", "anatomy": "", "root": ""},
         "last_lens": "pattern",
     }
-    _preop_intake_sessions[body.patient_id] = session
+    _team_store.save_preop_intake_session(body.patient_id, session)
     question = _lens_question("pattern", specialty)
     return {
         "patient_id": body.patient_id,
@@ -2446,7 +2692,7 @@ async def preop_intake_answer(body: IntakeAnswerRequest):
     patient = _patient_store[body.patient_id]
     procedure = (patient.get("structured_data") or {}).get("procedure_name", "")
     specialty = patient.get("specialty") or _specialty_from_procedure(procedure)
-    session = _preop_intake_sessions.get(body.patient_id) or {
+    session = _team_store.get_preop_intake_session(body.patient_id) or {
         "patient_id": body.patient_id,
         "specialty": specialty,
         "answers": {"pattern": "", "exposure": "", "anatomy": "", "root": ""},
@@ -2458,7 +2704,7 @@ async def preop_intake_answer(body: IntakeAnswerRequest):
     next_lens = _next_missing_lens(session)
     if next_lens:
         session["last_lens"] = next_lens
-        _preop_intake_sessions[body.patient_id] = session
+        _team_store.save_preop_intake_session(body.patient_id, session)
         return {
             "patient_id": body.patient_id,
             "response": _lens_question(next_lens, specialty),
@@ -2468,7 +2714,7 @@ async def preop_intake_answer(body: IntakeAnswerRequest):
     library = _load_form_library()
     template = library.get(specialty) or library.get("General Surgery") or next(iter(library.values()))
     prefill = _build_prefill_from_session(patient, session, template)
-    _preop_intake_sessions[body.patient_id] = session
+    _team_store.save_preop_intake_session(body.patient_id, session)
     return {
         "patient_id": body.patient_id,
         "response": "Thanks. I have all four PEAR lenses. I generated your pre-filled intake form preview for review.",
@@ -2498,13 +2744,21 @@ async def preop_intake_submit(body: IntakeSubmitRequest):
         event_type="preop_intake_submitted",
         payload={"submission_id": submission_id, "specialty": specialty},
     )
+    _team_store.delete_preop_intake_session(body.patient_id)
     return {"ok": True, "submission_id": submission_id}
 
 
 @app.get("/api/doctor/patient/{patient_id}/latest-intake")
-async def doctor_latest_intake(patient_id: str, user: UserOut = Depends(get_current_user)):
+async def doctor_latest_intake(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+):
+    if not staff and not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
     submission = _team_store.get_latest_preop_intake_submission(patient_id)
     return {"patient_id": patient_id, "submission": submission}
 
@@ -2544,45 +2798,7 @@ async def preop_notify_care_team(body: CareTeamNotificationRequest):
 
 # ─── Background Tasks ─────────────────────────────────────────
 async def _send_html_email(to_email: str, subject: str, html_body: str) -> bool:
-    try:
-        api_key = os.getenv("SENDGRID_API_KEY")
-        from_email = os.getenv("SENDGRID_FROM_EMAIL", "noreply@archangelhealth.ai")
-        from_name = os.getenv("SENDGRID_FROM_NAME", "Archangel Health")
-        if api_key:
-            from sendgrid import SendGridAPIClient
-            from sendgrid.helpers.mail import Mail
-
-            message = Mail(
-                from_email=(from_email, from_name),
-                to_emails=to_email,
-                subject=subject,
-                html_content=html_body,
-            )
-            sg = SendGridAPIClient(api_key)
-            response = sg.send(message)
-            return response.status_code in (200, 202)
-
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-
-        smtp_host = os.getenv("SMTP_HOST")
-        smtp_user = os.getenv("SMTP_USER")
-        smtp_pass = os.getenv("SMTP_PASS")
-        if smtp_host and smtp_user and smtp_pass:
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = smtp_user
-            msg["To"] = to_email
-            msg.attach(MIMEText(html_body, "html"))
-            with smtplib.SMTP(smtp_host, int(os.getenv("SMTP_PORT", "587"))) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_pass)
-                server.send_message(msg)
-            return True
-    except Exception as e:
-        print(f"[team-email] error: {e}")
-    return False
+    return await _send_html_email_impl(to_email, subject, html_body)
 
 
 async def _run_team_daily_jobs() -> None:
@@ -2687,6 +2903,8 @@ async def _send_sms(phone: str, name: str, dashboard_url: str) -> None:
 # ─── Internal & Admin Tools ───────────────────────────────────
 app.include_router(internal_router)
 app.include_router(admin_router)
+app.include_router(onboarding_router)
+app.include_router(tenant_portal_router)
 
 
 @app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)

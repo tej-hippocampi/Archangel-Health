@@ -127,7 +127,7 @@ export default function RecoveryResourcesEmailPreview({
 
               <div className="mb-6">
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-[0.15em] mb-3 block text-center">
-                  Clinic Code
+                  Health System Code
                 </label>
                 <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 border border-gray-300 rounded-xl px-6 py-5">
                   <div className="flex items-center justify-between">
@@ -135,7 +135,7 @@ export default function RecoveryResourcesEmailPreview({
                     <button
                       onClick={() => copyToClipboard(clinicCode, "clinic")}
                       className="ml-6 flex items-center gap-2.5 px-5 py-2.5 bg-white/80 border border-gray-300 rounded-lg hover:bg-amber-50 hover:border-amber-700/50 transition-all duration-200"
-                      aria-label="Copy clinic code"
+                      aria-label="Copy health system code"
                     >
                       {copiedClinic ? (
                         <>
@@ -189,7 +189,7 @@ export default function RecoveryResourcesEmailPreview({
             <div className="relative overflow-hidden bg-gradient-to-br from-amber-50/50 to-gray-50 border border-amber-200/60 rounded-xl px-6 py-5 shadow-sm">
               <p className="relative text-gray-700 text-sm leading-relaxed text-center font-light">
                 <span className="inline-block mr-2 text-amber-700">✦</span>
-                <span className="font-medium text-gray-900">Pro tip:</span> Use your Clinic Code and Resource Code above
+                <span className="font-medium text-gray-900">Pro tip:</span> Use your Health System Code and Resource Code above
                 to access your plan. Best viewed on a computer or tablet for the full experience.
               </p>
             </div>

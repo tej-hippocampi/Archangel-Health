@@ -28,6 +28,8 @@ export type DoctorProfile = {
   doctor_type: string;
   hospital_affiliations: string;
   clinic_code: string;
+  /** Same value as `clinic_code`; preferred display field from API. */
+  health_system_code?: string;
 };
 
 export type PatientByCodesResponse = {
@@ -111,11 +113,11 @@ export async function getDoctorProfile(token: string): Promise<DoctorProfile | n
 }
 
 export async function getPatientByCodes(
-  clinicCode: string,
+  healthSystemCode: string,
   resourceCode: string
 ): Promise<PatientByCodesResponse> {
   const params = new URLSearchParams({
-    clinic_code: clinicCode.trim(),
+    health_system_code: healthSystemCode.trim(),
     resource_code: resourceCode.trim(),
   });
   const res = await fetch(`${API_BASE}/api/patient/by-codes?${params}`);

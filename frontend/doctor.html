@@ -615,6 +615,7 @@
         <button class="tab-btn" data-tab="escalation">Escalation Log</button>
         <button class="tab-btn" data-tab="compliance">Compliance</button>
         <button class="tab-btn" data-tab="analytics">Population Analytics</button>
+        <button class="tab-btn" data-tab="audit" id="tab-btn-audit" style="display:none;">Audit Log</button>
       </nav>
 
       <div class="sidebar-bottom">
@@ -750,6 +751,30 @@
                 <tbody id="analyticsTableBody"></tbody>
               </table>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="tab-audit">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Audit Log</h1>
+            <p class="page-sub">Chronological sign-in events for your health system team.</p>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-body" style="overflow:auto;">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Role</th>
+                  <th>Email</th>
+                  <th>Time (UTC)</th>
+                </tr>
+              </thead>
+              <tbody id="auditLogBody"></tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -1300,8 +1325,39 @@
           document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
           btn.classList.add("active");
           byId(`tab-${btn.dataset.tab}`).classList.add("active");
+          if (btn.dataset.tab === "audit") {
+            void loadAuditLog();
+          }
         });
       });
+    }
+
+    async function loadAuditLog() {
+      const raw = localStorage.getItem(PROFILE_KEY);
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      const slug = p.tenantSlug;
+      if (!slug) return;
+      const body = byId("auditLogBody");
+      body.innerHTML = "<tr><td colspan=\"4\">Loading…</td></tr>";
+      try {
+        const data = await apiJson(`/api/tenant/${encodeURIComponent(slug)}/audit-log`);
+        const rows = data.entries || [];
+        if (!rows.length) {
+          body.innerHTML = "<tr><td colspan=\"4\">No sign-in events yet.</td></tr>";
+          return;
+        }
+        body.innerHTML = rows.map((r) => `
+          <tr>
+            <td>${esc(r.display_name || "—")}</td>
+            <td>${esc(r.role || "—")}</td>
+            <td>${esc(r.user_email || "—")}</td>
+            <td style="font-family:monospace;font-size:0.85rem">${esc(r.occurred_at || "—")}</td>
+          </tr>
+        `).join("");
+      } catch (_e) {
+        body.innerHTML = "<tr><td colspan=\"4\">Could not load audit log.</td></tr>";
+      }
     }
 
     function setupAnalyticsSubtabs() {
@@ -1676,7 +1732,8 @@
         officePhone: remote.office_phone || remote.officePhone || "",
         typeOfDoctor: remote.doctor_type || remote.typeOfDoctor || "",
         hospitalAffiliation: remote.hospital_affiliations || remote.hospitalAffiliation || "",
-        clinicCode: remote.clinic_code || remote.clinicCode || "",
+        clinicCode: remote.health_system_code || remote.clinic_code || remote.clinicCode || "",
+        tenantSlug: remote.tenant_slug || remote.tenantSlug || "",
       });
       try {
         const remote = await apiJson("/api/doctor/profile");
@@ -1729,6 +1786,11 @@
       byId("sidebarName").textContent = profile.fullName;
       byId("sidebarSpecialty").textContent = profile.typeOfDoctor;
       byId("sidebarAvatar").textContent = initials(profile.fullName);
+      const auditBtn = byId("tab-btn-audit");
+      if (auditBtn) {
+        const show = (profile.typeOfDoctor || "").toLowerCase().includes("director") && profile.tenantSlug;
+        auditBtn.style.display = show ? "block" : "none";
+      }
       byId("onboardFullName").value = profile.fullName || "";
       byId("onboardEmail").value = profile.email || "";
       byId("onboardOfficePhone").value = profile.officePhone || "";
@@ -1746,7 +1808,7 @@
         <div class="profile-item"><div class="label">Office Phone</div><div class="value">${esc(p.officePhone)}</div></div>
         <div class="profile-item"><div class="label">Type of Doctor</div><div class="value">${esc(p.typeOfDoctor)}</div></div>
         <div class="profile-item"><div class="label">Hospital Affiliation</div><div class="value">${esc(p.hospitalAffiliation)}</div></div>
-        <div class="profile-item"><div class="label">Clinic Code</div><div class="value">${esc(p.clinicCode)}</div></div>
+        <div class="profile-item"><div class="label">Health System Code</div><div class="value">${esc(p.clinicCode)}</div></div>
       `;
       byId("profileDetailModal").classList.add("active");
     }

@@ -29,7 +29,7 @@ security = HTTPBearer(auto_error=False)
 
 
 def _generate_clinic_code() -> str:
-    """Generate a random alphanumeric clinic code (e.g. 8 chars)."""
+    """Generate a random alphanumeric health system code (e.g. 8 chars); stored as clinic_code in legacy JSON."""
     alphabet = string.ascii_uppercase + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(8))
 
@@ -67,6 +67,8 @@ class DoctorProfileOut(BaseModel):
     doctor_type: str
     hospital_affiliations: str
     clinic_code: str
+    health_system_code: str = ""
+    tenant_slug: Optional[str] = None
 
 
 def _hash_password(password: str) -> str:
@@ -215,6 +217,7 @@ def get_doctor_profile(email: str) -> Optional[dict]:
         "doctor_type": u.get("doctor_type") or "",
         "hospital_affiliations": u.get("hospital_affiliations") or "",
         "clinic_code": clinic_code,
+        "health_system_code": clinic_code,
     }
 
 
@@ -238,7 +241,7 @@ def set_doctor_profile(
     u["doctor_type"] = (doctor_type or "").strip() or None
     u["hospital_affiliations"] = (hospital_affiliations or "").strip() or None
     if not u.get("clinic_code"):
-        # Generate unique clinic code
+        # Generate unique health system code (clinic_code in persisted profile)
         existing = {usr.get("clinic_code") for usr in users.values() if usr.get("clinic_code")}
         for _ in range(20):
             code = _generate_clinic_code()
@@ -248,4 +251,7 @@ def set_doctor_profile(
         else:
             u["clinic_code"] = _generate_clinic_code()
     _persist_users()
-    return get_doctor_profile(key) or {}
+    prof = get_doctor_profile(key) or {}
+    if prof.get("clinic_code") and not prof.get("health_system_code"):
+        prof["health_system_code"] = prof["clinic_code"]
+    return prof

@@ -117,7 +117,7 @@ export function SignInDialog({ open, onOpenChange }: Props) {
               >
                 <span className="text-2xl">👤</span>
                 <span className="font-semibold">Patient</span>
-                <span className="text-xs font-normal text-[#a5a5aa]">I have clinic & resource codes</span>
+                <span className="text-xs font-normal text-[#a5a5aa]">I have health system & resource codes</span>
               </Button>
               <Button
                 type="button"
@@ -184,7 +184,7 @@ export function SignInDialog({ open, onOpenChange }: Props) {
         {step === "patient" && (
           <form onSubmit={handlePatientSubmit} className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="signin-clinic-code">Clinic code</Label>
+              <Label htmlFor="signin-clinic-code">Health system code</Label>
               <Input
                 id="signin-clinic-code"
                 type="text"

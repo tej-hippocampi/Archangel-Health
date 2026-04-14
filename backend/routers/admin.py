@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Request
+
+from tenant_constants import DEMO_HEALTH_SYSTEM_ID
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -68,12 +70,15 @@ def _verify_token(authorization: Optional[str]) -> None:
 
 
 def _check_credentials(username: str, password: str) -> bool:
-    expected_user = os.getenv("ADMIN_USERNAME", "")
-    expected_pass = os.getenv("ADMIN_PASSWORD", "")
+    # Strip so .env CRLF / accidental spaces do not break local logins vs production.
+    expected_user = (os.getenv("ADMIN_USERNAME") or "").strip()
+    expected_pass = (os.getenv("ADMIN_PASSWORD") or "").strip()
     if not expected_user or not expected_pass:
         raise HTTPException(status_code=503, detail="Admin credentials not configured in .env")
-    user_ok = secrets.compare_digest(username.encode(), expected_user.encode())
-    pass_ok  = secrets.compare_digest(password.encode(), expected_pass.encode())
+    u = (username or "").strip()
+    p = password or ""
+    user_ok = secrets.compare_digest(u.encode("utf-8"), expected_user.encode("utf-8"))
+    pass_ok = secrets.compare_digest(p.encode("utf-8"), expected_pass.encode("utf-8"))
     return user_ok and pass_ok
 
 
@@ -267,3 +272,34 @@ async def admin_update_intake_frameworks(
     frameworks[specialty] = body.prompt
     _write_json(FRAMEWORKS_FILE, frameworks)
     return {"ok": True, "specialty": specialty}
+
+
+@router.post("/health-systems/invite")
+async def admin_create_health_system_invite(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+):
+    """Generate a unique onboarding URL for a new health system (internal admin only)."""
+    _verify_token(authorization)
+    invite_base = (
+        os.getenv("LANDING_URL") or os.getenv("BASE_URL") or "http://localhost:5173"
+    ).strip().rstrip("/")
+    ts = request.app.state.team_store
+    return ts.create_health_system_invite(invite_base_url=invite_base)
+
+
+@router.get("/health-systems")
+async def admin_list_health_systems(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+):
+    """List all health systems (invites + onboarded) with team rosters for customer management."""
+    _verify_token(authorization)
+    ts = request.app.state.team_store
+    rows = ts.list_health_systems_admin()
+    out = []
+    for r in rows:
+        tid = r["id"]
+        team = ts.list_team_members(tid)
+        out.append({**r, "team": team, "is_demo": tid == DEMO_HEALTH_SYSTEM_ID})
+    return {"health_systems": out}

@@ -7,6 +7,22 @@
     {
       "source": "/email-preview/",
       "destination": "/index.html"
+    },
+    {
+      "source": "/team-calculator",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/team-calculator/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/onboard/:token",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/t/:slug/sign-in",
+      "destination": "/index.html"
     }
   ]
 }

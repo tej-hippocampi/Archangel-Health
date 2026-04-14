@@ -27,3 +27,5 @@ Marketing landing page for Archangel Health with **Sign in** and **Sign up**. Au
 npm run build
 ```
 Output is in `dist/`. You can serve it statically or mount it under the FastAPI app.
+
+**Vercel:** `vercel.json` rewrites client-only paths (`/team-calculator`, `/onboard/…`, `/t/…/sign-in`, `/email-preview`) to `index.html` so they do not 404 after deploy. Redeploy after changing `vercel.json`.

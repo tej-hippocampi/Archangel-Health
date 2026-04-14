@@ -372,6 +372,11 @@
           <span class="icon">📊</span> Dashboard
         </button>
 
+        <div class="nav-label">Customers</div>
+        <button class="nav-item" data-tab="health-systems">
+          <span class="icon">🏥</span> Health Systems
+        </button>
+
         <div class="nav-label">Tools</div>
         <button class="nav-item" data-tab="prompt-lab">
           <span class="icon">⚗️</span> Prompt Lab
@@ -443,6 +448,33 @@
             </div>
           </div>
 
+        </div>
+      </div>
+
+      <div class="tab-page" id="tab-health-systems">
+        <div class="page-header">
+          <div>
+            <h2>Health Systems</h2>
+            <p>Generate onboarding links and review onboarded customers</p>
+          </div>
+        </div>
+        <div class="stats-body" style="max-width:960px;">
+          <div class="data-section">
+            <div class="data-section-header">
+              <h3>Generate Health System Link</h3>
+            </div>
+            <p style="font-size:0.88rem;color:var(--gray-500);margin-bottom:12px;">
+              Creates a unique URL for a new health system. Send it manually to the Director of TEAM Initiative.
+            </p>
+            <button class="refresh-btn" type="button" id="hs-generate-btn">Generate link</button>
+            <div id="hs-invite-result" style="margin-top:14px;font-size:0.9rem;"></div>
+          </div>
+          <div class="data-section" style="margin-top:24px;">
+            <div class="data-section-header">
+              <h3>All health systems</h3>
+            </div>
+            <div id="hs-table-wrap"><div class="empty-table">Loading…</div></div>
+          </div>
         </div>
       </div>
 
@@ -631,6 +663,7 @@
     document.getElementById('login-page').classList.add('hidden');
     document.getElementById('app').classList.add('visible');
     loadStats();
+    loadHealthSystems();
     loadPreopPromptEditor();
     loadIntakeLibrary();
     loadIntakeFrameworks();
@@ -670,6 +703,9 @@
       }
       if (btn.dataset.tab === 'intake-frameworks' && !Object.keys(intakeFrameworks).length) {
         loadIntakeFrameworks();
+      }
+      if (btn.dataset.tab === 'health-systems') {
+        loadHealthSystems();
       }
     });
   });
@@ -737,7 +773,7 @@
               <th>Name</th>
               <th>Email</th>
               <th>Role</th>
-              <th>Clinic Code</th>
+              <th>Health System Code</th>
               <th>Specialty</th>
             </tr>
           </thead>
@@ -880,6 +916,86 @@
     document.getElementById('frameworkPromptInput').value = intakeFrameworks[specialty] || '';
   }
   document.getElementById('frameworkSpecialty').addEventListener('change', renderFrameworkSelection);
+
+  let lastInviteUrl = '';
+
+  async function createHealthSystemInvite() {
+    const el = document.getElementById('hs-invite-result');
+    el.textContent = 'Generating…';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    try {
+      const res = await fetch('/admin/health-systems/invite', { method: 'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error((data && data.detail) || 'Failed to generate');
+      lastInviteUrl = data.onboarding_url || '';
+      el.innerHTML = '<div style="word-break:break-all;margin-bottom:8px;"><strong>New onboarding URL</strong><br/>' + esc(lastInviteUrl) + '</div>' +
+        '<button type="button" class="refresh-btn" id="hs-copy-btn">Copy link</button>';
+      document.getElementById('hs-copy-btn').addEventListener('click', () => {
+        if (lastInviteUrl) navigator.clipboard.writeText(lastInviteUrl);
+      });
+      await loadHealthSystems();
+    } catch (e) {
+      el.textContent = e.message || 'Error';
+    }
+  }
+
+  document.getElementById('hs-generate-btn').addEventListener('click', () => createHealthSystemInvite());
+
+  async function loadHealthSystems() {
+    const wrap = document.getElementById('hs-table-wrap');
+    if (!wrap) return;
+    try {
+      const res = await fetch('/admin/health-systems', { headers: authHeaders() });
+      if (res.status === 401) { signout(); return; }
+      const data = await res.json();
+      const rows = data.health_systems || [];
+      if (!rows.length) {
+        wrap.innerHTML = '<div class="empty-table">No health systems yet</div>';
+        return;
+      }
+      wrap.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Health system</th>
+              <th>Department</th>
+              <th>Health system code</th>
+              <th>Slug / URL</th>
+              <th>Status</th>
+              <th>Team</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((h) => {
+              const name = h.name || '—';
+              const st = (h.status === 'active' && h.onboarding_completed_at) ? 'Complete' : 'Pending';
+              const team = (h.team || []).map((m) => esc(m.name) + ' — ' + esc(m.role)).join('<br/>') || '—';
+              const link = h.last_generated_invite_url || '';
+              const landing = link ? '<br/><span style="font-size:0.72rem;color:var(--gray-500);">' + esc(link.slice(0, 80)) + (link.length > 80 ? '…' : '') + '</span>' : '';
+              const actions = h.is_demo
+                ? '<button type="button" class="refresh-btn hs-row-generate-invite">Generate Health System Link</button>'
+                : '<span style="color:var(--gray-500);font-size:0.85rem;">—</span>';
+              return `
+                <tr>
+                  <td><strong>${esc(name)}</strong></td>
+                  <td>${esc(h.surgery_department || '—')}</td>
+                  <td style="font-family:monospace;font-size:0.78rem">${esc(h.health_system_code || '—')}</td>
+                  <td style="font-family:monospace;font-size:0.78rem">${esc(h.slug || '—')}${landing}</td>
+                  <td><span class="badge ${st === 'Complete' ? 'badge-green' : 'badge-yellow'}">${esc(st)}</span></td>
+                  <td style="font-size:0.78rem;">${team}</td>
+                  <td style="white-space:nowrap;">${actions}</td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+      wrap.querySelectorAll('.hs-row-generate-invite').forEach((btn) => {
+        btn.addEventListener('click', () => createHealthSystemInvite());
+      });
+    } catch (_e) {
+      wrap.innerHTML = '<div class="empty-table">Could not load health systems</div>';
+    }
+  }
 
   document.getElementById('saveFrameworkBtn').addEventListener('click', async () => {
     const specialty = document.getElementById('frameworkSpecialty').value.trim();

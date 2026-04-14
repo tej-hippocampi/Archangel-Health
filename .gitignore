@@ -18,6 +18,12 @@ venv/
 # Auth (user store — do not commit)
 backend/auth_users.json
 
+# Demo patient roster snapshot (PII-shaped demo data)
+backend/demo_patient_store.json
+
+# Local SQLite (team / onboarding state — do not commit)
+backend/*.db
+
 # Landing (dependencies and build)
 landing/node_modules/
 landing/dist/
