@@ -13,7 +13,9 @@ const API = window.location.origin;
 const IS_DOCTOR_VIEW = new URLSearchParams(window.location.search).get("doctor_view") === "1";
 const conversation = [];
 let pearStarted = false;
-let prefillData = null;
+let intakeFormId = null;
+let intakeForm = null;
+let intakeStatus = "NOT_STARTED";
 let audioPlayer = null;
 let preopIsPlaying = false;
 let preopWatchedLogged = false;
@@ -27,6 +29,37 @@ async function apiJson(path, options = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || `Request failed: ${res.status}`);
   return data;
+}
+
+const STATUS_LABELS = {
+  NOT_STARTED: "Not Started",
+  INTERVIEW_IN_PROGRESS: "In Progress",
+  INTERVIEW_COMPLETE: "Interview Complete",
+  SUBMITTED: "Submitted",
+  UPDATED: "Updated",
+};
+
+function statusBadgeTone(status) {
+  if (status === "SUBMITTED") return { bg: "#dcfce7", color: "#166534", border: "#86efac" };
+  if (status === "UPDATED") return { bg: "#fef9c3", color: "#854d0e", border: "#fde047" };
+  if (status === "INTERVIEW_COMPLETE") return { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" };
+  if (status === "INTERVIEW_IN_PROGRESS") return { bg: "#ffedd5", color: "#9a3412", border: "#fdba74" };
+  return { bg: "#f3f4f6", color: "#374151", border: "#d1d5db" };
+}
+
+function setStatus(status) {
+  intakeStatus = status || "NOT_STARTED";
+  const badge = document.getElementById("intakeStatusBadge");
+  const tone = statusBadgeTone(intakeStatus);
+  badge.textContent = STATUS_LABELS[intakeStatus] || intakeStatus;
+  badge.style.background = tone.bg;
+  badge.style.color = tone.color;
+  badge.style.borderColor = tone.border;
+  const startBtn = document.getElementById("startPearBtn");
+  if (intakeStatus === "NOT_STARTED") startBtn.textContent = "Start Intake Interview";
+  if (intakeStatus === "INTERVIEW_IN_PROGRESS") startBtn.textContent = "Continue Interview";
+  if (intakeStatus === "INTERVIEW_COMPLETE") startBtn.textContent = "Review Intake Form";
+  if (intakeStatus === "SUBMITTED" || intakeStatus === "UPDATED") startBtn.textContent = "View Intake Form";
 }
 
 function appendMessage(role, text) {
@@ -46,7 +79,7 @@ async function submitAnswer() {
   const val = (input.value || "").trim();
   if (!val) return;
   appendMessage("patient", val);
-  conversation.push({ role: "user", content: val });
+  conversation.push({ role: "patient", text: val, timestamp: new Date().toISOString() });
   input.value = "";
   try {
     const data = await apiJson("/api/pre-op/intake/answer", {
@@ -60,99 +93,182 @@ async function submitAnswer() {
     });
     const reply = data.response || "Thanks. I captured that.";
     appendMessage("assistant", reply);
-    conversation.push({ role: "assistant", content: reply });
-    if (data.interview_complete && data.prefill_form) {
-      prefillData = data.prefill_form;
-      showIntakePreview();
+    conversation.push({ role: "bot", text: reply, timestamp: new Date().toISOString() });
+    if (data.interview_complete && intakeFormId) {
+      document.getElementById("intakeProcessing").style.display = "block";
+      const completed = await apiJson(`/api/intake-forms/${encodeURIComponent(intakeFormId)}/complete-interview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: conversation, duration: conversation.length * 12 }),
+      });
+      intakeStatus = "INTERVIEW_COMPLETE";
+      setStatus("INTERVIEW_COMPLETE");
+      intakeForm = {
+        id: intakeFormId,
+        form_data: completed.formData || {},
+        red_flags: completed.redFlags || [],
+        conflicts: completed.conflicts || [],
+        status: "INTERVIEW_COMPLETE",
+      };
+      document.getElementById("intakeProcessing").style.display = "none";
+      renderIntakeForm();
+      document.getElementById("endInterviewBtn").style.display = "none";
     }
   } catch (_e) {
     appendMessage("assistant", "I had trouble saving that answer. Please try again.");
+    conversation.push({ role: "bot", text: "I had trouble saving that answer. Please try again.", timestamp: new Date().toISOString() });
   }
 }
 
-function createEditableField(label, value) {
-  const div = document.createElement("div");
-  div.className = "field";
-  div.innerHTML = `
-    <div class="label">${esc(label)}</div>
-    <div class="value">${esc(value)}</div>
-    <input class="edit-input" value="${esc(value)}" />
-    <div class="edit-row">
-      <button type="button" class="preop-btn edit-btn">Edit</button>
-      <button type="button" class="preop-btn save-btn" style="display:none;">Save</button>
-    </div>
-  `;
-  const editBtn = div.querySelector(".edit-btn");
-  const saveBtn = div.querySelector(".save-btn");
-  const valueEl = div.querySelector(".value");
-  const inputEl = div.querySelector(".edit-input");
-
-  editBtn.addEventListener("click", () => {
-    div.classList.add("editing");
-    editBtn.style.display = "none";
-    saveBtn.style.display = "inline-block";
-    inputEl.focus();
-  });
-  saveBtn.addEventListener("click", () => {
-    div.classList.remove("editing");
-    valueEl.textContent = inputEl.value;
-    saveBtn.style.display = "none";
-    editBtn.style.display = "inline-block";
-  });
-  return div;
+function sourceLabel(source) {
+  const map = {
+    interview: "From your interview",
+    patient_record: "From your medical record",
+    prep_document: "From prep document",
+    patient_edited: "Patient Edited",
+    "interview|patient_record": "Interview + medical record",
+    "patient_record|interview": "Medical record + interview",
+    not_obtained: "NOT OBTAINED",
+    calculated: "Calculated",
+    system: "System",
+    patient: "Patient",
+  };
+  return map[source] || source || "Unknown source";
 }
 
-function createChecklistSection(title, items = []) {
-  const section = document.createElement("div");
-  section.innerHTML = `<div class="section-title">${esc(title)}</div>`;
-  const grid = document.createElement("div");
-  grid.className = "intake-grid";
-  items.forEach((item) => {
-    if (typeof item === "string") {
-      grid.appendChild(createEditableField(item, "Yes | Comments:"));
-      return;
-    }
-    const label = item.label || item.item || "Checklist item";
-    const value = `${item.status || "Yes"} | Comments: ${item.comments || ""}`;
-    grid.appendChild(createEditableField(label, value));
-  });
-  section.appendChild(grid);
-  return section;
+function fieldDisplayValue(value) {
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (value == null) return "";
+  return String(value);
 }
 
-function showIntakePreview() {
-  if (!prefillData) return;
+function normalizeInputValue(raw, original) {
+  const text = String(raw ?? "").trim();
+  if (Array.isArray(original)) {
+    return text ? text.split(",").map((s) => s.trim()).filter(Boolean) : [];
+  }
+  if (typeof original === "boolean" || original === null) {
+    if (!text) return null;
+    if (/^(yes|true|y|1)$/i.test(text)) return true;
+    if (/^(no|false|n|0)$/i.test(text)) return false;
+  }
+  return text;
+}
+
+async function patchField(section, field, nextValue) {
+  if (!intakeFormId) return;
+  await apiJson(`/api/intake-forms/${encodeURIComponent(intakeFormId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ section, field, value: nextValue }),
+  });
+  const payload = intakeForm?.form_data?.[section]?.[field];
+  if (payload && typeof payload === "object") {
+    payload.value = nextValue;
+    payload.source = "patient_edited";
+  }
+}
+
+function conflictMap(conflicts = []) {
+  const out = new Map();
+  conflicts.forEach((c) => {
+    const key = c.field || "";
+    if (key) out.set(key, c);
+  });
+  return out;
+}
+
+function renderIntakeForm() {
+  if (!intakeForm) return;
   const box = document.getElementById("intakePreview");
   const body = document.getElementById("intakeBody");
   body.innerHTML = "";
-
-  const header = document.createElement("div");
-  header.innerHTML = `<div class="section-title">Patient + Surgery Header</div>`;
-  const headerGrid = document.createElement("div");
-  headerGrid.className = "intake-grid";
-  Object.entries(prefillData.header || {}).forEach(([k, v]) => {
-    headerGrid.appendChild(createEditableField(k, v));
+  const cfMap = conflictMap(intakeForm.conflicts || []);
+  const redFlags = intakeForm.red_flags || [];
+  if (redFlags.length) {
+    const alert = document.createElement("div");
+    alert.className = "field";
+    alert.style.borderColor = "#f59e0b";
+    alert.style.background = "#fffbeb";
+    alert.innerHTML = `<div class="label" style="color:#92400e;">RED FLAG</div>
+      <div class="value" style="color:#92400e;">Your care team has been notified about: ${esc(redFlags.map((r) => r.flag || r).join("; "))}</div>`;
+    body.appendChild(alert);
+  }
+  Object.entries(intakeForm.form_data || {}).forEach(([sectionName, fields]) => {
+    const sectionWrap = document.createElement("details");
+    sectionWrap.open = true;
+    sectionWrap.className = "field";
+    sectionWrap.style.background = "#fff";
+    sectionWrap.innerHTML = `<summary class="section-title">${esc(sectionName.replace(/^section\d+_/, "").replace(/_/g, " "))}</summary>`;
+    const grid = document.createElement("div");
+    grid.className = "intake-grid";
+    Object.entries(fields || {}).forEach(([fieldKey, payload]) => {
+      if (!payload || typeof payload !== "object" || !Object.prototype.hasOwnProperty.call(payload, "value")) return;
+      const fullKey = `${sectionName}.${fieldKey}`;
+      const card = document.createElement("div");
+      card.className = "field";
+      const label = fieldKey.replace(/([A-Z])/g, " $1");
+      const source = sourceLabel(payload.source);
+      const value = fieldDisplayValue(payload.value);
+      card.innerHTML = `
+        <div class="label">${esc(label)}</div>
+        <div class="value">${esc(value || (payload.source === "not_obtained" ? "We didn't cover this — please fill in if you can, or your care team will follow up." : "—"))}</div>
+        <div style="margin-top:5px;font-size:11px;color:#64748b;">${esc(source)}</div>
+        <input class="edit-input" value="${esc(value)}" style="display:block;margin-top:8px;" />
+      `;
+      const conflict = cfMap.get(fullKey);
+      if (conflict) {
+        card.style.borderColor = "#f59e0b";
+        card.style.background = "#fffbeb";
+        const note = document.createElement("div");
+        note.style.marginTop = "6px";
+        note.style.fontSize = "12px";
+        note.style.color = "#92400e";
+        note.textContent = `Record says ${fieldDisplayValue(conflict.recordValue)} but interview says ${fieldDisplayValue(conflict.patientValue)}.`;
+        card.appendChild(note);
+      }
+      const input = card.querySelector(".edit-input");
+      if (IS_DOCTOR_VIEW) {
+        input.disabled = true;
+        input.style.display = "none";
+      }
+      input.addEventListener("blur", async () => {
+        if (IS_DOCTOR_VIEW) return;
+        const nextValue = normalizeInputValue(input.value, payload.value);
+        try {
+          await patchField(sectionName, fieldKey, nextValue);
+          card.querySelector(".value").textContent = fieldDisplayValue(nextValue) || "—";
+        } catch (_e) {
+          // Keep local value if network hiccups; user can retry by blurring again.
+        }
+      });
+      grid.appendChild(card);
+    });
+    sectionWrap.appendChild(grid);
+    body.appendChild(sectionWrap);
   });
-  header.appendChild(headerGrid);
-  body.appendChild(header);
-
-  body.appendChild(createChecklistSection("Pre-Op Testing Acknowledgment", prefillData.preOpTesting));
-  body.appendChild(createChecklistSection("Medication Instructions Acknowledged", prefillData.medicationInstructions));
-  body.appendChild(createChecklistSection("Day-of-Surgery Prep", prefillData.dayOfSurgery));
-  body.appendChild(createChecklistSection("Home Preparation Confirmed", prefillData.homePreparation));
-  body.appendChild(createChecklistSection("Consent Forms", prefillData.consentForms));
-
-  const finalReview = document.createElement("div");
-  finalReview.innerHTML = `<div class="section-title">Final Review</div>`;
-  const finalGrid = document.createElement("div");
-  finalGrid.className = "intake-grid";
-  Object.entries(prefillData.finalReview || {}).forEach(([k, v]) => {
-    finalGrid.appendChild(createEditableField(k, v));
-  });
-  finalReview.appendChild(finalGrid);
-  body.appendChild(finalReview);
-
   box.classList.add("active");
+}
+
+async function loadLatestIntakeForm() {
+  try {
+    const data = await apiJson(`/api/intake-forms/latest/${encodeURIComponent(PATIENT.id)}`);
+    intakeForm = data.intake_form || null;
+    if (intakeForm) {
+      intakeFormId = intakeForm.id;
+      setStatus(intakeForm.status || "NOT_STARTED");
+      if (["INTERVIEW_COMPLETE", "SUBMITTED", "UPDATED"].includes(intakeForm.status || "")) {
+        renderIntakeForm();
+      }
+      return;
+    }
+  } catch (_e) {
+    // No form yet.
+  }
+  intakeForm = null;
+  intakeFormId = null;
+  setStatus("NOT_STARTED");
 }
 
 function fmtTime(sec) {
@@ -312,6 +428,18 @@ document.addEventListener("DOMContentLoaded", () => {
       back.removeAttribute("href");
     }
   }
+  if (IS_DOCTOR_VIEW) {
+    const notifyBtn = document.getElementById("notifyCareTeamBtn");
+    if (notifyBtn) notifyBtn.style.display = "none";
+    const sendBtn = document.getElementById("pearSendBtn");
+    const input = document.getElementById("pearInput");
+    const submitBtn = document.getElementById("submitFormBtn");
+    const saveBtn = document.getElementById("saveFormBtn");
+    if (sendBtn) sendBtn.style.display = "none";
+    if (input) input.style.display = "none";
+    if (submitBtn) submitBtn.style.display = "none";
+    if (saveBtn) saveBtn.style.display = "none";
+  }
   const postTab = document.getElementById("postOperationTab");
   if (postTab) postTab.href = `/patient/${PATIENT.id}`;
   const preTab = document.getElementById("preOperationTab");
@@ -322,12 +450,25 @@ document.addEventListener("DOMContentLoaded", () => {
   bindSpeedControls();
   loadPreopResources();
   setupNotifyCareTeam();
+  loadLatestIntakeForm();
 
   document.getElementById("startPearBtn").addEventListener("click", async () => {
     document.getElementById("pearShell").classList.add("active");
+    if (["INTERVIEW_COMPLETE", "SUBMITTED", "UPDATED"].includes(intakeStatus) && intakeForm) {
+      renderIntakeForm();
+      return;
+    }
     if (!pearStarted) {
       pearStarted = true;
       try {
+        const started = await apiJson("/api/intake-forms/start-interview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ patientId: PATIENT.id, surgeryId: PATIENT.id }),
+        });
+        intakeFormId = started.intakeFormId;
+        setStatus("INTERVIEW_IN_PROGRESS");
+        document.getElementById("endInterviewBtn").style.display = "inline-block";
         const data = await apiJson("/api/pre-op/intake/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -335,9 +476,10 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         const starter = data.response || "Hi, I am your pre-op Digital Care Companion. I will ask one question at a time using the PEAR framework.";
         appendMessage("assistant", starter);
-        conversation.push({ role: "assistant", content: starter });
+        conversation.push({ role: "bot", text: starter, timestamp: new Date().toISOString() });
       } catch (_e) {
         appendMessage("assistant", "Hi, I am your pre-op Digital Care Companion. Please tell me when your symptoms started and if they are changing.");
+        conversation.push({ role: "bot", text: "Hi, I am your pre-op Digital Care Companion. Please tell me when your symptoms started and if they are changing.", timestamp: new Date().toISOString() });
       }
     }
     document.getElementById("pearInput").focus();
@@ -351,21 +493,36 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  document.getElementById("submitFormBtn").addEventListener("click", () => {
-    const edited = {};
-    document.querySelectorAll("#intakeBody .field").forEach((field) => {
-      const key = field.querySelector(".label")?.textContent || "";
-      const val = field.querySelector(".value")?.textContent || field.querySelector(".edit-input")?.value || "";
-      if (key) edited[key] = val;
-    });
-    apiJson("/api/pre-op/intake/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ patient_id: PATIENT.id, form_data: edited }),
-    }).then(() => {
+  document.getElementById("endInterviewBtn").addEventListener("click", () => {
+    const ok = window.confirm("Are you sure? Your answers so far will be saved.");
+    if (!ok) return;
+    document.getElementById("endInterviewBtn").style.display = "none";
+    setStatus("INTERVIEW_IN_PROGRESS");
+    appendMessage("assistant", "Interview paused. You can continue later from where you left off.");
+  });
+
+  document.getElementById("saveFormBtn").addEventListener("click", async () => {
+    try {
+      await loadLatestIntakeForm();
+      appendMessage("assistant", "Your changes were saved.");
+    } catch (_e) {
+      appendMessage("assistant", "I could not refresh your latest form right now.");
+    }
+  });
+
+  document.getElementById("submitFormBtn").addEventListener("click", async () => {
+    if (!intakeFormId) return;
+    try {
+      await apiJson(`/api/intake-forms/${encodeURIComponent(intakeFormId)}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      setStatus("SUBMITTED");
       appendMessage("assistant", "Form submitted. Your care team can now review it in the doctor portal.");
-    }).catch(() => {
+      await loadLatestIntakeForm();
+    } catch (_e) {
       appendMessage("assistant", "I could not submit the form right now. Please try again.");
-    });
+    }
   });
 });

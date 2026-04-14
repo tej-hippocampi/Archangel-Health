@@ -163,9 +163,61 @@ class TeamStore:
                     updated_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS intake_forms (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    surgery_id TEXT,
+                    status TEXT NOT NULL DEFAULT 'NOT_STARTED',
+                    interview_transcript_id TEXT,
+                    form_data_json TEXT NOT NULL,
+                    red_flags_json TEXT NOT NULL,
+                    conflicts_json TEXT NOT NULL,
+                    completed_at TEXT,
+                    submitted_at TEXT,
+                    last_edited_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS interview_transcripts (
+                    id TEXT PRIMARY KEY,
+                    intake_form_id TEXT NOT NULL,
+                    full_transcript_json TEXT NOT NULL,
+                    audio_blob_url TEXT,
+                    duration INTEGER,
+                    parsed_data_json TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS intake_form_edits (
+                    id TEXT PRIMARY KEY,
+                    intake_form_id TEXT NOT NULL,
+                    edited_by TEXT NOT NULL,
+                    section_name TEXT NOT NULL,
+                    field_key TEXT NOT NULL,
+                    previous_value_json TEXT,
+                    new_value_json TEXT,
+                    edited_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS intake_form_notifications (
+                    id TEXT PRIMARY KEY,
+                    doctor_id TEXT NOT NULL,
+                    intake_form_id TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    is_read INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_team_members_hs ON team_members(health_system_id);
                 CREATE INDEX IF NOT EXISTS idx_audit_hs ON audit_sign_ins(health_system_id);
                 CREATE INDEX IF NOT EXISTS idx_otp_hs ON otp_challenges(health_system_id);
+                CREATE INDEX IF NOT EXISTS idx_intake_forms_patient ON intake_forms(patient_id);
+                CREATE INDEX IF NOT EXISTS idx_intake_forms_status ON intake_forms(status);
+                CREATE INDEX IF NOT EXISTS idx_transcripts_intake_form ON interview_transcripts(intake_form_id);
+                CREATE INDEX IF NOT EXISTS idx_intake_edits_form ON intake_form_edits(intake_form_id);
+                CREATE INDEX IF NOT EXISTS idx_intake_notifications_doctor ON intake_form_notifications(doctor_id);
                 """
             )
         self._migrate_schema()
@@ -870,4 +922,289 @@ class TeamStore:
             rec = dict(row)
             rec["form_data"] = json.loads(rec.get("form_data_json") or "{}")
             return rec
+
+    # ─── Intake Bot v2 persistence ──────────────────────────────────────────────
+    def create_intake_form(
+        self,
+        *,
+        intake_form_id: str,
+        patient_id: str,
+        surgery_id: Optional[str],
+        status: str,
+        form_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO intake_forms (
+                    id, patient_id, surgery_id, status, interview_transcript_id,
+                    form_data_json, red_flags_json, conflicts_json, completed_at,
+                    submitted_at, last_edited_at, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, NULL, ?, '[]', '[]', NULL, NULL, NULL, ?, ?)
+                """,
+                (intake_form_id, patient_id, surgery_id, status, json.dumps(form_data or {}), now, now),
+            )
+        return self.get_intake_form(intake_form_id) or {}
+
+    def update_intake_form_status(
+        self,
+        intake_form_id: str,
+        *,
+        status: str,
+        completed_at: Optional[str] = None,
+        submitted_at: Optional[str] = None,
+        interview_transcript_id: Optional[str] = None,
+    ) -> None:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE intake_forms SET
+                    status = ?,
+                    completed_at = COALESCE(?, completed_at),
+                    submitted_at = COALESCE(?, submitted_at),
+                    interview_transcript_id = COALESCE(?, interview_transcript_id),
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (status, completed_at, submitted_at, interview_transcript_id, now, intake_form_id),
+            )
+
+    def update_intake_form_payload(
+        self,
+        intake_form_id: str,
+        *,
+        form_data: Dict[str, Any],
+        red_flags: List[Dict[str, Any]],
+        conflicts: List[Dict[str, Any]],
+        status: Optional[str] = None,
+        completed_at: Optional[str] = None,
+        submitted_at: Optional[str] = None,
+        interview_transcript_id: Optional[str] = None,
+    ) -> None:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE intake_forms SET
+                    form_data_json = ?,
+                    red_flags_json = ?,
+                    conflicts_json = ?,
+                    status = COALESCE(?, status),
+                    completed_at = COALESCE(?, completed_at),
+                    submitted_at = COALESCE(?, submitted_at),
+                    interview_transcript_id = COALESCE(?, interview_transcript_id),
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    json.dumps(form_data or {}),
+                    json.dumps(red_flags or []),
+                    json.dumps(conflicts or []),
+                    status,
+                    completed_at,
+                    submitted_at,
+                    interview_transcript_id,
+                    now,
+                    intake_form_id,
+                ),
+            )
+
+    def list_intake_forms_for_patient(self, patient_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM intake_forms
+                WHERE patient_id = ?
+                ORDER BY datetime(updated_at) DESC
+                """,
+                (patient_id,),
+            ).fetchall()
+            return [self._hydrate_intake_form_row(dict(r)) for r in rows]
+
+    def get_latest_intake_form_for_patient(self, patient_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM intake_forms
+                WHERE patient_id = ?
+                ORDER BY datetime(updated_at) DESC, created_at DESC
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).fetchone()
+            if not row:
+                return None
+            return self._hydrate_intake_form_row(dict(row))
+
+    def get_intake_form(self, intake_form_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM intake_forms WHERE id = ?", (intake_form_id,)).fetchone()
+            if not row:
+                return None
+            return self._hydrate_intake_form_row(dict(row))
+
+    def _hydrate_intake_form_row(self, rec: Dict[str, Any]) -> Dict[str, Any]:
+        rec["form_data"] = json.loads(rec.get("form_data_json") or "{}")
+        rec["red_flags"] = json.loads(rec.get("red_flags_json") or "[]")
+        rec["conflicts"] = json.loads(rec.get("conflicts_json") or "[]")
+        return rec
+
+    def save_interview_transcript(
+        self,
+        *,
+        transcript_id: str,
+        intake_form_id: str,
+        full_transcript: List[Dict[str, Any]],
+        audio_blob_url: Optional[str],
+        duration: Optional[int],
+        parsed_data: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO interview_transcripts (
+                    id, intake_form_id, full_transcript_json, audio_blob_url, duration, parsed_data_json, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    transcript_id,
+                    intake_form_id,
+                    json.dumps(full_transcript or []),
+                    audio_blob_url,
+                    duration,
+                    json.dumps(parsed_data or {}),
+                    now,
+                ),
+            )
+        return self.get_interview_transcript(transcript_id) or {}
+
+    def get_interview_transcript(self, transcript_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM interview_transcripts WHERE id = ?", (transcript_id,)).fetchone()
+            if not row:
+                return None
+            rec = dict(row)
+            rec["full_transcript"] = json.loads(rec.get("full_transcript_json") or "[]")
+            rec["parsed_data"] = json.loads(rec.get("parsed_data_json") or "{}")
+            return rec
+
+    def create_intake_form_edit(
+        self,
+        *,
+        edit_id: str,
+        intake_form_id: str,
+        edited_by: str,
+        section_name: str,
+        field_key: str,
+        previous_value: Any,
+        new_value: Any,
+    ) -> None:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO intake_form_edits (
+                    id, intake_form_id, edited_by, section_name, field_key, previous_value_json, new_value_json, edited_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    edit_id,
+                    intake_form_id,
+                    edited_by,
+                    section_name,
+                    field_key,
+                    json.dumps(previous_value),
+                    json.dumps(new_value),
+                    now,
+                ),
+            )
+            conn.execute(
+                "UPDATE intake_forms SET last_edited_at = ?, updated_at = ? WHERE id = ?",
+                (now, now, intake_form_id),
+            )
+
+    def list_intake_form_edits(self, intake_form_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM intake_form_edits
+                WHERE intake_form_id = ?
+                ORDER BY datetime(edited_at) ASC, id ASC
+                """,
+                (intake_form_id,),
+            ).fetchall()
+            out: List[Dict[str, Any]] = []
+            for row in rows:
+                rec = dict(row)
+                rec["previous_value"] = json.loads(rec.get("previous_value_json") or "null")
+                rec["new_value"] = json.loads(rec.get("new_value_json") or "null")
+                out.append(rec)
+            return out
+
+    def create_intake_notification(
+        self,
+        *,
+        notification_id: str,
+        doctor_id: str,
+        intake_form_id: str,
+        notification_type: str,
+        message: str,
+    ) -> None:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO intake_form_notifications (
+                    id, doctor_id, intake_form_id, type, message, is_read, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, 0, ?)
+                """,
+                (notification_id, doctor_id, intake_form_id, notification_type, message, now),
+            )
+
+    def list_intake_notifications(
+        self,
+        doctor_id: str,
+        *,
+        unread_only: bool = False,
+        notif_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        where = ["doctor_id = ?"]
+        args: List[Any] = [doctor_id]
+        if unread_only:
+            where.append("is_read = 0")
+        if notif_type:
+            where.append("type = ?")
+            args.append(notif_type)
+        q = (
+            "SELECT * FROM intake_form_notifications WHERE "
+            + " AND ".join(where)
+            + " ORDER BY datetime(created_at) DESC"
+        )
+        with self._conn() as conn:
+            rows = conn.execute(q, tuple(args)).fetchall()
+            out = []
+            for row in rows:
+                rec = dict(row)
+                rec["read"] = bool(rec.get("is_read"))
+                out.append(rec)
+            return out
+
+    def mark_intake_notification_read(self, doctor_id: str, notification_id: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE intake_form_notifications
+                SET is_read = 1
+                WHERE id = ? AND doctor_id = ?
+                """,
+                (notification_id, doctor_id),
+            )
+            return cur.rowcount > 0
 

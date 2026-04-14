@@ -280,22 +280,31 @@
         </section>
 
         <section class="intake-section">
-          <h2 class="intake-header">Fill Out Intake Form</h2>
+          <h2 class="intake-header">
+            Fill Out Intake Form
+            <span id="intakeStatusBadge" style="margin-left:10px;font-size:12px;padding:3px 8px;border-radius:999px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;">Not Started</span>
+          </h2>
           <div class="intake-actions">
             <button class="preop-btn primary" id="startPearBtn" type="button">Start Intake Interview</button>
+            <button class="preop-btn" id="endInterviewBtn" type="button" style="display:none;">End Interview Early</button>
           </div>
 
           <div class="pear-shell" id="pearShell">
             <div class="preop-chat" id="pearChat"></div>
+            <div id="intakeProcessing" style="display:none;margin-top:8px;font-size:13px;color:#475569;">Processing your answers...</div>
             <div class="preop-chat-input">
               <input id="pearInput" type="text" placeholder="Type your answer..." />
               <button class="preop-btn primary" id="pearSendBtn" type="button">Send</button>
             </div>
             <div class="intake-preview" id="intakePreview">
-              <div class="intake-head">Auto-Filled Pre-Operative Checklist & Consent Form (Preview)</div>
+              <div class="intake-head">Structured Intake Form</div>
               <div class="intake-body" id="intakeBody"></div>
               <div style="padding: 0 14px 14px;">
+                <button class="preop-btn" id="saveFormBtn" type="button">Save Changes</button>
                 <button class="preop-btn primary" id="submitFormBtn" type="button">Submit Form</button>
+                <div style="margin-top:10px;font-size:12px;color:#6b7280;">
+                  This form was populated with AI assistance. AI can make mistakes. This is not medical advice or a diagnosis. Always consult your healthcare provider. If this is an emergency, call 911.
+                </div>
               </div>
             </div>
           </div>

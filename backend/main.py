@@ -14,6 +14,7 @@ import sqlite3
 import html as html_lib
 import secrets
 import string
+import uuid
 from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 from typing import Optional, List, Dict, Any
@@ -63,6 +64,7 @@ from auth import (
 )
 import auth as auth_module
 from team_store import TeamStore
+from intake_form_parser import parseTranscriptToFormData
 
 # ─── App Setup ────────────────────────────────────────────────
 app = FastAPI(
@@ -91,6 +93,55 @@ def _assert_staff_can_access_patient(patient_id: str, staff: Optional[StaffConte
     d = _patient_store.get(patient_id)
     if not d or (d.get("health_system_id") or "") != staff.tenant_id:
         raise HTTPException(status_code=404, detail="Patient not found")
+
+
+def _patient_prep_document(patient_id: str) -> Dict[str, Any]:
+    d = _patient_store.get(patient_id) or {}
+    sd = d.get("structured_data") or {}
+    return {
+        "procedure_name": sd.get("procedure_name", ""),
+        "procedure_site": sd.get("surgical_site", ""),
+        "laterality": sd.get("laterality", ""),
+        "cpt_codes": sd.get("cpt_codes", []),
+        "surgeon_name": sd.get("surgeon_name", ""),
+        "anesthesiologist": sd.get("anesthesiologist", ""),
+        "procedure_date": sd.get("procedure_date", ""),
+        "facility": sd.get("facility", ""),
+        "procedure_type": d.get("specialty") or "",
+        "estimated_duration": sd.get("estimated_duration", ""),
+        "pre_op_diagnosis": sd.get("pre_op_diagnosis", ""),
+        "pre_op_instructions": sd.get("pre_op_instructions", ""),
+        "medications_to_hold": sd.get("medications_to_hold", []),
+        "medications_to_take_morning_of": sd.get("medications_to_take_morning_of", []),
+        "labs_ordered": sd.get("labs_ordered", ""),
+        "pre_op_clearance_letters": sd.get("pre_op_clearance_letters", ""),
+    }
+
+
+def _intake_doctor_recipients(patient_id: str) -> List[str]:
+    d = _patient_store.get(patient_id) or {}
+    hs_id = d.get("health_system_id") or ""
+    recipients: List[str] = []
+    if hs_id:
+        for member in _team_store.list_team_members(hs_id):
+            role = str(member.get("role") or "").lower()
+            if role in {"doctor", "director", "nurse"}:
+                recipients.append(f"tenant:{member.get('email', '').lower().strip()}")
+    # Public/demo fallback recipient used by legacy doctor portal.
+    if not recipients:
+        recipients.append("doctor:default")
+    return sorted(set(recipients))
+
+
+def _create_intake_notifications(patient_id: str, intake_form_id: str, notif_type: str, message: str) -> None:
+    for doctor_id in _intake_doctor_recipients(patient_id):
+        _team_store.create_intake_notification(
+            notification_id=str(uuid.uuid4()),
+            doctor_id=doctor_id,
+            intake_form_id=intake_form_id,
+            notification_type=notif_type,
+            message=message,
+        )
 
 SURVEY_DAY_CONFIG = {7: 6, 14: 13, 30: 29}  # days from open_date
 
@@ -146,6 +197,7 @@ AI_DISCLAIMER = (
 
 SPECIALTY_FORM_LIBRARY_PATH = os.path.join(os.path.dirname(__file__), "intake_form_library.json")
 SPECIALTY_FRAMEWORK_PATH = os.path.join(os.path.dirname(__file__), "intake_frameworks.json")
+ENABLE_PREOP_INTAKE_BOT_V2 = os.getenv("ENABLE_PREOP_INTAKE_BOT_V2", "1") == "1"
 
 DEFAULT_FORM_LIBRARY: Dict[str, Dict[str, Any]] = {
     "Orthopedic": {
@@ -1270,6 +1322,27 @@ class CareTeamNotificationRequest(BaseModel):
     message: str
 
 
+class IntakeFormsStartInterviewBody(BaseModel):
+    patientId: str
+    surgeryId: Optional[str] = None
+
+
+class IntakeFormsCompleteInterviewBody(BaseModel):
+    transcript: List[Dict[str, Any]]
+    duration: Optional[int] = None
+    audioBlobUrl: Optional[str] = None
+
+
+class IntakeFormsPatchBody(BaseModel):
+    section: str
+    field: str
+    value: Any
+
+
+class IntakeFormsSubmitBody(BaseModel):
+    pass
+
+
 # ─── Auth (Elysium Health landing) ────────────────────────────
 @app.post("/api/auth/register")
 async def auth_register(body: UserCreate):
@@ -1451,6 +1524,7 @@ async def list_patients(staff: Optional[StaffContext] = Depends(get_staff_contex
             resource_code=d.get("resource_code") or "",
             health_system_id=d.get("health_system_id"),
         )
+        latest_intake = _team_store.get_latest_intake_form_for_patient(pid)
         open_dt = date.fromisoformat(episode["open_date"])
         day_in_episode = max(1, (date.today() - open_dt).days + 1)
         day_in_episode = min(day_in_episode, 30)
@@ -1466,6 +1540,8 @@ async def list_patients(staff: Optional[StaffContext] = Depends(get_staff_contex
             "phone": d.get("phone", ""),
             "email": d.get("email", ""),
             "health_system_code": d.get("clinic_code") or "",
+            "intakeFormStatus": (latest_intake or {}).get("status") or "NOT_STARTED",
+            "intakeFormId": (latest_intake or {}).get("id"),
             "episode": {
                 "openDate": episode["open_date"],
                 "closeDate": episode["close_date"],
@@ -2663,6 +2739,271 @@ def _with_disclaimer(text: str) -> str:
     return f"{text}\n\n{AI_DISCLAIMER}"
 
 
+def _resolve_notif_doctor_id(
+    doctor_id: str,
+    staff: Optional[StaffContext],
+    user: Optional[UserOut],
+) -> str:
+    if doctor_id == "me":
+        if staff and staff.email:
+            return f"tenant:{staff.email.lower().strip()}"
+        if user and user.email:
+            return f"doctor:{user.email.lower().strip()}"
+        return "doctor:default"
+    return doctor_id
+
+
+@app.post("/api/intake-forms/start-interview")
+async def intake_forms_start_interview(
+    body: IntakeFormsStartInterviewBody,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    if not ENABLE_PREOP_INTAKE_BOT_V2:
+        raise HTTPException(status_code=503, detail="Pre-op intake bot v2 is disabled.")
+    patient_id = body.patientId
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
+    existing = _team_store.get_latest_intake_form_for_patient(patient_id)
+    if existing and existing.get("status") == "INTERVIEW_IN_PROGRESS":
+        return {"intakeFormId": existing["id"], "voiceSessionConfig": None, "status": existing.get("status")}
+    form_id = str(uuid.uuid4())
+    empty = parseTranscriptToFormData([], _patient_store.get(patient_id) or {}, _patient_prep_document(patient_id))
+    created = _team_store.create_intake_form(
+        intake_form_id=form_id,
+        patient_id=patient_id,
+        surgery_id=body.surgeryId,
+        status="INTERVIEW_IN_PROGRESS",
+        form_data=empty.get("formData") or {},
+    )
+    return {"intakeFormId": created["id"], "voiceSessionConfig": None, "status": created.get("status")}
+
+
+@app.post("/api/intake-forms/{intake_form_id}/complete-interview")
+async def intake_forms_complete_interview(
+    intake_form_id: str,
+    body: IntakeFormsCompleteInterviewBody,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    if not ENABLE_PREOP_INTAKE_BOT_V2:
+        raise HTTPException(status_code=503, detail="Pre-op intake bot v2 is disabled.")
+    form = _team_store.get_intake_form(intake_form_id)
+    if not form:
+        raise HTTPException(status_code=404, detail="Intake form not found")
+    patient_id = form.get("patient_id") or ""
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
+
+    transcript_id = str(uuid.uuid4())
+    parsed = parseTranscriptToFormData(
+        body.transcript or [],
+        _patient_store.get(patient_id) or {},
+        _patient_prep_document(patient_id),
+    )
+    _team_store.save_interview_transcript(
+        transcript_id=transcript_id,
+        intake_form_id=intake_form_id,
+        full_transcript=body.transcript or [],
+        audio_blob_url=body.audioBlobUrl,
+        duration=body.duration,
+        parsed_data=parsed,
+    )
+    now = datetime.utcnow().replace(microsecond=0).isoformat()
+    _team_store.update_intake_form_payload(
+        intake_form_id,
+        form_data=parsed.get("formData") or {},
+        red_flags=parsed.get("redFlags") or [],
+        conflicts=parsed.get("conflicts") or [],
+        status="INTERVIEW_COMPLETE",
+        completed_at=now,
+        interview_transcript_id=transcript_id,
+    )
+    _create_intake_notifications(
+        patient_id,
+        intake_form_id,
+        "FORM_COMPLETED",
+        f"Intake interview completed for patient {(_patient_store.get(patient_id) or {}).get('name', patient_id)}.",
+    )
+    if parsed.get("redFlags"):
+        _create_intake_notifications(
+            patient_id,
+            intake_form_id,
+            "RED_FLAG_DETECTED",
+            f"Red flag detected in intake for patient {(_patient_store.get(patient_id) or {}).get('name', patient_id)}.",
+        )
+    _team_store.log_event(
+        patient_id=patient_id,
+        event_type="preop_intake_submitted",
+        payload={"intake_form_id": intake_form_id, "status": "INTERVIEW_COMPLETE"},
+    )
+    return {
+        "intakeFormId": intake_form_id,
+        "formData": parsed.get("formData") or {},
+        "redFlags": parsed.get("redFlags") or [],
+        "conflicts": parsed.get("conflicts") or [],
+    }
+
+
+@app.get("/api/intake-forms/{intake_form_id}")
+async def intake_forms_get(
+    intake_form_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+):
+    form = _team_store.get_intake_form(intake_form_id)
+    if not form:
+        raise HTTPException(status_code=404, detail="Intake form not found")
+    patient_id = form.get("patient_id") or ""
+    if patient_id and patient_id in _patient_store:
+        _assert_staff_can_access_patient(patient_id, staff)
+    editable = not bool(staff or user)
+    return {
+        "intakeForm": form,
+        "readOnly": not editable,
+        "editable": editable,
+    }
+
+
+@app.get("/api/intake-forms/latest/{patient_id}")
+async def intake_forms_latest_for_patient(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
+    latest = _team_store.get_latest_intake_form_for_patient(patient_id)
+    return {"patient_id": patient_id, "intake_form": latest}
+
+
+@app.patch("/api/intake-forms/{intake_form_id}")
+async def intake_forms_patch(
+    intake_form_id: str,
+    body: IntakeFormsPatchBody,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    if staff:
+        raise HTTPException(status_code=403, detail="Doctors cannot edit intake forms.")
+    form = _team_store.get_intake_form(intake_form_id)
+    if not form:
+        raise HTTPException(status_code=404, detail="Intake form not found")
+    form_data = form.get("form_data") or {}
+    section = body.section
+    field = body.field
+    if section not in form_data or field not in (form_data.get(section) or {}):
+        raise HTTPException(status_code=400, detail="Invalid section/field")
+    payload = form_data[section][field]
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid field payload")
+    prev = payload.get("value")
+    payload["value"] = body.value
+    payload["source"] = "patient_edited"
+    form_data[section][field] = payload
+    status = form.get("status") or "INTERVIEW_COMPLETE"
+    if status == "SUBMITTED":
+        status = "UPDATED"
+    _team_store.update_intake_form_payload(
+        intake_form_id,
+        form_data=form_data,
+        red_flags=form.get("red_flags") or [],
+        conflicts=form.get("conflicts") or [],
+        status=status,
+    )
+    _team_store.create_intake_form_edit(
+        edit_id=str(uuid.uuid4()),
+        intake_form_id=intake_form_id,
+        edited_by="PATIENT",
+        section_name=section,
+        field_key=field,
+        previous_value=prev,
+        new_value=body.value,
+    )
+    if status == "UPDATED":
+        patient_id = form.get("patient_id") or ""
+        _create_intake_notifications(
+            patient_id,
+            intake_form_id,
+            "PATIENT_EDITED",
+            f"Patient updated intake field {section}.{field} after submission.",
+        )
+    return {"ok": True, "intakeFormId": intake_form_id, "status": status}
+
+
+@app.post("/api/intake-forms/{intake_form_id}/submit")
+async def intake_forms_submit(
+    intake_form_id: str,
+    body: IntakeFormsSubmitBody,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    _ = body  # keeps request contract explicit for future extension
+    if staff:
+        raise HTTPException(status_code=403, detail="Doctors cannot submit intake forms.")
+    form = _team_store.get_intake_form(intake_form_id)
+    if not form:
+        raise HTTPException(status_code=404, detail="Intake form not found")
+    now = datetime.utcnow().replace(microsecond=0).isoformat()
+    _team_store.update_intake_form_status(
+        intake_form_id,
+        status="SUBMITTED",
+        submitted_at=now,
+    )
+    patient_id = form.get("patient_id") or ""
+    _create_intake_notifications(
+        patient_id,
+        intake_form_id,
+        "FORM_COMPLETED",
+        "Patient submitted final intake form.",
+    )
+    return {"ok": True, "intakeFormId": intake_form_id, "status": "SUBMITTED"}
+
+
+@app.get("/api/intake-forms/{intake_form_id}/edit-history")
+async def intake_forms_edit_history(
+    intake_form_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    form = _team_store.get_intake_form(intake_form_id)
+    if not form:
+        raise HTTPException(status_code=404, detail="Intake form not found")
+    patient_id = form.get("patient_id") or ""
+    if patient_id and patient_id in _patient_store:
+        _assert_staff_can_access_patient(patient_id, staff)
+    rows = _team_store.list_intake_form_edits(intake_form_id)
+    return {"intakeFormId": intake_form_id, "edits": rows}
+
+
+@app.get("/api/doctors/{doctor_id}/notifications")
+async def intake_notifications_list(
+    doctor_id: str,
+    notif_type: Optional[str] = None,
+    unread_only: bool = False,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+):
+    resolved_doctor_id = _resolve_notif_doctor_id(doctor_id, staff, user)
+    rows = _team_store.list_intake_notifications(
+        resolved_doctor_id,
+        unread_only=unread_only,
+        notif_type=notif_type,
+    )
+    return {"doctorId": resolved_doctor_id, "notifications": rows}
+
+
+@app.patch("/api/doctors/{doctor_id}/notifications/{notif_id}/read")
+async def intake_notifications_mark_read(
+    doctor_id: str,
+    notif_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+):
+    resolved_doctor_id = _resolve_notif_doctor_id(doctor_id, staff, user)
+    ok = _team_store.mark_intake_notification_read(resolved_doctor_id, notif_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {"ok": True}
+
+
 @app.post("/api/pre-op/intake/start")
 async def preop_intake_start(body: IntakeStartRequest):
     if body.patient_id not in _patient_store:
@@ -2760,7 +3101,8 @@ async def doctor_latest_intake(
         raise HTTPException(status_code=404, detail="Patient not found")
     _assert_staff_can_access_patient(patient_id, staff)
     submission = _team_store.get_latest_preop_intake_submission(patient_id)
-    return {"patient_id": patient_id, "submission": submission}
+    intake_form = _team_store.get_latest_intake_form_for_patient(patient_id)
+    return {"patient_id": patient_id, "submission": submission, "intake_form": intake_form}
 
 
 @app.post("/api/pre-op/notify-care-team")

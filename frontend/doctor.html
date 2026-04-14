@@ -172,7 +172,7 @@
     }
     .roster-row {
       display: grid;
-      grid-template-columns: 1.1fr 1fr 1.2fr .7fr;
+      grid-template-columns: 1.1fr 1fr 1.2fr .7fr .9fr;
       gap: 10px;
       align-items: center;
       text-align: center;
@@ -202,6 +202,33 @@
     }
     .episode-pill.pre { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
     .episode-pill.post { background: #ecfdf5; border-color: #bbf7d0; color: #15803d; }
+    .intake-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .03em;
+      padding: 2px 7px;
+      text-transform: uppercase;
+      border: 1px solid #d1d5db;
+      color: #374151;
+      background: #f3f4f6;
+      white-space: nowrap;
+    }
+    .intake-pill.in-progress { background: #ffedd5; border-color: #fdba74; color: #9a3412; }
+    .intake-pill.interview-complete { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .intake-pill.submitted { background: #dcfce7; border-color: #86efac; color: #166534; }
+    .intake-pill.updated { background: #fef9c3; border-color: #fde047; color: #854d0e; }
+    .notif-bell {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 11px;
+      background: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+    }
 
     /* Episode modal */
     .timeline-title { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 12px; }
@@ -631,7 +658,10 @@
             <h1 class="page-title">Patient Roster</h1>
             <p class="page-sub">Select a patient row to open episode timeline details.</p>
           </div>
-          <button class="btn primary" id="addPatientBtn">+ Add Patient</button>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button type="button" class="notif-bell" id="doctorNotifBell">Notifications: 0</button>
+            <button class="btn primary" id="addPatientBtn">+ Add Patient</button>
+          </div>
         </div>
 
         <div class="roster-controls">
@@ -896,12 +926,23 @@
             <p style="font-size:14px;color:var(--muted);">Use these actions to review and send materials for this pre-op patient.</p>
             <div class="actions-row">
               <button class="btn" id="viewPrepMaterialsBtn">View Preparation Materials</button>
+              <button class="btn" id="viewIntakeFormBtn">View Intake Form</button>
               <button class="btn primary" id="sendPrepMaterialsBtn">Send Preparation Materials</button>
               <button class="btn" id="switchToPostOpBtn">Switch to Post-Op</button>
             </div>
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="doctorIntakeModal">
+    <div class="modal" style="max-width: 980px;">
+      <div class="modal-head">
+        <div class="modal-title" id="doctorIntakeTitle">Intake Form</div>
+        <button class="modal-close" data-close="doctorIntakeModal">×</button>
+      </div>
+      <div class="modal-body" id="doctorIntakeBody"></div>
     </div>
   </div>
 
@@ -1025,6 +1066,7 @@
     let selectedPreopPatient = null;
     let selectedTimeline = null;
     let escalations = [];
+    let intakeNotifications = [];
     let pdfText = "";
     let selectedEpisodeType = null;
     const sentPreparationMaterials = new Set();
@@ -1430,6 +1472,35 @@
       return `<span class="episode-pill ${pre ? "pre" : "post"}">${pre ? "Pre-Op" : "Post-Op"}</span>`;
     }
 
+    function intakeStatusPillHtml(status) {
+      const normalized = String(status || "NOT_STARTED").toUpperCase();
+      const labelMap = {
+        NOT_STARTED: "Not Started",
+        INTERVIEW_IN_PROGRESS: "In Progress",
+        INTERVIEW_COMPLETE: "Interview Complete",
+        SUBMITTED: "Submitted",
+        UPDATED: "Updated",
+      };
+      const classMap = {
+        INTERVIEW_IN_PROGRESS: "in-progress",
+        INTERVIEW_COMPLETE: "interview-complete",
+        SUBMITTED: "submitted",
+        UPDATED: "updated",
+      };
+      return `<span class="intake-pill ${classMap[normalized] || ""}">${esc(labelMap[normalized] || normalized)}</span>`;
+    }
+
+    async function loadIntakeNotifications() {
+      try {
+        const data = await apiJson("/api/doctors/me/notifications?unread_only=true");
+        intakeNotifications = data.notifications || [];
+      } catch (_e) {
+        intakeNotifications = [];
+      }
+      const bell = byId("doctorNotifBell");
+      if (bell) bell.textContent = `Notifications: ${intakeNotifications.length}`;
+    }
+
     function openPatientDetail(pid) {
       const patient = PATIENTS.find((p) => p.id === pid);
       if (!patient) return;
@@ -1448,6 +1519,7 @@
           <div class="roster-cell muted">${esc(p.phone || "—")}</div>
           <div class="roster-cell muted">${esc(p.email || "—")}</div>
           <div class="roster-cell muted">Day ${esc(p.episode?.currentDay ?? "—")}</div>
+          <div class="roster-cell">${intakeStatusPillHtml(p.intakeFormStatus)}</div>
         </div>
       `).join("");
       byId("rosterList").querySelectorAll(".roster-row").forEach((row) => {
@@ -1563,12 +1635,86 @@
       const rows = [
         ["Scheduled Surgery Date", patient.date || "—"],
         ["Procedure Type", patient.procedure || "—"],
+        ["Intake Status", patient.intakeFormStatus || "NOT_STARTED"],
       ];
       byId("preopStatsGrid").innerHTML = rows.map(([k, v]) => `
         <div class="stat"><div class="stat-label">${esc(k)}</div><div class="stat-value">${esc(v)}</div></div>
       `).join("");
       updatePrepSendButtonState(pid);
+      const viewIntakeBtn = byId("viewIntakeFormBtn");
+      if (viewIntakeBtn) {
+        viewIntakeBtn.disabled = !patient.intakeFormId;
+      }
       byId("preopDetailModal").classList.add("active");
+    }
+
+    function doctorSourceLabel(source, lastEditedAt) {
+      if (source === "patient_edited") return `Patient Edited ${lastEditedAt ? `(${fmt(lastEditedAt)})` : ""}`.trim();
+      const map = {
+        interview: "Interview",
+        patient_record: "Patient Record",
+        prep_document: "Prep Document",
+        "interview|patient_record": "Interview + Patient Record",
+        "patient_record|interview": "Patient Record + Interview",
+        not_obtained: "NOT OBTAINED",
+      };
+      return map[source] || source || "Unknown";
+    }
+
+    async function openDoctorIntakeForm(patient) {
+      if (!patient?.intakeFormId) {
+        showToast("No intake form available yet.", "error");
+        return;
+      }
+      byId("doctorIntakeTitle").textContent = `${patient.name} — Intake Form`;
+      byId("doctorIntakeBody").innerHTML = `<p style="font-size:14px;color:var(--muted);">Loading intake form…</p>`;
+      byId("doctorIntakeModal").classList.add("active");
+      try {
+        const [formResp, historyResp] = await Promise.all([
+          apiJson(`/api/intake-forms/${encodeURIComponent(patient.intakeFormId)}`),
+          apiJson(`/api/intake-forms/${encodeURIComponent(patient.intakeFormId)}/edit-history`),
+        ]);
+        const form = formResp.intakeForm || {};
+        const history = historyResp.edits || [];
+        const historyByField = new Map();
+        history.forEach((h) => {
+          const k = `${h.section_name}.${h.field_key}`;
+          const arr = historyByField.get(k) || [];
+          arr.push(h);
+          historyByField.set(k, arr);
+        });
+        const redFlags = form.red_flags || [];
+        const conflicts = (form.conflicts || []).reduce((acc, c) => {
+          acc[c.field] = c;
+          return acc;
+        }, {});
+        let html = "";
+        if (redFlags.length) {
+          html += `<div class="panel"><div class="panel-head">Clinical Red Flags</div><div class="panel-body">${redFlags.map((r) => `<div style="font-size:13px;color:#991b1b;margin-bottom:6px;">• ${esc(r.flag || r)}</div>`).join("")}</div></div>`;
+        }
+        Object.entries(form.form_data || {}).forEach(([sectionName, fields]) => {
+          html += `<div class="panel"><div class="panel-head">${esc(sectionName.replace(/^section\\d+_/, "").replace(/_/g, " "))}</div><div class="panel-body"><div class="stats-grid">`;
+          Object.entries(fields || {}).forEach(([fieldKey, payload]) => {
+            if (!payload || typeof payload !== "object" || !Object.prototype.hasOwnProperty.call(payload, "value")) return;
+            const fullKey = `${sectionName}.${fieldKey}`;
+            const value = Array.isArray(payload.value) ? payload.value.join(", ") : (payload.value == null ? "—" : String(payload.value));
+            const source = doctorSourceLabel(payload.source, form.last_edited_at);
+            const conflict = conflicts[fullKey];
+            const edits = historyByField.get(fullKey) || [];
+            html += `<div class="stat">
+              <div class="stat-label">${esc(fieldKey.replace(/([A-Z])/g, " $1"))}</div>
+              <div class="stat-value">${esc(value)}</div>
+              <div style="font-size:11px;color:#64748b;margin-top:4px;">${esc(source)}</div>
+              ${conflict ? `<div style="font-size:11px;color:#92400e;margin-top:6px;">Conflict: record "${esc(conflict.recordValue)}" vs patient "${esc(conflict.patientValue)}"</div>` : ""}
+              ${edits.length ? `<details style="margin-top:6px;"><summary style="font-size:12px;color:#1d4ed8;cursor:pointer;">View history</summary>${edits.map((e) => `<div style="font-size:11px;color:#475569;margin-top:4px;">${esc(fmt(e.edited_at))}: ${esc(JSON.stringify(e.previous_value))} → ${esc(JSON.stringify(e.new_value))}</div>`).join("")}</details>` : ""}
+            </div>`;
+          });
+          html += "</div></div></div>";
+        });
+        byId("doctorIntakeBody").innerHTML = html || `<p style="font-size:14px;color:var(--muted);">No intake data found.</p>`;
+      } catch (e) {
+        byId("doctorIntakeBody").innerHTML = `<p style="font-size:14px;color:#991b1b;">${esc(e.message || "Could not load intake form.")}</p>`;
+      }
     }
 
     async function openSurveyModal(patientId, day, patientName) {
@@ -1846,6 +1992,10 @@
         if (!selectedPreopPatient) return;
         window.open(`/patient/${encodeURIComponent(selectedPreopPatient.id)}/pre-op?doctor_view=1`, "_blank");
       });
+      byId("viewIntakeFormBtn").addEventListener("click", () => {
+        if (!selectedPreopPatient) return;
+        void openDoctorIntakeForm(selectedPreopPatient);
+      });
       byId("sendPrepMaterialsBtn").addEventListener("click", async () => {
         if (!selectedPreopPatient) return;
         if (sentPreparationMaterials.has(selectedPreopPatient.id)) return;
@@ -2051,6 +2201,39 @@
       });
     }
 
+    function setupNotificationBell() {
+      const bell = byId("doctorNotifBell");
+      if (!bell) return;
+      bell.addEventListener("click", async () => {
+        byId("chatTitle").textContent = "Doctor Notifications";
+        if (!intakeNotifications.length) {
+          byId("chatBody").innerHTML = `<div class="chat-box">No unread notifications.</div>`;
+          byId("chatModal").classList.add("active");
+          return;
+        }
+        byId("chatBody").innerHTML = `<div class="chat-box">${intakeNotifications.map((n) => `
+          <div style="padding:6px 0;border-bottom:1px solid #e5e7eb;">
+            <div style="font-size:12px;font-weight:700;color:#334155;">${esc(n.type || "Notification")}</div>
+            <div style="font-size:13px;margin-top:2px;">${esc(n.message || "")}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px;">${esc(fmt(n.created_at || ""))}</div>
+            <button class="btn" style="margin-top:6px;padding:4px 8px;font-size:11px;" data-mark-read="${esc(n.id)}">Mark read</button>
+          </div>
+        `).join("")}</div>`;
+        byId("chatModal").classList.add("active");
+        byId("chatBody").querySelectorAll("[data-mark-read]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            try {
+              await apiJson(`/api/doctors/me/notifications/${encodeURIComponent(btn.dataset.markRead)}/read`, { method: "PATCH" });
+              await loadIntakeNotifications();
+              btn.closest("div").style.opacity = "0.5";
+            } catch (_e) {
+              showToast("Could not mark notification as read.", "error");
+            }
+          });
+        });
+      });
+    }
+
     function showToast(msg, type = "success") {
       let toast = byId("toast");
       if (!toast) {
@@ -2072,8 +2255,11 @@
     setupRosterSearch();
     setupPatientActions();
     setupPreopPatientActions();
+    setupNotificationBell();
     loadPatients().catch((e) => showToast(e.message, "error"));
     loadEscalations().catch((e) => showToast(e.message, "error"));
+    loadIntakeNotifications().catch(() => {});
+    setInterval(() => { loadIntakeNotifications().catch(() => {}); }, 20000);
   </script>
 </body>
 </html>
