@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { API_BASE } from "@/lib/auth-api";
+
 type Props = { token: string };
 
 const api = (path: string, init?: RequestInit) =>
-  fetch(path, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers || {}) } });
+  fetch(`${API_BASE}${path}`, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers || {}) } });
 
 /** FastAPI may return `detail` as a string (HTTPException) or an array (422 validation). */
 function formatApiError(data: unknown): string {

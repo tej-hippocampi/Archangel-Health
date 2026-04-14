@@ -3,7 +3,9 @@
  * Uses relative /api in dev (Vite proxy to backend) or VITE_API_URL when set.
  */
 
-const API_BASE = (import.meta as unknown as { env: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? '';
+/** Empty in dev (Vite proxies /api); set VITE_API_URL in production (e.g. https://app.archangelhealth.ai). */
+export const API_BASE =
+  (import.meta as unknown as { env: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? '';
 
 export type User = { email: string; name?: string | null; role?: string | null };
 

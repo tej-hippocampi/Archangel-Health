@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
 
+import { API_BASE } from "@/lib/auth-api";
+
 type Props = { slug: string };
 
 const DASHBOARD =
@@ -16,7 +18,7 @@ export default function TenantSignIn({ slug }: Props) {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
-    const r = await fetch(`/api/tenant/${encodeURIComponent(slug)}/auth/login`, {
+    const r = await fetch(`${API_BASE}/api/tenant/${encodeURIComponent(slug)}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
