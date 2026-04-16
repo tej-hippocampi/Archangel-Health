@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
@@ -168,7 +169,7 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
               <Button
                 type="button"
                 variant="outline"
-                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10"
+                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10 whitespace-normal text-center"
                 onClick={() => setStep("patient-codes")}
               >
                 <span className="text-2xl">👤</span>
@@ -178,7 +179,7 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
               <Button
                 type="button"
                 variant="outline"
-                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10"
+                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10 whitespace-normal text-center"
                 onClick={() => setStep("register")}
               >
                 <span className="text-2xl">👨‍⚕️</span>
@@ -359,5 +360,5 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
     </div>
   );
 
-  return modal;
+  return createPortal(modal, document.body);
 }
