@@ -320,6 +320,8 @@
       cursor: pointer;
     }
     .editor-status { margin-top: 8px; font-size: 0.8rem; color: var(--gray-500); }
+    .section-sub-tab { transition: background 0.15s, color 0.15s; }
+    .section-sub-tab.active-sub { background: var(--primary) !important; color: #fff !important; border-color: var(--primary) !important; }
   </style>
 </head>
 <body>
@@ -389,6 +391,9 @@
         </button>
         <button class="nav-item" data-tab="intake-frameworks">
           <span class="icon">🧠</span> Intake Framework Editor
+        </button>
+        <button class="nav-item" data-tab="intake-section-prompts">
+          <span class="icon">📝</span> Intake Interview Prompts
         </button>
       </nav>
 
@@ -584,6 +589,23 @@
         </div>
       </div>
 
+      <div class="tab-page" id="tab-intake-section-prompts">
+        <div class="page-header">
+          <div>
+            <h2>Pre Op Intake Interview Prompts</h2>
+            <p>Sample conversations for each intake section (Sections 3–10)</p>
+          </div>
+        </div>
+        <div class="editor-body">
+          <div class="editor-card">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;" id="sectionSubTabs"></div>
+            <div id="sectionPromptContent" style="white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:0.84rem;max-height:calc(100vh - 260px);overflow-y:auto;padding:16px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);line-height:1.6;">
+              Select a section above to view its sample conversation.
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /main-content -->
   </div><!-- /shell -->
 </div><!-- /app -->
@@ -596,6 +618,8 @@
   let preopPromptsLoaded = false;
   let intakeLibrary = {};
   let intakeFrameworks = {};
+  let intakeSectionPrompts = {};
+  let sectionPromptsLoaded = false;
 
   function authHeaders() {
     return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` };
@@ -703,6 +727,9 @@
       }
       if (btn.dataset.tab === 'intake-frameworks' && !Object.keys(intakeFrameworks).length) {
         loadIntakeFrameworks();
+      }
+      if (btn.dataset.tab === 'intake-section-prompts' && !sectionPromptsLoaded) {
+        loadIntakeSectionPrompts();
       }
       if (btn.dataset.tab === 'health-systems') {
         loadHealthSystems();
@@ -916,6 +943,39 @@
     document.getElementById('frameworkPromptInput').value = intakeFrameworks[specialty] || '';
   }
   document.getElementById('frameworkSpecialty').addEventListener('change', renderFrameworkSelection);
+
+  // ── Intake Section Prompts ────────────────────────────────────
+  async function loadIntakeSectionPrompts() {
+    try {
+      const res = await fetch('/admin/intake-section-prompts', { headers: authHeaders() });
+      if (res.status === 401) { signout(); return; }
+      const data = await res.json();
+      intakeSectionPrompts = data.prompts || {};
+      sectionPromptsLoaded = true;
+      const tabsContainer = document.getElementById('sectionSubTabs');
+      const keys = Object.keys(intakeSectionPrompts).sort((a, b) => Number(a) - Number(b));
+      tabsContainer.innerHTML = keys.map((k, i) => {
+        const label = intakeSectionPrompts[k].label || ('Section ' + k);
+        return '<button type="button" class="refresh-btn section-sub-tab' + (i === 0 ? ' active-sub' : '') + '" data-section="' + esc(k) + '" style="font-size:0.78rem;padding:6px 14px;">' + esc(label) + '</button>';
+      }).join('');
+      if (keys.length) renderSectionPrompt(keys[0]);
+      tabsContainer.querySelectorAll('.section-sub-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabsContainer.querySelectorAll('.section-sub-tab').forEach(b => b.classList.remove('active-sub'));
+          btn.classList.add('active-sub');
+          renderSectionPrompt(btn.dataset.section);
+        });
+      });
+    } catch (e) {
+      document.getElementById('sectionPromptContent').textContent = 'Error loading section prompts: ' + (e.message || e);
+    }
+  }
+
+  function renderSectionPrompt(sectionNum) {
+    const data = intakeSectionPrompts[sectionNum];
+    if (!data) return;
+    document.getElementById('sectionPromptContent').textContent = data.content || '(empty)';
+  }
 
   let lastInviteUrl = '';
 

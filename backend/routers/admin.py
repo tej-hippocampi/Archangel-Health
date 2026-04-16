@@ -274,6 +274,28 @@ async def admin_update_intake_frameworks(
     return {"ok": True, "specialty": specialty}
 
 
+INTAKE_SECTION_PROMPTS_DIR = Path(__file__).resolve().parent.parent / "intake_section_prompts"
+
+
+@router.get("/intake-section-prompts")
+async def admin_get_intake_section_prompts(authorization: Optional[str] = Header(None)):
+    """Return sample conversation markdown files for intake interview sections 3-10."""
+    _verify_token(authorization)
+    prompts = {}
+    if INTAKE_SECTION_PROMPTS_DIR.is_dir():
+        for md_file in sorted(INTAKE_SECTION_PROMPTS_DIR.glob("*.md")):
+            match = re.search(r"Section(\d+)", md_file.name)
+            if match:
+                section_num = match.group(1)
+                label = md_file.stem.replace("Sample_Conversation_", "").replace("_", " ")
+                prompts[section_num] = {
+                    "filename": md_file.name,
+                    "label": label,
+                    "content": md_file.read_text(encoding="utf-8", errors="replace"),
+                }
+    return {"prompts": prompts}
+
+
 @router.post("/health-systems/invite")
 async def admin_create_health_system_invite(
     request: Request,

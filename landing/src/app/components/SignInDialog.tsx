@@ -112,7 +112,7 @@ export function SignInDialog({ open, onOpenChange }: Props) {
               <Button
                 type="button"
                 variant="outline"
-                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10"
+                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10 whitespace-normal text-center"
                 onClick={() => setStep("patient")}
               >
                 <span className="text-2xl">👤</span>
@@ -122,7 +122,7 @@ export function SignInDialog({ open, onOpenChange }: Props) {
               <Button
                 type="button"
                 variant="outline"
-                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10"
+                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10 whitespace-normal text-center"
                 onClick={() => setStep("doctor")}
               >
                 <span className="text-2xl">👨‍⚕️</span>
