@@ -54,6 +54,17 @@ def _strip_json_fence(raw: str) -> str:
     return t.strip()
 
 
+def _extract_reply_fallback(raw: str) -> Optional[str]:
+    """Last-resort extraction of assistantReply from malformed JSON."""
+    m = re.search(r'"assistantReply"\s*:\s*"((?:[^"\\]|\\.)*)"', raw or "")
+    if m:
+        try:
+            return json.loads(f'"{m.group(1)}"')
+        except (json.JSONDecodeError, ValueError):
+            return m.group(1)
+    return None
+
+
 def _parse_intake_model_json(raw: str) -> Dict[str, Any]:
     """Parse assistant output into a dict; tolerate markdown fences or leading prose."""
     cleaned = _strip_json_fence(raw)
@@ -72,6 +83,10 @@ def _parse_intake_model_json(raw: str) -> Dict[str, Any]:
                 return out
         except json.JSONDecodeError:
             pass
+    # Fallback: extract at least the assistantReply so the patient gets a response
+    reply = _extract_reply_fallback(cleaned)
+    if reply:
+        return {"assistantReply": reply, "fieldUpdates": {}, "sectionComplete": False}
     return {}
 
 
@@ -116,12 +131,13 @@ Rules:
 - Ask one clear question at a time OR give a brief acknowledgement; stay clinically appropriate.
 - Use plain language. Do not diagnose.
 
-You must respond with ONLY a single JSON object (no markdown fences) with this exact shape:
+CRITICAL — your ENTIRE response must be a single valid JSON object with NO surrounding text, NO markdown fences, NO commentary before or after. Output ONLY this JSON:
 {{
   "assistantReply": "string shown to the patient",
   "fieldUpdates": {{ }},
   "sectionComplete": true or false
 }}
+Do NOT write anything outside the JSON object. No preamble, no explanation, just the raw JSON.
 
 fieldUpdates: keys are field names from the intake schema for this section ONLY. Values are either:
 - a plain value for simple fields, OR
@@ -165,23 +181,29 @@ Data already captured on earlier sections of this intake (do not re-ask unless y
             "no_api_key",
         )
 
-    try:
-        resp = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2200,
-            system=system,
-            messages=messages,
-        )
-        raw = resp.content[0].text
-        parsed = _parse_intake_model_json(raw)
-        if not parsed:
-            raise ValueError("empty_or_non_json_model_output")
-    except Exception as exc:
+    parsed: Dict[str, Any] = {}
+    last_err = ""
+    for attempt in range(2):
+        try:
+            resp = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=2200,
+                system=system,
+                messages=messages,
+            )
+            raw = resp.content[0].text
+            parsed = _parse_intake_model_json(raw)
+            if parsed:
+                break
+            last_err = "empty_or_non_json_model_output"
+        except Exception as exc:
+            last_err = str(exc)
+    if not parsed:
         return (
             "I had trouble processing that. Could you rephrase in a sentence or two?",
             {},
             False,
-            str(exc),
+            last_err,
         )
 
     reply = str(parsed.get("assistantReply") or "").strip() or "Thanks — could you tell me a bit more?"
