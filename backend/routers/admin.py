@@ -36,7 +36,7 @@ DEFAULT_FORM_LIBRARY_FALLBACK = {
     }
 }
 DEFAULT_FRAMEWORKS_FALLBACK = {
-    "General Surgery": "Ask one question at a time and collect PEAR data for surgical intake."
+    "General Surgery": "Ask one question at a time and collect structured surgical intake details."
 }
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")

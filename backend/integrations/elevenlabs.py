@@ -40,26 +40,37 @@ class ElevenLabsClient:
         clean = self._clean_for_tts(script)
         vid   = voice_id or self.voice_id
 
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            resp = await client.post(
-                f"{self.BASE_URL}/text-to-speech/{vid}",
-                headers={
-                    "xi-api-key":     self.api_key,
-                    "Content-Type":   "application/json",
-                    "Accept":         "audio/mpeg",
-                },
-                json={
-                    "text":     clean,
-                    "model_id": "eleven_turbo_v2_5",
-                    "voice_settings": {
-                        "stability":          0.75,
-                        "similarity_boost":   0.75,
-                        "style":              0.30,
-                        "use_speaker_boost":  True,
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                resp = await client.post(
+                    f"{self.BASE_URL}/text-to-speech/{vid}",
+                    headers={
+                        "xi-api-key":     self.api_key,
+                        "Content-Type":   "application/json",
+                        "Accept":         "audio/mpeg",
                     },
-                },
+                    json={
+                        "text":     clean,
+                        "model_id": "eleven_turbo_v2_5",
+                        "voice_settings": {
+                            "stability":          0.75,
+                            "similarity_boost":   0.75,
+                            "style":              0.30,
+                            "use_speaker_boost":  True,
+                        },
+                    },
+                )
+                resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            body = (exc.response.text or "")[:300]
+            print(
+                f"[ElevenLabs] HTTP {exc.response.status_code} — skipping synthesis. "
+                f"Check ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID. Body: {body!r}"
             )
-            resp.raise_for_status()
+            return None
+        except httpx.RequestError as exc:
+            print(f"[ElevenLabs] Request failed — skipping synthesis. {exc!r}")
+            return None
 
         return await self._save_audio(resp.content, patient_id)
 

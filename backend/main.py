@@ -64,7 +64,14 @@ from auth import (
 )
 import auth as auth_module
 from team_store import TeamStore
-from intake_form_parser import parseTranscriptToFormData
+from intake_form_parser import (
+    INTAKE_SECTION_BY_INDEX,
+    apply_health_system_facility_name,
+    merge_intake_ai_patch,
+    parseTranscriptToFormData,
+    reset_intake_section_for_interview_redo,
+)
+from intake_section_chat import accumulate_red_flags_from_section_messages, run_intake_section_turn
 
 # ─── App Setup ────────────────────────────────────────────────
 app = FastAPI(
@@ -93,6 +100,17 @@ def _assert_staff_can_access_patient(patient_id: str, staff: Optional[StaffConte
     d = _patient_store.get(patient_id)
     if not d or (d.get("health_system_id") or "") != staff.tenant_id:
         raise HTTPException(status_code=404, detail="Patient not found")
+
+
+def _facility_display_name_for_patient(patient_id: str) -> str:
+    d = _patient_store.get(patient_id) or {}
+    hs_id = d.get("health_system_id") or ""
+    if hs_id:
+        rec = _team_store.get_health_system_by_id(hs_id)
+        name = (rec or {}).get("name") or ""
+        if str(name).strip():
+            return str(name).strip()
+    return ""
 
 
 def _patient_prep_document(patient_id: str) -> Dict[str, Any]:
@@ -352,10 +370,10 @@ DEFAULT_FORM_LIBRARY: Dict[str, Dict[str, Any]] = {
 }
 
 DEFAULT_FRAMEWORKS: Dict[str, str] = {
-    "Orthopedic": "Ask one question at a time. Cover PEAR for joint/spine symptoms with emphasis on mobility limits and prior orthopedic surgeries.",
-    "Cardiac": "Ask one question at a time. Cover PEAR with emphasis on cardiopulmonary symptoms, exertional tolerance, and anticoagulation history.",
-    "Spine": "Ask one question at a time. Cover PEAR with emphasis on neuro symptoms, radiation pattern, motor weakness, prior spine interventions.",
-    "General Surgery": "Ask one question at a time. Cover PEAR with emphasis on abdominal symptoms, bowel patterns, prior abdominal surgery, infection risk.",
+    "Orthopedic": "Ask one question at a time. Emphasize joint/spine symptoms, mobility limits, and prior orthopedic surgeries.",
+    "Cardiac": "Ask one question at a time. Emphasize cardiopulmonary symptoms, exertional tolerance, and anticoagulation history.",
+    "Spine": "Ask one question at a time. Emphasize neuro symptoms, radiation pattern, motor weakness, and prior spine interventions.",
+    "General Surgery": "Ask one question at a time. Emphasize abdominal symptoms, bowel patterns, prior abdominal surgery, and infection risk.",
 }
 
 
@@ -1337,6 +1355,25 @@ class IntakeFormsPatchBody(BaseModel):
     section: str
     field: str
     value: Any
+
+
+class IntakeSectionMessageBody(BaseModel):
+    section: int
+    message: str = ""
+    conversationHistory: List[Dict[str, Any]] = []
+
+
+class IntakeCompleteSectionBody(BaseModel):
+    section: int
+    """For section 11, pass acknowledgement field values."""
+    acknowledgements: Optional[Dict[str, Any]] = None
+    forceComplete: bool = False
+    """Patient finished reviewing the form for this section (after interview or pre-filled form)."""
+    confirmReview: bool = False
+
+
+class IntakeResetSectionBody(BaseModel):
+    section: int
 
 
 class IntakeFormsSubmitBody(BaseModel):
@@ -2724,15 +2761,14 @@ def _next_missing_lens(session: Dict[str, Any]) -> Optional[str]:
 
 
 def _lens_question(lens: str, specialty: str) -> str:
-    frameworks = _load_frameworks()
-    specialty_note = frameworks.get(specialty) or frameworks.get("General Surgery") or ""
+    _ = specialty  # retained for API compatibility; specialty prompts are not shown to patients here.
     prompts = {
-        "pattern": "Pattern: When did your symptoms start, how have they changed, and what makes them better or worse?",
-        "exposure": "Exposure: What does your daily activity look like (occupation, exercise, repetitive movement, substance use, prior surgeries)?",
-        "anatomy": "Anatomy: Where exactly is the issue, does it radiate anywhere, how severe is it, and what does it stop you from doing?",
-        "root": "Root: Please share age, sex, ethnicity, BMI (if known), family history, current medications, allergies, conditions, and prior anesthesia reactions.",
+        "pattern": "When did your symptoms start, how have they changed, and what makes them better or worse?",
+        "exposure": "What does your daily activity look like (occupation, exercise, repetitive movement, substance use, prior surgeries)?",
+        "anatomy": "Where exactly is the issue, does it radiate anywhere, how severe is it, and what does it stop you from doing?",
+        "root": "Please share age, sex, ethnicity, BMI (if known), family history, current medications, allergies, conditions, and prior anesthesia reactions.",
     }
-    return f"{prompts.get(lens, '')} {specialty_note}".strip()
+    return (prompts.get(lens, "") or "").strip()
 
 
 def _with_disclaimer(text: str) -> str:
@@ -2768,23 +2804,92 @@ async def intake_forms_start_interview(
     if existing and existing.get("status") == "INTERVIEW_IN_PROGRESS":
         return {"intakeFormId": existing["id"], "voiceSessionConfig": None, "status": existing.get("status")}
     form_id = str(uuid.uuid4())
-    empty = parseTranscriptToFormData([], _patient_store.get(patient_id) or {}, _patient_prep_document(patient_id))
+    patient = _patient_store.get(patient_id) or {}
+    empty = parseTranscriptToFormData([], patient, _patient_prep_document(patient_id))
+    form_data = empty.get("formData") or {}
+    apply_health_system_facility_name(form_data, _facility_display_name_for_patient(patient_id))
     created = _team_store.create_intake_form(
         intake_form_id=form_id,
         patient_id=patient_id,
         surgery_id=body.surgeryId,
         status="INTERVIEW_IN_PROGRESS",
-        form_data=empty.get("formData") or {},
+        form_data=form_data,
     )
     return {"intakeFormId": created["id"], "voiceSessionConfig": None, "status": created.get("status")}
 
 
-@app.post("/api/intake-forms/{intake_form_id}/complete-interview")
-async def intake_forms_complete_interview(
+def _patient_intake_context_summary(patient_id: str) -> str:
+    p = _patient_store.get(patient_id) or {}
+    sd = p.get("structured_data") or {}
+    lines = [
+        f"Legal name: {p.get('name', '')}",
+        f"Procedure (scheduled): {sd.get('procedure_name', '')}",
+        f"Procedure date: {sd.get('procedure_date', '')}",
+        f"Surgeon: {sd.get('surgeon_name', '')}",
+        f"Laterality: {sd.get('laterality', '')}",
+        f"Pre-op diagnosis (record): {sd.get('pre_op_diagnosis', '')}",
+        f"Facility (record): {sd.get('facility', '')}",
+        f"Phone: {p.get('phone', '')}",
+    ]
+    return "\n".join(lines)
+
+
+def _migrate_interview_state(istate: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Backfill sectionInterviewComplete / firstPassComplete for older saved interview_state JSON."""
+    istate = dict(istate or {})
+    sic_raw = istate.get("sectionInterviewComplete")
+    sic: Dict[str, Any] = dict(sic_raw) if isinstance(sic_raw, dict) else {}
+    cs = {int(x) for x in (istate.get("completedSections") or []) if str(x).isdigit()}
+    if not sic and cs:
+        for n in range(3, 11):
+            if n in cs:
+                sic[str(n)] = True
+    istate["sectionInterviewComplete"] = sic
+    if istate.get("firstPassComplete") is None:
+        istate["firstPassComplete"] = bool(cs.issuperset(set(range(1, 12))))
+    return istate
+
+
+def _prior_intake_sections_context(form_data: Dict[str, Any], before_section: int) -> str:
+    chunks: List[str] = []
+    for sn in range(1, max(1, before_section)):
+        key = INTAKE_SECTION_BY_INDEX.get(sn)
+        if not key:
+            continue
+        blob = (form_data or {}).get(key)
+        if not blob:
+            continue
+        chunks.append(f"## Prior section {sn} ({key})\n{json.dumps(blob, default=str)}")
+    return "\n\n".join(chunks)[:24000]
+
+
+def _coalesce_intake_form_response(form: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not form:
+        return None
+    out = dict(form)
+    ist = out.get("interview_state")
+    if isinstance(ist, dict):
+        out["interview_state"] = _migrate_interview_state(ist)
+    return out
+
+
+def _all_interview_messages_for_flags(interview_state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    by_sec = interview_state.get("messagesBySection") or {}
+    out: List[Dict[str, Any]] = []
+    for k in sorted(by_sec.keys(), key=lambda x: int(x) if str(x).isdigit() else 0):
+        for m in by_sec.get(k) or []:
+            out.append(m)
+    return out
+
+
+@app.post("/api/intake-forms/{intake_form_id}/interview/section-message")
+async def intake_forms_interview_section_message(
     intake_form_id: str,
-    body: IntakeFormsCompleteInterviewBody,
+    body: IntakeSectionMessageBody,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
+    if staff:
+        raise HTTPException(status_code=403, detail="Only the patient can send intake interview messages here.")
     if not ENABLE_PREOP_INTAKE_BOT_V2:
         raise HTTPException(status_code=503, detail="Pre-op intake bot v2 is disabled.")
     form = _team_store.get_intake_form(intake_form_id)
@@ -2794,6 +2899,309 @@ async def intake_forms_complete_interview(
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
     _assert_staff_can_access_patient(patient_id, staff)
+    if (form.get("status") or "") not in ("INTERVIEW_IN_PROGRESS",):
+        raise HTTPException(status_code=400, detail="Intake interview is not active for this form.")
+
+    section = int(body.section)
+    if section < 3 or section > 10:
+        raise HTTPException(status_code=400, detail="This endpoint handles sections 3 through 10 only.")
+    if not (body.message or "").strip():
+        raise HTTPException(status_code=400, detail="Message is required.")
+
+    istate = _migrate_interview_state(dict(form.get("interview_state") or {}))
+    completed = {int(x) for x in (istate.get("completedSections") or []) if str(x).isdigit()}
+    need_prior = all(i in completed for i in range(1, section))
+    if not need_prior:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Complete sections 1 through {section - 1} before continuing here.",
+        )
+
+    sic = dict(istate.get("sectionInterviewComplete") or {})
+    if sic.get(str(section)):
+        raise HTTPException(
+            status_code=400,
+            detail="Interview for this section is finished. Review your answers on the form and confirm, or use Redo interview.",
+        )
+
+    section_key = INTAKE_SECTION_BY_INDEX[section]
+    form_data = dict(form.get("form_data") or {})
+    current_section_payload = form_data.get(section_key) or {}
+
+    by_sec = dict(istate.get("messagesBySection") or {})
+    sk = str(section)
+    thread = list(by_sec.get(sk) or [])
+    thread.append(
+        {
+            "role": "patient",
+            "text": body.message.strip(),
+            "timestamp": datetime.utcnow().replace(microsecond=0).isoformat(),
+        }
+    )
+
+    patient = _patient_store.get(patient_id) or {}
+    prior_blob = _prior_intake_sections_context(form_data, section)
+    reply, updates, section_complete, err = run_intake_section_turn(
+        section_num=section,
+        patient_name=str(patient.get("name") or "there"),
+        patient_context=_patient_intake_context_summary(patient_id),
+        prior_sections_text=prior_blob,
+        user_message=body.message.strip(),
+        conversation_history=body.conversationHistory or [],
+        current_form_section=current_section_payload,
+    )
+    thread.append(
+        {
+            "role": "assistant",
+            "text": reply,
+            "timestamp": datetime.utcnow().replace(microsecond=0).isoformat(),
+        }
+    )
+    by_sec[sk] = thread
+    istate["messagesBySection"] = by_sec
+    istate["activeSection"] = section
+
+    merge_intake_ai_patch(section_key, updates, form_data)
+
+    all_msgs = _all_interview_messages_for_flags(istate)
+    red_flags = accumulate_red_flags_from_section_messages(all_msgs)
+
+    if section_complete:
+        sic[str(section)] = True
+    istate["sectionInterviewComplete"] = sic
+
+    _team_store.update_intake_form_payload(
+        intake_form_id,
+        form_data=form_data,
+        red_flags=red_flags,
+        conflicts=list(form.get("conflicts") or []),
+        interview_state=istate,
+    )
+
+    return {
+        "reply": reply,
+        "sectionComplete": section_complete,
+        "formData": form_data,
+        "redFlags": red_flags,
+        "interviewState": istate,
+        "error": err or None,
+    }
+
+
+@app.post("/api/intake-forms/{intake_form_id}/interview/complete-section")
+async def intake_forms_interview_complete_section(
+    intake_form_id: str,
+    body: IntakeCompleteSectionBody,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    if staff:
+        raise HTTPException(status_code=403, detail="Only the patient can complete intake sections here.")
+    if not ENABLE_PREOP_INTAKE_BOT_V2:
+        raise HTTPException(status_code=503, detail="Pre-op intake bot v2 is disabled.")
+    form = _team_store.get_intake_form(intake_form_id)
+    if not form:
+        raise HTTPException(status_code=404, detail="Intake form not found")
+    patient_id = form.get("patient_id") or ""
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
+    if (form.get("status") or "") not in ("INTERVIEW_IN_PROGRESS",):
+        raise HTTPException(status_code=400, detail="Intake interview is not active for this form.")
+
+    section = int(body.section)
+    if section < 1 or section > 11:
+        raise HTTPException(status_code=400, detail="Invalid section.")
+
+    istate = _migrate_interview_state(dict(form.get("interview_state") or {}))
+    completed = {int(x) for x in (istate.get("completedSections") or []) if str(x).isdigit()}
+    sic = dict(istate.get("sectionInterviewComplete") or {})
+
+    if section > 1 and not all(i in completed for i in range(1, section)):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Complete section {section - 1} before marking section {section} done.",
+        )
+
+    form_data = dict(form.get("form_data") or {})
+
+    if section in completed:
+        fresh = _team_store.get_intake_form(intake_form_id) or {}
+        return {
+            "ok": True,
+            "interviewState": _migrate_interview_state(dict((fresh.get("interview_state") or {}))),
+            "formData": fresh.get("form_data") or form_data,
+        }
+
+    if 3 <= section <= 10:
+        if body.confirmReview:
+            if not sic.get(str(section)):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Please finish the interview for this section before confirming the form.",
+                )
+            completed.add(section)
+            istate["completedSections"] = sorted(completed)
+            istate["activeSection"] = min(section + 1, 11)
+            cs_full = {int(x) for x in (istate.get("completedSections") or []) if str(x).isdigit()}
+            istate["firstPassComplete"] = bool(cs_full.issuperset(set(range(1, 12))))
+            _team_store.update_intake_form_payload(
+                intake_form_id,
+                form_data=form_data,
+                red_flags=list(form.get("red_flags") or []),
+                conflicts=list(form.get("conflicts") or []),
+                interview_state=istate,
+            )
+            return {"ok": True, "interviewState": istate, "formData": form_data}
+        if body.forceComplete:
+            msgs = (istate.get("messagesBySection") or {}).get(str(section)) or []
+            if len(msgs) < 2 and not sic.get(str(section)):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Have at least one exchange with the assistant before ending this section early.",
+                )
+            sic[str(section)] = True
+            istate["sectionInterviewComplete"] = sic
+            istate["activeSection"] = section
+            _team_store.update_intake_form_payload(
+                intake_form_id,
+                form_data=form_data,
+                red_flags=list(form.get("red_flags") or []),
+                conflicts=list(form.get("conflicts") or []),
+                interview_state=istate,
+            )
+            return {"ok": True, "interviewState": istate, "formData": form_data}
+        raise HTTPException(
+            status_code=400,
+            detail="For sections 3–10 use forceComplete to end the interview early, or confirmReview after reviewing your answers.",
+        )
+
+    if section == 11:
+        ack = body.acknowledgements or {}
+        sec_key = INTAKE_SECTION_BY_INDEX[11]
+        for fk, val in ack.items():
+            if fk in (form_data.get(sec_key) or {}):
+                merge_intake_ai_patch(sec_key, {fk: val}, form_data)
+        info = (form_data.get(sec_key) or {}).get("informationAccurate") or {}
+        if info.get("value") is not True:
+            raise HTTPException(
+                status_code=400,
+                detail="Please confirm that your information is accurate before finishing this section.",
+            )
+        cd_node = (form_data.get(sec_key) or {}).get("completionDate") or {}
+        if isinstance(cd_node, dict):
+            cd_node["value"] = datetime.utcnow().replace(microsecond=0).date().isoformat()
+            cd_node["source"] = "system"
+            form_data[sec_key]["completionDate"] = cd_node
+
+    if section == 1:
+        s1 = form_data.get("section1_demographics") or {}
+        required_keys = (
+            "fullLegalName",
+            "dateOfBirth",
+            "phonePrimary",
+            "emergencyContactName",
+            "emergencyContactPhone",
+        )
+        for rk in required_keys:
+            node = s1.get(rk) or {}
+            val = node.get("value") if isinstance(node, dict) else None
+            if val is None or (isinstance(val, str) and not val.strip()):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Please fill in {rk} before continuing.",
+                )
+
+    completed.add(section)
+    istate["completedSections"] = sorted(completed)
+    istate["activeSection"] = min(section + 1, 11)
+    cs_done = {int(x) for x in (istate.get("completedSections") or []) if str(x).isdigit()}
+    istate["firstPassComplete"] = bool(cs_done.issuperset(set(range(1, 12))))
+
+    _team_store.update_intake_form_payload(
+        intake_form_id,
+        form_data=form_data,
+        red_flags=list(form.get("red_flags") or []),
+        conflicts=list(form.get("conflicts") or []),
+        interview_state=istate,
+    )
+    return {"ok": True, "interviewState": istate, "formData": form_data}
+
+
+@app.post("/api/intake-forms/{intake_form_id}/interview/reset-section")
+async def intake_forms_interview_reset_section(
+    intake_form_id: str,
+    body: IntakeResetSectionBody,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    if staff:
+        raise HTTPException(status_code=403, detail="Only the patient can reset an intake section here.")
+    if not ENABLE_PREOP_INTAKE_BOT_V2:
+        raise HTTPException(status_code=503, detail="Pre-op intake bot v2 is disabled.")
+    form = _team_store.get_intake_form(intake_form_id)
+    if not form:
+        raise HTTPException(status_code=404, detail="Intake form not found")
+    patient_id = form.get("patient_id") or ""
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
+    if (form.get("status") or "") not in ("INTERVIEW_IN_PROGRESS",):
+        raise HTTPException(status_code=400, detail="Intake interview is not active for this form.")
+    section = int(body.section)
+    if section < 3 or section > 10:
+        raise HTTPException(status_code=400, detail="Only sections 3 through 10 can be reset for redo.")
+
+    istate = _migrate_interview_state(dict(form.get("interview_state") or {}))
+    form_data = dict(form.get("form_data") or {})
+    reset_intake_section_for_interview_redo(form_data, section)
+
+    by_sec = dict(istate.get("messagesBySection") or {})
+    by_sec[str(section)] = []
+    istate["messagesBySection"] = by_sec
+    sic = dict(istate.get("sectionInterviewComplete") or {})
+    sic.pop(str(section), None)
+    istate["sectionInterviewComplete"] = sic
+    completed = {int(x) for x in (istate.get("completedSections") or []) if str(x).isdigit()}
+    completed.discard(section)
+    istate["completedSections"] = sorted(completed)
+    istate["activeSection"] = section
+    cs_done = {int(x) for x in (istate.get("completedSections") or []) if str(x).isdigit()}
+    istate["firstPassComplete"] = bool(cs_done.issuperset(set(range(1, 12))))
+
+    _team_store.update_intake_form_payload(
+        intake_form_id,
+        form_data=form_data,
+        red_flags=list(form.get("red_flags") or []),
+        conflicts=list(form.get("conflicts") or []),
+        interview_state=istate,
+    )
+    return {"ok": True, "interviewState": istate, "formData": form_data}
+
+
+@app.post("/api/intake-forms/{intake_form_id}/complete-interview")
+async def intake_forms_complete_interview(
+    intake_form_id: str,
+    body: IntakeFormsCompleteInterviewBody,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    if staff:
+        raise HTTPException(status_code=403, detail="Only the patient can finalize the intake interview.")
+    if not ENABLE_PREOP_INTAKE_BOT_V2:
+        raise HTTPException(status_code=503, detail="Pre-op intake bot v2 is disabled.")
+    form = _team_store.get_intake_form(intake_form_id)
+    if not form:
+        raise HTTPException(status_code=404, detail="Intake form not found")
+    patient_id = form.get("patient_id") or ""
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
+
+    istate = form.get("interview_state") or {}
+    done = set(int(s) for s in (istate.get("completedSections") or []) if str(s).isdigit())
+    if not set(range(1, 12)).issubset(done):
+        raise HTTPException(
+            status_code=400,
+            detail="Complete all 11 intake sections before finalizing the interview.",
+        )
 
     transcript_id = str(uuid.uuid4())
     parsed = parseTranscriptToFormData(
@@ -2810,11 +3218,19 @@ async def intake_forms_complete_interview(
         parsed_data=parsed,
     )
     now = datetime.utcnow().replace(microsecond=0).isoformat()
+    fd = form.get("form_data") or {}
+    merged_red: List[Dict[str, Any]] = list(form.get("red_flags") or [])
+    seen_flags = {str(x.get("flag")) for x in merged_red if x.get("flag")}
+    for r in parsed.get("redFlags") or []:
+        key = str(r.get("flag") or "")
+        if key and key not in seen_flags:
+            merged_red.append(r)
+            seen_flags.add(key)
     _team_store.update_intake_form_payload(
         intake_form_id,
-        form_data=parsed.get("formData") or {},
-        red_flags=parsed.get("redFlags") or [],
-        conflicts=parsed.get("conflicts") or [],
+        form_data=fd,
+        red_flags=merged_red,
+        conflicts=list(form.get("conflicts") or []),
         status="INTERVIEW_COMPLETE",
         completed_at=now,
         interview_transcript_id=transcript_id,
@@ -2825,7 +3241,8 @@ async def intake_forms_complete_interview(
         "FORM_COMPLETED",
         f"Intake interview completed for patient {(_patient_store.get(patient_id) or {}).get('name', patient_id)}.",
     )
-    if parsed.get("redFlags"):
+    prior_red_ct = len(form.get("red_flags") or [])
+    if len(merged_red) > prior_red_ct:
         _create_intake_notifications(
             patient_id,
             intake_form_id,
@@ -2839,9 +3256,9 @@ async def intake_forms_complete_interview(
     )
     return {
         "intakeFormId": intake_form_id,
-        "formData": parsed.get("formData") or {},
-        "redFlags": parsed.get("redFlags") or [],
-        "conflicts": parsed.get("conflicts") or [],
+        "formData": fd,
+        "redFlags": merged_red,
+        "conflicts": list(form.get("conflicts") or []),
     }
 
 
@@ -2859,7 +3276,7 @@ async def intake_forms_get(
         _assert_staff_can_access_patient(patient_id, staff)
     editable = not bool(staff or user)
     return {
-        "intakeForm": form,
+        "intakeForm": _coalesce_intake_form_response(form),
         "readOnly": not editable,
         "editable": editable,
     }
@@ -2874,7 +3291,7 @@ async def intake_forms_latest_for_patient(
         raise HTTPException(status_code=404, detail="Patient not found")
     _assert_staff_can_access_patient(patient_id, staff)
     latest = _team_store.get_latest_intake_form_for_patient(patient_id)
-    return {"patient_id": patient_id, "intake_form": latest}
+    return {"patient_id": patient_id, "intake_form": _coalesce_intake_form_response(latest)}
 
 
 @app.patch("/api/intake-forms/{intake_form_id}")
@@ -2883,8 +3300,15 @@ async def intake_forms_patch(
     body: IntakeFormsPatchBody,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
+    DOCTOR_SECTION2_FIELDS = frozenset(
+        {"procedureCPTCodes", "surgicalSite", "anesthesiologist", "estimatedDuration"},
+    )
     if staff:
-        raise HTTPException(status_code=403, detail="Doctors cannot edit intake forms.")
+        if body.section != "section2_surgicalInfo" or body.field not in DOCTOR_SECTION2_FIELDS:
+            raise HTTPException(
+                status_code=403,
+                detail="Staff may only edit surgical info fields reserved for the care team.",
+            )
     form = _team_store.get_intake_form(intake_form_id)
     if not form:
         raise HTTPException(status_code=404, detail="Intake form not found")
@@ -2898,7 +3322,13 @@ async def intake_forms_patch(
         raise HTTPException(status_code=400, detail="Invalid field payload")
     prev = payload.get("value")
     payload["value"] = body.value
-    payload["source"] = "patient_edited"
+    if staff:
+        payload["source"] = "doctor"
+        editor = f"DOCTOR:{staff.email}"
+    else:
+        payload["source"] = "patient_edited"
+        payload["editedAt"] = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+        editor = "PATIENT"
     form_data[section][field] = payload
     status = form.get("status") or "INTERVIEW_COMPLETE"
     if status == "SUBMITTED":
@@ -2913,13 +3343,13 @@ async def intake_forms_patch(
     _team_store.create_intake_form_edit(
         edit_id=str(uuid.uuid4()),
         intake_form_id=intake_form_id,
-        edited_by="PATIENT",
+        edited_by=editor,
         section_name=section,
         field_key=field,
         previous_value=prev,
         new_value=body.value,
     )
-    if status == "UPDATED":
+    if status == "UPDATED" and not staff:
         patient_id = form.get("patient_id") or ""
         _create_intake_notifications(
             patient_id,
@@ -3052,17 +3482,17 @@ async def preop_intake_answer(body: IntakeAnswerRequest):
             "interview_complete": False,
         }
 
-    library = _load_form_library()
-    template = library.get(specialty) or library.get("General Surgery") or next(iter(library.values()))
-    prefill = _build_prefill_from_session(patient, session, template)
     _team_store.save_preop_intake_session(body.patient_id, session)
     return {
         "patient_id": body.patient_id,
-        "response": "Thanks. I have all four PEAR lenses. I generated your pre-filled intake form preview for review.",
-        "interview_complete": True,
-        "prefill_form": prefill,
+        "response": (
+            "Thanks for those details. Your main intake interview now runs section-by-section on your Pre-Op page "
+            "so answers map cleanly into your surgical intake form."
+        ),
+        "interview_complete": False,
+        "prefill_form": None,
         "specialty": specialty,
-        "template_name": template.get("template_name", "Pre-Op Intake Form"),
+        "template_name": "",
     }
 
 

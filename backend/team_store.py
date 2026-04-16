@@ -230,6 +230,7 @@ class TeamStore:
         with self._conn() as conn:
             self._add_column_if_missing(conn, "episodes", "health_system_id", "TEXT")
             self._add_column_if_missing(conn, "escalations", "health_system_id", "TEXT")
+            self._add_column_if_missing(conn, "intake_forms", "interview_state_json", "TEXT")
 
     @staticmethod
     def _add_column_if_missing(conn: sqlite3.Connection, table: str, col: str, decl: str) -> None:
@@ -940,11 +941,26 @@ class TeamStore:
                 INSERT INTO intake_forms (
                     id, patient_id, surgery_id, status, interview_transcript_id,
                     form_data_json, red_flags_json, conflicts_json, completed_at,
-                    submitted_at, last_edited_at, created_at, updated_at
+                    submitted_at, last_edited_at, created_at, updated_at, interview_state_json
                 )
-                VALUES (?, ?, ?, ?, NULL, ?, '[]', '[]', NULL, NULL, NULL, ?, ?)
+                VALUES (?, ?, ?, ?, NULL, ?, '[]', '[]', NULL, NULL, NULL, ?, ?, ?)
                 """,
-                (intake_form_id, patient_id, surgery_id, status, json.dumps(form_data or {}), now, now),
+                (
+                    intake_form_id,
+                    patient_id,
+                    surgery_id,
+                    status,
+                    json.dumps(form_data or {}),
+                    now,
+                    now,
+                    json.dumps(
+                        {
+                            "activeSection": 1,
+                            "completedSections": [],
+                            "messagesBySection": {},
+                        }
+                    ),
+                ),
             )
         return self.get_intake_form(intake_form_id) or {}
 
@@ -983,34 +999,64 @@ class TeamStore:
         completed_at: Optional[str] = None,
         submitted_at: Optional[str] = None,
         interview_transcript_id: Optional[str] = None,
+        interview_state: Optional[Dict[str, Any]] = None,
     ) -> None:
         now = _utcnow_iso()
         with self._conn() as conn:
-            conn.execute(
-                """
-                UPDATE intake_forms SET
-                    form_data_json = ?,
-                    red_flags_json = ?,
-                    conflicts_json = ?,
-                    status = COALESCE(?, status),
-                    completed_at = COALESCE(?, completed_at),
-                    submitted_at = COALESCE(?, submitted_at),
-                    interview_transcript_id = COALESCE(?, interview_transcript_id),
-                    updated_at = ?
-                WHERE id = ?
-                """,
-                (
-                    json.dumps(form_data or {}),
-                    json.dumps(red_flags or []),
-                    json.dumps(conflicts or []),
-                    status,
-                    completed_at,
-                    submitted_at,
-                    interview_transcript_id,
-                    now,
-                    intake_form_id,
-                ),
-            )
+            if interview_state is not None:
+                conn.execute(
+                    """
+                    UPDATE intake_forms SET
+                        form_data_json = ?,
+                        red_flags_json = ?,
+                        conflicts_json = ?,
+                        status = COALESCE(?, status),
+                        completed_at = COALESCE(?, completed_at),
+                        submitted_at = COALESCE(?, submitted_at),
+                        interview_transcript_id = COALESCE(?, interview_transcript_id),
+                        interview_state_json = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        json.dumps(form_data or {}),
+                        json.dumps(red_flags or []),
+                        json.dumps(conflicts or []),
+                        status,
+                        completed_at,
+                        submitted_at,
+                        interview_transcript_id,
+                        json.dumps(interview_state or {}),
+                        now,
+                        intake_form_id,
+                    ),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE intake_forms SET
+                        form_data_json = ?,
+                        red_flags_json = ?,
+                        conflicts_json = ?,
+                        status = COALESCE(?, status),
+                        completed_at = COALESCE(?, completed_at),
+                        submitted_at = COALESCE(?, submitted_at),
+                        interview_transcript_id = COALESCE(?, interview_transcript_id),
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        json.dumps(form_data or {}),
+                        json.dumps(red_flags or []),
+                        json.dumps(conflicts or []),
+                        status,
+                        completed_at,
+                        submitted_at,
+                        interview_transcript_id,
+                        now,
+                        intake_form_id,
+                    ),
+                )
 
     def list_intake_forms_for_patient(self, patient_id: str) -> List[Dict[str, Any]]:
         with self._conn() as conn:
@@ -1050,6 +1096,18 @@ class TeamStore:
         rec["form_data"] = json.loads(rec.get("form_data_json") or "{}")
         rec["red_flags"] = json.loads(rec.get("red_flags_json") or "[]")
         rec["conflicts"] = json.loads(rec.get("conflicts_json") or "[]")
+        raw_state = rec.get("interview_state_json")
+        if raw_state:
+            try:
+                rec["interview_state"] = json.loads(raw_state) if isinstance(raw_state, str) else (raw_state or {})
+            except json.JSONDecodeError:
+                rec["interview_state"] = {}
+        else:
+            rec["interview_state"] = {
+                "activeSection": 1,
+                "completedSections": [],
+                "messagesBySection": {},
+            }
         return rec
 
     def save_interview_transcript(

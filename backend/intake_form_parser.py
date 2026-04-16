@@ -145,6 +145,32 @@ def _schema() -> Dict[str, Any]:
     }
 
 
+INTAKE_SECTION_BY_INDEX: Dict[int, str] = {
+    1: "section1_demographics",
+    2: "section2_surgicalInfo",
+    3: "section3_medicalHistory",
+    4: "section4_surgicalAnesthesiaHistory",
+    5: "section5_medicationsAllergies",
+    6: "section6_socialHistory",
+    7: "section7_familyHistory",
+    8: "section8_reviewOfSystems",
+    9: "section9_functionalAssessment",
+    10: "section10_dayOfSurgeryReadiness",
+    11: "section11_acknowledgments",
+}
+
+# Fields in section 10 that must not be overwritten by the intake interview model (prep-backed).
+_SECTION10_PREP_ONLY_FIELDS = frozenset(
+    {
+        "preOpInstructionsReceived",
+        "medicationsToHold",
+        "medicationsToTakeMorningOf",
+        "labsImagingCompleted",
+        "preOpClearanceLetters",
+    }
+)
+
+
 def _set_field(form_data: Dict[str, Any], section: str, field: str, value: Any, source: str) -> None:
     sec = form_data.get(section) or {}
     fld = sec.get(field)
@@ -224,17 +250,22 @@ def parseTranscriptToFormData(
     _set_field(form_data, "section1_demographics", "email", patient_record.get("email", ""), "patient_record")
 
     _set_field(form_data, "section2_surgicalInfo", "scheduledProcedure", sd.get("procedure_name", ""), "prep_document")
-    cpt_codes = sd.get("cpt_codes") or prep_document.get("cpt_codes") or []
-    if isinstance(cpt_codes, str):
-        cpt_codes = [s.strip() for s in cpt_codes.split(",") if s.strip()]
-    _set_field(form_data, "section2_surgicalInfo", "procedureCPTCodes", cpt_codes, "prep_document")
+    _set_field(form_data, "section2_surgicalInfo", "procedureCPTCodes", [], "doctor")
+    _set_field(form_data, "section2_surgicalInfo", "surgicalSite", "", "doctor")
+    _set_field(form_data, "section2_surgicalInfo", "laterality", sd.get("laterality") or prep_document.get("laterality", ""), "prep_document")
     _set_field(form_data, "section2_surgicalInfo", "surgeonName", sd.get("surgeon_name", ""), "prep_document")
-    _set_field(form_data, "section2_surgicalInfo", "anesthesiologist", sd.get("anesthesiologist", ""), "prep_document")
+    _set_field(form_data, "section2_surgicalInfo", "anesthesiologist", "", "doctor")
     _set_field(form_data, "section2_surgicalInfo", "scheduledDateTime", sd.get("procedure_date", ""), "prep_document")
-    _set_field(form_data, "section2_surgicalInfo", "facilityLocation", sd.get("facility", ""), "prep_document")
+    _set_field(form_data, "section2_surgicalInfo", "facilityLocation", sd.get("facility", "") or prep_document.get("facility", ""), "prep_document")
     _set_field(form_data, "section2_surgicalInfo", "procedureType", prep_document.get("procedure_type", ""), "prep_document")
-    _set_field(form_data, "section2_surgicalInfo", "estimatedDuration", prep_document.get("estimated_duration", ""), "prep_document")
-    _set_field(form_data, "section2_surgicalInfo", "preOpDiagnosis", prep_document.get("pre_op_diagnosis", ""), "prep_document")
+    _set_field(form_data, "section2_surgicalInfo", "estimatedDuration", "", "doctor")
+    _set_field(
+        form_data,
+        "section2_surgicalInfo",
+        "preOpDiagnosis",
+        prep_document.get("pre_op_diagnosis", "") or sd.get("pre_op_diagnosis", ""),
+        "prep_document",
+    )
 
     # Interview signals.
     if transcript_text:
@@ -305,6 +336,8 @@ def parseTranscriptToFormData(
         for field_name, payload in fields.items():
             if not isinstance(payload, dict):
                 continue
+            if payload.get("source") == "doctor":
+                continue
             if payload.get("value") in ("", None, []) and payload.get("source") not in ("system", "calculated"):
                 payload["source"] = "not_obtained"
                 not_obtained.append(f"{section}.{field_name}")
@@ -319,5 +352,62 @@ def parseTranscriptToFormData(
     }
 
 
+def apply_health_system_facility_name(form_data: Dict[str, Any], facility_name: str) -> None:
+    if not (facility_name or "").strip():
+        return
+    sec = form_data.get("section2_surgicalInfo") or {}
+    fld = sec.get("facilityLocation")
+    if not isinstance(fld, dict):
+        return
+    if str(fld.get("value") or "").strip():
+        return
+    fld["value"] = facility_name.strip()
+    fld["source"] = "health_system"
+
+
+def merge_intake_ai_patch(section_key: str, field_updates: Dict[str, Any], form_data: Dict[str, Any]) -> None:
+    """Deep-merge model output into structured intake fields for one section."""
+    if section_key not in (form_data or {}):
+        return
+    sec = form_data[section_key]
+    for fk, incoming in (field_updates or {}).items():
+        if fk not in sec:
+            continue
+        if section_key == "section10_dayOfSurgeryReadiness" and fk in _SECTION10_PREP_ONLY_FIELDS:
+            continue
+        base = sec[fk]
+        if not isinstance(base, dict):
+            continue
+        if isinstance(incoming, dict):
+            for ik, iv in incoming.items():
+                if ik == "source":
+                    continue
+                if ik in base:
+                    base[ik] = iv
+            if incoming:
+                base["source"] = "interview"
+        else:
+            base["value"] = incoming
+            base["source"] = "interview"
+        sec[fk] = base
+
+
 def to_json(data: Dict[str, Any]) -> str:
     return json.dumps(data, ensure_ascii=True)
+
+
+def reset_intake_section_for_interview_redo(form_data: Dict[str, Any], section_num: int) -> None:
+    """Reset one section to schema defaults for a redo interview; keep prep-backed section 10 fields."""
+    key = INTAKE_SECTION_BY_INDEX.get(section_num)
+    if not key:
+        return
+    base_schema = _schema()
+    if key not in base_schema:
+        return
+    fresh = copy.deepcopy(base_schema[key])
+    if section_num == 10:
+        old = (form_data or {}).get(key) or {}
+        for fld in _SECTION10_PREP_ONLY_FIELDS:
+            if fld in old and isinstance(old[fld], dict):
+                fresh[fld] = copy.deepcopy(old[fld])
+    form_data[key] = fresh

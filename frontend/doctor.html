@@ -1519,7 +1519,7 @@
           <div class="roster-cell muted">${esc(p.phone || "—")}</div>
           <div class="roster-cell muted">${esc(p.email || "—")}</div>
           <div class="roster-cell muted">Day ${esc(p.episode?.currentDay ?? "—")}</div>
-          <div class="roster-cell">${intakeStatusPillHtml(p.intakeFormStatus)}</div>
+          <div class="roster-cell muted">${inferEpisodeType(p) === "pre_op" ? intakeStatusPillHtml(p.intakeFormStatus) : "—"}</div>
         </div>
       `).join("");
       byId("rosterList").querySelectorAll(".roster-row").forEach((row) => {
@@ -1654,6 +1654,8 @@
         interview: "Interview",
         patient_record: "Patient Record",
         prep_document: "Prep Document",
+        doctor: "Care team",
+        health_system: "Hospital / organization",
         "interview|patient_record": "Interview + Patient Record",
         "patient_record|interview": "Patient Record + Interview",
         not_obtained: "NOT OBTAINED",
@@ -1692,6 +1694,7 @@
         if (redFlags.length) {
           html += `<div class="panel"><div class="panel-head">Clinical Red Flags</div><div class="panel-body">${redFlags.map((r) => `<div style="font-size:13px;color:#991b1b;margin-bottom:6px;">• ${esc(r.flag || r)}</div>`).join("")}</div></div>`;
         }
+        const doctorIntakeFields = new Set(["procedureCPTCodes", "surgicalSite", "anesthesiologist", "estimatedDuration"]);
         Object.entries(form.form_data || {}).forEach(([sectionName, fields]) => {
           html += `<div class="panel"><div class="panel-head">${esc(sectionName.replace(/^section\\d+_/, "").replace(/_/g, " "))}</div><div class="panel-body"><div class="stats-grid">`;
           Object.entries(fields || {}).forEach(([fieldKey, payload]) => {
@@ -1701,10 +1704,15 @@
             const source = doctorSourceLabel(payload.source, form.last_edited_at);
             const conflict = conflicts[fullKey];
             const edits = historyByField.get(fullKey) || [];
+            const canEdit = sectionName === "section2_surgicalInfo" && doctorIntakeFields.has(fieldKey);
+            const editInput = canEdit
+              ? `<input type="text" class="doctor-intake-input" data-intake-form-id="${esc(patient.intakeFormId)}" data-section="${esc(sectionName)}" data-field="${esc(fieldKey)}" value="${esc(value === "—" ? "" : value)}" style="margin-top:8px;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:13px;" />`
+              : "";
             html += `<div class="stat">
               <div class="stat-label">${esc(fieldKey.replace(/([A-Z])/g, " $1"))}</div>
               <div class="stat-value">${esc(value)}</div>
               <div style="font-size:11px;color:#64748b;margin-top:4px;">${esc(source)}</div>
+              ${editInput}
               ${conflict ? `<div style="font-size:11px;color:#92400e;margin-top:6px;">Conflict: record "${esc(conflict.recordValue)}" vs patient "${esc(conflict.patientValue)}"</div>` : ""}
               ${edits.length ? `<details style="margin-top:6px;"><summary style="font-size:12px;color:#1d4ed8;cursor:pointer;">View history</summary>${edits.map((e) => `<div style="font-size:11px;color:#475569;margin-top:4px;">${esc(fmt(e.edited_at))}: ${esc(JSON.stringify(e.previous_value))} → ${esc(JSON.stringify(e.new_value))}</div>`).join("")}</details>` : ""}
             </div>`;
@@ -1712,6 +1720,28 @@
           html += "</div></div></div>";
         });
         byId("doctorIntakeBody").innerHTML = html || `<p style="font-size:14px;color:var(--muted);">No intake data found.</p>`;
+        byId("doctorIntakeBody").querySelectorAll(".doctor-intake-input").forEach((inp) => {
+          inp.addEventListener("blur", async () => {
+            const fid = inp.dataset.intakeFormId;
+            const section = inp.dataset.section;
+            const field = inp.dataset.field;
+            let val = inp.value.trim();
+            if (field === "procedureCPTCodes") {
+              val = val ? val.split(",").map((s) => s.trim()).filter(Boolean) : [];
+            }
+            try {
+              await apiJson(`/api/intake-forms/${encodeURIComponent(fid)}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ section, field, value: val }),
+              });
+              inp.style.borderColor = "#86efac";
+            } catch (e) {
+              inp.style.borderColor = "#f87171";
+              showToast(e.message || "Could not save", "error");
+            }
+          });
+        });
       } catch (e) {
         byId("doctorIntakeBody").innerHTML = `<p style="font-size:14px;color:#991b1b;">${esc(e.message || "Could not load intake form.")}</p>`;
       }
