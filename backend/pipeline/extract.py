@@ -46,6 +46,13 @@ Extract the following fields from the EHR sections below and return as JSON:
   },
   "allergies":            ["list"],
   "key_diagnoses":        ["list"],
+  "surgeon_name":         "string — name of the operating/performing surgeon, or null",
+  "surgical_site":        "string — body part or anatomical location of the procedure, or null",
+  "laterality":           "string — 'left' | 'right' | 'bilateral' | null",
+  "facility":             "string — hospital or surgical facility name, or null",
+  "anesthesiologist":     "string — name of the anesthesiologist, or null",
+  "estimated_duration":   "string — estimated length of surgery, or null",
+  "pre_op_diagnosis":     "string — documented pre-operative diagnosis, or null",
   "primary_concern":      "string — documented patient worry, or null",
   "note_type":            "'pre_op_note' | 'discharge_note' | 'post_op_visit' | 'unknown'",
   "missing_critical_data":["list of important fields that are absent"]

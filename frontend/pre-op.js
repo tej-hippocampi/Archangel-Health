@@ -252,23 +252,8 @@ function chatHistoryForApi() {
 function renderStepper() {
   const el = document.getElementById("intakeStepper");
   if (!el) return;
-  el.style.display = "flex";
+  el.style.display = "none";
   el.innerHTML = "";
-  for (let n = 1; n <= 11; n += 1) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "intake-step";
-    btn.setAttribute("aria-label", `Section ${n} ${SECTION_TITLES[n]}, ${sectionStatusText(n)}`);
-    btn.textContent = `${n}. ${SECTION_TITLES[n]}`;
-    if (activeSectionNum === n) btn.classList.add("active");
-    if (sectionCompleted(n)) btn.classList.add("done");
-    if (n >= 3 && n <= 10 && sectionInterviewCompleteFor(n) && !sectionCompleted(n)) btn.classList.add("review");
-    if (!sectionUnlocked(n)) btn.classList.add("locked");
-    if (sectionUnlocked(n)) {
-      btn.addEventListener("click", () => selectSection(n));
-    }
-    el.appendChild(btn);
-  }
 }
 
 function selectSection(n) {
@@ -297,6 +282,7 @@ function renderSidebar() {
     btn.className = "intake-nav-item";
     btn.setAttribute("aria-label", `Section ${n} ${SECTION_TITLES[n]}, ${sectionStatusText(n)}`);
     if (activeSectionNum === n) btn.classList.add("active");
+    if (sectionCompleted(n) && activeSectionNum !== n) btn.classList.add("done");
     if (!sectionUnlocked(n)) btn.classList.add("locked");
     if (sectionUnlocked(n)) {
       btn.addEventListener("click", () => selectSection(n));
@@ -588,14 +574,14 @@ function scrollInterviewComposerIntoView() {
 function sectionChatIntro(n) {
   const name = PATIENT.name || "there";
   const lines = {
-    3: `Hi ${name}, I'm going to ask a few questions about your medical history. I'll type one question at a time — please answer in your own words in the box below.`,
-    4: `Next I'd like to ask about prior surgeries and anesthesia. Answer below whenever you're ready.`,
-    5: `Let's go through your medications, supplements, and allergies. Use the text box below to reply.`,
-    6: `Now a few questions about social history — tobacco, alcohol, work, and support at home. Reply in the box below.`,
-    7: `Let's cover family history that may matter for surgery or anesthesia. Type your answers below.`,
-    8: `I'd like a quick review of how you've been feeling across different body systems. Reply below.`,
-    9: `A few questions about day-to-day function, falls, and advance care planning. Reply below.`,
-    10: `Let's confirm transportation, fasting (NPO), and day-of-surgery readiness. Reply below.`,
+    3: `Hi ${name}, in this section I'll ask about your medical history. Let's start — do you have any ongoing medical conditions like diabetes, high blood pressure, heart disease, or lung problems?`,
+    4: `Now I'd like to ask about past surgeries and anesthesia. Have you ever had any surgical procedures before?`,
+    5: `In this section we're asking about your medications and allergies. Let's start — are you currently taking any prescription medications?`,
+    6: `Now I have a few questions about your daily life. Our first question is — do you currently smoke or use any tobacco products, including vaping?`,
+    7: `In this section we're asking about your family's health history. Does anyone in your immediate family — parents, siblings, or children — have heart disease, diabetes, or cancer?`,
+    8: `Now I'd like to do a quick check on how you've been feeling lately. Have you had any recent changes in your energy level, unexplained weight changes, or fevers?`,
+    9: `In this section we're asking about your day-to-day function. How would you describe your typical activity level — can you walk up a flight of stairs without getting short of breath?`,
+    10: `Let's make sure you're all set for the day of surgery. Do you have a ride arranged to and from the hospital?`,
   };
   return lines[n] || "Reply in the text box below when you're ready.";
 }
@@ -636,8 +622,14 @@ function renderAcknowledgementsPane() {
     intakeForm = refreshed.intake_form;
     assignInterviewState(intakeForm.interview_state || interviewState);
     renderNav();
-    document.getElementById("finalizeInterviewBtn").style.display = "inline-block";
     renderSectionPane();
+    if (allSectionsComplete()) {
+      const ga = document.getElementById("intakeGlobalActions");
+      if (ga) ga.style.display = "block";
+      document.getElementById("finalizeInterviewBtn").style.display = "inline-block";
+      document.getElementById("saveFormBtn").style.display = "none";
+      document.getElementById("submitFormBtn").style.display = "none";
+    }
   });
 }
 
@@ -699,6 +691,8 @@ function renderSectionPane() {
     phaseHdr.innerHTML = "";
   }
   if (actionsHost) actionsHost.innerHTML = "";
+  const globalActions = document.getElementById("intakeGlobalActions");
+  if (globalActions) globalActions.style.display = "none";
   document.getElementById("intakeSectionPane").innerHTML = "";
 
   if (activeSectionNum === 1) {
@@ -716,14 +710,9 @@ function renderSectionPane() {
     const done = sectionCompleted(activeSectionNum);
 
     if (!sic) {
-      const focusLine = SECTION_FOCUS_LINES[activeSectionNum] || "";
       if (phaseHdr) {
         phaseHdr.style.display = "block";
-        phaseHdr.innerHTML = `<strong>Section ${activeSectionNum}: ${esc(SECTION_TITLES[activeSectionNum])}</strong><br/><span style="font-weight:400;">Chat with the care assistant. Your answers will fill in this section of the form.</span>${
-          focusLine
-            ? `<br/><span style="font-weight:400;font-size:14px;color:#64748b;margin-top:6px;display:inline-block;">${esc(focusLine)}</span>`
-            : ""
-        }`;
+        phaseHdr.innerHTML = `<strong>Section ${activeSectionNum}: ${esc(SECTION_TITLES[activeSectionNum])}</strong>`;
       }
       chatRow.style.display = "block";
       clearChat();
@@ -748,10 +737,13 @@ function renderSectionPane() {
     preview.style.display = "block";
     renderSectionPreviewOnly(SECTION_NUM_TO_KEY[activeSectionNum]);
     if (!done) {
+      const nextNum = activeSectionNum + 1;
+      const nextTitle = SECTION_TITLES[nextNum] || "";
       const confirmBtn = document.createElement("button");
       confirmBtn.type = "button";
       confirmBtn.className = "preop-btn primary";
-      confirmBtn.textContent = "Confirm & continue";
+      confirmBtn.style.width = "100%";
+      confirmBtn.textContent = `Confirm & continue to Section ${nextNum}${nextTitle ? ": " + nextTitle : ""}`;
       confirmBtn.addEventListener("click", confirmActiveSectionReview);
       actionsHost.appendChild(confirmBtn);
     } else {
@@ -762,28 +754,6 @@ function renderSectionPane() {
       p.textContent = "You have confirmed this section. You can still edit fields above if something changes.";
       actionsHost.appendChild(p);
     }
-    const redo = document.createElement("button");
-    redo.type = "button";
-    redo.className = "preop-btn";
-    redo.textContent = "Redo interview for this section";
-    redo.addEventListener("click", async () => {
-      if (!window.confirm("This clears this section's chat and answers so you can start the interview again. Continue?")) return;
-      try {
-        await apiJson(`/api/intake-forms/${encodeURIComponent(intakeFormId)}/interview/reset-section`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ section: activeSectionNum }),
-        });
-        const refreshed = await apiJson(`/api/intake-forms/latest/${encodeURIComponent(PATIENT.id)}`);
-        intakeForm = refreshed.intake_form;
-        assignInterviewState(intakeForm.interview_state || interviewState);
-        renderNav();
-        renderSectionPane();
-      } catch (e) {
-        window.alert(e.message || "Could not reset this section.");
-      }
-    });
-    actionsHost.appendChild(redo);
     renderNav();
     return;
   }
@@ -955,10 +925,6 @@ async function loadLatestIntakeForm() {
       if (["INTERVIEW_COMPLETE", "SUBMITTED", "UPDATED"].includes(intakeForm.status || "")) {
         document.getElementById("intakePreview").style.display = "block";
         renderIntakeForm();
-      }
-      if (intakeForm.status === "INTERVIEW_IN_PROGRESS") {
-        const ga = document.getElementById("intakeGlobalActions");
-        if (ga) ga.style.display = "block";
       }
       if (intakeForm.status === "INTERVIEW_IN_PROGRESS" && allSectionsComplete()) {
         const fin = document.getElementById("finalizeInterviewBtn");
@@ -1169,8 +1135,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("startPearBtn").addEventListener("click", async () => {
     document.getElementById("pearShell").classList.add("active");
-    document.getElementById("intakeGlobalActions").style.display = "block";
     if (["INTERVIEW_COMPLETE", "SUBMITTED", "UPDATED"].includes(intakeStatus) && intakeForm) {
+      document.getElementById("intakeGlobalActions").style.display = "block";
       document.getElementById("intakePreview").style.display = "block";
       renderIntakeForm();
       return;

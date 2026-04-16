@@ -250,15 +250,15 @@ def parseTranscriptToFormData(
     _set_field(form_data, "section1_demographics", "email", patient_record.get("email", ""), "patient_record")
 
     _set_field(form_data, "section2_surgicalInfo", "scheduledProcedure", sd.get("procedure_name", ""), "prep_document")
-    _set_field(form_data, "section2_surgicalInfo", "procedureCPTCodes", [], "doctor")
-    _set_field(form_data, "section2_surgicalInfo", "surgicalSite", "", "doctor")
+    _set_field(form_data, "section2_surgicalInfo", "procedureCPTCodes", sd.get("cpt_codes") or prep_document.get("cpt_codes") or [], "doctor")
+    _set_field(form_data, "section2_surgicalInfo", "surgicalSite", sd.get("surgical_site", "") or prep_document.get("procedure_site", ""), "prep_document")
     _set_field(form_data, "section2_surgicalInfo", "laterality", sd.get("laterality") or prep_document.get("laterality", ""), "prep_document")
-    _set_field(form_data, "section2_surgicalInfo", "surgeonName", sd.get("surgeon_name", ""), "prep_document")
-    _set_field(form_data, "section2_surgicalInfo", "anesthesiologist", "", "doctor")
+    _set_field(form_data, "section2_surgicalInfo", "surgeonName", sd.get("surgeon_name", "") or prep_document.get("surgeon_name", ""), "prep_document")
+    _set_field(form_data, "section2_surgicalInfo", "anesthesiologist", sd.get("anesthesiologist", "") or prep_document.get("anesthesiologist", ""), "prep_document")
     _set_field(form_data, "section2_surgicalInfo", "scheduledDateTime", sd.get("procedure_date", ""), "prep_document")
     _set_field(form_data, "section2_surgicalInfo", "facilityLocation", sd.get("facility", "") or prep_document.get("facility", ""), "prep_document")
     _set_field(form_data, "section2_surgicalInfo", "procedureType", prep_document.get("procedure_type", ""), "prep_document")
-    _set_field(form_data, "section2_surgicalInfo", "estimatedDuration", "", "doctor")
+    _set_field(form_data, "section2_surgicalInfo", "estimatedDuration", sd.get("estimated_duration", "") or prep_document.get("estimated_duration", ""), "prep_document")
     _set_field(
         form_data,
         "section2_surgicalInfo",
