@@ -16,7 +16,7 @@ import httpx
 class ElevenLabsClient:
     BASE_URL = "https://api.elevenlabs.io/v1"
 
-    DEFAULT_VOICE_ID = "l4Coq6695JDX9xtLqXDE"
+    DEFAULT_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 
     def __init__(self) -> None:
         self.api_key  = os.getenv("ELEVENLABS_API_KEY")
