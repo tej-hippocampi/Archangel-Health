@@ -249,6 +249,29 @@
     }
     .stat-value { font-size: 14px; font-weight: 600; line-height: 1.35; }
 
+    .surgery-timeline { display: flex; gap: 10px; margin: 14px 0; }
+    .timeline-box {
+      flex: 1;
+      border: 2px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: #fafafa;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    .timeline-box .t-label { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #94a3b8; }
+    .timeline-box .t-range { font-size: 11px; font-weight: 600; color: #94a3b8; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .timeline-box .t-countdown { font-size: 12px; color: #64748b; margin-top: 6px; }
+    .timeline-box.active-t96 { border-color: #fbbf24; background: #fffbeb; box-shadow: 0 0 0 1px #fbbf24, 0 2px 8px rgba(251, 191, 36, 0.15); }
+    .timeline-box.active-t96 .t-label { color: #b45309; }
+    .timeline-box.active-t96 .t-range { color: #92400e; }
+    .timeline-box.active-t48 { border-color: #fb923c; background: #fff7ed; box-shadow: 0 0 0 1px #fb923c, 0 2px 8px rgba(251, 146, 60, 0.15); }
+    .timeline-box.active-t48 .t-label { color: #c2410c; }
+    .timeline-box.active-t48 .t-range { color: #9a3412; }
+    .timeline-box.active-t24 { border-color: #f87171; background: #fef2f2; box-shadow: 0 0 0 1px #f87171, 0 2px 8px rgba(248, 113, 113, 0.2); }
+    .timeline-box.active-t24 .t-label { color: #dc2626; }
+    .timeline-box.active-t24 .t-range { color: #991b1b; }
+
     .actions-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 
     .calendar-grid {
@@ -920,6 +943,12 @@
             <div class="stats-grid" id="preopStatsGrid"></div>
           </div>
         </div>
+        <div class="panel">
+          <div class="panel-head"><span>Surgical Preparation Window</span></div>
+          <div class="panel-body">
+            <div id="surgeryTimelineRow"></div>
+          </div>
+        </div>
         <div class="panel" style="margin-bottom:0;">
           <div class="panel-head"><span>Prep Materials</span></div>
           <div class="panel-body">
@@ -1073,6 +1102,30 @@
 
     function byId(id) { return document.getElementById(id); }
     function esc(str) { return String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+    function computeSurgeryWindow(dateStr) {
+      if (!dateStr) return null;
+      const surgeryMs = Date.parse(dateStr);
+      if (Number.isNaN(surgeryMs)) return null;
+      const hoursUntil = (surgeryMs - Date.now()) / 3600000;
+      if (hoursUntil <= 0) return null;
+      if (hoursUntil <= 24) return "t24";
+      if (hoursUntil <= 48) return "t48";
+      if (hoursUntil <= 96) return "t96";
+      return null;
+    }
+
+    function formatCountdown(dateStr) {
+      if (!dateStr) return "";
+      const surgeryMs = Date.parse(dateStr);
+      if (Number.isNaN(surgeryMs)) return "";
+      const hoursUntil = (surgeryMs - Date.now()) / 3600000;
+      if (hoursUntil <= 0) return "Surgery date has passed";
+      const days = Math.floor(hoursUntil / 24);
+      const hrs = Math.floor(hoursUntil % 24);
+      if (days > 0) return `Surgery in ${days}d ${hrs}h`;
+      return `Surgery in ${hrs}h`;
+    }
     function initials(name) {
       const parts = String(name || "").trim().split(/\s+/).slice(0, 2);
       return parts.map((p) => p[0]?.toUpperCase() || "").join("") || "DR";
@@ -1145,6 +1198,8 @@
           watched: episodeType === "pre_op" ? episodeDay >= 2 : episodeDay >= 3,
           chatted: episodeType === "post_op" ? sev.total > 0 || episodeDay >= 5 : false,
           inSurgery: episodeType === "pre_op" && episodeDay <= 3,
+          surgeryDate: p.date || "",
+          surgeryWindow: episodeType === "pre_op" ? computeSurgeryWindow(p.date) : null,
           status: String(p?.episode?.status || "open").toLowerCase() === "open" ? "Active" : "Closed",
         };
       });
@@ -1260,8 +1315,14 @@
         <div class="analytics-stat"><div class="k">In surgery (in hospital)</div><div class="v">${rows.filter((r) => r.inSurgery).length}</div></div>
       `;
 
+      const t96Count = preRows.filter((r) => r.surgeryWindow === "t96").length;
+      const t48Count = preRows.filter((r) => r.surgeryWindow === "t48").length;
+      const t24Count = preRows.filter((r) => r.surgeryWindow === "t24").length;
       byId("analyticsPreopStats").innerHTML = `
         <div class="analytics-stat"><div class="k">Total pre-op patients</div><div class="v">${preRows.length}</div></div>
+        <div class="analytics-stat" style="border-left:3px solid #fbbf24;"><div class="k">T-96 (96-48h)</div><div class="v">${t96Count}</div></div>
+        <div class="analytics-stat" style="border-left:3px solid #fb923c;"><div class="k">T-48 (48-24h)</div><div class="v">${t48Count}</div></div>
+        <div class="analytics-stat" style="border-left:3px solid #f87171;"><div class="k">T-24 (&lt;24h)</div><div class="v">${t24Count}</div></div>
         <div class="analytics-stat"><div class="k">Intake form completed</div><div class="v">${preRows.filter((r) => r.intakeCompleted).length}</div></div>
         <div class="analytics-stat"><div class="k">Opened platform</div><div class="v">${preRows.filter((r) => r.opened).length}</div></div>
         <div class="analytics-stat"><div class="k">Completed pre-op video</div><div class="v">${preRows.filter((r) => r.watched).length}</div></div>
@@ -1632,14 +1693,31 @@
       selectedPreopPatient = patient;
       byId("preopDetailModalTitle").textContent = `${patient.name} Pre-Op Detail`;
       byId("preopDetailHeading").textContent = `${patient.name} Pre-Op Preparation`;
+      const countdown = formatCountdown(patient.date);
       const rows = [
         ["Scheduled Surgery Date", patient.date || "—"],
         ["Procedure Type", patient.procedure || "—"],
         ["Intake Status", patient.intakeFormStatus || "NOT_STARTED"],
       ];
+      if (countdown) rows.push(["Countdown", countdown]);
       byId("preopStatsGrid").innerHTML = rows.map(([k, v]) => `
         <div class="stat"><div class="stat-label">${esc(k)}</div><div class="stat-value">${esc(v)}</div></div>
       `).join("");
+      const activeWindow = computeSurgeryWindow(patient.date);
+      const boxes = [
+        { key: "t96", label: "T-96", range: "96 - 48 hours" },
+        { key: "t48", label: "T-48", range: "48 - 24 hours" },
+        { key: "t24", label: "T-24", range: "Under 24 hours" },
+      ];
+      const timelineEl = byId("surgeryTimelineRow");
+      if (timelineEl) {
+        timelineEl.innerHTML = `<div class="surgery-timeline">${boxes.map((b) => `
+          <div class="timeline-box${activeWindow === b.key ? ` active-${b.key}` : ""}">
+            <div class="t-label">${b.label}</div>
+            <div class="t-range">${b.range}</div>
+          </div>
+        `).join("")}</div>`;
+      }
       updatePrepSendButtonState(pid);
       const viewIntakeBtn = byId("viewIntakeFormBtn");
       if (viewIntakeBtn) {
