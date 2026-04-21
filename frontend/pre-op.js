@@ -163,6 +163,14 @@ async function apiJson(path, options = {}) {
   return data;
 }
 
+function logPatientEvent(eventType, payload = {}) {
+  return apiJson(`/api/patient/${encodeURIComponent(PATIENT.id)}/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event_type: eventType, payload }),
+  }).catch(() => {});
+}
+
 const STATUS_LABELS = {
   NOT_STARTED: "Not Started",
   INTERVIEW_IN_PROGRESS: "In Progress",
@@ -1151,6 +1159,7 @@ document.addEventListener("DOMContentLoaded", () => {
             body: JSON.stringify({ patientId: PATIENT.id, surgeryId: PATIENT.id }),
           });
           intakeFormId = started.intakeFormId;
+          logPatientEvent("intake_started", {});
         }
         const refreshed = await apiJson(`/api/intake-forms/latest/${encodeURIComponent(PATIENT.id)}`);
         intakeForm = refreshed.intake_form;
@@ -1206,6 +1215,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       intakeForm = { ...intakeForm, form_data: completed.formData, red_flags: completed.redFlags, conflicts: completed.conflicts };
       setStatus("INTERVIEW_COMPLETE");
+      logPatientEvent("intake_completed", {});
       document.getElementById("finalizeInterviewBtn").style.display = "none";
       document.getElementById("intakePreview").style.display = "block";
       renderIntakeForm();

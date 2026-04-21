@@ -5,6 +5,7 @@ FastAPI backend: EHR → Pipeline → Dashboard → SMS
 
 import asyncio
 import os
+import time
 import re
 from pathlib import Path
 import json
@@ -64,6 +65,16 @@ from auth import (
 )
 import auth as auth_module
 from team_store import TeamStore
+from preop_survey import (
+    WINDOW_SURVEY_DAY,
+    compute_window_tier,
+    hours_until_surgery,
+    parse_surgery_datetime,
+    preop_escalation_trigger,
+    questions_for_window,
+    score_preop_survey,
+    survey_window_state,
+)
 from intake_form_parser import (
     INTAKE_SECTION_BY_INDEX,
     apply_health_system_facility_name,
@@ -1298,6 +1309,16 @@ class SurveySubmitRequest(BaseModel):
     answers: List[dict]
 
 
+class PreOpSurveySubmitBody(BaseModel):
+    patient_id: str
+    window: str
+    answers: List[dict]
+
+
+class PreOpWindowActionBody(BaseModel):
+    action: str
+
+
 class EscalationResolveRequest(BaseModel):
     resolved: bool
 
@@ -1533,6 +1554,69 @@ async def patient_by_codes(
     raise HTTPException(status_code=404, detail="No patient found for these codes. Check and try again.")
 
 
+async def _maybe_trigger_preop_outreach(app: FastAPI) -> None:
+    now_m = time.monotonic()
+    last = getattr(app.state, "last_preop_outreach_mono", 0.0)
+    if now_m - last < 900:
+        return
+    app.state.last_preop_outreach_mono = now_m
+    try:
+        await _run_preop_survey_outreach()
+    except Exception as e:
+        print(f"[preop-outreach] {e}")
+
+
+async def _run_preop_survey_outreach() -> None:
+    base = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
+    now_dt = datetime.utcnow()
+    for pid, d in _patient_store.items():
+        if (d.get("pipeline_type") or "").lower() != "pre_op":
+            continue
+        sd = d.get("structured_data") or {}
+        surgery = parse_surgery_datetime(sd.get("procedure_date") or "")
+        if not surgery:
+            continue
+        email = (d.get("email") or "").strip()
+        phone_raw = (d.get("phone") or "").strip()
+        h = hours_until_surgery(surgery, now_dt)
+        for window in ("t96", "t48", "t24"):
+            if survey_window_state(window, h) != "open":
+                continue
+            survey_day = WINDOW_SURVEY_DAY[window]
+            if _team_store.has_survey_send(pid, survey_day):
+                continue
+            link = f"{base}/static/preop-survey.html?window={window}&patient={pid}"
+            label = {"t96": "T-96h", "t48": "T-48h", "t24": "T-24h"}[window]
+            html_body = (
+                f"<p>Your pre-operative readiness survey ({label}) is ready.</p>"
+                f"<p><a href='{html_lib.escape(link, quote=True)}'>Complete survey</a></p>"
+                "<p>This helps your care team keep your surgery on track.</p>"
+            )
+            delivered = False
+            if email and is_email_transport_configured():
+                delivered = bool(
+                    await _send_html_email(
+                        email,
+                        f"Pre-Op Readiness Survey ({label}) - Archangel Health",
+                        html_body,
+                    )
+                )
+            if not delivered and phone_raw:
+                try:
+                    body = f"Archangel Health: complete your pre-op survey ({label}): {link}"
+                    TwilioClient().send(to=phone_raw, body=body[:1500])
+                    delivered = True
+                except Exception:
+                    pass
+            if delivered:
+                _team_store.mark_survey_sent(pid, survey_day)
+                _team_store.log_event(
+                    patient_id=pid,
+                    event_type="preop_survey_sent",
+                    payload={"window": window, "survey_day": survey_day},
+                )
+
+
 # ─── Doctor Portal ────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
 async def doctor_portal(request: Request):
@@ -1546,8 +1630,12 @@ async def doctor_portal(request: Request):
 
 
 @app.get("/api/patients")
-async def list_patients(staff: Optional[StaffContext] = Depends(get_staff_context_optional)):
+async def list_patients(
+    request: Request,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     """Return all patients in the store for the doctor roster."""
+    await _maybe_trigger_preop_outreach(request.app)
     patients = []
     for pid, d in _patient_store.items():
         if staff and staff.source == "tenant" and staff.tenant_id:
@@ -1565,7 +1653,7 @@ async def list_patients(staff: Optional[StaffContext] = Depends(get_staff_contex
         open_dt = date.fromisoformat(episode["open_date"])
         day_in_episode = max(1, (date.today() - open_dt).days + 1)
         day_in_episode = min(day_in_episode, 30)
-        patients.append({
+        row = {
             "id": pid,
             "name": d.get("name", "Unknown"),
             "procedure": sd.get("procedure_name", ""),
@@ -1585,7 +1673,14 @@ async def list_patients(staff: Optional[StaffContext] = Depends(get_staff_contex
                 "status": episode["status"],
                 "currentDay": day_in_episode,
             },
-        })
+        }
+        if (d.get("pipeline_type") or "").lower() == "pre_op" and parse_surgery_datetime(sd.get("procedure_date") or ""):
+            row["windows"] = {
+                "t96": compute_window_tier(patient_id=pid, window="t96", team_store=_team_store, patient_dict=d),
+                "t48": compute_window_tier(patient_id=pid, window="t48", team_store=_team_store, patient_dict=d),
+                "t24": compute_window_tier(patient_id=pid, window="t24", team_store=_team_store, patient_dict=d),
+            }
+        patients.append(row)
     return {"patients": patients}
 
 
@@ -1628,6 +1723,9 @@ async def track_patient_event(
         "survey_pending",
         "survey_completed",
         "sms_sent",
+        "intake_started",
+        "intake_completed",
+        "preop_survey_opened",
     }
     event_type = (body.event_type or "").strip()
     if event_type not in allowed:
@@ -1699,7 +1797,12 @@ async def get_patient_timeline(
         )
     survey_responses = _team_store.get_survey_responses(patient_id)
     for sr in survey_responses:
+        st = str(sr.get("survey_type") or "postop")
+        if st != "postop":
+            continue
         day = int(sr["survey_day"])
+        if day < 1 or day > 30:
+            continue
         markers[str(day)].append(
             {
                 "id": sr["id"],
@@ -1881,6 +1984,227 @@ async def submit_survey(body: SurveySubmitRequest):
         payload={"survey_day": day, "tier": score_info["tier"]},
     )
     return {"ok": True, "patient_id": patient_id}
+
+
+def _preop_window_answer_map(answers: List[Dict[str, Any]]) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for a in answers or []:
+        qid = str(a.get("id") or a.get("question_id") or "").strip()
+        if not qid:
+            continue
+        out[qid] = str(a.get("response") or a.get("value") or "").strip()
+    return out
+
+
+def _build_preop_window_detail(patient_id: str, window: str) -> Dict[str, Any]:
+    w = (window or "").lower()
+    if w not in WINDOW_SURVEY_DAY:
+        raise HTTPException(status_code=400, detail="window must be t96, t48, or t24")
+    d = _patient_store[patient_id]
+    sd = d.get("structured_data") or {}
+    surgery = parse_surgery_datetime(sd.get("procedure_date") or "")
+    qs = questions_for_window(w, sd)
+    day = WINDOW_SURVEY_DAY[w]
+    row = _team_store.get_survey_response(patient_id, day, survey_type="preop")
+    answers = (row or {}).get("answers") or []
+    by_id = _preop_window_answer_map(answers)
+    scored = None
+    if answers and surgery:
+        scored = score_preop_survey(w, answers, surgery, sd)
+    per_red = {str(p["id"]): bool(p.get("red")) for p in (scored or {}).get("per_question", []) if p.get("id")}
+    questions_out = []
+    for q in qs:
+        qid = q["id"]
+        ans = by_id.get(qid, "")
+        questions_out.append(
+            {
+                "id": qid,
+                "text": q.get("text"),
+                "type": q.get("type"),
+                "options": q.get("options") or [],
+                "patient_answer": ans,
+                "highlight_red": bool(per_red.get(qid)),
+            }
+        )
+    tier_info = compute_window_tier(patient_id=patient_id, window=w, team_store=_team_store, patient_dict=d)
+    h = tier_info.get("hours_until_surgery")
+    sw = tier_info.get("survey_window")
+    msg = ""
+    if tier_info.get("survey_submitted"):
+        msg = "Survey completed."
+    elif sw == "not_yet_open":
+        oi = tier_info.get("opens_in_hours")
+        if oi is not None and h is not None:
+            msg = f"Survey not yet available. Opens in about {int(oi)}h."
+    elif sw == "open":
+        msg = "Due now — patient has not responded."
+    else:
+        msg = "Survey window closed; no response on file."
+    return {
+        "patient_id": patient_id,
+        "window": w,
+        "procedure_date": sd.get("procedure_date", ""),
+        "summary": tier_info,
+        "questions": questions_out,
+        "survey_scoring": scored,
+        "status_message": msg,
+    }
+
+
+@app.get("/api/preop-survey/questions")
+async def get_preop_survey_questions(window: str, patient_id: Optional[str] = None):
+    w = (window or "").lower()
+    sd: Dict[str, Any] = {}
+    if patient_id and patient_id in _patient_store:
+        sd = _patient_store[patient_id].get("structured_data") or {}
+    try:
+        qs = questions_for_window(w, sd)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    surgery = parse_surgery_datetime(sd.get("procedure_date") or "")
+    return {
+        "window": w,
+        "questions": qs,
+        "procedure_date": sd.get("procedure_date"),
+        "surgery_display": surgery.isoformat() if surgery else None,
+    }
+
+
+@app.post("/api/preop-survey/submit")
+async def submit_preop_survey(body: PreOpSurveySubmitBody):
+    w = (body.window or "").lower()
+    if w not in WINDOW_SURVEY_DAY:
+        raise HTTPException(status_code=400, detail="window must be t96, t48, or t24")
+    pid = (body.patient_id or "").strip()
+    if pid not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    d = _patient_store[pid]
+    sd = d.get("structured_data") or {}
+    surgery = parse_surgery_datetime(sd.get("procedure_date") or "")
+    if not surgery:
+        raise HTTPException(status_code=400, detail="Scheduled surgery date required")
+    h = hours_until_surgery(surgery, datetime.utcnow())
+    if survey_window_state(w, h) != "open":
+        raise HTTPException(status_code=400, detail="Survey window is not open for this patient")
+    day = WINDOW_SURVEY_DAY[w]
+    partial_row = {"answers": body.answers, "answers_json": json.dumps(body.answers)}
+    tier_info = compute_window_tier(
+        patient_id=pid, window=w, team_store=_team_store, patient_dict=d, survey_row=partial_row
+    )
+    prev_row = _team_store.get_survey_response(pid, day, survey_type="preop")
+    prev_tier = None
+    if prev_row:
+        prev_tier = compute_window_tier(
+            patient_id=pid, window=w, team_store=_team_store, patient_dict=d, survey_row=prev_row
+        ).get("tier")
+    score_survey = score_preop_survey(w, body.answers, surgery, sd)
+    _team_store.save_survey_response(
+        patient_id=pid,
+        survey_day=day,
+        answers=body.answers,
+        score=tier_info.get("score"),
+        tier=tier_info.get("tier"),
+        survey_type="preop",
+    )
+    _team_store.log_event(
+        patient_id=pid,
+        event_type="preop_survey_completed",
+        payload={
+            "window": w,
+            "tier": tier_info.get("tier"),
+            "score": tier_info.get("score"),
+            "survey_score": tier_info.get("survey_score"),
+        },
+    )
+    if tier_info.get("tier") == "red":
+        trig = preop_escalation_trigger(w)
+        if not _team_store.has_open_escalation(pid, trig):
+            esc_tier = 2 if w == "t24" else 3
+            snap = [
+                {"role": "system", "content": f"Pre-op window {w} red"},
+                {"role": "system", "content": json.dumps(tier_info.get("flags") or [])},
+            ]
+            _team_store.create_escalation(
+                patient_id=pid,
+                tier=esc_tier,
+                trigger_type=trig,
+                message=f"Pre-op readiness red ({w}): {', '.join(tier_info.get('flags') or [])}",
+                conversation_snapshot=snap,
+                health_system_id=d.get("health_system_id"),
+            )
+    return {
+        "ok": True,
+        "tier": tier_info.get("tier"),
+        "score": tier_info.get("score"),
+        "survey_score": score_survey.get("survey_score"),
+        "flags": tier_info.get("flags"),
+        "previous_tier": prev_tier,
+    }
+
+
+@app.get("/api/patients/{patient_id}/preop-window/{window}")
+async def get_preop_window_detail(
+    patient_id: str,
+    window: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+):
+    if not staff and not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
+    return _build_preop_window_detail(patient_id, window)
+
+
+@app.post("/api/patients/{patient_id}/preop-window/{window}/action")
+async def preop_window_action(
+    patient_id: str,
+    window: str,
+    body: PreOpWindowActionBody,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+):
+    if not staff and not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if patient_id not in _patient_store:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(patient_id, staff)
+    w = (window or "").lower()
+    if w not in WINDOW_SURVEY_DAY:
+        raise HTTPException(status_code=400, detail="Invalid window")
+    act = (body.action or "").strip().lower()
+    d = _patient_store[patient_id]
+    if act == "mark_called":
+        _team_store.log_event(
+            patient_id=patient_id,
+            event_type="preop_window_mark_called",
+            payload={"window": w},
+        )
+        return {"ok": True}
+    if act == "escalate_surgeon":
+        snap = [{"role": "system", "content": f"Manual escalate surgeon ({w}) from doctor portal"}]
+        eid = _team_store.create_escalation(
+            patient_id=patient_id,
+            tier=2,
+            trigger_type=f"preop_window_manual:surgeon:{w}",
+            message="Pre-op readiness: escalate to surgeon (manual)",
+            conversation_snapshot=snap,
+            health_system_id=d.get("health_system_id"),
+        )
+        return {"ok": True, "escalation_id": eid}
+    if act == "recommend_cancel":
+        snap = [{"role": "system", "content": f"Manual recommend cancel ({w}) from doctor portal"}]
+        eid = _team_store.create_escalation(
+            patient_id=patient_id,
+            tier=2,
+            trigger_type=f"preop_window_manual:cancel:{w}",
+            message="Pre-op readiness: recommend case cancellation (manual)",
+            conversation_snapshot=snap,
+            health_system_id=d.get("health_system_id"),
+        )
+        return {"ok": True, "escalation_id": eid}
+    raise HTTPException(status_code=400, detail="Unknown action")
 
 
 @app.get("/api/doctor/patient/{patient_id}/survey/{day}")
@@ -3638,14 +3962,25 @@ async def _team_scheduler_loop() -> None:
         await asyncio.sleep(int(os.getenv("TEAM_SCHEDULER_INTERVAL_SECONDS", "3600")))
 
 
+async def _preop_outreach_loop() -> None:
+    while True:
+        try:
+            await _run_preop_survey_outreach()
+        except Exception as e:
+            print(f"[preop-scheduler] error: {e}")
+        await asyncio.sleep(int(os.getenv("PREOP_OUTREACH_INTERVAL_SECONDS", "900")))
+
+
 @app.on_event("startup")
 async def startup_team_scheduler():
     await _seed_demo_mode_data()
     if _is_demo_mode() and _disable_scheduler_in_demo():
         print("[demo-seed] team scheduler disabled for demo startup stability.")
         app.state.team_scheduler_task = None
+        app.state.preop_outreach_task = None
         return
     app.state.team_scheduler_task = asyncio.create_task(_team_scheduler_loop())
+    app.state.preop_outreach_task = asyncio.create_task(_preop_outreach_loop())
 
 
 @app.on_event("shutdown")
@@ -3653,6 +3988,9 @@ async def shutdown_team_scheduler():
     task = getattr(app.state, "team_scheduler_task", None)
     if task:
         task.cancel()
+    ptask = getattr(app.state, "preop_outreach_task", None)
+    if ptask:
+        ptask.cancel()
 
 
 @app.post("/internal/team/run-daily-jobs", include_in_schema=False)

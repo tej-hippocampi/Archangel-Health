@@ -272,6 +272,29 @@
     .timeline-box.active-t24 .t-label { color: #dc2626; }
     .timeline-box.active-t24 .t-range { color: #991b1b; }
 
+    button.timeline-box {
+      font: inherit;
+      text-align: center;
+      width: 100%;
+      cursor: pointer;
+      appearance: none;
+    }
+    .timeline-box.tier-green  { border-color: #22c55e; background: #f0fdf4; }
+    .timeline-box.tier-green .t-label { color: #15803d; }
+    .timeline-box.tier-green .t-range { color: #166534; }
+    .timeline-box.tier-orange { border-color: #fb923c; background: #fff7ed; }
+    .timeline-box.tier-orange .t-label { color: #c2410c; }
+    .timeline-box.tier-orange .t-range { color: #9a3412; }
+    .timeline-box.tier-red    { border-color: #ef4444; background: #fef2f2; animation: pulse-red 2s infinite; }
+    .timeline-box.tier-red .t-label { color: #b91c1c; }
+    .timeline-box.tier-red .t-range { color: #991b1b; }
+    .timeline-box.tier-pending{ border-color: #cbd5e1; background: #f8fafc; opacity: 0.65; }
+    .timeline-box.tier-pending .t-label { color: #94a3b8; }
+    @keyframes pulse-red {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45); }
+      50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    }
+
     .actions-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 
     .calendar-grid {
@@ -962,6 +985,16 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="preopWindowModal">
+    <div class="modal" style="max-width: 720px;">
+      <div class="modal-head">
+        <div class="modal-title" id="preopWindowModalTitle">Pre-op window</div>
+        <button class="modal-close" data-close="preopWindowModal">×</button>
+      </div>
+      <div class="modal-body" id="preopWindowModalBody"></div>
     </div>
   </div>
 
@@ -1687,6 +1720,78 @@
       btn.classList.toggle("primary", !sent);
     }
 
+    function engagementBlockHtml(win, ae) {
+      const ts = (v) => esc(v || "—");
+      if (win === "t96") {
+        return `<div><strong>Intake started</strong>: ${ts(ae.intake_started_ts)}</div>`;
+      }
+      return `<div><strong>Intake completed</strong>: ${ts(ae.intake_completed_ts)}</div>
+        <div><strong>Pre-op video watched</strong>: ${ts(ae.preop_video_watched_ts)}</div>`;
+    }
+
+    function renderPreopWindowModalBody(d, pid, win) {
+      const sum = d.summary || {};
+      const qs = d.questions || [];
+      const ae = sum.action_events || {};
+      const qHtml = qs.map((q) => {
+        const hl = q.highlight_red ? ' style="color:#b91c1c;font-weight:600;"' : "";
+        return `<div style="border-bottom:1px solid var(--line);padding:8px 0;font-size:13px;"><div style="color:var(--muted);">${esc(q.text)}</div><div${hl}>${esc(q.patient_answer || "—")}</div></div>`;
+      }).join("");
+      const eng = `
+        <div class="panel" style="margin-top:12px;"><div class="panel-head">Platform engagement</div>
+        <div class="panel-body" style="font-size:13px;line-height:1.6;">${engagementBlockHtml(win, ae)}</div></div>`;
+      const scores = `
+        <div class="panel" style="margin-top:12px;"><div class="panel-head">Score breakdown</div>
+        <div class="panel-body" style="font-size:13px;line-height:1.6;">
+          <div>Tier: <strong>${esc(sum.tier)}</strong></div>
+          <div>Combined: ${sum.score != null ? esc(String(sum.score)) : "—"}</div>
+          <div>Survey score: ${sum.survey_score != null ? esc(String(sum.survey_score)) : "—"}</div>
+          <div>Action score: ${sum.action_score != null ? esc(String(sum.action_score)) : "—"}</div>
+          <div>Flags: ${(sum.flags || []).length ? (sum.flags || []).map((f) => esc(f)).join(", ") : "—"}</div>
+        </div></div>`;
+      const actions = `
+        <div class="actions-row" style="margin-top:14px;">
+          <button type="button" class="btn primary" data-pw-action="mark_called">Mark called</button>
+          <button type="button" class="btn" data-pw-action="escalate_surgeon">Escalate to surgeon</button>
+          <button type="button" class="btn" data-pw-action="recommend_cancel">Recommend cancel</button>
+        </div>`;
+      byId("preopWindowModalBody").innerHTML = `
+        <p style="font-size:14px;color:var(--muted);">${esc(d.status_message || "")}</p>
+        ${scores}
+        ${eng}
+        <div class="panel" style="margin-top:12px;"><div class="panel-head">Survey responses</div><div class="panel-body">${qHtml || "<p>No responses yet.</p>"}</div></div>
+        ${actions}`;
+      byId("preopWindowModalBody").querySelectorAll("[data-pw-action]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const action = btn.dataset.pwAction;
+          try {
+            await apiJson(`/api/patients/${encodeURIComponent(pid)}/preop-window/${encodeURIComponent(win)}/action`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action }),
+            });
+            showToast(action === "mark_called" ? "Logged as called." : "Escalation recorded.", "success");
+          } catch (e) {
+            showToast(e.message, "error");
+          }
+        });
+      });
+    }
+
+    async function openPreopWindowDetail(pid, win) {
+      const body = byId("preopWindowModalBody");
+      const title = byId("preopWindowModalTitle");
+      title.textContent = `${String(win || "").toUpperCase()} readiness`;
+      body.innerHTML = `<p style="color:var(--muted);">Loading…</p>`;
+      byId("preopWindowModal").classList.add("active");
+      try {
+        const d = await apiJson(`/api/patients/${encodeURIComponent(pid)}/preop-window/${encodeURIComponent(win)}`);
+        renderPreopWindowModalBody(d, pid, win);
+      } catch (e) {
+        body.innerHTML = `<p style="color:#b91c1c;">${esc(e.message)}</p>`;
+      }
+    }
+
     function openPreopDetail(pid) {
       const patient = PATIENTS.find((p) => p.id === pid);
       if (!patient) return;
@@ -1703,7 +1808,7 @@
       byId("preopStatsGrid").innerHTML = rows.map(([k, v]) => `
         <div class="stat"><div class="stat-label">${esc(k)}</div><div class="stat-value">${esc(v)}</div></div>
       `).join("");
-      const activeWindow = computeSurgeryWindow(patient.date);
+      const winMap = patient.windows || {};
       const boxes = [
         { key: "t96", label: "T-96", range: "96 - 48 hours" },
         { key: "t48", label: "T-48", range: "48 - 24 hours" },
@@ -1711,12 +1816,21 @@
       ];
       const timelineEl = byId("surgeryTimelineRow");
       if (timelineEl) {
-        timelineEl.innerHTML = `<div class="surgery-timeline">${boxes.map((b) => `
-          <div class="timeline-box${activeWindow === b.key ? ` active-${b.key}` : ""}">
+        timelineEl.innerHTML = `<div class="surgery-timeline">${boxes.map((b) => {
+          const tier = (winMap[b.key] && winMap[b.key].tier) ? winMap[b.key].tier : "pending";
+          return `
+          <button type="button" class="timeline-box tier-${esc(tier)}" data-preop-window="${b.key}" data-preop-patient="${esc(pid)}">
             <div class="t-label">${b.label}</div>
             <div class="t-range">${b.range}</div>
-          </div>
-        `).join("")}</div>`;
+          </button>`;
+        }).join("")}</div>`;
+        timelineEl.querySelectorAll("[data-preop-window]").forEach((btn) => {
+          btn.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openPreopWindowDetail(btn.dataset.preopPatient, btn.dataset.preopWindow);
+          });
+        });
       }
       updatePrepSendButtonState(pid);
       const viewIntakeBtn = byId("viewIntakeFormBtn");

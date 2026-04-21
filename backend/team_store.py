@@ -64,12 +64,13 @@ class TeamStore:
                 CREATE TABLE IF NOT EXISTS survey_responses (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     patient_id TEXT NOT NULL,
+                    survey_type TEXT NOT NULL DEFAULT 'postop',
                     survey_day INTEGER NOT NULL,
                     answers_json TEXT NOT NULL,
                     score REAL,
                     tier TEXT,
                     submitted_at TEXT NOT NULL,
-                    UNIQUE(patient_id, survey_day)
+                    UNIQUE(patient_id, survey_type, survey_day)
                 );
 
                 CREATE TABLE IF NOT EXISTS escalations (
@@ -218,6 +219,10 @@ class TeamStore:
                 CREATE INDEX IF NOT EXISTS idx_transcripts_intake_form ON interview_transcripts(intake_form_id);
                 CREATE INDEX IF NOT EXISTS idx_intake_edits_form ON intake_form_edits(intake_form_id);
                 CREATE INDEX IF NOT EXISTS idx_intake_notifications_doctor ON intake_form_notifications(doctor_id);
+
+                CREATE TABLE IF NOT EXISTS _schema_migrations (
+                    name TEXT PRIMARY KEY
+                );
                 """
             )
         self._migrate_schema()
@@ -231,6 +236,7 @@ class TeamStore:
             self._add_column_if_missing(conn, "episodes", "health_system_id", "TEXT")
             self._add_column_if_missing(conn, "escalations", "health_system_id", "TEXT")
             self._add_column_if_missing(conn, "intake_forms", "interview_state_json", "TEXT")
+            self._migrate_survey_responses_v2(conn)
 
     @staticmethod
     def _add_column_if_missing(conn: sqlite3.Connection, table: str, col: str, decl: str) -> None:
@@ -238,6 +244,68 @@ class TeamStore:
         names = {row[1] for row in cur.fetchall()}
         if col not in names:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+
+    @staticmethod
+    def _migrate_survey_responses_v2(conn: sqlite3.Connection) -> None:
+        """Rebuild survey_responses with survey_type and UNIQUE(patient_id, survey_type, survey_day)."""
+        done = conn.execute(
+            "SELECT 1 FROM _schema_migrations WHERE name = ?",
+            ("survey_responses_v2",),
+        ).fetchone()
+        if done:
+            return
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='survey_responses'"
+        ).fetchone()
+        if not row or not row[0]:
+            conn.execute(
+                "INSERT OR IGNORE INTO _schema_migrations (name) VALUES (?)",
+                ("survey_responses_v2",),
+            )
+            return
+        rows = conn.execute("SELECT * FROM survey_responses").fetchall()
+        colnames = [d[0] for d in conn.execute("PRAGMA table_info(survey_responses)").fetchall()]
+        has_survey_type = "survey_type" in colnames
+        conn.execute("DROP TABLE survey_responses")
+        conn.execute(
+            """
+            CREATE TABLE survey_responses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                patient_id TEXT NOT NULL,
+                survey_type TEXT NOT NULL DEFAULT 'postop',
+                survey_day INTEGER NOT NULL,
+                answers_json TEXT NOT NULL,
+                score REAL,
+                tier TEXT,
+                submitted_at TEXT NOT NULL,
+                UNIQUE(patient_id, survey_type, survey_day)
+            )
+            """
+        )
+        for r in rows:
+            d = dict(r)
+            pid = d["patient_id"]
+            day = int(d["survey_day"])
+            st = str(d.get("survey_type") or "postop") if has_survey_type else "postop"
+            conn.execute(
+                """
+                INSERT INTO survey_responses (patient_id, survey_type, survey_day, answers_json, score, tier, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    pid,
+                    st,
+                    day,
+                    d.get("answers_json") or "[]",
+                    d.get("score"),
+                    d.get("tier"),
+                    d.get("submitted_at") or _utcnow_iso(),
+                ),
+            )
+        conn.execute(
+            "INSERT OR IGNORE INTO _schema_migrations (name) VALUES (?)",
+            ("survey_responses_v2",),
+        )
 
     @staticmethod
     def _hash_onboarding_token(raw_token: str) -> str:
@@ -752,6 +820,14 @@ class TeamStore:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def has_survey_send(self, patient_id: str, survey_day: int) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM survey_sends WHERE patient_id = ? AND survey_day = ? LIMIT 1",
+                (patient_id, survey_day),
+            ).fetchone()
+            return row is not None
+
     def save_survey_response(
         self,
         *,
@@ -761,27 +837,32 @@ class TeamStore:
         score: Optional[float],
         tier: Optional[str],
         submitted_at: Optional[str] = None,
+        survey_type: str = "postop",
     ) -> None:
         ts = submitted_at or _utcnow_iso()
+        st = survey_type or "postop"
         with self._conn() as conn:
             conn.execute(
                 """
-                INSERT INTO survey_responses (patient_id, survey_day, answers_json, score, tier, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(patient_id, survey_day) DO UPDATE SET
+                INSERT INTO survey_responses (patient_id, survey_type, survey_day, answers_json, score, tier, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(patient_id, survey_type, survey_day) DO UPDATE SET
                     answers_json = excluded.answers_json,
                     score = excluded.score,
                     tier = excluded.tier,
                     submitted_at = excluded.submitted_at
                 """,
-                (patient_id, survey_day, json.dumps(answers), score, tier, ts),
+                (patient_id, st, survey_day, json.dumps(answers), score, tier, ts),
             )
 
-    def get_survey_response(self, patient_id: str, survey_day: int) -> Optional[Dict[str, Any]]:
+    def get_survey_response(
+        self, patient_id: str, survey_day: int, survey_type: str = "postop"
+    ) -> Optional[Dict[str, Any]]:
+        st = survey_type or "postop"
         with self._conn() as conn:
             row = conn.execute(
-                "SELECT * FROM survey_responses WHERE patient_id = ? AND survey_day = ?",
-                (patient_id, survey_day),
+                "SELECT * FROM survey_responses WHERE patient_id = ? AND survey_day = ? AND survey_type = ?",
+                (patient_id, survey_day, st),
             ).fetchone()
             if not row:
                 return None
@@ -792,7 +873,7 @@ class TeamStore:
     def get_survey_responses(self, patient_id: str) -> List[Dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM survey_responses WHERE patient_id = ? ORDER BY survey_day ASC",
+                "SELECT * FROM survey_responses WHERE patient_id = ? ORDER BY survey_type ASC, survey_day ASC",
                 (patient_id,),
             ).fetchall()
             out = []
@@ -804,10 +885,28 @@ class TeamStore:
 
     def get_composite_score(self, patient_id: str) -> Optional[float]:
         rows = self.get_survey_responses(patient_id)
-        points = [float(r["score"]) for r in rows if r.get("score") is not None and int(r.get("survey_day", 0)) in (7, 14, 30)]
+        points = [
+            float(r["score"])
+            for r in rows
+            if r.get("score") is not None
+            and str(r.get("survey_type") or "postop") == "postop"
+            and int(r.get("survey_day", 0)) in (7, 14, 30)
+        ]
         if not points:
             return None
         return round(sum(points) / len(points), 2)
+
+    def has_open_escalation(self, patient_id: str, trigger_type: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT 1 FROM escalations
+                WHERE patient_id = ? AND trigger_type = ? AND resolved = 0
+                LIMIT 1
+                """,
+                (patient_id, trigger_type),
+            ).fetchone()
+            return row is not None
 
     def mark_daily_reminder(self, patient_id: str, reminder_date: str, sent_at: Optional[str] = None) -> bool:
         ts = sent_at or _utcnow_iso()
