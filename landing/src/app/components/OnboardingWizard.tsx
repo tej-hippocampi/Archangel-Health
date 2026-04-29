@@ -1,13 +1,97 @@
-import { useCallback, useEffect, useState } from "react";
+/**
+ * OnboardingWizard — Archangel Health "Director of TEAM Initiative"
+ * health-system onboarding (5 steps + success).
+ *
+ * Visual spec: design_handoff_onboarding_flow/README.md (the redesigned flow).
+ * Step → backend endpoint mapping:
+ *   1  NameEmail   →  POST /api/onboarding/step1-identity
+ *   2  Verify      →  POST /api/onboarding/request-otp + /verify-otp
+ *   3  Org         →  POST /api/onboarding/step3-organization
+ *   4  Your TEAM   →  POST /api/onboarding/add-team-member (per row)
+ *                    + POST /api/onboarding/finish (on Continue)
+ *   5  Sign-in     →  POST /api/tenant/{slug}/auth/login
+ *   6  Success     →  redirect to dashboard with auth token
+ *
+ * The visual stepper has 5 nodes ("You", "Verify", "Health system",
+ * "Your TEAM", "Sign in") and is hidden on step 6 (success).
+ *
+ * Each PrimaryButton handler returns a Promise<boolean>. The button stays
+ * Idle (no fake success) when the handler resolves `false` — this is how
+ * we surface server errors without misleading the user.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { API_BASE } from "@/lib/auth-api";
 
+import OnboardingStyles from "./onboarding/OnboardingStyles";
+import { ChromeHeader, Stepper } from "./onboarding/primitives";
+import {
+  Step1NameEmail,
+  Step2Verify,
+  Step3Org,
+  Step4YourTeam,
+  Step5SignIn,
+  Step6Success,
+  type Member,
+  type OnboardingData,
+  type RoleLabel,
+} from "./onboarding/steps";
+
 type Props = { token: string };
 
-const api = (path: string, init?: RequestInit) =>
-  fetch(`${API_BASE}${path}`, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers || {}) } });
+const STEPPER_LABELS = ["You", "Verify", "Health system", "Your TEAM", "Sign in"];
 
-/** FastAPI may return `detail` as a string (HTTPException) or an array (422 validation). */
+const ROLE_TO_API: Record<RoleLabel, "doctor" | "nurse"> = {
+  "Doctor / Surgeon": "doctor",
+  "Nurse / Care Coordinator": "nurse",
+};
+
+/** Map server-side role labels (incl. legacy "doctor"/"nurse") onto the
+ *  display labels the wizard uses. Anything unknown falls back to Doctor. */
+function normalizeRoleLabel(raw: unknown): RoleLabel {
+  const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (s === "nurse" || s === "nurse / care coordinator" || s === "nurse/care coordinator") {
+    return "Nurse / Care Coordinator";
+  }
+  return "Doctor / Surgeon";
+}
+
+type SessionResponse = {
+  status?: "pending" | "complete";
+  step?: number;
+  slug?: string;
+  sign_in_url?: string;
+  director_first_name?: string;
+  director_last_name?: string;
+  director_email?: string;
+  health_system_name?: string;
+  surgery_department?: string;
+  phone?: string;
+  team_members?: Array<{
+    id?: number;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    role?: string;
+    status?: string;
+  }>;
+};
+
+const DASHBOARD_URL =
+  (import.meta as unknown as { env: { VITE_DASHBOARD_URL?: string; VITE_API_URL?: string } }).env
+    .VITE_DASHBOARD_URL ??
+  (import.meta as unknown as { env: { VITE_API_URL?: string } }).env.VITE_API_URL ??
+  "http://localhost:8000";
+
+function api(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });
+}
+
+/** FastAPI errors come as `detail: string` (HTTPException) or `detail: array` (422). */
 function formatApiError(data: unknown): string {
   if (!data || typeof data !== "object") return "Request failed";
   const detail = (data as { detail?: unknown }).detail;
@@ -49,38 +133,79 @@ async function readResponseJson(r: Response): Promise<unknown> {
 }
 
 export default function OnboardingWizard({ token }: Props) {
-  const [step, setStep] = useState(0);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
-  const [hsName, setHsName] = useState("");
-  const [dept, setDept] = useState("");
-  const [phone, setPhone] = useState("");
-  const [memberName, setMemberName] = useState("");
-  const [memberEmail, setMemberEmail] = useState("");
-  const [memberRole, setMemberRole] = useState<"doctor" | "nurse">("doctor");
+  const [stepIndex, setStepIndex] = useState(0);
+  const [data, setDataState] = useState<OnboardingData>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    orgName: "",
+    department: "",
+    phone: "",
+    members: [],
+  });
+  const setData = useCallback((patch: Partial<OnboardingData>) => {
+    setDataState((d) => ({ ...d, ...patch }));
+  }, []);
 
+  const [slug, setSlug] = useState("");
+  const [authToken, setAuthToken] = useState("");
+
+  /** Per-step transient error surface; cleared whenever the user advances. */
+  const [stepError, setStepError] = useState("");
+  const [bootError, setBootError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  // ─────────────────────────────────────────
+  // Session bootstrap — resume in-progress onboarding.
+  // ─────────────────────────────────────────
   const loadSession = useCallback(async () => {
     setLoading(true);
-    setError("");
+    setBootError("");
     try {
       const r = await api(`/api/onboarding/session?token=${encodeURIComponent(token)}`);
-      const data = await readResponseJson(r);
+      const body = await readResponseJson(r);
       if (!r.ok) {
-        setError(formatApiError(data) || `HTTP ${r.status}`);
+        setBootError(formatApiError(body) || `HTTP ${r.status}`);
         return;
       }
-      const d = data as { status?: string; sign_in_url?: string; step?: number };
-      if (d.status === "complete" && d.sign_in_url) {
-        window.location.replace(d.sign_in_url);
+      const d = body as SessionResponse;
+      if (d.slug) setSlug(d.slug);
+
+      // Hydrate the form state from previously-saved server values so a
+      // reload mid-flow (or returning via the magic link later) doesn't drop
+      // what the director already typed. Empty strings overwrite nothing
+      // because the initial state is also empty.
+      const hydratedMembers: Member[] = (d.team_members ?? []).map((m, idx) => ({
+        id: typeof m.id === "number" && m.id > 0 ? m.id : Date.now() + idx,
+        firstName: (m.first_name ?? "").trim(),
+        lastName: (m.last_name ?? "").trim(),
+        email: (m.email ?? "").trim(),
+        role: normalizeRoleLabel(m.role),
+        status: m.status === "Active" ? "Active" : "Invited",
+      }));
+      setDataState({
+        firstName: (d.director_first_name ?? "").trim(),
+        lastName: (d.director_last_name ?? "").trim(),
+        email: (d.director_email ?? "").trim(),
+        orgName: (d.health_system_name ?? "").trim(),
+        department: (d.surgery_department ?? "").trim(),
+        phone: (d.phone ?? "").trim(),
+        members: hydratedMembers,
+      });
+
+      if (d.status === "complete") {
+        // Onboarding already finished → drop the user at the in-wizard sign-in
+        // step (matches the design's "Step 5 of 5") so they can sign in with
+        // the temporary password we mailed them.
+        setStepIndex(4);
         return;
       }
-      setStep(Math.max(1, Number(d.step) || 1));
+      // Backend's `step` is the highest completed step (0..3). The wizard's
+      // `stepIndex` is the screen to show (0..5). Resume on the next pending
+      // screen — which is just the same number.
+      setStepIndex(Math.min(4, Math.max(0, Number(d.step) || 0)));
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Could not load onboarding");
+      setBootError(e instanceof Error ? e.message : "Could not load onboarding");
     } finally {
       setLoading(false);
     }
@@ -90,271 +215,244 @@ export default function OnboardingWizard({ token }: Props) {
     void loadSession();
   }, [loadSession]);
 
-  async function submitStep1() {
-    setError("");
-    try {
-      const r = await api("/api/onboarding/step1-identity", {
-        method: "POST",
-        body: JSON.stringify({ token, first_name: firstName, last_name: lastName, email }),
-      });
-      const data = await readResponseJson(r);
-      if (!r.ok) {
-        setError(formatApiError(data) || `HTTP ${r.status}`);
-        return;
-      }
-      setStep(2);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Network error");
-    }
-  }
+  const goBack = useCallback(() => {
+    setStepError("");
+    setStepIndex((i) => Math.max(0, i - 1));
+  }, []);
 
-  async function requestOtp() {
-    setError("");
-    try {
-      const r = await api("/api/onboarding/request-otp", { method: "POST", body: JSON.stringify({ token }) });
-      const data = await readResponseJson(r);
-      if (!r.ok) setError(formatApiError(data) || `HTTP ${r.status}`);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Network error");
-    }
-  }
+  // ─────────────────────────────────────────
+  // Per-step actions.
+  // Each returns Promise<boolean>: false = stay on Idle (button), true = advance.
+  // ─────────────────────────────────────────
 
-  async function verifyOtp() {
-    setError("");
-    if (otp.length !== 6) {
-      setError("Enter the full 6-digit code.");
-      return;
+  const submitStep1 = useCallback(async () => {
+    setStepError("");
+    const r = await api("/api/onboarding/step1-identity", {
+      method: "POST",
+      body: JSON.stringify({
+        token,
+        first_name: data.firstName,
+        last_name: data.lastName,
+        email: data.email,
+      }),
+    });
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setStepError(formatApiError(body) || `HTTP ${r.status}`);
+      return false;
     }
-    try {
+    setStepIndex(1);
+    return true;
+  }, [token, data.firstName, data.lastName, data.email]);
+
+  const sendOtp = useCallback(async () => {
+    setStepError("");
+    const r = await api("/api/onboarding/request-otp", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setStepError(formatApiError(body) || `HTTP ${r.status}`);
+      return false;
+    }
+    return true;
+  }, [token]);
+
+  const verifyOtp = useCallback(
+    async (code: string) => {
+      setStepError("");
       const r = await api("/api/onboarding/verify-otp", {
         method: "POST",
-        body: JSON.stringify({ token, code: otp }),
+        body: JSON.stringify({ token, code }),
       });
-      const data = await readResponseJson(r);
+      const body = await readResponseJson(r);
       if (!r.ok) {
-        setError(formatApiError(data) || "Invalid code");
-        return;
+        setStepError(formatApiError(body) || "Invalid code");
+        return false;
       }
-      setStep(3);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Network error");
-    }
-  }
+      setStepIndex(2);
+      return true;
+    },
+    [token],
+  );
 
-  async function submitOrg() {
-    setError("");
-    try {
-      const r = await api("/api/onboarding/step3-organization", {
-        method: "POST",
-        body: JSON.stringify({
-          token,
-          health_system_name: hsName,
-          surgery_department: dept,
-          phone,
-        }),
-      });
-      const data = await readResponseJson(r);
-      if (!r.ok) {
-        setError(formatApiError(data) || `HTTP ${r.status}`);
-        return;
-      }
-      setStep(4);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Network error");
+  const submitOrg = useCallback(async () => {
+    setStepError("");
+    const r = await api("/api/onboarding/step3-organization", {
+      method: "POST",
+      body: JSON.stringify({
+        token,
+        health_system_name: data.orgName,
+        surgery_department: data.department,
+        phone: data.phone,
+      }),
+    });
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setStepError(formatApiError(body) || `HTTP ${r.status}`);
+      return false;
     }
-  }
+    const d = body as { slug?: string };
+    if (d.slug) setSlug(d.slug);
+    setStepIndex(3);
+    return true;
+  }, [token, data.orgName, data.department, data.phone]);
 
-  async function addMember() {
-    setError("");
-    try {
+  const addTeamMember = useCallback(
+    async (m: Omit<Member, "id" | "status">) => {
+      setStepError("");
       const r = await api("/api/onboarding/add-team-member", {
         method: "POST",
         body: JSON.stringify({
           token,
-          full_name: memberName,
-          email: memberEmail,
-          role: memberRole,
+          full_name: `${m.firstName} ${m.lastName}`.trim(),
+          email: m.email,
+          role: ROLE_TO_API[m.role],
         }),
       });
-      const data = await readResponseJson(r);
+      const body = await readResponseJson(r);
       if (!r.ok) {
-        setError(formatApiError(data) || `HTTP ${r.status}`);
-        return;
+        setStepError(formatApiError(body) || `HTTP ${r.status}`);
+        return false;
       }
-      setMemberName("");
-      setMemberEmail("");
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Network error");
-    }
-  }
+      const newMember: Member = { ...m, id: Date.now(), status: "Invited" };
+      setDataState((d) => ({ ...d, members: [...d.members, newMember] }));
+      return true;
+    },
+    [token],
+  );
 
-  async function finish() {
-    setError("");
-    try {
-      const r = await api("/api/onboarding/finish", { method: "POST", body: JSON.stringify({ token }) });
-      const data = await readResponseJson(r);
+  const removeMember = useCallback((id: number) => {
+    // Local-only — there's no backend `delete-team-member` (yet). The next
+    // navigation away from this step settles the team list as-displayed.
+    setDataState((d) => ({ ...d, members: d.members.filter((m) => m.id !== id) }));
+  }, []);
+
+  const finishOnboarding = useCallback(async () => {
+    setStepError("");
+    const r = await api("/api/onboarding/finish", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setStepError(formatApiError(body) || `HTTP ${r.status}`);
+      return false;
+    }
+    setStepIndex(4);
+    return true;
+  }, [token]);
+
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      setStepError("");
+      if (!slug) {
+        setStepError("Workspace not ready yet — refresh and try again.");
+        return false;
+      }
+      const r = await fetch(`${API_BASE}/api/tenant/${encodeURIComponent(slug)}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const body = await readResponseJson(r);
       if (!r.ok) {
-        setError(formatApiError(data) || `HTTP ${r.status}`);
-        return;
+        setStepError(formatApiError(body) || "Sign in failed");
+        return false;
       }
-      const d = data as { sign_in_url?: string };
-      if (d.sign_in_url) window.location.replace(d.sign_in_url);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Network error");
+      const d = body as { access_token?: string };
+      if (d.access_token) setAuthToken(d.access_token);
+      setStepIndex(5);
+      return true;
+    },
+    [slug],
+  );
+
+  const openWorkspace = useCallback(() => {
+    const dest = `${DASHBOARD_URL.replace(/\/$/, "")}/#auth=${encodeURIComponent(authToken)}`;
+    window.location.href = dest;
+    // Resolve true so the success state can flash before the browser navigates.
+    return true;
+  }, [authToken]);
+
+  const handleExit = useCallback(() => {
+    // "Save & exit" — your token stays valid; redirect home so progress isn't
+    // lost (the next visit picks up from /api/onboarding/session).
+    window.location.href = "/";
+  }, []);
+
+  const showStepper = stepIndex < 5;
+
+  const content = useMemo(() => {
+    if (loading) {
+      return (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "120px 0" }}>
+          <p style={{ color: "rgba(245,245,247,0.62)", fontSize: 14 }}>Loading onboarding…</p>
+        </div>
+      );
     }
-  }
+    if (bootError) {
+      return (
+        <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center" }}>
+          <h2 style={{ color: "#F5F5F7", marginBottom: 12 }}>This onboarding link can&apos;t be loaded.</h2>
+          <p style={{ color: "rgba(245,245,247,0.62)", fontSize: 14 }}>{bootError}</p>
+        </div>
+      );
+    }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-200 p-6">
-        <p>Loading onboarding…</p>
-      </div>
-    );
-  }
-
-  const canVerifyOtp = otp.length === 6;
+    switch (stepIndex) {
+      case 0:
+        return <Step1NameEmail data={data} setData={setData} onNext={submitStep1} error={stepError} />;
+      case 1:
+        return <Step2Verify data={data} onSendCode={sendOtp} onVerify={verifyOtp} onBack={goBack} error={stepError} />;
+      case 2:
+        return <Step3Org data={data} setData={setData} onNext={submitOrg} onBack={goBack} error={stepError} />;
+      case 3:
+        return (
+          <Step4YourTeam
+            data={data}
+            onAddMember={addTeamMember}
+            onRemoveMember={removeMember}
+            onNext={finishOnboarding}
+            onBack={goBack}
+            error={stepError}
+          />
+        );
+      case 4:
+        return <Step5SignIn data={data} slug={slug} onSignIn={signIn} onBack={goBack} error={stepError} />;
+      case 5:
+      default:
+        return <Step6Success data={data} onOpenWorkspace={openWorkspace} />;
+    }
+  }, [
+    loading,
+    bootError,
+    stepIndex,
+    data,
+    setData,
+    submitStep1,
+    sendOtp,
+    verifyOtp,
+    submitOrg,
+    addTeamMember,
+    removeMember,
+    finishOnboarding,
+    slug,
+    signIn,
+    openWorkspace,
+    goBack,
+    stepError,
+  ]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 flex flex-col items-center">
-      <div className="w-full max-w-lg space-y-6">
-        <h1 className="text-2xl font-semibold text-center">Health system onboarding</h1>
-        {error ? <p className="text-red-400 text-sm text-center">{error}</p> : null}
-
-        {step === 1 ? (
-          <div className="space-y-3 bg-slate-900/80 border border-slate-800 rounded-xl p-6">
-            <p className="text-slate-400 text-sm">Step 1 — Your name and email</p>
-            <input
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
-              placeholder="First name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-            />
-            <input
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
-              placeholder="Last name"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-            />
-            <input
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
-              placeholder="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <button
-              type="button"
-              className="w-full py-2 rounded-lg bg-teal-600 hover:bg-teal-500 font-medium"
-              onClick={() => void submitStep1()}
-            >
-              Continue
-            </button>
-          </div>
-        ) : null}
-
-        {step === 2 ? (
-          <div className="space-y-3 bg-slate-900/80 border border-slate-800 rounded-xl p-6">
-            <p className="text-slate-400 text-sm">Step 2 — Email verification</p>
-            <button
-              type="button"
-              className="w-full py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm"
-              onClick={() => void requestOtp()}
-            >
-              Send 6-digit code to my email
-            </button>
-            <input
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 tracking-widest"
-              placeholder="6-digit code"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            />
-            <p className="text-xs text-slate-500">
-              {canVerifyOtp ? "Ready to verify." : "Enter all 6 digits, then tap Verify."}
-            </p>
-            <button
-              type="button"
-              disabled={!canVerifyOtp}
-              className="w-full py-2 rounded-lg bg-teal-600 hover:bg-teal-500 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-              onClick={() => void verifyOtp()}
-            >
-              Verify code
-            </button>
-          </div>
-        ) : null}
-
-        {step === 3 ? (
-          <div className="space-y-3 bg-slate-900/80 border border-slate-800 rounded-xl p-6">
-            <p className="text-slate-400 text-sm">Step 3 — Health system details</p>
-            <input
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
-              placeholder="Health system name"
-              value={hsName}
-              onChange={(e) => setHsName(e.target.value)}
-            />
-            <input
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
-              placeholder="Surgery department (e.g. Orthopedic Surgery)"
-              value={dept}
-              onChange={(e) => setDept(e.target.value)}
-            />
-            <input
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
-              placeholder="Health system phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-            <p className="text-xs text-slate-500">Your role: Director of TEAM Initiative (assigned automatically)</p>
-            <button
-              type="button"
-              className="w-full py-2 rounded-lg bg-teal-600 hover:bg-teal-500 font-medium"
-              onClick={() => void submitOrg()}
-            >
-              Continue
-            </button>
-          </div>
-        ) : null}
-
-        {step === 4 ? (
-          <div className="space-y-3 bg-slate-900/80 border border-slate-800 rounded-xl p-6">
-            <p className="text-slate-400 text-sm">Step 4 — Add team members (Doctor or Nurse)</p>
-            <input
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
-              placeholder="Full name"
-              value={memberName}
-              onChange={(e) => setMemberName(e.target.value)}
-            />
-            <input
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
-              placeholder="Email"
-              type="email"
-              value={memberEmail}
-              onChange={(e) => setMemberEmail(e.target.value)}
-            />
-            <select
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
-              value={memberRole}
-              onChange={(e) => setMemberRole(e.target.value as "doctor" | "nurse")}
-            >
-              <option value="doctor">Doctor</option>
-              <option value="nurse">Nurse</option>
-            </select>
-            <button
-              type="button"
-              className="w-full py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm"
-              onClick={() => void addMember()}
-            >
-              Add member and send invite email
-            </button>
-            <button
-              type="button"
-              className="w-full py-2 rounded-lg bg-teal-600 hover:bg-teal-500 font-medium"
-              onClick={() => void finish()}
-            >
-              Finish onboarding
-            </button>
-          </div>
-        ) : null}
-      </div>
+    <div className="ah-onb-root">
+      <OnboardingStyles />
+      <ChromeHeader onExit={handleExit} />
+      <main style={{ flex: 1, padding: "56px 24px 80px", position: "relative" }}>
+        {showStepper && !loading && !bootError && <Stepper steps={STEPPER_LABELS} currentIndex={stepIndex} />}
+        {content}
+      </main>
     </div>
   );
 }

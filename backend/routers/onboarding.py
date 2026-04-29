@@ -1,16 +1,27 @@
 """Health system onboarding (magic link, email OTP, team invites)."""
 
-import html as html_lib
 import os
 import string
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import secrets
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 
 from email_utils import is_email_transport_configured, send_html_email
+from onboarding_emails import (
+    build_complete_email,
+    build_invite_email,
+    build_verification_email,
+)
 from tenant_utils import generate_secure_password
+
+# Mapping of API role values → display labels used in the new email templates.
+# The frontend uses the labels directly; the API persists the lowercased token.
+_ROLE_LABELS = {
+    "doctor": "Doctor / Surgeon",
+    "nurse": "Nurse / Care Coordinator",
+}
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 
@@ -68,6 +79,53 @@ def _reject_if_completed(row: Dict[str, Any]) -> None:
         raise HTTPException(status_code=410, detail="Onboarding already completed for this link.")
 
 
+def _serialize_team_member(m: Dict[str, Any]) -> Dict[str, Any]:
+    """Shape a team_members row for the onboarding wizard's local list state.
+
+    Maps the API role token (`doctor`/`nurse`) to the display label the
+    redesigned wizard uses (`Doctor / Surgeon` / `Nurse / Care Coordinator`).
+    """
+    full = (m.get("name") or "").strip()
+    first, _, last = full.partition(" ")
+    role = (m.get("role") or "").strip().lower()
+    role_label = _ROLE_LABELS.get(role, "Doctor / Surgeon")
+    return {
+        "id": int(m.get("id") or 0),
+        "first_name": first,
+        "last_name": last,
+        "email": (m.get("email") or "").strip(),
+        "role": role_label,
+        "status": "Invited",
+    }
+
+
+def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
+    """Subset of a health_system row that's safe + useful for the wizard to resume from.
+
+    Excludes credentials, password hashes, and any other secrets — only the form
+    inputs the director already entered, plus the team list they've already added.
+
+    The director is also persisted in ``team_members`` with ``role='director'``
+    after ``/finish``, so we filter it out of the hydrated list — Step 4's UI
+    shows the Director in its own card, and Step 6's "TEAM members" stat
+    counts them implicitly via ``members + 1``.
+    """
+    members = [
+        _serialize_team_member(m)
+        for m in ts.list_team_members(row["id"])
+        if (m.get("role") or "").strip().lower() != "director"
+    ]
+    return {
+        "director_first_name": (row.get("director_first_name") or "").strip(),
+        "director_last_name": (row.get("director_last_name") or "").strip(),
+        "director_email": (row.get("director_email") or "").strip(),
+        "health_system_name": (row.get("name") or "").strip(),
+        "surgery_department": (row.get("surgery_department") or "").strip(),
+        "phone": (row.get("phone") or "").strip(),
+        "team_members": members,
+    }
+
+
 @router.get("/session")
 async def onboarding_session(token: str, request: Request):
     ts = _ts(request)
@@ -81,6 +139,7 @@ async def onboarding_session(token: str, request: Request):
             "health_system_id": row["id"],
             "slug": slug,
             "sign_in_url": f"{_landing_base()}/t/{slug}/sign-in",
+            **_hydrate_session_fields(ts, row),
         }
     if not ts.onboarding_token_valid(row):
         raise HTTPException(status_code=404, detail="This onboarding link has expired.")
@@ -89,6 +148,7 @@ async def onboarding_session(token: str, request: Request):
         "health_system_id": row["id"],
         "slug": row.get("slug"),
         "step": int(row.get("onboarding_step") or 0),
+        **_hydrate_session_fields(ts, row),
     }
 
 
@@ -124,14 +184,7 @@ async def request_otp(body: OnboardTokenBody, request: Request):
     code = "".join(secrets.choice(string.digits) for _ in range(6))
     ts.create_otp_challenge(row["id"], email, code)
     subj = "Your Archangel Health verification code"
-    html_body = f"""
-    <div style="font-family:system-ui,Segoe UI,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-      <h2 style="margin:0 0 12px;">Verification code</h2>
-      <p style="color:#334155;">Enter this code to continue onboarding:</p>
-      <p style="font-size:32px;font-weight:700;letter-spacing:0.2em;">{html_lib.escape(code)}</p>
-      <p style="color:#64748b;font-size:13px;">This code expires in 15 minutes. If you did not request it, ignore this email.</p>
-    </div>
-    """
+    html_body = build_verification_email(code=code)
     ok = await send_html_email(email, subj, html_body)
     if not ok:
         raise HTTPException(
@@ -197,28 +250,39 @@ async def add_team_member(body: AddMemberBody, request: Request):
     if role not in ("doctor", "nurse"):
         raise HTTPException(status_code=400, detail="Role must be doctor or nurse.")
     pwd = generate_secure_password()
+    full_name = body.full_name.strip()
     ts.insert_team_member(
         row["id"],
         email=str(body.email),
-        name=body.full_name.strip(),
+        name=full_name,
         role=role,
         password_hash=ts.hash_team_password(pwd),
     )
     row = ts.get_health_system_by_id(row["id"]) or row
     slug = row.get("slug") or ""
     sign_in = f"{_landing_base()}/t/{slug}/sign-in"
-    subj = f"You're invited to {row.get('name') or 'your health system'} on Archangel Health"
-    html_body = f"""
-    <div style="font-family:system-ui,Segoe UI,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-      <h2 style="margin:0 0 12px;">Hello {html_lib.escape(body.full_name.strip())},</h2>
-      <p>You have been added as a <strong>{html_lib.escape(role.title())}</strong> for your health system's Archangel Health workspace.</p>
-      <p><strong>Your temporary password:</strong> <code style="font-size:15px;">{html_lib.escape(pwd)}</code></p>
-      <p style="margin:24px 0;">
-        <a href="{html_lib.escape(sign_in, quote=True)}" style="display:inline-block;padding:12px 20px;background:#0f766e;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Sign in to your workspace</a>
-      </p>
-      <p style="color:#64748b;font-size:14px;">Please sign in and change your password on first login.</p>
-    </div>
-    """
+    director_full_name = " ".join(
+        part for part in [
+            (row.get("director_first_name") or "").strip(),
+            (row.get("director_last_name") or "").strip(),
+        ] if part
+    ).strip()
+    subj_org = (row.get("name") or "your health system").strip()
+    subj_dept = (row.get("surgery_department") or "").strip()
+    subj = (
+        f"You're invited to {subj_org} {subj_dept} workspace"
+        if subj_dept
+        else f"You're invited to {subj_org} workspace"
+    )
+    html_body = build_invite_email(
+        invitee_first_name=full_name.split(" ", 1)[0] if full_name else "",
+        director_full_name=director_full_name,
+        role_label=_ROLE_LABELS.get(role, role.title()),
+        org_name=subj_org,
+        department=subj_dept,
+        temporary_password=pwd,
+        sign_in_url=sign_in,
+    )
     ok = await send_html_email(str(body.email), subj, html_body)
     if not ok:
         raise HTTPException(status_code=503, detail="Failed to send invitation email.")
@@ -254,18 +318,14 @@ async def finish_onboarding(body: FinishBody, request: Request):
     slug = row.get("slug") or ""
     sign_in = f"{_landing_base()}/t/{slug}/sign-in"
     subj = "Welcome to Archangel Health — onboarding complete"
-    html_body = f"""
-    <div style="font-family:system-ui,Segoe UI,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-      <h2 style="margin:0 0 12px;">Thank you for completing onboarding</h2>
-      <p>Your health system <strong>{html_lib.escape(row.get('name') or '')}</strong> is ready.</p>
-      <p><strong>Your email:</strong> {html_lib.escape(email)}<br/>
-         <strong>Role:</strong> Director of TEAM Initiative<br/>
-         <strong>Temporary password:</strong> <code>{html_lib.escape(director_pwd)}</code></p>
-      <p style="margin:24px 0;">
-        <a href="{html_lib.escape(sign_in, quote=True)}" style="display:inline-block;padding:12px 20px;background:#0f766e;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Open your workspace</a>
-      </p>
-      <p style="color:#64748b;font-size:14px;">Your team members have been sent their own credentials. Please change your password after first sign-in.</p>
-    </div>
-    """
+    member_count = len(ts.list_team_members(row["id"]))
+    html_body = build_complete_email(
+        director_email=email,
+        org_name=(row.get("name") or "").strip(),
+        department=(row.get("surgery_department") or "").strip(),
+        member_count=member_count,
+        temporary_password=director_pwd,
+        workspace_url=sign_in,
+    )
     await send_html_email(email, subj, html_body, importance_headers=True)
     return {"ok": True, "sign_in_url": sign_in}
