@@ -1,6 +1,6 @@
 # Cursor Fix Prompt — Triage Build Pass 2
 
-Paste the section below into Cursor verbatim. It is self-contained (Cursor does not have the prior chat context). Adjust only the wound-photo storage choice in §3 if you've already decided.
+Paste the section below into Cursor verbatim. It is self-contained (Cursor does not have the prior chat context).
 
 ---
 
@@ -9,6 +9,8 @@ Paste the section below into Cursor verbatim. It is self-contained (Cursor does 
 You produced a 92-file build for the four-stage triage suite (Initial Pre-Op Triage, Pre-Op Re-Tier, Intra-Op Reassessment, Post-Op Scoring & Re-Tiering). A review against the four source PRDs (`docs/prd/initial-triage-v1.md`, `preop-retier-v1.md`, `intraop-reassessment-v1.md`, `postop-scoring-v1.md`, plus the integration map `docs/prd/README.md`) has found blockers, scope gaps, and integration wiring that needs to be added. Fix everything below in the order listed. Do not skip items. Do not introduce new dependencies that aren't already in the repo. After each section, run `cd backend && python3 -m pytest tests/ -q` and ensure tests pass before moving on.
 
 The integration map at `docs/prd/README.md` is the contract that binds the four PRDs into one coherent system. Re-read §3 (conventions held across all four), §5 (cross-PRD `Episode` schema), §6 (build order), and §7 (reviewer's checklist) before you start.
+
+The wound-photo pipeline (Post-Op PRD §8) is **deferred to a later pass and is not part of this work.** Do not add `wound_photos` or `wound_photo_reviews` tables, do not add wound-photo upload or review endpoints, do not add wound-photo UI, do not add the nightly de-identified export job. The existing post-op re-tier already references wound-photo contributor flags in code; leave those flag definitions in place but the readers can return zero/empty until the pipeline is built later. Do not delete the flag definitions.
 
 ### 1. Critical blockers — fix first; the app will not start until these are resolved
 
@@ -71,40 +73,7 @@ Whichever is chosen, the following two episode columns must be present, because 
 
 Without those two columns, `triage/preop_retier/algo.py` cannot enforce the sticky-hard-escalator guard and `triage/postop/algo.py` cannot enforce its floor. Both PRD invariants depend on them.
 
-### 3. Wound-photo dual-purpose pipeline — restore the omitted scope
-
-You explicitly omitted the wound-photo upload + nurse-review pipeline. The author's directive in chat was to build it, and Post-Op PRD §8 (the entire section) is the spec. Restore it now.
-
-**3.1 Schema**
-
-Add to `team_store.py`:
-
-- `wound_photos` — `id TEXT PRIMARY KEY`, `episode_id TEXT NOT NULL`, `patient_id TEXT NOT NULL`, `photo_blob_url TEXT NOT NULL`, `patient_note TEXT`, `submitted_at TEXT NOT NULL DEFAULT (datetime('now'))`. Index on `(episode_id, submitted_at)`.
-- `wound_photo_reviews` — `id TEXT PRIMARY KEY`, `wound_photo_id TEXT NOT NULL`, `reviewed_by TEXT NOT NULL`, `reviewed_at TEXT NOT NULL DEFAULT (datetime('now'))`, `is_problematic TEXT NOT NULL CHECK(is_problematic IN ('YES','NO','UNABLE_TO_ASSESS'))`, `concern_types_json TEXT`, `unable_reasons_json TEXT`, `severity TEXT`, `action_taken_json TEXT NOT NULL`, `explanation TEXT NOT NULL`, `confidence INTEGER NOT NULL`, `clinical_context_json TEXT NOT NULL`. Index on `reviewed_at`.
-
-**3.2 Endpoints in `routers/postop.py`**
-
-- `POST /api/episodes/{episode_id}/wound-photo` — multipart upload; accepts JPEG/HEIC/PNG up to 12 MB; rejects other MIME types with 415; writes `wound_photos` row; emits `WOUND_PHOTO_SUBMITTED` event into `event_logs`; triggers a synchronous post-op re-tier.
-- `GET /api/episodes/{episode_id}/wound-photos` — list with thumbnails.
-- `POST /api/wound-photos/{wound_photo_id}/review` — RN review; takes the structured review form payload (per PRD §8.3) and writes a `wound_photo_reviews` row. Snapshot the patient's clinical context at review time (procedure family, days post-op, current tier) into `clinical_context_json`. Require `explanation` ≥30 chars.
-
-**3.3 Re-tier signal**
-
-The post-op re-tier already references `WOUND_PHOTO_SUBMITTED_BY_D5`, `WOUND_PHOTO_SUBMITTED_BY_D10`, `WOUND_PHOTO_NOT_SUBMITTED_BY_D7`, `WOUND_PHOTO_NOT_SUBMITTED_BY_D14` in the audit-flag and positive-contributor lists. Verify your engagement reader (`backend/triage/postop/scoring/`) reads from the new `wound_photos` table to compute these. Photo content is **not** read by re-tier in v1 — only the binary submission timestamps. Do not add any model-driven wound classifier.
-
-**3.4 Nurse review form UI**
-
-Add a structured review form to the doctor / RN dashboard (`frontend/doctor.html` is the appropriate surface). The form must include all fields from PRD §8.3: is-problematic radio, concern-type multi-select, unable-reasons multi-select, severity radio, action-taken multi-select, explanation textarea (≥30 chars), confidence slider 0–100. Submit posts to `POST /api/wound-photos/{id}/review`.
-
-**3.5 Patient upload UI**
-
-Add a "Wound photos" section to the patient post-op surface (`frontend/postop.js` and the patient HTML). Native camera/file picker; multipart upload to the new endpoint; clear post-submit confirmation.
-
-**3.6 Nightly de-identified training-data export**
-
-Add a cron loop (in `backend/triage/postop/cron.py` plus a startup task in `main.py`) that runs nightly and writes a redacted parquet snapshot of `wound_photo_reviews` to `wound-photo-training/<yyyy-mm-dd>.parquet`. Use stable salted hashes for `patient_id`. Do not copy photo binaries — only URLs. Make the export opt-in per institution via a feature flag in `tuning.json`.
-
-### 4. Wire the existing intake form to PAM scoring
+### 3. Wire the existing intake form to PAM scoring
 
 The intake form parser (`backend/intake_form_parser.py`) and intake interview (`backend/intake_section_chat.py`) already exist. Per `preop-retier-v1.md` §4.3, the PAM-style proxy must be embedded as section 3.5 of the intake interview, and the result must persist to `pam_assessments`.
 
@@ -117,41 +86,39 @@ In the intake submission handler (find the existing endpoint that finalizes the 
 
 Add a unit test that verifies submitting an intake form with PAM section yields a `pam_assessments` row and triggers a re-tier event.
 
-### 5. Wire the existing pre-op surveys to pre-op re-tier
+### 4. Wire the existing pre-op surveys to pre-op re-tier
 
 `backend/preop_survey.py` already scores T-96/T-48/T-24 surveys and writes to `survey_responses` with `tier` (green/orange/red). The pre-op re-tier must consume that output as a soft contributor.
 
 In `backend/triage/preop_retier/delta.py` (or wherever the soft delta is computed), confirm the reader pulls the most recent `survey_responses` row per window for the patient and maps `tier` to the contributor: `green=0`, `orange=+1`, `red=+3`, `missed=+2`. Add a unit test that exercises this path end-to-end: simulate three submitted survey rows, run pre-op re-tier, assert the contributors fire correctly.
 
-### 6. Verification checklist — run before declaring done
+### 5. Verification checklist — run before declaring done
 
 Use `docs/prd/README.md` §7 (the reviewer's checklist) as the master list. The high-priority items:
 
 1. `from main import app` succeeds and the FastAPI startup runs without exceptions.
 2. `pytest backend/tests/ -q` passes; `test_triage_suite_cohesion.py` runs (it was previously blocked by the eligibility import).
-3. Every endpoint listed in §1.2, §1.3, §3.2 above returns a 2xx for happy-path requests.
+3. Every endpoint listed in §1.2 and §1.3 above returns a 2xx for happy-path requests.
 4. `pam_assessments` and `preop_retier_events` tables exist after a fresh DB init.
-5. `wound_photos` and `wound_photo_reviews` tables exist; uploading a JPEG via the new endpoint writes both `wound_photos` and an `event_logs` row.
-6. Submitting a complete intake form writes a `pam_assessments` row and emits a `PREOP_RETIER_TIER_UPDATED` (or `_RECOMPUTED_NO_CHANGE`) event.
-7. Submitting a T-48 survey with a red tier triggers a pre-op re-tier with the corresponding soft contributor in the reasons.
-8. Patient-facing HTML/JS files contain zero direct renders of `tier`, `score`, `activation_score`, or `activation_level`. Grep for those identifiers in `frontend/index.html`, `frontend/postop.js`, `frontend/preop-survey.js`, `frontend/preop-survey.html`. The only places these may appear are doctor/admin surfaces (`frontend/doctor.html`, `frontend/admin.html`).
-9. Intra-op + post-op re-tier never algorithmically downgrade. Confirm with focused tests: a clean post-intra-op TIER_3 patient with perfect engagement stays TIER_3; the post-op delta is unsigned (no negative arithmetic) per Post-Op PRD §10.3.
-10. Pre-op re-tier sticky-hard guard works: when `initial_tier_was_hard_escalator=1`, a delta ≤ −3 does not downgrade.
+5. Submitting a complete intake form writes a `pam_assessments` row and emits a `PREOP_RETIER_TIER_UPDATED` (or `_RECOMPUTED_NO_CHANGE`) event.
+6. Submitting a T-48 survey with a red tier triggers a pre-op re-tier with the corresponding soft contributor in the reasons.
+7. Patient-facing HTML/JS files contain zero direct renders of `tier`, `score`, `activation_score`, or `activation_level`. Grep for those identifiers in `frontend/index.html`, `frontend/postop.js`, `frontend/preop-survey.js`, `frontend/preop-survey.html`. The only places these may appear are doctor/admin surfaces (`frontend/doctor.html`, `frontend/admin.html`).
+8. Intra-op + post-op re-tier never algorithmically downgrade. Confirm with focused tests: a clean post-intra-op TIER_3 patient with perfect engagement stays TIER_3; the post-op delta is unsigned (no negative arithmetic) per Post-Op PRD §10.3.
+9. Pre-op re-tier sticky-hard guard works: when `initial_tier_was_hard_escalator=1`, a delta ≤ −3 does not downgrade.
 
-### 7. Out of scope for this pass — do not build
+### 6. Out of scope for this pass — do not build
 
-- A wound-photo content classifier (v2 PRD; the data pipeline is the only v1 deliverable).
+- The wound-photo upload, nurse-review pipeline, and de-identified training-data export. Deferred to a later pass. Existing references to wound-photo contributor flags in the post-op re-tier code stay in place; their readers may return zero/empty values for now.
 - RPM device readings; keep `rpm_enabled: false` in `tuning.json`.
 - Care Companion engagement; keep `care_companion_enabled: false`.
 - Auto-rerun of initial tier when intake reveals new comorbidities (manual coordinator advisory only in v1).
 - An eligibility router; remove the broken references and let a future PRD add eligibility cleanly.
 
-### 8. Definition of done
+### 7. Definition of done
 
-- `docs/prd/README.md` §7 reviewer's checklist passes.
+- `docs/prd/README.md` §7 reviewer's checklist passes (excluding any line items that depend on the deferred wound-photo pipeline).
 - `pytest backend/tests/ -q` reports the same or higher passing count than before this change, with `test_triage_suite_cohesion.py` included.
-- All five PRD-mandated routers exist (initial-tier, preop-retier, intraop, postop, plus the existing admin tuning-read endpoints) and are registered in `main.py`.
+- All four PRD-mandated routers exist (initial-tier, preop-retier, intraop, postop, plus the existing admin tuning-read endpoints) and are registered in `main.py`.
 - Patient app surfaces never render tier, score, or activation values.
-- The wound-photo pipeline is operable end-to-end: patient uploads → RN reviews → labeled training row exists → nightly export writes a parquet file.
 
-When done, write a one-page changelog at `docs/prd/triage-build-pass-2-changelog.md` listing exactly what changed, which tests were added, and any follow-ups left for a v3 pass.
+When done, write a one-page changelog at `docs/prd/triage-build-pass-2-changelog.md` listing exactly what changed, which tests were added, and any follow-ups left for a v3 pass (the wound-photo pipeline being the obvious one).
