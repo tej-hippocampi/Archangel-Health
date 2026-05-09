@@ -393,17 +393,19 @@ export function reTierPostOp(state: PostOpReTierInput): PostOpReTierResult {
 
 ### 10.3 Soft contributors (each adds points; total maps to tier upgrade)
 
-Post-op uses an unsigned positive-only delta — all contributors push upward. The floor cannot be undercut.
+Post-op uses an **unsigned, positive-only delta**. Every contributor that fires either adds points or contributes 0 — the post-op delta cannot become negative. The floor (`postIntraOpTier`) cannot be undercut by this algorithm.
+
+#### 10.3.a Positive contributors (move the tier)
 
 ```ts
 // /lib/triage/postop/postop-retier.weights.ts
-export const POSTOP_WEIGHTS = {
+export const POSTOP_POSITIVE_WEIGHTS = {
   // Daily check-in
   CHECKIN_TIER_RED:                          +3,   // per day
-  CHECKIN_TIER_ORANGE:                       +1,
-  CHECKIN_MISSED:                            +1,   // per day, capped at 7-day window contribution of +5
-  CHECKIN_MISSED_STREAK_3:                   +2,   // additional, when streak ≥3
-  WOUND_CONCERN_FROM_CHECKIN:                +2,   // item 5 single chip
+  CHECKIN_TIER_ORANGE:                       +1,   // per day
+  CHECKIN_MISSED:                            +1,   // per day, contribution capped at +5 across the rolling 7-day window
+  CHECKIN_MISSED_STREAK_3:                   +2,   // additional once streak ≥ 3
+  WOUND_CONCERN_FROM_CHECKIN:                +2,   // single item-5 chip
   PAIN_TRAJECTORY_WORSE:                     +1,   // item 2 = Worse and item 1 above expected curve
 
   // Day surveys
@@ -417,27 +419,40 @@ export const POSTOP_WEIGHTS = {
   SURVEY_DAY_30_ORANGE:                      +1,
   SURVEY_DAY_30_MISSED:                      +1,
 
-  // Engagement — videos
-  RED_FLAG_VIDEO_VIEWED_BY_D2:               -2,   // signed; capped to 0 in unsigned sum
+  // Video engagement (negatives only)
   RED_FLAG_VIDEO_NOT_VIEWED_BY_D5:           +2,
-  DIAGNOSIS_TREATMENT_VIDEO_VIEWED_BY_D5:    -1,
-  DIAGNOSIS_TREATMENT_VIDEO_VIEWED_3_PLUS_BY_D14: -1,
   DIAGNOSIS_TREATMENT_VIDEO_NOT_VIEWED_BY_D14: +1,
 
   // Med adherence (rolling 7-day)
-  MED_ADHERENCE_HIGH:                        -1,
   MED_ADHERENCE_LOW:                         +2,
   MED_ADHERENCE_NON_RESPONSE_STREAK_3:       +2,
 
-  // Wound photo (engagement only)
-  WOUND_PHOTO_SUBMITTED_BY_D5:               -1,
-  WOUND_PHOTO_SUBMITTED_BY_D10:              -1,
+  // Wound photo engagement (negatives only)
   WOUND_PHOTO_NOT_SUBMITTED_BY_D7:           +1,
   WOUND_PHOTO_NOT_SUBMITTED_BY_D14:          +2,
 } as const;
+
+export const POSTOP_DELTA_CAP = 12;                // sum of positive contributors clamped to this
 ```
 
-The "negative" weights above (engagement rewards) are tracked in the algorithm but **clamped to 0** in the post-op delta (post-op cannot downgrade below the floor). They appear in the audit log so the team can see how positive engagement is offsetting negative contributors, but they cannot, by themselves, drop the tier.
+The total positive delta is capped at `POSTOP_DELTA_CAP` (default 12) for parity with the pre-op re-tier soft cap and to prevent runaway aggregation under cascading missed-engagement scenarios.
+
+#### 10.3.b Engagement-reward audit (no tier effect)
+
+The following positive-engagement signals are **detected and logged** but contribute **zero** to the post-op delta. They appear in the `PostOpReTierEvent.reasons` array with `kind: 'ENGAGEMENT_AUDIT'` so coordinators and analysts can see what offset what; they cannot by themselves move the tier.
+
+```ts
+export const POSTOP_ENGAGEMENT_AUDIT_FLAGS = [
+  'RED_FLAG_VIDEO_VIEWED_BY_D2',
+  'DIAGNOSIS_TREATMENT_VIDEO_VIEWED_BY_D5',
+  'DIAGNOSIS_TREATMENT_VIDEO_VIEWED_3_PLUS_BY_D14',
+  'MED_ADHERENCE_HIGH',
+  'WOUND_PHOTO_SUBMITTED_BY_D5',
+  'WOUND_PHOTO_SUBMITTED_BY_D10',
+] as const;
+```
+
+This is the post-op equivalent of the pre-op re-tier's negative-contributor downgrade arm — except here, with the upward-only rule, those signals can only be reported, never applied.
 
 ### 10.4 Delta → tier mapping
 
@@ -454,9 +469,9 @@ Symmetric thresholds with pre-op re-tier (≥+3 = +1 step, ≥+6 = +2 steps), bu
 
 ### 10.5 Worked examples
 
-**A. Floor T1, clean recovery.** D7 green, D14 green, all daily check-ins green, both videos viewed, med adherence high, wound photo submitted by D5. Negative weights present but clamped. delta = 0. Tier = T1.
+**A. Floor T1, clean recovery.** D7 green, D14 green, all daily check-ins green, both videos viewed, med adherence high, wound photo submitted by D5. Engagement-audit flags fire (logged as `ENGAGEMENT_AUDIT` reasons) but contribute 0. delta = 0. Tier = T1.
 
-**B. Floor T1, missed engagement.** D7 missed (+2), D14 orange (+1), 4 daily check-ins missed (+4 capped at +5), red-flag video not viewed by D5 (+2), wound photo not submitted by D7 (+1). Total delta ≈ +10 (capped). Mapping: ≥+6 → upgrade by 2 → TIER_3.
+**B. Floor T1, missed engagement.** D7 missed (+2), D14 orange (+1), 4 daily check-ins missed in rolling window (+4), red-flag video not viewed by D5 (+2), wound photo not submitted by D7 (+1). Total delta = 10 (under cap of 12). Mapping: ≥+6 → upgrade by 2 → TIER_3.
 
 **C. Floor T2, item 5 single chip.** Day 5 daily check-in shows "new redness spreading" (+2 from `WOUND_CONCERN_FROM_CHECKIN`). delta = +2. Mapping: <+3 → no change. Tier stays T2. The wound concern still raises an *alert* via the existing Triage Tracking pipeline; tier just doesn't move yet.
 
@@ -770,7 +785,9 @@ enum AlertReason {
   "postop": {
     "version": 1,
     "modelVersion": "postop-retier@1.0.0",
-    "weights": { "...": "see §10.3 POSTOP_WEIGHTS" },
+    "positiveWeights": { "...": "see §10.3.a POSTOP_POSITIVE_WEIGHTS" },
+    "engagementAuditFlags": { "...": "see §10.3.b POSTOP_ENGAGEMENT_AUDIT_FLAGS" },
+    "deltaCap": 12,
     "deltaThresholds": { "upgrade1Min": 3, "upgrade2Min": 6 },
     "checkin": {
       "windowHours": 36,
