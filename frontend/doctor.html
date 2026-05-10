@@ -19,12 +19,23 @@
       --danger: #dc2626;
       --radius: 12px;
       --space: 8px;
+      --sidebar-width: 280px;
       --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Make the HTML `hidden` attribute reliably win against author CSS such as
+       `.actions-row { display: flex }` — without this, calling `el.hidden = true`
+       on a flex container has no visible effect. */
+    [hidden] { display: none !important; }
     body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
 
-    .app { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) 1fr;
+      min-height: 100vh;
+      transition: grid-template-columns .15s ease;
+    }
+    .app.sidebar-collapsed { --sidebar-width: 56px; }
 
     /* Sidebar */
     .sidebar {
@@ -37,7 +48,35 @@
       position: sticky;
       top: 0;
       height: 100vh;
+      overflow: hidden;
     }
+    .sidebar-toggle {
+      position: absolute;
+      top: 16px;
+      right: -12px;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 30;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+      transition: color .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    .sidebar-toggle:hover { color: var(--text); border-color: #cbd5e1; }
+    .app.sidebar-collapsed .sidebar-toggle { transform: rotate(180deg); }
+    .app.sidebar-collapsed .sidebar { padding: calc(var(--space) * 3) 4px; }
+    .app.sidebar-collapsed .logo-wrap,
+    .app.sidebar-collapsed .profile-card,
+    .app.sidebar-collapsed .tabs,
+    .app.sidebar-collapsed .sidebar-bottom { display: none; }
     .logo-wrap { display: flex; align-items: center; gap: 12px; }
     .logo-icon {
       width: 44px; height: 44px; border-radius: 14px; background: var(--accent);
@@ -172,7 +211,7 @@
     }
     .roster-row {
       display: grid;
-      grid-template-columns: 1.1fr 1fr 1.2fr .7fr .9fr;
+      grid-template-columns: 1.1fr 1fr 1.2fr .7fr .9fr 1.1fr;
       gap: 10px;
       align-items: center;
       text-align: center;
@@ -185,6 +224,64 @@
     .roster-row:hover { background: #f9fbff; }
     .roster-cell.name { font-weight: 600; color: #0f172a; }
     .roster-cell.muted { color: var(--muted); }
+    .roster-cell.cta { display: flex; justify-content: center; }
+    .btn-intraop {
+      font-size: 12px; font-weight: 600; padding: 6px 12px;
+      border-radius: 6px; border: 1px solid var(--line);
+      background: #fff; color: #0f172a; cursor: pointer;
+      transition: background .12s, border-color .12s, color .12s;
+    }
+    .btn-intraop:hover { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .btn-intraop.go-postop { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .btn-intraop.go-postop:hover { background: #1d4ed8; }
+    .btn-intraop.open-form { background: #fff; color: #0f172a; border-color: #e2e8f0; }
+    .postop-cta-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: flex-start;
+    }
+    .postop-tier-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .postop-tier-ok     { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+    .postop-tier-warn   { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .postop-tier-danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+    /* Triage Suite Pass 3 §4.3 — three-tier chain badge */
+    .tier-chain {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .tier-chain .tier-chip {
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      background: #f3f4f6;
+      color: #4b5563;
+    }
+    .tier-chain .tier-chip.tier-t1 { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .tier-chain .tier-chip.tier-t2 { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .tier-chain .tier-chip.tier-t3 { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .tier-chain .tier-chip.tier-empty { color: #9ca3af; font-style: italic; }
+    .tier-chain .tier-arrow { color: #9ca3af; font-size: 10px; }
+    .tier-chain .tier-arrow.changed { color: #b45309; font-weight: 800; }
+    .tier-chain-label {
+      font-size: 9px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
     .name-wrap { display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
     .episode-pill {
       display: inline-flex;
@@ -636,6 +733,213 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ─── TEAM Eligibility (Track A) ──────────────────────────────────── */
+    .file-list { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 6px; }
+    .file-row {
+      display: grid; grid-template-columns: 1fr auto auto auto auto;
+      align-items: center; gap: 10px;
+      border: 1px solid var(--line); border-radius: 10px; background: #fff;
+      padding: 8px 10px; font-size: 13px;
+    }
+    .file-row .fname { font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-badge {
+      display: inline-flex; align-items: center; padding: 2px 8px;
+      font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      border-radius: 999px; border: 1px solid #d1d5db; background: #f3f4f6; color: #374151;
+    }
+    .file-badge.x12 { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+    .file-badge.pdf { background: #fef3c7; border-color: #fde68a; color: #92400e; }
+    .file-badge.csv { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+    .file-badge.other { background: #f3f4f6; border-color: #d1d5db; color: #374151; }
+    .file-size { font-size: 12px; color: #6b7280; }
+    .status-pill {
+      display: inline-flex; align-items: center; padding: 2px 8px;
+      border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .03em; border: 1px solid;
+    }
+    .status-pill.queued { background: #f3f4f6; border-color: #d1d5db; color: #374151; }
+    .status-pill.uploading { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .status-pill.validated { background: #dcfce7; border-color: #86efac; color: #166534; }
+    .status-pill.error { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    .file-remove {
+      background: none; border: none; cursor: pointer;
+      font-size: 16px; color: #94a3b8; padding: 2px 6px; line-height: 1;
+    }
+    .file-remove:hover { color: #ef4444; }
+
+    .stage-strip { display: flex; gap: 6px; align-items: center; margin: 6px 0 14px; flex-wrap: wrap; }
+    .stage-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--line); border-radius: 999px;
+      padding: 4px 12px; font-size: 12px; font-weight: 600; color: #6b7280; background: #f9fafb;
+    }
+    .stage-pill.active { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+    .stage-pill.active::before {
+      content: ""; width: 8px; height: 8px; border-radius: 50%; background: #2563eb;
+      box-shadow: 0 0 0 0 rgba(37,99,235,0.6); animation: pulse-blue 1.4s infinite;
+    }
+    .stage-pill.done { background: #dcfce7; border-color: #86efac; color: #166534; }
+    .stage-pill.done::before { content: "✓"; color: #166534; font-weight: 800; }
+    .stage-pill.error { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    @keyframes pulse-blue {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.5); }
+      50% { box-shadow: 0 0 0 6px rgba(37,99,235,0); }
+    }
+    .stage-arrow { color: #cbd5e1; font-weight: 700; }
+
+    .verdict-row {
+      display: grid; grid-template-columns: 1fr auto auto;
+      gap: 10px; align-items: center;
+      border: 1px solid var(--line); border-radius: 10px; background: #fff;
+      padding: 10px 12px; margin-bottom: 8px;
+    }
+    .verdict-row .v-name { font-size: 14px; font-weight: 700; color: #0f172a; }
+    .verdict-row .v-explain { font-size: 12px; color: #475569; line-height: 1.4; margin-top: 2px; }
+    .verdict-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; font-size: 11px; font-weight: 700; letter-spacing: .03em;
+      text-transform: uppercase; border-radius: 999px; border: 1px solid;
+      white-space: nowrap;
+    }
+    .verdict-pill.pass { background: #dcfce7; border-color: #86efac; color: #166534; }
+    .verdict-pill.fail { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    .verdict-pill.unknown { background: #fef9c3; border-color: #fde047; color: #854d0e; }
+
+    .source-disclosure { margin-top: 8px; }
+    .source-disclosure summary {
+      cursor: pointer; font-size: 12px; color: #2563eb; font-weight: 600; user-select: none;
+    }
+    .source-disclosure summary:hover { text-decoration: underline; }
+    .source-excerpt {
+      margin-top: 6px; padding: 8px 10px; border-left: 3px solid #93c5fd;
+      background: #f8fafc; font-family: ui-monospace, monospace; font-size: 12px; color: #334155;
+      line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+    }
+
+    .determine-banner {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; border-radius: 12px; border: 1px solid;
+      font-size: 16px; font-weight: 700; margin-bottom: 12px;
+    }
+    .determine-banner.eligible { background: #dcfce7; border-color: #86efac; color: #166534; }
+    .determine-banner.ineligible { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    .determine-banner.review { background: #fef9c3; border-color: #fde047; color: #854d0e; }
+
+    .determine-actions {
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end;
+      padding-top: 12px; border-top: 1px solid var(--line); margin-top: 8px;
+    }
+
+    /* ─── TEAM eligibility badge (PRD §6.1) ──────────────────────────── */
+    .badge-team-eligible, .badge-team-ineligible, .badge-team-pending {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 10px; margin-left: 10px;
+      font-size: 11px; font-weight: 700; line-height: 1.6;
+      border-radius: 999px; vertical-align: middle;
+      letter-spacing: .03em; text-transform: uppercase;
+    }
+    .badge-team-eligible { color: #0f5132; background: #d1e7dd; border: 1px solid #badbcc; }
+    .badge-team-ineligible { color: #842029; background: #f8d7da; border: 1px solid #f5c2c7; }
+    .badge-team-pending { color: #664d03; background: #fff3cd; border: 1px solid #ffecb5; }
+
+    /* INELIGIBLE-badge custom tooltip — instant hover (no native `title` delay).
+       Falls through to `title=` for accessibility / non-hover environments. */
+    .badge-team-ineligible[data-reason] { position: relative; cursor: help; }
+    .badge-team-ineligible[data-reason]:hover::after,
+    .badge-team-ineligible[data-reason]:focus-visible::after {
+      content: attr(data-reason);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      background: #1f2937;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0;
+      text-transform: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      pointer-events: none;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .badge-team-ineligible[data-reason]:hover::before,
+    .badge-team-ineligible[data-reason]:focus-visible::before {
+      content: "";
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 4px solid transparent;
+      border-top-color: #1f2937;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    /* ─── Inline confirm panels (Track B detail-view redesign) ───────── */
+    .inline-confirm-panel {
+      border: 1px solid var(--line); border-radius: 10px; background: #fafbff;
+      padding: 14px; margin-top: 12px;
+    }
+    .inline-confirm-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; margin-bottom: 10px;
+    }
+    .inline-confirm-head h4 { font-size: 14px; font-weight: 700; margin: 0; }
+    .link-btn {
+      background: none; border: none; color: #2563eb; font-size: 13px;
+      font-weight: 600; cursor: pointer; padding: 2px 4px;
+    }
+    .link-btn:hover { text-decoration: underline; }
+    .inline-confirm-panel textarea {
+      width: 100%; min-height: 220px; padding: 10px 12px;
+      border: 1px solid #e5e7eb; border-radius: 8px;
+      font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5;
+      resize: vertical;
+    }
+    .inline-confirm-panel textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    .inline-confirm-actions {
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 10px;
+    }
+    .inline-progress {
+      display: flex; align-items: center; gap: 8px; margin-top: 12px;
+      font-size: 13px; color: #475569;
+    }
+    .spinner-sm {
+      width: 14px; height: 14px; border: 2px solid #e5e7eb;
+      border-top-color: #2563eb; border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    .inline-error {
+      margin-top: 10px; padding: 10px 12px; border-radius: 8px;
+      background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+      font-size: 13px;
+    }
+
+    /* ─── Group upload summary (Phase 4) ──────────────────────────────── */
+    .group-summary { display: grid; gap: 12px; }
+    .group-summary-section { border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    .group-summary-section .panel-head { padding: 10px 12px; font-size: 13px; }
+    .group-summary-section .panel-body { padding: 8px 0; }
+    .group-summary-row {
+      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 10px; padding: 8px 12px; border-bottom: 1px solid #f3f4f6;
+      font-size: 12px; color: #334155;
+    }
+    .group-summary-row:last-child { border-bottom: none; }
+    .group-summary-row .gs-name { font-weight: 600; color: #0f172a; }
+
+    /* Override modal */
+    .override-modal-body { padding: 16px 18px; }
+    .override-modal-body label { display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 6px; }
+    .override-modal-body textarea {
+      width: 100%; min-height: 100px; padding: 10px 12px;
+      border: 1px solid #e5e7eb; border-radius: 8px;
+      font-family: var(--font); font-size: 13px;
+    }
+
     @media (max-width: 1120px) {
       .app { grid-template-columns: 1fr; }
       .sidebar { height: auto; position: static; border-right: none; border-bottom: 1px solid var(--line); }
@@ -658,8 +962,9 @@
   </style>
 </head>
 <body>
-  <div class="app">
+  <div class="app" id="appShell">
     <aside class="sidebar">
+      <button type="button" class="sidebar-toggle" id="sidebarToggleBtn" aria-label="Toggle sidebar" title="Collapse sidebar">‹</button>
       <div class="logo-wrap">
         <div class="logo-icon">
           <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -923,13 +1228,39 @@
           </div>
         </div>
 
-        <div class="panel">
+        <div class="panel" id="postopMaterialsPanel">
           <div class="panel-head"><span>Discharge Materials</span></div>
           <div class="panel-body">
-            <p style="font-size:14px;color:var(--muted);">Use these actions to review and send materials for this patient.</p>
-            <div class="actions-row">
-              <button class="btn" id="viewMaterialsBtn">View Discharge Materials</button>
+            <p class="panel-note" style="font-size:14px;color:var(--muted);">
+              A lot of source data is being parsed and analyzed. Confirm the post-op notes
+              to generate discharge materials.
+            </p>
+            <div class="actions-row" id="postopActionsInitial">
+              <button class="btn primary" id="confirmPostOpNotesBtn">Confirm Post-Op Notes</button>
+            </div>
+
+            <div class="inline-confirm-panel" id="postopConfirmPanel" hidden>
+              <div class="inline-confirm-head">
+                <h4>Review extracted post-op notes</h4>
+                <button class="link-btn" id="postopCancelEdit" type="button">Cancel</button>
+              </div>
+              <textarea id="postopNotesEditor" rows="14"></textarea>
+              <div class="inline-confirm-actions">
+                <button class="btn primary" id="postopConfirmGenerateBtn" type="button">
+                  Confirm &amp; Generate Discharge Materials
+                </button>
+              </div>
+              <div class="inline-progress" id="postopGenProgress" hidden>
+                <div class="spinner-sm"></div>
+                <span id="postopGenProgressLabel">Generating discharge materials…</span>
+              </div>
+              <div class="inline-error" id="postopGenError" style="display:none;"></div>
+            </div>
+
+            <div class="actions-row" id="postopActionsConfirmed" hidden>
+              <button class="btn"        id="viewMaterialsBtn">View Discharge Materials</button>
               <button class="btn primary" id="sendMaterialsBtn">Send Discharge Materials</button>
+              <button class="btn"        id="editPostOpNotesBtn">Edit Post-Op Notes</button>
             </div>
           </div>
         </div>
@@ -972,15 +1303,42 @@
             <div id="surgeryTimelineRow"></div>
           </div>
         </div>
-        <div class="panel" style="margin-bottom:0;">
+        <div class="panel" id="preopMaterialsPanel" style="margin-bottom:0;">
           <div class="panel-head"><span>Prep Materials</span></div>
           <div class="panel-body">
-            <p style="font-size:14px;color:var(--muted);">Use these actions to review and send materials for this pre-op patient.</p>
-            <div class="actions-row">
-              <button class="btn" id="viewPrepMaterialsBtn">View Preparation Materials</button>
-              <button class="btn" id="viewIntakeFormBtn">View Intake Form</button>
+            <p class="panel-note" style="font-size:14px;color:var(--muted);">
+              Review the intake form, revise prep notes to generate preparation materials,
+              or move this patient into the post-op flow.
+            </p>
+            <div class="actions-row" id="preopActionsInitial">
+              <button class="btn"        id="viewIntakeFormBtn">View Intake Form</button>
+              <button class="btn"        id="switchToPostOpBtn">Switch to Post-Op</button>
+              <button class="btn primary" id="revisePrepNotesBtn">Revise Prep Notes</button>
+            </div>
+
+            <div class="inline-confirm-panel" id="preopConfirmPanel" hidden>
+              <div class="inline-confirm-head">
+                <h4>Review extracted prep notes</h4>
+                <button class="link-btn" id="preopCancelEdit" type="button">Cancel</button>
+              </div>
+              <textarea id="preopNotesEditor" rows="14"></textarea>
+              <div class="inline-confirm-actions">
+                <button class="btn primary" id="preopConfirmGenerateBtn" type="button">
+                  Confirm &amp; Generate Preparation Materials
+                </button>
+              </div>
+              <div class="inline-progress" id="preopGenProgress" hidden>
+                <div class="spinner-sm"></div>
+                <span id="preopGenProgressLabel">Generating preparation materials…</span>
+              </div>
+              <div class="inline-error" id="preopGenError" style="display:none;"></div>
+            </div>
+
+            <div class="actions-row" id="preopActionsConfirmed" hidden>
+              <button class="btn"        id="viewPrepMaterialsBtn">View Preparation Materials</button>
+              <button class="btn"        id="viewIntakeFormBtn2">View Intake Form</button>
               <button class="btn primary" id="sendPrepMaterialsBtn">Send Preparation Materials</button>
-              <button class="btn" id="switchToPostOpBtn">Switch to Post-Op</button>
+              <button class="btn"        id="switchToPostOpBtn2">Switch to Post-Op</button>
             </div>
           </div>
         </div>
@@ -1041,65 +1399,193 @@
     </div>
   </div>
 
-  <!-- Add Patient modal: unchanged style/flow -->
+  <!-- Add Patient modal: redesigned for TEAM eligibility (Single + Group) -->
   <div class="modal-overlay" id="addPatientModal">
-    <div class="modal">
+    <div class="modal" style="max-width: 880px;">
       <div class="modal-head">
-        <div class="modal-title">Add New Patient</div>
+        <div class="modal-title" id="addPatientModalTitle">Add New Patient</div>
         <button class="modal-close" id="addPatientClose">×</button>
       </div>
       <div class="modal-body-patient" id="modalForm">
-        <div class="episode-step" id="episodeTypeStep">
-          <div class="episode-step-title">Step 1 — Choose Episode Type</div>
+
+        <!-- Step 1: Single vs Group (PRD §3.1) -->
+        <div class="episode-step" id="intakeModeStep">
+          <div class="episode-step-title">Step 1 — Choose Intake Mode</div>
           <div class="episode-choice-grid">
-            <button type="button" class="episode-choice" id="choosePreOpBtn">
-              <h4>Pre-Op</h4>
-              <p>Surgical preparation workflow and intake resources.</p>
+            <button type="button" class="episode-choice" id="chooseSingleBtn">
+              <h4>Single Patient</h4>
+              <p>Add one patient and upload their relevant files (eligibility, prep notes, post-op notes).</p>
             </button>
-            <button type="button" class="episode-choice" id="choosePostOpBtn">
-              <h4>Post-Op</h4>
-              <p>Existing post-discharge workflow (unchanged).</p>
+            <button type="button" class="episode-choice" id="chooseGroupBtn">
+              <h4>Group Upload</h4>
+              <p>Drop a bundle of patient files. Patients are auto-created and queued as pre-op.</p>
             </button>
           </div>
         </div>
 
+        <!-- ─── Single flow steps ─── -->
+        <div id="singlePatientIdentityStep" style="display:none;">
+          <div class="episode-step-title" style="margin-bottom:14px;">Step 2 — Patient Identity</div>
+          <div class="form-group">
+            <label for="patientName">Patient Name *</label>
+            <input type="text" id="patientName" placeholder="e.g. Maria L." required />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="patientPhone">Phone Number</label>
+              <input type="tel" id="patientPhone" placeholder="+1 (555) 123-4567" />
+            </div>
+            <div class="form-group">
+              <label for="patientEmail">Email</label>
+              <input type="email" id="patientEmail" placeholder="patient@email.com" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="patientMBI">MBI (recommended)</label>
+              <input type="text" id="patientMBI" placeholder="1EG4-TE5-MK73" />
+            </div>
+            <div class="form-group">
+              <label for="patientDOB">Date of Birth</label>
+              <input type="date" id="patientDOB" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" id="scheduledSurgeryDateWrap">
+              <label for="scheduledSurgeryDate">Scheduled Surgery Date</label>
+              <input type="date" id="scheduledSurgeryDate" />
+            </div>
+            <div class="form-group">
+              <label for="anchorProcedure">Anchor Procedure</label>
+              <select id="anchorProcedure" class="pcp-input">
+                <option value="">—</option>
+                <option value="LEJR">Lower-Extremity Joint Replacement</option>
+                <option value="HIP_FEMUR">Hip / Femur</option>
+                <option value="SPINAL_FUSION">Spinal Fusion</option>
+                <option value="CABG">CABG</option>
+                <option value="MAJOR_BOWEL">Major Bowel</option>
+              </select>
+            </div>
+          </div>
+          <p class="upload-hint" style="margin-top:8px;">MBI, DOB, and surgery date can be filled from uploaded eligibility documents in the next step.</p>
+        </div>
+
+        <div id="singleRelevantFilesStep" style="display:none;">
+          <div class="episode-step-title" style="margin-bottom:14px;">Step 3 — Relevant Patient Files</div>
+          <div class="form-group">
+            <label>Drop eligibility documents (X12 271, PDF, CSV) and any other clinical files. The system will route eligibility files through the TEAM check and attach the rest to the patient record.</label>
+            <div class="upload-area" id="filesDrop">
+              <div class="upload-content">
+                <span class="upload-icon">📄</span>
+                <p class="upload-text">Drop files here, or <label for="filesInput" class="upload-link">browse</label></p>
+                <span class="upload-hint">
+                  Eligibility: X12 271 (.x12/.271/.edi/.txt ≤5MB), PDF (≤25MB), CSV (≤10MB).
+                  Other: any PDF or text up to 25MB.
+                </span>
+              </div>
+              <input type="file" id="filesInput" multiple
+                     accept=".pdf,.x12,.271,.edi,.txt,.csv,.tsv" style="display:none;" />
+            </div>
+            <ul class="file-list" id="fileList"></ul>
+            <div class="or-divider"><span>or paste notes below</span></div>
+            <textarea id="freeformNotes" rows="6"
+              placeholder="Optional — paste any additional notes, prep/discharge text, or context..."></textarea>
+          </div>
+        </div>
+
+        <div id="determineStep" style="display:none;">
+          <div class="episode-step-title" style="margin-bottom:6px;">Step 4 — Determine TEAM Eligibility</div>
+          <div class="stage-strip" id="stageStrip">
+            <span class="stage-pill" data-stage="PARSING">Parsing</span>
+            <span class="stage-arrow">›</span>
+            <span class="stage-pill" data-stage="EXTRACTING">Extracting</span>
+            <span class="stage-arrow">›</span>
+            <span class="stage-pill" data-stage="EVALUATING">Evaluating</span>
+            <span class="stage-arrow">›</span>
+            <span class="stage-pill" data-stage="DONE">Done</span>
+          </div>
+          <div id="determineBanner"></div>
+          <div id="determineRows"></div>
+          <div id="determineError" class="inline-error" style="display:none;"></div>
+        </div>
+
+        <!-- ─── Group flow step (Phase 4) ─── -->
+        <div id="groupDropStep" style="display:none;">
+          <div class="episode-step-title" style="margin-bottom:14px;">Step 2 — Drop Patient Files</div>
+          <div class="upload-area" id="groupDrop">
+            <div class="upload-content">
+              <span class="upload-icon">📁</span>
+              <p class="upload-text">
+                Drop multiple files (or a zipped folder) — one or more patients per file is OK.
+              </p>
+              <span class="upload-hint">
+                PDFs, X12 271, CSV exports. Up to 50 files / 200 MB per batch.
+              </span>
+              <span class="upload-hint" id="groupDropMore" style="display:block; margin-top:6px;">
+                <label for="groupInput" class="upload-link">Browse files</label>
+              </span>
+            </div>
+            <input type="file" id="groupInput" multiple
+                   accept=".pdf,.x12,.271,.edi,.txt,.csv,.tsv,.zip" style="display:none;" />
+          </div>
+          <ul class="file-list" id="groupFileList"></ul>
+        </div>
+
+        <div id="groupProgressStep" style="display:none;">
+          <div class="episode-step-title">Processing batch…</div>
+          <div class="stage-strip" id="batchStageStrip">
+            <span class="stage-pill" data-stage="SPLITTING">Splitting</span>
+            <span class="stage-arrow">›</span>
+            <span class="stage-pill" data-stage="EXTRACTING_IDENTITIES">Extracting identities</span>
+            <span class="stage-arrow">›</span>
+            <span class="stage-pill" data-stage="DONE">Done</span>
+          </div>
+          <div id="batchLiveCounts" style="margin-top:8px;font-size:13px;color:#475569;"></div>
+        </div>
+
+        <div id="groupSummaryStep" style="display:none;">
+          <div class="episode-step-title">Group Upload Summary</div>
+          <div class="group-summary" id="groupSummaryBody"></div>
+        </div>
+
+        <!-- Legacy form (kept for "Switch to Post-Op" path) -->
         <div id="patientFormFields" style="display:none;">
-        <div class="form-group">
-          <label for="patientName">Patient Name *</label>
-          <input type="text" id="patientName" placeholder="e.g. Maria L." required />
-        </div>
-        <div class="form-row">
           <div class="form-group">
-            <label for="patientPhone">Phone Number</label>
-            <input type="tel" id="patientPhone" placeholder="+1 (555) 123-4567" />
+            <label for="patientNameLegacy">Patient Name *</label>
+            <input type="text" id="patientNameLegacy" placeholder="e.g. Maria L." required />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="patientPhoneLegacy">Phone Number</label>
+              <input type="tel" id="patientPhoneLegacy" placeholder="+1 (555) 123-4567" />
+            </div>
+            <div class="form-group">
+              <label for="patientEmailLegacy">Email</label>
+              <input type="email" id="patientEmailLegacy" placeholder="patient@email.com" />
+            </div>
+          </div>
+          <div class="form-group" id="scheduledSurgeryDateWrapLegacy" style="display:none;">
+            <label for="scheduledSurgeryDateLegacy">Scheduled Surgery Date *</label>
+            <input type="date" id="scheduledSurgeryDateLegacy" />
           </div>
           <div class="form-group">
-            <label for="patientEmail">Email</label>
-            <input type="email" id="patientEmail" placeholder="patient@email.com" />
-          </div>
-        </div>
-        <div class="form-group" id="scheduledSurgeryDateWrap" style="display:none;">
-          <label for="scheduledSurgeryDate">Scheduled Surgery Date *</label>
-          <input type="date" id="scheduledSurgeryDate" />
-        </div>
-        <div class="form-group">
-          <label id="notesLabel">Discharge Notes *</label>
-          <div class="upload-area" id="uploadArea">
-            <div class="upload-content" id="uploadContent">
-              <span class="upload-icon">📄</span>
-              <p class="upload-text">Drag & drop a PDF or <label for="pdfInput" class="upload-link">browse files</label></p>
-              <span class="upload-hint">PDF files up to 10MB</span>
+            <label id="notesLabel">Discharge Notes *</label>
+            <div class="upload-area" id="uploadArea">
+              <div class="upload-content" id="uploadContent">
+                <span class="upload-icon">📄</span>
+                <p class="upload-text">Drag & drop a PDF or <label for="pdfInput" class="upload-link">browse files</label></p>
+                <span class="upload-hint">PDF files up to 10MB</span>
+              </div>
+              <div class="upload-success" id="uploadSuccess" style="display:none;">
+                <span class="upload-check">✓</span>
+                <span class="upload-filename" id="uploadFilename"></span>
+                <button class="upload-remove" id="uploadRemove" type="button">×</button>
+              </div>
+              <input type="file" id="pdfInput" accept=".pdf" style="display:none;" />
             </div>
-            <div class="upload-success" id="uploadSuccess" style="display:none;">
-              <span class="upload-check">✓</span>
-              <span class="upload-filename" id="uploadFilename"></span>
-              <button class="upload-remove" id="uploadRemove" type="button">×</button>
-            </div>
-            <input type="file" id="pdfInput" accept=".pdf" style="display:none;" />
+            <div class="or-divider"><span>or paste text below</span></div>
+            <textarea id="dischargeNotes" placeholder="Paste the full post-discharge notes, after-visit summary, medication list, clinical notes..."></textarea>
           </div>
-          <div class="or-divider"><span>or paste text below</span></div>
-          <textarea id="dischargeNotes" placeholder="Paste the full post-discharge notes, after-visit summary, medication list, clinical notes..."></textarea>
-        </div>
         </div>
       </div>
       <div class="processing-overlay" id="processing">
@@ -1110,9 +1596,36 @@
         <div class="progress-pct" id="progressPct">0%</div>
       </div>
       <div class="error-msg" id="errorMsg"></div>
-      <div class="modal-footer" id="modalFooter">
+      <div class="modal-footer" id="modalFooter" style="display:none;">
         <button class="btn-cancel" id="cancelBtn">Cancel</button>
         <button class="btn-submit" id="submitBtn">Generate Resources</button>
+      </div>
+      <!-- Footer for the new TEAM flows -->
+      <div class="modal-footer" id="teamModalFooter" style="display:none;">
+        <button class="btn" id="teamBackBtn" type="button">Back</button>
+        <button class="btn-cancel" id="teamCancelBtn" type="button">Cancel</button>
+        <button class="btn-submit" id="teamPrimaryBtn" type="button">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Override reason modal (PRD §4.3) -->
+  <div class="modal-overlay" id="overrideModal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-head">
+        <div class="modal-title" id="overrideModalTitle">Override verdict</div>
+        <button class="modal-close" data-close="overrideModal">×</button>
+      </div>
+      <div class="override-modal-body">
+        <p style="font-size:13px;color:#475569;margin-bottom:10px;">
+          Provide a reason for overriding this check. Audited.
+        </p>
+        <label for="overrideReason">Reason</label>
+        <textarea id="overrideReason" placeholder="e.g. Verified Medicare primacy via phone with payer"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" data-close="overrideModal">Cancel</button>
+        <button class="btn-submit" id="overrideConfirmBtn">Confirm Override → PASS</button>
       </div>
     </div>
   </div>
@@ -1566,6 +2079,23 @@
       return `<span class="episode-pill ${pre ? "pre" : "post"}">${pre ? "Pre-Op" : "Post-Op"}</span>`;
     }
 
+    function renderTeamBadge(patient) {
+      const map = {
+        ELIGIBLE:        ["badge-team-eligible",   "✓ TEAM ELIGIBLE"],
+        INELIGIBLE:      ["badge-team-ineligible", "✗ NOT TEAM ELIGIBLE"],
+        BLOCKED_UNKNOWN: ["badge-team-pending",    "⚠ Eligibility review needed"],
+        PENDING:         ["badge-team-pending",    "… Eligibility pending"],
+      };
+      const status = patient?.eligibilityStatus || patient?.eligibility_status;
+      const entry = map[status];
+      if (!entry) return "";
+      const failingRule = patient?.eligibilityFailingRule || patient?.eligibility_failing_rule;
+      if (status === "INELIGIBLE" && failingRule) {
+        return `<span class="${entry[0]}" data-reason="${esc(failingRule)}" title="${esc(failingRule)}" tabindex="0">${esc(entry[1])}</span>`;
+      }
+      return `<span class="${entry[0]}" title="${esc(entry[1])}">${esc(entry[1])}</span>`;
+    }
+
     function intakeStatusPillHtml(status) {
       const normalized = String(status || "NOT_STARTED").toUpperCase();
       const labelMap = {
@@ -1605,20 +2135,112 @@
       openTimeline(pid);
     }
 
+    function tierChipClass(tier) {
+      if (tier === "TIER_3") return "tier-t3";
+      if (tier === "TIER_2") return "tier-t2";
+      if (tier === "TIER_1") return "tier-t1";
+      return "tier-empty";
+    }
+    function tierChipLabel(tier) {
+      if (tier === "TIER_3") return "T3";
+      if (tier === "TIER_2") return "T2";
+      if (tier === "TIER_1") return "T1";
+      return "—";
+    }
+    // Triage Suite Pass 3 §4.3 — three-tier chain (T@upload → T@intake → Now).
+    function tierChainHtml(p) {
+      const initial = p.initialTier || null;
+      const intake  = p.postIntakeTier || null;
+      const current = p.currentTier || null;
+      if (!initial && !intake && !current) return "";
+      const intakeChanged  = initial && intake && initial !== intake;
+      const currentChanged = intake && current && intake !== current;
+      return `
+        <div class="tier-chain" title="Initial → Post-intake → Now">
+          <span class="tier-chip ${tierChipClass(initial)}">${esc(tierChipLabel(initial))}</span>
+          <span class="tier-arrow ${intakeChanged ? 'changed' : ''}">→</span>
+          <span class="tier-chip ${tierChipClass(intake)}">${esc(tierChipLabel(intake))}</span>
+          <span class="tier-arrow ${currentChanged ? 'changed' : ''}">→</span>
+          <span class="tier-chip ${tierChipClass(current)}">${esc(tierChipLabel(current))}</span>
+        </div>
+      `;
+    }
+
     function renderRoster(list = PATIENTS) {
       byId("rosterCount").textContent = `${PATIENTS.length} patients`;
       byId("rosterList").innerHTML = list.map((p) => `
         <div class="roster-row" data-pid="${esc(p.id)}">
-          <div class="roster-cell name"><span class="name-wrap">${episodePillHtml(inferEpisodeType(p))}<span>${esc(p.name)}</span></span></div>
+          <div class="roster-cell name"><span class="name-wrap">${episodePillHtml(inferEpisodeType(p))}<span>${esc(p.name)}${renderTeamBadge(p)}</span></span>${tierChainHtml(p)}</div>
           <div class="roster-cell muted">${esc(p.phone || "—")}</div>
           <div class="roster-cell muted">${esc(p.email || "—")}</div>
           <div class="roster-cell muted">Day ${esc(p.episode?.currentDay ?? "—")}</div>
           <div class="roster-cell muted">${inferEpisodeType(p) === "pre_op" ? intakeStatusPillHtml(p.intakeFormStatus) : "—"}</div>
+          <div class="roster-cell cta">${intraopCtaHtml(p)}</div>
         </div>
       `).join("");
       byId("rosterList").querySelectorAll(".roster-row").forEach((row) => {
         row.addEventListener("click", () => openPatientDetail(row.dataset.pid));
       });
+      byId("rosterList").querySelectorAll(".btn-intraop").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          handleIntraopCtaClick(btn.dataset.action, btn.dataset.pid);
+        });
+      });
+    }
+
+    function intraopCtaHtml(p) {
+      const phase = p.phase || (inferEpisodeType(p) === "post_op" ? "post_op" : "pre_op");
+      if (phase === "post_op") {
+        const tier = p.current_tier || p.postop_retier_last_tier || "TIER_1";
+        const tierClass = tier === "TIER_3" ? "danger" : (tier === "TIER_2" ? "warn" : "ok");
+        const delta = (p.postop_retier_last_delta != null) ? `Δ+${p.postop_retier_last_delta}` : "";
+        const reasons = Array.isArray(p.postop_retier_top_reasons)
+          ? p.postop_retier_top_reasons.slice(0, 3).map(r => esc(r.code || r)).join(", ")
+          : "";
+        return `
+          <div class="postop-cta-cell">
+            <span class="postop-tier-badge postop-tier-${tierClass}" title="${esc(reasons)}">${esc(tier)} ${esc(delta)}</span>
+            <button class="btn-intraop go-postop" data-action="postop-retier" data-pid="${esc(p.id)}">Recompute now</button>
+          </div>
+        `;
+      }
+      if (phase === "intra_op" && p.or_ended_at) {
+        return `<button class="btn-intraop open-form" data-action="open" data-pid="${esc(p.id)}">Open intra-op form</button>`;
+      }
+      return `<button class="btn-intraop go-postop" data-action="switch" data-pid="${esc(p.id)}">Switch to post-op</button>`;
+    }
+
+    async function handleIntraopCtaClick(action, pid) {
+      try {
+        if (action === "switch") {
+          const ok = confirm("Mark surgery as ended and open the intra-op reassessment form for this patient?");
+          if (!ok) return;
+          const nowIso = new Date().toISOString().slice(0, 19);
+          await apiJson(`/api/episodes/${encodeURIComponent(pid)}/switch-to-postop`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orEndedAt: nowIso }),
+          });
+          window.open(`/intraop-form/${encodeURIComponent(pid)}`, "_blank", "noopener");
+          return;
+        }
+        if (action === "postop-retier") {
+          await apiJson(`/api/episodes/${encodeURIComponent(pid)}/postop-retier/run`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ triggered_by: "MANUAL:DOCTOR_UI" }),
+          });
+          showToast("Post-op tier recomputed", "ok");
+          if (typeof loadPatients === "function") { try { await loadPatients(); } catch (_e) {} }
+          return;
+        }
+        if (action === "open") {
+          window.open(`/intraop-form/${encodeURIComponent(pid)}`, "_blank", "noopener");
+        }
+      } catch (e) {
+        showToast(e.message || "Action failed", "error");
+      }
     }
 
     function setupRosterSearch() {
@@ -1677,7 +2299,10 @@
       const timeline = await apiJson(`/api/patient/${encodeURIComponent(pid)}/timeline`);
       selectedTimeline = timeline;
       byId("timelineModalTitle").textContent = `${patient.name} Episode Timeline`;
-      byId("timelineHeading").textContent = `${patient.name} Episode Timeline`;
+      byId("timelineHeading").innerHTML = `${esc(patient.name)} ${renderTeamBadge(patient)} — Episode Timeline`;
+      // Reset post-op materials panel state for this patient
+      resetPostopPanel();
+      hydratePostopPanel(patient);
       const rows = [
         ["Episode Open Date", timeline.episode.openDate],
         ["Episode Close Date", timeline.episode.closeDate],
@@ -1797,7 +2422,9 @@
       if (!patient) return;
       selectedPreopPatient = patient;
       byId("preopDetailModalTitle").textContent = `${patient.name} Pre-Op Detail`;
-      byId("preopDetailHeading").textContent = `${patient.name} Pre-Op Preparation`;
+      byId("preopDetailHeading").innerHTML = `${esc(patient.name)} ${renderTeamBadge(patient)} — Pre-Op Preparation Detail`;
+      resetPreopPanel();
+      hydratePreopPanel(patient);
       const countdown = formatCountdown(patient.date);
       const rows = [
         ["Scheduled Surgery Date", patient.date || "—"],
@@ -1989,6 +2616,24 @@
       byId("surveyModal").classList.add("active");
     }
 
+    const POSTOP_TRIGGER_LABELS = {
+      PATIENT_SELF_FLAG_ACTIVE: "Patient self-flag active",
+      NEW_RED_FLAG_SYMPTOM: "New red-flag symptom (check-in / D-X §A)",
+      LOST_CONTACT_TIER3_24H: "Lost contact (Tier-3 ≥24h silence)",
+      LOST_CONTACT_GENERAL_72H: "Lost contact (≥72h silence)",
+      DAYX_SECTION_A_RED: "Day-X survey Section A red flag",
+      DAYX_SECTION_B_RED: "Day-X PROM section red",
+      INCISION_FLAGS_X3: "Three+ incision-flag check-ins",
+    };
+    function prettyTrigger(code) {
+      if (!code) return "";
+      if (POSTOP_TRIGGER_LABELS[code]) return POSTOP_TRIGGER_LABELS[code];
+      if (typeof code === "string" && code.startsWith("POSTOP_RED_")) {
+        return "Post-op RED via soft delta — " + code.replace("POSTOP_RED_", "").replaceAll("_", " ").toLowerCase();
+      }
+      return code;
+    }
+
     async function loadEscalations() {
       const data = await apiJson("/api/escalations");
       escalations = data.escalations || [];
@@ -2001,7 +2646,7 @@
               <div class="esc-name"><span class="name-wrap">${episodePillHtml(inferEpisodeType(PATIENTS.find((p) => p.id === e.patient_id) || {}))}<span>${esc(e.patient_name)}</span></span></div>
               <div class="esc-meta">Tier ${esc(e.tier)} • ${esc(fmt(e.created_at))}</div>
               <div class="esc-meta">Origin: ${esc(e.origin || "Chat")}</div>
-              <div class="esc-meta">Trigger: ${esc(e.trigger_type)}</div>
+              <div class="esc-meta">Trigger: ${esc(prettyTrigger(e.trigger_type))}</div>
               ${e.tier === 3 ? `<div class="esc-meta">Consent: ${esc((e.consent || "pending").toUpperCase())}${e.consent_at ? ` at ${esc(fmt(e.consent_at))}` : ""}</div>` : ""}
             </div>
             <button class="btn" data-chat-id="${esc(e.id)}">View Conversation</button>
@@ -2192,7 +2837,152 @@
       });
     }
 
+    /* ── Post-op detail panel state machine (PRD §6.2) ───────────── */
+    const confirmedPostOpPatients = new Set(); // per-session cache
+    const postopAiCache = new Map();           // pid → AI-extracted text
+
+    function resetPostopPanel() {
+      byId("postopActionsInitial").style.display = "flex";
+      byId("postopConfirmPanel").hidden = true;
+      byId("postopActionsConfirmed").hidden = true;
+      byId("postopGenProgress").hidden = true;
+      byId("postopGenError").style.display = "none";
+      byId("postopGenError").textContent = "";
+    }
+    function showPostopConfirmPanel(text) {
+      byId("postopActionsInitial").style.display = "none";
+      byId("postopConfirmPanel").hidden = false;
+      byId("postopActionsConfirmed").hidden = true;
+      byId("postopNotesEditor").value = text || "";
+      byId("postopGenProgress").hidden = true;
+      byId("postopGenError").style.display = "none";
+    }
+    function showPostopConfirmed() {
+      byId("postopActionsInitial").style.display = "none";
+      byId("postopConfirmPanel").hidden = true;
+      byId("postopActionsConfirmed").hidden = false;
+    }
+
+    async function hydratePostopPanel(patient) {
+      if (!patient) return;
+      try {
+        const resp = await apiJson(`/api/patient/${encodeURIComponent(patient.id)}/postop-notes`);
+        if (resp.source === "ai") postopAiCache.set(patient.id, resp.text || "");
+        if (resp.source === "confirmed" || confirmedPostOpPatients.has(patient.id)) {
+          confirmedPostOpPatients.add(patient.id);
+          showPostopConfirmed();
+        }
+      } catch (_e) {
+        /* leave initial state */
+      }
+    }
+
+    /* ── Pre-op detail panel state machine (PRD §6.3) ────────────── */
+    const confirmedPrepPatients = new Set();
+    const preopAiCache = new Map();
+
+    /**
+     * Pre-op detail panel state machine.
+     *
+     * INVARIANT: exactly one of these three blocks is ever visible:
+     *
+     *   "initial"   → preopActionsInitial   = [View Intake Form, Switch to Post-Op, Revise Prep Notes]
+     *   "reviewing" → preopConfirmPanel     = [textarea + Confirm & Generate]
+     *   "confirmed" → preopActionsConfirmed = [View Preparation Materials, View Intake Form,
+     *                                           Send Preparation Materials, Switch to Post-Op]
+     *
+     * The transition is one-way per session:
+     *   initial → reviewing → confirmed
+     *
+     * "View Intake Form" appears in both initial and confirmed states (by design — the doctor
+     * can re-open the intake form at any time). It is NOT duplicated within a single visible
+     * state. Treat the two button IDs (#viewIntakeFormBtn and #viewIntakeFormBtn2) as the
+     * same logical button rendered in two different states.
+     *
+     * "Switch to Post-Op" likewise appears in both initial and confirmed states. Same logic
+     * applies — same handler bound to both IDs. Don't add a third copy.
+     *
+     * The state is persisted server-side via GET /api/patient/:id/preop-notes (resp.source:
+     * "ai" → initial, "confirmed" → confirmed) so refreshing the modal restores the state.
+     *
+     * Visibility is driven by the HTML `hidden` attribute. The global rule
+     * `[hidden] { display: none !important; }` (top of <style>) ensures `hidden` wins against
+     * `.actions-row { display: flex }` — without that rule, all three blocks render at once.
+     */
+    function applyPrepState(state, text) {
+      byId("preopActionsInitial").hidden    = state !== "initial";
+      byId("preopConfirmPanel").hidden      = state !== "reviewing";
+      byId("preopActionsConfirmed").hidden  = state !== "confirmed";
+      if (state === "reviewing") {
+        byId("preopNotesEditor").value = text || "";
+      }
+      byId("preopGenProgress").hidden = true;
+      byId("preopGenError").style.display = "none";
+      byId("preopGenError").textContent = "";
+    }
+    function resetPreopPanel()         { applyPrepState("initial"); }
+    function showPreopConfirmPanel(t)  { applyPrepState("reviewing", t); }
+    function showPreopConfirmed()      { applyPrepState("confirmed"); }
+
+    async function hydratePreopPanel(patient) {
+      if (!patient) return;
+      try {
+        const resp = await apiJson(`/api/patient/${encodeURIComponent(patient.id)}/preop-notes`);
+        if (resp.source === "ai") preopAiCache.set(patient.id, resp.text || "");
+        if (resp.source === "confirmed" || confirmedPrepPatients.has(patient.id)) {
+          confirmedPrepPatients.add(patient.id);
+          showPreopConfirmed();
+        }
+      } catch (_e) { /* default state */ }
+    }
+
     function setupPatientActions() {
+      // Initial state: Confirm Post-Op Notes button
+      byId("confirmPostOpNotesBtn").addEventListener("click", async () => {
+        if (!selectedPatient) return;
+        let text = postopAiCache.get(selectedPatient.id) || "";
+        if (!text) {
+          try {
+            const resp = await apiJson(`/api/patient/${encodeURIComponent(selectedPatient.id)}/postop-notes`);
+            text = resp.text || "";
+            postopAiCache.set(selectedPatient.id, text);
+          } catch (_e) { /* allow empty */ }
+        }
+        showPostopConfirmPanel(text);
+      });
+      byId("postopCancelEdit").addEventListener("click", resetPostopPanel);
+      byId("postopConfirmGenerateBtn").addEventListener("click", async () => {
+        if (!selectedPatient) return;
+        const text = byId("postopNotesEditor").value.trim();
+        if (!text) {
+          byId("postopGenError").style.display = "block";
+          byId("postopGenError").textContent = "Notes cannot be empty.";
+          return;
+        }
+        const btn = byId("postopConfirmGenerateBtn");
+        btn.disabled = true;
+        byId("postopGenProgress").hidden = false;
+        byId("postopGenError").style.display = "none";
+        try {
+          await apiJson(`/api/patient/${encodeURIComponent(selectedPatient.id)}/postop-notes/confirm`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          });
+          confirmedPostOpPatients.add(selectedPatient.id);
+          showPostopConfirmed();
+          showToast("Discharge materials generated.", "success");
+        } catch (e) {
+          byId("postopGenError").style.display = "block";
+          byId("postopGenError").innerHTML = `${esc(e.message || "Generation failed.")} <button class="btn" id="postopRetryBtn" type="button" style="margin-left:8px;">Retry</button>`;
+          const r = byId("postopRetryBtn"); if (r) r.addEventListener("click", () => byId("postopConfirmGenerateBtn").click());
+        } finally {
+          btn.disabled = false;
+          byId("postopGenProgress").hidden = true;
+        }
+      });
+
+      // Confirmed state: legacy view/send buttons + edit-again
       byId("viewMaterialsBtn").addEventListener("click", () => {
         if (!selectedPatient) return;
         window.open(`/doctor/patient/${encodeURIComponent(selectedPatient.id)}`, "_blank");
@@ -2207,14 +2997,73 @@
           showToast(e.message || "Failed to send materials.", "error");
         }
       });
+      byId("editPostOpNotesBtn").addEventListener("click", async () => {
+        if (!selectedPatient) return;
+        let text = "";
+        try {
+          const resp = await apiJson(`/api/patient/${encodeURIComponent(selectedPatient.id)}/postop-notes`);
+          text = resp.text || "";
+        } catch (_e) {}
+        showPostopConfirmPanel(text);
+      });
     }
 
     function setupPreopPatientActions() {
+      // Initial state buttons (PRD §6.3.1)
+      byId("viewIntakeFormBtn").addEventListener("click", () => {
+        if (!selectedPreopPatient) return;
+        void openDoctorIntakeForm(selectedPreopPatient);
+      });
+      byId("revisePrepNotesBtn").addEventListener("click", async () => {
+        if (!selectedPreopPatient) return;
+        let text = preopAiCache.get(selectedPreopPatient.id) || "";
+        if (!text) {
+          try {
+            const resp = await apiJson(`/api/patient/${encodeURIComponent(selectedPreopPatient.id)}/preop-notes`);
+            text = resp.text || "";
+            preopAiCache.set(selectedPreopPatient.id, text);
+          } catch (_e) {}
+        }
+        showPreopConfirmPanel(text);
+      });
+      byId("preopCancelEdit").addEventListener("click", resetPreopPanel);
+      byId("preopConfirmGenerateBtn").addEventListener("click", async () => {
+        if (!selectedPreopPatient) return;
+        const text = byId("preopNotesEditor").value.trim();
+        if (!text) {
+          byId("preopGenError").style.display = "block";
+          byId("preopGenError").textContent = "Notes cannot be empty.";
+          return;
+        }
+        const btn = byId("preopConfirmGenerateBtn");
+        btn.disabled = true;
+        byId("preopGenProgress").hidden = false;
+        byId("preopGenError").style.display = "none";
+        try {
+          await apiJson(`/api/patient/${encodeURIComponent(selectedPreopPatient.id)}/preop-notes/confirm`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          });
+          confirmedPrepPatients.add(selectedPreopPatient.id);
+          showPreopConfirmed();
+          showToast("Preparation materials generated.", "success");
+        } catch (e) {
+          byId("preopGenError").style.display = "block";
+          byId("preopGenError").innerHTML = `${esc(e.message || "Generation failed.")} <button class="btn" id="preopRetryBtn" type="button" style="margin-left:8px;">Retry</button>`;
+          const r = byId("preopRetryBtn"); if (r) r.addEventListener("click", () => byId("preopConfirmGenerateBtn").click());
+        } finally {
+          btn.disabled = false;
+          byId("preopGenProgress").hidden = true;
+        }
+      });
+
+      // Confirmed state buttons (PRD §6.3.2)
       byId("viewPrepMaterialsBtn").addEventListener("click", () => {
         if (!selectedPreopPatient) return;
         window.open(`/patient/${encodeURIComponent(selectedPreopPatient.id)}/pre-op?doctor_view=1`, "_blank");
       });
-      byId("viewIntakeFormBtn").addEventListener("click", () => {
+      byId("viewIntakeFormBtn2").addEventListener("click", () => {
         if (!selectedPreopPatient) return;
         void openDoctorIntakeForm(selectedPreopPatient);
       });
@@ -2231,132 +3080,848 @@
           showToast(e.message || "Failed to send preparation materials.", "error");
         }
       });
-      byId("switchToPostOpBtn").addEventListener("click", () => {
+      // Both Switch-to-Post-Op buttons (initial + confirmed states) share behaviour
+      const switchHandler = () => {
         if (!selectedPreopPatient) return;
-        openAddPatientModal();
-        selectedEpisodeType = "post_op";
-        byId("episodeTypeStep").style.display = "none";
-        byId("patientFormFields").style.display = "block";
-        byId("modalFooter").style.display = "flex";
-        applyEpisodeTypeFormState();
-        byId("patientName").value = selectedPreopPatient.name || "";
-        byId("patientPhone").value = selectedPreopPatient.phone || "";
-        byId("patientEmail").value = selectedPreopPatient.email || "";
-        byId("dischargeNotes").value = "";
-        byId("scheduledSurgeryDate").value = "";
-        pdfText = "";
-        byId("uploadContent").style.display = "block";
-        byId("uploadSuccess").style.display = "none";
+        openLegacyPostOpFlow(selectedPreopPatient);
         byId("preopDetailModal").classList.remove("active");
-      });
+      };
+      byId("switchToPostOpBtn").addEventListener("click", switchHandler);
+      byId("switchToPostOpBtn2").addEventListener("click", switchHandler);
+    }
+
+    function openLegacyPostOpFlow(p) {
+      openAddPatientModal();
+      switchTo("legacy");
+      selectedEpisodeType = "post_op";
+      applyLegacyEpisodeTypeFormState();
+      byId("patientNameLegacy").value = p?.name || "";
+      byId("patientPhoneLegacy").value = p?.phone || "";
+      byId("patientEmailLegacy").value = p?.email || "";
+      byId("dischargeNotes").value = "";
+      byId("scheduledSurgeryDateLegacy").value = "";
+      pdfText = "";
+      const uc = byId("uploadContent"); if (uc) uc.style.display = "block";
+      const us = byId("uploadSuccess"); if (us) us.style.display = "none";
     }
 
     const addPatientModal = byId("addPatientModal");
-    function applyEpisodeTypeFormState() {
+
+    /* ────────────────────────────────────────────────────────────────
+       Add-Patient state machine (TEAM eligibility flow)
+       ──────────────────────────────────────────────────────────────── */
+    const teamFlow = {
+      mode: null,                 // 'single' | 'group' | 'legacy'
+      step: null,                 // 'mode' | 'identity' | 'files' | 'determine' | 'group-drop' | 'group-progress' | 'group-summary' | 'legacy'
+      patientId: null,            // server-allocated patient id (single)
+      uploadedDocs: [],           // [{id, filename, format, sizeBytes, sha256, status, file}]
+      groupFiles: [],             // raw File[] for group upload
+      checkId: null,              // current eligibility check id
+      es: null,                   // EventSource handle
+      lastResult: null,           // {verdicts, overallVerdict, extractedFields}
+      batchId: null,              // group upload batch id
+    };
+
+    const ALL_STEP_IDS = [
+      "intakeModeStep",
+      "singlePatientIdentityStep",
+      "singleRelevantFilesStep",
+      "determineStep",
+      "groupDropStep",
+      "groupProgressStep",
+      "groupSummaryStep",
+      "patientFormFields",
+    ];
+    function showStepEls(...ids) {
+      ALL_STEP_IDS.forEach((id) => {
+        const el = byId(id);
+        if (el) el.style.display = ids.includes(id) ? "block" : "none";
+      });
+    }
+    function setTeamFooter({ back = false, primary = null, primaryDisabled = false, cancelText = "Cancel" }) {
+      byId("teamModalFooter").style.display = "flex";
+      byId("modalFooter").style.display = "none";
+      byId("teamBackBtn").style.display = back ? "inline-flex" : "none";
+      byId("teamCancelBtn").textContent = cancelText;
+      const primaryBtn = byId("teamPrimaryBtn");
+      if (primary) {
+        primaryBtn.style.display = "inline-flex";
+        primaryBtn.textContent = primary;
+        primaryBtn.disabled = primaryDisabled;
+      } else {
+        primaryBtn.style.display = "none";
+      }
+    }
+    function hideAllFooters() {
+      byId("teamModalFooter").style.display = "none";
+      byId("modalFooter").style.display = "none";
+    }
+    function showLegacyFooter() {
+      byId("teamModalFooter").style.display = "none";
+      byId("modalFooter").style.display = "flex";
+    }
+    function switchTo(mode) {
+      teamFlow.mode = mode;
+      if (mode === "legacy") {
+        showStepEls("patientFormFields");
+        showLegacyFooter();
+      }
+    }
+
+    function applyLegacyEpisodeTypeFormState() {
       const isPre = selectedEpisodeType === "pre_op";
       byId("notesLabel").textContent = isPre ? "Patient-Specific Surgical Preparation Notes *" : "Discharge Notes *";
       byId("dischargeNotes").placeholder = isPre
         ? "Paste patient-specific surgical preparation notes, medication holds, fasting instructions, logistics, and checklist details..."
         : "Paste the full post-discharge notes, after-visit summary, medication list, clinical notes...";
-      byId("scheduledSurgeryDateWrap").style.display = isPre ? "block" : "none";
-      byId("scheduledSurgeryDate").required = isPre;
+      byId("scheduledSurgeryDateWrapLegacy").style.display = isPre ? "block" : "none";
+      byId("scheduledSurgeryDateLegacy").required = isPre;
       byId("submitBtn").textContent = "Generate Resources";
     }
+    // Backwards-compatible alias used by other handlers
+    function applyEpisodeTypeFormState() { applyLegacyEpisodeTypeFormState(); }
+
     function resetAddPatientModal() {
-      byId("modalForm").style.display = "block";
-      byId("modalFooter").style.display = "none";
-      byId("episodeTypeStep").style.display = "block";
-      byId("patientFormFields").style.display = "none";
+      // Hide all step containers
+      ALL_STEP_IDS.forEach((id) => { const el = byId(id); if (el) el.style.display = "none"; });
+      byId("intakeModeStep").style.display = "block";
+
+      hideAllFooters();
       byId("processing").classList.remove("active");
       byId("errorMsg").classList.remove("active");
       byId("progressBarFill").style.width = "0%";
       byId("progressPct").textContent = "0%";
       byId("processingStep").textContent = "Extracting clinical data";
       selectedEpisodeType = null;
-      byId("scheduledSurgeryDate").value = "";
+
+      // Clear new-flow inputs
+      ["patientName","patientPhone","patientEmail","scheduledSurgeryDate","patientMBI","patientDOB","freeformNotes"].forEach((id) => {
+        const el = byId(id); if (el) el.value = "";
+      });
+      const ap = byId("anchorProcedure"); if (ap) ap.value = "";
+      // Clear file list
+      const fl = byId("fileList"); if (fl) fl.innerHTML = "";
+      const gfl = byId("groupFileList"); if (gfl) gfl.innerHTML = "";
+
+      // Tear down any in-flight resources
+      if (teamFlow.es) { try { teamFlow.es.close(); } catch (_e) {} }
+      teamFlow.es = null;
+      teamFlow.uploadedDocs = [];
+      teamFlow.groupFiles = [];
+      teamFlow.patientId = null;
+      teamFlow.checkId = null;
+      teamFlow.lastResult = null;
+      teamFlow.batchId = null;
+      teamFlow.mode = null;
+      teamFlow.step = "mode";
+      teamFlow.checkFinalized = false;
+      teamFlow.startingCheck = false;
+      teamFlow.startingBatch = false;
     }
     function openAddPatientModal() { resetAddPatientModal(); addPatientModal.classList.add("active"); }
-    function closeAddPatientModal() { addPatientModal.classList.remove("active"); }
+    async function closeAddPatientModalCleanup(snap) {
+      // If we have a draft patient and never finalized, hard-delete + remove uploaded docs (PRD AC-S9).
+      if (!snap) return;
+      if (snap.mode === "single" && snap.patientId && !snap.checkFinalized) {
+        for (const d of snap.uploadedDocs) {
+          if (!d || !d.id) continue;
+          try { await apiJson(`/api/eligibility-documents/${encodeURIComponent(d.id)}`, { method: "DELETE" }); } catch (_e) {}
+        }
+        try {
+          await apiJson(`/api/eligibility-draft-patients/${encodeURIComponent(snap.patientId)}`, { method: "DELETE" });
+        } catch (_e) {}
+      }
+    }
+    function closeAddPatientModal() {
+      // Snapshot teamFlow now so cleanup can run independently of any
+      // subsequent re-open or reset (avoids the cleanup deleting a NEW
+      // patient created after the user re-opens the modal).
+      const snap = {
+        mode: teamFlow.mode,
+        patientId: teamFlow.patientId,
+        checkFinalized: !!teamFlow.checkFinalized,
+        uploadedDocs: (teamFlow.uploadedDocs || []).slice(),
+      };
+      closeAddPatientModalCleanup(snap);
+      addPatientModal.classList.remove("active");
+    }
+
+    /* ── File helpers ───────────────────────────────────────────── */
+    const FILE_LIMITS = {
+      X12_271: { max: 5 * 1024 * 1024, exts: [".x12", ".271", ".edi", ".txt"] },
+      PDF: { max: 25 * 1024 * 1024, exts: [".pdf"] },
+      CSV: { max: 10 * 1024 * 1024, exts: [".csv", ".tsv"] },
+      OTHER: { max: 25 * 1024 * 1024, exts: [] },
+    };
+    function detectFileFormat(file) {
+      const ext = (file.name.match(/\.[^.]+$/) || [""])[0].toLowerCase();
+      if (FILE_LIMITS.X12_271.exts.includes(ext)) return "X12_271";
+      if (FILE_LIMITS.PDF.exts.includes(ext)) return "PDF";
+      if (FILE_LIMITS.CSV.exts.includes(ext)) return "CSV";
+      return "OTHER";
+    }
+    function fmtBytes(n) {
+      if (n < 1024) return `${n} B`;
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+      return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    function clientValidate(file) {
+      const fmt = detectFileFormat(file);
+      const lim = FILE_LIMITS[fmt] || FILE_LIMITS.OTHER;
+      if (file.size > lim.max) {
+        return { ok: false, error: `${fmt} exceeds ${Math.round(lim.max / (1024 * 1024))}MB limit`, fmt };
+      }
+      return { ok: true, fmt };
+    }
+    function renderFileList() {
+      const ul = byId("fileList");
+      if (!ul) return;
+      ul.innerHTML = teamFlow.uploadedDocs.map((d, idx) => `
+        <li class="file-row" data-idx="${idx}">
+          <span class="fname" title="${esc(d.filename)}">${esc(d.filename)}</span>
+          <span class="file-badge ${d.format ? d.format.toLowerCase().replace("_271","x12") : "other"}">${esc(d.format || "?")}</span>
+          <span class="file-size">${fmtBytes(d.sizeBytes || 0)}</span>
+          <span class="status-pill ${d.status}">${d.status}</span>
+          <button class="file-remove" data-remove="${idx}" title="Remove">×</button>
+        </li>
+      `).join("");
+      ul.querySelectorAll("[data-remove]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const idx = Number(btn.dataset.remove);
+          const d = teamFlow.uploadedDocs[idx];
+          if (!d) return;
+          if (d.id) {
+            try { await apiJson(`/api/eligibility-documents/${encodeURIComponent(d.id)}`, { method: "DELETE" }); } catch (_e) {}
+          }
+          teamFlow.uploadedDocs.splice(idx, 1);
+          renderFileList();
+          updateFilesPrimaryButton();
+        });
+      });
+    }
+    function renderGroupFileList() {
+      const ul = byId("groupFileList");
+      if (!ul) return;
+      ul.innerHTML = teamFlow.groupFiles.map((f, idx) => `
+        <li class="file-row" data-idx="${idx}">
+          <span class="fname" title="${esc(f.name)}">${esc(f.name)}</span>
+          <span class="file-badge ${detectFileFormat(f).toLowerCase().replace("_271","x12")}">${esc(detectFileFormat(f))}</span>
+          <span class="file-size">${fmtBytes(f.size)}</span>
+          <span class="status-pill queued">queued</span>
+          <button class="file-remove" data-gremove="${idx}" title="Remove">×</button>
+        </li>
+      `).join("");
+      ul.querySelectorAll("[data-gremove]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          teamFlow.groupFiles.splice(Number(btn.dataset.gremove), 1);
+          renderGroupFileList();
+          updateGroupPrimaryButton();
+        });
+      });
+    }
+    function updateFilesPrimaryButton() {
+      const hasValidated = teamFlow.uploadedDocs.some((d) => d.status === "validated");
+      const hasFreeform = (byId("freeformNotes")?.value || "").trim().length > 0;
+      const ready = hasValidated || hasFreeform;
+      const btn = byId("teamPrimaryBtn");
+      if (teamFlow.step === "files" && btn) btn.disabled = !ready;
+    }
+    function updateGroupPrimaryButton() {
+      const ready = teamFlow.groupFiles.length > 0;
+      const btn = byId("teamPrimaryBtn");
+      if (teamFlow.step === "group-drop" && btn) btn.disabled = !ready;
+    }
+
+    async function uploadOneFile(file) {
+      const v = clientValidate(file);
+      const docDraft = {
+        filename: file.name, format: v.fmt, sizeBytes: file.size,
+        status: v.ok ? "uploading" : "error", errorMsg: v.ok ? null : v.error,
+      };
+      teamFlow.uploadedDocs.push(docDraft);
+      renderFileList();
+      if (!v.ok) { showToast(v.error, "error"); updateFilesPrimaryButton(); return; }
+      try {
+        const fd = new FormData();
+        fd.append("patientId", teamFlow.patientId);
+        fd.append("file", file);
+        const res = await fetch(`${API}/api/eligibility-documents`, {
+          method: "POST",
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+          body: fd,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || `Upload failed: ${res.status}`);
+        Object.assign(docDraft, {
+          id: data.id, format: data.format, sizeBytes: data.sizeBytes, sha256: data.sha256,
+          status: "validated",
+        });
+      } catch (e) {
+        docDraft.status = "error";
+        docDraft.errorMsg = e.message || "Upload failed";
+        showToast(docDraft.errorMsg, "error");
+      } finally {
+        renderFileList();
+        updateFilesPrimaryButton();
+      }
+    }
+
+    /* ── Step transitions ───────────────────────────────────────── */
+    function gotoModeStep() {
+      teamFlow.step = "mode";
+      showStepEls("intakeModeStep");
+      hideAllFooters();
+    }
+    function gotoIdentityStep() {
+      teamFlow.step = "identity";
+      teamFlow.mode = "single";
+      showStepEls("singlePatientIdentityStep");
+      setTeamFooter({ back: true, primary: "Continue → Files" });
+    }
+    async function gotoFilesStep() {
+      const name = byId("patientName").value.trim();
+      const surgery = byId("scheduledSurgeryDate").value;
+      if (!name) { showToast("Patient name is required.", "error"); return; }
+      // Surgery date is required up front so we don't fail at the determine step.
+      if (!surgery) {
+        showToast("Scheduled surgery date is required.", "error");
+        try { byId("scheduledSurgeryDate").focus(); } catch (_e) {}
+        return;
+      }
+      // Allocate a draft patient on the server so document uploads can attach to it.
+      if (!teamFlow.patientId) {
+        try {
+          const res = await apiJson("/api/eligibility-draft-patient", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name,
+              phone: byId("patientPhone").value.trim(),
+              email: byId("patientEmail").value.trim(),
+              mbi: byId("patientMBI").value.trim(),
+              dob: byId("patientDOB").value || null,
+              scheduled_surgery_date: byId("scheduledSurgeryDate").value || null,
+              anchor_procedure: byId("anchorProcedure").value || null,
+            }),
+          });
+          teamFlow.patientId = res.id;
+          if (res.conflict === "existing") {
+            showToast(
+              `MBI already exists in roster as "${res.existing_name || "an existing patient"}" — files will be attached to that patient.`,
+              "success",
+            );
+          }
+        } catch (e) {
+          showToast(e.message || "Could not create draft patient.", "error");
+          return;
+        }
+      }
+      teamFlow.step = "files";
+      showStepEls("singleRelevantFilesStep");
+      setTeamFooter({ back: true, primary: "Determine Eligibility & Generate Resources", primaryDisabled: true });
+      updateFilesPrimaryButton();
+    }
+    function gotoDetermineStep() {
+      teamFlow.step = "determine";
+      showStepEls("determineStep");
+      // Reset stage strip + result containers
+      byId("stageStrip").querySelectorAll(".stage-pill").forEach((p) => {
+        p.classList.remove("active", "done", "error");
+      });
+      byId("determineBanner").innerHTML = "";
+      byId("determineRows").innerHTML = "";
+      byId("determineError").style.display = "none";
+      byId("determineError").textContent = "";
+      // Hide the modal footer; this step has its own action bar in renderDetermineResult
+      hideAllFooters();
+    }
+
+    function setStage(stage) {
+      const order = ["PARSING", "EXTRACTING", "EVALUATING", "DONE"];
+      const idx = order.indexOf(stage);
+      byId("stageStrip").querySelectorAll(".stage-pill").forEach((p) => {
+        const i = order.indexOf(p.dataset.stage);
+        p.classList.remove("active", "done", "error");
+        if (i < idx) p.classList.add("done");
+        else if (i === idx) p.classList.add(stage === "DONE" ? "done" : "active");
+      });
+    }
+    function markStageError() {
+      byId("stageStrip").querySelectorAll(".stage-pill.active").forEach((p) => {
+        p.classList.remove("active");
+        p.classList.add("error");
+      });
+    }
+
+    function renderDetermineResult(payload) {
+      teamFlow.lastResult = payload;
+      const { verdicts = {}, overallVerdict, extractedFields = {} } = payload;
+      const overall = overallVerdict || "BLOCKED_UNKNOWN";
+      const banner = byId("determineBanner");
+      const cls = overall === "ELIGIBLE" ? "eligible" : overall === "INELIGIBLE" ? "ineligible" : "review";
+      const icon = overall === "ELIGIBLE" ? "🟢 ELIGIBLE" : overall === "INELIGIBLE" ? "🔴 INELIGIBLE" : "🟡 REVIEW NEEDED";
+      banner.innerHTML = `<div class="determine-banner ${cls}">${icon}</div>`;
+
+      const sources = {
+        partA_active: extractedFields.partA?.sourceExcerpt,
+        partB_active: extractedFields.partB?.sourceExcerpt,
+        not_ma: extractedFields.medicareAdvantage?.sourceExcerpt,
+        medicare_primary: extractedFields.medicarePrimary?.sourceExcerpt,
+        not_esrd_basis: extractedFields.esrdBasis?.sourceExcerpt,
+        not_umwa: extractedFields.umwa?.sourceExcerpt,
+      };
+      const explanations = {
+        partA_active: { PASS: "Part A (Hospital Insurance) is active on the surgery date.", FAIL: "Part A is not active on the surgery date.", UNKNOWN: "Part A coverage status could not be determined from the provided documents." },
+        partB_active: { PASS: "Part B (Medical Insurance) is active on the surgery date.", FAIL: "Part B is not active on the surgery date.", UNKNOWN: "Part B coverage status could not be determined from the provided documents." },
+        not_ma: { PASS: "Patient is on Original Medicare, not a Medicare Advantage plan.", FAIL: "Patient is enrolled in a Medicare Advantage (Part C) plan on the surgery date.", UNKNOWN: "Medicare Advantage enrollment could not be confirmed from the documents." },
+        medicare_primary: { PASS: "Medicare is the primary payer on the surgery date.", FAIL: "Another payer is primary ahead of Medicare on the surgery date.", UNKNOWN: "Primary-payer order could not be determined from the documents." },
+        not_esrd_basis: { PASS: "Medicare eligibility basis is age or disability (not ESRD).", FAIL: "Medicare eligibility basis is End-Stage Renal Disease.", UNKNOWN: "Medicare eligibility basis could not be determined." },
+        not_umwa: { PASS: "Patient is not enrolled in the UMWA Health Plan.", FAIL: "Patient is enrolled in the UMWA Health Plan.", UNKNOWN: "UMWA enrollment could not be confirmed." },
+      };
+      const labels = {
+        partA_active: "Part A active",
+        partB_active: "Part B active",
+        not_ma: "Original Medicare (not MA)",
+        medicare_primary: "Medicare primary payer",
+        not_esrd_basis: "Not ESRD-basis",
+        not_umwa: "Not UMWA",
+      };
+
+      const rowsContainer = byId("determineRows");
+      rowsContainer.innerHTML = Object.entries(verdicts).map(([key, v]) => {
+        const cls = v === "PASS" ? "pass" : v === "FAIL" ? "fail" : "unknown";
+        const explain = explanations[key]?.[v] || "";
+        const excerpt = sources[key] || "(not present in documents)";
+        const overrideBtn = (v === "FAIL" || v === "UNKNOWN")
+          ? `<button class="btn" data-override="${esc(key)}">Override</button>`
+          : "";
+        return `
+          <div class="verdict-row">
+            <div>
+              <div class="v-name">${labels[key] || key}</div>
+              <div class="v-explain">${esc(explain)}</div>
+              <details class="source-disclosure">
+                <summary>Show source</summary>
+                <div class="source-excerpt">${esc(String(excerpt).slice(0, 800))}</div>
+              </details>
+            </div>
+            <span class="verdict-pill ${cls}">${v}</span>
+            ${overrideBtn}
+          </div>
+        `;
+      }).join("");
+
+      rowsContainer.querySelectorAll("[data-override]").forEach((btn) => {
+        btn.addEventListener("click", () => openOverrideModal(btn.dataset.override));
+      });
+
+      // Action bar
+      const hasUnknowns = Object.values(verdicts).some((v) => v === "UNKNOWN");
+      const teamDisabled = overall !== "ELIGIBLE";
+      const actions = `
+        <div class="determine-actions">
+          <button class="btn" id="rerunCheckBtn">Re-run Extraction</button>
+          <button class="btn" id="saveStandardBtn">Save as Standard Episode</button>
+          <button class="btn primary" id="saveTeamBtn" ${teamDisabled ? "disabled" : ""}>Save as TEAM Episode</button>
+          <button class="btn" id="cancelDetermineBtn">Cancel</button>
+        </div>
+      `;
+      rowsContainer.insertAdjacentHTML("beforeend", actions);
+
+      byId("rerunCheckBtn").addEventListener("click", async () => {
+        try {
+          await apiJson(`/api/eligibility-checks/${encodeURIComponent(teamFlow.checkId)}/rerun`, { method: "POST" });
+          gotoDetermineStep();
+          subscribeCheckStream(teamFlow.checkId);
+        } catch (e) { showToast(e.message || "Re-run failed.", "error"); }
+      });
+      byId("saveTeamBtn").addEventListener("click", () => finalizeCheck("SAVE_AS_TEAM"));
+      byId("saveStandardBtn").addEventListener("click", () => finalizeCheck("SAVE_AS_STANDARD"));
+      byId("cancelDetermineBtn").addEventListener("click", closeAddPatientModal);
+    }
+
+    async function finalizeCheck(decision) {
+      try {
+        const res = await apiJson(`/api/eligibility-checks/${encodeURIComponent(teamFlow.checkId)}/finalize`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ decision }),
+        });
+        teamFlow.checkFinalized = true;
+        showToast(decision === "SAVE_AS_TEAM" ? "Saved as TEAM episode." : "Saved as standard episode.", "success");
+        addPatientModal.classList.remove("active");
+        await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
+      } catch (e) {
+        showToast(e.message || "Finalize failed.", "error");
+      }
+    }
+
+    function subscribeCheckStream(checkId) {
+      if (teamFlow.es) { try { teamFlow.es.close(); } catch (_e) {} }
+      const tokenQ = authToken ? `?token=${encodeURIComponent(authToken)}` : "";
+      const es = new EventSource(`${API}/api/eligibility-checks/${encodeURIComponent(checkId)}/stream${tokenQ}`);
+      teamFlow.es = es;
+      es.addEventListener("status", (e) => {
+        try { const d = JSON.parse(e.data); if (d.stage) setStage(d.stage); } catch (_e) {}
+      });
+      es.addEventListener("result", (e) => {
+        try { renderDetermineResult(JSON.parse(e.data)); setStage("DONE"); } catch (_e) {}
+        try { es.close(); } catch (_e) {}
+      });
+      es.addEventListener("error", (e) => {
+        let msg = "Eligibility check failed.";
+        try { msg = JSON.parse(e.data).message || msg; } catch (_e) {}
+        markStageError();
+        const errEl = byId("determineError");
+        errEl.style.display = "block";
+        errEl.innerHTML = `${esc(msg)} <button class="btn" id="retryDetermineBtn" style="margin-left:8px;">Retry</button>`;
+        try { es.close(); } catch (_e) {}
+        const retry = byId("retryDetermineBtn");
+        if (retry) retry.addEventListener("click", async () => {
+          try {
+            await apiJson(`/api/eligibility-checks/${encodeURIComponent(checkId)}/rerun`, { method: "POST" });
+            gotoDetermineStep();
+            subscribeCheckStream(checkId);
+          } catch (e2) { showToast(e2.message || "Retry failed.", "error"); }
+        });
+      });
+      es.onerror = () => { /* network blip — log only */ };
+    }
+
+    async function startEligibilityCheck() {
+      // Guard against rapid double-clicks creating duplicate checks.
+      if (teamFlow.startingCheck) return;
+      teamFlow.startingCheck = true;
+      const primary = byId("teamPrimaryBtn");
+      if (primary) primary.disabled = true;
+
+      const docIds = teamFlow.uploadedDocs.filter((d) => d.status === "validated").map((d) => d.id);
+      const freeform = byId("freeformNotes").value.trim();
+      const surgeryDate = byId("scheduledSurgeryDate").value || null;
+      if (!docIds.length && !freeform) {
+        showToast("Upload at least one validated file or paste freeform notes.", "error");
+        teamFlow.startingCheck = false;
+        if (primary) primary.disabled = false;
+        return;
+      }
+      try {
+        const res = await apiJson("/api/eligibility-checks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ patientId: teamFlow.patientId, documentIds: docIds, freeformNotes: freeform, surgeryDate }),
+        });
+        teamFlow.checkId = res.id;
+        gotoDetermineStep();
+        setStage("PARSING");
+        subscribeCheckStream(res.id);
+      } catch (e) {
+        showToast(e.message || "Could not start eligibility check.", "error");
+        if (primary) primary.disabled = false;
+      } finally {
+        teamFlow.startingCheck = false;
+      }
+    }
+
+    /* ── Override modal ──────────────────────────────────────────── */
+    let overrideTargetField = null;
+    function openOverrideModal(field) {
+      overrideTargetField = field;
+      byId("overrideReason").value = "";
+      byId("overrideModalTitle").textContent = `Override: ${field}`;
+      byId("overrideModal").classList.add("active");
+    }
+    function closeOverrideModal() { byId("overrideModal").classList.remove("active"); }
+
+    /* ── Group flow ─────────────────────────────────────────────── */
+    function gotoGroupDrop() {
+      teamFlow.step = "group-drop";
+      teamFlow.mode = "group";
+      showStepEls("groupDropStep");
+      setTeamFooter({ back: true, primary: "Process Batch", primaryDisabled: true });
+      updateGroupPrimaryButton();
+    }
+    function gotoGroupProgress() {
+      teamFlow.step = "group-progress";
+      showStepEls("groupProgressStep");
+      hideAllFooters();
+      byId("batchStageStrip").querySelectorAll(".stage-pill").forEach((p) => p.classList.remove("active", "done"));
+      byId("batchLiveCounts").textContent = "Created: 0 · Needs review: 0 · Errors: 0";
+    }
+    function gotoGroupSummary(summary) {
+      teamFlow.step = "group-summary";
+      showStepEls("groupSummaryStep");
+      const created = summary?.created || [];
+      const needsReview = summary?.needsReview || [];
+      const errors = summary?.errors || [];
+      byId("groupSummaryBody").innerHTML = `
+        <div class="group-summary-section">
+          <div class="panel-head">Created (${created.length})</div>
+          <div class="panel-body">
+            ${created.length ? created.map((c) => `
+              <div class="group-summary-row">
+                <span class="gs-name">${esc(c.identity?.firstName || "")} ${esc(c.identity?.lastName || "")}</span>
+                <span>MBI: ${esc(c.identity?.mbi || "—")}</span>
+                <span>Surgery: ${esc(c.identity?.surgeryDate || "—")}</span>
+                <span>${esc(c.overallVerdict || "Pending…")}</span>
+              </div>
+            `).join("") : `<div style="padding:10px 12px;color:#94a3b8;font-size:12px;">No patients created.</div>`}
+          </div>
+        </div>
+        <div class="group-summary-section">
+          <div class="panel-head">Needs review (${needsReview.length})</div>
+          <div class="panel-body">
+            ${needsReview.length ? needsReview.map((n) => `
+              <div class="group-summary-row">
+                <span class="gs-name">${esc(n.filename || "")}</span>
+                <span>${esc(n.identity?.firstName || "")} ${esc(n.identity?.lastName || "")}</span>
+                <span>${esc(n.identity?.mbi || "—")}</span>
+                <span>${esc(n.reason || "Low confidence")}</span>
+              </div>
+            `).join("") : `<div style="padding:10px 12px;color:#94a3b8;font-size:12px;">None.</div>`}
+          </div>
+        </div>
+        <div class="group-summary-section">
+          <div class="panel-head">Errors (${errors.length})</div>
+          <div class="panel-body">
+            ${errors.length ? errors.map((er) => `
+              <div class="group-summary-row">
+                <span class="gs-name">${esc(er.filename || "")}</span>
+                <span colspan="3" style="grid-column:span 3;">${esc(er.error || "")}</span>
+              </div>
+            `).join("") : `<div style="padding:10px 12px;color:#94a3b8;font-size:12px;">None.</div>`}
+          </div>
+        </div>
+      `;
+      byId("teamModalFooter").style.display = "flex";
+      byId("teamBackBtn").style.display = "none";
+      byId("teamCancelBtn").textContent = "Close";
+      const primary = byId("teamPrimaryBtn");
+      primary.style.display = "inline-flex";
+      primary.textContent = "Done — Open Dashboard";
+      primary.disabled = false;
+    }
+
+    function setBatchStage(stage) {
+      const order = ["SPLITTING", "EXTRACTING_IDENTITIES", "DONE"];
+      const idx = order.indexOf(stage);
+      byId("batchStageStrip").querySelectorAll(".stage-pill").forEach((p) => {
+        const i = order.indexOf(p.dataset.stage);
+        p.classList.remove("active", "done");
+        if (i < idx) p.classList.add("done");
+        else if (i === idx) p.classList.add(stage === "DONE" ? "done" : "active");
+      });
+    }
+
+    async function startGroupBatch() {
+      if (!teamFlow.groupFiles.length) return;
+      if (teamFlow.startingBatch) return;
+      teamFlow.startingBatch = true;
+      const primary = byId("teamPrimaryBtn");
+      if (primary) primary.disabled = true;
+      gotoGroupProgress();
+      const fd = new FormData();
+      teamFlow.groupFiles.forEach((f) => fd.append("files", f));
+      let res, data;
+      try {
+        res = await fetch(`${API}/api/eligibility-batches`, {
+          method: "POST",
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+          body: fd,
+        });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `Batch failed: ${res.status}`);
+      } catch (e) {
+        showToast(e.message || "Batch failed.", "error");
+        teamFlow.startingBatch = false;
+        if (primary) primary.disabled = false;
+        gotoGroupDrop();
+        return;
+      } finally {
+        teamFlow.startingBatch = false;
+      }
+      teamFlow.batchId = data.id;
+      const summary = { created: [], needsReview: [], errors: [] };
+      const tokenQ = authToken ? `?token=${encodeURIComponent(authToken)}` : "";
+      const es = new EventSource(`${API}/api/eligibility-batches/${encodeURIComponent(data.id)}/stream${tokenQ}`);
+      teamFlow.es = es;
+      es.addEventListener("status", (e) => {
+        try { const d = JSON.parse(e.data); if (d.stage) setBatchStage(d.stage); } catch (_e) {}
+      });
+      es.addEventListener("patient_created", (e) => {
+        try { summary.created.push(JSON.parse(e.data)); } catch (_e) {}
+        updateBatchCounts(summary);
+      });
+      es.addEventListener("needs_review", (e) => {
+        try { summary.needsReview.push(JSON.parse(e.data)); } catch (_e) {}
+        updateBatchCounts(summary);
+      });
+      es.addEventListener("file_error", (e) => {
+        try { summary.errors.push(JSON.parse(e.data)); } catch (_e) {}
+        updateBatchCounts(summary);
+      });
+      es.addEventListener("patient_done", (e) => {
+        try {
+          const p = JSON.parse(e.data);
+          const row = summary.created.find((c) => c.patientId === p.patientId);
+          if (row) row.overallVerdict = p.overallVerdict;
+        } catch (_e) {}
+        updateBatchCounts(summary);
+      });
+      es.addEventListener("done", () => {
+        setBatchStage("DONE");
+        gotoGroupSummary(summary);
+        try { es.close(); } catch (_e) {}
+      });
+      es.addEventListener("error", () => { /* errors handled per-event-type above */ });
+    }
+    function updateBatchCounts(s) {
+      byId("batchLiveCounts").textContent =
+        `Created: ${s.created.length} · Needs review: ${s.needsReview.length} · Errors: ${s.errors.length}`;
+    }
 
     function setupAddPatientFlow() {
       byId("addPatientBtn").addEventListener("click", openAddPatientModal);
       byId("addPatientClose").addEventListener("click", closeAddPatientModal);
       byId("cancelBtn").addEventListener("click", closeAddPatientModal);
-      addPatientModal.addEventListener("click", (e) => { if (e.target === addPatientModal) closeAddPatientModal(); });
-      byId("choosePreOpBtn").addEventListener("click", () => {
-        selectedEpisodeType = "pre_op";
-        byId("episodeTypeStep").style.display = "none";
-        byId("patientFormFields").style.display = "block";
-        byId("modalFooter").style.display = "flex";
-        applyEpisodeTypeFormState();
+      byId("teamCancelBtn").addEventListener("click", closeAddPatientModal);
+      byId("teamBackBtn").addEventListener("click", () => {
+        if (teamFlow.step === "files") gotoIdentityStep();
+        else if (teamFlow.step === "identity") gotoModeStep();
+        else if (teamFlow.step === "group-drop") gotoModeStep();
+        else closeAddPatientModal();
       });
-      byId("choosePostOpBtn").addEventListener("click", () => {
-        selectedEpisodeType = "post_op";
-        byId("episodeTypeStep").style.display = "none";
-        byId("patientFormFields").style.display = "block";
-        byId("modalFooter").style.display = "flex";
-        applyEpisodeTypeFormState();
+      byId("teamPrimaryBtn").addEventListener("click", () => {
+        if (teamFlow.step === "identity") gotoFilesStep();
+        else if (teamFlow.step === "files") startEligibilityCheck();
+        else if (teamFlow.step === "group-drop") startGroupBatch();
+        else if (teamFlow.step === "group-summary") {
+          addPatientModal.classList.remove("active");
+          refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
+        }
+      });
+      addPatientModal.addEventListener("click", (e) => { if (e.target === addPatientModal) closeAddPatientModal(); });
+
+      byId("chooseSingleBtn").addEventListener("click", gotoIdentityStep);
+      byId("chooseGroupBtn").addEventListener("click", gotoGroupDrop);
+
+      // Multi-file drop zone
+      const filesDrop = byId("filesDrop");
+      const filesInput = byId("filesInput");
+      filesDrop.addEventListener("click", (e) => {
+        if (e.target.closest("[data-remove]") || e.target.tagName === "LABEL") return;
+        filesInput.click();
+      });
+      filesDrop.addEventListener("dragover", (e) => { e.preventDefault(); filesDrop.classList.add("dragover"); });
+      filesDrop.addEventListener("dragleave", () => filesDrop.classList.remove("dragover"));
+      filesDrop.addEventListener("drop", (e) => {
+        e.preventDefault(); filesDrop.classList.remove("dragover");
+        Array.from(e.dataTransfer.files || []).forEach((f) => uploadOneFile(f));
+      });
+      filesInput.addEventListener("change", () => {
+        Array.from(filesInput.files || []).forEach((f) => uploadOneFile(f));
+        filesInput.value = "";
+      });
+      byId("freeformNotes").addEventListener("input", updateFilesPrimaryButton);
+
+      // Group drop
+      const groupDrop = byId("groupDrop");
+      const groupInput = byId("groupInput");
+      groupDrop.addEventListener("click", (e) => {
+        if (e.target.closest("[data-gremove]") || e.target.tagName === "LABEL") return;
+        groupInput.click();
+      });
+      groupDrop.addEventListener("dragover", (e) => { e.preventDefault(); groupDrop.classList.add("dragover"); });
+      groupDrop.addEventListener("dragleave", () => groupDrop.classList.remove("dragover"));
+      groupDrop.addEventListener("drop", (e) => {
+        e.preventDefault(); groupDrop.classList.remove("dragover");
+        Array.from(e.dataTransfer.files || []).forEach((f) => teamFlow.groupFiles.push(f));
+        renderGroupFileList(); updateGroupPrimaryButton();
+      });
+      groupInput.addEventListener("change", () => {
+        Array.from(groupInput.files || []).forEach((f) => teamFlow.groupFiles.push(f));
+        groupInput.value = ""; renderGroupFileList(); updateGroupPrimaryButton();
       });
 
+      // Override confirm
+      byId("overrideConfirmBtn").addEventListener("click", async () => {
+        const reason = byId("overrideReason").value.trim();
+        if (!reason) { showToast("Reason is required.", "error"); return; }
+        try {
+          const res = await apiJson(`/api/eligibility-checks/${encodeURIComponent(teamFlow.checkId)}/override`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ field: overrideTargetField, to: "PASS", reason }),
+          });
+          closeOverrideModal();
+          renderDetermineResult({
+            verdicts: res.verdicts,
+            overallVerdict: res.overall_verdict,
+            extractedFields: res.extracted_fields,
+          });
+        } catch (e) { showToast(e.message || "Override failed.", "error"); }
+      });
+
+      // ─── Legacy submit path (used by Switch-to-Post-Op) ───
       const uploadArea = byId("uploadArea");
       const pdfInput = byId("pdfInput");
       const uploadContent = byId("uploadContent");
       const uploadSuccess = byId("uploadSuccess");
-
-      uploadArea.addEventListener("click", (e) => { if (e.target.id !== "uploadRemove") pdfInput.click(); });
-      uploadArea.addEventListener("dragover", (e) => { e.preventDefault(); uploadArea.classList.add("dragover"); });
-      uploadArea.addEventListener("dragleave", () => uploadArea.classList.remove("dragover"));
-      uploadArea.addEventListener("drop", (e) => {
-        e.preventDefault();
-        uploadArea.classList.remove("dragover");
-        const file = e.dataTransfer.files[0];
-        if (!file) return;
-        pdfInput.files = e.dataTransfer.files;
-        pdfText = "";
-        byId("uploadFilename").textContent = file.name;
-        uploadContent.style.display = "none";
-        uploadSuccess.style.display = "flex";
-      });
-      pdfInput.addEventListener("change", async () => {
-        if (!pdfInput.files[0]) return;
-        const file = pdfInput.files[0];
-        byId("uploadFilename").textContent = file.name;
-        uploadContent.style.display = "none";
-        uploadSuccess.style.display = "flex";
-        const fd = new FormData();
-        fd.append("file", file);
-        try {
-          const res = await fetch(`${API}/api/upload-pdf`, { method: "POST", body: fd });
-          const data = await res.json();
-          if (res.ok && data.text) pdfText = data.text;
-        } catch (_e) {
+      if (uploadArea) {
+        uploadArea.addEventListener("click", (e) => { if (e.target.id !== "uploadRemove") pdfInput.click(); });
+        uploadArea.addEventListener("dragover", (e) => { e.preventDefault(); uploadArea.classList.add("dragover"); });
+        uploadArea.addEventListener("dragleave", () => uploadArea.classList.remove("dragover"));
+        uploadArea.addEventListener("drop", (e) => {
+          e.preventDefault();
+          uploadArea.classList.remove("dragover");
+          const file = e.dataTransfer.files[0];
+          if (!file) return;
+          pdfInput.files = e.dataTransfer.files;
           pdfText = "";
-        }
-      });
-      byId("uploadRemove").addEventListener("click", (e) => {
-        e.stopPropagation();
-        pdfText = "";
-        pdfInput.value = "";
-        uploadContent.style.display = "block";
-        uploadSuccess.style.display = "none";
-      });
+          byId("uploadFilename").textContent = file.name;
+          uploadContent.style.display = "none";
+          uploadSuccess.style.display = "flex";
+        });
+        pdfInput.addEventListener("change", async () => {
+          if (!pdfInput.files[0]) return;
+          const file = pdfInput.files[0];
+          byId("uploadFilename").textContent = file.name;
+          uploadContent.style.display = "none";
+          uploadSuccess.style.display = "flex";
+          const fd = new FormData();
+          fd.append("file", file);
+          try {
+            const res = await fetch(`${API}/api/upload-pdf`, { method: "POST", body: fd });
+            const data = await res.json();
+            if (res.ok && data.text) pdfText = data.text;
+          } catch (_e) {
+            pdfText = "";
+          }
+        });
+        byId("uploadRemove").addEventListener("click", (e) => {
+          e.stopPropagation();
+          pdfText = "";
+          pdfInput.value = "";
+          uploadContent.style.display = "block";
+          uploadSuccess.style.display = "none";
+        });
+      }
 
       byId("submitBtn").addEventListener("click", async () => {
         if (!selectedEpisodeType) {
-          showToast("Please choose Pre-Op or Post-Op first.", "error");
+          showToast("Please choose an episode type first.", "error");
           return;
         }
-        const name = byId("patientName").value.trim();
-        const phone = byId("patientPhone").value.trim();
-        const email = byId("patientEmail").value.trim();
-        const scheduledSurgeryDate = byId("scheduledSurgeryDate").value;
+        const name = byId("patientNameLegacy").value.trim();
+        const phone = byId("patientPhoneLegacy").value.trim();
+        const email = byId("patientEmailLegacy").value.trim();
+        const scheduledSurgeryDate = byId("scheduledSurgeryDateLegacy").value;
         const notes = pdfText || byId("dischargeNotes").value.trim();
         const rawProfile = localStorage.getItem(PROFILE_KEY);
         const profile = rawProfile ? JSON.parse(rawProfile) : null;
         const doctorOfficePhone = profile?.officePhone || "";
         const doctorClinicCode = profile?.clinicCode || "";
         if (!name || !notes) {
-          showToast("Patient name and discharge notes are required.", "error");
+          showToast("Patient name and notes are required.", "error");
           return;
         }
         if (selectedEpisodeType === "pre_op" && !scheduledSurgeryDate) {
@@ -2377,9 +3942,7 @@
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                patient_name: name,
-                phone_number: phone,
-                email,
+                patient_name: name, phone_number: phone, email,
                 discharge_notes: notes,
                 doctor_office_phone: doctorOfficePhone,
                 doctor_clinic_code: doctorClinicCode,
@@ -2390,9 +3953,7 @@
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                patient_name: name,
-                phone_number: phone,
-                email,
+                patient_name: name, phone_number: phone, email,
                 preparation_notes: notes,
                 doctor_office_phone: doctorOfficePhone,
                 doctor_clinic_code: doctorClinicCode,
@@ -2404,15 +3965,12 @@
           byId("progressBarFill").style.width = "100%";
           byId("progressPct").textContent = "100%";
           showToast(selectedEpisodeType === "pre_op" ? "Pre-op patient added. Resources generated." : "Patient added. Resources generated.", "success");
-          closeAddPatientModal();
-          byId("patientName").value = "";
-          byId("patientPhone").value = "";
-          byId("patientEmail").value = "";
-          byId("scheduledSurgeryDate").value = "";
-          byId("dischargeNotes").value = "";
+          byId("modalForm").style.display = "block";
+          addPatientModal.classList.remove("active");
+          ["patientNameLegacy","patientPhoneLegacy","patientEmailLegacy","scheduledSurgeryDateLegacy","dischargeNotes"].forEach((id) => { const el = byId(id); if (el) el.value = ""; });
           pdfText = "";
-          byId("uploadContent").style.display = "block";
-          byId("uploadSuccess").style.display = "none";
+          if (uploadContent) uploadContent.style.display = "block";
+          if (uploadSuccess) uploadSuccess.style.display = "none";
           await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
         } catch (e) {
           byId("processing").classList.remove("active");
@@ -2420,6 +3978,14 @@
           byId("modalForm").style.display = "block";
           showToast(e.message || "Could not process patient.", "error");
         }
+      });
+
+      // Override modal close-on-overlay-click
+      byId("overrideModal").addEventListener("click", (e) => {
+        if (e.target === byId("overrideModal")) closeOverrideModal();
+      });
+      byId("overrideModal").querySelectorAll("[data-close]").forEach((el) => {
+        el.addEventListener("click", closeOverrideModal);
       });
     }
 
@@ -2469,6 +4035,24 @@
       setTimeout(() => toast.classList.remove("active"), 2400);
     }
 
+    function setupSidebarToggle() {
+      const shell = byId("appShell");
+      const btn = byId("sidebarToggleBtn");
+      if (!shell || !btn) return;
+      const KEY = "sidebarCollapsed";
+      try {
+        if (localStorage.getItem(KEY) === "1") shell.classList.add("sidebar-collapsed");
+      } catch (_e) {}
+      btn.addEventListener("click", () => {
+        shell.classList.toggle("sidebar-collapsed");
+        try {
+          localStorage.setItem(KEY, shell.classList.contains("sidebar-collapsed") ? "1" : "0");
+        } catch (_e) {}
+        btn.title = shell.classList.contains("sidebar-collapsed") ? "Expand sidebar" : "Collapse sidebar";
+      });
+      btn.title = shell.classList.contains("sidebar-collapsed") ? "Expand sidebar" : "Collapse sidebar";
+    }
+
     setupTabs();
     setupAnalyticsSubtabs();
     setupGlobalModals();
@@ -2478,6 +4062,7 @@
     setupPatientActions();
     setupPreopPatientActions();
     setupNotificationBell();
+    setupSidebarToggle();
     loadPatients().catch((e) => showToast(e.message, "error"));
     loadEscalations().catch((e) => showToast(e.message, "error"));
     loadIntakeNotifications().catch(() => {});

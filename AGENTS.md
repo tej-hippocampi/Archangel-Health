@@ -23,9 +23,11 @@ Copy `.env.example` to `.env`. Set `BASE_URL=http://localhost:8000` for local de
 
 Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`** and a **verified** `SENDGRID_FROM_EMAIL` in the same SendGrid account (or working `SMTP_*`). Without this, `/api/onboarding/request-otp` returns 503; check the backend terminal for `[email_utils] SendGrid HTTP …` diagnostics.
 
+**TEAM eligibility (Track A)** lives in `backend/eligibility/` (parsers, extractor, evaluator, pipeline) and `backend/routers/eligibility.py`. Requires `ANTHROPIC_API_KEY` for live extraction, and `tesseract` + `poppler` (`brew install tesseract poppler`) for OCR fallback on image-only PDFs. Uploaded documents land under `$UPLOAD_DIR/eligibility/<patientId>/` (default `/tmp/elysium-eligibility`). All check / override / finalize / batch endpoints write to the in-memory audit log; view via `GET /admin/audit/eligibility`.
+
 ### Gotchas
 - **Static file paths**: `frontend/index.html` uses `/static/` prefixed paths. FastAPI mounts the `frontend/` directory at `/static`. If the HTML is served at `/patient/{id}`, relative paths won't resolve — always use `/static/styles.css` and `/static/app.js`.
-- **No tests or linter**: The codebase has no test suite or linting configuration (`pyproject.toml`, `.flake8`, etc.).
+- **Test suite is `backend/tests/` (pytest)** — covers the eligibility evaluator, parsers, and a 50-case validation fixture set. Run with `cd backend && python3 -m pytest tests/ -q`.
 - **No `python` binary**: Use `python3` (not `python`) to run commands.
 - **pip installs to user dir**: `pip install` installs to `~/.local/bin`. Ensure `$HOME/.local/bin` is on `PATH`, or use `python3 -m uvicorn` instead of `uvicorn` directly.
 - **In-memory data**: All patient data resets on server restart. The demo patient `maria_001` is re-seeded on every startup.
@@ -42,4 +44,13 @@ Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`**
 | `/api/auth/register` | POST | Landing: create account (email, password, optional name) |
 | `/api/auth/login` | POST | Landing: sign in (email, password) |
 | `/api/auth/me` | GET | Landing: current user (Bearer token) |
+| `/api/eligibility-draft-patient` | POST | Allocate a draft patient before file upload (TEAM) |
+| `/api/eligibility-documents` | POST/DELETE | Upload / remove eligibility documents |
+| `/api/eligibility-checks` | POST | Start a parse → extract → evaluate pipeline |
+| `/api/eligibility-checks/{id}/stream` | GET | SSE progress (status / result / error) |
+| `/api/eligibility-checks/{id}/override` | POST | Audited verdict override |
+| `/api/eligibility-checks/{id}/finalize` | POST | `SAVE_AS_TEAM` / `SAVE_AS_STANDARD` |
+| `/api/eligibility-batches` | POST | Group upload with identity fan-out |
+| `/api/eligibility-batches/{id}/stream` | GET | SSE for batch progress |
+| `/admin/audit/eligibility` | GET | TEAM audit log viewer |
 | `/docs` | GET | Swagger UI |

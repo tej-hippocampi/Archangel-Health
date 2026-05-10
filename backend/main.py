@@ -45,6 +45,12 @@ from routers.internal import router as internal_router
 from routers.admin    import router as admin_router
 from routers.onboarding import router as onboarding_router
 from routers.tenant_portal import router as tenant_portal_router
+from routers.eligibility import router as eligibility_router
+from routers.intraop import router as intraop_router
+from routers.postop import router as postop_router
+from routers.initial_tier import router as initial_tier_router
+from routers.preop_retier import router as preop_retier_router
+from eligibility import store as elig_store
 from staff_context import StaffContext, get_staff_context_optional
 from tenant_constants import DEMO_HEALTH_SYSTEM_ID, DEMO_HEALTH_SYSTEM_SLUG
 from tenant_jwt import decode_tenant_staff_token
@@ -1209,6 +1215,7 @@ async def _classify_and_create_escalation(
 
     tier = None
     trigger_type = source
+    semantic_verdict: Optional[Dict[str, Any]] = None
     if _detect_hard_tier_1(message):
         tier = 1
         trigger_type = f"{source}:hard_keyword"
@@ -1217,6 +1224,7 @@ async def _classify_and_create_escalation(
         if semantic and semantic.get("tier") in (2, 3):
             tier = semantic.get("tier")
             trigger_type = f"{source}:{semantic.get('trigger_type', 'semantic')}"
+            semantic_verdict = semantic
     if tier is None:
         return None
     esc_id = _team_store.create_escalation(
@@ -1227,6 +1235,28 @@ async def _classify_and_create_escalation(
         conversation_snapshot=snapshot,
         health_system_id=patient_data.get("health_system_id"),
     )
+
+    # Triage Suite Pass 3 §3.1 — when the verdict came from the LLM
+    # semantic-escalation path AND the source was the Care Companion
+    # chat, persist a `care_companion_semantic_escalation` row in the
+    # event log so the post-op re-tier algorithm can read it as a soft
+    # contributor (tier-2) or hard escalator (tier-3) on its next run.
+    if semantic_verdict is not None and source == "chat":
+        try:
+            _team_store.log_event(
+                patient_id=patient_id,
+                event_type="care_companion_semantic_escalation",
+                payload={
+                    "tier": int(semantic_verdict.get("tier") or 0),
+                    "reason": semantic_verdict.get("reason", ""),
+                    "trigger_type": trigger_type,
+                    "escalation_id": esc_id,
+                    "message_excerpt": (message or "")[:500],
+                },
+            )
+        except Exception:
+            # Audit failure must never block the reply.
+            pass
     return {
         "tier": int(tier),
         "escalation_id": esc_id,
@@ -1629,15 +1659,96 @@ async def doctor_portal(request: Request):
         return HTMLResponse(content=f.read())
 
 
+@app.get("/dev", response_class=HTMLResponse)
+async def dev_login_shortcut():
+    """Local-dev one-click sign-in. Gated on EMAIL_DEV_MODE so it never ships
+    to prod. Auto-creates the dev doctor on first hit, issues a JWT, drops it
+    into localStorage on the same origin, and redirects to the portal — so
+    `python3 -m uvicorn main:app` + opening http://localhost:8000/dev is all
+    you need to see the doctor UI."""
+    if os.getenv("EMAIL_DEV_MODE") not in ("1", "true", "True"):
+        raise HTTPException(status_code=404)
+
+    email = "dev@local"
+    password = "dev-password-not-secret"
+    name = "Dev Doctor"
+    if not get_doctor_profile(email):
+        try:
+            register_user(email, password, name)
+        except ValueError:
+            pass  # already exists from a prior run
+        try:
+            set_doctor_profile(
+                email,
+                name=name,
+                office_phone="5555555555",
+                doctor_type="Care Team",
+                hospital_affiliations="Local Dev Hospital",
+            )
+        except Exception:
+            pass
+
+    token = create_access_token(email)
+    html = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Dev login</title></head>
+<body><p>Signing in…</p>
+<script>
+  localStorage.setItem("archangel_doctor_auth_token", {json.dumps(token)});
+  location.replace("/");
+</script>
+</body></html>"""
+    return HTMLResponse(content=html)
+
+
+# Friendly labels for the per-rule TEAM eligibility verdicts. Used by the
+# patient roster row to surface the FIRST failing rule as a hover tooltip on
+# the "Not TEAM eligible" badge (e.g. "Enrolled in Medicare Advantage").
+_TEAM_FAIL_LABELS = {
+    "partA_active":     "Part A inactive",
+    "partB_active":     "Part B inactive",
+    "not_ma":           "Medicare Advantage",
+    "medicare_primary": "Medicare not primary",
+    "not_esrd_basis":   "ESRD-basis entitlement",
+    "not_umwa":         "UMWA Health Plan",
+}
+# Display order matches PRD §6.4 — surface the highest-priority failure first.
+_TEAM_FAIL_ORDER = [
+    "not_ma",
+    "not_esrd_basis",
+    "not_umwa",
+    "medicare_primary",
+    "partA_active",
+    "partB_active",
+]
+
+
+def _first_failing_rule_label(verdicts: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not verdicts:
+        return None
+    for key in _TEAM_FAIL_ORDER:
+        if str(verdicts.get(key) or "").upper() == "FAIL":
+            return _TEAM_FAIL_LABELS.get(key)
+    return None
+
+
 @app.get("/api/patients")
 async def list_patients(
     request: Request,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
-    """Return all patients in the store for the doctor roster."""
+    """Return all patients in the store for the doctor roster.
+
+    Excludes draft patients (``is_draft=True``) — these are work-in-progress
+    records created during the TEAM eligibility flow and are not yet committed
+    to the roster. They are either promoted (on finalize) or hard-deleted (on
+    cancel). If a draft is left behind by an interrupted session, it stays
+    invisible until the server restarts.
+    """
     await _maybe_trigger_preop_outreach(request.app)
     patients = []
     for pid, d in _patient_store.items():
+        if d.get("is_draft"):
+            continue
         if staff and staff.source == "tenant" and staff.tenant_id:
             if (d.get("health_system_id") or "") != staff.tenant_id:
                 continue
@@ -1667,6 +1778,13 @@ async def list_patients(
             "health_system_code": d.get("clinic_code") or "",
             "intakeFormStatus": (latest_intake or {}).get("status") or "NOT_STARTED",
             "intakeFormId": (latest_intake or {}).get("id"),
+            "eligibilityStatus": d.get("eligibility_status"),
+            "eligibilityCheckId": d.get("eligibility_check_id"),
+            "eligibilityFailingRule": _first_failing_rule_label(
+                (elig_store.get_check(d.get("eligibility_check_id")) or {}).get("verdicts")
+                if d.get("eligibility_check_id")
+                else None
+            ),
             "episode": {
                 "openDate": episode["open_date"],
                 "closeDate": episode["close_date"],
@@ -1674,6 +1792,25 @@ async def list_patients(
                 "currentDay": day_in_episode,
             },
         }
+        # Triage Suite Pass 3 §4.3 — three-tier chain so the doctor
+        # roster can render `T@upload → T@intake → Now`. Both
+        # `initial_tier` and `post_intake_tier` are stable across the
+        # episode (immutable once stamped); `current_tier` is the
+        # rolling live value. On cold start the blob may have lost
+        # these fields, so we hydrate from `episode_snapshots`.
+        post_intake_tier = d.get("post_intake_tier")
+        if post_intake_tier in (None, ""):
+            try:
+                snap = _team_store.get_episode_snapshot(pid) or {}
+                snap_pit = snap.get("post_intake_tier")
+                if snap_pit:
+                    d["post_intake_tier"] = snap_pit
+                    post_intake_tier = snap_pit
+            except Exception:
+                post_intake_tier = None
+        row["initialTier"] = d.get("initial_tier")
+        row["postIntakeTier"] = post_intake_tier
+        row["currentTier"] = d.get("current_tier")
         if (d.get("pipeline_type") or "").lower() == "pre_op" and parse_surgery_datetime(sd.get("procedure_date") or ""):
             row["windows"] = {
                 "t96": compute_window_tier(patient_id=pid, window="t96", team_store=_team_store, patient_dict=d),
@@ -3828,19 +3965,151 @@ async def preop_intake_submit(body: IntakeSubmitRequest):
     specialty = patient.get("specialty") or _specialty_from_procedure((patient.get("structured_data") or {}).get("procedure_name", ""))
     library = _load_form_library()
     template = library.get(specialty) or library.get("General Surgery") or {}
+    form_data = body.form_data or {}
     submission_id = _team_store.save_preop_intake_submission(
         patient_id=body.patient_id,
         specialty=specialty,
         form_template_name=template.get("template_name", "Pre-Op Intake Form"),
-        form_data=body.form_data or {},
+        form_data=form_data,
     )
     _team_store.log_event(
         patient_id=body.patient_id,
         event_type="preop_intake_submitted",
         payload={"submission_id": submission_id, "specialty": specialty},
     )
+    # PRD §3 / Triage Suite Pass 2: extract PAM-13 proxy responses and
+    # synchronously trigger the pre-op re-tier so the recomputed tier
+    # is materialized before the intake-finalize response returns.
+    await _wire_intake_to_pam_and_retier(
+        patient_id=body.patient_id,
+        form_data=form_data,
+    )
     _team_store.delete_preop_intake_session(body.patient_id)
     return {"ok": True, "submission_id": submission_id}
+
+
+async def _wire_intake_to_pam_and_retier(
+    *,
+    patient_id: str,
+    form_data: Dict[str, Any],
+) -> None:
+    """Score PAM responses found in `form_data`, persist a row to
+    `pam_assessments`, mark the intake complete on the patient blob,
+    and run the pre-op re-tier inside the per-episode lock."""
+    from triage.preop_retier import extract_disclosure_flags, score_pam
+    from triage.preop_retier.apply import apply_preop_retier
+    from triage.preop_retier.locks import with_episode_lock
+    from triage.preop_retier.pam_extract import extract_pam_responses
+    from triage.preop_retier.tuning import (
+        MODEL_VERSION as _PR_MODEL_VERSION,
+        TUNING_VERSION as _PR_TUNING_VERSION,
+    )
+
+    patient = _patient_store.get(patient_id)
+    if patient is None:
+        return
+
+    # Mark intake complete (algorithm reads `intake_status` blob field).
+    patient["intake_status"] = "COMPLETE"
+    patient["intake_completed_at"] = datetime.utcnow().replace(microsecond=0).isoformat()
+    patient["intake_disclosures"] = sorted(extract_disclosure_flags(form_data))
+    try:
+        _team_store.log_event(
+            patient_id=patient_id,
+            event_type="intake_completed",
+            payload={"source": "preop_intake_submit"},
+        )
+    except Exception:
+        pass
+
+    # Persist a `pam_assessments` row whenever there's at least one
+    # parseable PAM response — partial submissions still produce a row
+    # with `is_complete=False`, which the algorithm treats as "PAM not
+    # yet completed" via the not-completed-by ladder (PRD §4.2).
+    responses = extract_pam_responses(form_data)
+    if responses:
+        result = score_pam(responses)
+        try:
+            _team_store.save_pam_assessment(
+                episode_id=patient_id,
+                patient_id=patient_id,
+                responses=[r.model_dump() for r in responses],
+                raw_sum=int(result.raw_sum),
+                items_scored=int(result.items_scored),
+                raw_average=float(result.raw_average),
+                activation_score=float(result.activation_score),
+                level=result.level,
+                is_complete=bool(result.is_complete),
+                model_version=_PR_MODEL_VERSION,
+                tuning_version=int(_PR_TUNING_VERSION),
+                completed_at=(
+                    datetime.utcnow().replace(microsecond=0).isoformat()
+                    if result.is_complete else None
+                ),
+            )
+            _team_store.log_event(
+                patient_id=patient_id,
+                event_type="PAM_ASSESSMENT_SAVED",
+                payload={
+                    "level": result.level,
+                    "activationScore": result.activation_score,
+                    "itemsScored": result.items_scored,
+                    "isComplete": bool(result.is_complete),
+                    "source": "preop_intake_submit",
+                },
+            )
+        except Exception:
+            pass
+
+    # Synchronous re-tier inside the per-episode lock so the response
+    # reflects the new tier.
+    try:
+        async with with_episode_lock(patient_id):
+            apply_preop_retier(
+                patient_id=patient_id,
+                patient_store=_patient_store,
+                team_store=_team_store,
+                triggered_by="SIGNAL:INTAKE_PAM",
+            )
+    except Exception:
+        # Re-tier failure must not block the intake-finalize response.
+        pass
+
+    # Triage Suite Pass 3 §4.2 — once-per-episode snapshot of the tier
+    # at the moment intake completed. Distinct from `initial_tier`
+    # (immutable assignment from the EHR upload) and `current_tier`
+    # (the rolling live value). Only stamped if the snapshot row does
+    # not yet carry a `post_intake_tier`; subsequent intake submissions
+    # must not overwrite the original snapshot.
+    try:
+        snap = _team_store.get_episode_snapshot(patient_id) or {}
+        if not snap.get("post_intake_tier"):
+            new_tier = patient.get("current_tier")
+            if new_tier:
+                _team_store.upsert_episode_snapshot(
+                    patient_id, post_intake_tier=new_tier,
+                )
+                patient["post_intake_tier"] = new_tier
+
+                top_reasons = []
+                latest_events = _team_store.list_preop_retier_events(patient_id)
+                if latest_events:
+                    top_reasons = [
+                        {"code": r.get("code"), "label": r.get("label"), "weight": r.get("weight")}
+                        for r in (latest_events[0].get("reasons") or [])[:3]
+                    ]
+                _team_store.log_event(
+                    patient_id=patient_id,
+                    event_type="POST_INTAKE_TIER_SNAPSHOTTED",
+                    payload={
+                        "tier": new_tier,
+                        "initialTier": patient.get("initial_tier"),
+                        "topReasons": top_reasons,
+                    },
+                )
+    except Exception:
+        # Snapshot failure must never block the intake-finalize response.
+        pass
 
 
 @app.get("/api/doctor/patient/{patient_id}/latest-intake")
@@ -3971,6 +4240,139 @@ async def _preop_outreach_loop() -> None:
         await asyncio.sleep(int(os.getenv("PREOP_OUTREACH_INTERVAL_SECONDS", "900")))
 
 
+async def _intraop_overdue_loop() -> None:
+    """Cron loop: applies the conservative-default tier bump for any
+    intra-op form unlocked >24h after OR end (PRD §7.4)."""
+    from triage.intraop.overdue_watcher import run_overdue_pass
+    from triage.intraop.tuning import OVERDUE_WATCHER_INTERVAL_SECONDS
+    interval = int(os.getenv("INTRAOP_OVERDUE_INTERVAL_SECONDS", str(OVERDUE_WATCHER_INTERVAL_SECONDS)))
+    while True:
+        try:
+            run_overdue_pass(patient_store=_patient_store, team_store=_team_store)
+        except Exception as e:
+            print(f"[intraop-overdue-watcher] error: {e}")
+        await asyncio.sleep(interval)
+
+
+# ─── Post-Op Scoring cron loops (PRD §10.6) ───────────────────────────────
+
+async def _postop_send_pass_loop() -> None:
+    """Combined daily-send loop. Each iteration:
+       09:00 — daily check-in send + D7/D14/D30 survey send
+       19:00 — med adherence ping send
+    The simple wall-clock check matches the PRD's daily cadence; in the
+    in-memory CareGuide demo we run this loop every `scheduler_tick_seconds`
+    and gate the work by the local hour."""
+    from triage.postop.cron import (
+        run_daily_checkin_send_pass,
+        run_dayx_survey_send_pass,
+        run_med_adherence_send_pass,
+    )
+    from triage.postop.tuning import CRON_CONFIG
+    tick = int(os.getenv("POSTOP_SEND_INTERVAL_SECONDS", str(CRON_CONFIG["scheduler_tick_seconds"])))
+    last_send_local_day: dict[str, str] = {}
+    while True:
+        try:
+            now = datetime.utcnow()
+            today = now.strftime("%Y-%m-%d")
+            hour = now.hour
+            if hour == int(CRON_CONFIG["daily_checkin_send_local"].split(":")[0]) and last_send_local_day.get("checkin") != today:
+                run_daily_checkin_send_pass(patient_store=_patient_store, team_store=_team_store)
+                run_dayx_survey_send_pass(patient_store=_patient_store, team_store=_team_store)
+                last_send_local_day["checkin"] = today
+            if hour == int(CRON_CONFIG["med_ping_local"].split(":")[0]) and last_send_local_day.get("med") != today:
+                run_med_adherence_send_pass(patient_store=_patient_store, team_store=_team_store)
+                last_send_local_day["med"] = today
+        except Exception as e:
+            print(f"[postop-send-pass] error: {e}")
+        await asyncio.sleep(tick)
+
+
+async def _postop_med_close_loop() -> None:
+    """At 23:00 local, mark every unanswered ping as MISSED_NON_RESPONSE."""
+    from triage.postop.cron import run_med_adherence_close_pass
+    from triage.postop.tuning import CRON_CONFIG
+    tick = int(os.getenv("POSTOP_MED_CLOSE_INTERVAL_SECONDS", str(CRON_CONFIG["scheduler_tick_seconds"])))
+    target_hour = int(CRON_CONFIG["med_non_response_close_local"].split(":")[0])
+    last_close_day: Optional[str] = None
+    while True:
+        try:
+            now = datetime.utcnow()
+            today = now.strftime("%Y-%m-%d")
+            if now.hour == target_hour and last_close_day != today:
+                run_med_adherence_close_pass(team_store=_team_store)
+                last_close_day = today
+        except Exception as e:
+            print(f"[postop-med-close] error: {e}")
+        await asyncio.sleep(tick)
+
+
+async def _postop_checkin_missed_watcher_loop() -> None:
+    """Marks daily check-ins past 36h as missed and bumps the streak."""
+    from triage.postop.cron import run_checkin_missed_watcher
+    from triage.postop.tuning import CRON_CONFIG
+    interval = int(os.getenv("POSTOP_CHECKIN_MISSED_WATCHER_SECONDS",
+                             str(CRON_CONFIG["checkin_missed_watcher_minutes"] * 60)))
+    while True:
+        try:
+            run_checkin_missed_watcher(patient_store=_patient_store, team_store=_team_store)
+        except Exception as e:
+            print(f"[postop-checkin-missed] error: {e}")
+        await asyncio.sleep(interval)
+
+
+async def _postop_dayx_missed_watcher_loop() -> None:
+    """Marks D-X surveys past 48h as missed."""
+    from triage.postop.cron import run_dayx_missed_watcher
+    from triage.postop.tuning import CRON_CONFIG
+    interval = int(os.getenv("POSTOP_DAYX_MISSED_WATCHER_SECONDS",
+                             str(CRON_CONFIG["survey_missed_watcher_minutes"] * 60)))
+    while True:
+        try:
+            run_dayx_missed_watcher(team_store=_team_store)
+        except Exception as e:
+            print(f"[postop-dayx-missed] error: {e}")
+        await asyncio.sleep(interval)
+
+
+async def _postop_lost_contact_watcher_loop() -> None:
+    """Re-tier every post-op patient periodically so 24h Tier-3 / 72h
+    general silence trips are caught between signal commits."""
+    from triage.postop.cron import run_lost_contact_watcher_async
+    from triage.postop.tuning import CRON_CONFIG
+    interval = int(os.getenv("POSTOP_LOST_CONTACT_WATCHER_SECONDS",
+                             str(CRON_CONFIG["lost_contact_watcher_minutes"] * 60)))
+    while True:
+        try:
+            await run_lost_contact_watcher_async(
+                patient_store=_patient_store, team_store=_team_store,
+            )
+        except Exception as e:
+            print(f"[postop-lost-contact] error: {e}")
+        await asyncio.sleep(interval)
+
+
+async def _postop_nightly_retier_loop() -> None:
+    """02:00-local nightly batch — recomputes every post-op episode."""
+    from triage.postop.cron import run_nightly_retier_batch_async
+    from triage.postop.tuning import CRON_CONFIG
+    target_hour = int(CRON_CONFIG["nightly_retier_local"].split(":")[0])
+    tick = int(os.getenv("POSTOP_NIGHTLY_INTERVAL_SECONDS", str(CRON_CONFIG["scheduler_tick_seconds"])))
+    last_run_day: Optional[str] = None
+    while True:
+        try:
+            now = datetime.utcnow()
+            today = now.strftime("%Y-%m-%d")
+            if now.hour == target_hour and last_run_day != today:
+                await run_nightly_retier_batch_async(
+                    patient_store=_patient_store, team_store=_team_store,
+                )
+                last_run_day = today
+        except Exception as e:
+            print(f"[postop-nightly-retier] error: {e}")
+        await asyncio.sleep(tick)
+
+
 @app.on_event("startup")
 async def startup_team_scheduler():
     await _seed_demo_mode_data()
@@ -3978,19 +4380,35 @@ async def startup_team_scheduler():
         print("[demo-seed] team scheduler disabled for demo startup stability.")
         app.state.team_scheduler_task = None
         app.state.preop_outreach_task = None
+        app.state.intraop_overdue_task = None
+        app.state.postop_send_task = None
+        app.state.postop_med_close_task = None
+        app.state.postop_checkin_missed_task = None
+        app.state.postop_dayx_missed_task = None
+        app.state.postop_lost_contact_task = None
+        app.state.postop_nightly_task = None
         return
     app.state.team_scheduler_task = asyncio.create_task(_team_scheduler_loop())
     app.state.preop_outreach_task = asyncio.create_task(_preop_outreach_loop())
+    app.state.intraop_overdue_task = asyncio.create_task(_intraop_overdue_loop())
+    app.state.postop_send_task = asyncio.create_task(_postop_send_pass_loop())
+    app.state.postop_med_close_task = asyncio.create_task(_postop_med_close_loop())
+    app.state.postop_checkin_missed_task = asyncio.create_task(_postop_checkin_missed_watcher_loop())
+    app.state.postop_dayx_missed_task = asyncio.create_task(_postop_dayx_missed_watcher_loop())
+    app.state.postop_lost_contact_task = asyncio.create_task(_postop_lost_contact_watcher_loop())
+    app.state.postop_nightly_task = asyncio.create_task(_postop_nightly_retier_loop())
 
 
 @app.on_event("shutdown")
 async def shutdown_team_scheduler():
-    task = getattr(app.state, "team_scheduler_task", None)
-    if task:
-        task.cancel()
-    ptask = getattr(app.state, "preop_outreach_task", None)
-    if ptask:
-        ptask.cancel()
+    for attr in (
+        "team_scheduler_task", "preop_outreach_task", "intraop_overdue_task",
+        "postop_send_task", "postop_med_close_task", "postop_checkin_missed_task",
+        "postop_dayx_missed_task", "postop_lost_contact_task", "postop_nightly_task",
+    ):
+        task = getattr(app.state, attr, None)
+        if task:
+            task.cancel()
 
 
 @app.post("/internal/team/run-daily-jobs", include_in_schema=False)
@@ -4015,6 +4433,11 @@ app.include_router(internal_router)
 app.include_router(admin_router)
 app.include_router(onboarding_router)
 app.include_router(tenant_portal_router)
+app.include_router(eligibility_router)
+app.include_router(intraop_router)
+app.include_router(postop_router)
+app.include_router(initial_tier_router)
+app.include_router(preop_retier_router)
 
 
 @app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)
@@ -4026,6 +4449,17 @@ async def prompt_lab_page():
 @app.get("/admin/", response_class=HTMLResponse, include_in_schema=False)
 async def admin_page():
     with open(os.path.join(os.path.dirname(__file__), "../frontend/admin.html")) as f:
+        return f.read()
+
+
+@app.get("/intraop-form/{patient_id}", response_class=HTMLResponse, include_in_schema=False)
+async def intraop_form_page(patient_id: str):
+    """Serve the surgeon intra-op form shell. Patient id is read by JS at
+    runtime from the URL path; the HTML is the same for every patient."""
+    path = os.path.join(os.path.dirname(__file__), "../frontend/intraop-form.html")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Intra-op form page not deployed")
+    with open(path) as f:
         return f.read()
 
 
