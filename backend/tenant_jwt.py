@@ -1,4 +1,10 @@
-"""JWTs for health-system staff (doctors, nurses, directors)."""
+"""JWTs for health-system staff (pass-4 roles: surgeon | rn_coordinator | np_pa).
+
+The `itd` (is_team_director) claim is set when the staff member is the surgical
+pod's director; only one director per pod. Legacy tokens with `role: "doctor"`
+or `role: "director"` are still accepted by `staff_context._normalize_legacy_role`
+so in-flight sessions keep working across the role-token migration.
+"""
 
 import os
 from datetime import datetime, timedelta
@@ -19,6 +25,7 @@ def create_tenant_staff_token(
     health_system_id: str,
     tenant_slug: str,
     health_system_code: str,
+    is_team_director: bool = False,
 ) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload: Dict[str, Any] = {
@@ -29,6 +36,7 @@ def create_tenant_staff_token(
         "tid": health_system_id,
         "slug": tenant_slug,
         "hcode": health_system_code or "",
+        "itd": 1 if is_team_director else 0,
         "exp": expire,
     }
     return jwt.encode(payload, AUTH_SECRET, algorithm=ALGORITHM)

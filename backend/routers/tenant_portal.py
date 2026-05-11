@@ -30,15 +30,16 @@ async def tenant_auth_login(slug: str, body: TenantLoginBody, request: Request):
         health_system_id=hs["id"],
         user_email=m["email"],
         display_name=m.get("name") or "",
-        role=m.get("role") or "doctor",
+        role=m.get("role") or "surgeon",
     )
     token = create_tenant_staff_token(
         email=m["email"],
         name=m.get("name") or "",
-        role=m.get("role") or "doctor",
+        role=m.get("role") or "surgeon",
         health_system_id=hs["id"],
         tenant_slug=hs["slug"],
         health_system_code=hs.get("health_system_code") or "",
+        is_team_director=bool(m.get("is_team_director") or 0),
     )
     return {
         "access_token": token,
@@ -47,6 +48,7 @@ async def tenant_auth_login(slug: str, body: TenantLoginBody, request: Request):
             "email": m["email"],
             "name": m.get("name"),
             "role": m.get("role"),
+            "is_team_director": bool(m.get("is_team_director") or 0),
             "tenant_slug": hs["slug"],
             "health_system_name": hs.get("name"),
         },
@@ -65,6 +67,7 @@ async def tenant_me(slug: str, authorization: Optional[str] = Header(None)):
         "email": td.get("sub"),
         "name": td.get("name"),
         "role": td.get("role"),
+        "is_team_director": bool(td.get("itd") or 0),
         "tenant_slug": td.get("slug"),
         "health_system_code": td.get("hcode"),
     }
@@ -78,7 +81,7 @@ async def tenant_audit_log(slug: str, request: Request, authorization: Optional[
     td = decode_tenant_staff_token(token)
     if not td or (td.get("slug") or "").lower() != (slug or "").lower():
         raise HTTPException(status_code=401, detail="Invalid session")
-    if (td.get("role") or "").lower() != "director":
+    if not bool(td.get("itd") or 0):
         raise HTTPException(status_code=403, detail="Audit log is only available to the Director of TEAM Initiative.")
     ts = _ts(request)
     hs = ts.get_health_system_by_slug(slug)

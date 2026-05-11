@@ -1230,3 +1230,218 @@ body {
 .call-team-close:hover {
   background: var(--gray-50);
 }
+
+/* ─── Post-Op Recovery Tracking (PRD §13) ──────────────────────────────── */
+.postop-card {
+  background: #fff;
+  border: 1px solid var(--gray-200, #e5e7eb);
+  border-radius: 14px;
+  margin-top: 18px;
+  padding: 22px 22px 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.postop-card-header {
+  margin-bottom: 14px;
+}
+.postop-card-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gray-900, #111827);
+  margin: 0 0 4px;
+}
+.postop-card-sub {
+  font-size: 13px;
+  color: var(--gray-500, #6b7280);
+  margin: 0;
+}
+.postop-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding-bottom: 14px;
+}
+.postop-tile {
+  display: grid;
+  grid-template-columns: 36px 1fr 22px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.postop-tile:hover { background: #f3f4f6; }
+.postop-tile-icon {
+  font-size: 24px;
+  text-align: center;
+}
+.postop-tile-text {
+  display: flex;
+  flex-direction: column;
+}
+.postop-tile-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #111827;
+}
+.postop-tile-sub {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+.postop-tile-arrow {
+  color: #9ca3af;
+  font-size: 18px;
+}
+.postop-tile-flag {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.postop-tile-flag:hover { background: #fee2e2; }
+.postop-tile-flag .postop-tile-title { color: #b91c1c; }
+
+/* Overlay */
+.postop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.98);
+  z-index: 50;
+  display: none;
+  overflow-y: auto;
+}
+.postop-overlay.postop-overlay-open { display: block; }
+.postop-overlay-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+}
+.postop-overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.postop-overlay-back {
+  background: transparent;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+.postop-overlay-title {
+  font-size: 20px;
+  margin: 0;
+  color: #111827;
+}
+
+/* Form */
+.postop-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.postop-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.postop-form-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #111827;
+}
+.postop-form-help {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+}
+.postop-form-section-heading {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin: 18px 0 -4px;
+}
+.postop-slider {
+  width: 100%;
+  accent-color: #2563eb;
+}
+.postop-slider-value {
+  font-weight: 600;
+  font-size: 13px;
+  color: #2563eb;
+}
+.postop-textarea {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 14px;
+}
+.postop-pill-group, .postop-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.postop-pill-group-stacked { flex-direction: column; }
+.postop-pill, .postop-chip {
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  color: #374151;
+}
+.postop-pill.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.postop-chip.active {
+  background: #fef3c7;
+  border-color: #fbbf24;
+  color: #92400e;
+}
+.postop-submit-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 22px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.postop-submit-btn:hover { background: #1d4ed8; }
+.postop-submit-btn:disabled {
+  background: #93c5fd;
+  cursor: not-allowed;
+}
+.postop-submit-flag {
+  background: #dc2626;
+}
+.postop-submit-flag:hover { background: #b91c1c; }
+.postop-form-status {
+  font-size: 13px;
+  color: #4b5563;
+  margin: 0;
+}
+
+/* ─── Triage Pass 4 — NP/PA read-only dashboard hook ───────────────────
+   Set `document.body.dataset.readonlyRole = "np_pa"` (see doctor.html).
+   Extend selectors as new triage write controls are added. */
+body[data-readonly-role="np_pa"] [data-clinical-write="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+

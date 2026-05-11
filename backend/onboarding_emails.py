@@ -268,10 +268,24 @@ def build_complete_email(
     member_count: int,
     temporary_password: str,
     workspace_url: str,
+    rn_count: int = 0,
+    nppa_count: int = 0,
 ) -> str:
-    """Email 3 — welcome with full details inset and director temp password."""
+    """Email 3 — welcome with full details inset and director temp password.
+
+    `member_count` reflects the total `team_members` rows (post-finalize, this
+    includes the director seat). `rn_count` and `nppa_count` describe the pod
+    composition so the email matches the pass-4 4-person cap.
+    """
     safe_org = (org_name or "your health system").strip()
     safe_dept = (department or "").strip()
+    pod_total = max(member_count, 1)
+    composition_bits = ["1 director (surgeon)"]
+    if rn_count:
+        composition_bits.append(f"{rn_count} RN coordinator")
+    if nppa_count:
+        composition_bits.append(f"{nppa_count} NP / PA" + ("s" if nppa_count != 1 else ""))
+    composition = ", ".join(composition_bits)
     body = (
         _eyebrow("Onboarding complete")
         + _h1("Your workspace is ready.")
@@ -289,8 +303,8 @@ def build_complete_email(
                     ("Health system", safe_org, False),
                     ("Department", safe_dept or "—", False),
                     (
-                        "TEAM members",
-                        f"{member_count + 1} (you + {member_count})",
+                        "Pod",
+                        f"{pod_total} of 4 — {composition}",
                         False,
                     ),
                     ("Temporary password", temporary_password, True),

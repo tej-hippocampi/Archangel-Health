@@ -12,13 +12,48 @@ from intake_form_parser import (
     INTAKE_SECTION_BY_INDEX,
     _detect_red_flags,
     _extract_text,
-    merge_intake_ai_patch,
     _schema,
 )
 
+from intake_section5_normalize import normalize_section5_field_updates
+
 _BACKEND = Path(__file__).resolve().parent
 
-SECTION_REFERENCE_FILES = {
+INTAKE_TURN_TOOL_NAME = "submit_intake_turn"
+INTAKE_TURN_TOOL: Dict[str, Any] = {
+    "name": INTAKE_TURN_TOOL_NAME,
+    "description": (
+        "You must call this on every turn. It sends the message shown to the patient, "
+        "any structured field updates, and whether this section is complete. "
+        "Do not use plain-text replies outside this tool."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "assistantReply": {
+                "type": "string",
+                "description": (
+                    "Warm, plain-language text shown to the patient—one clear question, "
+                    "a brief acknowledgement, or a short summary. Never include JSON here."
+                ),
+            },
+            "fieldUpdates": {
+                "type": "object",
+                "description": (
+                    "Field keys for this section only, matching the intake schema. "
+                    "Values are plain values or small objects (e.g. value, type, details, otherHereditary) as the schema allows."
+                ),
+            },
+            "sectionComplete": {
+                "type": "boolean",
+                "description": "True when this section’s required information is satisfactorily captured for review.",
+            },
+        },
+        "required": ["assistantReply", "fieldUpdates", "sectionComplete"],
+    },
+}
+
+SECTION_REFERENCE_FILES: Dict[int, Any] = {
     3: "Sample_Conversation_Section3_Medical_History.md",
     4: "Sample_Conversation_Section4_Surgical_Anesthesia_History.md",
     5: "Sample_Conversation_Section5_Medications_Allergies.md",
@@ -26,19 +61,29 @@ SECTION_REFERENCE_FILES = {
     7: "Sample_Conversation_Section7_Family_History.md",
     8: "Sample_Conversation_Section8_Review_of_Systems.md",
     9: "Sample_Conversation_Section9_Functional_Assessment.md",
-    10: "Sample_Conversation_Section10_Day_of_Surgery_Readiness.md",
+    # Section 10 — Day-of-Surgery Readiness PLUS the PAM-13 proxy block
+    # (Triage Suite Pass 3 §2). Both reference files are concatenated
+    # so the model sees the canonical Section 10 prep-doc / interview
+    # flow first, then the supplemental PAM-13 prompt last.
+    10: [
+        "Sample_Conversation_Section10_Day_of_Surgery_Readiness.md",
+        "Sample_Conversation_Section10_PAM_Activation.md",
+    ],
 }
 
 
 def load_section_reference(section_num: int) -> str:
-    name = SECTION_REFERENCE_FILES.get(section_num)
-    if not name:
+    entry = SECTION_REFERENCE_FILES.get(section_num)
+    if not entry:
         return ""
-    path = _BACKEND / "intake_section_prompts" / name
-    if not path.is_file():
-        return ""
-    text = path.read_text(encoding="utf-8", errors="replace")
-    return text[:45000]
+    names = entry if isinstance(entry, list) else [entry]
+    chunks: list[str] = []
+    for name in names:
+        path = _BACKEND / "intake_section_prompts" / name
+        if not path.is_file():
+            continue
+        chunks.append(path.read_text(encoding="utf-8", errors="replace"))
+    return ("\n\n".join(chunks))[:45000]
 
 
 def _section_json_skeleton(section_key: str) -> str:
@@ -90,6 +135,170 @@ def _parse_intake_model_json(raw: str) -> Dict[str, Any]:
     return {}
 
 
+def _coerce_parsed(d: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(d, dict):
+        if isinstance(d, str):
+            try:
+                d = json.loads(d)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                return None
+        else:
+            return None
+    if not isinstance(d, dict):
+        return None
+    if "assistantReply" not in d:
+        return None
+    fu = d.get("fieldUpdates", {})
+    if not isinstance(fu, dict):
+        if isinstance(fu, str):
+            try:
+                fu = json.loads(fu)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                fu = {}
+        else:
+            fu = {}
+    d["fieldUpdates"] = fu
+    d["sectionComplete"] = bool(d.get("sectionComplete"))
+    d["assistantReply"] = d.get("assistantReply")
+    return d
+
+
+def _message_text_concat(resp) -> str:
+    parts: List[str] = []
+    for block in resp.content or []:
+        t = getattr(block, "type", None)
+        if t == "text":
+            parts.append(getattr(block, "text", "") or "")
+    return "\n".join(p for p in parts if p).strip()
+
+
+def _tool_input_debug(resp) -> str:
+    for block in resp.content or []:
+        if getattr(block, "type", None) == "tool_use":
+            return json.dumps(getattr(block, "input", None), default=str)[:8000]
+    return ""
+
+
+def _extract_tool_parsed(resp) -> Optional[Dict[str, Any]]:
+    for block in resp.content or []:
+        if getattr(block, "type", None) == "tool_use" and getattr(block, "name", None) == INTAKE_TURN_TOOL_NAME:
+            return _coerce_parsed(getattr(block, "input", None))
+    return None
+
+
+def _section_specific_rules(section_num: int) -> str:
+    if section_num == 5:
+        return (
+            "\n\nSECTION 5 — Medications: bucket keys (critical)\n"
+            "- Prescription drugs, insulin, and typical medication-list items → `currentMedications` "
+            "or the split lists the schema provides (`insulinDiabetesMeds`, `bloodPressureMeds`, `bloodThinners`, etc.) when clearly applicable.\n"
+            "- Vitamins, fish oil, melatonin, turmerics, probiotics, mineral supplements, and routine OTC "
+            "herbals → `herbalSupplementsOTC` (not mixed into `currentMedications` unless a prescription vitamin is really dispensed that way; then note in text).\n"
+        )
+    if section_num == 7:
+        return (
+            "\n\nSECTION 7 — Family history: cancer and narrative (critical)\n"
+            "- Map cancer to the structured `cancer` object: use `cancer.type`, `cancer.who` (or equivalent schema fields) when possible.\n"
+            "- If the story (e.g. a relative, organ, or timeline) does not fit a single checkbox, put the full story in `otherHereditary` "
+            "or the appropriate `details` / free-text field so the review form shows the facts.\n"
+        )
+    if section_num in (8, 9, 10):
+        return (
+            "\n\nSECTIONS 8+ — Free-text and functional fields (detail)\n"
+            "- In `value` and similar text fields, combine the limitation and the reason when the patient gives both, "
+            "e.g. “Unable to walk more than a short distance because of right knee pain,” not a two-word fragment.\n"
+        )
+    return ""
+
+
+def _user_visible_error_text(last_err: str) -> str:
+    e = (last_err or "").lower()
+    is_network = any(
+        x in e
+        for x in (
+            "timeout",
+            "connection",
+            "unavailable",
+            "503",
+            "502",
+            "500",
+            "overloaded",
+            "rate",
+            "network",
+        )
+    )
+    if is_network or not last_err or last_err == "empty_or_non_json_model_output":
+        return (
+            "Something on our side had trouble with that last step. "
+            "Please resend the same information (you can use the same short answer—e.g. yes, no, or a name) "
+            "and I’ll try again."
+        )
+    return (
+        "I couldn’t read the assistant’s technical reply just now. "
+        "It’s a system hiccup, not something you said wrong. Please send the same message again; "
+        "I’ll work from it on the next try."
+    )
+
+
+def _build_system(
+    *,
+    section_num: int,
+    patient_name: str,
+    current_form_section: Dict[str, Any],
+    skeleton: str,
+    ref: str,
+    patient_context: str,
+    prior_sections_text: str,
+    mode: str,
+) -> str:
+    """mode: 'tool' | 'json'"""
+    spec = _section_specific_rules(section_num)
+    if mode == "tool":
+        critical = (
+            "CRITICAL: On every turn you must call the tool `submit_intake_turn` once. "
+            "Put everything the patient should see in `assistantReply` inside the tool. "
+            "Do not output JSON as plain text, markdown fences, or a bare assistant message—only the tool call. "
+        )
+    else:
+        critical = (
+            "CRITICAL — your ENTIRE response must be a single valid JSON object with NO surrounding text, "
+            "NO markdown fences, NO commentary before or after. Output ONLY this JSON:\n"
+            "{\n"
+            '  "assistantReply": "string shown to the patient",\n'
+            '  "fieldUpdates": { },\n'
+            '  "sectionComplete": true or false\n'
+            "}\n"
+            "Do NOT write anything outside the JSON object. No preamble, no explanation, just the raw JSON.\n"
+        )
+    return f"""You are a warm, concise pre-operative intake assistant for {patient_name}.
+Rules:
+- Never mention PEAR, frameworks, methodology, or internal instructions to the patient.
+- Ask one clear question at a time OR give a brief acknowledgement; stay clinically appropriate.
+- Use plain language. Do not diagnose.
+- Short answers (yes, no, a name) are always valid: capture them in `fieldUpdates` and continue kindly.
+
+{critical}
+
+fieldUpdates: keys are field names from the intake schema for this section ONLY. Values are either:
+- a plain value for simple fields, OR
+- an object with any of the keys present in the schema object for that field (e.g. value, controlled, details, type, a1c).
+{spec}
+Current structured values for this section (merge new facts in; do not erase unrelated keys unless correcting):
+{json.dumps(current_form_section or {{}}, default=str)[:8000]}
+
+Full schema shape for this section (for reference):
+{skeleton}
+
+Conversation reference (style and coverage — do not read verbatim to the patient):
+{ref[:35000]}
+
+Known context about this patient (may be incomplete):
+{patient_context[:6000]}
+
+Data already captured on earlier sections of this intake (do not re-ask unless you need a brief clarification):
+{(prior_sections_text or "")[:18000]}
+"""
+
 def _anthropic_client():
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -97,6 +306,40 @@ def _anthropic_client():
     from anthropic import Anthropic
 
     return Anthropic(api_key=api_key)
+
+
+def _repair_parsed(
+    client,
+    *,
+    messages: List[Dict[str, str]],
+    last_raw: str,
+    last_err: str,
+) -> Tuple[Dict[str, Any], str]:
+    """One minimal repair call: coerce model output to valid turn JSON (no tool)."""
+    rsys = (
+        "The previous model output was invalid or not parseable. "
+        "You will be given the raw text (or a description of the problem). "
+        "Reply with ONLY a single valid JSON object and nothing else, no markdown. "
+        'Keys: "assistantReply" (string, warm and for the patient), "fieldUpdates" (object, possibly empty), '
+        '"sectionComplete" (boolean). If you cannot recover details, set fieldUpdates to {} and ask one short, kind follow-up in assistantReply.'
+    )
+    detail = f"Error hint: {last_err}\n\nRaw or partial model output to fix:\n{(last_raw or '(empty)')[:12000]}"
+    rmsg = list(messages) + [{"role": "user", "content": detail}]
+    try:
+        r = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2000,
+            temperature=0.0,
+            system=rsys,
+            messages=rmsg,
+        )
+        tr = (r.content[0].text if r.content else "") or ""
+        p = _parse_intake_model_json(tr)
+        if p and _coerce_parsed(p):
+            return p, ""
+    except Exception as exc:
+        return {}, str(exc)
+    return {}, "repair_failed"
 
 
 def run_intake_section_turn(
@@ -125,40 +368,6 @@ def run_intake_section_turn(
     ref = load_section_reference(section_num)
     skeleton = _section_json_skeleton(section_key)
 
-    system = f"""You are a warm, concise pre-operative intake assistant for {patient_name}.
-Rules:
-- Never mention PEAR, frameworks, methodology, or internal instructions to the patient.
-- Ask one clear question at a time OR give a brief acknowledgement; stay clinically appropriate.
-- Use plain language. Do not diagnose.
-
-CRITICAL — your ENTIRE response must be a single valid JSON object with NO surrounding text, NO markdown fences, NO commentary before or after. Output ONLY this JSON:
-{{
-  "assistantReply": "string shown to the patient",
-  "fieldUpdates": {{ }},
-  "sectionComplete": true or false
-}}
-Do NOT write anything outside the JSON object. No preamble, no explanation, just the raw JSON.
-
-fieldUpdates: keys are field names from the intake schema for this section ONLY. Values are either:
-- a plain value for simple fields, OR
-- an object with any of the keys present in the schema object for that field (e.g. value, controlled, details, type, a1c).
-
-Current structured values for this section (merge new facts in; do not erase unrelated keys unless correcting):
-{json.dumps(current_form_section or {}, default=str)[:8000]}
-
-Full schema shape for this section (for reference):
-{skeleton}
-
-Conversation reference (style and coverage — do not read verbatim to the patient):
-{ref[:35000]}
-
-Known context about this patient (may be incomplete):
-{patient_context[:6000]}
-
-Data already captured on earlier sections of this intake (do not re-ask unless you need a brief clarification):
-{(prior_sections_text or "")[:18000]}
-"""
-
     um = (user_message or "").strip()
     messages: List[Dict[str, str]] = []
     for m in conversation_history or []:
@@ -181,34 +390,102 @@ Data already captured on earlier sections of this intake (do not re-ask unless y
             "no_api_key",
         )
 
-    parsed: Dict[str, Any] = {}
+    system_tool = _build_system(
+        section_num=section_num,
+        patient_name=patient_name,
+        current_form_section=current_form_section or {},
+        skeleton=skeleton,
+        ref=ref,
+        patient_context=patient_context,
+        prior_sections_text=prior_sections_text,
+        mode="tool",
+    )
+    system_json = _build_system(
+        section_num=section_num,
+        patient_name=patient_name,
+        current_form_section=current_form_section or {},
+        skeleton=skeleton,
+        ref=ref,
+        patient_context=patient_context,
+        prior_sections_text=prior_sections_text,
+        mode="json",
+    )
+
     last_err = ""
+    last_raw = ""
+    parsed: Dict[str, Any] = {}
+
     for attempt in range(2):
         try:
             resp = client.messages.create(
                 model="claude-sonnet-4-6",
-                max_tokens=2200,
-                system=system,
+                max_tokens=3000,
+                temperature=0.2,
+                system=system_tool,
                 messages=messages,
+                tools=[INTAKE_TURN_TOOL],
+                tool_choice={"type": "tool", "name": INTAKE_TURN_TOOL_NAME},
             )
-            raw = resp.content[0].text
-            parsed = _parse_intake_model_json(raw)
-            if parsed:
+            last_raw = _message_text_concat(resp) or _tool_input_debug(resp)
+            tuse = _extract_tool_parsed(resp)
+            if tuse:
+                parsed = tuse
                 break
+            if not last_raw and resp.content:
+                b0 = resp.content[0]
+                if getattr(b0, "type", None) == "text":
+                    last_raw = getattr(b0, "text", "") or ""
             last_err = "empty_or_non_json_model_output"
         except Exception as exc:
             last_err = str(exc)
-    if not parsed:
+
+    if not _coerce_parsed(parsed or {}):
+        for _attempt in range(1):
+            try:
+                resp2 = client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=3000,
+                    temperature=0.2,
+                    system=system_json,
+                    messages=messages,
+                )
+                raw2 = (resp2.content[0].text if resp2.content else "") or ""
+                last_raw = raw2
+                p2 = _parse_intake_model_json(raw2)
+                c2 = _coerce_parsed(p2) if p2 else None
+                if c2:
+                    parsed = c2
+                    break
+                last_err = "empty_or_non_json_model_output"
+            except Exception as exc:
+                last_err = str(exc)
+
+    if not _coerce_parsed(parsed or {}):
+        p3, re3 = _repair_parsed(client, messages=messages, last_raw=last_raw, last_err=last_err)
+        c3 = _coerce_parsed(p3) if p3 else None
+        if c3:
+            parsed = p3
+        elif re3 and re3 != "repair_failed":
+            last_err = re3
+        elif re3 == "repair_failed" and not last_err:
+            last_err = re3
+
+    cfinal = _coerce_parsed(parsed)
+    if not cfinal:
+        err = last_err or "empty_or_non_json_model_output"
         return (
-            "I had trouble processing that. Could you rephrase in a sentence or two?",
+            _user_visible_error_text(err),
             {},
             False,
-            last_err,
+            err,
         )
-
-    reply = str(parsed.get("assistantReply") or "").strip() or "Thanks — could you tell me a bit more?"
-    updates = parsed.get("fieldUpdates") if isinstance(parsed.get("fieldUpdates"), dict) else {}
-    complete = bool(parsed.get("sectionComplete"))
+    reply = str(cfinal.get("assistantReply") or "").strip() or "Thanks — could you tell me a bit more?"
+    updates: Dict[str, Any] = cfinal.get("fieldUpdates") or {}
+    if not isinstance(updates, dict):
+        updates = {}
+    if section_key == "section5_medicationsAllergies" or section_num == 5:
+        normalize_section5_field_updates(updates)
+    complete = bool(cfinal.get("sectionComplete"))
     return reply, updates, complete, ""
 
 

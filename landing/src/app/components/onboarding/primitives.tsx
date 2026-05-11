@@ -471,7 +471,7 @@ export function SelectField({
   label?: ReactNode;
   value: string;
   onChange?: (next: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; disabled?: boolean }[];
   placeholder?: string;
 }) {
   const [focused, setFocused] = useState(false);
@@ -512,7 +512,12 @@ export function SelectField({
             {placeholder || "Select…"}
           </option>
           {options.map((opt) => (
-            <option key={opt.value} value={opt.value} style={{ background: "#14161E", color: "#F5F5F7" }}>
+            <option
+              key={opt.value}
+              value={opt.value}
+              disabled={opt.disabled}
+              style={{ background: "#14161E", color: "#F5F5F7" }}
+            >
               {opt.label}
             </option>
           ))}
@@ -836,20 +841,25 @@ const ROLE_PALETTE: Record<string, { bg: string; border: string; fg: string }> =
     border: "rgba(103,232,249,0.32)",
     fg: "#67E8F9",
   },
-  "Doctor / Surgeon": {
+  Surgeon: {
     bg: "rgba(38,99,235,0.14)",
     border: "rgba(96,165,250,0.32)",
     fg: "#93C5FD",
   },
-  "Nurse / Care Coordinator": {
+  "RN Care Coordinator": {
     bg: "rgba(45,212,191,0.10)",
     border: "rgba(45,212,191,0.32)",
     fg: "#5EEAD4",
   },
+  "NP / PA": {
+    bg: "rgba(167,139,250,0.12)",
+    border: "rgba(167,139,250,0.32)",
+    fg: "#C4B5FD",
+  },
 };
 
 export function RolePill({ role }: { role: string }) {
-  const p = ROLE_PALETTE[role] ?? ROLE_PALETTE["Doctor / Surgeon"];
+  const p = ROLE_PALETTE[role] ?? ROLE_PALETTE["Surgeon"];
   return (
     <span
       style={{

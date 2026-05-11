@@ -1,3 +1,47 @@
+"""
+TeamStore — SQLite persistence for the four triage stages.
+
+Architecture decision (Triage Suite Pass 2 — Option B / event-stream;
+Pass 3 — episode_snapshots table is now source of truth on cold start):
+
+The `episodes` table is intentionally minimal. All per-stage state is
+read from event/snapshot tables that mirror the four triage stages:
+
+    initial pre-op tier    → `episode_snapshots.initial_tier_was_hard_escalator`
+                              + in-memory `_patient_store` blob (hot cache)
+                              + `event_logs INITIAL_TIER_ASSIGNED`
+    pre-op re-tier         → `pam_assessments` (intake PAM rows)
+                              + `survey_responses` (T-96 / T-48 / T-24)
+                              + `event_logs PREOP_VIDEO_PLAYED / BATTLECARD_VIEWED`
+                              + `preop_retier_events` (snapshot per recompute)
+                              + `episode_snapshots.post_intake_tier` (one-shot)
+    intra-op reassessment  → `intraop_reassessments`
+                              + `episode_snapshots.post_intraop_tier`
+    post-op scoring        → `daily_checkin_responses`, `dayx_surveys`,
+                              `med_adherence_*`, `postop_video_events`,
+                              `patient_self_flags`, `postop_retier_events`,
+                              + `event_logs care_companion_semantic_escalation`
+                              + `escalations chat:semantic*`
+
+Three denormalized fields live on the in-memory `_patient_store` blob
+(hot cache) AND in the `episode_snapshots` row (cold-start source of
+truth, Pass 3). Read-through pattern: writers update both; readers
+prefer the blob, fall back to the table when the blob is empty:
+
+  - `initial_tier_was_hard_escalator: bool` — set by
+    `routers/initial_tier.py` and consumed by
+    `triage.preop_retier.algo` for the sticky-hard guard.
+  - `post_intake_tier: str | None` — set ONCE by the intake-finalize
+    handler the first time the intake triggers a re-tier. Distinct
+    from `initial_tier` (immutable) and `current_tier` (rolling).
+  - `post_intraop_tier: str | None` — set by `triage.intraop.apply`
+    and consumed by `triage.postop.apply` as the immutable floor.
+
+`current_tier` is hot-only (rolling, mutated frequently) and is not
+worth persisting; on cold start it rehydrates from the most recent
+`{preop,intraop,postop}_retier_events` row's `tier_after`.
+"""
+
 import hashlib
 import json
 import os
@@ -108,6 +152,229 @@ class TeamStore:
                 CREATE INDEX IF NOT EXISTS idx_escalations_patient ON escalations(patient_id);
                 CREATE INDEX IF NOT EXISTS idx_escalations_created ON escalations(created_at);
                 CREATE INDEX IF NOT EXISTS idx_preop_intake_patient ON preop_intake_submissions(patient_id);
+
+                -- Intra-Op Reassessment (PRD v1.0) ────────────────────────────
+                CREATE TABLE IF NOT EXISTS intraop_forms (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL UNIQUE,
+                    status TEXT NOT NULL,           -- NEW|IN_PROGRESS|READY_FOR_SURGEON_REVIEW|LOCKED|REOPENED
+                    or_started_at TEXT,
+                    or_ended_at TEXT,
+                    or_duration_minutes INTEGER,
+                    fields_json TEXT NOT NULL,
+                    field_origins_json TEXT NOT NULL,
+                    procedure_specific_json TEXT,
+                    pdf_blob_url TEXT,
+                    extraction_id TEXT,
+                    surgeon_locked_by TEXT,
+                    surgeon_locked_at TEXT,
+                    conservative_default_applied_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS intraop_extractions (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    pdf_blob_url TEXT NOT NULL,
+                    raw_text TEXT,
+                    fields_json TEXT,
+                    field_confidences_json TEXT,
+                    model_version TEXT,
+                    prompt_version TEXT,
+                    warnings_json TEXT,
+                    status TEXT NOT NULL,           -- PENDING|RUNNING|COMPLETE|FAILED
+                    error_message TEXT,
+                    started_at TEXT NOT NULL,
+                    completed_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS intraop_reassessments (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    intraop_form_id TEXT NOT NULL,
+                    form_snapshot_json TEXT NOT NULL,
+                    pre_or_current_tier TEXT NOT NULL,
+                    proposed_tier TEXT NOT NULL,
+                    final_tier TEXT NOT NULL,
+                    hard_upgrade_applied INTEGER NOT NULL DEFAULT 0,
+                    upgrade_steps INTEGER NOT NULL DEFAULT 0,
+                    reasons_json TEXT,
+                    is_conservative_default INTEGER NOT NULL DEFAULT 0,
+                    procedure_family TEXT,
+                    model_version TEXT,
+                    tuning_version INTEGER,
+                    triggered_by TEXT,
+                    triggered_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_intraop_forms_status      ON intraop_forms(status);
+                CREATE INDEX IF NOT EXISTS idx_intraop_forms_or_ended    ON intraop_forms(or_ended_at);
+                CREATE INDEX IF NOT EXISTS idx_intraop_extract_patient   ON intraop_extractions(patient_id);
+                CREATE INDEX IF NOT EXISTS idx_intraop_reassess_patient  ON intraop_reassessments(patient_id, triggered_at);
+
+                -- Post-Op Scoring (PRD v1.0) ──────────────────────────────────
+                CREATE TABLE IF NOT EXISTS daily_checkin_sends (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT NOT NULL,
+                    episode_day INTEGER NOT NULL,
+                    sent_at TEXT NOT NULL,
+                    channel TEXT NOT NULL DEFAULT 'PUSH',
+                    UNIQUE(patient_id, episode_day)
+                );
+
+                CREATE TABLE IF NOT EXISTS daily_checkin_responses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT NOT NULL,
+                    episode_day INTEGER NOT NULL,
+                    submitted_at TEXT NOT NULL,
+                    answers_json TEXT NOT NULL,
+                    raw_total REAL NOT NULL,
+                    tier TEXT NOT NULL,
+                    red_flags_json TEXT NOT NULL,
+                    new_red_flag INTEGER NOT NULL DEFAULT 0,
+                    wound_concern INTEGER NOT NULL DEFAULT 0,
+                    pain_nrs INTEGER,
+                    pain_trajectory TEXT,
+                    item_scores_json TEXT NOT NULL,
+                    completed INTEGER NOT NULL DEFAULT 1
+                );
+
+                CREATE TABLE IF NOT EXISTS daily_checkin_misses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT NOT NULL,
+                    episode_day INTEGER NOT NULL,
+                    marked_at TEXT NOT NULL,
+                    UNIQUE(patient_id, episode_day)
+                );
+
+                CREATE TABLE IF NOT EXISTS dayx_surveys (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    day INTEGER NOT NULL,
+                    sent_at TEXT NOT NULL,
+                    submitted_at TEXT,
+                    status TEXT NOT NULL,
+                    section_scores_json TEXT,
+                    total_score REAL,
+                    tier TEXT,
+                    red_flags_json TEXT,
+                    raw_answers_json TEXT,
+                    procedure_family TEXT,
+                    UNIQUE(patient_id, day)
+                );
+
+                CREATE TABLE IF NOT EXISTS med_adherence_pings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT NOT NULL,
+                    episode_day INTEGER NOT NULL,
+                    sent_at TEXT NOT NULL,
+                    UNIQUE(patient_id, episode_day)
+                );
+
+                CREATE TABLE IF NOT EXISTS med_adherence_responses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT NOT NULL,
+                    episode_day INTEGER NOT NULL,
+                    responded_at TEXT,
+                    response TEXT NOT NULL,
+                    UNIQUE(patient_id, episode_day)
+                );
+
+                CREATE TABLE IF NOT EXISTS postop_video_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT NOT NULL,
+                    video_kind TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL,
+                    payload_json TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS patient_self_flags (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT NOT NULL,
+                    flagged_at TEXT NOT NULL,
+                    resolved_at TEXT,
+                    resolved_by TEXT,
+                    free_text TEXT,
+                    source TEXT NOT NULL DEFAULT 'PATIENT_APP'
+                );
+
+                CREATE TABLE IF NOT EXISTS postop_retier_events (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    triggered_by TEXT NOT NULL,
+                    inputs_snapshot_json TEXT NOT NULL,
+                    post_intraop_tier TEXT NOT NULL,
+                    computed_delta INTEGER NOT NULL,
+                    computed_tier TEXT NOT NULL,
+                    tier_before TEXT NOT NULL,
+                    tier_after TEXT NOT NULL,
+                    changed INTEGER NOT NULL,
+                    reasons_json TEXT NOT NULL,
+                    model_version TEXT NOT NULL,
+                    tuning_version INTEGER NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_dc_resp_patient_day        ON daily_checkin_responses(patient_id, episode_day);
+                CREATE INDEX IF NOT EXISTS idx_dc_resp_submitted          ON daily_checkin_responses(submitted_at);
+                CREATE INDEX IF NOT EXISTS idx_dayx_surveys_patient       ON dayx_surveys(patient_id, day);
+                CREATE INDEX IF NOT EXISTS idx_med_ping_patient_day       ON med_adherence_pings(patient_id, episode_day);
+                CREATE INDEX IF NOT EXISTS idx_med_resp_patient_day       ON med_adherence_responses(patient_id, episode_day);
+                CREATE INDEX IF NOT EXISTS idx_postop_video_patient_kind  ON postop_video_events(patient_id, video_kind, occurred_at);
+                CREATE INDEX IF NOT EXISTS idx_self_flags_patient_open    ON patient_self_flags(patient_id, resolved_at);
+                CREATE INDEX IF NOT EXISTS idx_postop_retier_patient      ON postop_retier_events(patient_id, created_at);
+
+                CREATE TABLE IF NOT EXISTS pam_assessments (
+                    id TEXT PRIMARY KEY,
+                    episode_id TEXT NOT NULL,
+                    patient_id TEXT NOT NULL,
+                    responses_json TEXT NOT NULL,
+                    raw_sum INTEGER NOT NULL,
+                    items_scored INTEGER NOT NULL,
+                    raw_average REAL NOT NULL,
+                    activation_score REAL NOT NULL,
+                    level TEXT NOT NULL CHECK(level IN ('LOW','MODERATE','HIGH')),
+                    is_complete INTEGER NOT NULL DEFAULT 0,
+                    model_version TEXT,
+                    tuning_version INTEGER,
+                    completed_at TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_pam_assessments_episode_created
+                    ON pam_assessments(episode_id, created_at);
+                CREATE INDEX IF NOT EXISTS idx_pam_assessments_patient_created
+                    ON pam_assessments(patient_id, created_at);
+
+                CREATE TABLE IF NOT EXISTS preop_retier_events (
+                    id TEXT PRIMARY KEY,
+                    episode_id TEXT NOT NULL,
+                    triggered_by TEXT NOT NULL,
+                    inputs_snapshot_json TEXT NOT NULL,
+                    initial_tier TEXT NOT NULL,
+                    initial_tier_was_hard INTEGER NOT NULL,
+                    computed_delta INTEGER NOT NULL,
+                    computed_tier TEXT NOT NULL,
+                    tier_before TEXT NOT NULL,
+                    tier_after TEXT NOT NULL,
+                    changed INTEGER NOT NULL,
+                    reasons_json TEXT NOT NULL,
+                    model_version TEXT NOT NULL,
+                    tuning_version INTEGER NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_preop_retier_events_episode_created
+                    ON preop_retier_events(episode_id, created_at);
+
+                CREATE TABLE IF NOT EXISTS episode_snapshots (
+                    patient_id TEXT PRIMARY KEY,
+                    initial_tier_was_hard_escalator INTEGER NOT NULL DEFAULT 0,
+                    post_intake_tier TEXT,
+                    post_intraop_tier TEXT,
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
 
                 CREATE TABLE IF NOT EXISTS health_systems (
                     id TEXT PRIMARY KEY,
@@ -237,6 +504,46 @@ class TeamStore:
             self._add_column_if_missing(conn, "escalations", "health_system_id", "TEXT")
             self._add_column_if_missing(conn, "intake_forms", "interview_state_json", "TEXT")
             self._migrate_survey_responses_v2(conn)
+            self._add_column_if_missing(
+                conn, "team_members", "is_team_director", "INTEGER NOT NULL DEFAULT 0"
+            )
+            self._add_column_if_missing(conn, "intraop_forms", "draft_completed_by", "TEXT")
+            self._add_column_if_missing(conn, "intraop_forms", "draft_completed_at", "TEXT")
+            conn.execute(
+                "UPDATE intraop_forms SET status = 'READY_FOR_SURGEON_REVIEW' "
+                "WHERE status = 'READY_FOR_LOCK'"
+            )
+            self._migrate_team_member_roles_v4(conn)
+
+    @staticmethod
+    def _migrate_team_member_roles_v4(conn: sqlite3.Connection) -> None:
+        """Pass-4 role-token migration: doctor/nurse/director → surgeon/rn_coordinator/surgeon+is_team_director.
+
+        Idempotent: keyed on `_schema_migrations.name = 'team_members_roles_v4'`.
+        Only mutates `team_members` (and `audit_sign_ins.role` for historical
+        consistency). Legacy JWTs and landing users are migrated lazily by the
+        staff-context resolver and `_normalize_legacy_role`.
+        """
+        done = conn.execute(
+            "SELECT 1 FROM _schema_migrations WHERE name = ?",
+            ("team_members_roles_v4",),
+        ).fetchone()
+        if done:
+            return
+        conn.execute(
+            "UPDATE team_members SET role='surgeon', is_team_director=1 WHERE role='director'",
+        )
+        conn.execute("UPDATE team_members SET role='surgeon' WHERE role='doctor'")
+        conn.execute("UPDATE team_members SET role='rn_coordinator' WHERE role='nurse'")
+        try:
+            conn.execute("UPDATE audit_sign_ins SET role='surgeon' WHERE role IN ('doctor','director')")
+            conn.execute("UPDATE audit_sign_ins SET role='rn_coordinator' WHERE role='nurse'")
+        except sqlite3.OperationalError:
+            pass
+        conn.execute(
+            "INSERT OR IGNORE INTO _schema_migrations (name) VALUES (?)",
+            ("team_members_roles_v4",),
+        )
 
     @staticmethod
     def _add_column_if_missing(conn: sqlite3.Connection, table: str, col: str, decl: str) -> None:
@@ -565,10 +872,16 @@ class TeamStore:
     def list_team_members(self, hs_id: str) -> List[Dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT id, health_system_id, email, name, role, created_at FROM team_members WHERE health_system_id = ? ORDER BY id ASC",
+                "SELECT id, health_system_id, email, name, role, is_team_director, created_at "
+                "FROM team_members WHERE health_system_id = ? ORDER BY id ASC",
                 (hs_id,),
             ).fetchall()
-            return [dict(r) for r in rows]
+            out: List[Dict[str, Any]] = []
+            for r in rows:
+                d = dict(r)
+                d["is_team_director"] = bool(d.get("is_team_director") or 0)
+                out.append(d)
+            return out
 
     def get_team_member(self, hs_id: str, email: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
@@ -576,7 +889,11 @@ class TeamStore:
                 "SELECT * FROM team_members WHERE health_system_id = ? AND email = ?",
                 (hs_id, email.lower().strip()),
             ).fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            d = dict(row)
+            d["is_team_director"] = bool(d.get("is_team_director") or 0)
+            return d
 
     def find_team_member_by_email_any_hs(self, email: str) -> Optional[Dict[str, Any]]:
         """First team_members row for this email (any health system), for landing-auth guardrails."""
@@ -630,11 +947,12 @@ class TeamStore:
             )
             conn.execute(
                 """
-                INSERT INTO team_members (health_system_id, email, name, role, password_hash, created_at)
-                VALUES (?, ?, ?, 'director', ?, ?)
+                INSERT INTO team_members (health_system_id, email, name, role, password_hash, is_team_director, created_at)
+                VALUES (?, ?, ?, 'surgeon', ?, 1, ?)
                 ON CONFLICT(health_system_id, email) DO UPDATE SET
                     name = excluded.name,
-                    role = 'director',
+                    role = 'surgeon',
+                    is_team_director = 1,
                     password_hash = excluded.password_hash
                 """,
                 (hs_id, director_email.lower().strip(), name, director_password_hash, now),
@@ -1364,4 +1682,1278 @@ class TeamStore:
                 (notification_id, doctor_id),
             )
             return cur.rowcount > 0
+
+    # ─── Intra-Op Reassessment (PRD v1.0) ─────────────────────────────────
+
+    def _row_to_intraop_form(self, row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["fields"] = json.loads(rec.pop("fields_json") or "{}")
+        rec["field_origins"] = json.loads(rec.pop("field_origins_json") or "{}")
+        ps = rec.pop("procedure_specific_json", None)
+        rec["procedure_specific"] = json.loads(ps) if ps else None
+        return rec
+
+    def get_or_create_intraop_form(
+        self,
+        *,
+        patient_id: str,
+        or_started_at: Optional[str] = None,
+        or_ended_at: Optional[str] = None,
+        or_duration_minutes: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Idempotent: returns the existing form if one is already on file,
+        else creates a new NEW row and returns it."""
+        existing = self.get_intraop_form(patient_id)
+        if existing:
+            return existing
+        now = _utcnow_iso()
+        form_id = uuid.uuid4().hex
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO intraop_forms (
+                    id, patient_id, status,
+                    or_started_at, or_ended_at, or_duration_minutes,
+                    fields_json, field_origins_json, procedure_specific_json,
+                    created_at, updated_at
+                ) VALUES (?, ?, 'NEW', ?, ?, ?, '{}', '{}', NULL, ?, ?)
+                """,
+                (form_id, patient_id, or_started_at, or_ended_at, or_duration_minutes, now, now),
+            )
+        return self.get_intraop_form(patient_id)  # type: ignore[return-value]
+
+    def get_intraop_form(self, patient_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM intraop_forms WHERE patient_id = ?",
+                (patient_id,),
+            ).fetchone()
+            if not row:
+                return None
+            return self._row_to_intraop_form(row)
+
+    def get_intraop_form_by_id(self, form_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM intraop_forms WHERE id = ?",
+                (form_id,),
+            ).fetchone()
+            if not row:
+                return None
+            return self._row_to_intraop_form(row)
+
+    def update_intraop_form_fields(
+        self,
+        *,
+        patient_id: str,
+        fields: Dict[str, Any],
+        field_origins: Dict[str, Any],
+        procedure_specific: Optional[Dict[str, Any]] = None,
+        or_started_at: Optional[str] = None,
+        or_ended_at: Optional[str] = None,
+        or_duration_minutes: Optional[int] = None,
+        status: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Whole-blob replace of fields + origins. Caller is expected to
+        merge upstream and pass the full intended state."""
+        now = _utcnow_iso()
+        sets: List[str] = ["fields_json = ?", "field_origins_json = ?", "updated_at = ?"]
+        args: List[Any] = [json.dumps(fields), json.dumps(field_origins), now]
+        if procedure_specific is not None:
+            sets.append("procedure_specific_json = ?")
+            args.append(json.dumps(procedure_specific))
+        if or_started_at is not None:
+            sets.append("or_started_at = ?"); args.append(or_started_at)
+        if or_ended_at is not None:
+            sets.append("or_ended_at = ?"); args.append(or_ended_at)
+        if or_duration_minutes is not None:
+            sets.append("or_duration_minutes = ?"); args.append(or_duration_minutes)
+        if status is not None:
+            sets.append("status = ?"); args.append(status)
+        args.append(patient_id)
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE intraop_forms SET {', '.join(sets)} WHERE patient_id = ?",
+                tuple(args),
+            )
+        return self.get_intraop_form(patient_id)
+
+    def lock_intraop_form(self, *, patient_id: str, surgeon_user_id: str) -> Optional[Dict[str, Any]]:
+        """Lock the form. Pass-4: only allowed when status='READY_FOR_SURGEON_REVIEW'."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE intraop_forms
+                SET status = 'LOCKED',
+                    surgeon_locked_by = ?,
+                    surgeon_locked_at = ?,
+                    updated_at = ?
+                WHERE patient_id = ? AND status = 'READY_FOR_SURGEON_REVIEW'
+                """,
+                (surgeon_user_id, now, now, patient_id),
+            )
+            if cur.rowcount == 0:
+                return None
+        return self.get_intraop_form(patient_id)
+
+    def mark_intraop_form_ready_for_review(
+        self,
+        *,
+        patient_id: str,
+        rn_user_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """RN flips an IN_PROGRESS form to READY_FOR_SURGEON_REVIEW."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE intraop_forms
+                SET status = 'READY_FOR_SURGEON_REVIEW',
+                    draft_completed_by = ?,
+                    draft_completed_at = ?,
+                    updated_at = ?
+                WHERE patient_id = ?
+                  AND status IN ('NEW', 'IN_PROGRESS', 'REOPENED')
+                """,
+                (rn_user_id, now, now, patient_id),
+            )
+            if cur.rowcount == 0:
+                return None
+        return self.get_intraop_form(patient_id)
+
+    def recall_intraop_form_draft(self, *, patient_id: str) -> Optional[Dict[str, Any]]:
+        """RN pulls a READY_FOR_SURGEON_REVIEW form back to IN_PROGRESS, clearing
+        draft-completion attribution."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE intraop_forms
+                SET status = 'IN_PROGRESS',
+                    draft_completed_by = NULL,
+                    draft_completed_at = NULL,
+                    updated_at = ?
+                WHERE patient_id = ? AND status = 'READY_FOR_SURGEON_REVIEW'
+                """,
+                (now, patient_id),
+            )
+            if cur.rowcount == 0:
+                return None
+        return self.get_intraop_form(patient_id)
+
+    def reopen_intraop_form(self, *, patient_id: str) -> Optional[Dict[str, Any]]:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE intraop_forms
+                SET status = 'REOPENED', updated_at = ?
+                WHERE patient_id = ? AND status = 'LOCKED'
+                """,
+                (now, patient_id),
+            )
+            if cur.rowcount == 0:
+                return None
+        return self.get_intraop_form(patient_id)
+
+    def mark_intraop_conservative_default_applied(self, *, patient_id: str) -> bool:
+        """Atomic CAS — returns True iff the flag was newly set."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE intraop_forms
+                SET conservative_default_applied_at = ?, updated_at = ?
+                WHERE patient_id = ?
+                  AND conservative_default_applied_at IS NULL
+                """,
+                (now, now, patient_id),
+            )
+            return cur.rowcount > 0
+
+    def list_intraop_forms_by_status(self, status: str) -> List[Dict[str, Any]]:
+        """Pass-4: surgeon "Forms awaiting your review" surface."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM intraop_forms
+                WHERE status = ?
+                ORDER BY draft_completed_at ASC, updated_at ASC
+                """,
+                (status,),
+            ).fetchall()
+            return [self._row_to_intraop_form(r) for r in rows]
+
+    def list_intraop_overdue_forms(
+        self,
+        *,
+        now_iso: str,
+        threshold_hours: int,
+    ) -> List[Dict[str, Any]]:
+        """Forms whose `or_ended_at` ≥ `threshold_hours` ago, not yet
+        LOCKED and not yet flagged with the conservative default."""
+        cutoff = (datetime.fromisoformat(now_iso) - timedelta(hours=threshold_hours)).isoformat()
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM intraop_forms
+                WHERE or_ended_at IS NOT NULL
+                  AND or_ended_at <= ?
+                  AND status != 'LOCKED'
+                  AND conservative_default_applied_at IS NULL
+                ORDER BY or_ended_at ASC
+                """,
+                (cutoff,),
+            ).fetchall()
+            return [self._row_to_intraop_form(r) for r in rows]
+
+    # Extractions
+
+    def save_intraop_extraction(
+        self,
+        *,
+        extraction_id: str,
+        patient_id: str,
+        pdf_blob_url: str,
+        status: str = "PENDING",
+        model_version: Optional[str] = None,
+        prompt_version: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO intraop_extractions (
+                    id, patient_id, pdf_blob_url, status,
+                    model_version, prompt_version, started_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (extraction_id, patient_id, pdf_blob_url, status, model_version, prompt_version, now),
+            )
+            conn.execute(
+                "UPDATE intraop_forms SET extraction_id = ?, pdf_blob_url = ?, updated_at = ? WHERE patient_id = ?",
+                (extraction_id, pdf_blob_url, now, patient_id),
+            )
+        return self.get_intraop_extraction(extraction_id)  # type: ignore[return-value]
+
+    def update_intraop_extraction(
+        self,
+        *,
+        extraction_id: str,
+        status: Optional[str] = None,
+        raw_text: Optional[str] = None,
+        fields: Optional[Dict[str, Any]] = None,
+        field_confidences: Optional[Dict[str, Any]] = None,
+        warnings: Optional[List[str]] = None,
+        error_message: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        sets: List[str] = []
+        args: List[Any] = []
+        if status is not None:
+            sets.append("status = ?"); args.append(status)
+            if status in ("COMPLETE", "FAILED"):
+                sets.append("completed_at = ?"); args.append(_utcnow_iso())
+        if raw_text is not None:
+            sets.append("raw_text = ?"); args.append(raw_text)
+        if fields is not None:
+            sets.append("fields_json = ?"); args.append(json.dumps(fields))
+        if field_confidences is not None:
+            sets.append("field_confidences_json = ?"); args.append(json.dumps(field_confidences))
+        if warnings is not None:
+            sets.append("warnings_json = ?"); args.append(json.dumps(warnings))
+        if error_message is not None:
+            sets.append("error_message = ?"); args.append(error_message)
+        if not sets:
+            return self.get_intraop_extraction(extraction_id)
+        args.append(extraction_id)
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE intraop_extractions SET {', '.join(sets)} WHERE id = ?",
+                tuple(args),
+            )
+        return self.get_intraop_extraction(extraction_id)
+
+    def get_intraop_extraction(self, extraction_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM intraop_extractions WHERE id = ?",
+                (extraction_id,),
+            ).fetchone()
+            if not row:
+                return None
+            rec = dict(row)
+            rec["fields"] = json.loads(rec.pop("fields_json") or "{}") if rec.get("fields_json") else {}
+            rec["field_confidences"] = (
+                json.loads(rec.pop("field_confidences_json") or "{}") if rec.get("field_confidences_json") else {}
+            )
+            rec["warnings"] = json.loads(rec.pop("warnings_json") or "[]") if rec.get("warnings_json") else []
+            return rec
+
+    # Reassessments
+
+    def save_intraop_reassessment(
+        self,
+        *,
+        reassessment_id: str,
+        patient_id: str,
+        intraop_form_id: str,
+        form_snapshot: Dict[str, Any],
+        pre_or_current_tier: str,
+        proposed_tier: str,
+        final_tier: str,
+        hard_upgrade_applied: bool,
+        upgrade_steps: int,
+        reasons: List[Dict[str, Any]],
+        is_conservative_default: bool,
+        procedure_family: Optional[str],
+        model_version: str,
+        tuning_version: int,
+        triggered_by: str,
+    ) -> Dict[str, Any]:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO intraop_reassessments (
+                    id, patient_id, intraop_form_id, form_snapshot_json,
+                    pre_or_current_tier, proposed_tier, final_tier,
+                    hard_upgrade_applied, upgrade_steps, reasons_json,
+                    is_conservative_default, procedure_family,
+                    model_version, tuning_version, triggered_by, triggered_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    reassessment_id, patient_id, intraop_form_id,
+                    json.dumps(form_snapshot),
+                    pre_or_current_tier, proposed_tier, final_tier,
+                    1 if hard_upgrade_applied else 0,
+                    int(upgrade_steps),
+                    json.dumps(reasons),
+                    1 if is_conservative_default else 0,
+                    procedure_family,
+                    model_version, int(tuning_version), triggered_by, now,
+                ),
+            )
+        return self.get_intraop_reassessment(reassessment_id)  # type: ignore[return-value]
+
+    def _row_to_reassessment(self, row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["form_snapshot"] = json.loads(rec.pop("form_snapshot_json") or "{}")
+        rec["reasons"] = json.loads(rec.pop("reasons_json") or "[]")
+        rec["hard_upgrade_applied"] = bool(rec.get("hard_upgrade_applied"))
+        rec["is_conservative_default"] = bool(rec.get("is_conservative_default"))
+        return rec
+
+    def get_intraop_reassessment(self, reassessment_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM intraop_reassessments WHERE id = ?",
+                (reassessment_id,),
+            ).fetchone()
+            if not row:
+                return None
+            return self._row_to_reassessment(row)
+
+    def list_intraop_reassessments(self, patient_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM intraop_reassessments
+                WHERE patient_id = ?
+                ORDER BY datetime(triggered_at) DESC, rowid DESC
+                """,
+                (patient_id,),
+            ).fetchall()
+            return [self._row_to_reassessment(r) for r in rows]
+
+    # ─── Post-Op Scoring (PRD v1.0) ───────────────────────────────────────
+
+    # Daily check-in sends + responses
+    def record_daily_checkin_send(
+        self,
+        *,
+        patient_id: str,
+        episode_day: int,
+        sent_at: Optional[str] = None,
+        channel: str = "PUSH",
+    ) -> bool:
+        """Insert-if-absent so each (patient, day) sends at most once.
+        Returns True if a new row was created, False if it already
+        existed (idempotent under cron retry)."""
+        ts = sent_at or _utcnow_iso()
+        try:
+            with self._conn() as conn:
+                conn.execute(
+                    "INSERT INTO daily_checkin_sends (patient_id, episode_day, sent_at, channel) VALUES (?, ?, ?, ?)",
+                    (patient_id, int(episode_day), ts, channel),
+                )
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def has_daily_checkin_send(self, patient_id: str, episode_day: int) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM daily_checkin_sends WHERE patient_id = ? AND episode_day = ? LIMIT 1",
+                (patient_id, int(episode_day)),
+            ).fetchone()
+            return row is not None
+
+    def list_daily_checkin_sends_without_response(
+        self,
+        *,
+        cutoff_iso: str,
+    ) -> List[Dict[str, Any]]:
+        """Sends whose `sent_at` is older than `cutoff_iso` and have no
+        matching response row and no existing miss row.
+
+        Used by `_postop_checkin_missed_watcher_loop` to mark misses
+        past the 36-hour window (PRD §4.3)."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT s.*
+                FROM daily_checkin_sends s
+                LEFT JOIN daily_checkin_responses r
+                  ON r.patient_id = s.patient_id AND r.episode_day = s.episode_day
+                LEFT JOIN daily_checkin_misses   m
+                  ON m.patient_id = s.patient_id AND m.episode_day = s.episode_day
+                WHERE r.id IS NULL
+                  AND m.id IS NULL
+                  AND s.sent_at <= ?
+                ORDER BY s.sent_at ASC
+                """,
+                (cutoff_iso,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def mark_daily_checkin_miss(self, patient_id: str, episode_day: int) -> bool:
+        try:
+            with self._conn() as conn:
+                conn.execute(
+                    "INSERT INTO daily_checkin_misses (patient_id, episode_day, marked_at) VALUES (?, ?, ?)",
+                    (patient_id, int(episode_day), _utcnow_iso()),
+                )
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def save_daily_checkin_response(
+        self,
+        *,
+        patient_id: str,
+        episode_day: int,
+        submitted_at: Optional[str],
+        answers: Dict[str, Any],
+        raw_total: float,
+        tier: str,
+        red_flags: List[str],
+        new_red_flag: bool,
+        wound_concern: bool,
+        pain_nrs: Optional[int],
+        pain_trajectory: Optional[str],
+        item_scores: Dict[str, float],
+    ) -> int:
+        ts = submitted_at or _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO daily_checkin_responses (
+                    patient_id, episode_day, submitted_at, answers_json,
+                    raw_total, tier, red_flags_json, new_red_flag, wound_concern,
+                    pain_nrs, pain_trajectory, item_scores_json, completed
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                """,
+                (
+                    patient_id, int(episode_day), ts, json.dumps(answers or {}),
+                    float(raw_total), tier, json.dumps(red_flags or []),
+                    1 if new_red_flag else 0, 1 if wound_concern else 0,
+                    pain_nrs, pain_trajectory, json.dumps(item_scores or {}),
+                ),
+            )
+            return int(cur.lastrowid)
+
+    def get_latest_daily_checkin_response(self, patient_id: str, episode_day: int) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM daily_checkin_responses
+                WHERE patient_id = ? AND episode_day = ?
+                ORDER BY submitted_at DESC, id DESC
+                LIMIT 1
+                """,
+                (patient_id, int(episode_day)),
+            ).fetchone()
+            if not row:
+                return None
+            return self._hydrate_daily_checkin_response(dict(row))
+
+    def list_recent_daily_checkin_responses(
+        self,
+        patient_id: str,
+        *,
+        since_iso: Optional[str] = None,
+        limit: int = 60,
+    ) -> List[Dict[str, Any]]:
+        params: List[Any] = [patient_id]
+        sql = "SELECT * FROM daily_checkin_responses WHERE patient_id = ?"
+        if since_iso:
+            sql += " AND submitted_at >= ?"
+            params.append(since_iso)
+        sql += " ORDER BY submitted_at DESC, id DESC LIMIT ?"
+        params.append(int(limit))
+        with self._conn() as conn:
+            rows = conn.execute(sql, tuple(params)).fetchall()
+        return [self._hydrate_daily_checkin_response(dict(r)) for r in rows]
+
+    def list_daily_checkin_responses_in_range(
+        self,
+        patient_id: str,
+        *,
+        day_from: int,
+        day_to: int,
+    ) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM daily_checkin_responses
+                WHERE patient_id = ? AND episode_day >= ? AND episode_day <= ?
+                ORDER BY episode_day ASC, submitted_at DESC, id DESC
+                """,
+                (patient_id, int(day_from), int(day_to)),
+            ).fetchall()
+        return [self._hydrate_daily_checkin_response(dict(r)) for r in rows]
+
+    @staticmethod
+    def _hydrate_daily_checkin_response(rec: Dict[str, Any]) -> Dict[str, Any]:
+        rec["answers"] = json.loads(rec.get("answers_json") or "{}")
+        rec["red_flags"] = json.loads(rec.get("red_flags_json") or "[]")
+        rec["item_scores"] = json.loads(rec.get("item_scores_json") or "{}")
+        rec["new_red_flag"] = bool(rec.get("new_red_flag"))
+        rec["wound_concern"] = bool(rec.get("wound_concern"))
+        return rec
+
+    # Day-X surveys (PRD §5)
+    def upsert_dayx_survey_send(
+        self,
+        *,
+        patient_id: str,
+        day: int,
+        sent_at: Optional[str] = None,
+        procedure_family: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Idempotent: if a row already exists for (patient, day) it is
+        returned untouched. Otherwise a PENDING row is created."""
+        existing = self.get_dayx_survey(patient_id, day)
+        if existing:
+            return existing
+        survey_id = uuid.uuid4().hex
+        ts = sent_at or _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO dayx_surveys (
+                    id, patient_id, day, sent_at, status, procedure_family
+                )
+                VALUES (?, ?, ?, ?, 'PENDING', ?)
+                """,
+                (survey_id, patient_id, int(day), ts, procedure_family),
+            )
+        return self.get_dayx_survey(patient_id, day)  # type: ignore[return-value]
+
+    def submit_dayx_survey(
+        self,
+        *,
+        patient_id: str,
+        day: int,
+        section_scores: Dict[str, float],
+        total_score: float,
+        tier: str,
+        red_flags: List[str],
+        raw_answers: Dict[str, Any],
+        submitted_at: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        ts = submitted_at or _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE dayx_surveys
+                SET status = 'COMPLETED',
+                    submitted_at = ?,
+                    section_scores_json = ?,
+                    total_score = ?,
+                    tier = ?,
+                    red_flags_json = ?,
+                    raw_answers_json = ?
+                WHERE patient_id = ? AND day = ?
+                """,
+                (
+                    ts,
+                    json.dumps(section_scores or {}),
+                    float(total_score),
+                    tier,
+                    json.dumps(red_flags or []),
+                    json.dumps(raw_answers or {}),
+                    patient_id, int(day),
+                ),
+            )
+            if cur.rowcount == 0:
+                # No PENDING row — create a fresh COMPLETED row.
+                self.upsert_dayx_survey_send(patient_id=patient_id, day=day, sent_at=ts)
+                conn.execute(
+                    """
+                    UPDATE dayx_surveys
+                    SET status = 'COMPLETED',
+                        submitted_at = ?,
+                        section_scores_json = ?,
+                        total_score = ?,
+                        tier = ?,
+                        red_flags_json = ?,
+                        raw_answers_json = ?
+                    WHERE patient_id = ? AND day = ?
+                    """,
+                    (
+                        ts,
+                        json.dumps(section_scores or {}),
+                        float(total_score),
+                        tier,
+                        json.dumps(red_flags or []),
+                        json.dumps(raw_answers or {}),
+                        patient_id, int(day),
+                    ),
+                )
+        return self.get_dayx_survey(patient_id, day)
+
+    def mark_dayx_survey_missed(self, patient_id: str, day: int) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE dayx_surveys
+                SET status = 'MISSED'
+                WHERE patient_id = ? AND day = ? AND status = 'PENDING'
+                """,
+                (patient_id, int(day)),
+            )
+            return cur.rowcount > 0
+
+    def get_dayx_survey(self, patient_id: str, day: int) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM dayx_surveys WHERE patient_id = ? AND day = ?",
+                (patient_id, int(day)),
+            ).fetchone()
+            if not row:
+                return None
+            return self._hydrate_dayx_survey(dict(row))
+
+    def list_dayx_surveys(self, patient_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM dayx_surveys WHERE patient_id = ? ORDER BY day ASC",
+                (patient_id,),
+            ).fetchall()
+        return [self._hydrate_dayx_survey(dict(r)) for r in rows]
+
+    def list_overdue_dayx_surveys(self, *, cutoff_iso: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM dayx_surveys
+                WHERE status = 'PENDING' AND sent_at <= ?
+                ORDER BY sent_at ASC
+                """,
+                (cutoff_iso,),
+            ).fetchall()
+        return [self._hydrate_dayx_survey(dict(r)) for r in rows]
+
+    @staticmethod
+    def _hydrate_dayx_survey(rec: Dict[str, Any]) -> Dict[str, Any]:
+        rec["section_scores"] = json.loads(rec.get("section_scores_json") or "{}") if rec.get("section_scores_json") else {}
+        rec["red_flags"] = json.loads(rec.get("red_flags_json") or "[]") if rec.get("red_flags_json") else []
+        rec["raw_answers"] = json.loads(rec.get("raw_answers_json") or "{}") if rec.get("raw_answers_json") else {}
+        return rec
+
+    # Med adherence (PRD §7)
+    def record_med_adherence_ping(
+        self,
+        *,
+        patient_id: str,
+        episode_day: int,
+        sent_at: Optional[str] = None,
+    ) -> bool:
+        ts = sent_at or _utcnow_iso()
+        try:
+            with self._conn() as conn:
+                conn.execute(
+                    "INSERT INTO med_adherence_pings (patient_id, episode_day, sent_at) VALUES (?, ?, ?)",
+                    (patient_id, int(episode_day), ts),
+                )
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def has_med_adherence_ping(self, patient_id: str, episode_day: int) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM med_adherence_pings WHERE patient_id = ? AND episode_day = ? LIMIT 1",
+                (patient_id, int(episode_day)),
+            ).fetchone()
+        return row is not None
+
+    def upsert_med_adherence_response(
+        self,
+        *,
+        patient_id: str,
+        episode_day: int,
+        response: str,
+        responded_at: Optional[str] = None,
+    ) -> None:
+        ts = responded_at or _utcnow_iso() if response != "MISSED_NON_RESPONSE" else None
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO med_adherence_responses (patient_id, episode_day, responded_at, response)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(patient_id, episode_day) DO UPDATE SET
+                    responded_at = COALESCE(excluded.responded_at, med_adherence_responses.responded_at),
+                    response = excluded.response
+                """,
+                (patient_id, int(episode_day), ts, response),
+            )
+
+    def list_med_adherence_responses(
+        self,
+        patient_id: str,
+        *,
+        day_from: Optional[int] = None,
+        day_to: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        params: List[Any] = [patient_id]
+        sql = "SELECT * FROM med_adherence_responses WHERE patient_id = ?"
+        if day_from is not None:
+            sql += " AND episode_day >= ?"; params.append(int(day_from))
+        if day_to is not None:
+            sql += " AND episode_day <= ?"; params.append(int(day_to))
+        sql += " ORDER BY episode_day ASC"
+        with self._conn() as conn:
+            rows = conn.execute(sql, tuple(params)).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_pings_without_response(self, *, cutoff_iso: str) -> List[Dict[str, Any]]:
+        """Pings whose `sent_at` is older than `cutoff_iso` and have no
+        response (used by the 23:00 non-response watcher)."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT p.*
+                FROM med_adherence_pings p
+                LEFT JOIN med_adherence_responses r
+                  ON r.patient_id = p.patient_id AND r.episode_day = p.episode_day
+                WHERE r.id IS NULL AND p.sent_at <= ?
+                ORDER BY p.sent_at ASC
+                """,
+                (cutoff_iso,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # Post-op video events (PRD §6)
+    def record_postop_video_event(
+        self,
+        *,
+        patient_id: str,
+        video_kind: str,
+        event_type: str,
+        session_id: str,
+        occurred_at: Optional[str] = None,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        ts = occurred_at or _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO postop_video_events (
+                    patient_id, video_kind, event_type, session_id, occurred_at, payload_json
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (patient_id, video_kind, event_type, session_id, ts, json.dumps(payload or {})),
+            )
+            return int(cur.lastrowid)
+
+    def list_postop_video_events(
+        self,
+        patient_id: str,
+        *,
+        video_kind: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        params: List[Any] = [patient_id]
+        sql = "SELECT * FROM postop_video_events WHERE patient_id = ?"
+        if video_kind:
+            sql += " AND video_kind = ?"
+            params.append(video_kind)
+        sql += " ORDER BY occurred_at ASC, id ASC"
+        with self._conn() as conn:
+            rows = conn.execute(sql, tuple(params)).fetchall()
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            rec = dict(r)
+            rec["payload"] = json.loads(rec.get("payload_json") or "{}")
+            out.append(rec)
+        return out
+
+    # Patient self-flag (PRD §9)
+    def create_self_flag(
+        self,
+        *,
+        patient_id: str,
+        free_text: Optional[str] = None,
+        source: str = "PATIENT_APP",
+        flagged_at: Optional[str] = None,
+    ) -> int:
+        ts = flagged_at or _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO patient_self_flags (patient_id, flagged_at, free_text, source)
+                VALUES (?, ?, ?, ?)
+                """,
+                (patient_id, ts, free_text, source),
+            )
+            return int(cur.lastrowid)
+
+    def resolve_self_flag(
+        self,
+        *,
+        flag_id: int,
+        resolved_by: str,
+        resolved_at: Optional[str] = None,
+    ) -> bool:
+        ts = resolved_at or _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE patient_self_flags
+                SET resolved_at = ?, resolved_by = ?
+                WHERE id = ? AND resolved_at IS NULL
+                """,
+                (ts, resolved_by, int(flag_id)),
+            )
+            return cur.rowcount > 0
+
+    def has_active_self_flag(self, patient_id: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT 1 FROM patient_self_flags
+                WHERE patient_id = ? AND resolved_at IS NULL
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).fetchone()
+        return row is not None
+
+    def list_self_flags(self, patient_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM patient_self_flags
+                WHERE patient_id = ?
+                ORDER BY flagged_at DESC, id DESC
+                """,
+                (patient_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def last_self_flag_resolved_at(self, patient_id: str) -> Optional[str]:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT resolved_at FROM patient_self_flags
+                WHERE patient_id = ? AND resolved_at IS NOT NULL
+                ORDER BY resolved_at DESC, id DESC
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).fetchone()
+        return row["resolved_at"] if row else None
+
+    def last_response_timestamp_across_channels(self, patient_id: str) -> Optional[str]:
+        """Most recent activity timestamp across check-in / med-adherence /
+        survey / video / self-flag (PRD §10.2 LOST_CONTACT_*)."""
+        sources: List[str] = []
+        with self._conn() as conn:
+            r1 = conn.execute(
+                "SELECT MAX(submitted_at) AS ts FROM daily_checkin_responses WHERE patient_id = ?",
+                (patient_id,),
+            ).fetchone()
+            if r1 and r1["ts"]:
+                sources.append(r1["ts"])
+            r2 = conn.execute(
+                "SELECT MAX(responded_at) AS ts FROM med_adherence_responses WHERE patient_id = ? AND responded_at IS NOT NULL",
+                (patient_id,),
+            ).fetchone()
+            if r2 and r2["ts"]:
+                sources.append(r2["ts"])
+            r3 = conn.execute(
+                "SELECT MAX(submitted_at) AS ts FROM dayx_surveys WHERE patient_id = ? AND submitted_at IS NOT NULL",
+                (patient_id,),
+            ).fetchone()
+            if r3 and r3["ts"]:
+                sources.append(r3["ts"])
+            r4 = conn.execute(
+                "SELECT MAX(occurred_at) AS ts FROM postop_video_events WHERE patient_id = ?",
+                (patient_id,),
+            ).fetchone()
+            if r4 and r4["ts"]:
+                sources.append(r4["ts"])
+            r5 = conn.execute(
+                "SELECT MAX(flagged_at) AS ts FROM patient_self_flags WHERE patient_id = ?",
+                (patient_id,),
+            ).fetchone()
+            if r5 and r5["ts"]:
+                sources.append(r5["ts"])
+        if not sources:
+            return None
+        return max(sources)
+
+    # Post-op re-tier events (PRD §10)
+    def save_postop_retier_event(
+        self,
+        *,
+        event_id: str,
+        patient_id: str,
+        triggered_by: str,
+        inputs_snapshot: Dict[str, Any],
+        post_intraop_tier: str,
+        computed_delta: int,
+        computed_tier: str,
+        tier_before: str,
+        tier_after: str,
+        changed: bool,
+        reasons: List[Dict[str, Any]],
+        model_version: str,
+        tuning_version: int,
+    ) -> Dict[str, Any]:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO postop_retier_events (
+                    id, patient_id, triggered_by, inputs_snapshot_json,
+                    post_intraop_tier, computed_delta, computed_tier,
+                    tier_before, tier_after, changed, reasons_json,
+                    model_version, tuning_version, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event_id, patient_id, triggered_by, json.dumps(inputs_snapshot or {}),
+                    post_intraop_tier, int(computed_delta), computed_tier,
+                    tier_before, tier_after, 1 if changed else 0, json.dumps(reasons or []),
+                    model_version, int(tuning_version), now,
+                ),
+            )
+        return self.get_postop_retier_event(event_id)  # type: ignore[return-value]
+
+    def get_postop_retier_event(self, event_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM postop_retier_events WHERE id = ?",
+                (event_id,),
+            ).fetchone()
+            if not row:
+                return None
+            return self._hydrate_postop_retier_event(dict(row))
+
+    def list_postop_retier_events(
+        self,
+        patient_id: str,
+        *,
+        limit: int = 200,
+    ) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM postop_retier_events
+                WHERE patient_id = ?
+                ORDER BY datetime(created_at) DESC, rowid DESC
+                LIMIT ?
+                """,
+                (patient_id, int(limit)),
+            ).fetchall()
+        return [self._hydrate_postop_retier_event(dict(r)) for r in rows]
+
+    @staticmethod
+    def _hydrate_postop_retier_event(rec: Dict[str, Any]) -> Dict[str, Any]:
+        rec["inputs_snapshot"] = json.loads(rec.get("inputs_snapshot_json") or "{}")
+        rec["reasons"] = json.loads(rec.get("reasons_json") or "[]")
+        rec["changed"] = bool(rec.get("changed"))
+        return rec
+
+    # ─── PAM assessments (Pre-Op Re-Tier PRD §4.1) ──────────────────────────
+
+    def save_pam_assessment(
+        self,
+        *,
+        assessment_id: Optional[str] = None,
+        episode_id: str,
+        patient_id: str,
+        responses: List[Dict[str, Any]],
+        raw_sum: int,
+        items_scored: int,
+        raw_average: float,
+        activation_score: float,
+        level: str,
+        is_complete: bool,
+        model_version: Optional[str] = None,
+        tuning_version: Optional[int] = None,
+        completed_at: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Insert a `pam_assessments` row and return the hydrated record.
+
+        `episode_id` is the per-episode identifier used by the pre-op
+        re-tier router; in the v1 single-episode-per-patient model, it
+        equals `patient_id`. The duplicate column is kept so a future
+        multi-episode-per-patient migration is a no-op on this table.
+        """
+        aid = assessment_id or uuid.uuid4().hex
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO pam_assessments (
+                    id, episode_id, patient_id, responses_json,
+                    raw_sum, items_scored, raw_average, activation_score,
+                    level, is_complete, model_version, tuning_version,
+                    completed_at, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    aid, episode_id, patient_id,
+                    json.dumps(responses or []),
+                    int(raw_sum), int(items_scored),
+                    float(raw_average), float(activation_score),
+                    level, 1 if is_complete else 0,
+                    model_version, (int(tuning_version) if tuning_version is not None else None),
+                    completed_at, now,
+                ),
+            )
+        return self.get_pam_assessment(aid)  # type: ignore[return-value]
+
+    def get_pam_assessment(self, assessment_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM pam_assessments WHERE id = ?",
+                (assessment_id,),
+            ).fetchone()
+        if not row:
+            return None
+        return self._hydrate_pam_assessment(dict(row))
+
+    def get_latest_pam_assessment(self, patient_id: str) -> Optional[Dict[str, Any]]:
+        """Most recent PAM row for the patient (any episode)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM pam_assessments
+                WHERE patient_id = ?
+                ORDER BY datetime(created_at) DESC, rowid DESC
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).fetchone()
+        if not row:
+            return None
+        return self._hydrate_pam_assessment(dict(row))
+
+    def list_pam_assessments(
+        self,
+        patient_id: str,
+        *,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM pam_assessments
+                WHERE patient_id = ?
+                ORDER BY datetime(created_at) DESC, rowid DESC
+                LIMIT ?
+                """,
+                (patient_id, int(limit)),
+            ).fetchall()
+        return [self._hydrate_pam_assessment(dict(r)) for r in rows]
+
+    @staticmethod
+    def _hydrate_pam_assessment(rec: Dict[str, Any]) -> Dict[str, Any]:
+        rec["responses"] = json.loads(rec.get("responses_json") or "[]")
+        rec["is_complete"] = bool(rec.get("is_complete"))
+        return rec
+
+    # ─── Pre-Op re-tier events (Pre-Op Re-Tier PRD §10) ─────────────────────
+
+    def save_preop_retier_event(
+        self,
+        *,
+        event_id: str,
+        episode_id: str,
+        triggered_by: str,
+        inputs_snapshot: Dict[str, Any],
+        initial_tier: str,
+        initial_tier_was_hard: bool,
+        computed_delta: int,
+        computed_tier: str,
+        tier_before: str,
+        tier_after: str,
+        changed: bool,
+        reasons: List[Dict[str, Any]],
+        model_version: str,
+        tuning_version: int,
+    ) -> Dict[str, Any]:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO preop_retier_events (
+                    id, episode_id, triggered_by, inputs_snapshot_json,
+                    initial_tier, initial_tier_was_hard,
+                    computed_delta, computed_tier,
+                    tier_before, tier_after, changed, reasons_json,
+                    model_version, tuning_version, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event_id, episode_id, triggered_by,
+                    json.dumps(inputs_snapshot or {}),
+                    initial_tier, 1 if initial_tier_was_hard else 0,
+                    int(computed_delta), computed_tier,
+                    tier_before, tier_after, 1 if changed else 0,
+                    json.dumps(reasons or []),
+                    model_version, int(tuning_version), now,
+                ),
+            )
+        return self.get_preop_retier_event(event_id)  # type: ignore[return-value]
+
+    def get_preop_retier_event(self, event_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM preop_retier_events WHERE id = ?",
+                (event_id,),
+            ).fetchone()
+        if not row:
+            return None
+        return self._hydrate_preop_retier_event(dict(row))
+
+    def list_preop_retier_events(
+        self,
+        patient_id: str,
+        *,
+        limit: int = 200,
+    ) -> List[Dict[str, Any]]:
+        """List by episode_id (== patient_id in the v1 single-episode model)."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM preop_retier_events
+                WHERE episode_id = ?
+                ORDER BY datetime(created_at) DESC, rowid DESC
+                LIMIT ?
+                """,
+                (patient_id, int(limit)),
+            ).fetchall()
+        return [self._hydrate_preop_retier_event(dict(r)) for r in rows]
+
+    @staticmethod
+    def _hydrate_preop_retier_event(rec: Dict[str, Any]) -> Dict[str, Any]:
+        rec["inputs_snapshot"] = json.loads(rec.get("inputs_snapshot_json") or "{}")
+        rec["reasons"] = json.loads(rec.get("reasons_json") or "[]")
+        rec["changed"] = bool(rec.get("changed"))
+        rec["initial_tier_was_hard"] = bool(rec.get("initial_tier_was_hard"))
+        return rec
+
+    # ─── Episode snapshots (Triage Suite Pass 3 §1) ────────────────────────
+
+    _EPISODE_SNAPSHOT_COLUMNS = (
+        "initial_tier_was_hard_escalator",
+        "post_intake_tier",
+        "post_intraop_tier",
+    )
+
+    def upsert_episode_snapshot(
+        self,
+        patient_id: str,
+        **fields: Any,
+    ) -> Dict[str, Any]:
+        """Partial upsert. Only writes the columns explicitly passed.
+
+        `initial_tier_was_hard_escalator` is coerced to INTEGER 0/1.
+        Tier columns may be either str or None.
+        """
+        unknown = set(fields) - set(self._EPISODE_SNAPSHOT_COLUMNS)
+        if unknown:
+            raise ValueError(f"unknown episode_snapshot fields: {sorted(unknown)}")
+
+        coerced: Dict[str, Any] = {}
+        for k, v in fields.items():
+            if k == "initial_tier_was_hard_escalator":
+                coerced[k] = 1 if bool(v) else 0
+            else:
+                coerced[k] = v if v is None else str(v)
+
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            existing = conn.execute(
+                "SELECT * FROM episode_snapshots WHERE patient_id = ?",
+                (patient_id,),
+            ).fetchone()
+            if existing is None:
+                conn.execute(
+                    """
+                    INSERT INTO episode_snapshots (
+                        patient_id, initial_tier_was_hard_escalator,
+                        post_intake_tier, post_intraop_tier, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        patient_id,
+                        coerced.get("initial_tier_was_hard_escalator", 0),
+                        coerced.get("post_intake_tier"),
+                        coerced.get("post_intraop_tier"),
+                        now,
+                    ),
+                )
+            else:
+                set_clauses = []
+                values: list[Any] = []
+                for k in self._EPISODE_SNAPSHOT_COLUMNS:
+                    if k in coerced:
+                        set_clauses.append(f"{k} = ?")
+                        values.append(coerced[k])
+                set_clauses.append("updated_at = ?")
+                values.append(now)
+                values.append(patient_id)
+                conn.execute(
+                    f"UPDATE episode_snapshots SET {', '.join(set_clauses)} "
+                    "WHERE patient_id = ?",
+                    tuple(values),
+                )
+        return self.get_episode_snapshot(patient_id) or {}
+
+    def get_episode_snapshot(self, patient_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM episode_snapshots WHERE patient_id = ?",
+                (patient_id,),
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["initial_tier_was_hard_escalator"] = bool(
+            rec.get("initial_tier_was_hard_escalator")
+        )
+        return rec
 

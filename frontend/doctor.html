@@ -282,6 +282,69 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
+    .roster-row.tier-3-patient {
+      border-left: 4px solid #dc2626;
+      padding-left: 10px;
+      margin-left: -4px;
+    }
+    .tier-3-roster-chip {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #b91c1c;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 4px;
+      padding: 2px 8px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .intraop-review-panel {
+      background: #f5f3ff;
+      border: 1px solid #ddd6fe;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+    .intraop-review-panel h2 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #5b21b6;
+      margin-bottom: 10px;
+    }
+    .intraop-review-list { display: flex; flex-direction: column; gap: 8px; }
+    .intraop-review-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: #fff;
+      border: 1px solid #e9d5ff;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+    .intraop-review-item .review-muted { color: var(--muted); font-size: 12px; }
+    .intraop-review-item .open-intraop-review {
+      margin-left: auto;
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 8px;
+      border: 1px solid #7c3aed;
+      background: #7c3aed;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .intraop-review-item .open-intraop-review:hover { background: #6d28d9; }
+    body[data-readonly-role="np_pa"] #addPatientBtn,
+    body[data-readonly-role="np_pa"] .btn-intraop {
+      opacity: 0.45;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
     .name-wrap { display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
     .episode-pill {
       display: inline-flex;
@@ -1021,6 +1084,12 @@
             <input id="patientSearchInput" class="search-input" type="text" placeholder="Search for patient's name" />
             <div id="patientSuggestions" class="suggestions"></div>
           </div>
+        </div>
+
+        <div class="intraop-review-panel" id="intraopReviewPanel" style="display:none">
+          <h2>Forms awaiting your review</h2>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Intra-op drafts the RN marked ready. Open to edit and lock.</p>
+          <div class="intraop-review-list" id="intraopReviewList"></div>
         </div>
 
         <div class="roster-list" id="rosterList"></div>
@@ -2027,6 +2096,58 @@
       });
     }
 
+    async function refreshIntraopReviewQueue() {
+      const panel = byId("intraopReviewPanel");
+      const list = byId("intraopReviewList");
+      if (!panel || !list) return;
+      let role = "";
+      try {
+        const raw = localStorage.getItem(PROFILE_KEY);
+        role = (JSON.parse(raw || "{}").role || "").toString().toLowerCase();
+      } catch (_e) {}
+      if (role !== "surgeon" || !authToken) {
+        panel.style.display = "none";
+        return;
+      }
+      try {
+        const res = await fetch(`${API}/api/intraop-forms?status=READY_FOR_SURGEON_REVIEW`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        if (!res.ok) throw new Error("queue");
+        const data = await res.json();
+        const items = data.items || [];
+        if (!items.length) {
+          panel.style.display = "none";
+          return;
+        }
+        panel.style.display = "block";
+        list.innerHTML = items.map((it) => `
+          <div class="intraop-review-item" data-pid="${esc(it.patientId)}">
+            <strong>${esc(it.patientName || it.patientId)}</strong>
+            <span class="review-muted">${esc(it.patientId)}</span>
+            <button type="button" class="open-intraop-review">Open form</button>
+          </div>
+        `).join("");
+        list.querySelectorAll(".open-intraop-review").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const row = btn.closest(".intraop-review-item");
+            const pid = row && row.dataset.pid;
+            if (pid) window.open(`/intraop-form/${encodeURIComponent(pid)}`, "_blank", "noopener");
+          });
+        });
+      } catch (_e) {
+        panel.style.display = "none";
+      }
+    }
+
+    function syncReadonlyTooltips() {
+      const on = document.body.dataset.readonlyRole === "np_pa";
+      document.querySelectorAll("#addPatientBtn, .btn-intraop").forEach((el) => {
+        el.title = on ? "Read-only access" : "";
+      });
+    }
+
     async function loadPatients() {
       const data = await apiJson("/api/patients");
       const normalized = normalizePatientsForRoster((data.patients || []).map((p) => ({
@@ -2040,6 +2161,7 @@
       renderRoster();
       renderCompliance();
       await refreshAnalyticsData();
+      void refreshIntraopReviewQueue();
     }
 
     function normalizePatientsForRoster(patients) {
@@ -2168,16 +2290,19 @@
 
     function renderRoster(list = PATIENTS) {
       byId("rosterCount").textContent = `${PATIENTS.length} patients`;
-      byId("rosterList").innerHTML = list.map((p) => `
-        <div class="roster-row" data-pid="${esc(p.id)}">
-          <div class="roster-cell name"><span class="name-wrap">${episodePillHtml(inferEpisodeType(p))}<span>${esc(p.name)}${renderTeamBadge(p)}</span></span>${tierChainHtml(p)}</div>
+      byId("rosterList").innerHTML = list.map((p) => {
+        const curT = (p.currentTier || p.current_tier || "").toString().toUpperCase();
+        const tier3 = curT === "TIER_3";
+        return `
+        <div class="roster-row${tier3 ? " tier-3-patient" : ""}" data-pid="${esc(p.id)}">
+          <div class="roster-cell name"><span class="name-wrap">${episodePillHtml(inferEpisodeType(p))}<span>${esc(p.name)}${tier3 ? '<span class="tier-3-roster-chip">Tier 3</span>' : ""}${renderTeamBadge(p)}</span></span>${tierChainHtml(p)}</div>
           <div class="roster-cell muted">${esc(p.phone || "—")}</div>
           <div class="roster-cell muted">${esc(p.email || "—")}</div>
           <div class="roster-cell muted">Day ${esc(p.episode?.currentDay ?? "—")}</div>
           <div class="roster-cell muted">${inferEpisodeType(p) === "pre_op" ? intakeStatusPillHtml(p.intakeFormStatus) : "—"}</div>
           <div class="roster-cell cta">${intraopCtaHtml(p)}</div>
-        </div>
-      `).join("");
+        </div>`;
+      }).join("");
       byId("rosterList").querySelectorAll(".roster-row").forEach((row) => {
         row.addEventListener("click", () => openPatientDetail(row.dataset.pid));
       });
@@ -2187,6 +2312,7 @@
           handleIntraopCtaClick(btn.dataset.action, btn.dataset.pid);
         });
       });
+      syncReadonlyTooltips();
     }
 
     function intraopCtaHtml(p) {
@@ -2747,6 +2873,8 @@
         hospitalAffiliation: remote.hospital_affiliations || remote.hospitalAffiliation || "",
         clinicCode: remote.health_system_code || remote.clinic_code || remote.clinicCode || "",
         tenantSlug: remote.tenant_slug || remote.tenantSlug || "",
+        isTeamDirector: Boolean(remote.is_team_director ?? remote.isTeamDirector ?? false),
+        role: (remote.role || remote.staffRole || "").toString().toLowerCase(),
       });
       try {
         const remote = await apiJson("/api/doctor/profile");
@@ -2799,9 +2927,10 @@
       byId("sidebarName").textContent = profile.fullName;
       byId("sidebarSpecialty").textContent = profile.typeOfDoctor;
       byId("sidebarAvatar").textContent = initials(profile.fullName);
+      document.body.dataset.readonlyRole = profile.role === "np_pa" ? "np_pa" : "";
       const auditBtn = byId("tab-btn-audit");
       if (auditBtn) {
-        const show = (profile.typeOfDoctor || "").toLowerCase().includes("director") && profile.tenantSlug;
+        const show = profile.isTeamDirector === true && profile.tenantSlug;
         auditBtn.style.display = show ? "block" : "none";
       }
       byId("onboardFullName").value = profile.fullName || "";
@@ -2809,6 +2938,8 @@
       byId("onboardOfficePhone").value = profile.officePhone || "";
       byId("onboardType").value = profile.typeOfDoctor || "";
       byId("onboardHospital").value = profile.hospitalAffiliation || "";
+      syncReadonlyTooltips();
+      void refreshIntraopReviewQueue();
     }
 
     function openProfileDetail() {

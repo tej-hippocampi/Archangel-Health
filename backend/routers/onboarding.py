@@ -18,10 +18,16 @@ from tenant_utils import generate_secure_password
 
 # Mapping of API role values → display labels used in the new email templates.
 # The frontend uses the labels directly; the API persists the lowercased token.
+# Pass-4 taxonomy: surgeon | rn_coordinator | np_pa. The director slot is a
+# `surgeon` with `is_team_director=1` — only the director's row is auto-created
+# on `/finish`; the wizard only invites RN and NP/PA seats.
 _ROLE_LABELS = {
-    "doctor": "Doctor / Surgeon",
-    "nurse": "Nurse / Care Coordinator",
+    "surgeon": "Surgeon",
+    "rn_coordinator": "RN Care Coordinator",
+    "np_pa": "NP / PA",
 }
+
+_INVITABLE_ROLES = {"rn_coordinator", "np_pa"}
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 
@@ -61,7 +67,7 @@ class Step3Body(OnboardTokenBody):
 class AddMemberBody(OnboardTokenBody):
     full_name: str
     email: EmailStr
-    role: str  # doctor | nurse
+    role: str  # rn_coordinator | np_pa  (surgeon is the director, auto-seeded)
 
 class FinishBody(OnboardTokenBody):
     pass
@@ -82,19 +88,20 @@ def _reject_if_completed(row: Dict[str, Any]) -> None:
 def _serialize_team_member(m: Dict[str, Any]) -> Dict[str, Any]:
     """Shape a team_members row for the onboarding wizard's local list state.
 
-    Maps the API role token (`doctor`/`nurse`) to the display label the
-    redesigned wizard uses (`Doctor / Surgeon` / `Nurse / Care Coordinator`).
+    Maps the API role token (pass-4 taxonomy) to the display label the
+    redesigned wizard uses.
     """
     full = (m.get("name") or "").strip()
     first, _, last = full.partition(" ")
     role = (m.get("role") or "").strip().lower()
-    role_label = _ROLE_LABELS.get(role, "Doctor / Surgeon")
+    role_label = _ROLE_LABELS.get(role, role.title() or "Care Team")
     return {
         "id": int(m.get("id") or 0),
         "first_name": first,
         "last_name": last,
         "email": (m.get("email") or "").strip(),
         "role": role_label,
+        "is_team_director": bool(m.get("is_team_director") or 0),
         "status": "Invited",
     }
 
@@ -105,15 +112,15 @@ def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
     Excludes credentials, password hashes, and any other secrets — only the form
     inputs the director already entered, plus the team list they've already added.
 
-    The director is also persisted in ``team_members`` with ``role='director'``
-    after ``/finish``, so we filter it out of the hydrated list — Step 4's UI
-    shows the Director in its own card, and Step 6's "TEAM members" stat
-    counts them implicitly via ``members + 1``.
+    The director is persisted in ``team_members`` with ``role='surgeon'`` and
+    ``is_team_director=1`` after ``/finish``, so we filter on the new flag —
+    Step 4's UI shows the Director in its own card, and Step 6's "TEAM members"
+    stat counts them implicitly via ``members + 1``.
     """
     members = [
         _serialize_team_member(m)
         for m in ts.list_team_members(row["id"])
-        if (m.get("role") or "").strip().lower() != "director"
+        if not bool(m.get("is_team_director") or 0)
     ]
     return {
         "director_first_name": (row.get("director_first_name") or "").strip(),
@@ -247,8 +254,37 @@ async def add_team_member(body: AddMemberBody, request: Request):
     if int(row.get("onboarding_step") or 0) < 3:
         raise HTTPException(status_code=400, detail="Complete organization details first.")
     role = body.role.strip().lower()
-    if role not in ("doctor", "nurse"):
-        raise HTTPException(status_code=400, detail="Role must be doctor or nurse.")
+    if role == "surgeon":
+        raise HTTPException(
+            status_code=409,
+            detail="The team director is the only surgeon on the pod.",
+        )
+    if role not in _INVITABLE_ROLES:
+        raise HTTPException(
+            status_code=400,
+            detail="Role must be rn_coordinator or np_pa.",
+        )
+    existing = ts.list_team_members(row["id"])
+    non_director = [m for m in existing if not bool(m.get("is_team_director") or 0)]
+    if role == "rn_coordinator" and any(
+        (m.get("role") or "").strip().lower() == "rn_coordinator" for m in non_director
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Team already has an RN care coordinator (cap: 1).",
+        )
+    if role == "np_pa" and sum(
+        1 for m in non_director if (m.get("role") or "").strip().lower() == "np_pa"
+    ) >= 2:
+        raise HTTPException(
+            status_code=409,
+            detail="Team already has 2 NP/PAs (cap: 2).",
+        )
+    if len(non_director) >= 3:
+        raise HTTPException(
+            status_code=409,
+            detail="Team is full (cap: 4 including director).",
+        )
     pwd = generate_secure_password()
     full_name = body.full_name.strip()
     ts.insert_team_member(
@@ -277,7 +313,7 @@ async def add_team_member(body: AddMemberBody, request: Request):
     html_body = build_invite_email(
         invitee_first_name=full_name.split(" ", 1)[0] if full_name else "",
         director_full_name=director_full_name,
-        role_label=_ROLE_LABELS.get(role, role.title()),
+        role_label=_ROLE_LABELS.get(role, role.replace("_", " ").title()),
         org_name=subj_org,
         department=subj_dept,
         temporary_password=pwd,
@@ -318,12 +354,25 @@ async def finish_onboarding(body: FinishBody, request: Request):
     slug = row.get("slug") or ""
     sign_in = f"{_landing_base()}/t/{slug}/sign-in"
     subj = "Welcome to Archangel Health — onboarding complete"
-    member_count = len(ts.list_team_members(row["id"]))
+    members_after_finalize = ts.list_team_members(row["id"])
+    member_count = len(members_after_finalize)
+    rn_count = sum(
+        1
+        for m in members_after_finalize
+        if (m.get("role") or "").strip().lower() == "rn_coordinator"
+    )
+    nppa_count = sum(
+        1
+        for m in members_after_finalize
+        if (m.get("role") or "").strip().lower() == "np_pa"
+    )
     html_body = build_complete_email(
         director_email=email,
         org_name=(row.get("name") or "").strip(),
         department=(row.get("surgery_department") or "").strip(),
         member_count=member_count,
+        rn_count=rn_count,
+        nppa_count=nppa_count,
         temporary_password=director_pwd,
         workspace_url=sign_in,
     )

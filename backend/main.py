@@ -46,6 +46,10 @@ from routers.admin    import router as admin_router
 from routers.onboarding import router as onboarding_router
 from routers.tenant_portal import router as tenant_portal_router
 from routers.eligibility import router as eligibility_router
+from routers.intraop import router as intraop_router
+from routers.postop import router as postop_router
+from routers.initial_tier import router as initial_tier_router
+from routers.preop_retier import router as preop_retier_router
 from eligibility import store as elig_store
 from staff_context import StaffContext, get_staff_context_optional
 from tenant_constants import DEMO_HEALTH_SYSTEM_ID, DEMO_HEALTH_SYSTEM_SLUG
@@ -156,7 +160,7 @@ def _intake_doctor_recipients(patient_id: str) -> List[str]:
     if hs_id:
         for member in _team_store.list_team_members(hs_id):
             role = str(member.get("role") or "").lower()
-            if role in {"doctor", "director", "nurse"}:
+            if role in {"surgeon", "rn_coordinator", "np_pa"}:
                 recipients.append(f"tenant:{member.get('email', '').lower().strip()}")
     # Public/demo fallback recipient used by legacy doctor portal.
     if not recipients:
@@ -477,7 +481,7 @@ def _ensure_demo_doctor() -> None:
             "email": key,
             "password_hash": auth_module.pwd_context.hash(DEMO_DOCTOR_PASSWORD),  # noqa: SLF001
             "name": "Dr. Manan Vyas",
-            "role": "doctor",
+            "role": "surgeon",
             "office_phone": "(310) 555-0100",
             "doctor_type": "General Surgeon",
             "hospital_affiliations": "Cedars-Sinai Medical Center",
@@ -1505,8 +1509,21 @@ async def doctor_profile(
         hs = _team_store.get_health_system_by_id(td.get("tid") or "")
         if not hs:
             raise HTTPException(status_code=404, detail="Health system not found.")
-        role = (td.get("role") or "doctor").lower()
-        dtype = "Director of TEAM Initiative" if role == "director" else "Care Team"
+        from staff_context import _normalize_legacy_role  # local import: avoid cycle
+        role = _normalize_legacy_role(td.get("role"))
+        # Director-ness drives the audit-log tab and other surgeon-only affordances.
+        # Pass-4 tokens carry `itd`; legacy `role: "director"` still maps to True.
+        is_director = bool(td.get("itd")) or (
+            (td.get("role") or "").strip().lower() == "director"
+        )
+        if role == "surgeon":
+            dtype = "Director of TEAM Initiative" if is_director else "Surgeon"
+        elif role == "rn_coordinator":
+            dtype = "RN Care Coordinator"
+        elif role == "np_pa":
+            dtype = "NP / PA"
+        else:
+            dtype = "Care Team"
         code = hs.get("health_system_code") or ""
         return DoctorProfileOut(
             name=td.get("name") or "",
@@ -1517,6 +1534,8 @@ async def doctor_profile(
             clinic_code=code,
             health_system_code=code,
             tenant_slug=hs.get("slug"),
+            is_team_director=is_director,
+            role=role,
         )
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -1528,6 +1547,8 @@ async def doctor_profile(
         )
     profile.setdefault("health_system_code", profile.get("clinic_code") or "")
     profile.setdefault("tenant_slug", None)
+    profile.setdefault("is_team_director", False)
+    profile.setdefault("role", "surgeon")
     return DoctorProfileOut(**profile)
 
 
@@ -2593,7 +2614,7 @@ async def process_discharge(
     resource_code = None
     office_phone = None
     health_system_id: Optional[str] = None
-    if user and user.role == "doctor":
+    if user and (user.role or "").lower() in ("surgeon", "doctor"):
         profile = get_doctor_profile(user.email)
         if profile:
             clinic_code = profile["clinic_code"]
@@ -2740,7 +2761,7 @@ async def process_preop(
     resource_code = None
     office_phone = None
     health_system_id: Optional[str] = None
-    if user and user.role == "doctor":
+    if user and (user.role or "").lower() in ("surgeon", "doctor"):
         profile = get_doctor_profile(user.email)
         if profile:
             clinic_code = profile["clinic_code"]
@@ -3780,6 +3801,9 @@ async def intake_forms_patch(
     prev = payload.get("value")
     payload["value"] = body.value
     if staff:
+        # NOTE: "doctor" here is a clinical-source provenance label (i.e. "this
+        # field came from a clinician's edit"), NOT a pass-4 role token. Keep
+        # the literal so historical intake forms render correctly in the UI.
         payload["source"] = "doctor"
         editor = f"DOCTOR:{staff.email}"
     else:
@@ -4430,6 +4454,10 @@ app.include_router(admin_router)
 app.include_router(onboarding_router)
 app.include_router(tenant_portal_router)
 app.include_router(eligibility_router)
+app.include_router(intraop_router)
+app.include_router(postop_router)
+app.include_router(initial_tier_router)
+app.include_router(preop_retier_router)
 
 
 @app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)

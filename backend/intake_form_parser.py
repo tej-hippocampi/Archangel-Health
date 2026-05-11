@@ -136,6 +136,26 @@ def _schema() -> Dict[str, Any]:
             "medicationsToTakeMorningOf": {"value": [], "source": "prep_document"},
             "labsImagingCompleted": {"value": None, "source": "prep_document", "dates": ""},
             "preOpClearanceLetters": {"value": None, "source": "prep_document"},
+            # PAM-13 proxy items (Triage Suite Pass 3 §2). Each is a 4-point
+            # Likert scale serialized as a string ("1" | "2" | "3" | "4" |
+            # "N_A"). Surfaced via the Section 10 interview prompt and
+            # consumed by `triage.preop_retier.pam_extract` to score
+            # patient activation. Keys are flat `pam_1`..`pam_13` so the
+            # extractor's existing flat-key fallback also matches without
+            # schema-aware paths.
+            "pam_1":  {"value": None, "source": "interview"},
+            "pam_2":  {"value": None, "source": "interview"},
+            "pam_3":  {"value": None, "source": "interview"},
+            "pam_4":  {"value": None, "source": "interview"},
+            "pam_5":  {"value": None, "source": "interview"},
+            "pam_6":  {"value": None, "source": "interview"},
+            "pam_7":  {"value": None, "source": "interview"},
+            "pam_8":  {"value": None, "source": "interview"},
+            "pam_9":  {"value": None, "source": "interview"},
+            "pam_10": {"value": None, "source": "interview"},
+            "pam_11": {"value": None, "source": "interview"},
+            "pam_12": {"value": None, "source": "interview"},
+            "pam_13": {"value": None, "source": "interview"},
         },
         "section11_acknowledgments": {
             "informationAccurate": {"value": None, "source": "patient"},

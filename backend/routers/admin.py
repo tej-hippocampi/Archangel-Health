@@ -147,14 +147,30 @@ async def admin_stats(
 
     # Pull patient store from app state
     patient_store: dict = request.app.state.patient_store if hasattr(request.app.state, "patient_store") else {}
+    team_store = getattr(request.app.state, "team_store", None)
     recent_patients = []
     for pid, pdata in list(patient_store.items())[-20:]:
         structured = pdata.get("structured_data") or {}
+        # Triage Suite Pass 3 §4.4 — three-tier chain on the admin
+        # patient detail panel. Hydrate `post_intake_tier` from
+        # `episode_snapshots` if the blob has lost it (cold start).
+        post_intake_tier = pdata.get("post_intake_tier")
+        if post_intake_tier in (None, "") and team_store is not None:
+            try:
+                snap = team_store.get_episode_snapshot(pid) or {}
+                post_intake_tier = snap.get("post_intake_tier")
+                if post_intake_tier:
+                    pdata["post_intake_tier"] = post_intake_tier
+            except Exception:
+                post_intake_tier = None
         recent_patients.append({
             "id":        pid,
             "name":      structured.get("patient_name", pid),
             "procedure": structured.get("procedure_name", "—"),
             "status":    structured.get("procedure_status", "—"),
+            "initialTier":     pdata.get("initial_tier"),
+            "postIntakeTier":  post_intake_tier,
+            "currentTier":     pdata.get("current_tier"),
         })
 
     return {
@@ -325,3 +341,60 @@ async def admin_list_health_systems(
         team = ts.list_team_members(tid)
         out.append({**r, "team": team, "is_demo": tid == DEMO_HEALTH_SYSTEM_ID})
     return {"health_systems": out}
+
+
+# ─── Triage Logic ────────────────────────────────────────────────────────────
+
+@router.get("/triage/initial-tier/config")
+async def admin_get_initial_tier_config(authorization: Optional[str] = Header(None)):
+    """Return the read-only tuning snapshot for the Pre-Op Initial Tier algorithm.
+
+    Powers the admin portal's "Triage Logic" tab. Shape is documented in
+    `triage/tuning.py::get_config()`.
+    """
+    _verify_token(authorization)
+    from triage import get_config
+    return get_config()
+
+
+@router.get("/triage/preop-retier/config")
+async def admin_get_preop_retier_config(authorization: Optional[str] = Header(None)):
+    """Return the read-only tuning snapshot for the Pre-Op Re-Tier algorithm.
+
+    Rendered alongside the initial-tier section under the same admin
+    "Triage Logic" tab. Shape is documented in
+    `triage/preop_retier/tuning.py::get_config()`.
+    """
+    _verify_token(authorization)
+    from triage.preop_retier import get_config
+    return get_config()
+
+
+@router.get("/triage/intraop/config")
+async def admin_get_intraop_config(authorization: Optional[str] = Header(None)):
+    """Return the read-only tuning snapshot for the Intra-Op Reassessment.
+
+    Rendered as a third section in the admin "Triage Logic" tab. Shape is
+    documented in `triage/intraop/tuning.py::get_config()` and includes
+    hard upgrades, soft thresholds, per-family P90 OR-time benchmarks,
+    the conservative-default policy, and extraction tuning."""
+    _verify_token(authorization)
+    from triage.intraop import get_config
+    return get_config()
+
+
+@router.get("/triage/postop/config")
+async def admin_get_postop_config(authorization: Optional[str] = Header(None)):
+    """Return the read-only tuning snapshot for the Post-Op Scoring &
+    Re-Tiering algorithm.
+
+    Rendered as a fourth section in the admin "Triage Logic" tab. Shape
+    is documented in `triage/postop/tuning.py::get_config()` and includes
+    hard escalators, positive contributor weights, engagement-audit
+    flags, the delta cap and thresholds, daily check-in / D-X survey /
+    med adherence / video / lost-contact configs, and the cron cadence.
+    Wound-photo-related entries are intentionally absent (PRD §8 out of
+    scope v1)."""
+    _verify_token(authorization)
+    from triage.postop import get_config
+    return get_config()

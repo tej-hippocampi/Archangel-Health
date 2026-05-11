@@ -1,6 +1,13 @@
-"""Shared HTML email sending (SendGrid or SMTP)."""
+"""Shared HTML email sending (SendGrid or SMTP).
+
+Dev mode: set ``EMAIL_DEV_MODE=1`` in your env to bypass real email transport
+entirely. The body is printed to stdout so OTP codes and invite links are
+visible in the uvicorn terminal — the "send" call returns success. Useful for
+local end-to-end testing of onboarding flows without configuring SendGrid.
+"""
 
 import os
+import re
 from typing import Optional
 
 
@@ -14,14 +21,33 @@ def _normalize_sendgrid_api_key(raw: Optional[str]) -> str:
     return s
 
 
+def _is_dev_mode() -> bool:
+    return (os.getenv("EMAIL_DEV_MODE") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def is_email_transport_configured() -> bool:
-    """True if SendGrid API key or full SMTP credentials are present (after normalization / strip)."""
+    """True if SendGrid API key, full SMTP credentials, or dev-mode are present.
+
+    In dev mode (``EMAIL_DEV_MODE=1``) returns True so onboarding endpoints don't
+    503 — outgoing email is logged to stdout instead of actually delivered.
+    """
+    if _is_dev_mode():
+        return True
     if _normalize_sendgrid_api_key(os.getenv("SENDGRID_API_KEY")):
         return True
     h = (os.getenv("SMTP_HOST") or "").strip()
     u = (os.getenv("SMTP_USER") or "").strip()
     p = (os.getenv("SMTP_PASS") or "").strip()
     return bool(h and u and p)
+
+
+def _strip_html(html: str) -> str:
+    """Best-effort HTML→text for the dev-mode console preview."""
+    text = re.sub(r"<\s*br\s*/?>", "\n", html, flags=re.I)
+    text = re.sub(r"</p>", "\n", text, flags=re.I)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 async def send_html_email(
@@ -31,6 +57,18 @@ async def send_html_email(
     *,
     importance_headers: bool = False,
 ) -> bool:
+    # Dev mode short-circuit: print the message to stdout and return success.
+    # This lets onboarding / OTP / invite flows run end-to-end without SendGrid.
+    if _is_dev_mode():
+        print("\n" + "=" * 72)
+        print(f"[email_utils] DEV MODE — pretending to send email")
+        print(f"  To:      {to_email}")
+        print(f"  Subject: {subject}")
+        print("-" * 72)
+        print(_strip_html(html_body))
+        print("=" * 72 + "\n", flush=True)
+        return True
+
     try:
         api_key = _normalize_sendgrid_api_key(os.getenv("SENDGRID_API_KEY"))
         from_email = (os.getenv("SENDGRID_FROM_EMAIL") or "noreply@archangelhealth.ai").strip()

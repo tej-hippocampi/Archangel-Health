@@ -42,19 +42,31 @@ type Props = { token: string };
 
 const STEPPER_LABELS = ["You", "Verify", "Health system", "Your TEAM", "Sign in"];
 
-const ROLE_TO_API: Record<RoleLabel, "doctor" | "nurse"> = {
-  "Doctor / Surgeon": "doctor",
-  "Nurse / Care Coordinator": "nurse",
+// Pass-4 role taxonomy: the director slot is auto-seeded as a `surgeon` on
+// /finish, so the wizard only invites RN coordinators and NP/PAs. Caps:
+// 1 RN coordinator + 2 NP/PAs + 1 director (surgeon) = 4 total.
+const ROLE_TO_API: Record<RoleLabel, "rn_coordinator" | "np_pa"> = {
+  "RN Care Coordinator": "rn_coordinator",
+  "NP / PA": "np_pa",
 };
 
-/** Map server-side role labels (incl. legacy "doctor"/"nurse") onto the
- *  display labels the wizard uses. Anything unknown falls back to Doctor. */
+/** Map server-side role labels (incl. legacy "doctor"/"nurse" + new
+ *  pass-4 tokens) onto the display labels the wizard uses. */
 function normalizeRoleLabel(raw: unknown): RoleLabel {
   const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  if (s === "nurse" || s === "nurse / care coordinator" || s === "nurse/care coordinator") {
-    return "Nurse / Care Coordinator";
+  if (
+    s === "rn_coordinator" ||
+    s === "rn care coordinator" ||
+    s === "nurse" ||
+    s === "nurse / care coordinator" ||
+    s === "nurse/care coordinator"
+  ) {
+    return "RN Care Coordinator";
   }
-  return "Doctor / Surgeon";
+  if (s === "np_pa" || s === "np / pa" || s === "np/pa" || s === "nppa") {
+    return "NP / PA";
+  }
+  return "RN Care Coordinator";
 }
 
 type SessionResponse = {

@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Intra-Op Reassessment Form</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary:#2563EB; --primary-dark:#1D4ED8; --primary-light:#EFF6FF;
+      --success:#10B981; --warning:#F59E0B; --danger:#EF4444;
+      --gray-50:#F9FAFB; --gray-100:#F3F4F6; --gray-200:#E5E7EB; --gray-300:#D1D5DB;
+      --gray-400:#9CA3AF; --gray-500:#6B7280; --gray-600:#4B5563; --gray-700:#374151;
+      --gray-800:#1F2937; --gray-900:#111827;
+      --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+      --radius:12px; --radius-sm:8px;
+    }
+    body {
+      font-family: var(--font); background: var(--gray-100); color: var(--gray-800);
+      min-height: 100vh; line-height: 1.5;
+    }
+    .topbar {
+      background:#fff; border-bottom:1px solid var(--gray-200); padding:14px 32px;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .topbar h1 { font-size:1.05rem; font-weight:700; color:var(--gray-900); }
+    .topbar .subtle { font-size:.85rem; color:var(--gray-500); }
+    .layout {
+      display:grid; grid-template-columns: 1fr 320px; gap:24px;
+      max-width:1280px; margin:24px auto; padding:0 24px;
+    }
+    .card {
+      background:#fff; border:1px solid var(--gray-200); border-radius:var(--radius);
+      padding:20px 24px; margin-bottom:18px;
+    }
+    .card h2 {
+      font-size:.95rem; font-weight:600; color:var(--gray-700); margin-bottom:14px;
+      padding-bottom:10px; border-bottom:1px solid var(--gray-100);
+      display:flex; align-items:center; gap:10px;
+    }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:14px 18px; }
+    .field { display:flex; flex-direction:column; gap:4px; }
+    .field label {
+      font-size:.78rem; font-weight:500; color:var(--gray-700);
+      display:flex; align-items:center; gap:6px;
+    }
+    .field input, .field select, .field textarea {
+      padding:9px 11px; border:1px solid var(--gray-300); border-radius:var(--radius-sm);
+      font-size:.9rem; font-family:var(--font);
+      transition: border-color .12s, box-shadow .12s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline:none; border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+    }
+    .field.required label::after { content:'*'; color:var(--danger); margin-left:2px; }
+    .pill {
+      font-size:.68rem; font-weight:600; padding:2px 6px; border-radius:4px;
+      letter-spacing:.04em; text-transform:uppercase;
+    }
+    .pill.high { background:#D1FAE5; color:#065F46; }
+    .pill.med  { background:#FEF3C7; color:#92400E; }
+    .pill.low  { background:#FEE2E2; color:#991B1B; }
+    .origin-tag {
+      font-size:.68rem; color:var(--gray-500); margin-left:6px;
+    }
+    .dropzone {
+      border:2px dashed var(--gray-300); border-radius:var(--radius);
+      padding:24px; text-align:center; color:var(--gray-500); cursor:pointer;
+      transition: border-color .12s, background .12s;
+    }
+    .dropzone:hover, .dropzone.dragover { border-color:var(--primary); background:var(--primary-light); }
+    .dropzone input { display:none; }
+    .extraction-status {
+      margin-top:10px; font-size:.85rem; color:var(--gray-600);
+      display:flex; align-items:center; gap:8px;
+    }
+    .spinner {
+      width:14px; height:14px; border:2px solid var(--gray-300);
+      border-top-color: var(--primary); border-radius:50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .right-rail .tier-card {
+      background:#fff; border:1px solid var(--gray-200); border-radius:var(--radius);
+      padding:18px; position:sticky; top:24px;
+    }
+    .tier-card h3 { font-size:.85rem; color:var(--gray-500); font-weight:500; margin-bottom:8px; }
+    .tier-row {
+      display:flex; align-items:center; justify-content:space-between; margin:8px 0;
+      padding-bottom:8px; border-bottom:1px solid var(--gray-100);
+    }
+    .tier-row:last-of-type { border-bottom:none; }
+    .tier-pill {
+      font-size:.85rem; font-weight:700; padding:5px 11px; border-radius:14px;
+      letter-spacing:.02em;
+    }
+    .tier-pill.t1 { background:#D1FAE5; color:#065F46; }
+    .tier-pill.t2 { background:#FEF3C7; color:#92400E; }
+    .tier-pill.t3 { background:#FEE2E2; color:#991B1B; }
+    .reason-list { margin-top:12px; padding:10px; border-radius:var(--radius-sm); background:var(--gray-50); }
+    .reason-list ul { padding-left:18px; font-size:.82rem; color:var(--gray-700); }
+    .reason-list li { margin:3px 0; }
+    .actions {
+      display:flex; gap:10px; padding:18px 24px; background:#fff;
+      border:1px solid var(--gray-200); border-radius:var(--radius); position:sticky; bottom:0;
+    }
+    .btn {
+      padding:9px 18px; font-family:var(--font); font-size:.9rem; font-weight:600;
+      border:1px solid transparent; border-radius:var(--radius-sm); cursor:pointer;
+      transition: background .12s, border-color .12s, color .12s;
+    }
+    .btn-primary { background:var(--primary); color:#fff; }
+    .btn-primary:hover:not(:disabled) { background:var(--primary-dark); }
+    .btn-secondary { background:#fff; color:var(--gray-700); border-color:var(--gray-300); }
+    .btn-secondary:hover { background:var(--gray-50); }
+    .btn-danger { background:var(--danger); color:#fff; }
+    .btn:disabled { opacity:.5; cursor:not-allowed; }
+    .modal-overlay {
+      position:fixed; inset:0; background:rgba(15,23,42,.5);
+      display:none; align-items:center; justify-content:center; z-index:50;
+    }
+    .modal-overlay.show { display:flex; }
+    .modal-card { background:#fff; border-radius:var(--radius); padding:26px 28px; width:480px; }
+    .modal-card h3 { margin-bottom:10px; }
+    .modal-card p { font-size:.88rem; color:var(--gray-600); margin-bottom:18px; }
+    .modal-card .actions { background:transparent; border:none; padding:0; justify-content:flex-end; }
+    .toast {
+      position:fixed; bottom:18px; right:18px; padding:11px 16px; border-radius:var(--radius-sm);
+      background:var(--gray-800); color:#fff; font-size:.85rem; box-shadow:0 4px 8px rgba(0,0,0,.1);
+      opacity:0; transform: translateY(8px); transition: all .2s;
+    }
+    .toast.show { opacity:1; transform: translateY(0); }
+    .status-banner {
+      padding:8px 14px; border-radius:var(--radius-sm); font-size:.82rem;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .status-banner.locked { background:#FEE2E2; color:#991B1B; }
+    .status-banner.reopened { background:#FEF3C7; color:#92400E; }
+    .status-banner.ready { background:#D1FAE5; color:#065F46; }
+    .status-banner.await-rn { background:#EFF6FF; color:#1E40AF; border:1px solid #BFDBFE; }
+    .status-banner.await-surg { background:#F5F3FF; color:#5B21B6; border:1px solid #DDD6FE; }
+    .readonly-mode .field input, .readonly-mode .field select, .readonly-mode .field textarea {
+      background: var(--gray-100); cursor: not-allowed; color: var(--gray-600);
+    }
+    .field-diff {
+      background:#FEF3C7; padding:6px 8px; border-radius:4px; margin-top:4px;
+      font-size:.78rem; color:#92400E;
+    }
+    .history-item {
+      padding:10px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm);
+      margin-bottom:8px; font-size:.85rem;
+    }
+    .history-item .h-meta { color:var(--gray-500); font-size:.78rem; margin-bottom:4px; }
+    .empty { color:var(--gray-500); font-size:.85rem; padding:8px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>Intra-Op Reassessment</h1>
+      <div class="subtle" id="patient-meta">Loading patient…</div>
+    </div>
+    <div class="subtle" id="form-status">—</div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div id="status-bar"></div>
+
+      <!-- ── PDF dropzone ─────────────────────────────────── -->
+      <div class="card">
+        <h2>Auto-populate from operative note</h2>
+        <label class="dropzone" id="dropzone">
+          <input type="file" id="pdf-input" accept="application/pdf" />
+          <div><strong>Drop PDF</strong> or click to upload an operative note (max 25 MB).</div>
+          <div class="subtle" style="margin-top:6px; font-size:.78rem;">
+            We extract universal + procedure-family fields, leaving anything you've already typed in untouched.
+          </div>
+        </label>
+        <div id="extraction-panel" class="extraction-status"></div>
+        <div id="diff-panel"></div>
+      </div>
+
+      <!-- ── Universal fields ─────────────────────────────── -->
+      <div class="card">
+        <h2>Universal intra-op fields</h2>
+        <div class="row" id="universal-fields"></div>
+      </div>
+
+      <!-- ── Extended optional ────────────────────────────── -->
+      <div class="card">
+        <h2>Extended optional fields</h2>
+        <div class="row" id="extended-fields"></div>
+      </div>
+
+      <!-- ── Procedure-family extension ───────────────────── -->
+      <div class="card" id="family-card">
+        <h2 id="family-title">Procedure-family details</h2>
+        <div class="row" id="family-fields"></div>
+      </div>
+
+      <!-- ── Reassessment history ─────────────────────────── -->
+      <div class="card">
+        <h2>Reassessment history</h2>
+        <div id="history-list" class="empty">No reassessments yet.</div>
+      </div>
+
+      <div class="actions" id="form-actions">
+        <button class="btn btn-secondary" id="recall-btn" style="display:none">Recall draft</button>
+        <button class="btn btn-secondary" id="reopen-btn" style="display:none">Reopen</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-primary" id="mark-ready-btn" style="display:none">Send to surgeon for review</button>
+        <button class="btn btn-primary" id="lock-btn" disabled>Lock & switch to post-op</button>
+      </div>
+    </div>
+
+    <!-- ── Right rail: tier preview ─────────────────────── -->
+    <aside class="right-rail">
+      <div class="tier-card">
+        <h3>Live tier preview</h3>
+        <div class="tier-row">
+          <span class="subtle">Current</span>
+          <span class="tier-pill t1" id="preview-current">TIER_1</span>
+        </div>
+        <div class="tier-row">
+          <span class="subtle">Proposed</span>
+          <span class="tier-pill t1" id="preview-proposed">TIER_1</span>
+        </div>
+        <div class="tier-row">
+          <span class="subtle">Final (after resolve)</span>
+          <span class="tier-pill t1" id="preview-final">TIER_1</span>
+        </div>
+        <div class="reason-list" id="preview-reasons">
+          <div class="empty" style="padding:0;">Live updates as you fill the form.</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Lock confirm -->
+  <div class="modal-overlay" id="lock-modal">
+    <div class="modal-card">
+      <h3>Lock the intra-op form?</h3>
+      <p>
+        This computes the post-op tier and moves the episode to <strong>post-op</strong>.
+        After lock, only an admin (token) or the locking surgeon can reopen for edits.
+      </p>
+      <div class="actions">
+        <button class="btn btn-secondary" id="lock-cancel">Cancel</button>
+        <button class="btn btn-primary" id="lock-confirm">Lock & switch to post-op</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reopen confirm -->
+  <div class="modal-overlay" id="reopen-modal">
+    <div class="modal-card">
+      <h3>Reopen this locked form?</h3>
+      <p id="reopen-modal-hint">
+        Admins: paste your X-Admin-Token. The locking surgeon can also reopen using only their session (no token).
+      </p>
+      <input id="reopen-token" placeholder="X-Admin-Token (admin only)" style="width:100%; padding:8px 10px; border:1px solid var(--gray-300); border-radius:var(--radius-sm); margin-bottom:10px;" />
+      <div class="actions">
+        <button class="btn btn-secondary" id="reopen-cancel">Cancel</button>
+        <button class="btn btn-primary" id="reopen-session-btn" style="display:none">Reopen with my surgeon session</button>
+        <button class="btn btn-danger" id="reopen-confirm">Reopen with admin token</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const path = window.location.pathname.split('/').filter(Boolean);
+  const patientId = path[path.length - 1];
+  let formState = { fields: {}, fieldOrigins: {}, status: 'NEW' };
+  let preview = null;
+  let saveTimer = null;
+  let lastMissing = [];
+  const PROFILE_KEY = 'archangel_doctor_profile_ui_v2';
+  const AUTH_TOKEN_KEY = 'archangel_doctor_auth_token';
+
+  function decodeJwtPayload(token) {
+    if (!token || typeof token !== 'string') return null;
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    try {
+      const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const pad = b64.length % 4 ? '='.repeat(4 - (b64.length % 4)) : '';
+      const json = atob(b64 + pad);
+      return JSON.parse(json);
+    } catch (_e) { return null; }
+  }
+  function normalizeLegacyRole(r) {
+    const x = String(r || '').toLowerCase();
+    if (x === 'doctor' || x === 'director') return 'surgeon';
+    if (x === 'nurse') return 'rn_coordinator';
+    return x || '';
+  }
+  function getStaffFromClient() {
+    const t = localStorage.getItem(AUTH_TOKEN_KEY) || localStorage.getItem('auth_token') || localStorage.getItem('admin_token') || '';
+    const payload = decodeJwtPayload(t);
+    if (payload && payload.role != null && payload.sub) {
+      return {
+        email: String(payload.sub),
+        role: normalizeLegacyRole(payload.role) || 'surgeon',
+      };
+    }
+    try {
+      const raw = localStorage.getItem(PROFILE_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        const role = normalizeLegacyRole(p.role);
+        if (role) {
+          return {
+            email: p.email || '',
+            role,
+          };
+        }
+      }
+    } catch (_e) {}
+    if (payload && payload.sub) {
+      return { email: String(payload.sub), role: 'surgeon' };
+    }
+    return { email: '', role: 'surgeon' };
+  }
+  let staffCtx = getStaffFromClient();
+
+  // ── Field schemas ──────────────────────────────────────
+  const UNIVERSAL = [
+    { key:'documented_complication', label:'Documented complication?', type:'bool', required:true },
+    { key:'ebl', label:'Estimated blood loss (ml)', type:'number', required:true },
+    { key:'transfusion_total_units', label:'Transfusion total units', type:'number', required:true },
+    { key:'conversion', label:'Converted MIS → open?', type:'enum', options:['NO','YES','N_A'], required:true },
+    { key:'sustained_hypotension', label:'Sustained hypotension?', type:'bool', required:true },
+    { key:'vasopressor_requirement', label:'Vasopressor requirement', type:'enum', options:['NONE','BRIEF','SUSTAINED'], required:true },
+    { key:'significant_arrhythmia', label:'Significant arrhythmia?', type:'bool', required:true },
+    { key:'or_duration_minutes', label:'OR duration (minutes)', type:'number', required:true },
+    { key:'difficult_airway', label:'Difficult airway?', type:'bool', required:true },
+    { key:'net_fluid_balance', label:'Net fluid balance (ml)', type:'number', required:true },
+    { key:'anesthesia_type', label:'Anesthesia type', type:'enum', options:['GENERAL','REGIONAL','MAC','COMBINED'], required:true },
+  ];
+
+  const EXTENDED = [
+    { key:'or_started_at', label:'OR started at (ISO)', type:'text' },
+    { key:'or_ended_at', label:'OR ended at (ISO)', type:'text' },
+    { key:'asa_class', label:'ASA class', type:'text' },
+    { key:'prbc_units', label:'pRBC units', type:'number' },
+    { key:'platelet_units', label:'Platelet units', type:'number' },
+    { key:'ffp_units', label:'FFP units', type:'number' },
+    { key:'cryo_units', label:'Cryo units', type:'number' },
+    { key:'fluid_in', label:'Fluid in (ml)', type:'number' },
+    { key:'fluid_out', label:'Fluid out (ml)', type:'number' },
+    { key:'conversion_reason', label:'Conversion reason', type:'text' },
+    { key:'hypoxia_event', label:'Hypoxia event?', type:'bool' },
+    { key:'complication_description', label:'Complication description', type:'text' },
+    { key:'procedural_aborted', label:'Procedure aborted?', type:'bool' },
+    { key:'procedural_aborted_reason', label:'Aborted reason', type:'text' },
+  ];
+
+  const FAMILY_FIELDS = {
+    LEJR: [
+      { key:'lejr_joint', label:'Joint', type:'enum', options:['HIP','KNEE'] },
+      { key:'lejr_side', label:'Side', type:'enum', options:['LEFT','RIGHT','BILATERAL'] },
+      { key:'lejr_fixation_type', label:'Fixation', type:'enum', options:['CEMENTED','CEMENTLESS','HYBRID'] },
+      { key:'intraoperative_fracture', label:'Intra-op fracture?', type:'bool' },
+      { key:'fracture_location', label:'Fracture location', type:'text' },
+    ],
+    CABG: [
+      { key:'number_of_grafts', label:'Number of grafts', type:'number' },
+      { key:'pump_strategy', label:'Pump strategy', type:'enum', options:['ON_PUMP','OFF_PUMP'] },
+      { key:'aortic_cross_clamp_minutes', label:'Cross-clamp time (min)', type:'number' },
+      { key:'cpb_time_minutes', label:'CPB time (min)', type:'number' },
+      { key:'aortic_manipulation', label:'Aortic manipulation?', type:'bool' },
+      { key:'weaning_from_bypass', label:'Weaning from bypass', type:'enum',
+        options:['YES','DIFFICULT','REQUIRED_MECHANICAL_SUPPORT'] },
+    ],
+    SPINAL_FUSION: [
+      { key:'spinal_approach', label:'Approach', type:'enum', options:['ANTERIOR','POSTERIOR','COMBINED','LATERAL'] },
+      { key:'number_of_levels_fused', label:'Levels fused', type:'number' },
+      { key:'spinal_instrumentation', label:'Instrumentation?', type:'bool' },
+      { key:'bone_graft_source', label:'Bone graft source', type:'enum', options:['AUTOGRAFT','ALLOGRAFT','SYNTHETIC','COMBINED'] },
+      { key:'dural_tear', label:'Dural tear?', type:'bool' },
+      { key:'neuromonitoring_used', label:'Neuromonitoring used?', type:'bool' },
+      { key:'neuromonitoring_changes', label:'Significant neuro changes?', type:'bool' },
+    ],
+    HIP_FEMUR_FRACTURE: [
+      { key:'hip_fracture_pattern', label:'Fracture pattern', type:'enum',
+        options:['INTRACAPSULAR','INTERTROCHANTERIC','SUBTROCHANTERIC','FEMORAL_SHAFT'] },
+      { key:'hip_fixation_method', label:'Fixation method', type:'enum',
+        options:['DYNAMIC_HIP_SCREW','INTRAMEDULLARY_NAIL','HEMIARTHROPLASTY','TOTAL_HIP','ORIF_OTHER'] },
+      { key:'time_to_or_hours', label:'Time to OR (hours)', type:'number' },
+      { key:'weight_bearing_status', label:'Weight bearing', type:'enum', options:['FULL','PARTIAL','TOE_TOUCH','NON_WEIGHT_BEARING'] },
+    ],
+    MAJOR_BOWEL: [
+      { key:'bowel_procedure_type', label:'Procedure type', type:'enum',
+        options:['PARTIAL_COLECTOMY','TOTAL_COLECTOMY','SMALL_BOWEL_RESECTION','OTHER'] },
+      { key:'bowel_approach', label:'Approach', type:'enum', options:['OPEN','LAPAROSCOPIC','ROBOTIC'] },
+      { key:'anastomosis_performed', label:'Anastomosis performed?', type:'bool' },
+      { key:'anastomosis_location', label:'Anastomosis location', type:'text' },
+      { key:'ostomy_created', label:'Ostomy created?', type:'bool' },
+      { key:'contamination_class', label:'Contamination class (1–4)', type:'number' },
+    ],
+  };
+
+  // ── Helpers ────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const tierClass = t => ({'TIER_1':'t1','TIER_2':'t2','TIER_3':'t3'})[t] || 't1';
+  function authHeader() {
+    const t = localStorage.getItem(AUTH_TOKEN_KEY) || localStorage.getItem('auth_token') || localStorage.getItem('admin_token') || '';
+    return t ? { 'Authorization': 'Bearer ' + t } : {};
+  }
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ── Field rendering ────────────────────────────────────
+  function fieldHTML(spec, value, origin) {
+    const id = `f-${spec.key}`;
+    const conf = origin ? confidencePill(origin.confidence) : '';
+    const orig = origin ? originTag(origin) : '';
+    const reqClass = spec.required ? 'field required' : 'field';
+    let input;
+    if (spec.type === 'bool') {
+      input = `<select id="${id}">
+        <option value="">— Select —</option>
+        <option value="true"  ${value === true  ? 'selected':''}>Yes</option>
+        <option value="false" ${value === false ? 'selected':''}>No</option>
+      </select>`;
+    } else if (spec.type === 'enum') {
+      input = `<select id="${id}">
+        <option value="">— Select —</option>
+        ${spec.options.map(o => `<option value="${esc(o)}" ${value === o ? 'selected':''}>${esc(o)}</option>`).join('')}
+      </select>`;
+    } else if (spec.type === 'number') {
+      input = `<input type="number" id="${id}" value="${value == null ? '' : esc(value)}" />`;
+    } else {
+      input = `<input type="text" id="${id}" value="${value == null ? '' : esc(value)}" />`;
+    }
+    return `<div class="${reqClass}">
+      <label for="${id}">${esc(spec.label)} ${conf} ${orig}</label>
+      ${input}
+    </div>`;
+  }
+  function confidencePill(c) {
+    if (c == null) return '';
+    if (c >= 0.85) return '<span class="pill high">HIGH</span>';
+    if (c >= 0.65) return '<span class="pill med">MED</span>';
+    return '<span class="pill low">LOW</span>';
+  }
+  function originTag(origin) {
+    if (origin.origin === 'AUTO_POP_PDF') return '<span class="origin-tag">PDF</span>';
+    if (origin.origin === 'AUTO_POP_AIMS') return '<span class="origin-tag">AIMS</span>';
+    return '';
+  }
+
+  function renderForm() {
+    const fields = formState.fields || {};
+    const origins = formState.fieldOrigins || {};
+    $('universal-fields').innerHTML = UNIVERSAL.map(s => fieldHTML(s, fields[s.key], origins[s.key])).join('');
+    $('extended-fields').innerHTML = EXTENDED.map(s => fieldHTML(s, fields[s.key], origins[s.key])).join('');
+    const family = window.__family || 'LEJR';
+    const familyFields = FAMILY_FIELDS[family] || [];
+    $('family-title').textContent = `Procedure-family details — ${family}`;
+    $('family-fields').innerHTML = familyFields.length
+      ? familyFields.map(s => fieldHTML(s, fields[s.key], origins[s.key])).join('')
+      : '<div class="empty" style="grid-column:1/-1;">No family-specific fields configured.</div>';
+
+    [...UNIVERSAL, ...EXTENDED, ...familyFields].forEach(spec => {
+      const el = $(`f-${spec.key}`);
+      if (el) el.addEventListener('input', () => onFieldChange(spec));
+    });
+
+    updateLockButton();
+  }
+
+  function readField(spec) {
+    const el = $(`f-${spec.key}`); if (!el) return undefined;
+    const raw = el.value;
+    if (raw === '') return null;
+    if (spec.type === 'bool')   return raw === 'true' ? true : (raw === 'false' ? false : null);
+    if (spec.type === 'number') return raw === '' ? null : Number(raw);
+    return raw;
+  }
+
+  function collectFormFields() {
+    const family = window.__family || 'LEJR';
+    const all = [...UNIVERSAL, ...EXTENDED, ...(FAMILY_FIELDS[family] || [])];
+    const out = {};
+    for (const spec of all) {
+      const v = readField(spec);
+      if (v !== undefined && v !== null && v !== '') out[spec.key] = v;
+    }
+    return out;
+  }
+
+  function onFieldChange() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(autosave, 350);
+    refreshPreview();
+  }
+
+  function applyViewMode() {
+    staffCtx = getStaffFromClient();
+    const role = staffCtx.role;
+    const st = formState.status || 'NEW';
+    const isNp = role === 'np_pa';
+    const isRn = role === 'rn_coordinator';
+    const isSurgeon = role === 'surgeon';
+
+    const shell = document.body;
+    shell.classList.toggle('readonly-mode', isNp || (isRn && st === 'READY_FOR_SURGEON_REVIEW') || (isSurgeon && st === 'LOCKED'));
+
+    const canRnDraft = isRn && (st === 'NEW' || st === 'IN_PROGRESS' || st === 'REOPENED');
+    const canSurgeonReview = isSurgeon && st === 'READY_FOR_SURGEON_REVIEW';
+
+    const markBtn = $('mark-ready-btn');
+    const recallBtn = $('recall-btn');
+    const lockBtn = $('lock-btn');
+    const reopenBtn = $('reopen-btn');
+
+    markBtn.style.display = (canRnDraft && !isNp) ? 'inline-block' : 'none';
+    recallBtn.style.display = (isRn && st === 'READY_FOR_SURGEON_REVIEW' && !isNp) ? 'inline-block' : 'none';
+    lockBtn.style.display = (!isNp && canSurgeonReview) ? 'inline-block' : 'none';
+    reopenBtn.style.display = (!isNp && st === 'LOCKED') ? 'inline-block' : 'none';
+
+    const missingOk = Array.isArray(lastMissing) && lastMissing.length === 0;
+    markBtn.disabled = !canRnDraft || !missingOk;
+    if (markBtn.disabled && canRnDraft && !missingOk) {
+      markBtn.title = 'Complete all required fields before sending to surgeon';
+    } else { markBtn.title = ''; }
+
+    lockBtn.disabled = !canSurgeonReview || isNp;
+    lockBtn.textContent = 'Lock & switch to post-op';
+
+    const dz = $('dropzone');
+    const pdfIn = $('pdf-input');
+    if (dz) {
+      dz.style.pointerEvents = (isNp || st === 'LOCKED' || (isRn && st === 'READY_FOR_SURGEON_REVIEW') || (isSurgeon && st === 'LOCKED')) ? 'none' : '';
+      dz.style.opacity = (isNp || st === 'LOCKED') ? '0.55' : '';
+    }
+    if (pdfIn) pdfIn.disabled = !!isNp || st === 'LOCKED' || (isRn && st === 'READY_FOR_SURGEON_REVIEW');
+
+    document.querySelectorAll('#universal-fields input, #universal-fields select, #extended-fields input, #extended-fields select, #family-fields input, #family-fields select').forEach(el => {
+      const ro = isNp || st === 'LOCKED'
+        || (isRn && st === 'READY_FOR_SURGEON_REVIEW')
+        || (!isRn && !isSurgeon && st !== 'LOCKED');
+      el.disabled = ro || (!canRnDraft && !canSurgeonReview);
+    });
+  }
+
+  function updateLockButton() {
+    applyViewMode();
+  }
+
+  // ── Server I/O ─────────────────────────────────────────
+  async function fetchForm() {
+    const r = await fetch(`/api/episodes/${encodeURIComponent(patientId)}/intraop-form`, { headers: authHeader() });
+    if (r.status === 404) { showStatusBanner('Patient not found.', 'locked'); return; }
+    const data = await r.json();
+    if (!data.form) {
+      // Initialize an empty form if one doesn't exist.
+      await fetch(`/api/episodes/${encodeURIComponent(patientId)}/intraop-form`, {
+        method:'POST', headers: { 'Content-Type':'application/json', ...authHeader() }, body:'{}',
+      });
+      return fetchForm();
+    }
+    formState = data.form;
+    window.__family = (data.patient && data.patient.anchorProcedureFamily) || 'LEJR';
+    $('patient-meta').textContent = `${patientId} · phase: ${data.patient.phase} · current: ${data.patient.currentTier} · family: ${window.__family}`;
+    $('form-status').textContent = `status: ${formState.status}`;
+    renderForm();
+    renderStatusBanner();
+    refreshPreview();
+    fetchHistory();
+    await autosave();
+    applyViewMode();
+  }
+
+  async function autosave() {
+    if (formState.status === 'LOCKED') return;
+    const fields = collectFormFields();
+    try {
+      const r = await fetch(`/api/episodes/${encodeURIComponent(patientId)}/intraop-form`, {
+        method:'PATCH', headers: { 'Content-Type':'application/json', ...authHeader() },
+        body: JSON.stringify({ fields }),
+      });
+      if (r.status === 409) { toast('Form is locked — autosave disabled.'); return; }
+      const data = await r.json();
+      formState = data.form;
+      if (Array.isArray(data.missing)) lastMissing = data.missing;
+      else lastMissing = [];
+      $('form-status').textContent = `status: ${formState.status}`;
+      renderStatusBanner();
+      updateLockButton();
+    } catch (e) { console.warn('autosave failed', e); }
+  }
+
+  async function refreshPreview() {
+    const fields = collectFormFields();
+    try {
+      const r = await fetch(`/api/episodes/${encodeURIComponent(patientId)}/intraop-form/preview`, {
+        method:'POST', headers: { 'Content-Type':'application/json', ...authHeader() },
+        body: JSON.stringify({ fields }),
+      });
+      if (!r.ok) return;
+      preview = await r.json();
+      $('preview-current').textContent = preview.currentTier;
+      $('preview-current').className = `tier-pill ${tierClass(preview.currentTier)}`;
+      $('preview-proposed').textContent = preview.proposedTier;
+      $('preview-proposed').className = `tier-pill ${tierClass(preview.proposedTier)}`;
+      $('preview-final').textContent = preview.finalTier;
+      $('preview-final').className = `tier-pill ${tierClass(preview.finalTier)}`;
+      const reasons = (preview.reasons || []).filter(r => r.kind !== 'INFO');
+      $('preview-reasons').innerHTML = reasons.length
+        ? `<ul>${reasons.map(r => `<li><strong>${esc(r.kind)}</strong>: ${esc(r.label)}</li>`).join('')}</ul>`
+        : '<div class="empty" style="padding:0;">No risk factors triggered.</div>';
+    } catch (e) { /* ignore */ }
+  }
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`/api/episodes/${encodeURIComponent(patientId)}/intraop-reassessments`, { headers: authHeader() });
+      if (!r.ok) return;
+      const data = await r.json();
+      const items = data.items || [];
+      $('history-list').className = items.length ? '' : 'empty';
+      $('history-list').innerHTML = items.length
+        ? items.map(i => `<div class="history-item">
+            <div class="h-meta">${esc(i.triggeredAt)} · ${esc(i.triggeredBy || '—')}</div>
+            <div>${esc(i.preOrCurrentTier)} → <strong>${esc(i.finalTier)}</strong>
+              ${i.hardUpgradeApplied ? '<span class="pill low">HARD</span>' : ''}
+              ${i.isConservativeDefault ? '<span class="pill med">CONSERVATIVE</span>' : ''}
+            </div>
+          </div>`).join('')
+        : 'No reassessments yet.';
+    } catch (e) {}
+  }
+
+  function renderStatusBanner() {
+    const bar = $('status-bar');
+    const st = formState.status || 'NEW';
+    staffCtx = getStaffFromClient();
+    const role = staffCtx.role;
+    if (role === 'np_pa') {
+      bar.innerHTML = `<div class="card status-banner await-rn"><span>Read-only access (NP/PA). Contact an RN coordinator or surgeon to edit.</span></div>`;
+      return;
+    }
+    if (st === 'LOCKED') {
+      bar.innerHTML = `<div class="card status-banner locked">
+        <span>Form is LOCKED.</span>
+        <span>Locked at ${esc(formState.surgeonLockedAt || '—')} by ${esc(formState.surgeonLockedBy || '—')}</span>
+      </div>`;
+      return;
+    }
+    if (st === 'REOPENED') {
+      bar.innerHTML = `<div class="card status-banner reopened">Form was REOPENED — RN may continue the draft; locking again will fire a new reassessment.</div>`;
+      return;
+    }
+    if (st === 'READY_FOR_SURGEON_REVIEW') {
+      if (role === 'rn_coordinator') {
+        const t = formState.draftCompletedAt || '—';
+        bar.innerHTML = `<div class="card status-banner await-surg">
+          <span><strong>Awaiting surgeon review.</strong> Sent ${esc(t)}${formState.draftCompletedBy ? ` by ${esc(formState.draftCompletedBy)}` : ''}.</span>
+          <span>Use <em>Recall draft</em> below if you need to make changes.</span>
+        </div>`;
+        return;
+      }
+      if (role === 'surgeon') {
+        const who = formState.draftCompletedBy || 'RN';
+        const t = formState.draftCompletedAt || '—';
+        bar.innerHTML = `<div class="card status-banner await-rn">
+          <span><strong>Drafted by ${esc(who)}</strong> on ${esc(t)}. Review, edit if needed, then lock.</span>
+        </div>`;
+        return;
+      }
+    }
+    if ((st === 'IN_PROGRESS' || st === 'NEW') && role === 'rn_coordinator') {
+      bar.innerHTML = `<div class="card status-banner ready">Draft mode — complete all required fields, then send to surgeon for review.</div>`;
+      return;
+    }
+    if ((st === 'IN_PROGRESS' || st === 'NEW') && role === 'surgeon') {
+      bar.innerHTML = `<div class="card status-banner await-rn"><span>This draft is owned by the RN coordinator until it is marked ready for review.</span></div>`;
+      return;
+    }
+    bar.innerHTML = '';
+  }
+
+  // ── PDF upload ─────────────────────────────────────────
+  function setupDropzone() {
+    const dz = $('dropzone');
+    const input = $('pdf-input');
+    dz.addEventListener('click', () => input.click());
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault(); dz.classList.remove('dragover');
+      if (e.dataTransfer.files.length) uploadPdf(e.dataTransfer.files[0]);
+    });
+    input.addEventListener('change', () => { if (input.files.length) uploadPdf(input.files[0]); });
+  }
+
+  async function uploadPdf(file) {
+    if (file.size > 25 * 1024 * 1024) { toast('PDF exceeds 25 MB limit.'); return; }
+    $('extraction-panel').innerHTML = `<div class="spinner"></div><span>Uploading…</span>`;
+    const fd = new FormData(); fd.append('file', file);
+    const r = await fetch(`/api/episodes/${encodeURIComponent(patientId)}/intraop-form/pdf`, {
+      method:'POST', headers: { ...authHeader() }, body: fd,
+    });
+    if (!r.ok) { $('extraction-panel').innerHTML = `<span style="color:var(--danger);">Upload failed (${r.status}).</span>`; return; }
+    const data = await r.json();
+    pollExtraction(data.extractionId);
+  }
+
+  async function pollExtraction(id) {
+    $('extraction-panel').innerHTML = `<div class="spinner"></div><span>Extracting fields…</span>`;
+    for (let i = 0; i < 30; i++) {
+      await new Promise(res => setTimeout(res, 1000));
+      const r = await fetch(`/api/intraop-extractions/${id}`, { headers: authHeader() });
+      if (!r.ok) continue;
+      const d = await r.json();
+      if (d.status === 'COMPLETE') {
+        $('extraction-panel').innerHTML = `<span style="color:var(--success);">Extraction complete.</span>`;
+        renderDiffs(d);
+        await fetchForm();
+        return;
+      }
+      if (d.status === 'FAILED') {
+        $('extraction-panel').innerHTML = `<span style="color:var(--danger);">Extraction failed: ${esc(d.errorMessage || 'unknown')}.</span>`;
+        return;
+      }
+    }
+    $('extraction-panel').innerHTML = `<span style="color:var(--warning);">Extraction timed out.</span>`;
+  }
+
+  function renderDiffs(d) {
+    const warnings = d.warnings || [];
+    if (!warnings.length) { $('diff-panel').innerHTML = ''; return; }
+    $('diff-panel').innerHTML = `<div class="card" style="margin-top:8px; background:var(--gray-50);">
+      <strong style="font-size:.85rem;">Notes from extraction:</strong>
+      <ul style="font-size:.82rem; color:var(--gray-600); margin-top:6px; padding-left:18px;">
+        ${warnings.map(w => `<li>${esc(w)}</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+
+  // ── Lock / reopen / RN handoff ─────────────────────────
+  $('lock-btn').addEventListener('click', () => $('lock-modal').classList.add('show'));
+  $('lock-cancel').addEventListener('click', () => $('lock-modal').classList.remove('show'));
+  $('lock-confirm').addEventListener('click', async () => {
+    $('lock-modal').classList.remove('show');
+    await autosave();
+    const r = await fetch(`/api/episodes/${encodeURIComponent(patientId)}/intraop-form/lock`, {
+      method:'POST', headers: { 'Content-Type':'application/json', ...authHeader() },
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = typeof d.detail === 'string' ? d.detail : (d.detail ? JSON.stringify(d.detail) : String(r.status));
+      toast(`Lock failed: ${esc(msg)}`); return;
+    }
+    toast(`Locked. Final tier: ${d.reassessment.final_tier}.`);
+    await fetchForm();
+  });
+
+  $('mark-ready-btn').addEventListener('click', async () => {
+    await autosave();
+    const r = await fetch(`/api/episodes/${encodeURIComponent(patientId)}/intraop-form/mark-ready-for-review`, {
+      method:'POST', headers: { ...authHeader() },
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail || {});
+      toast(`Could not mark ready: ${msg}`); return;
+    }
+    toast('Sent to surgeon for review.');
+    await fetchForm();
+  });
+
+  $('recall-btn').addEventListener('click', async () => {
+    if (!confirm('Recall this draft for editing? The surgeon will no longer see it in their review queue until you resubmit.')) return;
+    const r = await fetch(`/api/episodes/${encodeURIComponent(patientId)}/intraop-form/recall`, {
+      method:'POST', headers: { ...authHeader() },
+    });
+    if (!r.ok) { toast(`Recall failed (${r.status}).`); return; }
+    toast('Draft recalled.');
+    await fetchForm();
+  });
+
+  $('reopen-btn').addEventListener('click', () => {
+    $('reopen-token').value = '';
+    staffCtx = getStaffFromClient();
+    const locker = (formState.surgeonLockedBy || '').toLowerCase();
+    const me = (staffCtx.email || '').toLowerCase();
+    const showSess = staffCtx.role === 'surgeon' && locker && locker === me;
+    $('reopen-session-btn').style.display = showSess ? 'inline-block' : 'none';
+    $('reopen-modal').classList.add('show');
+  });
+  $('reopen-cancel').addEventListener('click', () => $('reopen-modal').classList.remove('show'));
+  $('reopen-session-btn').addEventListener('click', async () => {
+    $('reopen-modal').classList.remove('show');
+    const r = await fetch(`/api/episodes/${encodeURIComponent(patientId)}/intraop-form/reopen`, {
+      method:'POST', headers: { 'Content-Type':'application/json', ...authHeader() },
+    });
+    if (!r.ok) { toast(`Reopen failed (${r.status}).`); return; }
+    toast('Form reopened.'); await fetchForm();
+  });
+  $('reopen-confirm').addEventListener('click', async () => {
+    const token = $('reopen-token').value.trim();
+    if (!token) { toast('Admin token required for this path.'); return; }
+    $('reopen-modal').classList.remove('show');
+    const r = await fetch(`/api/episodes/${encodeURIComponent(patientId)}/intraop-form/reopen`, {
+      method:'POST', headers: { 'Content-Type':'application/json', 'X-Admin-Token': token },
+    });
+    if (!r.ok) { toast(`Reopen failed (${r.status}).`); return; }
+    toast('Form reopened.'); await fetchForm();
+  });
+
+  function showStatusBanner(msg, kind) {
+    $('status-bar').innerHTML = `<div class="card status-banner ${kind}">${esc(msg)}</div>`;
+  }
+
+  // ── Boot ───────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    setupDropzone();
+    fetchForm();
+  });
+})();
+</script>
+</body>
+</html>

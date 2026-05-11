@@ -69,6 +69,8 @@ class DoctorProfileOut(BaseModel):
     clinic_code: str
     health_system_code: str = ""
     tenant_slug: Optional[str] = None
+    is_team_director: bool = False
+    role: Optional[str] = None
 
 
 def _hash_password(password: str) -> str:
@@ -104,7 +106,13 @@ def _load_users() -> dict:
             pass
     for key, u in data.items():
         if isinstance(u, dict):
-            u.setdefault("role", "doctor")
+            u.setdefault("role", "surgeon")
+            # Migrate legacy role tokens in-place so persisted records stay current.
+            legacy = (u.get("role") or "").strip().lower()
+            if legacy == "doctor" or legacy == "director":
+                u["role"] = "surgeon"
+            elif legacy == "nurse":
+                u["role"] = "rn_coordinator"
             u.setdefault("office_phone", None)
             u.setdefault("doctor_type", None)
             u.setdefault("hospital_affiliations", None)
@@ -134,8 +142,8 @@ def _persist_users() -> None:
     _save_users(_get_users())
 
 
-def register_user(email: str, password: str, name: Optional[str] = None, role: str = "doctor") -> dict:
-    """Create user. Raises ValueError if email exists. Default role is doctor for sign-up flow."""
+def register_user(email: str, password: str, name: Optional[str] = None, role: str = "surgeon") -> dict:
+    """Create user. Raises ValueError if email exists. Default role is `surgeon` (pass-4 taxonomy)."""
     users = _get_users()
     key = email.lower().strip()
     if key in users:
@@ -201,10 +209,17 @@ def create_access_token(email: str) -> str:
 
 
 def get_doctor_profile(email: str) -> Optional[dict]:
-    """Return doctor profile for email, or None if not a doctor or not onboarded."""
+    """Return surgeon profile for email, or None if not a surgeon or not onboarded.
+
+    The legacy `doctor` token is treated as `surgeon` so users created before
+    the pass-4 role migration retain access without re-registering.
+    """
     users = _get_users()
     key = email.lower().strip()
-    if key not in users or users[key].get("role") != "doctor":
+    if key not in users:
+        return None
+    role = (users[key].get("role") or "").strip().lower()
+    if role not in ("surgeon", "doctor"):
         return None
     u = users[key]
     clinic_code = u.get("clinic_code")
@@ -233,8 +248,9 @@ def set_doctor_profile(
     key = email.lower().strip()
     if key not in users:
         raise ValueError("User not found")
-    if users[key].get("role") != "doctor":
-        raise ValueError("User is not a doctor")
+    role = (users[key].get("role") or "").strip().lower()
+    if role not in ("surgeon", "doctor"):
+        raise ValueError("User is not a surgeon")
     u = users[key]
     u["name"] = (name or "").strip() or None
     u["office_phone"] = (office_phone or "").strip() or None

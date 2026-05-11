@@ -166,6 +166,239 @@
         </div>
       </div>
 
+      <!-- ─── Post-Op Recovery Tracking (PRD §13) ────────────────────── -->
+      <!-- Hidden until /api/episodes/{id}/postop confirms phase==post_op
+           and a discharge_at is on file. Never displays tier/score values. -->
+      <div class="postop-card" id="postopCard" style="display:none;">
+        <div class="postop-card-header">
+          <h2 class="postop-card-title">Your Recovery Tracking</h2>
+          <p class="postop-card-sub">Quick daily check-ins help your care team stay close to your recovery.</p>
+        </div>
+
+        <div class="postop-grid">
+          <!-- Daily check-in -->
+          <button type="button" class="postop-tile" id="postopCheckinTile">
+            <span class="postop-tile-icon">📝</span>
+            <span class="postop-tile-text">
+              <span class="postop-tile-title">Daily check-in</span>
+              <span class="postop-tile-sub" id="postopCheckinSub">Takes about 1 minute</span>
+            </span>
+            <span class="postop-tile-arrow">→</span>
+          </button>
+
+          <!-- Day-X survey (D7 / D14 / D30) -->
+          <button type="button" class="postop-tile" id="postopSurveyTile" style="display:none;">
+            <span class="postop-tile-icon">🩺</span>
+            <span class="postop-tile-text">
+              <span class="postop-tile-title" id="postopSurveyTitle">Day 7 recovery survey</span>
+              <span class="postop-tile-sub">A few extra questions about how you're doing</span>
+            </span>
+            <span class="postop-tile-arrow">→</span>
+          </button>
+
+          <!-- Med adherence -->
+          <button type="button" class="postop-tile" id="postopMedTile">
+            <span class="postop-tile-icon">💊</span>
+            <span class="postop-tile-text">
+              <span class="postop-tile-title">Did you take your medications today?</span>
+              <span class="postop-tile-sub" id="postopMedSub">Tap when you're ready</span>
+            </span>
+            <span class="postop-tile-arrow">→</span>
+          </button>
+
+          <!-- Post-op videos -->
+          <button type="button" class="postop-tile" id="postopVideosTile">
+            <span class="postop-tile-icon">🎥</span>
+            <span class="postop-tile-text">
+              <span class="postop-tile-title">Recovery videos</span>
+              <span class="postop-tile-sub">Diagnosis, treatment, and red-flag symptoms</span>
+            </span>
+            <span class="postop-tile-arrow">→</span>
+          </button>
+
+          <!-- Patient self-flag -->
+          <button type="button" class="postop-tile postop-tile-flag" id="postopSelfFlagTile">
+            <span class="postop-tile-icon">🚨</span>
+            <span class="postop-tile-text">
+              <span class="postop-tile-title">Something doesn't feel right</span>
+              <span class="postop-tile-sub">Tap to alert your care team</span>
+            </span>
+            <span class="postop-tile-arrow">→</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Daily check-in overlay -->
+      <div class="postop-overlay" id="overlay-postop-checkin" aria-hidden="true">
+        <div class="postop-overlay-inner">
+          <header class="postop-overlay-header">
+            <button type="button" class="postop-overlay-back" id="postopCheckinClose">← Back</button>
+            <h2 class="postop-overlay-title">Daily check-in</h2>
+          </header>
+          <form id="postopCheckinForm" class="postop-form">
+            <div class="postop-form-section">
+              <label class="postop-form-label" for="checkinPainNrs">
+                On a 0–10 scale, what is your pain right now?
+              </label>
+              <input type="range" min="0" max="10" value="2" id="checkinPainNrs" class="postop-slider" />
+              <span id="checkinPainNrsValue" class="postop-slider-value">2</span>
+            </div>
+            <div class="postop-form-section">
+              <p class="postop-form-label">How is your pain compared to yesterday?</p>
+              <div class="postop-pill-group" data-field="pain_trajectory">
+                <button type="button" class="postop-pill" data-value="BETTER">Better</button>
+                <button type="button" class="postop-pill" data-value="SAME">Same</button>
+                <button type="button" class="postop-pill" data-value="WORSE">Worse</button>
+              </div>
+            </div>
+            <div class="postop-form-section">
+              <p class="postop-form-label">Did you have a fever today?</p>
+              <div class="postop-pill-group" data-field="fever">
+                <button type="button" class="postop-pill" data-value="NO">No</button>
+                <button type="button" class="postop-pill" data-value="YES_FELT">Felt warm</button>
+                <button type="button" class="postop-pill" data-value="YES_MEASURED">Measured ≥100.4°F</button>
+              </div>
+            </div>
+            <div class="postop-form-section">
+              <p class="postop-form-label">How does your incision look today?</p>
+              <div class="postop-pill-group" data-field="incision_change">
+                <button type="button" class="postop-pill" data-value="BETTER">Better</button>
+                <button type="button" class="postop-pill" data-value="SAME">Same</button>
+                <button type="button" class="postop-pill" data-value="WORSE">Worse</button>
+              </div>
+              <p class="postop-form-help">Tap any that apply:</p>
+              <div class="postop-chip-group" data-field="incision_flags">
+                <button type="button" class="postop-chip" data-value="NEW_REDNESS_SPREADING">New redness spreading</button>
+                <button type="button" class="postop-chip" data-value="NEW_DRAINAGE">New drainage</button>
+                <button type="button" class="postop-chip" data-value="OPENING_OR_GAPING">Opening / gaping</button>
+                <button type="button" class="postop-chip" data-value="BAD_SMELL">Bad smell</button>
+                <button type="button" class="postop-chip" data-value="INCREASED_PAIN_AT_INCISION">Pain at incision</button>
+              </div>
+            </div>
+            <div class="postop-form-section">
+              <p class="postop-form-label">Any nausea today?</p>
+              <div class="postop-pill-group" data-field="nausea">
+                <button type="button" class="postop-pill" data-value="NONE">None</button>
+                <button type="button" class="postop-pill" data-value="MILD">Mild</button>
+                <button type="button" class="postop-pill" data-value="MODERATE">Moderate</button>
+                <button type="button" class="postop-pill" data-value="SEVERE">Severe</button>
+              </div>
+            </div>
+            <div class="postop-form-section">
+              <p class="postop-form-label">Are you eating and drinking?</p>
+              <div class="postop-pill-group" data-field="eating_drinking">
+                <button type="button" class="postop-pill" data-value="YES">Yes</button>
+                <button type="button" class="postop-pill" data-value="SOME">Some</button>
+                <button type="button" class="postop-pill" data-value="ALMOST_NOTHING">Almost nothing</button>
+              </div>
+            </div>
+            <div class="postop-form-section">
+              <p class="postop-form-label">
+                Any of these red-flag symptoms? Tap any that apply
+                (or leave empty if none):
+              </p>
+              <div class="postop-chip-group" data-field="red_flag_symptoms">
+                <button type="button" class="postop-chip" data-value="CHEST_PAIN">Chest pain</button>
+                <button type="button" class="postop-chip" data-value="SUDDEN_TROUBLE_BREATHING">Trouble breathing</button>
+                <button type="button" class="postop-chip" data-value="SUDDEN_WEAKNESS_ONE_SIDE">Sudden weakness on one side</button>
+                <button type="button" class="postop-chip" data-value="SEVERE_OR_NEW_BLEEDING">Severe / new bleeding</button>
+                <button type="button" class="postop-chip" data-value="CONFUSION_MENTAL_CHANGE">Confusion or mental change</button>
+                <button type="button" class="postop-chip" data-value="CALF_SWELLING_OR_PAIN">Calf swelling or pain</button>
+                <button type="button" class="postop-chip" data-value="SEVERE_HEADACHE">Severe headache</button>
+                <button type="button" class="postop-chip" data-value="FAINTING_OR_NEAR_FAINTING">Fainting</button>
+              </div>
+            </div>
+            <div class="postop-form-section">
+              <p class="postop-form-label">Were you able to walk today?</p>
+              <div class="postop-pill-group" data-field="walking">
+                <button type="button" class="postop-pill" data-value="YES">Yes</button>
+                <button type="button" class="postop-pill" data-value="SOME">A little</button>
+                <button type="button" class="postop-pill" data-value="NO">No</button>
+              </div>
+            </div>
+            <div class="postop-form-section">
+              <p class="postop-form-label">How worried do you feel about your recovery today?</p>
+              <div class="postop-pill-group" data-field="worry_level">
+                <button type="button" class="postop-pill" data-value="NOT_AT_ALL">Not at all</button>
+                <button type="button" class="postop-pill" data-value="A_LITTLE">A little</button>
+                <button type="button" class="postop-pill" data-value="MODERATELY">Moderately</button>
+                <button type="button" class="postop-pill" data-value="VERY">Very</button>
+                <button type="button" class="postop-pill" data-value="EXTREMELY">Extremely</button>
+              </div>
+            </div>
+            <div class="postop-form-section">
+              <label class="postop-form-label" for="checkinFreeText">
+                Anything else (optional)
+              </label>
+              <textarea id="checkinFreeText" rows="3" class="postop-textarea"></textarea>
+            </div>
+            <button type="submit" class="postop-submit-btn" id="postopCheckinSubmit">
+              Submit check-in
+            </button>
+            <p class="postop-form-status" id="postopCheckinStatus" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+
+      <!-- D-X survey overlay (collapsed body — sections render dynamically) -->
+      <div class="postop-overlay" id="overlay-postop-survey" aria-hidden="true">
+        <div class="postop-overlay-inner">
+          <header class="postop-overlay-header">
+            <button type="button" class="postop-overlay-back" id="postopSurveyClose">← Back</button>
+            <h2 class="postop-overlay-title" id="postopSurveyOverlayTitle">Day 7 recovery survey</h2>
+          </header>
+          <div id="postopSurveyContainer" class="postop-form">
+            <p class="postop-form-help">A short check-in to help your care team see how you're doing.</p>
+            <div id="postopSurveySections"></div>
+            <button type="button" class="postop-submit-btn" id="postopSurveySubmit">Submit survey</button>
+            <p class="postop-form-status" id="postopSurveyStatus" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Self-flag overlay -->
+      <div class="postop-overlay" id="overlay-postop-self-flag" aria-hidden="true">
+        <div class="postop-overlay-inner">
+          <header class="postop-overlay-header">
+            <button type="button" class="postop-overlay-back" id="postopSelfFlagClose">← Back</button>
+            <h2 class="postop-overlay-title">Something doesn't feel right</h2>
+          </header>
+          <div class="postop-form">
+            <p class="postop-form-help">
+              Tapping below alerts your care team that you'd like a clinician to reach out.
+              You can add a brief note if it helps explain what's bothering you.
+            </p>
+            <textarea id="selfFlagFreeText" rows="3" class="postop-textarea" placeholder="Optional note for your care team"></textarea>
+            <button type="button" class="postop-submit-btn postop-submit-flag" id="postopSelfFlagSubmit">
+              Alert my care team
+            </button>
+            <p class="postop-form-status" id="postopSelfFlagStatus" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Med adherence overlay -->
+      <div class="postop-overlay" id="overlay-postop-med" aria-hidden="true">
+        <div class="postop-overlay-inner">
+          <header class="postop-overlay-header">
+            <button type="button" class="postop-overlay-back" id="postopMedClose">← Back</button>
+            <h2 class="postop-overlay-title">Today's medications</h2>
+          </header>
+          <div class="postop-form">
+            <p class="postop-form-help">
+              A quick tap helps your care team see how you're following the plan.
+            </p>
+            <div class="postop-pill-group postop-pill-group-stacked" data-field="med_adherence_response">
+              <button type="button" class="postop-pill" data-value="YES">Yes — took everything</button>
+              <button type="button" class="postop-pill" data-value="PARTIAL">Partial — missed some doses</button>
+              <button type="button" class="postop-pill" data-value="NO">No — didn't take any</button>
+              <button type="button" class="postop-pill" data-value="REPLY_LATER">Remind me later</button>
+            </div>
+            <p class="postop-form-status" id="postopMedStatus" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+
       <!-- Footer -->
       <div class="questions-footer">
         <div class="questions-content">
@@ -279,5 +512,6 @@
   </div>
 
   <script src="/static/app.js"></script>
+  <script src="/static/postop.js"></script>
 </body>
 </html>

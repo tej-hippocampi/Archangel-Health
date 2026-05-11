@@ -254,6 +254,23 @@
     .badge-yellow { background: #fef3c7; color: #92400e; }
     .badge-gray   { background: var(--gray-100); color: var(--gray-600); }
 
+    /* Triage Suite Pass 3 §4.4 — three-tier chain */
+    .tier-chain {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.02em;
+    }
+    .tier-chain .tier-chip {
+      padding: 2px 6px; border-radius: 999px;
+      border: 1px solid var(--gray-200); background: var(--gray-50);
+      color: var(--gray-600);
+    }
+    .tier-chain .tier-chip.tier-t1 { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .tier-chain .tier-chip.tier-t2 { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .tier-chain .tier-chip.tier-t3 { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .tier-chain .tier-chip.tier-empty { color: var(--gray-400); font-style: italic; }
+    .tier-chain .tier-arrow { color: var(--gray-400); font-size: 0.7rem; }
+    .tier-chain .tier-arrow.changed { color: #b45309; font-weight: 800; }
+
     .empty-table {
       padding: 32px; text-align: center;
       font-size: 0.85rem; color: var(--gray-400);
@@ -394,6 +411,11 @@
         </button>
         <button class="nav-item" data-tab="intake-section-prompts">
           <span class="icon">📝</span> Intake Interview Prompts
+        </button>
+
+        <div class="nav-label">Triage</div>
+        <button class="nav-item" data-tab="triage-logic">
+          <span class="icon">🩺</span> Triage Logic
         </button>
       </nav>
 
@@ -606,6 +628,167 @@
         </div>
       </div>
 
+      <!-- Triage Logic Tab -->
+      <div class="tab-page" id="tab-triage-logic">
+        <div class="page-header">
+          <div>
+            <h2>Triage Logic</h2>
+            <p>Read-only view of the deterministic risk-tiering algorithms</p>
+          </div>
+        </div>
+        <div class="stats-body" style="max-width:1080px;">
+
+          <div class="data-section" id="triage-initial-tier-section">
+            <div class="data-section-header" style="display:flex;align-items:center;justify-content:space-between;">
+              <h3>Pre-Op Initial Tier</h3>
+              <span id="triageModelVersion" style="font-family:monospace;font-size:0.78rem;color:var(--gray-500);">—</span>
+            </div>
+            <p style="font-size:0.88rem;color:var(--gray-500);margin:6px 0 12px;">
+              Computed at patient upload from chart data. Two-stage decision:
+              any <strong>hard escalator</strong> short-circuits to TIER_3;
+              otherwise <strong>procedure base risk</strong> + Σ <strong>weighted soft factors</strong> → tier.
+            </p>
+
+            <!-- Score → Tier thresholds -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:18px 0 8px;">Score → Tier mapping</h4>
+            <div id="triageScoreThresholds"><div class="empty-table">Loading…</div></div>
+
+            <!-- Hard escalators -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Hard escalators (any one ⇒ TIER_3)</h4>
+            <div id="triageHardEscalators"><div class="empty-table">Loading…</div></div>
+
+            <!-- Procedure base -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Procedure base risk</h4>
+            <div id="triageProcedureBase"><div class="empty-table">Loading…</div></div>
+
+            <!-- Soft weights -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Soft-factor weights</h4>
+            <div id="triageSoftWeights"><div class="empty-table">Loading…</div></div>
+
+            <!-- Lab thresholds -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Lab thresholds</h4>
+            <div id="triageLabThresholds"><div class="empty-table">Loading…</div></div>
+
+          </div>
+
+          <div class="data-section" id="triage-preop-retier-section" style="margin-top:24px;">
+            <div class="data-section-header" style="display:flex;align-items:center;justify-content:space-between;">
+              <h3>Pre-Op Re-Tier Logic</h3>
+              <span id="retierModelVersion" style="font-family:monospace;font-size:0.78rem;color:var(--gray-500);">—</span>
+            </div>
+            <p style="font-size:0.88rem;color:var(--gray-500);margin:6px 0 12px;">
+              Recomputes <code>Episode.tier</code> from <code>initialTier</code> + the five pre-op signal
+              sources (intake completion + disclosures, PAM activation, T-96/T-48/T-24 surveys,
+              video views, battle-card views). Idempotent — every call rebuilds from scratch.
+              <strong>Re-tier hard escalators</strong> short-circuit to TIER_3; otherwise a signed
+              <strong>soft delta</strong> is mapped to a tier change with a <strong>sticky-hard guard</strong>.
+            </p>
+
+            <!-- Delta → Tier mapping -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:18px 0 8px;">Delta → Tier mapping</h4>
+            <div id="retierDeltaMapping"><div class="empty-table">Loading…</div></div>
+
+            <!-- Hard escalators -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Re-tier hard escalators (any one ⇒ TIER_3)</h4>
+            <div id="retierHardEscalators"><div class="empty-table">Loading…</div></div>
+
+            <!-- Soft contributors -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Soft contributor weights</h4>
+            <div id="retierSoftWeights"><div class="empty-table">Loading…</div></div>
+
+            <!-- Combination rules -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Combination rules</h4>
+            <div id="retierCombinationRules"><div class="empty-table">Loading…</div></div>
+
+            <!-- PAM cutoffs -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">PAM proxy activation cutoffs</h4>
+            <div id="retierPamCutoffs"><div class="empty-table">Loading…</div></div>
+
+            <!-- Cadence + engagement event policies -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Cadence &amp; engagement policies</h4>
+            <div id="retierPolicies"><div class="empty-table">Loading…</div></div>
+
+          </div>
+
+          <div class="data-section" id="triage-intraop-section" style="margin-top:24px;">
+            <div class="data-section-header" style="display:flex;align-items:center;justify-content:space-between;">
+              <h3>Intra-Op Reassessment Logic</h3>
+              <span id="intraopModelVersion" style="font-family:monospace;font-size:0.78rem;color:var(--gray-500);">—</span>
+            </div>
+            <p style="font-size:0.88rem;color:var(--gray-500);margin:6px 0 12px;">
+              <strong>Upward-only</strong> reassessment fired on the surgeon's intra-op form lock
+              (or the conservative-default cron if no lock arrives within 24 h of OR end).
+              <strong>Hard upgrades</strong> short-circuit to TIER_3; <strong>soft upgrades</strong>
+              add one tier step each, with two or more aggregating to TIER_3. The final tier is
+              the higher of (current tier, proposed tier) — most-conservative wins.
+            </p>
+
+            <!-- Hard upgrades -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:18px 0 8px;">Hard upgrades (any one ⇒ TIER_3)</h4>
+            <div id="intraopHardUpgrades"><div class="empty-table">Loading…</div></div>
+
+            <!-- Soft thresholds -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Soft contributor thresholds</h4>
+            <div id="intraopSoftThresholds"><div class="empty-table">Loading…</div></div>
+
+            <!-- Procedure P90s -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Per-family OR-time benchmarks (P90 minutes)</h4>
+            <div id="intraopProcedureP90"><div class="empty-table">Loading…</div></div>
+
+            <!-- Combination rules -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Combination rules</h4>
+            <div id="intraopCombinationRules"><div class="empty-table">Loading…</div></div>
+
+            <!-- Conservative default -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Conservative-default policy</h4>
+            <div id="intraopConservativeDefault"><div class="empty-table">Loading…</div></div>
+
+            <!-- Extraction config -->
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">PDF extraction tuning</h4>
+            <div id="intraopExtraction"><div class="empty-table">Loading…</div></div>
+          </div>
+
+          <!-- ───────────────── Post-Op Re-Tier Logic ─────────────────── -->
+          <div class="data-section" id="triage-postop-section" style="margin-top:24px;">
+            <div class="data-section-header" style="display:flex;align-items:center;justify-content:space-between;">
+              <h3>Post-Op Re-Tier Logic</h3>
+              <span id="postopModelVersion" style="font-family:monospace;font-size:0.78rem;color:var(--gray-500);">—</span>
+            </div>
+            <p style="font-size:0.88rem;color:var(--gray-500);margin:6px 0 12px;">
+              <strong>Upward-only</strong> re-tiering for the post-discharge episode. Floor is
+              <code>post_intraop_tier</code> snapshotted at OR-end lock. Hard escalators short-circuit
+              to TIER_3; positive contributors form an unsigned soft delta capped at <code>+12</code>,
+              mapped to tier steps. Wound-photo signals are intentionally excluded (v1).
+            </p>
+
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:18px 0 8px;">Hard escalators (any one ⇒ TIER_3)</h4>
+            <div id="postopHardEscalators"><div class="empty-table">Loading…</div></div>
+
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Positive contributor weights</h4>
+            <div id="postopPositiveWeights"><div class="empty-table">Loading…</div></div>
+
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Engagement audit flags (logged-only, weight 0)</h4>
+            <div id="postopAuditFlags"><div class="empty-table">Loading…</div></div>
+
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Delta cap & tier thresholds</h4>
+            <div id="postopDeltaThresholds"><div class="empty-table">Loading…</div></div>
+
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Daily check-in / Day-X survey / Med adherence / Video</h4>
+            <div id="postopScoringConfig"><div class="empty-table">Loading…</div></div>
+
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Lost-contact thresholds</h4>
+            <div id="postopLostContact"><div class="empty-table">Loading…</div></div>
+
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Cron cadence</h4>
+            <div id="postopCronCadence"><div class="empty-table">Loading…</div></div>
+
+            <h4 style="font-size:0.95rem;font-weight:600;color:var(--gray-700);margin:24px 0 8px;">Combination rules</h4>
+            <div id="postopCombinationRules"><div class="empty-table">Loading…</div></div>
+          </div>
+
+        </div>
+      </div>
+
     </div><!-- /main-content -->
   </div><!-- /shell -->
 </div><!-- /app -->
@@ -620,6 +803,7 @@
   let intakeFrameworks = {};
   let intakeSectionPrompts = {};
   let sectionPromptsLoaded = false;
+  let triageLogicLoaded = false;
 
   function authHeaders() {
     return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` };
@@ -734,6 +918,9 @@
       if (btn.dataset.tab === 'health-systems') {
         loadHealthSystems();
       }
+      if (btn.dataset.tab === 'triage-logic' && !triageLogicLoaded) {
+        loadTriageLogic();
+      }
     });
   });
 
@@ -769,6 +956,7 @@
             <tr>
               <th>Patient</th>
               <th>Procedure</th>
+              <th>Tier chain</th>
               <th>Status</th>
               <th>ID</th>
             </tr>
@@ -778,12 +966,45 @@
               <tr>
                 <td><strong>${esc(p.name)}</strong></td>
                 <td>${esc(p.procedure)}</td>
+                <td>${tierChainHtml(p)}</td>
                 <td><span class="badge ${statusBadge(p.status)}">${esc(p.status)}</span></td>
                 <td style="font-family:monospace;font-size:0.78rem;color:var(--gray-400)">${esc(p.id)}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>`;
+    }
+
+    // Triage Suite Pass 3 §4.4 — three-tier chain (T@upload → T@intake → Now).
+    // The label "—" is rendered when a stage hasn't yet stamped a tier.
+    function tierChipClass(tier) {
+      if (tier === "TIER_3") return "tier-t3";
+      if (tier === "TIER_2") return "tier-t2";
+      if (tier === "TIER_1") return "tier-t1";
+      return "tier-empty";
+    }
+    function tierChipLabel(tier) {
+      if (tier === "TIER_3") return "T3";
+      if (tier === "TIER_2") return "T2";
+      if (tier === "TIER_1") return "T1";
+      return "—";
+    }
+    function tierChainHtml(p) {
+      const initial = p.initialTier || null;
+      const intake  = p.postIntakeTier || null;
+      const current = p.currentTier || null;
+      if (!initial && !intake && !current) return '<span style="color:var(--gray-400);font-size:0.85em;">—</span>';
+      const intakeChanged  = initial && intake && initial !== intake;
+      const currentChanged = intake && current && intake !== current;
+      return `
+        <div class="tier-chain" title="Initial → Post-intake → Now">
+          <span class="tier-chip ${tierChipClass(initial)}">${esc(tierChipLabel(initial))}</span>
+          <span class="tier-arrow ${intakeChanged ? 'changed' : ''}">→</span>
+          <span class="tier-chip ${tierChipClass(intake)}">${esc(tierChipLabel(intake))}</span>
+          <span class="tier-arrow ${currentChanged ? 'changed' : ''}">→</span>
+          <span class="tier-chip ${tierChipClass(current)}">${esc(tierChipLabel(current))}</span>
+        </div>
+      `;
     }
 
     // Users table
@@ -1074,6 +1295,610 @@
       status.textContent = e.message;
     }
   });
+
+  // ── Triage Logic ──────────────────────────────────────────────
+  async function loadTriageLogic() {
+    const initialPromise = fetch('/admin/triage/initial-tier/config', { headers: authHeaders() });
+    const retierPromise  = fetch('/admin/triage/preop-retier/config',  { headers: authHeaders() });
+    const intraopPromise = fetch('/admin/triage/intraop/config',       { headers: authHeaders() });
+    const postopPromise  = fetch('/admin/triage/postop/config',        { headers: authHeaders() });
+    const [initialRes, retierRes, intraopRes, postopRes] = await Promise.allSettled([
+      initialPromise, retierPromise, intraopPromise, postopPromise,
+    ]);
+
+    // Auth: if any signaled 401, force re-login.
+    for (const r of [initialRes, retierRes, intraopRes, postopRes]) {
+      if (r.status === 'fulfilled' && r.value.status === 401) {
+        localStorage.removeItem('admin_token');
+        location.reload();
+        return;
+      }
+    }
+
+    // Initial tier
+    if (initialRes.status === 'fulfilled' && initialRes.value.ok) {
+      try {
+        renderTriageLogic(await initialRes.value.json());
+      } catch (_e) {
+        document.getElementById('triage-initial-tier-section').innerHTML =
+          '<div class="empty-table">Could not parse initial-tier config.</div>';
+      }
+    } else {
+      document.getElementById('triage-initial-tier-section').innerHTML =
+        '<div class="empty-table">Could not load initial-tier config.</div>';
+    }
+
+    // Re-tier
+    if (retierRes.status === 'fulfilled' && retierRes.value.ok) {
+      try {
+        renderReTierLogic(await retierRes.value.json());
+      } catch (_e) {
+        document.getElementById('triage-preop-retier-section').innerHTML =
+          '<div class="empty-table">Could not parse re-tier config.</div>';
+      }
+    } else {
+      document.getElementById('triage-preop-retier-section').innerHTML =
+        '<div class="empty-table">Could not load re-tier config.</div>';
+    }
+
+    // Intra-op
+    if (intraopRes.status === 'fulfilled' && intraopRes.value.ok) {
+      try {
+        renderIntraopLogic(await intraopRes.value.json());
+      } catch (_e) {
+        document.getElementById('triage-intraop-section').innerHTML =
+          '<div class="empty-table">Could not parse intra-op config.</div>';
+      }
+    } else {
+      document.getElementById('triage-intraop-section').innerHTML =
+        '<div class="empty-table">Could not load intra-op config.</div>';
+    }
+
+    // Post-op
+    if (postopRes.status === 'fulfilled' && postopRes.value.ok) {
+      try {
+        renderPostopLogic(await postopRes.value.json());
+      } catch (_e) {
+        document.getElementById('triage-postop-section').innerHTML =
+          '<div class="empty-table">Could not parse post-op config.</div>';
+      }
+    } else {
+      document.getElementById('triage-postop-section').innerHTML =
+        '<div class="empty-table">Could not load post-op config.</div>';
+    }
+
+    triageLogicLoaded = true;
+  }
+
+  function renderPostopLogic(cfg) {
+    const verEl = document.getElementById('postopModelVersion');
+    if (verEl) verEl.textContent = `${cfg.modelVersion || '—'} · tuning v${cfg.tuningVersion || '?'}`;
+
+    const hard = cfg.hardEscalators || [];
+    document.getElementById('postopHardEscalators').innerHTML = !hard.length
+      ? '<div class="empty-table">None configured.</div>'
+      : `<table>
+          <thead><tr><th>Code</th><th>Description</th><th>Source</th></tr></thead>
+          <tbody>
+            ${hard.map(h => `
+              <tr>
+                <td style="font-family:monospace;font-size:0.78rem">${esc(h.code)}</td>
+                <td>${esc(h.label)}</td>
+                <td style="color:var(--gray-500);font-size:0.85rem;">${esc(h.source || '—')}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+
+    const weights = cfg.positiveWeights || {};
+    const labels = cfg.positiveLabels || {};
+    const groups = cfg.positiveGroups || [];
+    document.getElementById('postopPositiveWeights').innerHTML = (!Object.keys(weights).length)
+      ? '<div class="empty-table">None configured.</div>'
+      : (groups.length
+          ? groups.map(g => `
+              <div style="margin-bottom:12px;">
+                <div style="font-size:0.82rem;font-weight:600;color:var(--gray-600);margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.04em;">${esc(g.name)}</div>
+                <table>
+                  <thead><tr><th>Contributor</th><th>Description</th><th style="text-align:right;">Weight</th></tr></thead>
+                  <tbody>
+                    ${(g.codes || []).map(c => `
+                      <tr>
+                        <td style="font-family:monospace;font-size:0.78rem">${esc(c)}</td>
+                        <td style="color:var(--gray-700);">${esc(labels[c] || c)}</td>
+                        <td style="text-align:right;font-family:monospace;">+${esc(weights[c] ?? 0)}</td>
+                      </tr>`).join('')}
+                  </tbody>
+                </table>
+              </div>`).join('')
+          : `<table>
+              <thead><tr><th>Contributor</th><th>Description</th><th style="text-align:right;">Weight</th></tr></thead>
+              <tbody>
+                ${Object.entries(weights).map(([k,v]) => `
+                  <tr>
+                    <td style="font-family:monospace;font-size:0.78rem">${esc(k)}</td>
+                    <td style="color:var(--gray-700);">${esc(labels[k] || k)}</td>
+                    <td style="text-align:right;font-family:monospace;">+${esc(v)}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>`)
+        + `<p style="font-size:0.82rem;color:var(--gray-500);margin-top:8px;">
+            Unsigned positive-only delta. Sum is clamped at the cap below; ≥+3 → 1 tier step, ≥+6 → 2 tier steps.
+          </p>`;
+
+    const audit = cfg.engagementAuditFlags || [];
+    const auditLabels = cfg.engagementAuditLabels || {};
+    document.getElementById('postopAuditFlags').innerHTML = !audit.length
+      ? '<div class="empty-table">None.</div>'
+      : `<table>
+          <thead><tr><th>Code</th><th>Description</th></tr></thead>
+          <tbody>
+            ${audit.map(code => `
+              <tr>
+                <td style="font-family:monospace;font-size:0.78rem">${esc(code)}</td>
+                <td style="color:var(--gray-500);font-size:0.85rem;">${esc(auditLabels[code] || 'Logged for analytics; weight 0.')}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        <p style="font-size:0.82rem;color:var(--gray-500);margin-top:8px;">
+          Detected and logged for analytics, but contribute 0 to the soft delta in v1.
+        </p>`;
+
+    const cap = cfg.deltaCap ?? 12;
+    const thr = cfg.deltaThresholds || {};
+    const rollCap = cfg.checkinMissedRollingCapPoints;
+    document.getElementById('postopDeltaThresholds').innerHTML = `
+      <table>
+        <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Soft delta cap</td><td style="font-family:monospace;">+${esc(cap)}</td></tr>
+          <tr><td>Threshold for 1-tier upgrade</td><td style="font-family:monospace;">≥+${esc(thr.upgrade_1_min ?? 3)}</td></tr>
+          <tr><td>Threshold for 2-tier upgrade</td><td style="font-family:monospace;">≥+${esc(thr.upgrade_2_min ?? 6)}</td></tr>
+          ${rollCap != null ? `<tr><td>CHECKIN_MISSED rolling-window cap</td><td style="font-family:monospace;">+${esc(rollCap)}</td></tr>` : ''}
+        </tbody>
+      </table>`;
+
+    const dc = cfg.checkinConfig || {};
+    const dx = cfg.surveyConfig || {};
+    const ma = cfg.medAdherenceConfig || {};
+    const vd = cfg.videoConfig || {};
+    document.getElementById('postopScoringConfig').innerHTML = `
+      <table>
+        <thead><tr><th>Module</th><th>Setting</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Daily check-in</td><td>Window (hours)</td><td style="font-family:monospace;">${esc(dc.window_hours ?? '?')}</td></tr>
+          <tr><td>Daily check-in</td><td>Tier thresholds</td><td style="font-family:monospace;">${esc(JSON.stringify(dc.tier_thresholds || {}))}</td></tr>
+          <tr><td>Day-X survey</td><td>Window (hours)</td><td style="font-family:monospace;">${esc(dx.window_hours ?? '?')}</td></tr>
+          <tr><td>Day-X survey</td><td>Section weights</td><td style="font-family:monospace;">${esc(JSON.stringify(dx.section_weights || {}))}</td></tr>
+          <tr><td>Day-X survey</td><td>Tier thresholds</td><td style="font-family:monospace;">${esc(JSON.stringify(dx.tier_thresholds || {}))}</td></tr>
+          <tr><td>Day-X survey</td><td>Section B PROMs (per family)</td><td style="font-family:monospace;">${esc(JSON.stringify(dx.section_b_proms || {}))}</td></tr>
+          <tr><td>Med adherence</td><td>Rolling window (days)</td><td style="font-family:monospace;">${esc(ma.rolling_window_days ?? '?')}</td></tr>
+          <tr><td>Med adherence</td><td>HIGH (≥yes) / LOW (≤yes)</td><td style="font-family:monospace;">${esc(ma.high_min_yes ?? '?')} / ${esc(ma.low_max_yes ?? '?')}</td></tr>
+          <tr><td>Med adherence</td><td>Non-response streak (days)</td><td style="font-family:monospace;">${esc(ma.non_response_streak_days ?? '?')}</td></tr>
+          <tr><td>Med adherence</td><td>Ping time (local)</td><td style="font-family:monospace;">${esc(ma.ping_time_local ?? '?')}</td></tr>
+          <tr><td>Post-op videos</td><td>Red-flag — early / missed day</td><td style="font-family:monospace;">${esc(vd.red_flag_early_day ?? '?')} / ${esc(vd.red_flag_missed_day ?? '?')}</td></tr>
+          <tr><td>Post-op videos</td><td>Diagnosis-treatment — early / missed day</td><td style="font-family:monospace;">${esc(vd.diagnosis_treatment_early_day ?? '?')} / ${esc(vd.diagnosis_treatment_missed_day ?? '?')}</td></tr>
+          <tr><td>Post-op videos</td><td>Multiview min (DT)</td><td style="font-family:monospace;">${esc(vd.diagnosis_treatment_multiview_min ?? '?')}</td></tr>
+          <tr><td>Post-op videos</td><td>Session gap (s) / completion %</td><td style="font-family:monospace;">${esc(vd.session_gap_seconds ?? '?')} / ${esc(vd.completion_pct ?? '?')}</td></tr>
+        </tbody>
+      </table>`;
+
+    const lc = cfg.lostContactConfig || {};
+    document.getElementById('postopLostContact').innerHTML = `
+      <table>
+        <thead><tr><th>Threshold</th><th>Hours</th></tr></thead>
+        <tbody>
+          <tr><td>Tier-3 silence</td><td style="font-family:monospace;">${esc(lc.tier3_hours ?? 24)}</td></tr>
+          <tr><td>Any-tier silence</td><td style="font-family:monospace;">${esc(lc.general_hours ?? 72)}</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:0.82rem;color:var(--gray-500);margin-top:8px;">
+        Anchor for "silence" = max(<code>discharge_at</code>, last patient response across channels).
+      </p>`;
+
+    const cron = cfg.cronConfig || {};
+    const cronRows = Object.entries(cron);
+    document.getElementById('postopCronCadence').innerHTML = !cronRows.length
+      ? '<div class="empty-table">None configured.</div>'
+      : `<table>
+          <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+          <tbody>
+            ${cronRows.map(([k,v]) => `
+              <tr>
+                <td style="font-family:monospace;font-size:0.78rem">${esc(k)}</td>
+                <td style="font-family:monospace;">${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+
+    const rules = cfg.combinationRules || [];
+    document.getElementById('postopCombinationRules').innerHTML = !rules.length
+      ? '<div class="empty-table">None configured.</div>'
+      : `<ul style="font-size:0.88rem;color:var(--gray-700);line-height:1.6;padding-left:18px;margin:0;">
+          ${rules.map(r => `<li style="margin-bottom:4px;">${esc(r)}</li>`).join('')}
+        </ul>`;
+  }
+
+  function renderIntraopLogic(cfg) {
+    const verEl = document.getElementById('intraopModelVersion');
+    if (verEl) verEl.textContent = `${cfg.modelVersion || '—'} · tuning v${cfg.tuningVersion || '?'}`;
+
+    // Hard upgrades
+    const hard = cfg.hardUpgrades || [];
+    document.getElementById('intraopHardUpgrades').innerHTML = !hard.length
+      ? '<div class="empty-table">None configured.</div>'
+      : `<table>
+          <thead><tr><th>Code</th><th>Description</th><th>Applies to family</th></tr></thead>
+          <tbody>
+            ${hard.map(h => `
+              <tr>
+                <td style="font-family:monospace;font-size:0.78rem">${esc(h.code)}</td>
+                <td>${esc(h.label)}</td>
+                <td style="color:var(--gray-500);font-size:0.85rem;">${esc(h.applies_to_family || 'any')}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+
+    // Soft thresholds + labels (grouped)
+    const groups = cfg.softGroups || [];
+    const labels = cfg.softLabels || {};
+    const thresholds = cfg.softThresholds || {};
+    document.getElementById('intraopSoftThresholds').innerHTML = !groups.length
+      ? '<div class="empty-table">None configured.</div>'
+      : groups.map(g => `
+          <div style="margin-bottom:12px;">
+            <div style="font-size:0.82rem;font-weight:600;color:var(--gray-600);margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.04em;">${esc(g.name)}</div>
+            <table>
+              <thead><tr><th>Code</th><th>Description</th></tr></thead>
+              <tbody>
+                ${(g.codes || []).map(c => `
+                  <tr>
+                    <td style="font-family:monospace;font-size:0.78rem">${esc(c)}</td>
+                    <td>${esc(labels[c] || c)}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`).join('') +
+        `<p style="font-size:0.82rem;color:var(--gray-500);margin-top:8px;">
+          Numeric thresholds: ${Object.entries(thresholds).map(([k,v]) => `<code>${esc(k)}=${esc(v)}</code>`).join(', ')}.
+          Each soft contributor adds one tier step; ≥2 contributors aggregate to TIER_3.
+        </p>`;
+
+    // Procedure P90s
+    const p90 = cfg.procedureP90Minutes || {};
+    const p90Rows = Object.entries(p90);
+    document.getElementById('intraopProcedureP90').innerHTML = !p90Rows.length
+      ? '<div class="empty-table">None configured.</div>'
+      : `<table>
+          <thead><tr><th>Procedure family</th><th style="text-align:right;">P90 OR duration (minutes)</th></tr></thead>
+          <tbody>
+            ${p90Rows.map(([k,v]) => `
+              <tr>
+                <td style="font-family:monospace;font-size:0.82rem">${esc(k)}</td>
+                <td style="text-align:right;font-family:monospace;">${esc(v)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        <p style="font-size:0.82rem;color:var(--gray-500);margin-top:8px;">
+          National-benchmark P90s; replaced with hospital-observed P90 once 50+ cases per family are recorded.
+        </p>`;
+
+    // Combination rules
+    const rules = cfg.combinationRules || [];
+    document.getElementById('intraopCombinationRules').innerHTML = !rules.length
+      ? '<div class="empty-table">None configured.</div>'
+      : `<ul style="font-size:0.88rem;color:var(--gray-700);line-height:1.6;padding-left:18px;margin:0;">
+          ${rules.map(r => `<li style="margin-bottom:4px;">${esc(r)}</li>`).join('')}
+        </ul>`;
+
+    // Conservative default
+    const cd = cfg.conservativeDefault || {};
+    document.getElementById('intraopConservativeDefault').innerHTML = `
+      <table>
+        <thead><tr><th>Policy</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Threshold (hours after OR end)</td>
+            <td style="font-family:monospace;">${esc(cd.threshold_hours_after_or_end)}</td>
+          </tr>
+          <tr>
+            <td>Upgrade steps when triggered</td>
+            <td style="font-family:monospace;">${esc(cd.upgrade_steps)}</td>
+          </tr>
+          <tr>
+            <td>Watcher cadence (seconds)</td>
+            <td style="font-family:monospace;">${esc(cfg.overdueWatcherIntervalSeconds)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:0.82rem;color:var(--gray-500);margin-top:8px;">
+        When no lock is recorded within the threshold, the system applies a 1-step tier upgrade
+        with reason <code>INTRAOP_FORM_OVERDUE_CONSERVATIVE_DEFAULT</code>. Late lock fires a
+        new reassessment; the higher tier wins via <code>resolveFinalTier</code>.
+      </p>`;
+
+    // Extraction
+    const ext = cfg.extraction || {};
+    document.getElementById('intraopExtraction').innerHTML = `
+      <table>
+        <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Extractor model</td><td style="font-family:monospace;">${esc(ext.model_version)}</td></tr>
+          <tr><td>Prompt version</td><td style="font-family:monospace;">${esc(ext.prompt_version)}</td></tr>
+          <tr><td>HIGH confidence threshold</td><td style="font-family:monospace;">${esc(ext.mid_confidence_threshold)}</td></tr>
+          <tr><td>MED confidence threshold</td><td style="font-family:monospace;">${esc(ext.low_confidence_threshold)}</td></tr>
+          <tr><td>Timeout (seconds)</td><td style="font-family:monospace;">${esc(ext.timeout_sec)}</td></tr>
+          <tr><td>Max PDF size (MB)</td><td style="font-family:monospace;">${esc(ext.max_pdf_size_mb)}</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:0.82rem;color:var(--gray-500);margin-top:8px;">
+        Confidence binning maps the LLM's self-rated HIGH/MED/LOW onto canonical numeric values
+        (${Object.entries(ext.confidence_map || {}).map(([k,v]) => `<code>${esc(k)}=${esc(v)}</code>`).join(', ')}).
+        Auto-populated fields with confidence below the MED threshold are flagged for surgeon
+        review before lock.
+      </p>`;
+  }
+
+  function renderTriageLogic(cfg) {
+    const verEl = document.getElementById('triageModelVersion');
+    if (verEl) verEl.textContent = `${cfg.modelVersion || '—'} · tuning v${cfg.tuningVersion || '?'}`;
+
+    const stt = cfg.scoreToTier || {};
+    document.getElementById('triageScoreThresholds').innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Tier</th><th>Risk profile</th><th>Score range</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-gray">TIER 1</span></td>
+            <td>Low pre-op risk</td>
+            <td style="font-family:monospace;">score &lt; ${esc(stt.tier2Min)}</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-yellow">TIER 2</span></td>
+            <td>Moderate pre-op risk</td>
+            <td style="font-family:monospace;">${esc(stt.tier2Min)} ≤ score &lt; ${esc(stt.tier3Min)}</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#FEE2E2;color:#991B1B;">TIER 3</span></td>
+            <td>High pre-op risk</td>
+            <td style="font-family:monospace;">score ≥ ${esc(stt.tier3Min)} (or any hard escalator)</td>
+          </tr>
+        </tbody>
+      </table>`;
+
+    const hard = cfg.hardEscalators || [];
+    document.getElementById('triageHardEscalators').innerHTML = !hard.length
+      ? '<div class="empty-table">None configured.</div>'
+      : `
+        <table>
+          <thead>
+            <tr><th>Code</th><th>Description</th><th>Source</th></tr>
+          </thead>
+          <tbody>
+            ${hard.map(h => `
+              <tr>
+                <td style="font-family:monospace;font-size:0.78rem">${esc(h.code)}</td>
+                <td>${esc(h.label)}</td>
+                <td style="color:var(--gray-500);font-size:0.85rem;">${esc(h.source)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+
+    const procBase = cfg.procedureBase || [];
+    document.getElementById('triageProcedureBase').innerHTML = !procBase.length
+      ? '<div class="empty-table">None configured.</div>'
+      : `
+        <table>
+          <thead>
+            <tr><th>Family</th><th>Description</th><th style="text-align:right;">Base</th></tr>
+          </thead>
+          <tbody>
+            ${procBase.map(p => `
+              <tr>
+                <td style="font-family:monospace;font-size:0.78rem">${esc(p.family)}</td>
+                <td>${esc(p.label)}</td>
+                <td style="text-align:right;font-family:monospace;"><strong>+${esc(p.base)}</strong></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+
+    const groups = cfg.softWeightGroups || [];
+    const weights = cfg.softWeights || {};
+    document.getElementById('triageSoftWeights').innerHTML = !groups.length
+      ? '<div class="empty-table">None configured.</div>'
+      : groups.map(g => {
+          const codes = (g.codes || []).filter(c => weights[c]);
+          if (!codes.length) return '';
+          return `
+            <div style="margin-bottom:12px;">
+              <div style="font-size:0.82rem;font-weight:600;color:var(--gray-600);margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.04em;">${esc(g.name)}</div>
+              <table>
+                <thead>
+                  <tr><th>Code</th><th>Description</th><th style="text-align:right;">Weight</th></tr>
+                </thead>
+                <tbody>
+                  ${codes.map(c => `
+                    <tr>
+                      <td style="font-family:monospace;font-size:0.78rem">${esc(c)}</td>
+                      <td>${esc(weights[c].label)}</td>
+                      <td style="text-align:right;font-family:monospace;"><strong>+${esc(weights[c].weight)}</strong></td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>`;
+        }).join('');
+
+    const labs = cfg.labThresholds || {};
+    const labEntries = Object.keys(labs).map(k => ({ name: k, value: labs[k] }));
+    document.getElementById('triageLabThresholds').innerHTML = !labEntries.length
+      ? '<div class="empty-table">None configured.</div>'
+      : `
+        <table>
+          <thead>
+            <tr><th>Threshold</th><th style="text-align:right;">Value</th></tr>
+          </thead>
+          <tbody>
+            ${labEntries.map(l => `
+              <tr>
+                <td style="font-family:monospace;font-size:0.78rem">${esc(l.name)}</td>
+                <td style="text-align:right;font-family:monospace;">${esc(l.value)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+  }
+
+  function signedWeight(n) {
+    const v = Number(n);
+    if (Number.isNaN(v)) return esc(n);
+    return v > 0 ? `+${v}` : String(v);
+  }
+
+  function renderReTierLogic(cfg) {
+    const verEl = document.getElementById('retierModelVersion');
+    if (verEl) verEl.textContent = `${cfg.modelVersion || '—'} · tuning v${cfg.tuningVersion || '?'}`;
+
+    const dt = cfg.deltaThresholds || {};
+    const sticky = cfg.stickyHardGuard ? 'on' : 'off';
+    const cap = cfg.softCap;
+    document.getElementById('retierDeltaMapping').innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Net delta</th><th>Tier change</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-family:monospace;">delta ≥ +${esc(dt.upgrade2Min)}</td>
+            <td><span class="badge" style="background:#FEE2E2;color:#991B1B;">Upgrade ×2</span></td>
+            <td>Two tier steps toward TIER_3 (capped at TIER_3).</td>
+          </tr>
+          <tr>
+            <td style="font-family:monospace;">+${esc(dt.upgrade1Min)} ≤ delta &lt; +${esc(dt.upgrade2Min)}</td>
+            <td><span class="badge badge-yellow">Upgrade ×1</span></td>
+            <td>One tier step toward TIER_3.</td>
+          </tr>
+          <tr>
+            <td style="font-family:monospace;">${esc(dt.downgrade1Max)} &lt; delta &lt; +${esc(dt.upgrade1Min)}</td>
+            <td><span class="badge badge-gray">No change</span></td>
+            <td>Dead zone; tier unchanged.</td>
+          </tr>
+          <tr>
+            <td style="font-family:monospace;">delta ≤ ${esc(dt.downgrade1Max)}</td>
+            <td><span class="badge badge-green">Downgrade ×1</span></td>
+            <td>One step toward TIER_1, <em>blocked</em> when initial tier was hard-escalated (sticky guard: ${esc(sticky)}).</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:0.82rem;color:var(--gray-500);margin-top:8px;">
+        Raw soft delta is clamped to ±${esc(cap)} before mapping.
+      </p>`;
+
+    const hard = cfg.hardEscalators || [];
+    document.getElementById('retierHardEscalators').innerHTML = !hard.length
+      ? '<div class="empty-table">None configured.</div>'
+      : `
+        <table>
+          <thead>
+            <tr><th>Code</th><th>Description</th><th>Source</th></tr>
+          </thead>
+          <tbody>
+            ${hard.map(h => `
+              <tr>
+                <td style="font-family:monospace;font-size:0.78rem">${esc(h.code)}</td>
+                <td>${esc(h.label)}</td>
+                <td style="color:var(--gray-500);font-size:0.85rem;">${esc(h.source)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+
+    const groups = cfg.softWeightGroups || [];
+    const weights = cfg.softWeights || {};
+    document.getElementById('retierSoftWeights').innerHTML = !groups.length
+      ? '<div class="empty-table">None configured.</div>'
+      : groups.map(g => {
+          const codes = (g.codes || []).filter(c => weights[c]);
+          if (!codes.length) return '';
+          return `
+            <div style="margin-bottom:12px;">
+              <div style="font-size:0.82rem;font-weight:600;color:var(--gray-600);margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.04em;">${esc(g.name)}</div>
+              <table>
+                <thead>
+                  <tr><th>Code</th><th>Description</th><th style="text-align:right;">Weight</th></tr>
+                </thead>
+                <tbody>
+                  ${codes.map(c => `
+                    <tr>
+                      <td style="font-family:monospace;font-size:0.78rem">${esc(c)}</td>
+                      <td>${esc(weights[c].label)}</td>
+                      <td style="text-align:right;font-family:monospace;"><strong>${signedWeight(weights[c].weight)}</strong></td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>`;
+        }).join('');
+
+    const rules = cfg.combinationRules || [];
+    document.getElementById('retierCombinationRules').innerHTML = !rules.length
+      ? '<div class="empty-table">None configured.</div>'
+      : `<ul style="font-size:0.88rem;color:var(--gray-700);line-height:1.6;padding-left:18px;margin:0;">
+            ${rules.map(r => `<li style="margin-bottom:4px;">${esc(r)}</li>`).join('')}
+         </ul>`;
+
+    const pam = cfg.pamCutoffs || {};
+    document.getElementById('retierPamCutoffs').innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Activation level</th><th style="text-align:right;">Score range (0–100)</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge" style="background:#FEE2E2;color:#991B1B;">LOW</span></td>
+            <td style="text-align:right;font-family:monospace;">score ≤ ${esc(pam.low)}</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-yellow">MODERATE</span></td>
+            <td style="text-align:right;font-family:monospace;">${esc(pam.low)} &lt; score ≤ ${esc(pam.moderate)}</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-green">HIGH</span></td>
+            <td style="text-align:right;font-family:monospace;">score &gt; ${esc(pam.moderate)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:0.82rem;color:var(--gray-500);margin-top:8px;">
+        Scoring requires ≥10 non-N/A items. Anchored on published PAM-13 short-form cutoffs.
+      </p>`;
+
+    const checkpoints = (cfg.checkpointHours || []).map(h => `T-${h}`).join(', ');
+    document.getElementById('retierPolicies').innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Policy</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Re-tier checkpoints</td>
+            <td style="font-family:monospace;">${esc(checkpoints)}</td>
+          </tr>
+          <tr>
+            <td>Video — minimum gap to mark a new session</td>
+            <td style="font-family:monospace;">${esc(cfg.videoSessionGapSec)} s</td>
+          </tr>
+          <tr>
+            <td>Video — completion threshold</td>
+            <td style="font-family:monospace;">${esc(cfg.videoCompletionPct)} %</td>
+          </tr>
+          <tr>
+            <td>Battle-card — view dedup window</td>
+            <td style="font-family:monospace;">${esc(cfg.battleCardDedupMinutes)} min</td>
+          </tr>
+          <tr>
+            <td>Sticky-hard guard</td>
+            <td style="font-family:monospace;">${cfg.stickyHardGuard ? 'enabled' : 'disabled'}</td>
+          </tr>
+        </tbody>
+      </table>`;
+  }
 </script>
 </body>
 </html>

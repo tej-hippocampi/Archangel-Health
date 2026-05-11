@@ -27,7 +27,15 @@ import {
 
 /* Shared shape — same across all steps so the wizard owns one state object. */
 
-export type RoleLabel = "Doctor / Surgeon" | "Nurse / Care Coordinator";
+// Pass-4 role taxonomy. The director is auto-seeded as a `surgeon` on
+// /finish, so the wizard only invites the two non-surgeon seats. The pod
+// caps at 4 = director + 1 RN + 2 NP/PAs.
+export type RoleLabel = "RN Care Coordinator" | "NP / PA";
+
+export const TEAM_CAP_NON_DIRECTOR = 3;
+export const TEAM_CAP_TOTAL = 4;
+export const TEAM_CAP_RN_COORDINATOR = 1;
+export const TEAM_CAP_NP_PA = 2;
 
 export type Member = {
   id: number;
@@ -375,8 +383,34 @@ export function Step4YourTeam({
   const directorName = `${data.firstName || "You"} ${data.lastName || ""}`.trim();
   const members = data.members;
 
+  const rnCount = members.filter((m) => m.role === "RN Care Coordinator").length;
+  const nppaCount = members.filter((m) => m.role === "NP / PA").length;
+  const teamFull = members.length >= TEAM_CAP_NON_DIRECTOR;
+  const totalCount = members.length + 1; // +1 for the director seat
+
+  const roleOptions: { value: RoleLabel; label: string; disabled?: boolean }[] = [
+    {
+      value: "RN Care Coordinator",
+      label: rnCount >= TEAM_CAP_RN_COORDINATOR
+        ? "RN Care Coordinator (cap reached)"
+        : "RN Care Coordinator",
+      disabled: rnCount >= TEAM_CAP_RN_COORDINATOR,
+    },
+    {
+      value: "NP / PA",
+      label: nppaCount >= TEAM_CAP_NP_PA ? "NP / PA (cap reached)" : "NP / PA",
+      disabled: nppaCount >= TEAM_CAP_NP_PA,
+    },
+  ];
+
   const draftValid =
-    draft.firstName.trim() && draft.lastName.trim() && /\S+@\S+\.\S+/.test(draft.email) && draft.role !== "";
+    draft.firstName.trim() &&
+    draft.lastName.trim() &&
+    /\S+@\S+\.\S+/.test(draft.email) &&
+    draft.role !== "" &&
+    !teamFull &&
+    !(draft.role === "RN Care Coordinator" && rnCount >= TEAM_CAP_RN_COORDINATOR) &&
+    !(draft.role === "NP / PA" && nppaCount >= TEAM_CAP_NP_PA);
 
   const submitDraft = async () => {
     if (!draftValid) return false;
@@ -398,7 +432,7 @@ export function Step4YourTeam({
       maxWidth={720}
       eyebrow="Step 4 of 5"
       title="Your TEAM."
-      lede="Your TEAM Initiative leadership and the surgeons, nurses, and coordinators you'll work alongside."
+      lede="Your surgical pod is exactly 4 people: you (director / surgeon), 1 RN care coordinator, and 2 NP / PAs."
     >
       <InlineError>{error}</InlineError>
 
@@ -484,12 +518,20 @@ export function Step4YourTeam({
             Team members
           </div>
           <div style={{ fontSize: 13, color: "rgba(245,245,247,0.55)" }}>
-            {members.length === 0
-              ? "No members yet — add the surgeons and nurses on your TEAM."
-              : `${members.length} ${members.length === 1 ? "person" : "people"} on your TEAM.`}
+            {teamFull ? (
+              <>
+                <span style={{ color: "#67E8F9", fontWeight: 600 }}>Team is complete.</span>{" "}
+                Pod has 4 / 4 — director (surgeon), {rnCount} RN, {nppaCount} NP / PA.
+              </>
+            ) : (
+              <>
+                Team: <strong style={{ color: "#F5F5F7" }}>{totalCount} / {TEAM_CAP_TOTAL}</strong>
+                {totalCount === 1 ? " — director (surgeon)" : ""}
+              </>
+            )}
           </div>
         </div>
-        {!showAdd && (
+        {!showAdd && !teamFull && (
           <button
             type="button"
             onClick={() => setShowAdd(true)}
@@ -593,10 +635,7 @@ export function Step4YourTeam({
             placeholder="Select a role"
             value={draft.role}
             onChange={(v) => setDraft((d) => ({ ...d, role: v as RoleLabel }))}
-            options={[
-              { value: "Doctor / Surgeon", label: "Doctor / Surgeon" },
-              { value: "Nurse / Care Coordinator", label: "Nurse / Care Coordinator" },
-            ]}
+            options={roleOptions}
           />
           <PrimaryButton
             fullWidth
