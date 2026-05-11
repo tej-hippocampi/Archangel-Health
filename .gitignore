@@ -3,6 +3,18 @@ backend/.env
 **/.env
 *.env
 sendgrid.env
+# Backup copies of env files (often contain real keys)
+.env.bak*
+**/.env.bak*
+
+# Cursor (editor / agent local state — do not commit)
+.cursor/
+
+# Temporary design exports / flat unpacks (local scratch only)
+.tmp-flat/
+
+# Local ZIP bundles exported for one-off sharing (prefer source commits)
+*.zip
 
 # Python
 __pycache__/
