@@ -403,6 +403,11 @@ def _is_demo_mode() -> bool:
     return os.getenv("DEMO_MODE", "0").strip().lower() in ("1", "true", "yes", "on")
 
 
+def _disable_public_demo_account() -> bool:
+    """When true, skip seeding the shared landing demo user (see DEMO_DOCTOR_EMAIL)."""
+    return os.getenv("DISABLE_PUBLIC_DEMO_ACCOUNT", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
 def _disable_scheduler_in_demo() -> bool:
     return os.getenv("DEMO_DISABLE_TEAM_SCHEDULER", "1").strip().lower() in ("1", "true", "yes", "on")
 
@@ -761,7 +766,6 @@ async def _seed_demo_mode_data() -> None:
         name="Cedars-Sinai Surgical Care",
         health_system_code=DEMO_CLINIC_CODE,
     )
-    _ensure_demo_doctor()
     rows = _seed_demo_patient_store()
     _load_demo_patient_store_snapshot()
     _seed_demo_sqlite(rows, _demo_seed_strategy())
@@ -1450,6 +1454,20 @@ async def auth_register(body: UserCreate):
 @app.post("/api/auth/login")
 async def auth_login(body: UserLogin):
     """Sign in; returns access token and user."""
+    # Shared public demo account (marketing landing): always authenticate here first so
+    # production isn't blocked when DEMO_MODE=0 (no auth user seed) or the same email
+    # exists in team_members (tenant SSO path would otherwise return 403 before password check).
+    demo_key = DEMO_DOCTOR_EMAIL.lower().strip()
+    if body.email.lower().strip() == demo_key:
+        user = authenticate_user(body.email, body.password)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        token = create_access_token(user["email"])
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": UserOut(email=user["email"], name=user.get("name"), role=user.get("role")),
+        }
     tm = _team_store.find_team_member_by_email_any_hs(body.email)
     if tm:
         hs = _team_store.get_health_system_by_id(tm.get("health_system_id") or "")
@@ -4395,6 +4413,8 @@ async def _postop_nightly_retier_loop() -> None:
 
 @app.on_event("startup")
 async def startup_team_scheduler():
+    if not _disable_public_demo_account():
+        _ensure_demo_doctor()
     await _seed_demo_mode_data()
     if _is_demo_mode() and _disable_scheduler_in_demo():
         print("[demo-seed] team scheduler disabled for demo startup stability.")
