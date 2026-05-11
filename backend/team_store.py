@@ -638,6 +638,7 @@ class TeamStore:
         slug: str,
         name: str,
         health_system_code: str,
+        phone: str = "",
     ) -> None:
         now = _utcnow_iso()
         with self._conn() as conn:
@@ -649,15 +650,16 @@ class TeamStore:
                     director_email, director_first_name, director_last_name, onboarding_step,
                     last_generated_invite_url, created_at
                 )
-                VALUES (?, ?, ?, '', '', ?, 'active', NULL, NULL, ?, NULL, NULL, NULL, 99, NULL, ?)
+                VALUES (?, ?, ?, '', ?, ?, 'active', NULL, NULL, ?, NULL, NULL, NULL, 99, NULL, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     slug = excluded.slug,
                     name = excluded.name,
+                    phone = CASE WHEN excluded.phone != '' THEN excluded.phone ELSE health_systems.phone END,
                     health_system_code = COALESCE(health_systems.health_system_code, excluded.health_system_code),
                     status = 'active',
                     onboarding_completed_at = COALESCE(health_systems.onboarding_completed_at, excluded.onboarding_completed_at)
                 """,
-                (hs_id, slug, name, health_system_code, now, now),
+                (hs_id, slug, name, phone, health_system_code, now, now),
             )
 
     def create_health_system_invite(self, *, invite_base_url: str) -> Dict[str, Any]:
@@ -853,19 +855,22 @@ class TeamStore:
         name: str,
         role: str,
         password_hash: str,
+        is_team_director: bool = False,
     ) -> int:
         now = _utcnow_iso()
+        itd = 1 if is_team_director else 0
         with self._conn() as conn:
             cur = conn.execute(
                 """
-                INSERT INTO team_members (health_system_id, email, name, role, password_hash, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO team_members (health_system_id, email, name, role, password_hash, is_team_director, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(health_system_id, email) DO UPDATE SET
                     name = excluded.name,
                     role = excluded.role,
-                    password_hash = excluded.password_hash
+                    password_hash = excluded.password_hash,
+                    is_team_director = excluded.is_team_director
                 """,
-                (hs_id, email.lower().strip(), name.strip(), role, password_hash, now),
+                (hs_id, email.lower().strip(), name.strip(), role, password_hash, itd, now),
             )
             return int(cur.lastrowid)
 

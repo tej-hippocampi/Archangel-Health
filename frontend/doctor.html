@@ -1009,6 +1009,67 @@
       .tabs { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); }
       .logo-text { font-size: 20px; }
     }
+    body.role-surgeon { --accent: #1e3a8a; --accent-dark: #172554; }
+    body.role-rn_coordinator { --accent: #0f766e; --accent-dark: #115e59; }
+    .triage-alert-banner {
+      border: 1px solid #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    .triage-alert-banner.triage-alert-muted {
+      border-color: #fde68a;
+      background: #fffbeb;
+      color: #92400e;
+      font-weight: 500;
+    }
+    @keyframes tierFlashKey {
+      0%, 100% { box-shadow: none; }
+      50% { box-shadow: 0 0 0 3px #f59e0b; background: #fffbeb; }
+    }
+    .roster-row.tier-flash { animation: tierFlashKey 0.6s ease 2; }
+    .why-tier-hard { display: inline-block; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 8px; padding: 6px 10px; font-size: 13px; font-weight: 700; }
+    .why-tier-legend { margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .roster-tier-chip {
+      font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent;
+      display: inline-block; vertical-align: middle; margin: 0 4px 0 0;
+    }
+    .roster-tier-chip.tier-t1 { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .roster-tier-chip.tier-t2 { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .roster-tier-chip.tier-t3 { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .roster-tier-chip.tier-empty { color: #9ca3af; }
+    .detail-head-sep { margin: 0 10px; color: #94a3b8; font-weight: 400; }
+    .detail-tier-hit {
+      font: inherit; font-size: 15px; font-weight: 700; padding: 4px 12px; border-radius: 999px; cursor: pointer;
+      border: 1px solid transparent; display: inline-flex; align-items: center;
+    }
+    .detail-tier-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .detail-tier-hit.tier-t1 { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .detail-tier-hit.tier-t2 { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .detail-tier-hit.tier-t3 { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .triage-evolution-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px; }
+    .triage-evolution-row .tier-chip {
+      font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid transparent; display: inline-block;
+    }
+    .triage-evolution-row .tier-chip.tier-t1 { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .triage-evolution-row .tier-chip.tier-t2 { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .triage-evolution-row .tier-chip.tier-t3 { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .triage-evolution-row .tier-chip.tier-empty { color: #9ca3af; font-style: italic; }
+    .triage-evol-arrow { color: #64748b; font-weight: 700; }
+    .triage-explain-bullets { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.55; color: var(--text); }
+    .triage-postop-resource-row { margin-bottom: 12px; }
+
+    .intraop-review-panel.intraop-review-emphasis {
+      outline: 2px solid var(--accent);
+      border-radius: 12px;
+      padding: 10px;
+      background: #f8fafc;
+    }
+
     @media (max-width: 860px) {
       .main { padding: 16px; }
       .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1078,6 +1139,7 @@
           </div>
         </div>
 
+        <div id="triageAlertBanner" class="triage-alert-banner" style="display:none;" role="status"></div>
         <div class="roster-controls">
           <div style="font-size:13px;color:var(--muted);" id="rosterCount">0 patients</div>
           <div class="search-wrap">
@@ -1100,7 +1162,7 @@
         <div class="escalation-head">
           <div>
             <h1 class="page-title">Escalation Log</h1>
-            <p class="page-sub">Sorted most recent to least recent.</p>
+            <p class="page-sub" id="escalationSub">Sorted most recent to least recent.</p>
           </div>
           <div class="resolved-counter" id="resolvedCounter">0/0 Escalations Resolved</div>
         </div>
@@ -1289,11 +1351,15 @@
       </div>
       <div class="modal-body">
         <h2 class="timeline-title" id="timelineHeading">Patient Episode Timeline</h2>
+        <div id="triagePostopResourceRow" class="triage-postop-resource-row" style="display:none;">
+          <button type="button" class="btn primary" id="generatePostopResourcesBtn">Generate post-op resources</button>
+        </div>
 
         <div class="panel">
           <div class="panel-head"><span>Episode Stats</span></div>
           <div class="panel-body">
             <div class="stats-grid" id="statsGrid"></div>
+            <div id="whyTierTimelineBody" style="margin-top:12px;"></div>
           </div>
         </div>
 
@@ -1364,6 +1430,7 @@
           <div class="panel-head"><span>Pre-Op Details</span></div>
           <div class="panel-body">
             <div class="stats-grid" id="preopStatsGrid"></div>
+            <div id="preopWhyTierBody" style="margin-top:12px;"></div>
           </div>
         </div>
         <div class="panel">
@@ -1537,6 +1604,9 @@
             </div>
           </div>
           <p class="upload-hint" style="margin-top:8px;">MBI, DOB, and surgery date can be filled from uploaded eligibility documents in the next step.</p>
+          <div class="form-group" id="triageDemoAutofillWrap" style="display:none;margin-top:10px;">
+            <button type="button" class="btn" id="triageDemoAutofillBtn">Autofill demo intake (Anne Tumilson)</button>
+          </div>
         </div>
 
         <div id="singleRelevantFilesStep" style="display:none;">
@@ -1714,6 +1784,79 @@
     let pdfText = "";
     let selectedEpisodeType = null;
     const sentPreparationMaterials = new Set();
+    let _triageTierSnap = {};
+
+    function isTriageDemoTenant() {
+      const c = (document.body.dataset.clinicCode || "").toUpperCase();
+      const s = (document.body.dataset.tenantSlug || "").toLowerCase();
+      return c === "TRIAGEDM" || s === "archangel-triage-demo";
+    }
+
+    function tierRank(t) {
+      const u = String(t || "").toUpperCase();
+      if (u === "TIER_3") return 3;
+      if (u === "TIER_2") return 2;
+      if (u === "TIER_1") return 1;
+      return 0;
+    }
+
+    function tierSpelledOut(tier) {
+      const u = String(tier || "").toUpperCase();
+      if (u === "TIER_3") return "Tier 3";
+      if (u === "TIER_2") return "Tier 2";
+      if (u === "TIER_1") return "Tier 1";
+      return "—";
+    }
+
+    function tierEvolutionDiagramHtml(initialTier, currentTier) {
+      const ic = tierChipClass(initialTier);
+      const cc = tierChipClass(currentTier);
+      const il = tierSpelledOut(initialTier);
+      const cl = tierSpelledOut(currentTier);
+      return `<div class="triage-evolution-row">
+        <span>Initial: <span class="tier-chip ${ic}">${esc(il)}</span></span>
+        <span class="triage-evol-arrow" aria-hidden="true">→</span>
+        <span>Current: <span class="tier-chip ${cc}">${esc(cl)}</span></span>
+      </div>`;
+    }
+
+    function wireDetailTierHit(containerEl, pid, rootEl) {
+      if (!containerEl || !pid) return;
+      const root = rootEl || document;
+      const btn = root.querySelector(`[data-triage-tier-hit="${CSS.escape(pid)}"]`);
+      if (!btn) return;
+      const open = () => { void renderWhyTierCard(containerEl, pid); };
+      btn.addEventListener("click", (e) => { e.stopPropagation(); open(); });
+      btn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          open();
+        }
+      });
+    }
+
+    async function renderWhyTierCard(containerEl, pid) {
+      if (!containerEl || !pid) return;
+      containerEl.innerHTML = `<p style="font-size:13px;color:var(--muted);">Loading tier evolution…</p>`;
+      try {
+        const ex = await apiJson(`/api/episodes/${encodeURIComponent(pid)}/triage-explain`);
+        const initial = ex.initialTier || "";
+        const current = ex.currentTier || "";
+        const reasons = (ex.reasons || []).slice(0, 3);
+        const diagram = tierEvolutionDiagramHtml(initial, current);
+        let body = "";
+        if (reasons.length) {
+          body = `<ul class="triage-explain-bullets">${reasons.map((r) => `<li>${esc(r.label || r.code || "")}</li>`).join("")}</ul>`;
+        } else if (String(initial).toUpperCase() === String(current).toUpperCase() && initial) {
+          body = `<p style="font-size:13px;color:var(--muted);font-style:italic;">Tier unchanged since intake.</p>`;
+        } else {
+          body = `<p style="font-size:13px;color:var(--muted);">No contributing reasons on file.</p>`;
+        }
+        containerEl.innerHTML = `${diagram}${body}`;
+      } catch (e) {
+        containerEl.innerHTML = `<p style="font-size:13px;color:#b91c1b;">${esc(e.message || "Could not load triage explain.")}</p>`;
+      }
+    }
 
     function byId(id) { return document.getElementById(id); }
     function esc(str) { return String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
@@ -2133,7 +2276,13 @@
             e.stopPropagation();
             const row = btn.closest(".intraop-review-item");
             const pid = row && row.dataset.pid;
-            if (pid) window.open(`/intraop-form/${encodeURIComponent(pid)}`, "_blank", "noopener");
+            if (pid) {
+              if (isTriageDemoTenant()) {
+                window.location.href = `/intraop-form/${encodeURIComponent(pid)}`;
+              } else {
+                window.open(`/intraop-form/${encodeURIComponent(pid)}`, "_blank", "noopener");
+              }
+            }
           });
         });
       } catch (_e) {
@@ -2150,7 +2299,17 @@
 
     async function loadPatients() {
       const data = await apiJson("/api/patients");
-      const normalized = normalizePatientsForRoster((data.patients || []).map((p) => ({
+      let rawList = data.patients || [];
+      if (isTriageDemoTenant()) {
+        rawList = [...rawList].sort((a, b) => {
+          const dr = tierRank(b.currentTier) - tierRank(a.currentTier);
+          if (dr !== 0) return dr;
+          const tb = b.tierLastChanged || "";
+          const ta = a.tierLastChanged || "";
+          return String(tb).localeCompare(String(ta));
+        });
+      }
+      const normalized = normalizePatientsForRoster(rawList.map((p) => ({
         ...p,
         episodeType: inferEpisodeType(p),
       })));
@@ -2158,6 +2317,42 @@
         if ((pcpDrafts[p.id] == null || pcpDrafts[p.id] === "") && p.pcpName) pcpDrafts[p.id] = p.pcpName;
       });
       PATIENTS.splice(0, PATIENTS.length, ...normalized);
+      if (isTriageDemoTenant()) {
+        PATIENTS.forEach((p) => {
+          const cur = String(p.currentTier || p.current_tier || "").toUpperCase();
+          const prev = _triageTierSnap[p.id];
+          if (prev && cur && prev !== cur && cur === "TIER_3") {
+            requestAnimationFrame(() => {
+              const row = document.querySelector(`.roster-row[data-pid="${CSS.escape(p.id)}"]`);
+              if (row) {
+                row.classList.add("tier-flash");
+                setTimeout(() => row.classList.remove("tier-flash"), 2600);
+              }
+            });
+          }
+          _triageTierSnap[p.id] = cur;
+        });
+        const ban = byId("triageAlertBanner");
+        const flags = PATIENTS.filter((p) => p.hasActiveSelfFlag);
+        const role = document.body.dataset.role || "";
+        if (ban) {
+          ban.classList.remove("triage-alert-muted");
+          if (role === "rn_coordinator" && flags.length) {
+            ban.style.display = "block";
+            ban.innerHTML = `<strong>${flags.length} patient(s)</strong> have an active “I need help” self-flag — review the roster.`;
+          } else if (role === "surgeon" && flags.length) {
+            ban.style.display = "block";
+            ban.classList.add("triage-alert-muted");
+            ban.textContent = `FYI: ${flags.length} active self-flag(s); RN coordinates resolution.`;
+          } else {
+            ban.style.display = "none";
+            ban.innerHTML = "";
+          }
+        }
+      } else {
+        const ban = byId("triageAlertBanner");
+        if (ban) { ban.style.display = "none"; ban.innerHTML = ""; }
+      }
       renderRoster();
       renderCompliance();
       await refreshAnalyticsData();
@@ -2198,6 +2393,9 @@
 
     function episodePillHtml(episodeType) {
       const pre = episodeType === "pre_op";
+      if (isTriageDemoTenant()) {
+        return `<span class="episode-pill ${pre ? "pre" : "post"}">${pre ? "PRE-OP" : "POST-OP"}</span>`;
+      }
       return `<span class="episode-pill ${pre ? "pre" : "post"}">${pre ? "Pre-Op" : "Post-Op"}</span>`;
     }
 
@@ -2269,33 +2467,21 @@
       if (tier === "TIER_1") return "T1";
       return "—";
     }
-    // Triage Suite Pass 3 §4.3 — three-tier chain (T@upload → T@intake → Now).
-    function tierChainHtml(p) {
-      const initial = p.initialTier || null;
-      const intake  = p.postIntakeTier || null;
-      const current = p.currentTier || null;
-      if (!initial && !intake && !current) return "";
-      const intakeChanged  = initial && intake && initial !== intake;
-      const currentChanged = intake && current && intake !== current;
-      return `
-        <div class="tier-chain" title="Initial → Post-intake → Now">
-          <span class="tier-chip ${tierChipClass(initial)}">${esc(tierChipLabel(initial))}</span>
-          <span class="tier-arrow ${intakeChanged ? 'changed' : ''}">→</span>
-          <span class="tier-chip ${tierChipClass(intake)}">${esc(tierChipLabel(intake))}</span>
-          <span class="tier-arrow ${currentChanged ? 'changed' : ''}">→</span>
-          <span class="tier-chip ${tierChipClass(current)}">${esc(tierChipLabel(current))}</span>
-        </div>
-      `;
-    }
 
     function renderRoster(list = PATIENTS) {
       byId("rosterCount").textContent = `${PATIENTS.length} patients`;
       byId("rosterList").innerHTML = list.map((p) => {
         const curT = (p.currentTier || p.current_tier || "").toString().toUpperCase();
         const tier3 = curT === "TIER_3";
+        const tierPill = isTriageDemoTenant()
+          ? `<span class="roster-tier-chip ${tierChipClass(curT)}">${esc(tierChipLabel(curT))}</span>`
+          : "";
+        const metaHtml = isTriageDemoTenant()
+          ? `${episodePillHtml(inferEpisodeType(p))}${tierPill}${renderTeamBadge(p)}`
+          : `${episodePillHtml(inferEpisodeType(p))}${renderTeamBadge(p)}`;
         return `
         <div class="roster-row${tier3 ? " tier-3-patient" : ""}" data-pid="${esc(p.id)}">
-          <div class="roster-cell name"><span class="name-wrap">${episodePillHtml(inferEpisodeType(p))}<span>${esc(p.name)}${tier3 ? '<span class="tier-3-roster-chip">Tier 3</span>' : ""}${renderTeamBadge(p)}</span></span>${tierChainHtml(p)}</div>
+          <div class="roster-cell name"><span class="name-wrap">${metaHtml}<span class="roster-name-text">${esc(p.name)}</span></span></div>
           <div class="roster-cell muted">${esc(p.phone || "—")}</div>
           <div class="roster-cell muted">${esc(p.email || "—")}</div>
           <div class="roster-cell muted">Day ${esc(p.episode?.currentDay ?? "—")}</div>
@@ -2348,7 +2534,11 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ orEndedAt: nowIso }),
           });
-          window.open(`/intraop-form/${encodeURIComponent(pid)}`, "_blank", "noopener");
+          if (isTriageDemoTenant()) {
+            window.location.href = `/intraop-form/${encodeURIComponent(pid)}`;
+          } else {
+            window.open(`/intraop-form/${encodeURIComponent(pid)}`, "_blank", "noopener");
+          }
           return;
         }
         if (action === "postop-retier") {
@@ -2362,7 +2552,11 @@
           return;
         }
         if (action === "open") {
-          window.open(`/intraop-form/${encodeURIComponent(pid)}`, "_blank", "noopener");
+          if (isTriageDemoTenant()) {
+            window.location.href = `/intraop-form/${encodeURIComponent(pid)}`;
+          } else {
+            window.open(`/intraop-form/${encodeURIComponent(pid)}`, "_blank", "noopener");
+          }
         }
       } catch (e) {
         showToast(e.message || "Action failed", "error");
@@ -2414,6 +2608,7 @@
         survey_pending: "📋 Survey Pending",
         survey_completed: `✅ Day ${payload.survey_day || "?"} Survey`,
         sms_sent: "📩 SMS Sent",
+        daily_checkin_response: "✅ Daily check-in",
       };
       return labels[type] || type;
     }
@@ -2425,7 +2620,26 @@
       const timeline = await apiJson(`/api/patient/${encodeURIComponent(pid)}/timeline`);
       selectedTimeline = timeline;
       byId("timelineModalTitle").textContent = `${patient.name} Episode Timeline`;
-      byId("timelineHeading").innerHTML = `${esc(patient.name)} ${renderTeamBadge(patient)} — Episode Timeline`;
+      const pm = byId("postopMaterialsPanel");
+      const tpr = byId("triagePostopResourceRow");
+      if (isTriageDemoTenant()) {
+        const ct = patient.currentTier || patient.current_tier || "";
+        const ph = patient.phase || "";
+        byId("timelineHeading").innerHTML = `
+          <span class="detail-head-name">${esc(patient.name)}</span>
+          <span class="detail-head-sep">·</span>
+          <button type="button" class="detail-tier-hit ${tierChipClass(ct)}" data-triage-tier-hit="${esc(patient.id)}" role="button" tabindex="0">${esc(tierSpelledOut(ct))}</button>
+          <span class="detail-head-sep">·</span>
+          ${renderTeamBadge(patient)}
+        `;
+        wireDetailTierHit(byId("whyTierTimelineBody"), patient.id, byId("timelineModal"));
+        if (pm) pm.style.display = "none";
+        if (tpr) tpr.style.display = ph === "post_op" ? "block" : "none";
+      } else {
+        byId("timelineHeading").innerHTML = `${esc(patient.name)} ${renderTeamBadge(patient)} — Episode Timeline`;
+        if (pm) pm.style.display = "block";
+        if (tpr) tpr.style.display = "none";
+      }
       // Reset post-op materials panel state for this patient
       resetPostopPanel();
       hydratePostopPanel(patient);
@@ -2458,6 +2672,7 @@
       byId("calendarGrid").querySelectorAll("[data-survey-day]").forEach((btn) => {
         btn.addEventListener("click", () => openSurveyModal(patient.id, Number(btn.dataset.surveyDay), patient.name));
       });
+      void renderWhyTierCard(byId("whyTierTimelineBody"), pid);
       byId("timelineModal").classList.add("active");
     }
 
@@ -2548,7 +2763,19 @@
       if (!patient) return;
       selectedPreopPatient = patient;
       byId("preopDetailModalTitle").textContent = `${patient.name} Pre-Op Detail`;
-      byId("preopDetailHeading").innerHTML = `${esc(patient.name)} ${renderTeamBadge(patient)} — Pre-Op Preparation Detail`;
+      if (isTriageDemoTenant()) {
+        const ct = patient.currentTier || patient.current_tier || "";
+        byId("preopDetailHeading").innerHTML = `
+          <span class="detail-head-name">${esc(patient.name)}</span>
+          <span class="detail-head-sep">·</span>
+          <button type="button" class="detail-tier-hit ${tierChipClass(ct)}" data-triage-tier-hit="${esc(patient.id)}" role="button" tabindex="0">${esc(tierSpelledOut(ct))}</button>
+          <span class="detail-head-sep">·</span>
+          ${renderTeamBadge(patient)}
+        `;
+        wireDetailTierHit(byId("preopWhyTierBody"), patient.id, byId("preopDetailModal"));
+      } else {
+        byId("preopDetailHeading").innerHTML = `${esc(patient.name)} ${renderTeamBadge(patient)} — Pre-Op Preparation Detail`;
+      }
       resetPreopPanel();
       hydratePreopPanel(patient);
       const countdown = formatCountdown(patient.date);
@@ -2590,6 +2817,7 @@
       if (viewIntakeBtn) {
         viewIntakeBtn.disabled = !patient.intakeFormId;
       }
+      void renderWhyTierCard(byId("preopWhyTierBody"), pid);
       byId("preopDetailModal").classList.add("active");
     }
 
@@ -2719,7 +2947,11 @@
           const tier = data.response.tier ?? "—";
           const tone = toneFrom(data.response.score, data.response.tier);
           const answers = data.answers_detailed || [];
+          const escalationBanner = (isTriageDemoTenant() && day === 7 && String(tier || "").toUpperCase() === "RED")
+            ? `<div style="margin-bottom:12px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:13px;font-weight:600;">This response contributed to a tier escalation.</div>`
+            : "";
           byId("surveyBody").innerHTML = `
+            ${escalationBanner}
             <div class="survey-shell">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
                 <div style="font-size:13px;color:#64748b;">${esc(interpretationFrom(tone))}</div>
@@ -2764,6 +2996,12 @@
       const data = await apiJson("/api/escalations");
       escalations = data.escalations || [];
       await refreshAnalyticsData();
+      const sub = byId("escalationSub");
+      if (sub) {
+        sub.textContent = data.filter_applied === "surgeon_tier3_only"
+          ? "Showing Tier 3 escalations only (surgeon view)."
+          : "Sorted most recent to least recent.";
+      }
       byId("resolvedCounter").textContent = `${data.resolved_count || 0}/${data.total_count || 0} Escalations Resolved`;
       byId("escalationList").innerHTML = escalations.map((e) => `
         <div class="esc-item" data-id="${esc(e.id)}">
@@ -2925,9 +3163,28 @@
 
     function applyProfile(profile) {
       byId("sidebarName").textContent = profile.fullName;
-      byId("sidebarSpecialty").textContent = profile.typeOfDoctor;
+      const spec = profile.role === "surgeon"
+        ? "TEAM Surgeon Console"
+        : profile.role === "rn_coordinator"
+          ? "RN Care Coordinator Queue"
+          : profile.typeOfDoctor;
+      byId("sidebarSpecialty").textContent = spec;
       byId("sidebarAvatar").textContent = initials(profile.fullName);
       document.body.dataset.readonlyRole = profile.role === "np_pa" ? "np_pa" : "";
+      document.body.dataset.clinicCode = profile.clinicCode || "";
+      document.body.dataset.tenantSlug = profile.tenantSlug || "";
+      document.body.dataset.role = profile.role || "";
+      document.body.classList.toggle("role-surgeon", profile.role === "surgeon");
+      document.body.classList.toggle("role-rn_coordinator", profile.role === "rn_coordinator");
+      const addBtn = byId("addPatientBtn");
+      // Keep + Add Patient available for triage-demo surgeons (PRD add-patient flow).
+      if (addBtn) {
+        addBtn.hidden = profile.role === "surgeon" && !isTriageDemoTenant();
+      }
+      const autofill = byId("triageDemoAutofillWrap");
+      if (autofill) autofill.style.display = isTriageDemoTenant() ? "block" : "none";
+      const irp = byId("intraopReviewPanel");
+      if (irp) irp.classList.toggle("intraop-review-emphasis", profile.role === "surgeon" && isTriageDemoTenant());
       const auditBtn = byId("tab-btn-audit");
       if (auditBtn) {
         const show = profile.isTeamDirector === true && profile.tenantSlug;
@@ -3139,7 +3396,36 @@
       });
     }
 
+    function openTriagePostopResourceModal(patient) {
+      if (!addPatientModal || !patient || !isTriageDemoTenant()) return;
+      resetAddPatientModal();
+      teamFlow.mode = "legacy";
+      teamFlow.step = "legacy";
+      showStepEls("patientFormFields");
+      showLegacyFooter();
+      selectedEpisodeType = "post_op";
+      applyLegacyEpisodeTypeFormState();
+      byId("patientNameLegacy").value = patient.name || "";
+      byId("patientPhoneLegacy").value = patient.phone || "";
+      byId("patientEmailLegacy").value = patient.email || "";
+      byId("dischargeNotes").value = "";
+      byId("scheduledSurgeryDateLegacy").value = "";
+      pdfText = "";
+      const uc = byId("uploadContent"); if (uc) uc.style.display = "block";
+      const us = byId("uploadSuccess"); if (us) us.style.display = "none";
+      byId("addPatientModalTitle").textContent = "Generate post-op resources";
+      addPatientModal.classList.add("active");
+    }
+
     function setupPreopPatientActions() {
+      const gpr = byId("generatePostopResourcesBtn");
+      if (gpr && !gpr.dataset.bound) {
+        gpr.dataset.bound = "1";
+        gpr.addEventListener("click", () => {
+          if (!selectedPatient) return;
+          openTriagePostopResourceModal(selectedPatient);
+        });
+      }
       // Initial state buttons (PRD §6.3.1)
       byId("viewIntakeFormBtn").addEventListener("click", () => {
         if (!selectedPreopPatient) return;
@@ -3212,8 +3498,25 @@
         }
       });
       // Both Switch-to-Post-Op buttons (initial + confirmed states) share behaviour
-      const switchHandler = () => {
+      const switchHandler = async () => {
         if (!selectedPreopPatient) return;
+        if (isTriageDemoTenant()) {
+          const ok = confirm("Mark surgery as ended and open the intra-op reassessment form for this patient?");
+          if (!ok) return;
+          try {
+            const nowIso = new Date().toISOString().slice(0, 19);
+            await apiJson(`/api/episodes/${encodeURIComponent(selectedPreopPatient.id)}/switch-to-postop`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ orEndedAt: nowIso }),
+            });
+            byId("preopDetailModal").classList.remove("active");
+            window.location.href = `/intraop-form/${encodeURIComponent(selectedPreopPatient.id)}`;
+          } catch (e) {
+            showToast(e.message || "Could not switch to intra-op.", "error");
+          }
+          return;
+        }
         openLegacyPostOpFlow(selectedPreopPatient);
         byId("preopDetailModal").classList.remove("active");
       };
@@ -3912,6 +4215,22 @@
 
     function setupAddPatientFlow() {
       byId("addPatientBtn").addEventListener("click", openAddPatientModal);
+      const triageAutofill = byId("triageDemoAutofillBtn");
+      if (triageAutofill) {
+        triageAutofill.addEventListener("click", () => {
+          byId("patientName").value = "Anne Tumilson";
+          byId("patientPhone").value = "+1 (310) 555-0142";
+          byId("patientEmail").value = "anne.tumilson@triage-demo.email";
+          byId("patientDOB").value = "1956-03-12";
+          const d = new Date();
+          d.setDate(d.getDate() + 10);
+          byId("scheduledSurgeryDate").value = d.toISOString().slice(0, 10);
+          byId("anchorProcedure").value = "LEJR";
+          byId("patientMBI").value = "";
+          byId("freeformNotes").value = "Medicare Part A+B. TEAM triage demo — LEJR, no exclusions.";
+          showToast("Demo intake filled (Anne Tumilson).", "success");
+        });
+      }
       byId("addPatientClose").addEventListener("click", closeAddPatientModal);
       byId("cancelBtn").addEventListener("click", closeAddPatientModal);
       byId("teamCancelBtn").addEventListener("click", closeAddPatientModal);
@@ -4198,6 +4517,10 @@
     loadEscalations().catch((e) => showToast(e.message, "error"));
     loadIntakeNotifications().catch(() => {});
     setInterval(() => { loadIntakeNotifications().catch(() => {}); }, 20000);
+    setInterval(() => {
+      if (!isTriageDemoTenant()) return;
+      refreshLiveViews({ includeEscalations: true, refreshTimeline: true }).catch(() => {});
+    }, 2800);
   </script>
 </body>
 </html>

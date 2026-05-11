@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import logging
+import os
 import re
 import uuid
 import zipfile
@@ -30,6 +32,29 @@ from eligibility.parse_pdf import (
 from eligibility.parse_x12 import InvalidX12Error, X12_271_AST, format_for_llm as x12_format, parse_x12_271
 
 log = logging.getLogger("eligibility.pipeline")
+
+from tenant_constants import ARCH_TRIAGE_DEMO_HEALTH_SYSTEM_ID, TRIAGEDM_CLINIC_CODE
+
+_TRIAGE_FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "demo_triage_team.json"
+
+
+def _is_demo_mode_env() -> bool:
+    return os.getenv("DEMO_MODE", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _patient_is_triage_demo_clinic(patient: Dict[str, Any]) -> bool:
+    if not _is_demo_mode_env():
+        return False
+    code = (patient.get("clinic_code") or "").strip().upper()
+    if code == TRIAGEDM_CLINIC_CODE:
+        return True
+    hid = (patient.get("health_system_id") or "").strip()
+    return hid == ARCH_TRIAGE_DEMO_HEALTH_SYSTEM_ID
+
+
+def _load_triage_demo_extracted() -> Dict[str, Any]:
+    raw = _TRIAGE_FIXTURE_PATH.read_text(encoding="utf-8")
+    return json.loads(raw)
 
 
 def _utc_iso() -> str:
@@ -130,6 +155,51 @@ async def run_pipeline(
         record["status"] = "PARSING"
         record["stage"] = "PARSING"
         await _emit(record, "status", {"stage": "PARSING"})
+
+        if _patient_is_triage_demo_clinic(patient):
+            import asyncio
+
+            await asyncio.sleep(0.7)
+            record["status"] = "EXTRACTING"
+            record["stage"] = "EXTRACTING"
+            await _emit(record, "status", {"stage": "EXTRACTING"})
+            await asyncio.sleep(0.7)
+            record["status"] = "EVALUATING"
+            record["stage"] = "EVALUATING"
+            await _emit(record, "status", {"stage": "EVALUATING"})
+            extracted = _load_triage_demo_extracted()
+            record["extracted_fields"] = extracted
+            record["parse_meta"] = [{"note": "triage_demo_fixture", "demo": True}]
+            verdicts = eval_mod.evaluate(extracted, surgery_date)
+            verdicts = eval_mod.apply_overrides(verdicts, record.get("overrides") or {})
+            overall = eval_mod.overall_verdict(verdicts)
+            record["verdicts"] = verdicts
+            record["overall_verdict"] = overall
+            record["status"] = "DONE"
+            record["stage"] = "DONE"
+            record["finished_at"] = _utc_iso()
+            record["duration_ms"] = int((datetime.utcnow() - t_start).total_seconds() * 1000)
+            if patient.get("eligibility_status") not in ("ELIGIBLE", "INELIGIBLE"):
+                patient["eligibility_status"] = overall
+            await _emit(
+                record,
+                "result",
+                {
+                    "verdicts": verdicts,
+                    "overallVerdict": overall,
+                    "extractedFields": extracted,
+                    "parseMeta": record["parse_meta"],
+                    "durationMs": record["duration_ms"],
+                },
+            )
+            store.append_audit(
+                action="eligibility_check_completed",
+                actor=record.get("actor") or "system",
+                patient_id=record["patient_id"],
+                check_id=check_id,
+                after={"overall": overall, "triage_demo_fixture": True},
+            )
+            return
 
         parsed = [_parse_one(d) for d in document_records]
         parse_errors = [p for p in parsed if p.get("parse_error")]

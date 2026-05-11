@@ -50,9 +50,20 @@ from routers.intraop import router as intraop_router
 from routers.postop import router as postop_router
 from routers.initial_tier import router as initial_tier_router
 from routers.preop_retier import router as preop_retier_router
+from routers.triage_explain import router as triage_explain_router
 from eligibility import store as elig_store
 from staff_context import StaffContext, get_staff_context_optional
-from tenant_constants import DEMO_HEALTH_SYSTEM_ID, DEMO_HEALTH_SYSTEM_SLUG
+from tenant_constants import (
+    DEMO_HEALTH_SYSTEM_ID,
+    DEMO_HEALTH_SYSTEM_SLUG,
+    TRIAGEDM_CLINIC_CODE,
+)
+from triage_demo_seed import (
+    ensure_triage_demo_staff,
+    merge_triage_patients_into_store,
+    seed_triage_demo_sqlite,
+    spinal_fusion_postop_demo_resources,
+)
 from tenant_jwt import decode_tenant_staff_token
 from email_utils import is_email_transport_configured, send_html_email as _send_html_email_impl
 from auth import (
@@ -769,7 +780,18 @@ async def _seed_demo_mode_data() -> None:
     rows = _seed_demo_patient_store()
     _load_demo_patient_store_snapshot()
     _seed_demo_sqlite(rows, _demo_seed_strategy())
-    _persist_demo_patient_store()
+
+
+def _ensure_triage_demo_tenant_seeded() -> None:
+    """Merge TRIAGEDM in-memory patients + SQLite rows on every startup.
+
+    Tenant staff sign-in works without ``DEMO_MODE``, but the roster reads
+    ``_patient_store``; seeding triage only inside ``_seed_demo_mode_data`` left
+    an empty roster when ``DEMO_MODE`` was off.
+    """
+    ensure_triage_demo_staff(_team_store)
+    merge_triage_patients_into_store(_patient_store, battlecard_fn=_build_demo_battlecard)
+    seed_triage_demo_sqlite(_team_store, _patient_store, strategy=_demo_seed_strategy())
 
 
 def _frontend_cache_version() -> str:
@@ -1811,6 +1833,11 @@ async def list_patients(
             "phone": d.get("phone", ""),
             "email": d.get("email", ""),
             "health_system_code": d.get("clinic_code") or "",
+            "phase": d.get("phase"),
+            "orStartedAt": d.get("or_started_at"),
+            "orEndedAt": d.get("or_ended_at"),
+            "tierLastChanged": d.get("tier_last_changed"),
+            "hasActiveSelfFlag": _team_store.has_active_self_flag(pid),
             "intakeFormStatus": (latest_intake or {}).get("status") or "NOT_STARTED",
             "intakeFormId": (latest_intake or {}).get("id"),
             "eligibilityStatus": d.get("eligibility_status"),
@@ -1983,6 +2010,26 @@ async def get_patient_timeline(
                 "payload": {"survey_day": day, "score": sr.get("score"), "tier": sr.get("tier")},
             }
         )
+    if (d.get("clinic_code") or "").upper() == TRIAGEDM_CLINIC_CODE:
+        completed_survey_days = {
+            int(sr["survey_day"])
+            for sr in survey_responses
+            if str(sr.get("survey_type") or "postop") == "postop"
+        }
+        for send_row in _team_store.get_survey_sends(patient_id):
+            day = int(send_row["survey_day"])
+            if day in completed_survey_days:
+                continue
+            if day < 1 or day > 30:
+                continue
+            markers[str(day)].append(
+                {
+                    "id": f"survey-pending-{day}",
+                    "type": "survey_pending",
+                    "timestamp": send_row.get("sent_at"),
+                    "payload": {"survey_day": day},
+                }
+            )
     return {
         "patient_id": patient_id,
         "episode": {
@@ -2002,6 +2049,11 @@ async def get_patient_timeline(
 async def list_escalations(staff: Optional[StaffContext] = Depends(get_staff_context_optional)):
     rows = _team_store.list_escalations()
     out = []
+    filter_applied = (
+        "surgeon_tier3_only"
+        if staff and staff.source == "tenant" and staff.role == "surgeon"
+        else None
+    )
     for row in rows:
         patient = _patient_store.get(row["patient_id"], {})
         if staff and staff.source == "tenant" and staff.tenant_id:
@@ -2009,12 +2061,20 @@ async def list_escalations(staff: Optional[StaffContext] = Depends(get_staff_con
                 continue
         trigger = row["trigger_type"]
         origin = "Care Team Notification" if str(trigger).startswith("care_team_notification") else "Chat"
+        tier_val = row["tier"]
+        if (
+            staff
+            and staff.source == "tenant"
+            and staff.role == "surgeon"
+            and int(tier_val) != 3
+        ):
+            continue
         out.append(
             {
                 "id": row["id"],
                 "patient_id": row["patient_id"],
                 "patient_name": patient.get("name", row["patient_id"]),
-                "tier": row["tier"],
+                "tier": tier_val,
                 "trigger_type": row["trigger_type"],
                 "origin": origin,
                 "message": row.get("message", ""),
@@ -2026,7 +2086,10 @@ async def list_escalations(staff: Optional[StaffContext] = Depends(get_staff_con
             }
         )
     resolved_count = sum(1 for r in out if r["resolved"])
-    return {"escalations": out, "resolved_count": resolved_count, "total_count": len(out)}
+    body = {"escalations": out, "resolved_count": resolved_count, "total_count": len(out)}
+    if filter_applied:
+        body["filter_applied"] = filter_applied
+    return body
 
 
 @app.patch("/api/escalations/{escalation_id}/resolved")
@@ -2899,40 +2962,85 @@ async def process_patient(
 ):
     """Legacy full pipeline (single resource set)."""
     health_system_id = staff.tenant_id if (staff and staff.source == "tenant" and staff.tenant_id) else None
-    raw_package = IngestLayer().process(bundle.model_dump())
-    structured_data = await ExtractionLayer().extract(raw_package)
-    pipeline_type = ClassificationLayer().classify(structured_data)
-    generator = GenerationLayer()
-    voice_script, battlecard_html = await generator.generate(structured_data, pipeline_type)
-    audio_url = await ElevenLabsClient().synthesize(voice_script, bundle.patient_id)
-    avatar = await TavusClient().create_conversation(
-        patient_id=bundle.patient_id,
-        knowledge_base={
-            "voice_script":  voice_script,
-            "battlecard":    battlecard_html,
-            "ehr_summary":   structured_data,
-        },
-    )
+    resources_opt: Optional[Dict[str, Any]] = None
+    try:
+        raw_package = IngestLayer().process(bundle.model_dump())
+        structured_data = await ExtractionLayer().extract(raw_package)
+        pipeline_type = ClassificationLayer().classify(structured_data)
+        generator = GenerationLayer()
+        voice_script, battlecard_html = await generator.generate(structured_data, pipeline_type)
+    except Exception as exc:
+        prev_blob = _patient_store.get(bundle.patient_id) or {}
+        triage_ok = _is_demo_mode() and (prev_blob.get("clinic_code") or "").upper() == "TRIAGEDM"
+        if not triage_ok:
+            raise HTTPException(status_code=500, detail=f"Pipeline failed: {exc}") from exc
+        structured_data = dict(prev_blob.get("structured_data") or {})
+        if bundle.clinical_notes:
+            structured_data["discharge_notes"] = bundle.clinical_notes
+        pipeline_type = "post_op"
+        dx_h, tx_h, dx_s, tx_s = spinal_fusion_postop_demo_resources()
+        voice_script = dx_s
+        battlecard_html = dx_h
+        resources_opt = {
+            "diagnosis": {"voice_script": dx_s, "battlecard_html": dx_h, "voice_audio_url": None},
+            "treatment": {"voice_script": tx_s, "battlecard_html": tx_h, "voice_audio_url": None},
+        }
+
+    try:
+        audio_url = await ElevenLabsClient().synthesize(voice_script, bundle.patient_id)
+    except Exception:
+        audio_url = None
+    try:
+        avatar = await TavusClient().create_conversation(
+            patient_id=bundle.patient_id,
+            knowledge_base={
+                "voice_script":  voice_script,
+                "battlecard":    battlecard_html,
+                "ehr_summary":   structured_data,
+            },
+        )
+    except Exception:
+        avatar = {"conversation_url": None}
     base_url      = os.getenv("BASE_URL", "http://localhost:8000")
     dashboard_url = f"{base_url}/patient/{bundle.patient_id}"
-    _patient_store[bundle.patient_id] = {
-        "name":                bundle.patient_name,
-        "health_system_id":    health_system_id,
-        "phone":               bundle.phone_number,
-        "pipeline_type":       pipeline_type,
-        "voice_audio_url":     audio_url,
-        "battlecard_html":     battlecard_html,
-        "avatar_url":          avatar.get("conversation_url"),
-        "structured_data":     structured_data,
-        "voice_script":        voice_script,
-        "resources":           None,
-    }
+    clinic_code_m = ""
+    prev = _patient_store.get(bundle.patient_id)
+    if prev:
+        clinic_code_m = (prev.get("clinic_code") or "") or ""
+        prev.update({
+            "name":                bundle.patient_name,
+            "health_system_id":    health_system_id or prev.get("health_system_id"),
+            "phone":               bundle.phone_number or prev.get("phone"),
+            "pipeline_type":       pipeline_type,
+            "voice_audio_url":     audio_url,
+            "battlecard_html":     battlecard_html,
+            "avatar_url":          avatar.get("conversation_url"),
+            "structured_data":     {**(prev.get("structured_data") or {}), **structured_data},
+            "voice_script":        voice_script,
+        })
+        if resources_opt is not None:
+            prev["resources"] = resources_opt
+        _patient_store[bundle.patient_id] = prev
+    else:
+        _patient_store[bundle.patient_id] = {
+            "name":                bundle.patient_name,
+            "health_system_id":    health_system_id,
+            "phone":               bundle.phone_number,
+            "pipeline_type":       pipeline_type,
+            "voice_audio_url":     audio_url,
+            "battlecard_html":     battlecard_html,
+            "avatar_url":          avatar.get("conversation_url"),
+            "structured_data":     structured_data,
+            "voice_script":        voice_script,
+            "resources":           resources_opt,
+            "clinic_code":         clinic_code_m,
+        }
     _team_store.ensure_episode(
         patient_id=bundle.patient_id,
         procedure_type=structured_data.get("procedure_name", ""),
-        clinic_code="",
-        resource_code="",
-        health_system_id=health_system_id,
+        clinic_code=(_patient_store[bundle.patient_id] or {}).get("clinic_code") or clinic_code_m or "",
+        resource_code=(_patient_store[bundle.patient_id] or {}).get("resource_code") or "",
+        health_system_id=(_patient_store[bundle.patient_id] or {}).get("health_system_id") or health_system_id,
     )
     _persist_demo_patient_store()
     background_tasks.add_task(
@@ -4416,6 +4524,9 @@ async def startup_team_scheduler():
     if not _disable_public_demo_account():
         _ensure_demo_doctor()
     await _seed_demo_mode_data()
+    _ensure_triage_demo_tenant_seeded()
+    if _is_demo_mode():
+        _persist_demo_patient_store()
     if _is_demo_mode() and _disable_scheduler_in_demo():
         print("[demo-seed] team scheduler disabled for demo startup stability.")
         app.state.team_scheduler_task = None
@@ -4478,6 +4589,7 @@ app.include_router(intraop_router)
 app.include_router(postop_router)
 app.include_router(initial_tier_router)
 app.include_router(preop_retier_router)
+app.include_router(triage_explain_router)
 
 
 @app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)

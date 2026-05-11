@@ -130,6 +130,9 @@ async def create_draft_patient(
         _validate_iso_date(body.dob, "dob")
 
     hs_id = staff.tenant_id if (staff and staff.source == "tenant") else None
+    clinic_guess = ""
+    if staff and staff.source == "tenant":
+        clinic_guess = (staff.health_system_code or "").strip().upper()
     store_dict = _patient_store(request)
 
     # PRD §11.14: duplicate MBI detection — surface the existing patient
@@ -166,7 +169,7 @@ async def create_draft_patient(
             "dob": body.dob,
             "mbi": mbi,
         },
-        "clinic_code": "",
+        "clinic_code": clinic_guess,
         "resource_code": "",
         "office_phone": "",
         "resources": None,
