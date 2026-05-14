@@ -17,6 +17,14 @@
       "destination": "/index.html"
     },
     {
+      "source": "/podcast-blogs",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/podcast-blogs/",
+      "destination": "/index.html"
+    },
+    {
       "source": "/onboard/:token",
       "destination": "/index.html"
     },

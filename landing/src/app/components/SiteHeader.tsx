@@ -5,14 +5,17 @@ import { SignUpDialog } from "@/app/components/SignUpDialog";
 import ArchangelHealthLogo from "@/app/components/ArchangelHealthLogo";
 import * as authApi from "@/lib/auth-api";
 
-export type LandingView = "home" | "whitepaper" | "calculator";
+export type LandingView = "home" | "whitepaper" | "calculator" | "podcastBlogs";
 
 export function parseLandingView(): LandingView {
   if (typeof window === "undefined") return "home";
-  const path = window.location.pathname;
+  const path = window.location.pathname.replace(/\/$/, "");
   const params = new URLSearchParams(window.location.search);
   if (path === "/team-calculator" || params.get("team-calculator") === "1" || params.get("view") === "calculator") {
     return "calculator";
+  }
+  if (path === "/podcast-blogs" || params.get("view") === "podcasts") {
+    return "podcastBlogs";
   }
   if (params.get("view") === "whitepaper") return "whitepaper";
   return "home";
@@ -85,18 +88,18 @@ export function SiteHeader({ activeView }: SiteHeaderProps) {
             Home
           </a>
           <a
-            href="/?view=whitepaper"
-            className={tabClass("whitepaper")}
-            aria-current={activeView === "whitepaper" ? "page" : undefined}
-          >
-            TEAM white paper
-          </a>
-          <a
             href="/team-calculator"
             className={tabClass("calculator")}
             aria-current={activeView === "calculator" ? "page" : undefined}
           >
             TEAM calculator
+          </a>
+          <a
+            href="/podcast-blogs"
+            className={tabClass("podcastBlogs")}
+            aria-current={activeView === "podcastBlogs" ? "page" : undefined}
+          >
+            Podcast &amp; Blogs
           </a>
         </nav>
 
