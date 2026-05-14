@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import RecoveryResourcesEmailPreview from "@/app/components/RecoveryResourcesEmailPreview";
 import TeamCalculator from "@/app/components/TeamCalculator";
-import TeamWhitepaperPage from "@/app/components/TeamWhitepaperPage";
+import PodcastAndBlogsPage from "@/app/components/PodcastAndBlogsPage";
 import { SiteHeader, parseLandingView } from "@/app/components/SiteHeader";
 import OnboardingWizard from "@/app/components/OnboardingWizard";
 import TenantSignIn from "@/app/components/TenantSignIn";
@@ -747,7 +747,7 @@ export default function App() {
     <AuthProvider>
       <SiteHeader activeView={view} />
       {view === "home" && <LandingContent />}
-      {view === "whitepaper" && <TeamWhitepaperPage />}
+      {view === "resources" && <PodcastAndBlogsPage />}
       {view === "calculator" && <TeamCalculator />}
     </AuthProvider>
   );

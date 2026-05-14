@@ -5,7 +5,7 @@ import { SignUpDialog } from "@/app/components/SignUpDialog";
 import ArchangelHealthLogo from "@/app/components/ArchangelHealthLogo";
 import * as authApi from "@/lib/auth-api";
 
-export type LandingView = "home" | "whitepaper" | "calculator";
+export type LandingView = "home" | "resources" | "calculator";
 
 export function parseLandingView(): LandingView {
   if (typeof window === "undefined") return "home";
@@ -14,7 +14,8 @@ export function parseLandingView(): LandingView {
   if (path === "/team-calculator" || params.get("team-calculator") === "1" || params.get("view") === "calculator") {
     return "calculator";
   }
-  if (params.get("view") === "whitepaper") return "whitepaper";
+  const view = params.get("view");
+  if (view === "resources" || view === "whitepaper" || view === "podcast" || view === "podcasts") return "resources";
   return "home";
 }
 
@@ -85,11 +86,11 @@ export function SiteHeader({ activeView }: SiteHeaderProps) {
             Home
           </a>
           <a
-            href="/?view=whitepaper"
-            className={tabClass("whitepaper")}
-            aria-current={activeView === "whitepaper" ? "page" : undefined}
+            href="/?view=resources"
+            className={tabClass("resources")}
+            aria-current={activeView === "resources" ? "page" : undefined}
           >
-            TEAM white paper
+            Podcast and Blogs
           </a>
           <a
             href="/team-calculator"
