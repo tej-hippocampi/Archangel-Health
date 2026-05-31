@@ -21,6 +21,12 @@ export function SignInDialog({ open, onOpenChange }: Props) {
   const [resourceCode, setResourceCode] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [apiError, setApiError] = React.useState<string | null>(null);
+  const [demoRoutes, setDemoRoutes] = React.useState<Record<string, authApi.DemoSignInRoute>>({});
+
+  React.useEffect(() => {
+    if (!open || step !== "doctor") return;
+    authApi.getDemoSignInRoutes().then(setDemoRoutes).catch(() => setDemoRoutes({}));
+  }, [open, step]);
 
   const resetAndClose = () => {
     setStep("role");
@@ -38,11 +44,23 @@ export function SignInDialog({ open, onOpenChange }: Props) {
     clearError();
     setApiError(null);
     setSubmitting(true);
+    const trimmedEmail = email.trim();
+    const route = demoRoutes[trimmedEmail.toLowerCase()];
     try {
-      await login(email, password);
+      if (route?.type === "tenant" && route.slug) {
+        const data = await authApi.tenantLogin(route.slug, trimmedEmail, password);
+        if (!data.access_token) {
+          throw new Error("Could not open doctor portal.");
+        }
+        resetAndClose();
+        await authApi.redirectToDoctorPortal(data.access_token);
+        return;
+      }
+      await login(trimmedEmail, password);
       resetAndClose();
-    } catch {
-      // error set in context
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Sign in failed";
+      setApiError(msg);
     } finally {
       setSubmitting(false);
     }

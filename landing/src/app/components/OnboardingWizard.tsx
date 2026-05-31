@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { API_BASE } from "@/lib/auth-api";
+import * as authApi from "@/lib/auth-api";
 
 import OnboardingStyles from "./onboarding/OnboardingStyles";
 import { ChromeHeader, Stepper } from "./onboarding/primitives";
@@ -89,12 +90,6 @@ type SessionResponse = {
     status?: string;
   }>;
 };
-
-const DASHBOARD_URL =
-  (import.meta as unknown as { env: { VITE_DASHBOARD_URL?: string; VITE_API_URL?: string } }).env
-    .VITE_DASHBOARD_URL ??
-  (import.meta as unknown as { env: { VITE_API_URL?: string } }).env.VITE_API_URL ??
-  "http://localhost:8000";
 
 function api(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${API_BASE}${path}`, {
@@ -382,8 +377,7 @@ export default function OnboardingWizard({ token }: Props) {
   );
 
   const openWorkspace = useCallback(() => {
-    const dest = `${DASHBOARD_URL.replace(/\/$/, "")}/#auth=${encodeURIComponent(authToken)}`;
-    window.location.href = dest;
+    void authApi.redirectToDoctorPortal(authToken);
     // Resolve true so the success state can flash before the browser navigates.
     return true;
   }, [authToken]);

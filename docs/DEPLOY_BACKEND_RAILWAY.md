@@ -22,6 +22,10 @@ In the project, open your service → **Variables** tab. Add:
 | `BASE_URL` | `https://YOUR-APP.up.railway.app` (see step 4 – replace with your real URL after first deploy) |
 | `LANDING_URL` | `https://archangelhealth.ai` |
 | `AUTH_SECRET` | Long random string (e.g. run `openssl rand -hex 32` in terminal and paste) |
+| `ENABLE_TRIAGE_DEMO` | `1` to load TRIAGEDM demo tenant roster (set `0` to disable in production) |
+| `DEMO_DOCTOR_PASSWORD` | Password for Cedar landing demo doctor account |
+| `TRIAGE_DEMO_SURGEON_PASSWORD` | Password for TRIAGEDM surgeon demo account |
+| `TRIAGE_DEMO_RN_PASSWORD` | Password for TRIAGEDM RN demo account |
 
 Optional (add when you have them): `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `ANTHROPIC_API_KEY`, `CARE_TEAM_PHONE`, etc.
 

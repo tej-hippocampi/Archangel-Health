@@ -82,12 +82,7 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
         hospital_affiliations: hospitalAffiliations,
       });
       resetAndClose();
-      const env = (import.meta as unknown as { env: { VITE_DASHBOARD_URL?: string; VITE_API_URL?: string; DEV?: boolean } }).env;
-      const dashboardUrl =
-        env?.VITE_DASHBOARD_URL ?? env?.VITE_API_URL ?? (env?.DEV ? "http://localhost:8000" : "");
-      if (dashboardUrl && token) {
-        window.location.href = dashboardUrl + "#auth=" + encodeURIComponent(token);
-      }
+      if (token) await authApi.redirectToDoctorPortal(token);
     } catch (e) {
       setApiError(e instanceof Error ? e.message : "Onboarding failed");
     } finally {

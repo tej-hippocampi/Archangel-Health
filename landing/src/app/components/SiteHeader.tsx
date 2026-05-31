@@ -21,10 +21,6 @@ export function parseLandingView(): LandingView {
   return "home";
 }
 
-const env = (import.meta as unknown as { env: { VITE_DASHBOARD_URL?: string; VITE_API_URL?: string; DEV?: boolean } }).env;
-const DASHBOARD_URL =
-  env?.VITE_DASHBOARD_URL ?? env?.VITE_API_URL ?? (env?.DEV ? "http://localhost:8000" : "");
-
 interface SiteHeaderProps {
   activeView: LandingView;
 }
@@ -36,11 +32,11 @@ export function SiteHeader({ activeView }: SiteHeaderProps) {
   const [signUpInitialStep, setSignUpInitialStep] = useState<"role" | "patient-codes">("role");
 
   useEffect(() => {
-    if (!user || !DASHBOARD_URL || !token) return;
+    if (!user || !token) return;
     let cancelled = false;
     authApi.getDoctorProfile(token).then((profile) => {
       if (!cancelled && profile) {
-        window.location.href = DASHBOARD_URL + "#auth=" + encodeURIComponent(token);
+        void authApi.redirectToDoctorPortal(token);
       }
     });
     return () => {
@@ -109,8 +105,8 @@ export function SiteHeader({ activeView }: SiteHeaderProps) {
               {user ? (
                 <>
                   <span className="site-header-email">{user.email}</span>
-                  {DASHBOARD_URL && (
-                    <a href={DASHBOARD_URL} className="auth-btn auth-btn-primary site-header-auth-btn">
+                  {DOCTOR_APP_URL && (
+                    <a href={DOCTOR_APP_URL} className="auth-btn auth-btn-primary site-header-auth-btn">
                       {user.name ? user.name.trim().split(" ").slice(0, 2).join(" ") : "Doctor Portal"}
                     </a>
                   )}

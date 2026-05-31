@@ -8,6 +8,7 @@ hermetic and runs in milliseconds.
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
@@ -24,6 +25,7 @@ os.environ.setdefault("UPLOAD_DIR", "/tmp/elysium-eligibility-tests")
 from eligibility import store as elig_store  # noqa: E402
 from eligibility import pipeline as elig_pipeline  # noqa: E402
 from main import app  # noqa: E402
+from tests._role_auth import tenant_token  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +38,18 @@ def _clean_state():
     elig_store._RATE_BUCKETS.clear()  # type: ignore[attr-defined]
     app.state.patient_store.clear()
     yield
+
+
+@pytest.fixture(autouse=True)
+def _event_loop():
+    """Keep a live loop available for tests that instantiate asyncio.Event()."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        yield
+    finally:
+        loop.close()
+        asyncio.set_event_loop(asyncio.new_event_loop())
 
 
 # ─── Pipeline stub: deterministic, no LLM ──────────────────────────────────
@@ -286,7 +300,7 @@ def test_full_check_flow_to_finalize_team(client, stub_pipeline):
     check_id = chk.json()["id"]
 
     import asyncio
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
 
     g = client.get(f"/api/eligibility-checks/{check_id}")
     assert g.status_code == 200
@@ -319,7 +333,7 @@ def test_finalize_save_as_standard_clears_eligibility(client, stub_pipeline):
     check_id = chk.json()["id"]
 
     import asyncio
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
 
     fin = client.post(
         f"/api/eligibility-checks/{check_id}/finalize",
@@ -360,7 +374,7 @@ def test_finalize_team_blocked_when_overall_not_eligible(client, stub_pipeline, 
     chk = client.post("/api/eligibility-checks", json={"patientId": pid, "documentIds": [doc_id]})
     check_id = chk.json()["id"]
     import asyncio
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
 
     fin = client.post(
         f"/api/eligibility-checks/{check_id}/finalize",
@@ -381,7 +395,7 @@ def test_override_unknown_field_rejected(client, stub_pipeline):
     chk = client.post("/api/eligibility-checks", json={"patientId": pid, "documentIds": [up.json()["id"]]})
     check_id = chk.json()["id"]
     import asyncio
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
 
     o = client.post(
         f"/api/eligibility-checks/{check_id}/override",
@@ -401,7 +415,7 @@ def test_override_requires_reason(client, stub_pipeline):
     chk = client.post("/api/eligibility-checks", json={"patientId": pid, "documentIds": [up.json()["id"]]})
     check_id = chk.json()["id"]
     import asyncio
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
 
     o = client.post(
         f"/api/eligibility-checks/{check_id}/override",
@@ -421,7 +435,7 @@ def test_override_invalid_to_value_rejected(client, stub_pipeline):
     chk = client.post("/api/eligibility-checks", json={"patientId": pid, "documentIds": [up.json()["id"]]})
     check_id = chk.json()["id"]
     import asyncio
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
 
     o = client.post(
         f"/api/eligibility-checks/{check_id}/override",
@@ -442,7 +456,7 @@ def test_override_persists_through_rerun(client, stub_pipeline):
     chk = client.post("/api/eligibility-checks", json={"patientId": pid, "documentIds": [up.json()["id"]]})
     check_id = chk.json()["id"]
     import asyncio
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
 
     o = client.post(
         f"/api/eligibility-checks/{check_id}/override",
@@ -452,7 +466,7 @@ def test_override_persists_through_rerun(client, stub_pipeline):
 
     rr = client.post(f"/api/eligibility-checks/{check_id}/rerun")
     assert rr.status_code == 200
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
 
     after = client.get(f"/api/eligibility-checks/{check_id}").json()
     assert after["overrides"]["not_ma"]["reason"] == "phone-verified"
@@ -690,7 +704,8 @@ def test_draft_patient_excluded_from_roster(client):
 
     # Simulate a Network blip during cleanup — patient stays in store_dict
     # with is_draft=True. The roster must not show it.
-    roster = client.get("/api/patients").json()["patients"]
+    auth = {"Authorization": f"Bearer {tenant_token('surgeon')}"}
+    roster = client.get("/api/patients", headers=auth).json()["patients"]
     visible_ids = [p["id"] for p in roster]
     assert pid not in visible_ids
 
@@ -708,7 +723,7 @@ def test_finalized_patient_appears_in_roster(client, stub_pipeline):
     check_id = chk.json()["id"]
 
     import asyncio
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
 
     fin = client.post(
         f"/api/eligibility-checks/{check_id}/finalize",
@@ -716,7 +731,8 @@ def test_finalized_patient_appears_in_roster(client, stub_pipeline):
     )
     assert fin.status_code == 200
 
-    roster = client.get("/api/patients").json()["patients"]
+    auth = {"Authorization": f"Bearer {tenant_token('surgeon')}"}
+    roster = client.get("/api/patients", headers=auth).json()["patients"]
     visible_ids = [p["id"] for p in roster]
     assert pid in visible_ids
 
@@ -813,7 +829,7 @@ def test_rerun_refused_after_finalize(client, stub_pipeline):
     chk = client.post("/api/eligibility-checks", json={"patientId": pid, "documentIds": [up.json()["id"]]})
     check_id = chk.json()["id"]
     import asyncio
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
     fin = client.post(f"/api/eligibility-checks/{check_id}/finalize", json={"decision": "SAVE_AS_TEAM"})
     assert fin.status_code == 200
 
@@ -832,7 +848,7 @@ def test_finalize_refused_when_already_finalized(client, stub_pipeline):
     chk = client.post("/api/eligibility-checks", json={"patientId": pid, "documentIds": [up.json()["id"]]})
     check_id = chk.json()["id"]
     import asyncio
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
     fin1 = client.post(f"/api/eligibility-checks/{check_id}/finalize", json={"decision": "SAVE_AS_TEAM"})
     assert fin1.status_code == 200
 
@@ -851,7 +867,7 @@ def test_override_refused_after_finalize(client, stub_pipeline):
     chk = client.post("/api/eligibility-checks", json={"patientId": pid, "documentIds": [up.json()["id"]]})
     check_id = chk.json()["id"]
     import asyncio
-    asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.05))
+    asyncio.run(asyncio.sleep(0.05))
     fin = client.post(f"/api/eligibility-checks/{check_id}/finalize", json={"decision": "SAVE_AS_TEAM"})
     assert fin.status_code == 200
 
@@ -931,7 +947,8 @@ def test_roster_surfaces_first_failing_rule_for_ineligible_patient(client):
         "pipeline_type": "pre_op",
     }
 
-    r = client.get("/api/patients")
+    auth = {"Authorization": f"Bearer {tenant_token('surgeon')}"}
+    r = client.get("/api/patients", headers=auth)
     assert r.status_code == 200
     rows = r.json()["patients"]
     row = next(p for p in rows if p["id"] == pid)
@@ -966,7 +983,8 @@ def test_roster_failing_rule_null_for_eligible_patient(client):
         "eligibility_check_id": check_id,
         "pipeline_type": "pre_op",
     }
-    rows = client.get("/api/patients").json()["patients"]
+    auth = {"Authorization": f"Bearer {tenant_token('surgeon')}"}
+    rows = client.get("/api/patients", headers=auth).json()["patients"]
     row = next(p for p in rows if p["id"] == pid)
     assert row["eligibilityFailingRule"] is None
 
@@ -999,7 +1017,8 @@ def test_roster_failing_rule_picks_highest_priority_first(client):
         "eligibility_check_id": check_id,
         "pipeline_type": "pre_op",
     }
-    rows = client.get("/api/patients").json()["patients"]
+    auth = {"Authorization": f"Bearer {tenant_token('surgeon')}"}
+    rows = client.get("/api/patients", headers=auth).json()["patients"]
     row = next(p for p in rows if p["id"] == pid)
     # ESRD basis ranks ahead of partA_active in _TEAM_FAIL_ORDER
     assert row["eligibilityFailingRule"] == "ESRD-basis entitlement"

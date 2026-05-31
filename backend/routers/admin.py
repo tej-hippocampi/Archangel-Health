@@ -15,6 +15,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
+from demo_credentials import list_demo_credentials
 from tenant_constants import DEMO_HEALTH_SYSTEM_ID
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -124,6 +125,15 @@ async def admin_login(body: AdminLoginRequest):
     token = _create_token()
     internal_secret = os.getenv("INTERNAL_TOOL_SECRET", "")
     return {"token": token, "internal_tool_secret": internal_secret}
+
+
+@router.get("/demo-credentials")
+async def admin_demo_credentials(authorization: Optional[str] = Header(None)):
+    """Read-only demo account reference for ops (passwords included)."""
+    _verify_token(authorization)
+    from main import DEMO_DOCTOR_PASSWORD  # noqa: PLC0415 — avoid import cycle at module load
+
+    return {"accounts": list_demo_credentials(cedar_password=DEMO_DOCTOR_PASSWORD)}
 
 
 @router.get("/stats")
@@ -398,3 +408,78 @@ async def admin_get_postop_config(authorization: Optional[str] = Header(None)):
     _verify_token(authorization)
     from triage.postop import get_config
     return get_config()
+
+
+# ─── Grounding Check Admin ───────────────────────────────────────────────────
+
+@router.get("/grounding/reports")
+async def list_grounding_reports_admin(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    verdict: Optional[str] = None,
+    track: Optional[str] = None,
+    since: Optional[str] = None,
+    limit: int = 100,
+):
+    _verify_token(authorization)
+    team_store = getattr(request.app.state, "team_store", None)
+    if team_store is None:
+        return {"reports": []}
+    patient_store = getattr(request.app.state, "patient_store", {}) or {}
+    rows = team_store.list_grounding_reports(
+        limit=min(limit, 500), verdict=verdict, track=track, since=since
+    )
+    for row in rows:
+        pid = row.get("patient_id")
+        pdata = patient_store.get(pid) or {}
+        sd = pdata.get("structured_data") or {}
+        row["patient_name"] = sd.get("patient_name") or pdata.get("name") or pid
+    return {"reports": rows}
+
+
+@router.get("/grounding/reports/{report_id}")
+async def get_grounding_report_admin(
+    report_id: int,
+    request: Request,
+    authorization: Optional[str] = Header(None),
+):
+    _verify_token(authorization)
+    team_store = getattr(request.app.state, "team_store", None)
+    if team_store is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    row = team_store.get_grounding_report(report_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found")
+    patient_store = getattr(request.app.state, "patient_store", {}) or {}
+    pdata = patient_store.get(row.get("patient_id")) or {}
+    sd = pdata.get("structured_data") or {}
+    row["patient_name"] = sd.get("patient_name") or pdata.get("name") or row.get("patient_id")
+    return row
+
+
+@router.get("/grounding/stats")
+async def grounding_stats_admin(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    window_days: int = 30,
+):
+    _verify_token(authorization)
+    team_store = getattr(request.app.state, "team_store", None)
+    if team_store is None:
+        return {"total": 0, "pass": 0, "review": 0, "block": 0}
+    return team_store.grounding_summary_stats(window_days=window_days)
+
+
+@router.get("/grounding/inspector-recall")
+async def grounding_inspector_recall_admin(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+):
+    _verify_token(authorization)
+    team_store = getattr(request.app.state, "team_store", None)
+    if team_store is None:
+        return {"available": False}
+    snap = team_store.get_latest_inspector_recall()
+    if not snap:
+        return {"available": False, "message": "No inspector recall snapshot yet — run validation suite"}
+    return {"available": True, **snap}

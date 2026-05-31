@@ -1,0 +1,34 @@
+{
+  "partA": {
+    "status": "ACTIVE",
+    "effectiveDate": "2015-01-01",
+    "terminationDate": null,
+    "sourceExcerpt": "Medicare Part A active (triage demo fixture)"
+  },
+  "partB": {
+    "status": "ACTIVE",
+    "effectiveDate": "2015-01-01",
+    "terminationDate": null,
+    "sourceExcerpt": "Medicare Part B active (triage demo fixture)"
+  },
+  "medicareAdvantage": {
+    "enrolled": "NO",
+    "contractId": null,
+    "planName": null,
+    "sourceExcerpt": "Original Medicare (demo)"
+  },
+  "medicarePrimary": {
+    "isPrimary": "YES",
+    "secondaryReason": null,
+    "sourceExcerpt": "Medicare primary (demo)"
+  },
+  "esrdBasis": {
+    "isESRDBasis": "NO",
+    "sourceExcerpt": "Age-based eligibility (demo)"
+  },
+  "umwa": {
+    "isUMWA": "NO",
+    "sourceExcerpt": "Not UMWA (demo)"
+  },
+  "overallConfidence": "HIGH"
+}

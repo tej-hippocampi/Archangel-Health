@@ -20,7 +20,9 @@ from triage.intraop.extractor_llm import LlmIntraopExtractor, _normalize  # noqa
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    out = asyncio.run(coro)
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    return out
 
 
 def test_normalize_drops_nulls_and_attaches_confidences():

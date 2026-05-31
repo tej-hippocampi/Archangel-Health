@@ -382,33 +382,37 @@ def apply_postop_retier(
         tuning_version=result.tuning_version,
     )
 
-    # Audit (event_logs)
+    # Audit (event_logs). Cron passes skip unchanged recomputes to avoid
+    # flooding the doctor timeline with duplicate POSTOP_RETIER_* rows.
+    cron_trigger = str(triggered_by or "").startswith("CRON:")
+    log_audit = changed or not cron_trigger
     try:
-        team_store.log_event(
-            patient_id=patient_id,
-            event_type="POSTOP_RETIER_RECOMPUTED" if not changed else "POSTOP_RETIER_TIER_UPDATED",
-            payload={
-                "eventId": event_id,
-                "tierBefore": tier_before,
-                "tierAfter": tier_after,
-                "computedDelta": int(result.delta),
-                "computedTier": result.proposed_tier,
-                "hardEscalator": result.hard_escalator_fired,
-                "triggeredBy": triggered_by,
-                "modelVersion": result.model_version,
-                "tuningVersion": result.tuning_version,
-            },
-        )
-        if result.hard_escalator_fired:
+        if log_audit:
             team_store.log_event(
                 patient_id=patient_id,
-                event_type="POSTOP_RETIER_HARD_ESCALATOR_FIRED",
+                event_type="POSTOP_RETIER_RECOMPUTED" if not changed else "POSTOP_RETIER_TIER_UPDATED",
                 payload={
                     "eventId": event_id,
-                    "reasonCodes": [r.code for r in result.reasons if r.kind == "HARD"],
+                    "tierBefore": tier_before,
+                    "tierAfter": tier_after,
+                    "computedDelta": int(result.delta),
+                    "computedTier": result.proposed_tier,
+                    "hardEscalator": result.hard_escalator_fired,
                     "triggeredBy": triggered_by,
+                    "modelVersion": result.model_version,
+                    "tuningVersion": result.tuning_version,
                 },
             )
+            if result.hard_escalator_fired and changed:
+                team_store.log_event(
+                    patient_id=patient_id,
+                    event_type="POSTOP_RETIER_HARD_ESCALATOR_FIRED",
+                    payload={
+                        "eventId": event_id,
+                        "reasonCodes": [r.code for r in result.reasons if r.kind == "HARD"],
+                        "triggeredBy": triggered_by,
+                    },
+                )
     except Exception:
         # Audit failure must never block the tier write.
         pass

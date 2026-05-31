@@ -7,11 +7,12 @@ five-role taxonomy at resolution time so old in-flight JWTs keep working.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Mapping, Optional
 
-from fastapi import Header
+from fastapi import Header, HTTPException
 
 import auth as auth_module
+from tenant_constants import DEMO_HEALTH_SYSTEM_ID
 from tenant_jwt import decode_tenant_staff_token
 
 
@@ -86,3 +87,29 @@ async def get_staff_context_optional(
         health_system_code=u.get("clinic_code"),
         is_team_director=False,
     )
+
+
+def require_clinical_auth(staff: Optional[StaffContext]) -> StaffContext:
+    """Require a resolved clinical staff token."""
+    if not staff:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return staff
+
+
+def assert_staff_patient_scope(
+    *,
+    patient: Optional[Mapping[str, Any]],
+    staff: Optional[StaffContext],
+    landing_health_system_id: str = DEMO_HEALTH_SYSTEM_ID,
+) -> None:
+    """Enforce tenant/landing patient visibility for clinical staff routes."""
+    require_clinical_auth(staff)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    hs_id = str(patient.get("health_system_id") or "")
+    if staff.source == "tenant":
+        if hs_id and (not staff.tenant_id or hs_id != str(staff.tenant_id)):
+            raise HTTPException(status_code=404, detail="Patient not found")
+        return
+    if staff.source == "landing" and hs_id and hs_id != str(landing_health_system_id):
+        raise HTTPException(status_code=404, detail="Patient not found")

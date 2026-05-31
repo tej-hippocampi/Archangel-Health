@@ -37,7 +37,7 @@ from auth_roles import (
     require_patient_session,
     require_roles,
 )
-from staff_context import StaffContext, get_staff_context_optional
+from staff_context import StaffContext, assert_staff_patient_scope, get_staff_context_optional
 from triage.postop.apply import apply_postop_retier
 from triage.postop.locks import with_patient_lock
 from triage.postop.patient_state import (
@@ -81,9 +81,8 @@ def _resolve_patient(request: Request, patient_id: str, staff: Optional[StaffCon
     patient = store.get(patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    if staff and staff.source == "tenant" and staff.tenant_id:
-        if (patient.get("health_system_id") or "") != staff.tenant_id:
-            raise HTTPException(status_code=404, detail="Patient not found")
+    if staff is not None:
+        assert_staff_patient_scope(patient=patient, staff=staff)
     ensure_postop_patient_state(patient)
     return patient
 

@@ -339,6 +339,42 @@
     .editor-status { margin-top: 8px; font-size: 0.8rem; color: var(--gray-500); }
     .section-sub-tab { transition: background 0.15s, color 0.15s; }
     .section-sub-tab.active-sub { background: var(--primary) !important; color: #fff !important; border-color: var(--primary) !important; }
+
+    /* Grounding Checker */
+    .verdict-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+    .verdict-PASS { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+    .verdict-REVIEW { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+    .verdict-BLOCK { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .grounding-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: center; }
+    .grounding-filters select, .grounding-filters input {
+      padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 0.84rem;
+    }
+    .grounding-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .grounding-kpi { background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+    .grounding-kpi .label { font-size: 0.72rem; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; }
+    .grounding-kpi .value { font-size: 1.4rem; font-weight: 700; color: var(--gray-800); margin-top: 4px; }
+    .recall-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 0.82rem; font-weight: 600; }
+    .recall-badge.ok { background: #dcfce7; color: #166534; }
+    .recall-badge.warn { background: #fee2e2; color: #991b1b; }
+    .grounding-drawer-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 100;
+      display: none; align-items: stretch; justify-content: flex-end;
+    }
+    .grounding-drawer-overlay.open { display: flex; }
+    .grounding-drawer {
+      width: min(720px, 100%); background: #fff; height: 100%; overflow-y: auto;
+      box-shadow: -8px 0 24px rgba(0,0,0,0.12); padding: 24px;
+    }
+    .grounding-drawer h3 { margin: 16px 0 8px; font-size: 0.95rem; }
+    .cov-row, .faith-row {
+      border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+      padding: 10px 12px; margin-bottom: 8px; font-size: 0.84rem;
+    }
+    .status-COVERED, .status-SUPPORTED { color: #166534; }
+    .status-PARTIAL { color: #92400e; }
+    .status-MISSING, .status-UNSUPPORTED { color: #991b1b; }
+    .grounding-table tr { cursor: pointer; }
+    .grounding-table tr:hover { background: var(--gray-50); }
   </style>
 </head>
 <body>
@@ -390,6 +426,9 @@
         <button class="nav-item active" data-tab="stats">
           <span class="icon">📊</span> Dashboard
         </button>
+        <button class="nav-item" data-tab="demo-credentials">
+          <span class="icon">🔑</span> Demo Credentials
+        </button>
 
         <div class="nav-label">Customers</div>
         <button class="nav-item" data-tab="health-systems">
@@ -411,6 +450,11 @@
         </button>
         <button class="nav-item" data-tab="intake-section-prompts">
           <span class="icon">📝</span> Intake Interview Prompts
+        </button>
+
+        <div class="nav-label">Safety</div>
+        <button class="nav-item" data-tab="grounding-checker">
+          <span class="icon">🛡</span> Prompt Grounding Checker
         </button>
 
         <div class="nav-label">Triage</div>
@@ -475,6 +519,20 @@
             </div>
           </div>
 
+        </div>
+      </div>
+
+      <!-- Demo Credentials Tab -->
+      <div class="tab-page" id="tab-demo-credentials">
+        <div class="page-header">
+          <div>
+            <h2>Demo Credentials</h2>
+            <p>Login accounts for product demos — TRIAGEDM workspace staff and Cedar public demo doctor</p>
+          </div>
+          <button class="refresh-btn" type="button" id="demo-creds-refresh-btn">↺ Refresh</button>
+        </div>
+        <div class="stats-body" id="demo-creds-body">
+          <div class="empty-table">Loading demo credentials…</div>
         </div>
       </div>
 
@@ -789,6 +847,44 @@
         </div>
       </div>
 
+      <!-- Grounding Checker Tab -->
+      <div class="tab-page" id="tab-grounding-checker">
+        <div class="page-header">
+          <div>
+            <h2>Prompt Grounding Checker</h2>
+            <p>Coverage, faithfulness, and inspector recall for generated voice scripts</p>
+          </div>
+          <button class="refresh-btn" type="button" id="grounding-refresh-btn">↺ Refresh</button>
+        </div>
+        <div class="stats-body">
+          <div id="grounding-recall-wrap" style="margin-bottom:16px;"></div>
+          <div class="grounding-kpi-grid" id="grounding-kpi-grid">
+            <div class="grounding-kpi"><div class="label">Total (30d)</div><div class="value" id="gk-total">—</div></div>
+            <div class="grounding-kpi"><div class="label">PASS</div><div class="value" id="gk-pass">—</div></div>
+            <div class="grounding-kpi"><div class="label">REVIEW</div><div class="value" id="gk-review">—</div></div>
+            <div class="grounding-kpi"><div class="label">BLOCK</div><div class="value" id="gk-block">—</div></div>
+            <div class="grounding-kpi"><div class="label">Block rate</div><div class="value" id="gk-block-rate">—</div></div>
+            <div class="grounding-kpi"><div class="label">Avg coverage</div><div class="value" id="gk-coverage">—</div></div>
+            <div class="grounding-kpi"><div class="label">Avg faithfulness</div><div class="value" id="gk-faith">—</div></div>
+          </div>
+
+          <div class="grounding-filters">
+            <label>Verdict <select id="grounding-filter-verdict"><option value="">All</option><option value="BLOCK" selected>BLOCK</option><option value="REVIEW">REVIEW</option><option value="PASS">PASS</option></select></label>
+            <label>Track <select id="grounding-filter-track"><option value="">All</option><option value="pre_op">pre_op</option><option value="post_op_diagnosis">post_op_diagnosis</option><option value="post_op_treatment">post_op_treatment</option></select></label>
+            <label>Search <input type="search" id="grounding-filter-search" placeholder="Patient or summary…" /></label>
+          </div>
+
+          <div class="data-section">
+            <div class="data-section-header"><h3>Reports</h3><span id="grounding-reports-count">—</span></div>
+            <div id="grounding-reports-wrap"><div class="empty-table">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grounding-drawer-overlay" id="grounding-drawer-overlay">
+        <div class="grounding-drawer" id="grounding-drawer"></div>
+      </div>
+
     </div><!-- /main-content -->
   </div><!-- /shell -->
 </div><!-- /app -->
@@ -804,6 +900,9 @@
   let intakeSectionPrompts = {};
   let sectionPromptsLoaded = false;
   let triageLogicLoaded = false;
+  let groundingLoaded = false;
+  let demoCredsLoaded = false;
+  let groundingReports = [];
 
   function authHeaders() {
     return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` };
@@ -921,7 +1020,101 @@
       if (btn.dataset.tab === 'triage-logic' && !triageLogicLoaded) {
         loadTriageLogic();
       }
+      if (btn.dataset.tab === 'grounding-checker') {
+        loadGroundingChecker();
+      }
+      if (btn.dataset.tab === 'demo-credentials' && !demoCredsLoaded) {
+        loadDemoCredentials();
+      }
     });
+  });
+
+  document.getElementById('demo-creds-refresh-btn').addEventListener('click', () => {
+    demoCredsLoaded = false;
+    loadDemoCredentials();
+  });
+
+  async function loadDemoCredentials() {
+    const body = document.getElementById('demo-creds-body');
+    body.innerHTML = '<div class="empty-table">Loading demo credentials…</div>';
+    try {
+      const res = await fetch('/admin/demo-credentials', { headers: authHeaders() });
+      if (res.status === 401) { signout(); return; }
+      if (!res.ok) {
+        body.innerHTML = '<div class="empty-table">Could not load demo credentials.</div>';
+        return;
+      }
+      const data = await res.json();
+      demoCredsLoaded = true;
+      renderDemoCredentials(data.accounts || []);
+    } catch (e) {
+      console.error('Demo credentials error:', e);
+      body.innerHTML = '<div class="empty-table">Could not load demo credentials.</div>';
+    }
+  }
+
+  function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+      const prev = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(() => { btn.textContent = prev; }, 1200);
+    }).catch(() => {});
+  }
+
+  function renderDemoCredentials(accounts) {
+    const body = document.getElementById('demo-creds-body');
+    if (!accounts.length) {
+      body.innerHTML = '<div class="empty-table">No demo accounts configured.</div>';
+      return;
+    }
+    body.innerHTML = accounts.map((acc, idx) => {
+      const urls = acc.signInUrls || {};
+      const urlRows = Object.entries(urls).map(([k, v]) =>
+        `<tr><td style="font-weight:600;color:var(--gray-500);width:180px;">${escHtml(k)}</td><td><code style="font-size:0.8rem;">${escHtml(v)}</code></td></tr>`
+      ).join('');
+      return `
+        <div class="data-section" style="margin-bottom:20px;">
+          <div class="data-section-header">
+            <h3>${escHtml(acc.label || acc.role || 'Demo account')}</h3>
+            <span class="badge badge-blue">${escHtml(acc.authType || '')}</span>
+          </div>
+          <table>
+            <tbody>
+              <tr><td style="font-weight:600;color:var(--gray-500);width:180px;">Role</td><td>${escHtml(acc.role || '—')}</td></tr>
+              <tr><td style="font-weight:600;color:var(--gray-500);">Email</td><td>
+                <code>${escHtml(acc.email || '')}</code>
+                <button type="button" class="refresh-btn" style="margin-left:8px;padding:2px 8px;font-size:0.75rem;" data-copy="${escAttr(acc.email)}">Copy</button>
+              </td></tr>
+              <tr><td style="font-weight:600;color:var(--gray-500);">Password</td><td>
+                <code>${escHtml(acc.password || '')}</code>
+                <button type="button" class="refresh-btn" style="margin-left:8px;padding:2px 8px;font-size:0.75rem;" data-copy="${escAttr(acc.password)}">Copy</button>
+              </td></tr>
+              <tr><td style="font-weight:600;color:var(--gray-500);">Tenant slug</td><td>${escHtml(acc.tenantSlug || '—')}</td></tr>
+              <tr><td style="font-weight:600;color:var(--gray-500);">Health system</td><td>${escHtml(acc.healthSystemCode || '—')}</td></tr>
+              <tr><td style="font-weight:600;color:var(--gray-500);">After login</td><td><code>${escHtml(acc.redirectAfterLogin || '')}</code></td></tr>
+              ${urlRows}
+            </tbody>
+          </table>
+        </div>`;
+    }).join('');
+    body.querySelectorAll('[data-copy]').forEach(btn => {
+      btn.addEventListener('click', () => copyText(btn.getAttribute('data-copy'), btn));
+    });
+  }
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function escAttr(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  }
+
+  document.getElementById('grounding-refresh-btn').addEventListener('click', loadGroundingChecker);
+  document.getElementById('grounding-filter-verdict').addEventListener('change', () => loadGroundingReports());
+  document.getElementById('grounding-filter-track').addEventListener('change', () => loadGroundingReports());
+  document.getElementById('grounding-filter-search').addEventListener('input', renderGroundingReportsTable);
+  document.getElementById('grounding-drawer-overlay').addEventListener('click', e => {
+    if (e.target.id === 'grounding-drawer-overlay') closeGroundingDrawer();
   });
 
   // ── Stats ─────────────────────────────────────────────────────
@@ -1899,6 +2092,138 @@
         </tbody>
       </table>`;
   }
+
+  // ── Grounding Checker ─────────────────────────────────────────
+  async function loadGroundingChecker() {
+    groundingLoaded = true;
+    await Promise.all([loadGroundingStats(), loadGroundingRecall(), loadGroundingReports()]);
+  }
+
+  async function loadGroundingStats() {
+    try {
+      const res = await fetch('/admin/grounding/stats?window_days=30', { headers: authHeaders() });
+      if (!res.ok) return;
+      const s = await res.json();
+      document.getElementById('gk-total').textContent = s.total ?? 0;
+      document.getElementById('gk-pass').textContent = s.pass ?? 0;
+      document.getElementById('gk-review').textContent = s.review ?? 0;
+      document.getElementById('gk-block').textContent = s.block ?? 0;
+      document.getElementById('gk-block-rate').textContent = s.block_rate != null ? `${(s.block_rate * 100).toFixed(1)}%` : '—';
+      document.getElementById('gk-coverage').textContent = s.avg_coverage_pct != null ? `${s.avg_coverage_pct}%` : '—';
+      document.getElementById('gk-faith').textContent = s.avg_faithfulness_pct != null ? `${s.avg_faithfulness_pct}%` : '—';
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadGroundingRecall() {
+    const wrap = document.getElementById('grounding-recall-wrap');
+    try {
+      const res = await fetch('/admin/grounding/inspector-recall', { headers: authHeaders() });
+      if (!res.ok) { wrap.innerHTML = ''; return; }
+      const data = await res.json();
+      if (!data.available) {
+        wrap.innerHTML = `<span class="recall-badge warn" title="Run pytest tests/test_grounding_validation.py to populate">Inspector recall: no snapshot yet</span>`;
+        return;
+      }
+      const table = data.table || {};
+      const byType = table.by_defect_type || {};
+      let minRecall = 1.0;
+      Object.values(byType).forEach(r => { if (r.recall < minRecall) minRecall = r.recall; });
+      const cls = minRecall >= 0.9 ? 'ok' : 'warn';
+      wrap.innerHTML = `<span class="recall-badge ${cls}" title="Catch rate on seeded clinical near-misses. This is what makes the live BLOCK rate trustworthy.">Inspector recall: min ${(minRecall * 100).toFixed(0)}% · ${esc(data.prompt_version || '')} · ${esc(data.created_at || '')}</span>`;
+    } catch (e) { wrap.innerHTML = ''; }
+  }
+
+  async function loadGroundingReports() {
+    const verdict = document.getElementById('grounding-filter-verdict').value;
+    const track = document.getElementById('grounding-filter-track').value;
+    let url = '/admin/grounding/reports?limit=200';
+    if (verdict) url += `&verdict=${encodeURIComponent(verdict)}`;
+    if (track) url += `&track=${encodeURIComponent(track)}`;
+    try {
+      const res = await fetch(url, { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      groundingReports = data.reports || [];
+      renderGroundingReportsTable();
+    } catch (e) { console.error(e); }
+  }
+
+  function renderGroundingReportsTable() {
+    const q = (document.getElementById('grounding-filter-search').value || '').toLowerCase();
+    const rows = groundingReports.filter(r => {
+      if (!q) return true;
+      return (r.patient_name || '').toLowerCase().includes(q)
+        || (r.summary || '').toLowerCase().includes(q)
+        || (r.patient_id || '').toLowerCase().includes(q);
+    });
+    document.getElementById('grounding-reports-count').textContent = rows.length;
+    const wrap = document.getElementById('grounding-reports-wrap');
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="empty-table">No grounding reports yet — they appear here after the next patient is processed.</div>';
+      return;
+    }
+    wrap.innerHTML = `<table class="grounding-table"><thead><tr>
+      <th>Time</th><th>Patient</th><th>Track</th><th>Verdict</th><th>Coverage</th><th>Faithfulness</th><th>Critical</th><th>Summary</th>
+    </tr></thead><tbody>${rows.map(r => `
+      <tr data-id="${r.id}">
+        <td style="white-space:nowrap;font-size:0.8rem;">${esc((r.created_at || '').replace('T',' ').slice(0,19))}</td>
+        <td>${esc(r.patient_name || r.patient_id)}</td>
+        <td style="font-family:monospace;font-size:0.78rem;">${esc(r.track)}</td>
+        <td><span class="verdict-pill verdict-${esc(r.verdict)}">${esc(r.verdict)}</span></td>
+        <td>${r.coverage_pct != null ? r.coverage_pct + '%' : '—'}</td>
+        <td>${r.faithfulness_pct != null ? r.faithfulness_pct + '%' : '—'}</td>
+        <td>${r.critical_failures ?? 0}</td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.summary || '')}</td>
+      </tr>`).join('')}</tbody></table>`;
+    wrap.querySelectorAll('tr[data-id]').forEach(tr => {
+      tr.addEventListener('click', () => openGroundingDrawer(parseInt(tr.dataset.id, 10)));
+    });
+  }
+
+  async function openGroundingDrawer(reportId) {
+    const drawer = document.getElementById('grounding-drawer');
+    drawer.innerHTML = '<div class="empty-table">Loading…</div>';
+    document.getElementById('grounding-drawer-overlay').classList.add('open');
+    try {
+      const res = await fetch(`/admin/grounding/reports/${reportId}`, { headers: authHeaders() });
+      if (!res.ok) throw new Error('Not found');
+      const row = await res.json();
+      const rep = row.report || {};
+      const cov = rep.coverage || [];
+      const faith = rep.faithfulness || [];
+      drawer.innerHTML = `
+        <button type="button" class="refresh-btn" onclick="closeGroundingDrawer()" style="margin-bottom:12px;">✕ Close</button>
+        <div class="verdict-pill verdict-${esc(rep.verdict || row.verdict)}" style="font-size:0.9rem;margin-bottom:8px;">${esc(rep.verdict || row.verdict)}</div>
+        <p style="font-size:0.9rem;color:var(--gray-700);">${esc(rep.summary || row.summary || '')}</p>
+        <p style="font-size:0.78rem;color:var(--gray-500);">${esc(row.patient_name || '')} · ${esc(row.track)} · ${esc(rep.model || row.model || '')} · ${esc(rep.prompt_version || row.prompt_version || '')}</p>
+        ${(rep.critical_failures || []).length ? `<ul style="margin:12px 0;padding-left:18px;color:#991b1b;font-size:0.84rem;">${(rep.critical_failures || []).map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+          <div><h3>Coverage</h3>${cov.map(c => `
+            <div class="cov-row">
+              <strong class="status-${esc(c.status)}">${esc(c.status === 'COVERED' ? '✅' : c.status === 'PARTIAL' ? '⚠️' : '❌')} ${esc(c.status)}</strong>
+              <span style="font-size:0.72rem;margin-left:6px;">${esc(c.severity)}</span>
+              <div style="margin-top:4px;">${esc(c.category || '')}: ${esc(c.id || '')}</div>
+              ${c.evidence ? `<blockquote style="margin:6px 0 0;font-size:0.78rem;color:var(--gray-600);border-left:3px solid var(--gray-200);padding-left:8px;">${esc(c.evidence)}</blockquote>` : ''}
+            </div>`).join('') || '<div class="empty-table">No coverage items</div>'}</div>
+          <div><h3>Faithfulness</h3>${faith.map(f => `
+            <div class="faith-row">
+              <strong class="status-${esc(f.status)}">${esc(f.status === 'SUPPORTED' ? '✅' : '❌')} ${esc(f.status)}</strong>
+              <div style="margin-top:4px;">${esc(f.claim || '')} <span style="font-size:0.72rem;">(${esc(f.claim_type || '')})</span></div>
+              ${f.source_evidence ? `<div style="font-size:0.78rem;color:var(--gray-600);margin-top:4px;">Source: ${esc(f.source_evidence)}</div>` : ''}
+            </div>`).join('') || '<div class="empty-table">No faithfulness claims extracted</div>'}</div>
+        </div>
+        <details style="margin-top:16px;"><summary style="cursor:pointer;font-weight:600;">Script excerpt</summary>
+          <pre style="white-space:pre-wrap;font-size:0.78rem;background:var(--gray-50);padding:12px;border-radius:var(--radius-sm);margin-top:8px;">${esc(row.script_excerpt || '')}</pre>
+        </details>`;
+    } catch (e) {
+      drawer.innerHTML = `<div class="empty-table">Could not load report.</div>`;
+    }
+  }
+
+  function closeGroundingDrawer() {
+    document.getElementById('grounding-drawer-overlay').classList.remove('open');
+  }
+  window.closeGroundingDrawer = closeGroundingDrawer;
 </script>
 </body>
 </html>

@@ -1046,14 +1046,39 @@ function loadPreopResources() {
         </div>
       `;
   }
+  void loadPreopAudio(preop);
+}
+
+async function loadPreopAudio(preop) {
+  const btn = document.getElementById("preopPlayPauseBtn");
   if (preop.voice_audio_url) {
     initPreopAudio(preop.voice_audio_url);
-  } else {
-    const btn = document.getElementById("preopPlayPauseBtn");
+    return;
+  }
+  if (!(preop.voice_script || "").trim()) {
     if (btn) {
       btn.textContent = "⚠ Audio unavailable";
       btn.disabled = true;
     }
+    return;
+  }
+  if (btn) {
+    btn.textContent = "Loading audio…";
+    btn.disabled = true;
+  }
+  try {
+    const data = await apiJson(`/api/patient/${encodeURIComponent(PATIENT.id)}/preop-audio`);
+    if (data.audio_url) {
+      if (btn) btn.disabled = false;
+      initPreopAudio(data.audio_url);
+      return;
+    }
+  } catch (_e) {
+    // Fall through to unavailable state.
+  }
+  if (btn) {
+    btn.textContent = "⚠ Audio unavailable";
+    btn.disabled = true;
   }
 }
 

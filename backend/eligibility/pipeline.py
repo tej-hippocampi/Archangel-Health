@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import logging
+import os
 import re
 import uuid
 import zipfile
@@ -30,6 +32,29 @@ from eligibility.parse_pdf import (
 from eligibility.parse_x12 import InvalidX12Error, X12_271_AST, format_for_llm as x12_format, parse_x12_271
 
 log = logging.getLogger("eligibility.pipeline")
+
+from tenant_constants import ARCH_TRIAGE_DEMO_HEALTH_SYSTEM_ID, TRIAGEDM_CLINIC_CODE
+
+_TRIAGE_FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "demo_triage_team.json"
+
+
+def _is_demo_mode_env() -> bool:
+    return os.getenv("DEMO_MODE", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _patient_is_triage_demo_clinic(patient: Dict[str, Any]) -> bool:
+    if not _is_demo_mode_env():
+        return False
+    code = (patient.get("clinic_code") or "").strip().upper()
+    if code == TRIAGEDM_CLINIC_CODE:
+        return True
+    hid = (patient.get("health_system_id") or "").strip()
+    return hid == ARCH_TRIAGE_DEMO_HEALTH_SYSTEM_ID
+
+
+def _load_triage_demo_extracted() -> Dict[str, Any]:
+    raw = _TRIAGE_FIXTURE_PATH.read_text(encoding="utf-8")
+    return json.loads(raw)
 
 
 def _utc_iso() -> str:
@@ -131,6 +156,51 @@ async def run_pipeline(
         record["stage"] = "PARSING"
         await _emit(record, "status", {"stage": "PARSING"})
 
+        if _patient_is_triage_demo_clinic(patient):
+            import asyncio
+
+            await asyncio.sleep(0.7)
+            record["status"] = "EXTRACTING"
+            record["stage"] = "EXTRACTING"
+            await _emit(record, "status", {"stage": "EXTRACTING"})
+            await asyncio.sleep(0.7)
+            record["status"] = "EVALUATING"
+            record["stage"] = "EVALUATING"
+            await _emit(record, "status", {"stage": "EVALUATING"})
+            extracted = _load_triage_demo_extracted()
+            record["extracted_fields"] = extracted
+            record["parse_meta"] = [{"note": "triage_demo_fixture", "demo": True}]
+            verdicts = eval_mod.evaluate(extracted, surgery_date)
+            verdicts = eval_mod.apply_overrides(verdicts, record.get("overrides") or {})
+            overall = eval_mod.overall_verdict(verdicts)
+            record["verdicts"] = verdicts
+            record["overall_verdict"] = overall
+            record["status"] = "DONE"
+            record["stage"] = "DONE"
+            record["finished_at"] = _utc_iso()
+            record["duration_ms"] = int((datetime.utcnow() - t_start).total_seconds() * 1000)
+            if patient.get("eligibility_status") not in ("ELIGIBLE", "INELIGIBLE"):
+                patient["eligibility_status"] = overall
+            await _emit(
+                record,
+                "result",
+                {
+                    "verdicts": verdicts,
+                    "overallVerdict": overall,
+                    "extractedFields": extracted,
+                    "parseMeta": record["parse_meta"],
+                    "durationMs": record["duration_ms"],
+                },
+            )
+            store.append_audit(
+                action="eligibility_check_completed",
+                actor=record.get("actor") or "system",
+                patient_id=record["patient_id"],
+                check_id=check_id,
+                after={"overall": overall, "triage_demo_fixture": True},
+            )
+            return
+
         parsed = [_parse_one(d) for d in document_records]
         parse_errors = [p for p in parsed if p.get("parse_error")]
 
@@ -216,7 +286,15 @@ async def run_pipeline(
 
 
 # ─── Material (re)generation, used by Track B notes-confirm ─────────────────
-async def regenerate_materials(patient: Dict[str, Any], *, pipeline_type: str, notes_text: str) -> None:
+async def regenerate_materials(
+    patient: Dict[str, Any],
+    *,
+    pipeline_type: str,
+    notes_text: str,
+    patient_id: Optional[str] = None,
+    team_store: Any = None,
+    force_synthesize: bool = False,
+) -> None:
     """Run the existing GenerationLayer against the patient's structured_data
     merged with the confirmed notes. Stores voice_script + battlecard_html back
     on the patient dict.
@@ -240,31 +318,71 @@ async def regenerate_materials(patient: Dict[str, Any], *, pipeline_type: str, n
     gen = GenerationLayer()
     voice_script, battlecard_html = await gen.generate(sd, pipeline_type)
 
-    # Synthesize the voice audio so the patient pre-op/post-op page can play it.
-    # Mirrors the legacy /api/process-patient and /api/onboard-patient flows so
-    # batch-onboarded patients get the *same* audio experience in production.
-    # ElevenLabsClient.synthesize() returns None when ELEVENLABS_API_KEY is
-    # missing (dev), and the frontend falls back to an "Audio unavailable"
-    # message — never a hard error.
     audio_suffix = "preop" if pipeline_type == "pre_op" else "postop"
     pid = (
-        patient.get("id")
+        patient_id
+        or patient.get("id")
         or (patient.get("structured_data") or {}).get("mbi")
         or "unknown"
     )
-    try:
-        from integrations.elevenlabs import ElevenLabsClient  # late import; same as legacy flow
-        voice_audio_url = await ElevenLabsClient().synthesize(
-            voice_script, f"{pid}_{audio_suffix}"
+
+    grounding_track = "pre_op" if pipeline_type == "pre_op" else "post_op_treatment"
+    voice_audio_url = None
+
+    if team_store is not None:
+        from pipeline.grounding_gate import apply_grounding_to_patient, audit_and_gate_script
+
+        async def _regen() -> str:
+            nonlocal battlecard_html
+            v, b = await gen.generate(sd, pipeline_type)
+            battlecard_html = b
+            return v
+
+        gate = await audit_and_gate_script(
+            patient_id=pid,
+            structured_data=sd,
+            script=voice_script,
+            track=grounding_track,
+            team_store=team_store,
+            regenerate_fn=_regen,
         )
-    except Exception as e:  # noqa: BLE001
-        log.warning("ElevenLabs synth failed for %s (%s): %s", pid, audio_suffix, e)
-        voice_audio_url = None
+        voice_script = gate.script
+        apply_grounding_to_patient(patient, grounding_track, gate)
+
+        # Clinician-confirmed prep/discharge notes were already reviewed in the
+        # portal — still run the grounding audit, but do not withhold audio when
+        # the judge returns REVIEW/BLOCK (that path left battlecards without TTS).
+        if gate.synthesize or force_synthesize:
+            try:
+                from integrations.elevenlabs import ElevenLabsClient
+                voice_audio_url = await ElevenLabsClient().synthesize(
+                    voice_script, f"{pid}_{audio_suffix}"
+                )
+            except Exception as e:  # noqa: BLE001
+                log.warning("ElevenLabs synth failed for %s (%s): %s", pid, audio_suffix, e)
+                voice_audio_url = None
+
+        if force_synthesize:
+            pending = patient.get("grounding_pending_tracks")
+            if not isinstance(pending, list):
+                pending = []
+            if grounding_track in pending:
+                pending = [t for t in pending if t != grounding_track]
+            patient["grounding_pending_tracks"] = pending
+            patient["requires_clinician_review"] = bool(pending)
+    else:
+        try:
+            from integrations.elevenlabs import ElevenLabsClient  # late import; same as legacy flow
+            voice_audio_url = await ElevenLabsClient().synthesize(
+                voice_script, f"{pid}_{audio_suffix}"
+            )
+        except Exception as e:  # noqa: BLE001
+            log.warning("ElevenLabs synth failed for %s (%s): %s", pid, audio_suffix, e)
+            voice_audio_url = None
 
     patient["voice_script"] = voice_script
     patient["battlecard_html"] = battlecard_html
-    if voice_audio_url:
-        patient["voice_audio_url"] = voice_audio_url
+    patient["voice_audio_url"] = voice_audio_url
 
     # NOTE: patients onboarded via the eligibility/batch path are constructed
     # with ``"resources": None`` explicitly, so ``setdefault`` returns None and

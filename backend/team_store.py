@@ -487,6 +487,32 @@ class TeamStore:
                 CREATE INDEX IF NOT EXISTS idx_intake_edits_form ON intake_form_edits(intake_form_id);
                 CREATE INDEX IF NOT EXISTS idx_intake_notifications_doctor ON intake_form_notifications(doctor_id);
 
+                CREATE TABLE IF NOT EXISTS grounding_check_reports (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT NOT NULL,
+                    track TEXT NOT NULL,
+                    verdict TEXT NOT NULL,
+                    coverage_pct REAL,
+                    faithfulness_pct REAL,
+                    critical_failures INTEGER DEFAULT 0,
+                    summary TEXT,
+                    script_excerpt TEXT,
+                    report_json TEXT NOT NULL,
+                    model TEXT,
+                    prompt_version TEXT,
+                    regenerated INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_gcr_created ON grounding_check_reports(created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_gcr_verdict ON grounding_check_reports(verdict);
+
+                CREATE TABLE IF NOT EXISTS inspector_recall_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    prompt_version TEXT NOT NULL,
+                    table_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS _schema_migrations (
                     name TEXT PRIMARY KEY
                 );
@@ -638,6 +664,7 @@ class TeamStore:
         slug: str,
         name: str,
         health_system_code: str,
+        phone: str = "",
     ) -> None:
         now = _utcnow_iso()
         with self._conn() as conn:
@@ -649,15 +676,16 @@ class TeamStore:
                     director_email, director_first_name, director_last_name, onboarding_step,
                     last_generated_invite_url, created_at
                 )
-                VALUES (?, ?, ?, '', '', ?, 'active', NULL, NULL, ?, NULL, NULL, NULL, 99, NULL, ?)
+                VALUES (?, ?, ?, '', ?, ?, 'active', NULL, NULL, ?, NULL, NULL, NULL, 99, NULL, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     slug = excluded.slug,
                     name = excluded.name,
+                    phone = CASE WHEN excluded.phone != '' THEN excluded.phone ELSE health_systems.phone END,
                     health_system_code = COALESCE(health_systems.health_system_code, excluded.health_system_code),
                     status = 'active',
                     onboarding_completed_at = COALESCE(health_systems.onboarding_completed_at, excluded.onboarding_completed_at)
                 """,
-                (hs_id, slug, name, health_system_code, now, now),
+                (hs_id, slug, name, phone, health_system_code, now, now),
             )
 
     def create_health_system_invite(self, *, invite_base_url: str) -> Dict[str, Any]:
@@ -853,19 +881,22 @@ class TeamStore:
         name: str,
         role: str,
         password_hash: str,
+        is_team_director: bool = False,
     ) -> int:
         now = _utcnow_iso()
+        itd = 1 if is_team_director else 0
         with self._conn() as conn:
             cur = conn.execute(
                 """
-                INSERT INTO team_members (health_system_id, email, name, role, password_hash, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO team_members (health_system_id, email, name, role, password_hash, is_team_director, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(health_system_id, email) DO UPDATE SET
                     name = excluded.name,
                     role = excluded.role,
-                    password_hash = excluded.password_hash
+                    password_hash = excluded.password_hash,
+                    is_team_director = excluded.is_team_director
                 """,
-                (hs_id, email.lower().strip(), name.strip(), role, password_hash, now),
+                (hs_id, email.lower().strip(), name.strip(), role, password_hash, itd, now),
             )
             return int(cur.lastrowid)
 
@@ -1117,6 +1148,39 @@ class TeamStore:
                 rec["payload"] = json.loads(rec.get("payload_json") or "{}")
                 out.append(rec)
             return out
+
+    def delete_event_logs_from_episode_day(self, patient_id: str, min_day: int) -> int:
+        """Remove event_logs whose 1-indexed episode day is >= min_day."""
+        episode = self.get_episode(patient_id)
+        if not episode or not episode.get("open_date"):
+            return 0
+        try:
+            open_dt = date.fromisoformat(episode["open_date"])
+        except (TypeError, ValueError):
+            return 0
+        delete_ids: List[int] = []
+        for ev in self.get_events(patient_id):
+            try:
+                event_date = datetime.fromisoformat(str(ev["occurred_at"]).replace("Z", "")).date()
+                day_num = (event_date - open_dt).days + 1
+            except (TypeError, ValueError):
+                continue
+            if day_num >= min_day:
+                delete_ids.append(int(ev["id"]))
+        if not delete_ids:
+            return 0
+        placeholders = ",".join("?" for _ in delete_ids)
+        with self._conn() as conn:
+            conn.execute(f"DELETE FROM event_logs WHERE id IN ({placeholders})", delete_ids)
+        return len(delete_ids)
+
+    def delete_daily_checkin_sends_from_episode_day(self, patient_id: str, min_day: int) -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "DELETE FROM daily_checkin_sends WHERE patient_id = ? AND episode_day >= ?",
+                (patient_id, min_day),
+            )
+            return int(cur.rowcount or 0)
 
     def mark_survey_sent(self, patient_id: str, survey_day: int, sent_at: Optional[str] = None) -> bool:
         ts = sent_at or _utcnow_iso()
@@ -2955,5 +3019,171 @@ class TeamStore:
         rec["initial_tier_was_hard_escalator"] = bool(
             rec.get("initial_tier_was_hard_escalator")
         )
+        return rec
+
+    # ─── Grounding check reports ───────────────────────────────────────────
+
+    def save_grounding_report(
+        self,
+        *,
+        patient_id: str,
+        track: str,
+        report: Dict[str, Any],
+        accuracy: Dict[str, Any],
+        script: str,
+        regenerated: bool = False,
+    ) -> int:
+        ts = _utcnow_iso()
+        excerpt = (script or "")[:600]
+        report_json = json.dumps(report)
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO grounding_check_reports (
+                    patient_id, track, verdict, coverage_pct, faithfulness_pct,
+                    critical_failures, summary, script_excerpt, report_json,
+                    model, prompt_version, regenerated, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    patient_id,
+                    track,
+                    report.get("verdict", "BLOCK"),
+                    accuracy.get("coverage_pct"),
+                    accuracy.get("faithfulness_pct"),
+                    accuracy.get("critical_failures", len(report.get("critical_failures") or [])),
+                    report.get("summary"),
+                    excerpt,
+                    report_json,
+                    report.get("model"),
+                    report.get("prompt_version"),
+                    1 if regenerated else 0,
+                    ts,
+                ),
+            )
+            return int(cur.lastrowid)
+
+    def list_grounding_reports(
+        self,
+        *,
+        limit: int = 100,
+        verdict: Optional[str] = None,
+        track: Optional[str] = None,
+        since: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        clauses: List[str] = []
+        params: List[Any] = []
+        if verdict:
+            clauses.append("verdict = ?")
+            params.append(verdict.upper())
+        if track:
+            clauses.append("track = ?")
+            params.append(track)
+        if since:
+            clauses.append("created_at >= ?")
+            params.append(since)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT id, patient_id, track, verdict, coverage_pct, faithfulness_pct,
+                       critical_failures, summary, script_excerpt, model, prompt_version,
+                       regenerated, created_at
+                FROM grounding_check_reports
+                {where}
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_grounding_report(self, report_id: int) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM grounding_check_reports WHERE id = ?",
+                (report_id,),
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["regenerated"] = bool(rec.get("regenerated"))
+        try:
+            rec["report"] = json.loads(rec.pop("report_json") or "{}")
+        except json.JSONDecodeError:
+            rec["report"] = {}
+        return rec
+
+    def grounding_summary_stats(self, *, window_days: int = 30) -> Dict[str, Any]:
+        from datetime import datetime, timedelta
+
+        cutoff = (datetime.utcnow() - timedelta(days=window_days)).strftime("%Y-%m-%dT%H:%M:%S")
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT track, verdict, coverage_pct, faithfulness_pct
+                FROM grounding_check_reports
+                WHERE created_at >= ?
+                """,
+                (cutoff,),
+            ).fetchall()
+        total = len(rows)
+        pass_n = sum(1 for r in rows if r["verdict"] == "PASS")
+        review_n = sum(1 for r in rows if r["verdict"] == "REVIEW")
+        block_n = sum(1 for r in rows if r["verdict"] == "BLOCK")
+        cov_vals = [r["coverage_pct"] for r in rows if r["coverage_pct"] is not None]
+        faith_vals = [r["faithfulness_pct"] for r in rows if r["faithfulness_pct"] is not None]
+        by_track: Dict[str, Dict[str, int]] = {}
+        for r in rows:
+            t = r["track"] or "unknown"
+            by_track.setdefault(t, {"total": 0, "pass": 0, "review": 0, "block": 0})
+            by_track[t]["total"] += 1
+            v = (r["verdict"] or "").lower()
+            if v in by_track[t]:
+                by_track[t][v] += 1
+        return {
+            "window_days": window_days,
+            "total": total,
+            "pass": pass_n,
+            "review": review_n,
+            "block": block_n,
+            "block_rate": round(block_n / total, 3) if total else 0.0,
+            "review_rate": round(review_n / total, 3) if total else 0.0,
+            "avg_coverage_pct": round(sum(cov_vals) / len(cov_vals), 1) if cov_vals else None,
+            "avg_faithfulness_pct": round(sum(faith_vals) / len(faith_vals), 1) if faith_vals else None,
+            "by_track": by_track,
+        }
+
+    def save_inspector_recall_snapshot(
+        self, *, table_json: Dict[str, Any], prompt_version: str
+    ) -> None:
+        ts = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO inspector_recall_snapshots (prompt_version, table_json, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (prompt_version, json.dumps(table_json), ts),
+            )
+
+    def get_latest_inspector_recall(self) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT prompt_version, table_json, created_at
+                FROM inspector_recall_snapshots
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        try:
+            rec["table"] = json.loads(rec.pop("table_json") or "{}")
+        except json.JSONDecodeError:
+            rec["table"] = {}
         return rec
 

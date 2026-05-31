@@ -1,14 +1,9 @@
 import { useState, type FormEvent } from "react";
 
 import { API_BASE } from "@/lib/auth-api";
+import * as authApi from "@/lib/auth-api";
 
 type Props = { slug: string };
-
-const DASHBOARD =
-  (import.meta as unknown as { env: { VITE_DASHBOARD_URL?: string; VITE_API_URL?: string; DEV?: boolean } }).env
-    .VITE_DASHBOARD_URL ??
-  (import.meta as unknown as { env: { VITE_API_URL?: string } }).env.VITE_API_URL ??
-  "http://localhost:8000";
 
 export default function TenantSignIn({ slug }: Props) {
   const [email, setEmail] = useState("");
@@ -29,7 +24,7 @@ export default function TenantSignIn({ slug }: Props) {
       return;
     }
     const tok = data.access_token as string;
-    window.location.href = `${DASHBOARD.replace(/\/$/, "")}/#auth=${encodeURIComponent(tok)}`;
+    await authApi.redirectToDoctorPortal(tok);
   }
 
   return (

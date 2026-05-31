@@ -25,23 +25,36 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 # Load env from predictable paths (uvicorn cwd is often repo root, not backend/).
 _backend_dir = Path(__file__).resolve().parent
 _repo_root = _backend_dir.parent
-# override=True so values from these files win over stale shell exports during local dev.
-load_dotenv(_repo_root / ".env", override=True)
-load_dotenv(_backend_dir / ".env", override=True)
+
+
+def _load_layered_dotenv(*paths: Path) -> None:
+    """Load .env files in order; later files win, but blank values must not
+    wipe secrets already set (backend/.env often ships empty placeholders)."""
+    for path in paths:
+        if not path.is_file():
+            continue
+        for key, val in dotenv_values(path).items():
+            if val is None or val == "":
+                continue
+            os.environ[key] = val
+
+
+_load_layered_dotenv(_repo_root / ".env", _backend_dir / ".env")
 
 from pipeline.ingest   import IngestLayer
 from pipeline.extract  import ExtractionLayer
 from pipeline.classify import ClassificationLayer
 from pipeline.generate import GenerationLayer
+from pipeline.grounding_gate import apply_grounding_to_patient, audit_and_gate_script
 from integrations.elevenlabs   import ElevenLabsClient
 from integrations.tavus        import TavusClient
 from integrations.twilio_client import TwilioClient
-from routers.internal import router as internal_router
+from routers.internal import _check_auth as _check_internal_auth, router as internal_router
 from routers.admin    import router as admin_router
 from routers.onboarding import router as onboarding_router
 from routers.tenant_portal import router as tenant_portal_router
@@ -50,9 +63,26 @@ from routers.intraop import router as intraop_router
 from routers.postop import router as postop_router
 from routers.initial_tier import router as initial_tier_router
 from routers.preop_retier import router as preop_retier_router
+from routers.triage_explain import router as triage_explain_router
 from eligibility import store as elig_store
-from staff_context import StaffContext, get_staff_context_optional
-from tenant_constants import DEMO_HEALTH_SYSTEM_ID, DEMO_HEALTH_SYSTEM_SLUG
+import demo_credentials
+from staff_context import (
+    StaffContext,
+    assert_staff_patient_scope,
+    get_staff_context_optional,
+    require_clinical_auth,
+)
+from tenant_constants import (
+    DEMO_HEALTH_SYSTEM_ID,
+    DEMO_HEALTH_SYSTEM_SLUG,
+    TRIAGEDM_CLINIC_CODE,
+)
+from triage_demo_seed import (
+    ensure_triage_demo_staff,
+    merge_triage_patients_into_store,
+    seed_triage_demo_sqlite,
+    spinal_fusion_postop_demo_resources,
+)
 from tenant_jwt import decode_tenant_staff_token
 from email_utils import is_email_transport_configured, send_html_email as _send_html_email_impl
 from auth import (
@@ -117,6 +147,42 @@ def _assert_staff_can_access_patient(patient_id: str, staff: Optional[StaffConte
     d = _patient_store.get(patient_id)
     if not d or (d.get("health_system_id") or "") != staff.tenant_id:
         raise HTTPException(status_code=404, detail="Patient not found")
+
+
+def _require_clinical_staff(staff: Optional[StaffContext]) -> StaffContext:
+    return require_clinical_auth(staff)
+
+
+def _assert_clinical_staff_can_access_patient(patient_id: str, staff: Optional[StaffContext]) -> None:
+    patient = _patient_store.get(patient_id)
+    assert_staff_patient_scope(patient=patient, staff=staff)
+
+
+def _staff_actor_id(staff: Optional[StaffContext]) -> str:
+    if staff and staff.email:
+        return staff.email
+    return "unknown"
+
+
+def _validate_patient_iso_date(value: str, field_name: str) -> None:
+    try:
+        date.fromisoformat(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{field_name} must be YYYY-MM-DD") from exc
+
+
+def _patient_anchor_for_roster(d: Dict[str, Any], sd: Dict[str, Any]) -> str:
+    fam = (d.get("anchor_procedure_family") or "").strip()
+    if fam in _ANCHOR_PROCEDURES:
+        return fam
+    proc = (sd.get("procedure_name") or "").strip()
+    if proc in _ANCHOR_PROCEDURES:
+        return proc
+    return fam or proc or ""
+
+
+def _patient_dob_for_roster(sd: Dict[str, Any]) -> str:
+    return (sd.get("dob") or sd.get("date_of_birth") or "").strip()
 
 
 def _facility_display_name_for_patient(patient_id: str) -> str:
@@ -395,7 +461,7 @@ DEFAULT_FRAMEWORKS: Dict[str, str] = {
 
 
 DEMO_DOCTOR_EMAIL = "manan.vyas@cedarssinai.com"
-DEMO_DOCTOR_PASSWORD = "ArchangelDemo2024!"
+DEMO_DOCTOR_PASSWORD = (os.getenv("DEMO_DOCTOR_PASSWORD") or "ChangeMeCedarDemo!").strip()
 DEMO_CLINIC_CODE = "CDRSNAI1"
 
 
@@ -415,6 +481,10 @@ def _disable_scheduler_in_demo() -> bool:
 def _demo_seed_strategy() -> str:
     strategy = os.getenv("DEMO_SEED_STRATEGY", "preserve").strip().lower()
     return "reset" if strategy == "reset" else "preserve"
+
+
+def _triage_demo_enabled() -> bool:
+    return os.getenv("ENABLE_TRIAGE_DEMO", "1").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _demo_patient_store_persistence_enabled() -> bool:
@@ -476,6 +546,9 @@ def _persist_demo_patient_store() -> None:
 
 
 def _ensure_demo_doctor() -> None:
+    if not DEMO_DOCTOR_PASSWORD:
+        print("[demo-seed] DEMO_DOCTOR_PASSWORD unset; skipping shared landing demo doctor seed.")
+        return
     users = auth_module._get_users()  # noqa: SLF001
     key = DEMO_DOCTOR_EMAIL.lower().strip()
     if key not in users:
@@ -769,7 +842,24 @@ async def _seed_demo_mode_data() -> None:
     rows = _seed_demo_patient_store()
     _load_demo_patient_store_snapshot()
     _seed_demo_sqlite(rows, _demo_seed_strategy())
-    _persist_demo_patient_store()
+
+
+def _ensure_triage_demo_tenant_seeded() -> None:
+    """Merge TRIAGEDM in-memory patients + SQLite rows on every startup.
+
+    Tenant staff sign-in works without ``DEMO_MODE``, but the roster reads
+    ``_patient_store``; seeding triage only inside ``_seed_demo_mode_data`` left
+    an empty roster when ``DEMO_MODE`` was off.
+    """
+    ensure_triage_demo_staff(_team_store)
+    strategy = _demo_seed_strategy()
+    merge_triage_patients_into_store(
+        _patient_store,
+        battlecard_fn=_build_demo_battlecard,
+        team_store=_team_store,
+        strategy=strategy,
+    )
+    seed_triage_demo_sqlite(_team_store, _patient_store, strategy=strategy)
 
 
 def _frontend_cache_version() -> str:
@@ -967,6 +1057,14 @@ def _episode_day_from_open(open_date_str: str, ts_iso: str) -> Optional[int]:
         return (event_date - open_dt).days + 1
     except Exception:
         return None
+
+
+# Internal post-op cron/audit rows — hidden from the doctor episode timeline.
+_TIMELINE_HIDDEN_EVENT_PREFIXES = ("POSTOP_RETIER_", "POSTOP_DAILY_CHECKIN_")
+
+
+def _timeline_event_visible(event_type: str) -> bool:
+    return not any(str(event_type or "").startswith(p) for p in _TIMELINE_HIDDEN_EVENT_PREFIXES)
 
 
 def _question_set_for_day(survey_day: int) -> dict:
@@ -1336,6 +1434,20 @@ class PCPReferralUpdateRequest(BaseModel):
     sent: bool = True
 
 
+class PatientUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    mbi: Optional[str] = None
+    dob: Optional[str] = None
+    scheduled_surgery_date: Optional[str] = None
+    anchor_procedure: Optional[str] = None
+
+
+_ANCHOR_PROCEDURES = frozenset({"LEJR", "HIP_FEMUR", "SPINAL_FUSION", "CABG", "MAJOR_BOWEL"})
+_MBI_RE = re.compile(r"^[1-9][A-Z][A-Z0-9][0-9][A-Z][A-Z0-9][0-9][A-Z][A-Z][0-9]{2}$")
+
+
 class SurveySubmitRequest(BaseModel):
     clinic_code: str
     resource_code: str
@@ -1435,6 +1547,27 @@ class IntakeFormsSubmitBody(BaseModel):
     pass
 
 
+# ─── Doctor portal token handoff ──────────────────────────────
+_PORTAL_HANDOFF_TTL_SECONDS = 60
+_PORTAL_HANDOFF_STORE: Dict[str, Dict[str, Any]] = {}
+
+
+def _cleanup_portal_handoffs(now: Optional[datetime] = None) -> None:
+    now = now or datetime.utcnow()
+    expired = [k for k, v in _PORTAL_HANDOFF_STORE.items() if v.get("expires_at") and v["expires_at"] <= now]
+    for key in expired:
+        _PORTAL_HANDOFF_STORE.pop(key, None)
+
+
+class PortalHandoffCreateResponse(BaseModel):
+    handoff_code: str
+    expires_in_seconds: int
+
+
+class PortalHandoffConsumeRequest(BaseModel):
+    handoff_code: str
+
+
 # ─── Auth (Elysium Health landing) ────────────────────────────
 @app.post("/api/auth/register")
 async def auth_register(body: UserCreate):
@@ -1490,6 +1623,41 @@ async def auth_login(body: UserLogin):
         "token_type": "bearer",
         "user": UserOut(email=user["email"], name=user.get("name"), role=user.get("role")),
     }
+
+
+@app.post("/api/auth/portal-handoff", response_model=PortalHandoffCreateResponse)
+async def create_portal_handoff(
+    authorization: Optional[str] = Header(None),
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    if not staff:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    _cleanup_portal_handoffs()
+    token = authorization.removeprefix("Bearer ").strip()
+    code = secrets.token_urlsafe(24)
+    _PORTAL_HANDOFF_STORE[code] = {
+        "access_token": token,
+        "expires_at": datetime.utcnow() + timedelta(seconds=_PORTAL_HANDOFF_TTL_SECONDS),
+        "created_at": datetime.utcnow(),
+    }
+    return PortalHandoffCreateResponse(
+        handoff_code=code,
+        expires_in_seconds=_PORTAL_HANDOFF_TTL_SECONDS,
+    )
+
+
+@app.post("/api/auth/portal-handoff/consume")
+async def consume_portal_handoff(body: PortalHandoffConsumeRequest):
+    _cleanup_portal_handoffs()
+    code = (body.handoff_code or "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="handoff_code is required")
+    payload = _PORTAL_HANDOFF_STORE.pop(code, None)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Handoff code not found or expired")
+    return {"access_token": payload["access_token"], "token_type": "bearer"}
 
 
 @app.get("/api/auth/me", response_model=UserOut)
@@ -1683,15 +1851,44 @@ async def _run_preop_survey_outreach() -> None:
 
 
 # ─── Doctor Portal ────────────────────────────────────────────
-@app.get("/", response_class=HTMLResponse)
-async def doctor_portal(request: Request):
-    """Serves the doctor dashboard, or redirects to /admin for the admin subdomain."""
+@app.get("/")
+async def doctor_portal_entry(request: Request):
+    """Entry point: tenant sign-in first, then /doctor/app for the roster UI."""
+    host = request.headers.get("host", "")
+    if "admin." in host:
+        return RedirectResponse(url="/admin", status_code=301)
+    return RedirectResponse(url="/doctor/sign-in", status_code=302)
+
+
+@app.get("/doctor/sign-in", response_class=HTMLResponse)
+async def doctor_tenant_sign_in_page(request: Request):
+    """Health-system tenant login (surgeon / RN); stores JWT in archangel_doctor_auth_token."""
+    host = request.headers.get("host", "")
+    if "admin." in host:
+        return RedirectResponse(url="/admin", status_code=301)
+    path = os.path.join(os.path.dirname(__file__), "../frontend/doctor-sign-in.html")
+    with open(path) as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/doctor/app", response_class=HTMLResponse)
+async def doctor_portal_app(request: Request):
+    """Main doctor roster / console (after sign-in)."""
     host = request.headers.get("host", "")
     if "admin." in host:
         return RedirectResponse(url="/admin", status_code=301)
     html_path = os.path.join(os.path.dirname(__file__), "../frontend/doctor.html")
     with open(html_path) as f:
         return HTMLResponse(content=f.read())
+
+
+@app.get("/doctor")
+async def doctor_portal_legacy_path(request: Request):
+    """Bookmarks to /doctor land on sign-in; dashboard is /doctor/app."""
+    host = request.headers.get("host", "")
+    if "admin." in host:
+        return RedirectResponse(url="/admin", status_code=301)
+    return RedirectResponse(url="/doctor/sign-in", status_code=307)
 
 
 @app.get("/dev", response_class=HTMLResponse)
@@ -1729,7 +1926,7 @@ async def dev_login_shortcut():
 <body><p>Signing in…</p>
 <script>
   localStorage.setItem("archangel_doctor_auth_token", {json.dumps(token)});
-  location.replace("/");
+  location.replace("/doctor/app");
 </script>
 </body></html>"""
     return HTMLResponse(content=html)
@@ -1779,13 +1976,18 @@ async def list_patients(
     cancel). If a draft is left behind by an interrupted session, it stays
     invisible until the server restarts.
     """
+    staff = _require_clinical_staff(staff)
     await _maybe_trigger_preop_outreach(request.app)
     patients = []
     for pid, d in _patient_store.items():
         if d.get("is_draft"):
             continue
-        if staff and staff.source == "tenant" and staff.tenant_id:
-            if (d.get("health_system_id") or "") != staff.tenant_id:
+        patient_hs_id = str(d.get("health_system_id") or "")
+        if staff.source == "tenant" and staff.tenant_id:
+            if patient_hs_id and patient_hs_id != str(staff.tenant_id):
+                continue
+        elif staff.source == "landing":
+            if patient_hs_id and patient_hs_id != DEMO_HEALTH_SYSTEM_ID:
                 continue
         sd = d.get("structured_data") or {}
         episode = _team_store.get_episode(pid) or _team_store.ensure_episode(
@@ -1810,7 +2012,15 @@ async def list_patients(
             "pipelineType": d.get("pipeline_type", "post_op"),
             "phone": d.get("phone", ""),
             "email": d.get("email", ""),
+            "mbi": (d.get("mbi") or sd.get("mbi") or ""),
+            "dob": _patient_dob_for_roster(sd),
+            "anchorProcedure": _patient_anchor_for_roster(d, sd),
             "health_system_code": d.get("clinic_code") or "",
+            "phase": d.get("phase"),
+            "orStartedAt": d.get("or_started_at"),
+            "orEndedAt": d.get("or_ended_at"),
+            "tierLastChanged": d.get("tier_last_changed"),
+            "hasActiveSelfFlag": _team_store.has_active_self_flag(pid),
             "intakeFormStatus": (latest_intake or {}).get("status") or "NOT_STARTED",
             "intakeFormId": (latest_intake or {}).get("id"),
             "eligibilityStatus": d.get("eligibility_status"),
@@ -1846,6 +2056,9 @@ async def list_patients(
         row["initialTier"] = d.get("initial_tier")
         row["postIntakeTier"] = post_intake_tier
         row["currentTier"] = d.get("current_tier")
+        row["requiresClinicianReview"] = bool(d.get("requires_clinician_review"))
+        row["groundingSummaries"] = d.get("grounding_summaries") or {}
+        row["groundingPendingTracks"] = d.get("grounding_pending_tracks") or []
         if (d.get("pipeline_type") or "").lower() == "pre_op" and parse_surgery_datetime(sd.get("procedure_date") or ""):
             row["windows"] = {
                 "t96": compute_window_tier(patient_id=pid, window="t96", team_store=_team_store, patient_dict=d),
@@ -1861,9 +2074,7 @@ async def get_discharge_materials(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
-    if patient_id not in _patient_store:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    _assert_staff_can_access_patient(patient_id, staff)
+    _assert_clinical_staff_can_access_patient(patient_id, staff)
     d = _patient_store[patient_id]
     resources = d.get("resources") or {}
     return {
@@ -1912,9 +2123,7 @@ async def update_pcp_referral(
     body: PCPReferralUpdateRequest,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
-    if patient_id not in _patient_store:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    _assert_staff_can_access_patient(patient_id, staff)
+    _assert_clinical_staff_can_access_patient(patient_id, staff)
     p = _patient_store[patient_id]
     sd = p.get("structured_data") or {}
     pcp_name = (body.pcp_name or "").strip()
@@ -1933,14 +2142,126 @@ async def update_pcp_referral(
     return {"ok": True, "pcpReferralSent": sent, "pcpName": pcp_name}
 
 
+@app.get("/api/demo/sign-in-routes")
+async def demo_sign_in_routes():
+    """Public email → auth routing hints for landing sign-in (no passwords)."""
+    return demo_credentials.sign_in_routes(cedar_email=DEMO_DOCTOR_EMAIL)
+
+
+@app.patch("/api/patient/{patient_id}")
+async def update_patient_details(
+    patient_id: str,
+    body: PatientUpdateRequest,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    _assert_clinical_staff_can_access_patient(patient_id, staff)
+    p = _patient_store[patient_id]
+    sd = dict(p.get("structured_data") or {})
+    changed: Dict[str, Any] = {}
+
+    if body.name is not None:
+        name = (body.name or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Patient name cannot be empty")
+        if len(name) > 120:
+            raise HTTPException(status_code=400, detail="Patient name must be 1-120 chars")
+        p["name"] = name
+        sd["patient_name"] = name
+        changed["name"] = name
+
+    if body.phone is not None:
+        phone = (body.phone or "").strip()
+        p["phone"] = phone
+        changed["phone"] = phone
+
+    if body.email is not None:
+        email = (body.email or "").strip()
+        p["email"] = email
+        changed["email"] = email
+
+    if body.mbi is not None:
+        mbi = (body.mbi or "").strip().upper()
+        if mbi and not _MBI_RE.match(mbi):
+            raise HTTPException(status_code=400, detail="MBI format invalid")
+        if mbi:
+            for other_pid, other in _patient_store.items():
+                if other_pid == patient_id:
+                    continue
+                other_mbi = str((other.get("structured_data") or {}).get("mbi") or other.get("mbi") or "").upper().strip()
+                if other_mbi and other_mbi == mbi:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"MBI already assigned to patient {other.get('name') or other_pid}",
+                    )
+        p["mbi"] = mbi
+        sd["mbi"] = mbi
+        changed["mbi"] = mbi
+
+    if body.dob is not None:
+        dob = (body.dob or "").strip()
+        if dob:
+            _validate_patient_iso_date(dob, "dob")
+        sd["dob"] = dob or None
+        sd["date_of_birth"] = dob or None
+        changed["dob"] = dob
+
+    if body.scheduled_surgery_date is not None:
+        surgery = (body.scheduled_surgery_date or "").strip()
+        if surgery:
+            _validate_patient_iso_date(surgery, "scheduled_surgery_date")
+        sd["procedure_date"] = surgery
+        changed["scheduled_surgery_date"] = surgery
+
+    if body.anchor_procedure is not None:
+        anchor = (body.anchor_procedure or "").strip()
+        if anchor and anchor not in _ANCHOR_PROCEDURES:
+            raise HTTPException(status_code=400, detail="Invalid anchor procedure")
+        sd["procedure_name"] = anchor
+        if anchor:
+            p["anchor_procedure_family"] = anchor
+        changed["anchor_procedure"] = anchor
+
+    p["structured_data"] = sd
+
+    if body.anchor_procedure is not None or body.scheduled_surgery_date is not None:
+        _team_store.ensure_episode(
+            patient_id=patient_id,
+            procedure_type=sd.get("procedure_name", ""),
+            clinic_code=p.get("clinic_code") or "",
+            resource_code=p.get("resource_code") or "",
+            health_system_id=p.get("health_system_id"),
+        )
+
+    elig_store.append_audit(
+        action="patient_details_updated",
+        actor=_staff_actor_id(staff),
+        patient_id=patient_id,
+        meta=changed,
+    )
+    _persist_demo_patient_store()
+
+    return {
+        "ok": True,
+        "patient": {
+            "id": patient_id,
+            "name": p.get("name"),
+            "phone": p.get("phone"),
+            "email": p.get("email"),
+            "mbi": p.get("mbi") or sd.get("mbi"),
+            "dob": _patient_dob_for_roster(sd),
+            "date": sd.get("procedure_date", ""),
+            "procedure": sd.get("procedure_name", ""),
+            "anchorProcedure": _patient_anchor_for_roster(p, sd),
+        },
+    }
+
+
 @app.get("/api/patient/{patient_id}/timeline")
 async def get_patient_timeline(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
-    if patient_id not in _patient_store:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    _assert_staff_can_access_patient(patient_id, staff)
+    _assert_clinical_staff_can_access_patient(patient_id, staff)
     d = _patient_store[patient_id]
     sd = d.get("structured_data") or {}
     episode = _team_store.get_episode(patient_id) or _team_store.ensure_episode(
@@ -1956,6 +2277,8 @@ async def get_patient_timeline(
     events = _team_store.get_events(patient_id)
     markers = {str(i): [] for i in range(1, 31)}
     for ev in events:
+        if not _timeline_event_visible(ev.get("event_type")):
+            continue
         day_num = _episode_day_from_open(episode["open_date"], ev["occurred_at"])
         if day_num is None or day_num < 1 or day_num > 30:
             continue
@@ -1983,6 +2306,26 @@ async def get_patient_timeline(
                 "payload": {"survey_day": day, "score": sr.get("score"), "tier": sr.get("tier")},
             }
         )
+    if (d.get("clinic_code") or "").upper() == TRIAGEDM_CLINIC_CODE:
+        completed_survey_days = {
+            int(sr["survey_day"])
+            for sr in survey_responses
+            if str(sr.get("survey_type") or "postop") == "postop"
+        }
+        for send_row in _team_store.get_survey_sends(patient_id):
+            day = int(send_row["survey_day"])
+            if day in completed_survey_days:
+                continue
+            if day < 1 or day > 30:
+                continue
+            markers[str(day)].append(
+                {
+                    "id": f"survey-pending-{day}",
+                    "type": "survey_pending",
+                    "timestamp": send_row.get("sent_at"),
+                    "payload": {"survey_day": day},
+                }
+            )
     return {
         "patient_id": patient_id,
         "episode": {
@@ -2000,21 +2343,36 @@ async def get_patient_timeline(
 
 @app.get("/api/escalations")
 async def list_escalations(staff: Optional[StaffContext] = Depends(get_staff_context_optional)):
+    staff = _require_clinical_staff(staff)
     rows = _team_store.list_escalations()
     out = []
+    filter_applied = (
+        "surgeon_tier3_only" if staff.source == "tenant" and staff.role == "surgeon" else None
+    )
     for row in rows:
         patient = _patient_store.get(row["patient_id"], {})
-        if staff and staff.source == "tenant" and staff.tenant_id:
+        if staff.source == "tenant" and staff.tenant_id:
             if (patient.get("health_system_id") or "") != staff.tenant_id:
+                continue
+        elif staff.source == "landing":
+            if (patient.get("health_system_id") or "") != DEMO_HEALTH_SYSTEM_ID:
                 continue
         trigger = row["trigger_type"]
         origin = "Care Team Notification" if str(trigger).startswith("care_team_notification") else "Chat"
+        tier_val = row["tier"]
+        if (
+            staff
+            and staff.source == "tenant"
+            and staff.role == "surgeon"
+            and int(tier_val) != 3
+        ):
+            continue
         out.append(
             {
                 "id": row["id"],
                 "patient_id": row["patient_id"],
                 "patient_name": patient.get("name", row["patient_id"]),
-                "tier": row["tier"],
+                "tier": tier_val,
                 "trigger_type": row["trigger_type"],
                 "origin": origin,
                 "message": row.get("message", ""),
@@ -2026,7 +2384,10 @@ async def list_escalations(staff: Optional[StaffContext] = Depends(get_staff_con
             }
         )
     resolved_count = sum(1 for r in out if r["resolved"])
-    return {"escalations": out, "resolved_count": resolved_count, "total_count": len(out)}
+    body = {"escalations": out, "resolved_count": resolved_count, "total_count": len(out)}
+    if filter_applied:
+        body["filter_applied"] = filter_applied
+    return body
 
 
 @app.patch("/api/escalations/{escalation_id}/resolved")
@@ -2038,7 +2399,7 @@ async def set_escalation_resolved(
     row = _team_store.get_escalation(escalation_id)
     if not row:
         raise HTTPException(status_code=404, detail="Escalation not found")
-    _assert_staff_can_access_patient(row["patient_id"], staff)
+    _assert_clinical_staff_can_access_patient(row["patient_id"], staff)
     _team_store.set_escalation_resolved(escalation_id, body.resolved)
     return {"ok": True, "resolved": body.resolved}
 
@@ -2685,14 +3046,48 @@ async def process_discharge(
         # 2. Generate two resource sets (diagnosis + treatment)
         generator = GenerationLayer()
         resources = await generator.generate_two_resources(structured_data)
-        print(f"[pipeline] Generation complete. Synthesizing audio...")
+        print(f"[pipeline] Generation complete. Running grounding checks...")
 
-        # 3. Synthesize audio for both via ElevenLabs in parallel
-        el_client = ElevenLabsClient()
-        diag_audio, treat_audio = await asyncio.gather(
-            el_client.synthesize(resources["diagnosis"]["voice_script"], f"{patient_id}_diagnosis"),
-            el_client.synthesize(resources["treatment"]["voice_script"], f"{patient_id}_treatment"),
+        async def _regen_diagnosis() -> str:
+            regen = await generator.generate_two_resources(structured_data)
+            resources["diagnosis"] = regen["diagnosis"]
+            return regen["diagnosis"]["voice_script"]
+
+        async def _regen_treatment() -> str:
+            regen = await generator.generate_two_resources(structured_data)
+            resources["treatment"] = regen["treatment"]
+            return regen["treatment"]["voice_script"]
+
+        diag_gate = await audit_and_gate_script(
+            patient_id=patient_id,
+            structured_data=structured_data,
+            script=resources["diagnosis"]["voice_script"],
+            track="post_op_diagnosis",
+            team_store=_team_store,
+            regenerate_fn=_regen_diagnosis,
         )
+        resources["diagnosis"]["voice_script"] = diag_gate.script
+
+        treat_gate = await audit_and_gate_script(
+            patient_id=patient_id,
+            structured_data=structured_data,
+            script=resources["treatment"]["voice_script"],
+            track="post_op_treatment",
+            team_store=_team_store,
+            regenerate_fn=_regen_treatment,
+        )
+        resources["treatment"]["voice_script"] = treat_gate.script
+
+        print(f"[pipeline] Grounding: diagnosis={diag_gate.report.verdict}, treatment={treat_gate.report.verdict}")
+
+        # 3. Synthesize audio for both via ElevenLabs (PASS only)
+        el_client = ElevenLabsClient()
+        diag_audio = None
+        treat_audio = None
+        if diag_gate.synthesize:
+            diag_audio = await el_client.synthesize(resources["diagnosis"]["voice_script"], f"{patient_id}_diagnosis")
+        if treat_gate.synthesize:
+            treat_audio = await el_client.synthesize(resources["treatment"]["voice_script"], f"{patient_id}_treatment")
         print(f"[pipeline] Audio synthesis complete. Storing results...")
 
         # 4. Build dashboard URL
@@ -2727,6 +3122,8 @@ async def process_discharge(
                 },
             },
         }
+        apply_grounding_to_patient(_patient_store[patient_id], "post_op_diagnosis", diag_gate)
+        apply_grounding_to_patient(_patient_store[patient_id], "post_op_treatment", treat_gate)
         _team_store.ensure_episode(
             patient_id=patient_id,
             procedure_type=structured_data.get("procedure_name", ""),
@@ -2836,7 +3233,26 @@ async def process_preop(
 
         generator = GenerationLayer()
         preop_voice, preop_battlecard = await generator.generate(structured_data, "pre_op")
-        preop_audio = await ElevenLabsClient().synthesize(preop_voice, f"{patient_id}_preop")
+
+        async def _regen_preop() -> str:
+            nonlocal preop_battlecard
+            v, b = await generator.generate(structured_data, "pre_op")
+            preop_battlecard = b
+            return v
+
+        preop_gate = await audit_and_gate_script(
+            patient_id=patient_id,
+            structured_data=structured_data,
+            script=preop_voice,
+            track="pre_op",
+            team_store=_team_store,
+            regenerate_fn=_regen_preop,
+        )
+        preop_voice = preop_gate.script
+
+        preop_audio = None
+        if preop_gate.synthesize:
+            preop_audio = await ElevenLabsClient().synthesize(preop_voice, f"{patient_id}_preop")
 
         base_url = os.getenv("BASE_URL", "http://localhost:8000")
         dashboard_url = f"{base_url}/patient/{patient_id}/pre-op"
@@ -2865,6 +3281,7 @@ async def process_preop(
                 }
             },
         }
+        apply_grounding_to_patient(_patient_store[patient_id], "pre_op", preop_gate)
         _team_store.ensure_episode(
             patient_id=patient_id,
             procedure_type=structured_data.get("procedure_name", ""),
@@ -2899,40 +3316,114 @@ async def process_patient(
 ):
     """Legacy full pipeline (single resource set)."""
     health_system_id = staff.tenant_id if (staff and staff.source == "tenant" and staff.tenant_id) else None
-    raw_package = IngestLayer().process(bundle.model_dump())
-    structured_data = await ExtractionLayer().extract(raw_package)
-    pipeline_type = ClassificationLayer().classify(structured_data)
-    generator = GenerationLayer()
-    voice_script, battlecard_html = await generator.generate(structured_data, pipeline_type)
-    audio_url = await ElevenLabsClient().synthesize(voice_script, bundle.patient_id)
-    avatar = await TavusClient().create_conversation(
-        patient_id=bundle.patient_id,
-        knowledge_base={
-            "voice_script":  voice_script,
-            "battlecard":    battlecard_html,
-            "ehr_summary":   structured_data,
-        },
-    )
+    resources_opt: Optional[Dict[str, Any]] = None
+    _legacy_grounding_gate = None
+    grounding_track = "post_op_treatment"
+    try:
+        raw_package = IngestLayer().process(bundle.model_dump())
+        structured_data = await ExtractionLayer().extract(raw_package)
+        pipeline_type = ClassificationLayer().classify(structured_data)
+        generator = GenerationLayer()
+        voice_script, battlecard_html = await generator.generate(structured_data, pipeline_type)
+
+        grounding_track = "pre_op" if pipeline_type == "pre_op" else "post_op_treatment"
+
+        async def _regen_legacy() -> str:
+            nonlocal battlecard_html
+            v, b = await generator.generate(structured_data, pipeline_type)
+            battlecard_html = b
+            return v
+
+        legacy_gate = await audit_and_gate_script(
+            patient_id=bundle.patient_id,
+            structured_data=structured_data,
+            script=voice_script,
+            track=grounding_track,
+            team_store=_team_store,
+            regenerate_fn=_regen_legacy,
+        )
+        voice_script = legacy_gate.script
+        _legacy_grounding_gate = legacy_gate
+    except Exception as exc:
+        prev_blob = _patient_store.get(bundle.patient_id) or {}
+        triage_ok = _is_demo_mode() and (prev_blob.get("clinic_code") or "").upper() == "TRIAGEDM"
+        if not triage_ok:
+            raise HTTPException(status_code=500, detail=f"Pipeline failed: {exc}") from exc
+        structured_data = dict(prev_blob.get("structured_data") or {})
+        if bundle.clinical_notes:
+            structured_data["discharge_notes"] = bundle.clinical_notes
+        pipeline_type = "post_op"
+        dx_h, tx_h, dx_s, tx_s = spinal_fusion_postop_demo_resources()
+        voice_script = dx_s
+        battlecard_html = dx_h
+        resources_opt = {
+            "diagnosis": {"voice_script": dx_s, "battlecard_html": dx_h, "voice_audio_url": None},
+            "treatment": {"voice_script": tx_s, "battlecard_html": tx_h, "voice_audio_url": None},
+        }
+        _legacy_grounding_gate = None
+
+    try:
+        audio_url = None
+        if _legacy_grounding_gate is None or _legacy_grounding_gate.synthesize:
+            audio_url = await ElevenLabsClient().synthesize(voice_script, bundle.patient_id)
+    except Exception:
+        audio_url = None
+    try:
+        avatar = await TavusClient().create_conversation(
+            patient_id=bundle.patient_id,
+            knowledge_base={
+                "voice_script":  voice_script,
+                "battlecard":    battlecard_html,
+                "ehr_summary":   structured_data,
+            },
+        )
+    except Exception:
+        avatar = {"conversation_url": None}
     base_url      = os.getenv("BASE_URL", "http://localhost:8000")
     dashboard_url = f"{base_url}/patient/{bundle.patient_id}"
-    _patient_store[bundle.patient_id] = {
-        "name":                bundle.patient_name,
-        "health_system_id":    health_system_id,
-        "phone":               bundle.phone_number,
-        "pipeline_type":       pipeline_type,
-        "voice_audio_url":     audio_url,
-        "battlecard_html":     battlecard_html,
-        "avatar_url":          avatar.get("conversation_url"),
-        "structured_data":     structured_data,
-        "voice_script":        voice_script,
-        "resources":           None,
-    }
+    clinic_code_m = ""
+    prev = _patient_store.get(bundle.patient_id)
+    if prev:
+        clinic_code_m = (prev.get("clinic_code") or "") or ""
+        prev.update({
+            "name":                bundle.patient_name,
+            "health_system_id":    health_system_id or prev.get("health_system_id"),
+            "phone":               bundle.phone_number or prev.get("phone"),
+            "pipeline_type":       pipeline_type,
+            "voice_audio_url":     audio_url,
+            "battlecard_html":     battlecard_html,
+            "avatar_url":          avatar.get("conversation_url"),
+            "structured_data":     {**(prev.get("structured_data") or {}), **structured_data},
+            "voice_script":        voice_script,
+        })
+        if resources_opt is not None:
+            prev["resources"] = resources_opt
+        if _legacy_grounding_gate is not None:
+            apply_grounding_to_patient(prev, grounding_track, _legacy_grounding_gate)
+        _patient_store[bundle.patient_id] = prev
+    else:
+        blob = {
+            "name":                bundle.patient_name,
+            "health_system_id":    health_system_id,
+            "phone":               bundle.phone_number,
+            "pipeline_type":       pipeline_type,
+            "voice_audio_url":     audio_url,
+            "battlecard_html":     battlecard_html,
+            "avatar_url":          avatar.get("conversation_url"),
+            "structured_data":     structured_data,
+            "voice_script":        voice_script,
+            "resources":           resources_opt,
+            "clinic_code":         clinic_code_m,
+        }
+        if _legacy_grounding_gate is not None:
+            apply_grounding_to_patient(blob, grounding_track, _legacy_grounding_gate)
+        _patient_store[bundle.patient_id] = blob
     _team_store.ensure_episode(
         patient_id=bundle.patient_id,
         procedure_type=structured_data.get("procedure_name", ""),
-        clinic_code="",
-        resource_code="",
-        health_system_id=health_system_id,
+        clinic_code=(_patient_store[bundle.patient_id] or {}).get("clinic_code") or clinic_code_m or "",
+        resource_code=(_patient_store[bundle.patient_id] or {}).get("resource_code") or "",
+        health_system_id=(_patient_store[bundle.patient_id] or {}).get("health_system_id") or health_system_id,
     )
     _persist_demo_patient_store()
     background_tasks.add_task(
@@ -2974,6 +3465,89 @@ async def get_patient_resources(
 
     _persist_demo_patient_store()
     return resources
+
+
+async def _ensure_preop_voice_audio(
+    store: Dict[str, Any],
+    patient_id: str,
+    *,
+    team_store: Any = None,
+) -> Optional[str]:
+    """Return a playable pre-op audio URL, synthesizing on demand when needed."""
+    from pathlib import Path
+
+    resources = store.get("resources") or {}
+    preop = resources.get("preop") if isinstance(resources, dict) else {}
+    if not isinstance(preop, dict):
+        preop = {}
+
+    for cached in (preop.get("voice_audio_url"), store.get("voice_audio_url")):
+        if not cached:
+            continue
+        filename = cached.split("/audio/")[-1]
+        if Path(f"/tmp/{filename}").exists():
+            return f"/audio/{filename}"
+    if not preop.get("voice_audio_url"):
+        store["voice_audio_url"] = None
+
+    voice_script = (preop.get("voice_script") or store.get("voice_script") or "").strip()
+    if not voice_script:
+        return None
+
+    pending_tracks = store.get("grounding_pending_tracks")
+    if isinstance(pending_tracks, list) and "pre_op" in pending_tracks:
+        return None
+
+    if team_store is not None:
+        gate = await audit_and_gate_script(
+            patient_id=patient_id,
+            structured_data=dict(store.get("structured_data") or {}),
+            script=voice_script,
+            track="pre_op",
+            team_store=team_store,
+            regenerate_fn=None,
+        )
+        voice_script = gate.script
+        apply_grounding_to_patient(store, "pre_op", gate)
+        if not gate.synthesize:
+            return None
+
+    audio_url = await ElevenLabsClient().synthesize(voice_script, f"{patient_id}_preop")
+    if not audio_url:
+        return None
+
+    store["voice_script"] = voice_script
+    store["voice_audio_url"] = audio_url
+    if not isinstance(resources, dict):
+        resources = {}
+    preop = dict(preop)
+    preop["voice_audio_url"] = audio_url
+    preop["voice_script"] = voice_script
+    resources["preop"] = preop
+    store["resources"] = resources
+    return audio_url
+
+
+@app.get("/api/patient/{patient_id}/preop-audio")
+async def get_preop_audio(
+    patient_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    """Lazy pre-op TTS — used when battlecard exists but audio was not cached."""
+    _assert_clinical_staff_can_access_patient(patient_id, staff)
+    store = _patient_store[patient_id]
+    audio_url = await _ensure_preop_voice_audio(store, patient_id, team_store=_team_store)
+    if not audio_url:
+        resources = store.get("resources") or {}
+        preop = resources.get("preop") if isinstance(resources, dict) else {}
+        voice_script = ""
+        if isinstance(preop, dict):
+            voice_script = (preop.get("voice_script") or store.get("voice_script") or "").strip()
+        if not voice_script:
+            raise HTTPException(status_code=422, detail="No pre-op voice script available for this patient")
+        raise HTTPException(status_code=503, detail="Voice synthesis unavailable — check ELEVENLABS_API_KEY")
+    _persist_demo_patient_store()
+    return {"audio_url": audio_url}
 
 
 @app.get("/api/patient/{patient_id}/audio")
@@ -4416,6 +4990,10 @@ async def startup_team_scheduler():
     if not _disable_public_demo_account():
         _ensure_demo_doctor()
     await _seed_demo_mode_data()
+    if _triage_demo_enabled():
+        _ensure_triage_demo_tenant_seeded()
+    if _is_demo_mode():
+        _persist_demo_patient_store()
     if _is_demo_mode() and _disable_scheduler_in_demo():
         print("[demo-seed] team scheduler disabled for demo startup stability.")
         app.state.team_scheduler_task = None
@@ -4452,8 +5030,9 @@ async def shutdown_team_scheduler():
 
 
 @app.post("/internal/team/run-daily-jobs", include_in_schema=False)
-async def internal_run_team_daily_jobs():
+async def internal_run_team_daily_jobs(authorization: Optional[str] = Header(None)):
     """Manual trigger for TEAM scheduler jobs (local QA/testing)."""
+    _check_internal_auth(authorization)
     await _run_team_daily_jobs()
     return {"ok": True, "ran_at": _utcnow_iso()}
 
@@ -4478,6 +5057,7 @@ app.include_router(intraop_router)
 app.include_router(postop_router)
 app.include_router(initial_tier_router)
 app.include_router(preop_retier_router)
+app.include_router(triage_explain_router)
 
 
 @app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)

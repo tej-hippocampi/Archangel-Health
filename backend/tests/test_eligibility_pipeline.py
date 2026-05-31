@@ -192,15 +192,9 @@ def _new_batch_rec(batch_id: str) -> dict:
 
 
 def _run(coro):
-    """Run a coroutine without closing the loop afterwards.
-
-    ``asyncio.run`` closes the default event loop on exit, which breaks
-    downstream tests in this suite (Python 3.9) that rely on
-    ``asyncio.get_event_loop()`` returning a usable loop.
-    """
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coro)
+    out = asyncio.run(coro)
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    return out
 
 
 def test_segments_fanout_creates_one_patient_per_segment(monkeypatch, tmp_path):
@@ -591,6 +585,26 @@ def test_regenerate_materials_synthesizes_voice_audio_in_production(monkeypatch)
     inside resources[preop] — matching the legacy /api/onboard-patient flow
     so batch-onboarded patients get the same audio experience as demo ones."""
     _patch_generation(monkeypatch, elevenlabs_cls=_StubElevenLabs)
+    from pipeline.grounding_gate import GroundingGateResult, GroundingReport  # noqa: PLC0415
+    import pipeline.grounding_gate as _gg  # noqa: PLC0415
+
+    async def _pass_gate(**_kwargs):
+        return GroundingGateResult(
+            script="voice script body",
+            report=GroundingReport(
+                track="pre_op",
+                coverage=[],
+                faithfulness=[],
+                critical_failures=[],
+                verdict="PASS",
+                summary="ok",
+            ),
+            report_id=1,
+            accuracy={"coverage_pct": 100.0, "faithfulness_pct": 100.0},
+            synthesize=True,
+        )
+
+    monkeypatch.setattr(_gg, "audit_and_gate_script", _pass_gate)
 
     patient = {
         "name": "Test Patient",
@@ -598,7 +612,14 @@ def test_regenerate_materials_synthesizes_voice_audio_in_production(monkeypatch)
         "resources": None,
     }
 
-    _run(elig_pipeline.regenerate_materials(patient, pipeline_type="pre_op", notes_text="prep"))
+    _run(
+        elig_pipeline.regenerate_materials(
+            patient,
+            pipeline_type="pre_op",
+            notes_text="prep",
+            team_store=object(),
+        )
+    )
 
     assert patient["voice_audio_url"] == "/audio/1EG4TE5MK73_preop.mp3"
     assert patient["resources"]["preop"]["voice_audio_url"] == "/audio/1EG4TE5MK73_preop.mp3"
@@ -629,6 +650,55 @@ def test_regenerate_materials_handles_unconfigured_elevenlabs(monkeypatch):
     assert patient["resources"]["preop"]["battlecard_html"] == "<div>battlecard</div>"
 
 
+def test_regenerate_materials_force_synthesize_when_grounding_blocks(monkeypatch):
+    """Clinician-confirmed flows must still produce audio when the grounding gate blocks."""
+    _patch_generation(monkeypatch)
+
+    from pipeline.grounding_gate import GroundingGateResult, GroundingReport
+
+    async def _blocked_gate(**_kwargs):
+        return GroundingGateResult(
+            script="gated voice script",
+            report=GroundingReport(
+                track="pre_op",
+                coverage=[],
+                faithfulness=[],
+                critical_failures=["demo block"],
+                verdict="BLOCK",
+                summary="blocked for test",
+            ),
+            report_id=1,
+            accuracy={"coverage_pct": 0.0, "faithfulness_pct": 100.0},
+            synthesize=False,
+        )
+
+    import pipeline.grounding_gate as _gg  # noqa: PLC0415
+
+    monkeypatch.setattr(_gg, "audit_and_gate_script", _blocked_gate)
+    monkeypatch.setattr(_gg, "apply_grounding_to_patient", lambda *a, **k: None)
+
+    patient = {
+        "name": "Patricia Alvarez",
+        "id": "triage_patricia_alvarez",
+        "structured_data": {"patient_name": "Patricia Alvarez", "procedure_name": "THA"},
+        "resources": None,
+    }
+
+    _run(
+        elig_pipeline.regenerate_materials(
+            patient,
+            pipeline_type="pre_op",
+            notes_text="prep notes",
+            patient_id="triage_patricia_alvarez",
+            team_store=object(),
+            force_synthesize=True,
+        )
+    )
+
+    assert patient["resources"]["preop"]["voice_script"] == "gated voice script"
+    assert patient["resources"]["preop"]["voice_audio_url"] == "/audio/triage_patricia_alvarez_preop.mp3"
+
+
 def test_run_batch_split_concurrency_capped(monkeypatch):
     """``run_batch`` must process splits with bounded concurrency (≤ SPLIT_CONCURRENCY)."""
     elig_store.ELIGIBILITY_CHECKS.clear()
@@ -637,17 +707,19 @@ def test_run_batch_split_concurrency_capped(monkeypatch):
 
     in_flight = 0
     max_in_flight = 0
-    lock = asyncio.Lock()
+    from threading import Lock
+
+    lock = Lock()
 
     async def fake_process_split(split, hs_id, actor, app, rec):
         nonlocal in_flight, max_in_flight
-        async with lock:
+        with lock:
             in_flight += 1
             if in_flight > max_in_flight:
                 max_in_flight = in_flight
         # Simulate LLM latency so concurrency window is observable.
         await asyncio.sleep(0.05)
-        async with lock:
+        with lock:
             in_flight -= 1
 
     monkeypatch.setattr(elig_pipeline, "_process_batch_split", fake_process_split)

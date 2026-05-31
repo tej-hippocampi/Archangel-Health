@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 os.environ.setdefault("AUTH_SECRET", "test-secret-cohesion")
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture()
@@ -76,13 +77,13 @@ def test_patient_blob_carries_single_current_tier_field():
 
 def test_intraop_apply_writes_post_intraop_tier_field():
     """`apply_intraop_reassessment` must snapshot `post_intraop_tier`."""
-    src = Path("triage/intraop/apply.py").read_text()
+    src = (_BACKEND_DIR / "triage/intraop/apply.py").read_text()
     assert 'patient["post_intraop_tier"]' in src
     assert "post_intraop_tier_at" in src
 
 
 def test_postop_apply_reads_post_intraop_tier_as_floor():
-    src = Path("triage/postop/apply.py").read_text()
+    src = (_BACKEND_DIR / "triage/postop/apply.py").read_text()
     assert "post_intraop_tier" in src
     # The floor must be passed into the algorithm input.
     assert "PostOpReTierInput" in src
@@ -125,9 +126,10 @@ def test_apply_postop_retier_never_downgrades_below_floor():
 
 def test_every_stage_uses_log_event_for_audit():
     """Verifies the four stages share the `team_store.log_event` pattern."""
-    intraop = Path("triage/intraop/apply.py").read_text()
-    postop = Path("triage/postop/apply.py").read_text()
-    preop = Path("triage/preop_retier/apply.py").read_text() if Path("triage/preop_retier/apply.py").exists() else ""
+    intraop = (_BACKEND_DIR / "triage/intraop/apply.py").read_text()
+    postop = (_BACKEND_DIR / "triage/postop/apply.py").read_text()
+    preop_path = _BACKEND_DIR / "triage/preop_retier/apply.py"
+    preop = preop_path.read_text() if preop_path.exists() else ""
     assert "log_event" in intraop
     assert "log_event" in postop
     if preop:
@@ -136,7 +138,7 @@ def test_every_stage_uses_log_event_for_audit():
 
 def test_each_stage_has_its_own_snapshot_table():
     """Distinct stage-specific snapshot tables exist in the schema."""
-    schema = Path("team_store.py").read_text()
+    schema = (_BACKEND_DIR / "team_store.py").read_text()
     # Initial pre-op tier persists onto the in-memory blob (Option B);
     # the other three stages each have their own SQLite snapshot table.
     assert "intraop_reassessments" in schema
@@ -148,7 +150,7 @@ def test_each_stage_has_its_own_snapshot_table():
 def test_team_store_documents_option_b_at_top_of_file():
     """Option B / event-stream architecture is documented at the top of
     `team_store.py` so future readers see the choice front-and-center."""
-    schema = Path("team_store.py").read_text()
+    schema = (_BACKEND_DIR / "team_store.py").read_text()
     head = schema[:2000]
     assert "Option B" in head
     assert "event-stream" in head.lower()

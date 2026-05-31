@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
 
 from main import app  # noqa: E402
+from tests._role_auth import tenant_token  # noqa: E402
 from triage.preop_retier.apply import apply_preop_retier  # noqa: E402
 
 
@@ -217,7 +218,8 @@ def test_patients_endpoint_serializes_tier_chain(client):
         },
     )
 
-    r = client.get("/api/patients")
+    auth = {"Authorization": f"Bearer {tenant_token('surgeon')}"}
+    r = client.get("/api/patients", headers=auth)
     assert r.status_code == 200
     rows = {p["id"]: p for p in r.json()["patients"]}
     assert pid in rows

@@ -209,6 +209,7 @@
       </div>
 
       <div class="actions" id="form-actions">
+        <button type="button" class="btn btn-secondary" id="triage-demo-notes-btn" style="display:none">Demo notes (TRIAGEDM)</button>
         <button class="btn btn-secondary" id="recall-btn" style="display:none">Recall draft</button>
         <button class="btn btn-secondary" id="reopen-btn" style="display:none">Reopen</button>
         <div style="flex:1"></div>
@@ -304,10 +305,20 @@
   function getStaffFromClient() {
     const t = localStorage.getItem(AUTH_TOKEN_KEY) || localStorage.getItem('auth_token') || localStorage.getItem('admin_token') || '';
     const payload = decodeJwtPayload(t);
+    if (payload && payload.typ === 'tenant_staff') {
+      return {
+        email: String(payload.sub || ''),
+        role: normalizeLegacyRole(payload.role) || 'surgeon',
+        hcode: String(payload.hcode || '').toUpperCase(),
+        slug: String(payload.slug || '').toLowerCase(),
+      };
+    }
     if (payload && payload.role != null && payload.sub) {
       return {
         email: String(payload.sub),
         role: normalizeLegacyRole(payload.role) || 'surgeon',
+        hcode: '',
+        slug: '',
       };
     }
     try {
@@ -319,14 +330,16 @@
           return {
             email: p.email || '',
             role,
+            hcode: String(p.clinicCode || '').toUpperCase(),
+            slug: String(p.tenantSlug || '').toLowerCase(),
           };
         }
       }
     } catch (_e) {}
     if (payload && payload.sub) {
-      return { email: String(payload.sub), role: 'surgeon' };
+      return { email: String(payload.sub), role: 'surgeon', hcode: '', slug: '' };
     }
-    return { email: '', role: 'surgeon' };
+    return { email: '', role: 'surgeon', hcode: '', slug: '' };
   }
   let staffCtx = getStaffFromClient();
 
@@ -524,11 +537,16 @@
     const recallBtn = $('recall-btn');
     const lockBtn = $('lock-btn');
     const reopenBtn = $('reopen-btn');
+    const demoNotesBtn = $('triage-demo-notes-btn');
+    const triageDemo = staffCtx.hcode === 'TRIAGEDM' || staffCtx.slug === 'archangel-triage-demo';
 
     markBtn.style.display = (canRnDraft && !isNp) ? 'inline-block' : 'none';
     recallBtn.style.display = (isRn && st === 'READY_FOR_SURGEON_REVIEW' && !isNp) ? 'inline-block' : 'none';
     lockBtn.style.display = (!isNp && canSurgeonReview) ? 'inline-block' : 'none';
     reopenBtn.style.display = (!isNp && st === 'LOCKED') ? 'inline-block' : 'none';
+    if (demoNotesBtn) {
+      demoNotesBtn.style.display = (triageDemo && canRnDraft && !isNp) ? 'inline-block' : 'none';
+    }
 
     const missingOk = Array.isArray(lastMissing) && lastMissing.length === 0;
     markBtn.disabled = !canRnDraft || !missingOk;
@@ -824,6 +842,27 @@
   function showStatusBanner(msg, kind) {
     $('status-bar').innerHTML = `<div class="card status-banner ${kind}">${esc(msg)}</div>`;
   }
+
+  function fillTriageDemoNotes() {
+    const setVal = (key, val) => {
+      const el = $(`f-${key}`);
+      if (!el) return;
+      el.value = val;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    setVal('or_duration_minutes', '215');
+    setVal('ebl', '850');
+    setVal('complication_description', 'Unanticipated dural tear repaired primarily.');
+    setVal('transfusion_total_units', '2');
+    setVal('prbc_units', '2');
+    const dt = $('f-dural_tear');
+    if (dt) {
+      dt.value = 'true';
+      dt.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    toast('Demo intra-op notes applied.');
+  }
+  $('triage-demo-notes-btn')?.addEventListener('click', fillTriageDemoNotes);
 
   // ── Boot ───────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {

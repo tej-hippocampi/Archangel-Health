@@ -241,7 +241,27 @@
           method: "POST",
           body: JSON.stringify({ free_text: text || null }),
         });
-        status.textContent = "Your care team has been notified. We'll reach out shortly.";
+        status.textContent = "Care team notified. Thank you.";
+        const toast = document.createElement("div");
+        toast.textContent = "Care team notified.";
+        toast.setAttribute("role", "status");
+        Object.assign(toast.style, {
+          position: "fixed",
+          bottom: "24px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "#0f766e",
+          color: "#fff",
+          padding: "10px 18px",
+          borderRadius: "10px",
+          fontWeight: "600",
+          fontSize: "14px",
+          zIndex: "9999",
+          boxShadow: "0 4px 20px rgba(0,0,0,.15)",
+        });
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2200);
+        setTimeout(() => closeOverlay("self-flag"), 400);
       } catch (e) {
         status.textContent = "Something went wrong: " + (e.message || "please try again.");
       }

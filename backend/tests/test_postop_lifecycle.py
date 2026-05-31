@@ -156,7 +156,8 @@ def test_full_lifecycle_floor_then_d1_green_then_d7_missed_then_d14_red_flag(
     assert len(snapshots) == 3
     events = isolated_team_store.get_events(pid)
     recompute_types = {"POSTOP_RETIER_RECOMPUTED", "POSTOP_RETIER_TIER_UPDATED"}
-    assert sum(1 for e in events if e["event_type"] in recompute_types) == 3
+    # Step B (CRON:CHECKPOINT_D7, unchanged) skips the audit row to avoid cron spam.
+    assert sum(1 for e in events if e["event_type"] in recompute_types) == 2
     escs = isolated_team_store.list_escalations()
     pid_escs = [e for e in escs if e["patient_id"] == pid]
     # The hard escalator that wins is the first listed reason — in this

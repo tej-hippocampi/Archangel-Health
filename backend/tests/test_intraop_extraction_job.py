@@ -24,7 +24,9 @@ from triage.intraop.extractor import MockIntraopExtractor  # noqa: E402
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    out = asyncio.run(coro)
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    return out
 
 
 @pytest.fixture()

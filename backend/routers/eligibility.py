@@ -130,6 +130,9 @@ async def create_draft_patient(
         _validate_iso_date(body.dob, "dob")
 
     hs_id = staff.tenant_id if (staff and staff.source == "tenant") else None
+    clinic_guess = ""
+    if staff and staff.source == "tenant":
+        clinic_guess = (staff.health_system_code or "").strip().upper()
     store_dict = _patient_store(request)
 
     # PRD §11.14: duplicate MBI detection — surface the existing patient
@@ -166,7 +169,7 @@ async def create_draft_patient(
             "dob": body.dob,
             "mbi": mbi,
         },
-        "clinic_code": "",
+        "clinic_code": clinic_guess,
         "resource_code": "",
         "office_phone": "",
         "resources": None,
@@ -925,7 +928,14 @@ async def confirm_postop_notes(
     )
 
     try:
-        await pipeline.regenerate_materials(patient, pipeline_type="post_op", notes_text=text)
+        await pipeline.regenerate_materials(
+            patient,
+            pipeline_type="post_op",
+            notes_text=text,
+            patient_id=patient_id,
+            team_store=getattr(request.app.state, "team_store", None),
+            force_synthesize=True,
+        )
     except Exception as e:
         log.exception("Discharge material generation failed for %s", patient_id)
         raise HTTPException(status_code=500, detail=f"Discharge material generation failed: {e}")
@@ -936,7 +946,9 @@ async def confirm_postop_notes(
         patient_id=patient_id,
     )
 
-    return {"status": "ok", "materialsReady": True}
+    postop_res = (patient.get("resources") or {}).get("postop", {})
+    audio_ready = bool(postop_res.get("voice_audio_url"))
+    return {"status": "ok", "materialsReady": audio_ready, "audioReady": audio_ready}
 
 
 @router.get("/api/patient/{patient_id}/preop-notes")
@@ -981,7 +993,14 @@ async def confirm_preop_notes(
     )
 
     try:
-        await pipeline.regenerate_materials(patient, pipeline_type="pre_op", notes_text=text)
+        await pipeline.regenerate_materials(
+            patient,
+            pipeline_type="pre_op",
+            notes_text=text,
+            patient_id=patient_id,
+            team_store=getattr(request.app.state, "team_store", None),
+            force_synthesize=True,
+        )
     except Exception as e:
         log.exception("Prep material generation failed for %s", patient_id)
         raise HTTPException(status_code=500, detail=f"Prep material generation failed: {e}")
@@ -992,7 +1011,9 @@ async def confirm_preop_notes(
         patient_id=patient_id,
     )
 
-    return {"status": "ok", "materialsReady": True}
+    preop_res = (patient.get("resources") or {}).get("preop", {})
+    audio_ready = bool(preop_res.get("voice_audio_url"))
+    return {"status": "ok", "materialsReady": audio_ready, "audioReady": audio_ready}
 
 
 # ─── Admin audit viewer ─────────────────────────────────────────────────────
