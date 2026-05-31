@@ -1705,15 +1705,44 @@ async def _run_preop_survey_outreach() -> None:
 
 
 # ─── Doctor Portal ────────────────────────────────────────────
-@app.get("/", response_class=HTMLResponse)
-async def doctor_portal(request: Request):
-    """Serves the doctor dashboard, or redirects to /admin for the admin subdomain."""
+@app.get("/")
+async def doctor_portal_entry(request: Request):
+    """Entry point: tenant sign-in first, then /doctor/app for the roster UI."""
+    host = request.headers.get("host", "")
+    if "admin." in host:
+        return RedirectResponse(url="/admin", status_code=301)
+    return RedirectResponse(url="/doctor/sign-in", status_code=302)
+
+
+@app.get("/doctor/sign-in", response_class=HTMLResponse)
+async def doctor_tenant_sign_in_page(request: Request):
+    """Health-system tenant login (surgeon / RN); stores JWT in archangel_doctor_auth_token."""
+    host = request.headers.get("host", "")
+    if "admin." in host:
+        return RedirectResponse(url="/admin", status_code=301)
+    path = os.path.join(os.path.dirname(__file__), "../frontend/doctor-sign-in.html")
+    with open(path) as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/doctor/app", response_class=HTMLResponse)
+async def doctor_portal_app(request: Request):
+    """Main doctor roster / console (after sign-in)."""
     host = request.headers.get("host", "")
     if "admin." in host:
         return RedirectResponse(url="/admin", status_code=301)
     html_path = os.path.join(os.path.dirname(__file__), "../frontend/doctor.html")
     with open(html_path) as f:
         return HTMLResponse(content=f.read())
+
+
+@app.get("/doctor")
+async def doctor_portal_legacy_path(request: Request):
+    """Bookmarks to /doctor land on sign-in; dashboard is /doctor/app."""
+    host = request.headers.get("host", "")
+    if "admin." in host:
+        return RedirectResponse(url="/admin", status_code=301)
+    return RedirectResponse(url="/doctor/sign-in", status_code=307)
 
 
 @app.get("/dev", response_class=HTMLResponse)
@@ -1751,7 +1780,7 @@ async def dev_login_shortcut():
 <body><p>Signing in…</p>
 <script>
   localStorage.setItem("archangel_doctor_auth_token", {json.dumps(token)});
-  location.replace("/");
+  location.replace("/doctor/app");
 </script>
 </body></html>"""
     return HTMLResponse(content=html)

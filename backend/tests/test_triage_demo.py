@@ -143,10 +143,12 @@ def test_patricia_sandra_seed_and_explain(surgeon_client):
     assert kinds.count("daily_checkin_response") >= 10
 
     exp_s = surgeon_client.get(f"/api/episodes/{pid_s}/triage-explain").json()
-    assert len(exp_s["reasons"]) <= 3
+    assert len(exp_s["reasons"]) == 2
     assert "score" not in exp_s
-    scodes = {r.get("code") for r in exp_s["reasons"]}
-    assert scodes == {"INTRAOP_BP_VASOPRESSOR", "DAY7_RED_SURVEY", "DAY6_WOUND_PHOTO"}
+    curated_s = store[pid_s].get("triage_explain_reasons") or []
+    assert len(curated_s) == 2
+    scodes = [r.get("code") for r in exp_s["reasons"]]
+    assert scodes == ["INTRAOP_BP_VASOPRESSOR", "DAY7_RED_SURVEY"]
 
 
 def test_escalations_tier3_only_for_surgeon(surgeon_client, rn_client):

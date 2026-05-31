@@ -20,6 +20,9 @@ from tenant_constants import (
     TRIAGE_DEMO_RN_PASSWORD,
 )
 
+from intake_form_parser import _schema as _intake_schema, _set_field as _intake_set_field
+from preop_survey import WINDOW_SURVEY_DAY, score_preop_survey, parse_surgery_datetime
+
 TRIAGE_HS_NAME = "Archangel Triage Demo Clinic"
 TRIAGE_DEMO_SURGEON_NAME = "Dr. Eleanor Thompson, MD"
 TRIAGE_DEMO_RN_NAME = "Maria Castillo, RN"
@@ -205,6 +208,20 @@ def triage_patient_blueprint() -> List[Dict[str, Any]]:
             "risk_blurb": "Day 17 post-op — escalated from T-1 to T-3 (intra-op event + Day 7 RED survey)",
             "preop_retier": False,
             "post_intraop_tier": "TIER_2",
+            "explain_reasons": [
+                {
+                    "kind": "SOFT",
+                    "code": "INTRAOP_BP_VASOPRESSOR",
+                    "label": "Intra-op event: BP instability requiring vasopressors",
+                    "weight": 6,
+                },
+                {
+                    "kind": "SOFT",
+                    "code": "DAY7_RED_SURVEY",
+                    "label": "Patient scored RED on Day 7 survey.",
+                    "weight": 5,
+                },
+            ],
         },
         {
             "id": "triage_gregory_tate",
@@ -407,6 +424,8 @@ def build_patient_blob(
         blob["or_started_at"] = or_started
     if or_ended is not None:
         blob["or_ended_at"] = or_ended
+    if row.get("explain_reasons"):
+        blob["triage_explain_reasons"] = list(row["explain_reasons"])
     return blob
 
 
@@ -476,6 +495,7 @@ def _clear_triage_sqlite(team_store: Any, patient_ids: List[str]) -> None:
         conn.execute(f"DELETE FROM intraop_extractions WHERE patient_id IN ({placeholders})", patient_ids)
         conn.execute(f"DELETE FROM intraop_forms WHERE patient_id IN ({placeholders})", patient_ids)
         conn.execute(f"DELETE FROM pam_assessments WHERE patient_id IN ({placeholders})", patient_ids)
+        conn.execute(f"DELETE FROM intake_forms WHERE patient_id IN ({placeholders})", patient_ids)
         conn.execute(f"DELETE FROM preop_intake_submissions WHERE patient_id IN ({placeholders})", patient_ids)
         conn.execute(f"DELETE FROM episode_snapshots WHERE patient_id IN ({placeholders})", patient_ids)
         conn.execute(f"DELETE FROM episodes WHERE patient_id IN ({placeholders})", patient_ids)
@@ -512,15 +532,30 @@ def _demo_survey_tier(answers: List[Dict[str, Any]]) -> tuple[Optional[float], s
     return score, tier
 
 
-def _seed_patricia_extras(team_store: Any, open_d: date) -> None:
+def _seed_patricia_extras(team_store: Any, patient_store: Dict[str, Any], open_d: date) -> None:
     pid = "triage_patricia_alvarez"
-    preop_answers = [{"question_index": i, "response": "Not Clear"} for i in range(1, 9)]
-    sc, _tier = _demo_survey_tier(preop_answers)
+    # Real T-96 question ids (see preop_survey.py T96_QUESTIONS). Low-scoring answers → RED.
+    patricia_t96_answers = [
+        {"id": "t96_anxiety_proc", "response": "5"},
+        {"id": "t96_anxiety_anesthesia", "response": "5"},
+        {"id": "t96_understand_proc", "response": "Strongly Disagree"},
+        {"id": "t96_who_to_call", "response": "Disagree"},
+        {"id": "t96_meds_confirmed", "response": "No"},
+        {"id": "t96_ride", "response": "No"},
+        {"id": "t96_caregiver_24h", "response": "No"},
+        {"id": "t96_supplies", "response": "No"},
+    ]
+
+    patient_store_blob = patient_store.get(pid) or {}
+    _sd = (patient_store_blob.get("structured_data") or {})
+    _surgery_dt = parse_surgery_datetime(_sd.get("procedure_date") or "")
+    _scored = score_preop_survey("t96", patricia_t96_answers, _surgery_dt, _sd) if _surgery_dt else {}
+
     team_store.save_survey_response(
         patient_id=pid,
-        survey_day=-96,
-        answers=preop_answers,
-        score=sc,
+        survey_day=WINDOW_SURVEY_DAY["t96"],
+        answers=patricia_t96_answers,
+        score=_scored.get("survey_score"),
         tier="RED",
         submitted_at=_dt_combine(open_d - timedelta(days=4)),
         survey_type="preop",
@@ -529,10 +564,10 @@ def _seed_patricia_extras(team_store: Any, open_d: date) -> None:
         episode_id=pid,
         patient_id=pid,
         responses=[],
-        raw_sum=8,
-        items_scored=4,
-        raw_average=2.0,
-        activation_score=22.0,
+        raw_sum=13,
+        items_scored=13,
+        raw_average=1.0,
+        activation_score=0.0,
         level="LOW",
         is_complete=True,
         model_version="triage-demo-seed",
@@ -584,6 +619,57 @@ def _seed_patricia_extras(team_store: Any, open_d: date) -> None:
         ],
         model_version="triage-demo-seed",
         tuning_version=1,
+    )
+
+    form_data = _intake_schema()
+    _intake_set_field(form_data, "section1_demographics", "fullLegalName", "Patricia Alvarez", "patient_record")
+    _intake_set_field(form_data, "section1_demographics", "dateOfBirth", "1958-07-14", "patient_record")
+    _intake_set_field(form_data, "section1_demographics", "sexAssignedAtBirth", "Female", "patient_record")
+    _intake_set_field(form_data, "section1_demographics", "primaryLanguage", "English", "patient_record")
+
+    _intake_set_field(form_data, "section2_surgicalInfo", "scheduledProcedure", "Total Hip Arthroplasty", "prep_document")
+    _intake_set_field(form_data, "section2_surgicalInfo", "surgicalSite", "Right hip", "prep_document")
+
+    _intake_set_field(form_data, "section3_medicalHistory", "hypertension", False, "interview")
+    _intake_set_field(form_data, "section3_medicalHistory", "diabetes", False, "interview")
+    _intake_set_field(form_data, "section3_medicalHistory", "heartDisease", False, "interview")
+    _intake_set_field(form_data, "section3_medicalHistory", "lungDisease", False, "interview")
+    _intake_set_field(form_data, "section3_medicalHistory", "bleedingClottingDisorders", False, "interview")
+    _intake_set_field(form_data, "section3_medicalHistory", "cancer", False, "interview")
+
+    _intake_set_field(form_data, "section6_socialHistory", "tobaccoUse", "Current", "interview")
+    form_data["section6_socialHistory"]["tobaccoUse"]["status"] = "Current"
+    form_data["section6_socialHistory"]["tobaccoUse"]["packYears"] = "10"
+    _intake_set_field(form_data, "section6_socialHistory", "alcoholUse", "None", "interview")
+    _intake_set_field(form_data, "section6_socialHistory", "postOpCaregiverAvailable", True, "interview")
+
+    _intake_set_field(form_data, "section9_functionalAssessment", "functionalCapacityMETs", ">4 METs", "interview")
+    _intake_set_field(form_data, "section9_functionalAssessment", "fallRisk", False, "interview")
+
+    for i in range(1, 14):
+        _intake_set_field(form_data, "section10_dayOfSurgeryReadiness", f"pam_{i}", "1", "interview")
+    _intake_set_field(form_data, "section10_dayOfSurgeryReadiness", "transportationArranged", True, "interview")
+    _intake_set_field(form_data, "section10_dayOfSurgeryReadiness", "responsibleAdultPostOp", True, "interview")
+    _intake_set_field(form_data, "section10_dayOfSurgeryReadiness", "npoStatusUnderstood", True, "interview")
+
+    _intake_set_field(form_data, "section11_acknowledgments", "informationAccurate", True, "patient")
+
+    _intake_id = uuid.uuid4().hex
+    team_store.create_intake_form(
+        intake_form_id=_intake_id,
+        patient_id=pid,
+        surgery_id=None,
+        status="COMPLETED",
+        form_data=form_data,
+    )
+    team_store.update_intake_form_payload(
+        _intake_id,
+        form_data=form_data,
+        red_flags=[],
+        conflicts=[],
+        status="COMPLETED",
+        completed_at=_dt_combine(open_d - timedelta(days=2)),
+        submitted_at=_dt_combine(open_d - timedelta(days=2)),
     )
 
 
@@ -770,14 +856,8 @@ def _seed_sandra_reyes_clinical(team_store: Any, patient_store: Dict[str, Any], 
             {
                 "kind": "SOFT",
                 "code": "DAY7_RED_SURVEY",
-                "label": "Day 7 survey scored RED (high pain, low recovery confidence)",
+                "label": "Patient scored RED on Day 7 survey.",
                 "weight": 5,
-            },
-            {
-                "kind": "SOFT",
-                "code": "DAY6_WOUND_PHOTO",
-                "label": "Day 6 check-in flagged: incision photo missed",
-                "weight": 4,
             },
         ],
         model_version="triage-demo-seed",
@@ -857,7 +937,7 @@ def seed_triage_demo_sqlite(
         )
 
         if pid == "triage_patricia_alvarez":
-            _seed_patricia_extras(team_store, open_d)
+            _seed_patricia_extras(team_store, patient_store, open_d)
 
         if row.get("preop_retier") and row["phase"] == "pre_op" and pid != "triage_patricia_alvarez":
             team_store.log_event(

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in · Doctor Portal | Archangel Health</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --surface: #fff;
+      --line: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --accent-dark: #1d4ed8;
+      --danger: #b91c1c;
+      --radius: 12px;
+      --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 32px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+    .sub {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: var(--font);
+      margin-bottom: 16px;
+    }
+    input:focus {
+      outline: none;
+      border-color: #93c5fd;
+    }
+    .btn-row { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+    button.primary {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font);
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+    }
+    button.primary:hover { background: var(--accent-dark); }
+    button.primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    a.link {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      text-align: center;
+      text-decoration: none;
+      margin-top: 4px;
+    }
+    a.link:hover { text-decoration: underline; }
+    .err {
+      font-size: 13px;
+      color: var(--danger);
+      margin-bottom: 12px;
+      display: none;
+    }
+    .err.visible { display: block; }
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 20px;
+      line-height: 1.55;
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+    }
+    code {
+      font-size: 12px;
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Doctor portal sign-in</h1>
+    <p class="sub">Health system tenant staff (surgeon / RN coordinator). Demo: use tenant slug <code>archangel-triage-demo</code>.</p>
+
+    <div class="err" id="errBox"></div>
+
+    <label for="slug">Tenant slug</label>
+    <input id="slug" type="text" autocomplete="organization" spellcheck="false" value="archangel-triage-demo" />
+
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" />
+
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" />
+
+    <div class="btn-row">
+      <button type="button" class="primary" id="signInBtn">Sign in</button>
+      <a class="link" href="/doctor/app">Continue with Archangel account (landing JWT)</a>
+    </div>
+
+    <p class="hint">
+      <strong>TRIAGEDM demo credentials</strong><br />
+      Surgeon — <code>dr.thompson@archangeldemo.com</code> / <code>TriageDemo2025!</code><br />
+      RN coordinator — <code>rn.castillo@archangeldemo.com</code> / <code>TriageRN2025!</code>
+    </p>
+  </div>
+
+  <script>
+    const TOKEN_KEY = "archangel_doctor_auth_token";
+
+    async function apiPost(path, body) {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Sign-in failed");
+      return data;
+    }
+
+    function showErr(msg) {
+      const el = document.getElementById("errBox");
+      el.textContent = msg || "";
+      el.classList.toggle("visible", !!msg);
+    }
+
+    async function maybeSkipIfAuthed() {
+      const tok = localStorage.getItem(TOKEN_KEY);
+      if (!tok) return;
+      try {
+        const headers = { Authorization: "Bearer " + tok };
+        const r = await fetch("/api/doctor/profile", { headers });
+        if (r.ok) window.location.replace("/doctor/app");
+      } catch (_) { /* ignore */ }
+    }
+
+    document.getElementById("signInBtn").addEventListener("click", async () => {
+      const slug = (document.getElementById("slug").value || "").trim();
+      const email = (document.getElementById("email").value || "").trim();
+      const password = document.getElementById("password").value || "";
+      showErr("");
+      if (!slug || !email || !password) {
+        showErr("Enter tenant slug, email, and password.");
+        return;
+      }
+      const btn = document.getElementById("signInBtn");
+      btn.disabled = true;
+      try {
+        const data = await apiPost("/api/tenant/" + encodeURIComponent(slug) + "/auth/login", {
+          email,
+          password,
+        });
+        const token = data.access_token;
+        if (!token) throw new Error("No access token returned");
+        localStorage.setItem(TOKEN_KEY, token);
+        window.location.replace("/doctor/app");
+      } catch (e) {
+        showErr(e.message || "Sign-in failed");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    maybeSkipIfAuthed();
+  </script>
+</body>
+</html>

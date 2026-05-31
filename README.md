@@ -8,7 +8,7 @@ CareGuide - Patient Surgical Video Platform
 cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-The doctor portal is at <http://localhost:8000/doctor>, the demo patient dashboard
+Doctor sign-in is at <http://localhost:8000/doctor/sign-in> (or open the site root — it redirects there). After login, the roster is at <http://localhost:8000/doctor/app>. The demo patient dashboard
 is at <http://localhost:8000/patient/maria_001>, and the FastAPI Swagger UI is at
 <http://localhost:8000/docs>.
 

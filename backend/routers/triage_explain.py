@@ -103,20 +103,24 @@ async def get_triage_explain(
 
     is_triage = (patient.get("clinic_code") or "").upper() == TRIAGEDM_CLINIC_CODE
     if is_triage:
-        ev_reasons = _top_contributing_reasons(patient=patient, ts=ts, episode_id=episode_id, limit=3)
-        init_t = patient.get("initial_tier")
-        cur_t = patient.get("current_tier")
-        same = (
-            init_t
-            and cur_t
-            and str(init_t).upper() == str(cur_t).upper()
-        )
-        if ev_reasons:
-            reasons = ev_reasons
-        elif same:
-            reasons = []
+        curated = patient.get("triage_explain_reasons")
+        if curated:
+            reasons = list(curated)
         else:
-            reasons = sorted((initial_reasons or [])[:], key=_reason_weight, reverse=True)[:3]
+            ev_reasons = _top_contributing_reasons(patient=patient, ts=ts, episode_id=episode_id, limit=3)
+            init_t = patient.get("initial_tier")
+            cur_t = patient.get("current_tier")
+            same = (
+                init_t
+                and cur_t
+                and str(init_t).upper() == str(cur_t).upper()
+            )
+            if ev_reasons:
+                reasons = ev_reasons
+            elif same:
+                reasons = []
+            else:
+                reasons = sorted((initial_reasons or [])[:], key=_reason_weight, reverse=True)[:3]
     else:
         reasons = initial_reasons
 
