@@ -125,6 +125,41 @@ The `async with _grounding_semaphore():` wrapper shown in the Task 1 snippet the
 caps in-flight judge calls at `GROUNDING_CONCURRENCY` regardless of batch size,
 exactly like extraction is capped today. Tune the constant with the other knobs.
 
+### Task 1b — Concurrency tuning guide (add as a comment block above the knobs)
+
+Drop this comment above the `v0.3 scaling knobs` so the next person tunes against
+the real constraint (the Anthropic request-rate / token-rate limit), not guesswork:
+
+```python
+# ── Concurrency tuning ───────────────────────────────────────────────────────
+# These knobs bound how many Anthropic calls are in flight at once. The binding
+# constraint is the workspace's Anthropic rate limit (RPM = requests/min and
+# ITPM/OTPM = input/output tokens/min for the model in ai/model_config.py —
+# currently claude-sonnet-4-6). Check the live tier at:
+#   console.anthropic.com -> Settings -> Limits.
+#
+# A single batch onboard makes, PER PATIENT, roughly:
+#   1 eligibility extract  (bounded by PATIENT_EXTRACT_CONCURRENCY = 5)
+#   1 generation call      (pre/post-op voice)
+#   1 grounding-judge call (bounded by GROUNDING_CONCURRENCY = 4)
+#   + up to 1 regeneration judge call when a script first BLOCKs.
+# So peak in-flight requests ≈ sum of the active stages' semaphores. Keep
+#   PATIENT_EXTRACT_CONCURRENCY + GROUNDING_CONCURRENCY + SPLIT_CONCURRENCY
+# comfortably under your RPM, and watch OTPM for the judge (it returns a full
+# JSON audit, ~1.5k output tokens each).
+#
+# Rule of thumb by tier (adjust after watching for 429s in the call log):
+#   Tier 1 (~50 RPM):    GROUNDING_CONCURRENCY = 2,  others 2-3
+#   Tier 2 (~1000 RPM):  GROUNDING_CONCURRENCY = 4,  others 4-5  (current defaults)
+#   Tier 3/4 (higher):   raise in step, but never let one stage exceed ~25% of RPM
+# If you see HTTP 429 / "rate_limit_error" in the AI Call Log (audit_error field),
+# LOWER these before adding retries — bounded concurrency is the primary control.
+```
+
+Pair this with the `audit_error` surfacing already in the AI Call Log tab: a rash
+of `rate_limit_error` rows is the signal to turn these knobs down, and the call
+log is where you'll see it.
+
 ---
 
 ## Task 2 — Close the unlogged judge path
