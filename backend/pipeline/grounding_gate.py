@@ -52,7 +52,7 @@ async def audit_and_gate_script(
     regenerate_fn: Optional[GenerateFn] = None,
 ) -> GroundingGateResult:
     """Run grounding check, persist, optionally regen once on BLOCK."""
-    report = await check_grounding(structured_data, script, track)
+    report = await check_grounding(structured_data, script, track, patient_id=patient_id)
     accuracy = compute_accuracy(report)
     report_id = team_store.save_grounding_report(
         patient_id=patient_id,
@@ -68,7 +68,7 @@ async def audit_and_gate_script(
         log.info("Grounding BLOCK for %s/%s — auto-regenerating once", patient_id, track)
         try:
             script = await regenerate_fn()
-            report = await check_grounding(structured_data, script, track)
+            report = await check_grounding(structured_data, script, track, patient_id=patient_id)
             accuracy = compute_accuracy(report)
             report_id = team_store.save_grounding_report(
                 patient_id=patient_id,

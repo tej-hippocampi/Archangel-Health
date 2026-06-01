@@ -55,6 +55,10 @@ def evaluate_postop_hard_escalators(state: PostOpReTierInput) -> list[PostOpReTi
     if state.care_companion_red_flag_unresolved:
         out.append(_reason("CARE_COMPANION_RED_FLAG_TIER_3"))
 
+    # Teach-back persistent red-flag miss after re-teach.
+    if state.teachback_failed_red_flag:
+        out.append(_reason("TEACHBACK_FAILED_RED_FLAG_POSTLOOP"))
+
     return out
 
 

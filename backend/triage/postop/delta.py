@@ -125,6 +125,24 @@ def compute_postop_delta(state: PostOpReTierInput) -> tuple[int, bool, list[Post
         r = _pos_reason("DIAGNOSIS_TREATMENT_VIDEO_NOT_VIEWED_BY_D14")
         reasons.append(r); raw_sum += r.weight
 
+    # ─── Teach-back (post-loop only) ──────────────────────────────────────
+    if state.teachback_failed_med:
+        r = _pos_reason("TEACHBACK_FAILED_MED_POSTLOOP")
+        reasons.append(r); raw_sum += r.weight
+    if state.teachback_failed_critical:
+        r = _pos_reason("TEACHBACK_FAILED_CRITICAL_POSTLOOP")
+        reasons.append(r); raw_sum += r.weight
+    if state.teachback_not_completed_by_d5:
+        r = _pos_reason("TEACHBACK_NOT_COMPLETED_BY_D5")
+        reasons.append(r); raw_sum += r.weight
+    if (
+        state.teachback_completed
+        and not state.teachback_failed_med
+        and not state.teachback_failed_critical
+        and not state.teachback_failed_red_flag
+    ):
+        reasons.append(_audit_reason("TEACHBACK_PASSED_ALL"))
+
     # ─── Med adherence (PRD §10.3.a) ───────────────────────────────────────
     if state.med_adherence_high:
         reasons.append(_audit_reason("MED_ADHERENCE_HIGH"))

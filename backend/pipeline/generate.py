@@ -8,10 +8,9 @@ Supports two generation modes:
 """
 
 import asyncio
-import os
 from typing import Any, Dict, Tuple
 
-from anthropic import AsyncAnthropic
+from ai.llm_client import call_llm, first_text
 
 from prompts.preop  import PREOP_VOICE_PROMPT,  PREOP_BATTLECARD_PROMPT
 from prompts.postop import POSTOP_VOICE_PROMPT, POSTOP_BATTLECARD_PROMPT
@@ -21,7 +20,7 @@ from prompts.treatment import TREATMENT_VOICE_PROMPT, TREATMENT_BATTLECARD_PROMP
 
 class GenerationLayer:
     def __init__(self) -> None:
-        self.client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        pass
 
     async def generate(
         self,
@@ -53,6 +52,8 @@ class GenerationLayer:
             system=voice_sys,
             user=voice_user,
             max_tokens=2000,
+            prompt_id="preop_voice" if pipeline_type == "pre_op" else "postop_voice",
+            patient_id=str(structured_data.get("patient_id") or ""),
         )
         battlecard_input_label = "[Pre-Op Voice Script]" if pipeline_type == "pre_op" else "[Voice Script]"
 
@@ -60,6 +61,8 @@ class GenerationLayer:
             system=battlecard_sys,
             user=f"{battlecard_input_label}\n\n{voice_script}\n\nGenerate the battlecard HTML.",
             max_tokens=8000,
+            prompt_id="preop_battlecard" if pipeline_type == "pre_op" else "postop_battlecard",
+            patient_id=str(structured_data.get("patient_id") or ""),
         )
 
         return voice_script, battlecard_html
@@ -86,11 +89,15 @@ class GenerationLayer:
                 system=DIAGNOSIS_VOICE_PROMPT,
                 user=f"[Clinical Input Layer]\n\n{clinical_input}\n\nGenerate the voice script. HARD LIMIT: 550-600 words maximum.",
                 max_tokens=1500,
+                prompt_id="diagnosis_voice",
+                patient_id=str(structured_data.get("patient_id") or ""),
             ),
             self._call_claude(
                 system=TREATMENT_VOICE_PROMPT,
                 user=f"[Clinical Input Layer]\n\n{clinical_input}\n\nGenerate the voice script. HARD LIMIT: 550-600 words maximum.",
                 max_tokens=1500,
+                prompt_id="treatment_voice",
+                patient_id=str(structured_data.get("patient_id") or ""),
             ),
         )
 
@@ -100,11 +107,15 @@ class GenerationLayer:
                 system=DIAGNOSIS_BATTLECARD_PROMPT,
                 user=f"[Voice Script]\n\n{diagnosis_voice}\n\nGenerate the battlecard HTML.",
                 max_tokens=8000,
+                prompt_id="diagnosis_battlecard",
+                patient_id=str(structured_data.get("patient_id") or ""),
             ),
             self._call_claude(
                 system=TREATMENT_BATTLECARD_PROMPT,
                 user=f"[Voice Script]\n\n{treatment_voice}\n\nGenerate the battlecard HTML.",
                 max_tokens=8000,
+                prompt_id="treatment_battlecard",
+                patient_id=str(structured_data.get("patient_id") or ""),
             ),
         )
 
@@ -121,14 +132,16 @@ class GenerationLayer:
 
     # ── Private ──────────────────────────────────────────────
 
-    async def _call_claude(self, system: str, user: str, max_tokens: int) -> str:
-        response = await self.client.messages.create(
-            model="claude-sonnet-4-6",
+    async def _call_claude(self, system: str, user: str, max_tokens: int, *, prompt_id: str, patient_id: str = "") -> str:
+        response, _ = await call_llm(
+            role="generation",
+            prompt_id=prompt_id,
+            patient_id=patient_id or None,
             max_tokens=max_tokens,
             system=system,
             messages=[{"role": "user", "content": user}],
         )
-        text = response.content[0].text.strip()
+        text = first_text(response).strip()
         if text.startswith("```"):
             first_newline = text.find("\n")
             if first_newline != -1:

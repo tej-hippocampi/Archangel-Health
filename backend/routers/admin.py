@@ -418,6 +418,7 @@ async def list_grounding_reports_admin(
     authorization: Optional[str] = Header(None),
     verdict: Optional[str] = None,
     track: Optional[str] = None,
+    prompt_version: Optional[str] = None,
     since: Optional[str] = None,
     limit: int = 100,
 ):
@@ -427,7 +428,7 @@ async def list_grounding_reports_admin(
         return {"reports": []}
     patient_store = getattr(request.app.state, "patient_store", {}) or {}
     rows = team_store.list_grounding_reports(
-        limit=min(limit, 500), verdict=verdict, track=track, since=since
+        limit=min(limit, 500), verdict=verdict, track=track, prompt_version=prompt_version, since=since
     )
     for row in rows:
         pid = row.get("patient_id")
@@ -483,3 +484,66 @@ async def grounding_inspector_recall_admin(
     if not snap:
         return {"available": False, "message": "No inspector recall snapshot yet — run validation suite"}
     return {"available": True, **snap}
+
+
+@router.get("/ai-calls/stats")
+async def ai_call_stats_admin(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    window_days: int = 30,
+):
+    _verify_token(authorization)
+    team_store = getattr(request.app.state, "team_store", None)
+    if team_store is None:
+        return {
+            "window_days": window_days,
+            "total_calls": 0,
+            "total_input_tokens": 0,
+            "total_output_tokens": 0,
+            "by_role": {},
+            "models_in_use": [],
+        }
+    return team_store.llm_call_stats(window_days=window_days)
+
+
+@router.get("/ai-calls")
+async def ai_calls_admin(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    role: Optional[str] = None,
+    prompt_id: Optional[str] = None,
+    prompt_version: Optional[str] = None,
+    since: Optional[str] = None,
+    limit: int = 200,
+):
+    _verify_token(authorization)
+    team_store = getattr(request.app.state, "team_store", None)
+    if team_store is None:
+        return {"calls": []}
+    calls = team_store.list_llm_calls(
+        limit=min(limit, 500),
+        role=role,
+        prompt_id=prompt_id,
+        prompt_version=prompt_version,
+        since=since,
+    )
+    patient_store = getattr(request.app.state, "patient_store", {}) or {}
+    for row in calls:
+        pid = row.get("patient_id")
+        pdata = patient_store.get(pid) or {}
+        sd = pdata.get("structured_data") or {}
+        row["patient_name"] = sd.get("patient_name") or pdata.get("name") or pid
+    return {"calls": calls}
+
+
+@router.get("/ai-calls/prompts")
+async def ai_call_prompts_admin(authorization: Optional[str] = Header(None)):
+    _verify_token(authorization)
+    from prompts.registry import PROMPT_REGISTRY, prompt_meta
+
+    return {
+        "prompts": [
+            {"prompt_id": pid, "label": entry.get("label", pid), **prompt_meta(pid)}
+            for pid, entry in PROMPT_REGISTRY.items()
+        ]
+    }

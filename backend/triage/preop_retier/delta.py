@@ -180,6 +180,19 @@ def _cumulative_contributor(state: PreOpReTierInput) -> list[ReTierReason]:
     return [_reason("ENGAGEMENT_FULLY_COMPLETE_BY_T_24")]
 
 
+def _teachback_contributors(state: PreOpReTierInput) -> list[ReTierReason]:
+    out: list[ReTierReason] = []
+    if state.teachback_failed_fasting:
+        out.append(_reason("TEACHBACK_FAILED_FASTING_POSTLOOP"))
+    if state.teachback_failed_critical:
+        out.append(_reason("TEACHBACK_FAILED_CRITICAL_POSTLOOP"))
+    if state.teachback_not_completed_by_t24:
+        out.append(_reason("TEACHBACK_NOT_COMPLETED_BY_T_24"))
+    if state.teachback_passed_all:
+        out.append(_reason("TEACHBACK_PASSED_ALL"))
+    return out
+
+
 # ─── Top-level ───────────────────────────────────────────────────────────────
 
 def compute_preop_delta(
@@ -199,6 +212,7 @@ def compute_preop_delta(
     reasons += _video_contributors(state)
     reasons += _battlecard_contributors(state)
     reasons += _cumulative_contributor(state)
+    reasons += _teachback_contributors(state)
 
     raw_delta = sum((r.weight or 0) for r in reasons)
     if raw_delta > SOFT_CAP:

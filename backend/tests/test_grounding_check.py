@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import types
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -257,3 +258,25 @@ def test_parse_grounding_response_with_fences():
     report = parse_grounding_response(raw, "pre_op", required)
     assert report.verdict == "PASS"
     assert report.required_items == required
+
+
+def test_check_grounding_routes_through_call_llm_with_provenance(monkeypatch):
+    async def _fake_call_llm(**kwargs):
+        resp = types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text=json.dumps({
+            "track": "pre_op",
+            "coverage": [],
+            "faithfulness": [],
+            "critical_failures": [],
+            "verdict": "PASS",
+            "summary": "ok",
+        }))])
+        _fake_call_llm.kwargs = kwargs
+        return resp, {}
+
+    monkeypatch.setattr("pipeline.grounding_check.call_llm", _fake_call_llm)
+    report = asyncio.run(
+        check_grounding(PREOP_SD, "script", "pre_op", patient_id="p_ground")
+    )
+    assert report.verdict == "PASS"
+    assert _fake_call_llm.kwargs["prompt_id"] == "grounding_judge"
+    assert _fake_call_llm.kwargs["patient_id"] == "p_ground"

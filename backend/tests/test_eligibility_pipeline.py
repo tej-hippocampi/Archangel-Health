@@ -6,6 +6,7 @@ import asyncio
 import os
 import re
 import sys
+import types
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -536,6 +537,15 @@ def _patch_generation(monkeypatch, *, elevenlabs_cls=_StubElevenLabs):
     monkeypatch.setattr(_gen_mod, "GenerationLayer", _StubGen)
     monkeypatch.setattr(_el_mod, "ElevenLabsClient", elevenlabs_cls)
 
+    async def _stub_synthesize_script(**kwargs):
+        script = kwargs.get("script") or "voice script body"
+        audio_id = kwargs.get("audio_id") or "audio"
+        gate = types.SimpleNamespace(script=script, synthesize=True)
+        audio_url = await elevenlabs_cls().synthesize(script, audio_id)
+        return gate, audio_url
+
+    monkeypatch.setattr(elig_pipeline, "synthesize_script", _stub_synthesize_script)
+
 
 def test_regenerate_materials_handles_resources_none(monkeypatch):
     """Regression: batch-onboarded patients are constructed with
@@ -654,28 +664,14 @@ def test_regenerate_materials_force_synthesize_when_grounding_blocks(monkeypatch
     """Clinician-confirmed flows must still produce audio when the grounding gate blocks."""
     _patch_generation(monkeypatch)
 
-    from pipeline.grounding_gate import GroundingGateResult, GroundingReport
+    async def _blocked_synthesize(**kwargs):
+        gate = types.SimpleNamespace(script="gated voice script", synthesize=False)
+        audio_id = kwargs.get("audio_id") or "audio"
+        force = bool(kwargs.get("force_synthesize"))
+        assert kwargs.get("override_actor") == "clinician@archangel.test"
+        return gate, (f"/audio/{audio_id}.mp3" if force else None)
 
-    async def _blocked_gate(**_kwargs):
-        return GroundingGateResult(
-            script="gated voice script",
-            report=GroundingReport(
-                track="pre_op",
-                coverage=[],
-                faithfulness=[],
-                critical_failures=["demo block"],
-                verdict="BLOCK",
-                summary="blocked for test",
-            ),
-            report_id=1,
-            accuracy={"coverage_pct": 0.0, "faithfulness_pct": 100.0},
-            synthesize=False,
-        )
-
-    import pipeline.grounding_gate as _gg  # noqa: PLC0415
-
-    monkeypatch.setattr(_gg, "audit_and_gate_script", _blocked_gate)
-    monkeypatch.setattr(_gg, "apply_grounding_to_patient", lambda *a, **k: None)
+    monkeypatch.setattr(elig_pipeline, "synthesize_script", _blocked_synthesize)
 
     patient = {
         "name": "Patricia Alvarez",
@@ -692,11 +688,97 @@ def test_regenerate_materials_force_synthesize_when_grounding_blocks(monkeypatch
             patient_id="triage_patricia_alvarez",
             team_store=object(),
             force_synthesize=True,
+            override_actor="clinician@archangel.test",
+            override_reason="manual review complete",
         )
     )
 
     assert patient["resources"]["preop"]["voice_script"] == "gated voice script"
     assert patient["resources"]["preop"]["voice_audio_url"] == "/audio/triage_patricia_alvarez_preop.mp3"
+
+
+def test_regenerate_materials_force_synthesize_without_actor_does_not_ship(monkeypatch):
+    _patch_generation(monkeypatch)
+
+    async def _blocked_synthesize(**kwargs):
+        return types.SimpleNamespace(script="blocked script", synthesize=False), None
+
+    monkeypatch.setattr(elig_pipeline, "synthesize_script", _blocked_synthesize)
+
+    patient = {
+        "name": "Blocked Override Patient",
+        "id": "blocked_override_1",
+        "structured_data": {"patient_name": "Blocked Override Patient"},
+        "resources": None,
+    }
+    _run(
+        elig_pipeline.regenerate_materials(
+            patient,
+            pipeline_type="pre_op",
+            notes_text="prep notes",
+            patient_id="blocked_override_1",
+            team_store=object(),
+            force_synthesize=True,
+            override_actor="",
+        )
+    )
+    assert patient["voice_audio_url"] is None
+    assert patient["resources"]["preop"]["voice_audio_url"] is None
+
+
+def test_regenerate_materials_block_skips_audio(monkeypatch):
+    _patch_generation(monkeypatch)
+
+    async def _blocked_synthesize(**_kwargs):
+        return types.SimpleNamespace(script="blocked script", synthesize=False), None
+
+    monkeypatch.setattr(elig_pipeline, "synthesize_script", _blocked_synthesize)
+
+    patient = {
+        "name": "Blocked Patient",
+        "id": "blocked_1",
+        "structured_data": {"patient_name": "Blocked Patient"},
+        "resources": None,
+    }
+    _run(
+        elig_pipeline.regenerate_materials(
+            patient,
+            pipeline_type="pre_op",
+            notes_text="prep notes",
+            patient_id="blocked_1",
+            team_store=object(),
+        )
+    )
+    assert patient["voice_audio_url"] is None
+    assert patient["resources"]["preop"]["voice_audio_url"] is None
+
+
+def test_regenerate_materials_pass_allows_audio(monkeypatch):
+    _patch_generation(monkeypatch)
+
+    async def _pass_synthesize(**kwargs):
+        audio_id = kwargs.get("audio_id") or "pid"
+        return types.SimpleNamespace(script="pass script", synthesize=True), f"/audio/{audio_id}.mp3"
+
+    monkeypatch.setattr(elig_pipeline, "synthesize_script", _pass_synthesize)
+
+    patient = {
+        "name": "Pass Patient",
+        "id": "pass_1",
+        "structured_data": {"patient_name": "Pass Patient"},
+        "resources": None,
+    }
+    _run(
+        elig_pipeline.regenerate_materials(
+            patient,
+            pipeline_type="pre_op",
+            notes_text="prep notes",
+            patient_id="pass_1",
+            team_store=object(),
+        )
+    )
+    assert patient["voice_audio_url"] == "/audio/pass_1_preop.mp3"
+    assert patient["resources"]["preop"]["voice_audio_url"] == "/audio/pass_1_preop.mp3"
 
 
 def test_run_batch_split_concurrency_capped(monkeypatch):

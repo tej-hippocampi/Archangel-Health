@@ -40,6 +40,10 @@ def evaluate_hard_escalators(state: PreOpReTierInput) -> Optional[ReTierReason]:
         if code in disclosed:
             return _hard_reason(code)
 
+    # Teach-back medication-hold post-loop failure.
+    if state.teachback_failed_med_hold:
+        return _hard_reason("TEACHBACK_FAILED_MED_HOLD_POSTLOOP")
+
     # 2. Critical red survey flag — only T-48 / T-24 windows count (PRD §5.2).
     for s in state.surveys:
         if s.window in ("T_48", "T_24") and s.status == "RED" and s.has_critical_red_flag:

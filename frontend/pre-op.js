@@ -1049,6 +1049,131 @@ function loadPreopResources() {
   void loadPreopAudio(preop);
 }
 
+const preopTeachback = {
+  sessionId: null,
+  questions: [],
+  index: 0,
+};
+
+function highlightTeachbackAnchor(container, anchorId) {
+  if (!container || !anchorId) return;
+  const target = container.querySelector(`#${CSS.escape(anchorId)}`);
+  if (!target) return;
+  target.classList.remove("teachback-highlight");
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  target.classList.add("teachback-highlight");
+  window.setTimeout(() => target.classList.remove("teachback-highlight"), 2300);
+}
+
+function renderPreopTeachbackQuestion() {
+  const qa = document.getElementById("preopTeachbackQA");
+  const progress = document.getElementById("preopTeachbackProgress");
+  const question = document.getElementById("preopTeachbackQuestion");
+  const answer = document.getElementById("preopTeachbackAnswer");
+  const callout = document.getElementById("preopTeachbackCallout");
+  if (!qa || !progress || !question || !answer || !callout) return;
+  const q = preopTeachback.questions[preopTeachback.index];
+  if (!q) {
+    qa.style.display = "none";
+    return;
+  }
+  qa.style.display = "grid";
+  progress.textContent = `Question ${preopTeachback.index + 1} of ${preopTeachback.questions.length}`;
+  question.textContent = q.question || "";
+  answer.value = "";
+  callout.style.display = "none";
+  callout.textContent = "";
+}
+
+async function startPreopTeachback() {
+  const status = document.getElementById("preopTeachbackStatus");
+  const startBtn = document.getElementById("preopTeachbackStartBtn");
+  if (!status || !startBtn) return;
+  startBtn.disabled = true;
+  status.textContent = "Starting teach-back...";
+  try {
+    const data = await apiJson(`/api/episodes/${encodeURIComponent(PATIENT.id)}/teachback/pre_op/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    preopTeachback.sessionId = data.session_id;
+    preopTeachback.questions = Array.isArray(data.questions) ? data.questions : [];
+    preopTeachback.index = 0;
+    if (data.battlecard_html && document.getElementById("preopBattlecardContainer")) {
+      document.getElementById("preopBattlecardContainer").innerHTML = data.battlecard_html;
+    }
+    status.textContent = "Answer in your own words. You can tap \"I'm not sure\" if needed.";
+    renderPreopTeachbackQuestion();
+  } catch (err) {
+    status.textContent = err.message || "Teach-back is not available yet.";
+    startBtn.disabled = false;
+  }
+}
+
+async function submitPreopTeachbackAnswer(value) {
+  const status = document.getElementById("preopTeachbackStatus");
+  const submitBtn = document.getElementById("preopTeachbackSubmitBtn");
+  const unsureBtn = document.getElementById("preopTeachbackUnsureBtn");
+  const callout = document.getElementById("preopTeachbackCallout");
+  const battlecard = document.getElementById("preopBattlecardContainer");
+  const q = preopTeachback.questions[preopTeachback.index];
+  if (!q || !status || !submitBtn || !unsureBtn || !callout) return;
+
+  submitBtn.disabled = true;
+  unsureBtn.disabled = true;
+  status.textContent = "Checking your answer...";
+  try {
+    const data = await apiJson(`/api/episodes/${encodeURIComponent(PATIENT.id)}/teachback/pre_op/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: preopTeachback.sessionId,
+        question_id: q.id,
+        answer: value,
+      }),
+    });
+
+    if (data.retry) {
+      const locate = data.locate || {};
+      status.textContent = "Let's review this part together, then try once more.";
+      callout.style.display = "block";
+      callout.textContent = locate.transcript_quote || "Review the highlighted section, then answer again.";
+      highlightTeachbackAnchor(battlecard, locate.battlecard_anchor);
+      return;
+    }
+
+    if (data.completed) {
+      const aggregate = (data.results || {}).aggregate || {};
+      status.textContent = aggregate.failed_red_flag
+        ? "Thanks. A care team member should check in with you."
+        : "Teach-back complete. Thank you.";
+      document.getElementById("preopTeachbackQA").style.display = "none";
+      return;
+    }
+
+    preopTeachback.index += 1;
+    status.textContent = "Recorded. Next question:";
+    renderPreopTeachbackQuestion();
+  } catch (err) {
+    status.textContent = err.message || "Could not submit answer.";
+  } finally {
+    submitBtn.disabled = false;
+    unsureBtn.disabled = false;
+  }
+}
+
+function setupPreopTeachback() {
+  const startBtn = document.getElementById("preopTeachbackStartBtn");
+  const submitBtn = document.getElementById("preopTeachbackSubmitBtn");
+  const unsureBtn = document.getElementById("preopTeachbackUnsureBtn");
+  const answer = document.getElementById("preopTeachbackAnswer");
+  if (!startBtn || !submitBtn || !unsureBtn || !answer) return;
+  startBtn.addEventListener("click", () => void startPreopTeachback());
+  submitBtn.addEventListener("click", () => void submitPreopTeachbackAnswer((answer.value || "").trim()));
+  unsureBtn.addEventListener("click", () => void submitPreopTeachbackAnswer("I'm not sure"));
+}
+
 async function loadPreopAudio(preop) {
   const btn = document.getElementById("preopPlayPauseBtn");
   if (preop.voice_audio_url) {
@@ -1163,6 +1288,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   bindSpeedControls();
   loadPreopResources();
+  setupPreopTeachback();
   setupNotifyCareTeam();
   loadLatestIntakeForm();
 

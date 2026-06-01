@@ -16,8 +16,8 @@ from __future__ import annotations
 from typing import Any
 
 
-MODEL_VERSION = "postop-retier@1.0.0"
-TUNING_VERSION = 1
+MODEL_VERSION = "postop-retier@1.1.0"
+TUNING_VERSION = 2
 
 
 # ─── Hard escalators (PRD §10.2) — any one ⇒ TIER_3 ──────────────────────────
@@ -58,6 +58,11 @@ HARD_ESCALATORS: list[dict[str, Any]] = [
         "label": "Care Companion semantic escalation tier 3 with an unresolved chat:semantic* row",
         "source": "Care Companion chat (semantic escalation LLM)",
     },
+    {
+        "code": "TEACHBACK_FAILED_RED_FLAG_POSTLOOP",
+        "label": "Patient cannot state red flags / emergency action after re-teaching",
+        "source": "Teach-back (post-loop)",
+    },
 ]
 
 HARD_LABELS: dict[str, str] = {h["code"]: h["label"] for h in HARD_ESCALATORS}
@@ -95,6 +100,11 @@ POSTOP_POSITIVE_WEIGHTS: dict[str, int] = {
     "MED_ADHERENCE_LOW":                         2,
     "MED_ADHERENCE_NON_RESPONSE_STREAK_3":       2,
 
+    # Teach-back (post-loop outcomes only)
+    "TEACHBACK_FAILED_MED_POSTLOOP":             2,
+    "TEACHBACK_FAILED_CRITICAL_POSTLOOP":        2,
+    "TEACHBACK_NOT_COMPLETED_BY_D5":             1,
+
     # ─── Care Companion (Triage Suite Pass 3 §3.3) ─────────────────────
     "CARE_COMPANION_SEMANTIC_ESCALATION_TIER_2": 2,
     "CARE_COMPANION_NEVER_USED_BY_D7":           1,
@@ -127,6 +137,9 @@ POSTOP_POSITIVE_LABELS: dict[str, str] = {
     "DIAGNOSIS_TREATMENT_VIDEO_NOT_VIEWED_BY_D14": "Diagnosis & treatment video not viewed by day 14",
     "MED_ADHERENCE_LOW":                         "Med adherence low (<5 of last 7 days = Yes)",
     "MED_ADHERENCE_NON_RESPONSE_STREAK_3":       "Med adherence non-response 3+ days in a row",
+    "TEACHBACK_FAILED_MED_POSTLOOP":             "Teach-back post-loop medication misunderstanding",
+    "TEACHBACK_FAILED_CRITICAL_POSTLOOP":        "Teach-back post-loop critical comprehension miss",
+    "TEACHBACK_NOT_COMPLETED_BY_D5":             "Teach-back not completed by day 5",
     "CARE_COMPANION_SEMANTIC_ESCALATION_TIER_2": "Care Companion tier-2 semantic escalation in last 24h",
     "CARE_COMPANION_NEVER_USED_BY_D7":           "Patient has not used the Care Companion chat by day 7 post-discharge",
 }
@@ -150,6 +163,11 @@ POSTOP_POSITIVE_GROUPS: list[dict[str, Any]] = [
     {"name": "Med adherence (rolling 7-day)", "codes": [
         "MED_ADHERENCE_LOW", "MED_ADHERENCE_NON_RESPONSE_STREAK_3",
     ]},
+    {"name": "Teach-back (post-loop)", "codes": [
+        "TEACHBACK_FAILED_MED_POSTLOOP",
+        "TEACHBACK_FAILED_CRITICAL_POSTLOOP",
+        "TEACHBACK_NOT_COMPLETED_BY_D5",
+    ]},
     {"name": "Care Companion (Pass 3)", "codes": [
         "CARE_COMPANION_SEMANTIC_ESCALATION_TIER_2",
         "CARE_COMPANION_NEVER_USED_BY_D7",
@@ -164,6 +182,7 @@ POSTOP_ENGAGEMENT_AUDIT_FLAGS: list[str] = [
     "DIAGNOSIS_TREATMENT_VIDEO_VIEWED_BY_D5",
     "DIAGNOSIS_TREATMENT_VIDEO_VIEWED_3_PLUS_BY_D14",
     "MED_ADHERENCE_HIGH",
+    "TEACHBACK_PASSED_ALL",
     "CARE_COMPANION_ACTIVE_LAST_7D",
 ]
 
@@ -172,6 +191,7 @@ POSTOP_ENGAGEMENT_AUDIT_LABELS: dict[str, str] = {
     "DIAGNOSIS_TREATMENT_VIDEO_VIEWED_BY_D5":       "Diagnosis & treatment video viewed by day 5",
     "DIAGNOSIS_TREATMENT_VIDEO_VIEWED_3_PLUS_BY_D14": "Diagnosis & treatment video viewed 3+ times by day 14",
     "MED_ADHERENCE_HIGH":                           "Med adherence high (≥6 of last 7 days = Yes)",
+    "TEACHBACK_PASSED_ALL":                         "Teach-back completed with all items passed",
     "CARE_COMPANION_ACTIVE_LAST_7D":                "Care Companion chat used ≥2 times in the last 7 days",
 }
 

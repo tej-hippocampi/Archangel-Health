@@ -11,11 +11,11 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
-import anthropic
 from anthropic import APIConnectionError as AnthropicConnectionError, APIStatusError as AnthropicStatusError
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
+from ai.llm_client import call_llm, first_text
 from prompts.registry import PROMPT_REGISTRY
 from pipeline.generate import GenerationLayer
 from integrations.elevenlabs import ElevenLabsClient
@@ -224,8 +224,6 @@ async def run_prompt(body: RunRequest, authorization: Optional[str] = Header(Non
     if not api_key:
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
 
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-
     # Avatar chat — combine behavior template + discharge notes as patient context, then test a message
     if prompt_type == "avatar":
         system = (
@@ -235,9 +233,9 @@ async def run_prompt(body: RunRequest, authorization: Optional[str] = Header(Non
             .replace("[PATIENT_RECORDS]", f"## Patient Clinical Notes\n\n{body.discharge_notes}")
         )
         try:
-            message = await client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=150,
+            message, _ = await call_llm(
+                role="avatar_chat",
+                prompt_id="avatar_chat",
                 system=system,
                 messages=[{"role": "user", "content": body.test_message}],
             )
@@ -246,7 +244,7 @@ async def run_prompt(body: RunRequest, authorization: Optional[str] = Header(Non
         except AnthropicStatusError as e:
             raise HTTPException(status_code=502, detail=f"Anthropic API error {e.status_code}: {e.message}")
 
-        response_text = message.content[0].text
+        response_text = first_text(message)
 
         # Synthesize the avatar response as audio
         eleven = ElevenLabsClient()
@@ -268,8 +266,9 @@ async def run_prompt(body: RunRequest, authorization: Optional[str] = Header(Non
     max_tokens = 1500 if prompt_type == "voice" else 8000
 
     try:
-        message = await client.messages.create(
-            model="claude-sonnet-4-6",
+        message, _ = await call_llm(
+            role="generation",
+            prompt_id=body.prompt_id,
             max_tokens=max_tokens,
             system=body.system_prompt,
             messages=[{"role": "user", "content": body.discharge_notes}],
@@ -278,7 +277,7 @@ async def run_prompt(body: RunRequest, authorization: Optional[str] = Header(Non
         raise HTTPException(status_code=503, detail=f"Anthropic connection error — check network/API key: {e}")
     except AnthropicStatusError as e:
         raise HTTPException(status_code=502, detail=f"Anthropic API error {e.status_code}: {e.message}")
-    full_text = message.content[0].text
+    full_text = first_text(message)
 
     # Battlecard prompt — return rendered HTML only, no audio
     if prompt_type == "battlecard":

@@ -66,6 +66,7 @@ _HARD_ALERT_WEIGHTS = {
     "LOST_CONTACT_GENERAL":                 75,
     "DAY_X_SURVEY_RED_AND_RED_FLAG":        85,
     "MULTIPLE_INCISION_FLAGS":              85,
+    "TEACHBACK_FAILED_RED_FLAG_POSTLOOP":   90,
 }
 
 
@@ -257,6 +258,19 @@ def _gather_state(
         cc_sessions_total = int(count_chat_sessions_total(team_store, patient_id))
         cc_past_d7 = bool(days_since >= 7)
 
+    # Teach-back results (post-loop outcomes only; first-attempt misses omitted).
+    tb = patient.get("teachback") or {}
+    if not isinstance(tb, dict):
+        tb = {}
+    dx_tb = tb.get("post_op_diagnosis") if isinstance(tb.get("post_op_diagnosis"), dict) else {}
+    tx_tb = tb.get("post_op_treatment") if isinstance(tb.get("post_op_treatment"), dict) else {}
+    teachback_completed = bool((dx_tb or {}).get("completed") or (tx_tb or {}).get("completed"))
+    teachback_started = bool((dx_tb or {}).get("started") or (tx_tb or {}).get("started"))
+    teachback_failed_red_flag = bool((tx_tb or {}).get("failed_red_flag"))
+    teachback_failed_med = bool((dx_tb or {}).get("failed_med") or (tx_tb or {}).get("failed_med"))
+    teachback_failed_critical = bool((dx_tb or {}).get("failed_critical") or (tx_tb or {}).get("failed_critical"))
+    teachback_not_completed_by_d5 = bool(days_since > 5 and teachback_started and not teachback_completed)
+
     return PostOpReTierInput(
         patient_id=patient_id,
         procedure_family=procedure_family,
@@ -292,6 +306,11 @@ def _gather_state(
         med_adherence_high=med_summary.high,
         med_adherence_low=med_summary.low,
         med_adherence_non_response_streak_3=med_summary.non_response_streak >= streak_threshold,
+        teachback_completed=teachback_completed,
+        teachback_failed_critical=teachback_failed_critical,
+        teachback_failed_red_flag=teachback_failed_red_flag,
+        teachback_failed_med=teachback_failed_med,
+        teachback_not_completed_by_d5=teachback_not_completed_by_d5,
         lost_contact_tier3_24h=lc.tier3_24h,
         lost_contact_general_72h=lc.general_72h,
         care_companion_red_flag_unresolved=cc_red_unresolved,

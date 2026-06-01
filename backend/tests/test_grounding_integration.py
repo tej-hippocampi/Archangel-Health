@@ -42,7 +42,7 @@ def test_dual_track_both_pass_clears_review():
     assert patient.get("grounding_pending_tracks") == []
 
 
-def test_force_synthesize_should_not_leave_review_flag_when_audio_shipped():
+def test_force_synthesize_should_not_leave_review_flag_when_audio_shipped(monkeypatch):
     """Clinician-confirmed notes path: audit may BLOCK but audio ships — no review hold."""
     patient: dict = {
         "requires_clinician_review": True,
@@ -51,43 +51,28 @@ def test_force_synthesize_should_not_leave_review_flag_when_audio_shipped():
 
     async def _run():
         import eligibility.pipeline as ep
-        from unittest.mock import AsyncMock
 
         class _StubGen:
             async def generate(self, sd, pt):
                 return "voice", "<html/>"
 
-        async def _blocked(**kwargs):
-            return _gate("BLOCK", False, kwargs.get("track", "pre_op"))
-
-        import pipeline.grounding_gate as gg
-
-        orig_audit = gg.audit_and_gate_script
-        gg.audit_and_gate_script = _blocked  # type: ignore[method-assign]
-
-        class _EL:
-            async def synthesize(self, script, pid):
-                return f"/audio/{pid}.mp3"
-
-        import integrations.elevenlabs as el
-
-        el.ElevenLabsClient = lambda: _EL()  # type: ignore[misc]
-
         import pipeline.generate as gen_mod
 
         gen_mod.GenerationLayer = lambda: _StubGen()  # type: ignore[misc]
 
-        try:
-            await ep.regenerate_materials(
-                patient,
-                pipeline_type="pre_op",
-                notes_text="confirmed notes",
-                patient_id="p_force",
-                team_store=object(),
-                force_synthesize=True,
-            )
-        finally:
-            gg.audit_and_gate_script = orig_audit  # type: ignore[method-assign]
+        async def _blocked_synthesize(**kwargs):
+            gate = _gate("BLOCK", False, kwargs.get("track", "pre_op"))
+            return gate, "/audio/p_force_preop.mp3"
+
+        monkeypatch.setattr(ep, "synthesize_script", _blocked_synthesize)
+        await ep.regenerate_materials(
+            patient,
+            pipeline_type="pre_op",
+            notes_text="confirmed notes",
+            patient_id="p_force",
+            team_store=object(),
+            force_synthesize=True,
+        )
 
     asyncio.run(_run())
     assert patient["resources"]["preop"]["voice_audio_url"] == "/audio/p_force_preop.mp3"

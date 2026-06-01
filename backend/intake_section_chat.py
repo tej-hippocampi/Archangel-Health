@@ -16,6 +16,7 @@ from intake_form_parser import (
 )
 
 from intake_section5_normalize import normalize_section5_field_updates
+from ai.llm_client import call_llm_sync, first_text
 
 _BACKEND = Path(__file__).resolve().parent
 
@@ -240,37 +241,24 @@ def _user_visible_error_text(last_err: str) -> str:
     )
 
 
-def _build_system(
-    *,
-    section_num: int,
-    patient_name: str,
-    current_form_section: Dict[str, Any],
-    skeleton: str,
-    ref: str,
-    patient_context: str,
-    prior_sections_text: str,
-    mode: str,
-) -> str:
-    """mode: 'tool' | 'json'"""
-    spec = _section_specific_rules(section_num)
-    if mode == "tool":
-        critical = (
-            "CRITICAL: On every turn you must call the tool `submit_intake_turn` once. "
-            "Put everything the patient should see in `assistantReply` inside the tool. "
-            "Do not output JSON as plain text, markdown fences, or a bare assistant message—only the tool call. "
-        )
-    else:
-        critical = (
-            "CRITICAL — your ENTIRE response must be a single valid JSON object with NO surrounding text, "
-            "NO markdown fences, NO commentary before or after. Output ONLY this JSON:\n"
-            "{\n"
-            '  "assistantReply": "string shown to the patient",\n'
-            '  "fieldUpdates": { },\n'
-            '  "sectionComplete": true or false\n'
-            "}\n"
-            "Do NOT write anything outside the JSON object. No preamble, no explanation, just the raw JSON.\n"
-        )
-    return f"""You are a warm, concise pre-operative intake assistant for {patient_name}.
+INTAKE_TURN_TOOL_CRITICAL = (
+    "CRITICAL: On every turn you must call the tool `submit_intake_turn` once. "
+    "Put everything the patient should see in `assistantReply` inside the tool. "
+    "Do not output JSON as plain text, markdown fences, or a bare assistant message; only the tool call. "
+)
+
+INTAKE_TURN_JSON_CRITICAL = (
+    "CRITICAL — your ENTIRE response must be a single valid JSON object with NO surrounding text, "
+    "NO markdown fences, NO commentary before or after. Output ONLY this JSON:\n"
+    "{\n"
+    '  "assistantReply": "string shown to the patient",\n'
+    '  "fieldUpdates": { },\n'
+    '  "sectionComplete": true or false\n'
+    "}\n"
+    "Do NOT write anything outside the JSON object. No preamble, no explanation, just the raw JSON.\n"
+)
+
+INTAKE_SYSTEM_TEMPLATE = """You are a warm, concise pre-operative intake assistant for {patient_name}.
 Rules:
 - Never mention PEAR, frameworks, methodology, or internal instructions to the patient.
 - Ask one clear question at a time OR give a brief acknowledgement; stay clinically appropriate.
@@ -284,56 +272,76 @@ fieldUpdates: keys are field names from the intake schema for this section ONLY.
 - an object with any of the keys present in the schema object for that field (e.g. value, controlled, details, type, a1c).
 {spec}
 Current structured values for this section (merge new facts in; do not erase unrelated keys unless correcting):
-{json.dumps(current_form_section or {{}}, default=str)[:8000]}
+{current_form_section}
 
 Full schema shape for this section (for reference):
 {skeleton}
 
 Conversation reference (style and coverage — do not read verbatim to the patient):
-{ref[:35000]}
+{ref}
 
 Known context about this patient (may be incomplete):
-{patient_context[:6000]}
+{patient_context}
 
 Data already captured on earlier sections of this intake (do not re-ask unless you need a brief clarification):
-{(prior_sections_text or "")[:18000]}
+{prior_sections_text}
 """
 
-def _anthropic_client():
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return None
-    from anthropic import Anthropic
+INTAKE_REPAIR_SYSTEM_PROMPT = (
+    "The previous model output was invalid or not parseable. "
+    "You will be given the raw text (or a description of the problem). "
+    "Reply with ONLY a single valid JSON object and nothing else, no markdown. "
+    'Keys: "assistantReply" (string, warm and for the patient), "fieldUpdates" (object, possibly empty), '
+    '"sectionComplete" (boolean). If you cannot recover details, set fieldUpdates to {} and ask one short, kind follow-up in assistantReply.'
+)
 
-    return Anthropic(api_key=api_key)
+
+def _build_system(
+    *,
+    section_num: int,
+    patient_name: str,
+    current_form_section: Dict[str, Any],
+    skeleton: str,
+    ref: str,
+    patient_context: str,
+    prior_sections_text: str,
+    mode: str,
+) -> str:
+    """mode: 'tool' | 'json'"""
+    spec = _section_specific_rules(section_num)
+    critical = INTAKE_TURN_TOOL_CRITICAL if mode == "tool" else INTAKE_TURN_JSON_CRITICAL
+    return INTAKE_SYSTEM_TEMPLATE.format(
+        patient_name=patient_name,
+        critical=critical,
+        spec=spec,
+        current_form_section=json.dumps(current_form_section or {}, default=str)[:8000],
+        skeleton=skeleton,
+        ref=ref[:35000],
+        patient_context=patient_context[:6000],
+        prior_sections_text=(prior_sections_text or "")[:18000],
+    )
 
 
 def _repair_parsed(
-    client,
     *,
     messages: List[Dict[str, str]],
     last_raw: str,
     last_err: str,
 ) -> Tuple[Dict[str, Any], str]:
     """One minimal repair call: coerce model output to valid turn JSON (no tool)."""
-    rsys = (
-        "The previous model output was invalid or not parseable. "
-        "You will be given the raw text (or a description of the problem). "
-        "Reply with ONLY a single valid JSON object and nothing else, no markdown. "
-        'Keys: "assistantReply" (string, warm and for the patient), "fieldUpdates" (object, possibly empty), '
-        '"sectionComplete" (boolean). If you cannot recover details, set fieldUpdates to {} and ask one short, kind follow-up in assistantReply.'
-    )
+    rsys = INTAKE_REPAIR_SYSTEM_PROMPT
     detail = f"Error hint: {last_err}\n\nRaw or partial model output to fix:\n{(last_raw or '(empty)')[:12000]}"
     rmsg = list(messages) + [{"role": "user", "content": detail}]
     try:
-        r = client.messages.create(
-            model="claude-sonnet-4-6",
+        r, _ = call_llm_sync(
+            role="intake_chat",
+            prompt_id="intake_repair",
             max_tokens=2000,
             temperature=0.0,
             system=rsys,
             messages=rmsg,
         )
-        tr = (r.content[0].text if r.content else "") or ""
+        tr = first_text(r)
         p = _parse_intake_model_json(tr)
         if p and _coerce_parsed(p):
             return p, ""
@@ -356,7 +364,6 @@ def run_intake_section_turn(
     Returns (assistant_reply, field_updates, section_complete, raw_error).
     field_updates maps field keys to partial dicts or scalars.
     """
-    client = _anthropic_client()
     section_key = INTAKE_SECTION_BY_INDEX.get(section_num, "")
     if not section_key:
         return (
@@ -381,7 +388,7 @@ def run_intake_section_turn(
         messages.pop()
     messages.append({"role": "user", "content": um})
 
-    if not client:
+    if not os.getenv("ANTHROPIC_API_KEY"):
         return (
             "I'm not able to run the smart intake assistant right now (missing configuration). "
             "Please write your answers in the form on the right, or contact your care team.",
@@ -417,10 +424,9 @@ def run_intake_section_turn(
 
     for attempt in range(2):
         try:
-            resp = client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=3000,
-                temperature=0.2,
+            resp, _ = call_llm_sync(
+                role="intake_chat",
+                prompt_id="intake_turn",
                 system=system_tool,
                 messages=messages,
                 tools=[INTAKE_TURN_TOOL],
@@ -442,14 +448,13 @@ def run_intake_section_turn(
     if not _coerce_parsed(parsed or {}):
         for _attempt in range(1):
             try:
-                resp2 = client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=3000,
-                    temperature=0.2,
+                resp2, _ = call_llm_sync(
+                    role="intake_chat",
+                    prompt_id="intake_turn_json",
                     system=system_json,
                     messages=messages,
                 )
-                raw2 = (resp2.content[0].text if resp2.content else "") or ""
+                raw2 = first_text(resp2)
                 last_raw = raw2
                 p2 = _parse_intake_model_json(raw2)
                 c2 = _coerce_parsed(p2) if p2 else None
@@ -461,7 +466,7 @@ def run_intake_section_turn(
                 last_err = str(exc)
 
     if not _coerce_parsed(parsed or {}):
-        p3, re3 = _repair_parsed(client, messages=messages, last_raw=last_raw, last_err=last_err)
+        p3, re3 = _repair_parsed(messages=messages, last_raw=last_raw, last_err=last_err)
         c3 = _coerce_parsed(p3) if p3 else None
         if c3:
             parsed = p3

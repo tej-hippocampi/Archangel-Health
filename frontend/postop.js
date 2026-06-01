@@ -300,6 +300,121 @@
     });
   }
 
+  // ─── Teach-back panels (diagnosis + treatment) ─────────────────────────
+  function highlightAnchor(container, anchorId) {
+    if (!container || !anchorId) return;
+    const esc = (window.CSS && CSS.escape) ? CSS.escape(anchorId) : anchorId.replace(/"/g, "");
+    const target = container.querySelector(`#${esc}`);
+    if (!target) return;
+    target.classList.remove("teachback-highlight");
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.classList.add("teachback-highlight");
+    window.setTimeout(() => target.classList.remove("teachback-highlight"), 2300);
+  }
+
+  function setupTeachbackPanel(prefix, track, battlecardContainerId) {
+    const state = { sessionId: null, questions: [], index: 0 };
+    const startBtn = document.getElementById(`${prefix}TeachbackStartBtn`);
+    const status = document.getElementById(`${prefix}TeachbackStatus`);
+    const qa = document.getElementById(`${prefix}TeachbackQA`);
+    const progress = document.getElementById(`${prefix}TeachbackProgress`);
+    const question = document.getElementById(`${prefix}TeachbackQuestion`);
+    const answer = document.getElementById(`${prefix}TeachbackAnswer`);
+    const submitBtn = document.getElementById(`${prefix}TeachbackSubmitBtn`);
+    const unsureBtn = document.getElementById(`${prefix}TeachbackUnsureBtn`);
+    const callout = document.getElementById(`${prefix}TeachbackCallout`);
+    const carePath = document.getElementById(`${prefix}TeachbackCarePath`);
+    const careBtn = document.getElementById(`${prefix}TeachbackEscalateBtn`);
+    const battlecard = document.getElementById(battlecardContainerId);
+    if (!startBtn || !status || !qa || !progress || !question || !answer || !submitBtn || !unsureBtn || !callout) return;
+
+    function renderQuestion() {
+      const q = state.questions[state.index];
+      if (!q) {
+        qa.style.display = "none";
+        return;
+      }
+      qa.style.display = "grid";
+      progress.textContent = `Question ${state.index + 1} of ${state.questions.length}`;
+      question.textContent = q.question || "";
+      answer.value = "";
+      callout.style.display = "none";
+      callout.textContent = "";
+    }
+
+    async function start() {
+      startBtn.disabled = true;
+      status.textContent = "Starting teach-back...";
+      try {
+        const data = await fetchJSON(`/api/episodes/${encodeURIComponent(patientId)}/teachback/${track}/start`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
+        state.sessionId = data.session_id;
+        state.questions = Array.isArray(data.questions) ? data.questions : [];
+        state.index = 0;
+        if (data.battlecard_html && battlecard) {
+          battlecard.innerHTML = data.battlecard_html;
+        }
+        status.textContent = "Answer in your own words. You can tap \"I'm not sure\" if needed.";
+        renderQuestion();
+      } catch (e) {
+        status.textContent = e.message || "Teach-back unavailable.";
+        startBtn.disabled = false;
+      }
+    }
+
+    async function submit(raw) {
+      const q = state.questions[state.index];
+      if (!q) return;
+      submitBtn.disabled = true;
+      unsureBtn.disabled = true;
+      status.textContent = "Checking your answer...";
+      try {
+        const data = await fetchJSON(`/api/episodes/${encodeURIComponent(patientId)}/teachback/${track}/answer`, {
+          method: "POST",
+          body: JSON.stringify({
+            session_id: state.sessionId,
+            question_id: q.id,
+            answer: raw,
+          }),
+        });
+        if (data.retry) {
+          const locate = data.locate || {};
+          status.textContent = "Let's review this part and try once more.";
+          callout.style.display = "block";
+          callout.textContent = locate.transcript_quote || "Review the highlighted section and answer again.";
+          highlightAnchor(battlecard, locate.battlecard_anchor);
+          return;
+        }
+        if (data.completed) {
+          const aggregate = (data.results || {}).aggregate || {};
+          status.textContent = "Teach-back complete. Thank you.";
+          qa.style.display = "none";
+          if (carePath && aggregate.failed_red_flag) {
+            carePath.style.display = "grid";
+          }
+          return;
+        }
+        state.index += 1;
+        status.textContent = "Recorded. Next question:";
+        renderQuestion();
+      } catch (e) {
+        status.textContent = e.message || "Could not submit answer.";
+      } finally {
+        submitBtn.disabled = false;
+        unsureBtn.disabled = false;
+      }
+    }
+
+    startBtn.addEventListener("click", () => { void start(); });
+    submitBtn.addEventListener("click", () => { void submit((answer.value || "").trim()); });
+    unsureBtn.addEventListener("click", () => { void submit("I'm not sure"); });
+    if (careBtn) {
+      careBtn.addEventListener("click", () => openOverlay("self-flag"));
+    }
+  }
+
   // ─── D-X survey rendering (lightweight; sliders + pills) ───────────────
   let _surveyDay = null;
   let _surveyAnswers = {};
@@ -378,9 +493,18 @@
     }
   }
 
+  function wireTeachbackPanels() {
+    setupTeachbackPanel("diag", "post_op_diagnosis", "diagBattlecardContainer");
+    setupTeachbackPanel("treat", "post_op_treatment", "treatBattlecardContainer");
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
+    document.addEventListener("DOMContentLoaded", () => {
+      wireTeachbackPanels();
+      boot();
+    });
   } else {
+    wireTeachbackPanels();
     boot();
   }
 })();

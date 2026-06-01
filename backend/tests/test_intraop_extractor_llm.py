@@ -70,15 +70,13 @@ def test_extract_end_to_end_with_mocked_anthropic():
         "warnings": ["ASA class not documented"],
     })
 
-    fake_client = MagicMock()
-    fake_client.messages.create = AsyncMock(return_value=fake_response)
-
     fake_parse_result = types.SimpleNamespace(
         text="OPERATIVE NOTE: TKA, EBL 600 ml, anesthesia general, OR time 90 min.",
         pages=2, ocr_used=False, ocr_unavailable=False,
     )
 
-    with patch("triage.intraop.extractor_llm._client", return_value=fake_client), \
+    mocked_call_llm = AsyncMock(return_value=(fake_response, {}))
+    with patch("triage.intraop.extractor_llm.call_llm", new=mocked_call_llm), \
          patch("eligibility.parse_pdf.parse_pdf", return_value=fake_parse_result):
         extractor = LlmIntraopExtractor()
         ctx = ExtractionContext(patient_id="p1", procedure_family="LEJR")
@@ -90,9 +88,9 @@ def test_extract_end_to_end_with_mocked_anthropic():
     assert "ASA class not documented" in out.warnings
     assert out.model_version == "intraop-extractor@1.0.0"
 
-    args, kwargs = fake_client.messages.create.await_args
+    _, kwargs = mocked_call_llm.await_args
+    assert kwargs["role"] == "intraop_extract"
     assert kwargs["tool_choice"] == {"type": "tool", "name": "extract_intraop_form"}
-    assert kwargs["temperature"] == 0.0
 
 
 def test_extract_retries_on_transient_failure_then_succeeds():
@@ -101,14 +99,13 @@ def test_extract_retries_on_transient_failure_then_succeeds():
         "fields": {"ebl": 100},
         "field_ratings": {"ebl": "HIGH"},
     })
-    fake_client = MagicMock()
-    fake_client.messages.create = AsyncMock(side_effect=[
+    mocked_call_llm = AsyncMock(side_effect=[
         RuntimeError("transient 503"),
-        fake_response,
+        (fake_response, {}),
     ])
     fake_parse_result = types.SimpleNamespace(text="x", pages=1, ocr_used=False, ocr_unavailable=False)
 
-    with patch("triage.intraop.extractor_llm._client", return_value=fake_client), \
+    with patch("triage.intraop.extractor_llm.call_llm", new=mocked_call_llm), \
          patch("eligibility.parse_pdf.parse_pdf", return_value=fake_parse_result), \
          patch("triage.intraop.extractor_llm.asyncio.sleep", new=AsyncMock()):
         extractor = LlmIntraopExtractor(attempts=3)
@@ -116,15 +113,14 @@ def test_extract_retries_on_transient_failure_then_succeeds():
         out = _run(extractor.extract(pdf_bytes=b"x", context=ctx))
 
     assert out.fields["ebl"] == 100
-    assert fake_client.messages.create.await_count == 2
+    assert mocked_call_llm.await_count == 2
 
 
 def test_extract_raises_after_max_attempts():
-    fake_client = MagicMock()
-    fake_client.messages.create = AsyncMock(side_effect=RuntimeError("permanent"))
+    mocked_call_llm = AsyncMock(side_effect=RuntimeError("permanent"))
     fake_parse_result = types.SimpleNamespace(text="x", pages=1, ocr_used=False, ocr_unavailable=False)
 
-    with patch("triage.intraop.extractor_llm._client", return_value=fake_client), \
+    with patch("triage.intraop.extractor_llm.call_llm", new=mocked_call_llm), \
          patch("eligibility.parse_pdf.parse_pdf", return_value=fake_parse_result), \
          patch("triage.intraop.extractor_llm.asyncio.sleep", new=AsyncMock()):
         extractor = LlmIntraopExtractor(attempts=2)
@@ -135,4 +131,4 @@ def test_extract_raises_after_max_attempts():
             assert "permanent" in str(e)
         else:  # pragma: no cover - assertion lives in the except path
             raise AssertionError("expected RuntimeError after exhausted retries")
-    assert fake_client.messages.create.await_count == 2
+    assert mocked_call_llm.await_count == 2

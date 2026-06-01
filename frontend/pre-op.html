@@ -454,6 +454,27 @@
           </div>
         </section>
 
+        <section class="preop-panel teachback-panel" id="preopTeachbackPanel">
+          <div class="teachback-header">
+            <h3 class="resource-subtitle">🧠 Teach-Back Comprehension</h3>
+            <p class="teachback-sub">In your own words, explain key safety steps so we can confirm we explained things clearly.</p>
+          </div>
+          <div class="teachback-body" id="preopTeachbackBody">
+            <button type="button" class="preop-btn primary" id="preopTeachbackStartBtn">Start teach-back</button>
+            <p class="teachback-status" id="preopTeachbackStatus">Available after pre-op video completion.</p>
+            <div class="teachback-qa" id="preopTeachbackQA" style="display:none;">
+              <p class="teachback-progress" id="preopTeachbackProgress"></p>
+              <p class="teachback-question" id="preopTeachbackQuestion"></p>
+              <textarea id="preopTeachbackAnswer" class="postop-textarea" rows="3" placeholder="Type your answer in your own words..."></textarea>
+              <div class="teachback-actions">
+                <button type="button" class="preop-btn primary" id="preopTeachbackSubmitBtn">Submit answer</button>
+                <button type="button" class="preop-btn" id="preopTeachbackUnsureBtn">I'm not sure</button>
+              </div>
+              <div class="teachback-callout" id="preopTeachbackCallout" style="display:none;"></div>
+            </div>
+          </div>
+        </section>
+
         <section class="support-bar">
           <div class="support-content">
             <div class="support-actions">

@@ -452,9 +452,12 @@
           <span class="icon">📝</span> Intake Interview Prompts
         </button>
 
-        <div class="nav-label">Safety</div>
-        <button class="nav-item" data-tab="grounding-checker">
-          <span class="icon">🛡</span> Prompt Grounding Checker
+        <div class="nav-label">AI Security &amp; Compliance</div>
+        <button class="nav-item" data-tab="grounding">
+          <span class="icon">🛡️</span> Grounding Checker
+        </button>
+        <button class="nav-item" data-tab="ai-call-log">
+          <span class="icon">🧾</span> AI Call Log
         </button>
 
         <div class="nav-label">Triage</div>
@@ -848,11 +851,11 @@
       </div>
 
       <!-- Grounding Checker Tab -->
-      <div class="tab-page" id="tab-grounding-checker">
+      <div class="tab-page" id="tab-grounding">
         <div class="page-header">
           <div>
-            <h2>Prompt Grounding Checker</h2>
-            <p>Coverage, faithfulness, and inspector recall for generated voice scripts</p>
+            <h2>Grounding Checker</h2>
+            <p>Every generated patient script, audited for omissions and fabrications before it ships.</p>
           </div>
           <button class="refresh-btn" type="button" id="grounding-refresh-btn">↺ Refresh</button>
         </div>
@@ -881,6 +884,41 @@
         </div>
       </div>
 
+      <!-- AI Call Log Tab -->
+      <div class="tab-page" id="tab-ai-call-log">
+        <div class="page-header">
+          <div>
+            <h2>AI Call Log</h2>
+            <p>Every Claude call by feature — model, prompt version, tokens, and latency.</p>
+          </div>
+          <button class="refresh-btn" type="button" id="ai-calls-refresh-btn">↺ Refresh</button>
+        </div>
+        <div class="stats-body">
+          <div class="grounding-kpi-grid" id="ai-calls-kpi-grid">
+            <div class="grounding-kpi"><div class="label">Total calls (30d)</div><div class="value" id="ack-total">—</div></div>
+            <div class="grounding-kpi"><div class="label">Input tokens</div><div class="value" id="ack-input">—</div></div>
+            <div class="grounding-kpi"><div class="label">Output tokens</div><div class="value" id="ack-output">—</div></div>
+            <div class="grounding-kpi"><div class="label">Models in use</div><div class="value" id="ack-models" style="font-size:0.85rem;line-height:1.4;">—</div></div>
+          </div>
+
+          <div class="data-section">
+            <div class="data-section-header"><h3>Per-role usage</h3></div>
+            <div id="ai-calls-role-wrap"><div class="empty-table">Loading…</div></div>
+          </div>
+
+          <div class="grounding-filters">
+            <label>Role <select id="ai-calls-filter-role"><option value="">All</option></select></label>
+            <label>Prompt <select id="ai-calls-filter-prompt"><option value="">All</option></select></label>
+            <label>Version <input type="text" id="ai-calls-filter-version" placeholder="1.0.0" /></label>
+          </div>
+
+          <div class="data-section">
+            <div class="data-section-header"><h3>Calls</h3><span id="ai-calls-count">—</span></div>
+            <div id="ai-calls-wrap"><div class="empty-table">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+
       <div class="grounding-drawer-overlay" id="grounding-drawer-overlay">
         <div class="grounding-drawer" id="grounding-drawer"></div>
       </div>
@@ -901,8 +939,10 @@
   let sectionPromptsLoaded = false;
   let triageLogicLoaded = false;
   let groundingLoaded = false;
+  let aiCallsLoaded = false;
   let demoCredsLoaded = false;
   let groundingReports = [];
+  let aiCallsPromptMeta = [];
 
   function authHeaders() {
     return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` };
@@ -1020,8 +1060,11 @@
       if (btn.dataset.tab === 'triage-logic' && !triageLogicLoaded) {
         loadTriageLogic();
       }
-      if (btn.dataset.tab === 'grounding-checker') {
+      if (btn.dataset.tab === 'grounding') {
         loadGroundingChecker();
+      }
+      if (btn.dataset.tab === 'ai-call-log') {
+        loadAiCallLog();
       }
       if (btn.dataset.tab === 'demo-credentials' && !demoCredsLoaded) {
         loadDemoCredentials();
@@ -1116,6 +1159,15 @@
   document.getElementById('grounding-drawer-overlay').addEventListener('click', e => {
     if (e.target.id === 'grounding-drawer-overlay') closeGroundingDrawer();
   });
+  document.getElementById('ai-calls-refresh-btn').addEventListener('click', () => loadAiCallLog(true));
+  document.getElementById('ai-calls-filter-role').addEventListener('change', () => loadAiCallsTable());
+  document.getElementById('ai-calls-filter-prompt').addEventListener('change', () => {
+    const pid = document.getElementById('ai-calls-filter-prompt').value;
+    const meta = aiCallsPromptMeta.find(p => p.prompt_id === pid);
+    document.getElementById('ai-calls-filter-version').value = meta?.version || '';
+    loadAiCallsTable();
+  });
+  document.getElementById('ai-calls-filter-version').addEventListener('change', () => loadAiCallsTable());
 
   // ── Stats ─────────────────────────────────────────────────────
   document.getElementById('refresh-btn').addEventListener('click', loadStats);
@@ -2224,6 +2276,117 @@
     document.getElementById('grounding-drawer-overlay').classList.remove('open');
   }
   window.closeGroundingDrawer = closeGroundingDrawer;
+
+  // ── AI Call Log ────────────────────────────────────────────────
+  async function loadAiCallLog(force = false) {
+    if (aiCallsLoaded && !force) return;
+    aiCallsLoaded = true;
+    await Promise.all([loadAiCallsStats(), loadAiCallsPromptOptions(), loadAiCallsTable()]);
+  }
+
+  async function loadAiCallsStats() {
+    try {
+      const res = await fetch('/admin/ai-calls/stats?window_days=30', { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      document.getElementById('ack-total').textContent = data.total_calls ?? 0;
+      document.getElementById('ack-input').textContent = data.total_input_tokens ?? 0;
+      document.getElementById('ack-output').textContent = data.total_output_tokens ?? 0;
+      document.getElementById('ack-models').textContent = (data.models_in_use || []).join(', ') || '—';
+
+      const roles = Object.entries(data.by_role || {});
+      const roleWrap = document.getElementById('ai-calls-role-wrap');
+      if (!roles.length) {
+        roleWrap.innerHTML = '<div class="empty-table">No llm_call rows in selected window.</div>';
+        return;
+      }
+      roleWrap.innerHTML = `<table><thead><tr>
+        <th>Role</th><th>Calls</th><th>Input tok</th><th>Output tok</th><th>Avg latency (ms)</th>
+      </tr></thead><tbody>${roles.map(([role, row]) => `
+        <tr>
+          <td style="font-family:monospace;">${esc(role)}</td>
+          <td>${row.calls ?? 0}</td>
+          <td>${row.input_tokens ?? 0}</td>
+          <td>${row.output_tokens ?? 0}</td>
+          <td>${row.avg_latency_ms ?? 0}</td>
+        </tr>`).join('')}</tbody></table>`;
+
+      const roleSelect = document.getElementById('ai-calls-filter-role');
+      const current = roleSelect.value;
+      roleSelect.innerHTML = '<option value="">All</option>' + roles
+        .map(([role]) => `<option value="${escAttr(role)}">${esc(role)}</option>`)
+        .join('');
+      roleSelect.value = current;
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function loadAiCallsPromptOptions() {
+    try {
+      const res = await fetch('/admin/ai-calls/prompts', { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      aiCallsPromptMeta = data.prompts || [];
+      const sel = document.getElementById('ai-calls-filter-prompt');
+      const current = sel.value;
+      sel.innerHTML = '<option value="">All</option>' + aiCallsPromptMeta.map(p => {
+        const label = `${p.label || p.prompt_id} — ${p.version || '0.0.0'} (${p.sha || 'n/a'})`;
+        return `<option value="${escAttr(p.prompt_id)}">${esc(label)}</option>`;
+      }).join('');
+      sel.value = current;
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function loadAiCallsTable() {
+    let url = '/admin/ai-calls?limit=200';
+    const role = document.getElementById('ai-calls-filter-role').value;
+    const promptId = document.getElementById('ai-calls-filter-prompt').value;
+    const promptVersion = (document.getElementById('ai-calls-filter-version').value || '').trim();
+    if (role) url += `&role=${encodeURIComponent(role)}`;
+    if (promptId) url += `&prompt_id=${encodeURIComponent(promptId)}`;
+    if (promptVersion) url += `&prompt_version=${encodeURIComponent(promptVersion)}`;
+    try {
+      const res = await fetch(url, { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      const rows = data.calls || [];
+      document.getElementById('ai-calls-count').textContent = rows.length;
+      const wrap = document.getElementById('ai-calls-wrap');
+      if (!rows.length) {
+        wrap.innerHTML = '<div class="empty-table">No AI calls for current filters.</div>';
+        return;
+      }
+      wrap.innerHTML = `<table><thead><tr>
+        <th>Time</th><th>Patient</th><th>Role</th><th>Model</th><th>Prompt</th><th>Version</th><th>SHA</th>
+        <th>Input</th><th>Output</th><th>Latency</th><th>Request id</th>
+      </tr></thead><tbody>${rows.map(r => `
+        <tr>
+          <td style="white-space:nowrap;font-size:0.8rem;">${esc((r.occurred_at || '').replace('T', ' ').slice(0, 19))}</td>
+          <td>${esc(r.patient_name || r.patient_id || '')}</td>
+          <td style="font-family:monospace;">${esc(r.role || '')}</td>
+          <td style="font-family:monospace;">${esc(r.model || '')}</td>
+          <td style="font-family:monospace;">${esc(r.prompt_id || '')}</td>
+          <td style="font-family:monospace;">${esc(r.prompt_version || '')}</td>
+          <td style="font-family:monospace;"><button class="refresh-btn" type="button" data-sha="${escAttr(r.prompt_sha || '')}" data-prompt="${escAttr(r.prompt_id || '')}" data-version="${escAttr(r.prompt_version || '')}" style="padding:2px 6px;">${esc(r.prompt_sha || '')}</button></td>
+          <td>${r.input_tokens ?? '—'}</td>
+          <td>${r.output_tokens ?? '—'}</td>
+          <td>${r.latency_ms ?? '—'}</td>
+          <td style="font-family:monospace;">${esc(r.request_id || '')}${r.audit_error ? ` <span style="color:#b91c1c;" title="${escAttr(r.audit_error)}">⚠</span>` : ''}</td>
+        </tr>`).join('')}</tbody></table>`;
+      wrap.querySelectorAll('button[data-sha]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('ai-calls-filter-prompt').value = btn.dataset.prompt || '';
+          document.getElementById('ai-calls-filter-version').value = btn.dataset.version || '';
+          loadAiCallsTable();
+        });
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }
 </script>
 </body>
 </html>

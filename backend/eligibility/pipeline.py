@@ -30,8 +30,11 @@ from eligibility.parse_pdf import (
     parse_pdf,
 )
 from eligibility.parse_x12 import InvalidX12Error, X12_271_AST, format_for_llm as x12_format, parse_x12_271
+from pipeline.gated_synthesis import synthesize_script
+from team_store import TeamStore
 
 log = logging.getLogger("eligibility.pipeline")
+_store = TeamStore()
 
 from tenant_constants import ARCH_TRIAGE_DEMO_HEALTH_SYSTEM_ID, TRIAGEDM_CLINIC_CODE
 
@@ -294,6 +297,8 @@ async def regenerate_materials(
     patient_id: Optional[str] = None,
     team_store: Any = None,
     force_synthesize: bool = False,
+    override_actor: Optional[str] = None,
+    override_reason: Optional[str] = None,
 ) -> None:
     """Run the existing GenerationLayer against the patient's structured_data
     merged with the confirmed notes. Stores voice_script + battlecard_html back
@@ -327,58 +332,38 @@ async def regenerate_materials(
     )
 
     grounding_track = "pre_op" if pipeline_type == "pre_op" else "post_op_treatment"
-    voice_audio_url = None
+    store_ref = team_store or _store
 
-    if team_store is not None:
-        from pipeline.grounding_gate import apply_grounding_to_patient, audit_and_gate_script
+    async def _regen() -> str:
+        nonlocal battlecard_html
+        v, b = await gen.generate(sd, pipeline_type)
+        battlecard_html = b
+        return v
 
-        async def _regen() -> str:
-            nonlocal battlecard_html
-            v, b = await gen.generate(sd, pipeline_type)
-            battlecard_html = b
-            return v
+    gate, voice_audio_url = await synthesize_script(
+        patient_id=pid,
+        structured_data=sd,
+        script=voice_script,
+        track=grounding_track,
+        team_store=store_ref,
+        audio_id=f"{pid}_{audio_suffix}",
+        regenerate_fn=_regen,
+        patient_blob=patient,
+        sem=_grounding_semaphore(),
+        force_synthesize=force_synthesize,
+        override_actor=override_actor,
+        override_reason=override_reason,
+    )
+    voice_script = gate.script
 
-        gate = await audit_and_gate_script(
-            patient_id=pid,
-            structured_data=sd,
-            script=voice_script,
-            track=grounding_track,
-            team_store=team_store,
-            regenerate_fn=_regen,
-        )
-        voice_script = gate.script
-        apply_grounding_to_patient(patient, grounding_track, gate)
-
-        # Clinician-confirmed prep/discharge notes were already reviewed in the
-        # portal — still run the grounding audit, but do not withhold audio when
-        # the judge returns REVIEW/BLOCK (that path left battlecards without TTS).
-        if gate.synthesize or force_synthesize:
-            try:
-                from integrations.elevenlabs import ElevenLabsClient
-                voice_audio_url = await ElevenLabsClient().synthesize(
-                    voice_script, f"{pid}_{audio_suffix}"
-                )
-            except Exception as e:  # noqa: BLE001
-                log.warning("ElevenLabs synth failed for %s (%s): %s", pid, audio_suffix, e)
-                voice_audio_url = None
-
-        if force_synthesize:
-            pending = patient.get("grounding_pending_tracks")
-            if not isinstance(pending, list):
-                pending = []
-            if grounding_track in pending:
-                pending = [t for t in pending if t != grounding_track]
-            patient["grounding_pending_tracks"] = pending
-            patient["requires_clinician_review"] = bool(pending)
-    else:
-        try:
-            from integrations.elevenlabs import ElevenLabsClient  # late import; same as legacy flow
-            voice_audio_url = await ElevenLabsClient().synthesize(
-                voice_script, f"{pid}_{audio_suffix}"
-            )
-        except Exception as e:  # noqa: BLE001
-            log.warning("ElevenLabs synth failed for %s (%s): %s", pid, audio_suffix, e)
-            voice_audio_url = None
+    if force_synthesize and voice_audio_url:
+        pending = patient.get("grounding_pending_tracks")
+        if not isinstance(pending, list):
+            pending = []
+        if grounding_track in pending:
+            pending = [t for t in pending if t != grounding_track]
+        patient["grounding_pending_tracks"] = pending
+        patient["requires_clinician_review"] = bool(pending)
 
     patient["voice_script"] = voice_script
     patient["battlecard_html"] = battlecard_html
@@ -405,6 +390,30 @@ async def regenerate_materials(
 X12_STX_RE = re.compile(r"(?=ST\*27[01]\*)")
 MBI_RE = re.compile(r"^[1-9][A-Z][A-Z0-9][0-9][A-Z][A-Z0-9][0-9][A-Z][A-Z][0-9]{2}$")
 
+# ── Concurrency tuning ───────────────────────────────────────────────────────
+# These knobs bound how many Anthropic calls are in flight at once. The binding
+# constraint is the workspace's Anthropic rate limit (RPM = requests/min and
+# ITPM/OTPM = input/output tokens/min for the model in ai/model_config.py).
+# Check the live tier at:
+#   console.anthropic.com -> Settings -> Limits.
+#
+# A single batch onboard makes, PER PATIENT, roughly:
+#   1 eligibility extract  (bounded by PATIENT_EXTRACT_CONCURRENCY = 5)
+#   1 generation call      (pre/post-op voice)
+#   1 grounding-judge call (bounded by GROUNDING_CONCURRENCY = 4)
+#   + up to 1 regeneration judge call when a script first BLOCKs.
+# So peak in-flight requests ~= sum of the active stages' semaphores. Keep
+#   PATIENT_EXTRACT_CONCURRENCY + GROUNDING_CONCURRENCY + SPLIT_CONCURRENCY
+# comfortably under your RPM, and watch OTPM for the judge (it returns a full
+# JSON audit, ~1.5k output tokens each).
+#
+# Rule of thumb by tier (adjust after watching for 429s in the call log):
+#   Tier 1 (~50 RPM):    GROUNDING_CONCURRENCY = 2,  others 2-3
+#   Tier 2 (~1000 RPM):  GROUNDING_CONCURRENCY = 4,  others 4-5  (current defaults)
+#   Tier 3/4 (higher):   raise in step, but never let one stage exceed ~25% of RPM
+# If you see HTTP 429 / "rate_limit_error" in the AI Call Log (audit_error field),
+# LOWER these before adding retries — bounded concurrency is the primary control.
+#
 # ─── v0.3 scaling knobs ─────────────────────────────────────────────────────
 # Conservative budget — Sonnet 4.6 handles 200K input tokens, but we want a
 # generous safety margin and to keep individual calls well under 60s.
@@ -419,9 +428,12 @@ SEGMENT_CHUNK_CONCURRENCY = 4
 SPLIT_CONCURRENCY = 4
 # Bounded fan-out for per-patient eligibility extraction (Anthropic-side cap).
 PATIENT_EXTRACT_CONCURRENCY = 5
+# Bounded fan-out for grounding-judge calls in batch fan-out.
+GROUNDING_CONCURRENCY = 4
 
 # Lazy-init so the semaphore binds to whatever event loop is running.
 _extract_sem: Optional[asyncio.Semaphore] = None
+_grounding_sem: Optional[asyncio.Semaphore] = None
 
 
 def _patient_extract_semaphore() -> asyncio.Semaphore:
@@ -432,6 +444,14 @@ def _patient_extract_semaphore() -> asyncio.Semaphore:
     if _extract_sem is None:
         _extract_sem = asyncio.Semaphore(PATIENT_EXTRACT_CONCURRENCY)
     return _extract_sem
+
+
+def _grounding_semaphore() -> asyncio.Semaphore:
+    """Bounds concurrent grounding-judge calls in batch flow."""
+    global _grounding_sem
+    if _grounding_sem is None:
+        _grounding_sem = asyncio.Semaphore(GROUNDING_CONCURRENCY)
+    return _grounding_sem
 
 
 def _chunk_for_segmentation(text: str) -> List[str]:
@@ -984,6 +1004,7 @@ def _create_or_merge_patient(store_dict: Dict[str, Any], identity: Dict[str, Any
     pid = uuid.uuid4().hex
     surgery_date = identity.get("surgeryDate") or ""
     store_dict[pid] = {
+        "id": pid,
         "name": name,
         "health_system_id": hs_id,
         "phone": "",

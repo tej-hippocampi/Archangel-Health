@@ -216,6 +216,13 @@ class PostOpReTierInput(BaseModel):
     med_adherence_low: bool = False
     med_adherence_non_response_streak_3: bool = False
 
+    # Teach-back (post-loop only; first-attempt misses carry zero weight)
+    teachback_completed: bool = False
+    teachback_failed_critical: bool = False
+    teachback_failed_red_flag: bool = False
+    teachback_failed_med: bool = False
+    teachback_not_completed_by_d5: bool = False
+
     # Lost contact (PRD §10.2)
     lost_contact_tier3_24h: bool = False
     lost_contact_general_72h: bool = False

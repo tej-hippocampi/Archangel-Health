@@ -50,7 +50,7 @@ import secrets
 import sqlite3
 import string
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from passlib.context import CryptContext
@@ -90,7 +90,7 @@ class TeamStore:
 
                 CREATE TABLE IF NOT EXISTS event_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    patient_id TEXT NOT NULL,
+                    patient_id TEXT,
                     event_type TEXT NOT NULL,
                     occurred_at TEXT NOT NULL,
                     payload_json TEXT,
@@ -506,7 +506,28 @@ class TeamStore:
                 CREATE INDEX IF NOT EXISTS idx_gcr_created ON grounding_check_reports(created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_gcr_verdict ON grounding_check_reports(verdict);
 
+                CREATE TABLE IF NOT EXISTS teachback_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT NOT NULL,
+                    track TEXT NOT NULL,
+                    questions_json TEXT NOT NULL,
+                    results_json TEXT NOT NULL,
+                    completed INTEGER NOT NULL DEFAULT 0,
+                    prompt_version TEXT,
+                    model TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_tbs_created ON teachback_sessions(created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_tbs_patient_track ON teachback_sessions(patient_id, track, created_at DESC);
+
                 CREATE TABLE IF NOT EXISTS inspector_recall_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    prompt_version TEXT NOT NULL,
+                    table_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS teachback_recall_snapshots (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     prompt_version TEXT NOT NULL,
                     table_json TEXT NOT NULL,
@@ -540,6 +561,7 @@ class TeamStore:
                 "WHERE status = 'READY_FOR_LOCK'"
             )
             self._migrate_team_member_roles_v4(conn)
+            self._migrate_event_logs_patient_nullable(conn)
 
     @staticmethod
     def _migrate_team_member_roles_v4(conn: sqlite3.Connection) -> None:
@@ -569,6 +591,44 @@ class TeamStore:
         conn.execute(
             "INSERT OR IGNORE INTO _schema_migrations (name) VALUES (?)",
             ("team_members_roles_v4",),
+        )
+
+    @staticmethod
+    def _migrate_event_logs_patient_nullable(conn: sqlite3.Connection) -> None:
+        """Allow event_logs.patient_id to be nullable for non-patient LLM telemetry."""
+        done = conn.execute(
+            "SELECT 1 FROM _schema_migrations WHERE name = ?",
+            ("event_logs_patient_nullable_v1",),
+        ).fetchone()
+        if done:
+            return
+
+        cols = conn.execute("PRAGMA table_info(event_logs)").fetchall()
+        patient_col = next((row for row in cols if row[1] == "patient_id"), None)
+        patient_notnull = int(patient_col[3]) if patient_col else 0
+        if patient_notnull == 1:
+            conn.executescript(
+                """
+                CREATE TABLE event_logs_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT,
+                    event_type TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL,
+                    payload_json TEXT,
+                    episode_open_date TEXT
+                );
+                INSERT INTO event_logs_new (id, patient_id, event_type, occurred_at, payload_json, episode_open_date)
+                SELECT id, patient_id, event_type, occurred_at, payload_json, episode_open_date
+                FROM event_logs;
+                DROP TABLE event_logs;
+                ALTER TABLE event_logs_new RENAME TO event_logs;
+                CREATE INDEX IF NOT EXISTS idx_event_logs_patient ON event_logs(patient_id);
+                CREATE INDEX IF NOT EXISTS idx_event_logs_occured ON event_logs(occurred_at);
+                """
+            )
+        conn.execute(
+            "INSERT OR IGNORE INTO _schema_migrations (name) VALUES (?)",
+            ("event_logs_patient_nullable_v1",),
         )
 
     @staticmethod
@@ -1114,13 +1174,13 @@ class TeamStore:
     def log_event(
         self,
         *,
-        patient_id: str,
+        patient_id: Optional[str] = None,
         event_type: str,
         occurred_at: Optional[str] = None,
         payload: Optional[Dict[str, Any]] = None,
     ) -> None:
         ts = occurred_at or _utcnow_iso()
-        episode = self.get_episode(patient_id)
+        episode = self.get_episode(patient_id) if patient_id else None
         with self._conn() as conn:
             conn.execute(
                 """
@@ -1132,7 +1192,7 @@ class TeamStore:
                     event_type,
                     ts,
                     json.dumps(payload or {}),
-                    (episode or {}).get("open_date"),
+                    episode.get("open_date") if episode else None,
                 ),
             )
 
@@ -3069,6 +3129,7 @@ class TeamStore:
         limit: int = 100,
         verdict: Optional[str] = None,
         track: Optional[str] = None,
+        prompt_version: Optional[str] = None,
         since: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         clauses: List[str] = []
@@ -3079,6 +3140,9 @@ class TeamStore:
         if track:
             clauses.append("track = ?")
             params.append(track)
+        if prompt_version:
+            clauses.append("prompt_version = ?")
+            params.append(prompt_version)
         if since:
             clauses.append("created_at >= ?")
             params.append(since)
@@ -3099,6 +3163,115 @@ class TeamStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def list_llm_calls(
+        self,
+        *,
+        limit: int = 200,
+        role: Optional[str] = None,
+        prompt_id: Optional[str] = None,
+        prompt_version: Optional[str] = None,
+        since: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        clauses = ["event_type = 'llm_call'"]
+        params: List[Any] = []
+        if since:
+            clauses.append("occurred_at >= ?")
+            params.append(since)
+        where = " AND ".join(clauses)
+        params.append(limit * 4)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT id, patient_id, occurred_at, payload_json
+                FROM event_logs
+                WHERE {where}
+                ORDER BY occurred_at DESC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            try:
+                payload = json.loads(row["payload_json"] or "{}")
+            except Exception:
+                continue
+            pmeta = payload.get("prompt") or {}
+            if role and payload.get("role") != role:
+                continue
+            if prompt_id and pmeta.get("prompt_id") != prompt_id:
+                continue
+            if prompt_version and pmeta.get("version") != prompt_version:
+                continue
+            usage = payload.get("usage") or {}
+            out.append(
+                {
+                    "id": row["id"],
+                    "occurred_at": row["occurred_at"],
+                    "patient_id": row["patient_id"],
+                    "role": payload.get("role"),
+                    "model": payload.get("model"),
+                    "ai_config_version": payload.get("ai_config_version"),
+                    "prompt_id": pmeta.get("prompt_id"),
+                    "prompt_version": pmeta.get("version"),
+                    "prompt_sha": pmeta.get("sha"),
+                    "purpose": payload.get("purpose"),
+                    "latency_ms": payload.get("latency_ms"),
+                    "input_tokens": usage.get("input"),
+                    "output_tokens": usage.get("output"),
+                    "request_id": payload.get("anthropic_request_id"),
+                    "audit_error": payload.get("audit_error"),
+                }
+            )
+            if len(out) >= limit:
+                break
+        return out
+
+    def llm_call_stats(self, *, window_days: int = 30) -> Dict[str, Any]:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=window_days)).strftime("%Y-%m-%dT%H:%M:%S")
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT payload_json FROM event_logs WHERE event_type='llm_call' AND occurred_at >= ?",
+                (cutoff,),
+            ).fetchall()
+        by_role: Dict[str, Dict[str, Any]] = {}
+        total_in = 0
+        total_out = 0
+        total_calls = 0
+        models_in_use: set[str] = set()
+        for row in rows:
+            try:
+                payload = json.loads(row["payload_json"] or "{}")
+            except json.JSONDecodeError:
+                # Keep stats endpoint resilient to legacy malformed payload rows.
+                continue
+            role = payload.get("role") or "unknown"
+            usage = payload.get("usage") or {}
+            if payload.get("model"):
+                models_in_use.add(payload["model"])
+            bucket = by_role.setdefault(
+                role,
+                {"calls": 0, "input_tokens": 0, "output_tokens": 0, "latency_ms_sum": 0},
+            )
+            bucket["calls"] += 1
+            bucket["input_tokens"] += usage.get("input") or 0
+            bucket["output_tokens"] += usage.get("output") or 0
+            bucket["latency_ms_sum"] += payload.get("latency_ms") or 0
+            total_calls += 1
+            total_in += usage.get("input") or 0
+            total_out += usage.get("output") or 0
+        for bucket in by_role.values():
+            bucket["avg_latency_ms"] = round(bucket["latency_ms_sum"] / bucket["calls"]) if bucket["calls"] else 0
+            bucket.pop("latency_ms_sum", None)
+        return {
+            "window_days": window_days,
+            "total_calls": total_calls,
+            "total_input_tokens": total_in,
+            "total_output_tokens": total_out,
+            "by_role": by_role,
+            "models_in_use": sorted(models_in_use),
+        }
+
     def get_grounding_report(self, report_id: int) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(
@@ -3116,9 +3289,7 @@ class TeamStore:
         return rec
 
     def grounding_summary_stats(self, *, window_days: int = 30) -> Dict[str, Any]:
-        from datetime import datetime, timedelta
-
-        cutoff = (datetime.utcnow() - timedelta(days=window_days)).strftime("%Y-%m-%dT%H:%M:%S")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=window_days)).strftime("%Y-%m-%dT%H:%M:%S")
         with self._conn() as conn:
             rows = conn.execute(
                 """
@@ -3155,6 +3326,201 @@ class TeamStore:
             "by_track": by_track,
         }
 
+    # ─── Teach-back sessions ────────────────────────────────────────────────
+
+    def save_teachback_session(
+        self,
+        *,
+        patient_id: str,
+        track: str,
+        questions: List[Dict[str, Any]],
+        results: Dict[str, Any],
+        completed: bool,
+        prompt_version: str,
+        model: str,
+    ) -> int:
+        ts = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO teachback_sessions (
+                    patient_id, track, questions_json, results_json, completed,
+                    prompt_version, model, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    patient_id,
+                    track,
+                    json.dumps(questions or []),
+                    json.dumps(results or {}),
+                    1 if completed else 0,
+                    prompt_version,
+                    model,
+                    ts,
+                    ts,
+                ),
+            )
+            return int(cur.lastrowid)
+
+    def update_teachback_session(
+        self,
+        *,
+        session_id: int,
+        questions: Optional[List[Dict[str, Any]]] = None,
+        results: Optional[Dict[str, Any]] = None,
+        completed: Optional[bool] = None,
+        prompt_version: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> bool:
+        updates: List[str] = []
+        values: List[Any] = []
+        if questions is not None:
+            updates.append("questions_json = ?")
+            values.append(json.dumps(questions))
+        if results is not None:
+            updates.append("results_json = ?")
+            values.append(json.dumps(results))
+        if completed is not None:
+            updates.append("completed = ?")
+            values.append(1 if completed else 0)
+        if prompt_version is not None:
+            updates.append("prompt_version = ?")
+            values.append(prompt_version)
+        if model is not None:
+            updates.append("model = ?")
+            values.append(model)
+        updates.append("updated_at = ?")
+        values.append(_utcnow_iso())
+        values.append(session_id)
+        with self._conn() as conn:
+            cur = conn.execute(
+                f"UPDATE teachback_sessions SET {', '.join(updates)} WHERE id = ?",
+                tuple(values),
+            )
+            return bool(cur.rowcount)
+
+    def get_teachback_session(self, session_id: int) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM teachback_sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["completed"] = bool(rec.get("completed"))
+        try:
+            rec["questions"] = json.loads(rec.pop("questions_json") or "[]")
+        except json.JSONDecodeError:
+            rec["questions"] = []
+        try:
+            rec["results"] = json.loads(rec.pop("results_json") or "{}")
+        except json.JSONDecodeError:
+            rec["results"] = {}
+        return rec
+
+    def get_latest_teachback_session(self, *, patient_id: str, track: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM teachback_sessions
+                WHERE patient_id = ? AND track = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (patient_id, track),
+            ).fetchone()
+        if not row:
+            return None
+        return self.get_teachback_session(int(row["id"]))
+
+    def list_teachback_sessions(
+        self,
+        *,
+        limit: int = 100,
+        track: Optional[str] = None,
+        since: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        clauses: List[str] = []
+        params: List[Any] = []
+        if track:
+            clauses.append("track = ?")
+            params.append(track)
+        if since:
+            clauses.append("created_at >= ?")
+            params.append(since)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT id, patient_id, track, completed, prompt_version, model, created_at, updated_at,
+                       results_json
+                FROM teachback_sessions
+                {where}
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            rec = dict(row)
+            rec["completed"] = bool(rec.get("completed"))
+            try:
+                rec["results"] = json.loads(rec.pop("results_json") or "{}")
+            except json.JSONDecodeError:
+                rec["results"] = {}
+            out.append(rec)
+        return out
+
+    def teachback_summary_stats(self, *, window_days: int = 30) -> Dict[str, Any]:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=window_days)).strftime("%Y-%m-%dT%H:%M:%S")
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT track, completed, results_json
+                FROM teachback_sessions
+                WHERE created_at >= ?
+                """,
+                (cutoff,),
+            ).fetchall()
+        total_sessions = len(rows)
+        completed_sessions = sum(1 for r in rows if int(r["completed"] or 0) == 1)
+        status_counts: Dict[str, int] = {"PASS": 0, "PARTIAL": 0, "FAIL": 0}
+        by_track: Dict[str, Dict[str, Any]] = {}
+        by_domain: Dict[str, Dict[str, int]] = {}
+        for row in rows:
+            track = row["track"] or "unknown"
+            try:
+                results = json.loads(row["results_json"] or "{}")
+            except json.JSONDecodeError:
+                results = {}
+            aggregate = (results or {}).get("aggregate") or {}
+            final_status = str(aggregate.get("final_status") or "").upper()
+            if final_status in status_counts:
+                status_counts[final_status] += 1
+            stats = by_track.setdefault(track, {"total": 0, "completed": 0, "status_counts": {"PASS": 0, "PARTIAL": 0, "FAIL": 0}})
+            stats["total"] += 1
+            stats["completed"] += 1 if int(row["completed"] or 0) == 1 else 0
+            if final_status in stats["status_counts"]:
+                stats["status_counts"][final_status] += 1
+            for item in (results or {}).get("items") or []:
+                domain = str(item.get("domain") or "unknown")
+                status = str((item.get("final_grade") or {}).get("status") or "PARTIAL").upper()
+                bucket = by_domain.setdefault(domain, {"PASS": 0, "PARTIAL": 0, "FAIL": 0})
+                if status in bucket:
+                    bucket[status] += 1
+        return {
+            "window_days": window_days,
+            "total_sessions": total_sessions,
+            "completed_sessions": completed_sessions,
+            "completion_rate": round(completed_sessions / total_sessions, 3) if total_sessions else 0.0,
+            "status_counts": status_counts,
+            "by_track": by_track,
+            "by_domain": by_domain,
+        }
+
     def save_inspector_recall_snapshot(
         self, *, table_json: Dict[str, Any], prompt_version: str
     ) -> None:
@@ -3174,6 +3540,38 @@ class TeamStore:
                 """
                 SELECT prompt_version, table_json, created_at
                 FROM inspector_recall_snapshots
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        try:
+            rec["table"] = json.loads(rec.pop("table_json") or "{}")
+        except json.JSONDecodeError:
+            rec["table"] = {}
+        return rec
+
+    def save_teachback_recall_snapshot(
+        self, *, table_json: Dict[str, Any], prompt_version: str
+    ) -> None:
+        ts = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO teachback_recall_snapshots (prompt_version, table_json, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (prompt_version, json.dumps(table_json), ts),
+            )
+
+    def get_latest_teachback_recall(self) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT prompt_version, table_json, created_at
+                FROM teachback_recall_snapshots
                 ORDER BY id DESC
                 LIMIT 1
                 """

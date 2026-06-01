@@ -1,17 +1,15 @@
 """Anthropic tool-use extraction for the 6 TEAM eligibility dimensions.
 
-PRD §7.2. Uses the same AsyncAnthropic client pattern as pipeline/generate.py
-and the same model ("claude-sonnet-4-6") used in intake_section_chat.
+PRD §7.2. Uses the shared LLM wrapper and centralized model registry.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
-from anthropic import AsyncAnthropic
+from ai.llm_client import call_llm
 
 from prompts.eligibility import (
     ELIGIBILITY_IDENTITY_SYSTEM_PROMPT,
@@ -20,9 +18,6 @@ from prompts.eligibility import (
 )
 
 log = logging.getLogger("eligibility.extract")
-
-MODEL = "claude-sonnet-4-6"
-MAX_TOKENS = 4096
 
 _COVERAGE_PROPS = {
     "status": {"type": "string", "enum": ["ACTIVE", "INACTIVE", "UNKNOWN"]},
@@ -168,10 +163,6 @@ PATIENT_SEGMENTS_TOOL: Dict[str, Any] = {
 }
 
 
-def _client() -> AsyncAnthropic:
-    return AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-
-
 def _build_user_content(parsed_docs: List[str], freeform_notes: str = "") -> str:
     blocks: List[str] = []
     for i, doc_text in enumerate(parsed_docs, 1):
@@ -191,12 +182,12 @@ def _find_tool_use(response: Any, tool_name: str) -> Optional[Dict[str, Any]]:
 
 
 async def _call_with_retry(
-    client: AsyncAnthropic,
     *,
     system: str,
     user: str,
     tool: Dict[str, Any],
     tool_name: str,
+    prompt_id: str = "eligibility_extract",
     attempts: int = 3,
 ) -> Dict[str, Any]:
     last_error: Optional[Exception] = None
@@ -208,11 +199,11 @@ async def _call_with_retry(
                 attempt,
                 tool_name,
             )
-            resp = await client.messages.create(
-                model=MODEL,
-                max_tokens=MAX_TOKENS,
-                temperature=0.0,
+            resp, _ = await call_llm(
+                role="eligibility_extract",
+                prompt_id=prompt_id,
                 system=system,
+                max_tokens=4096,
                 tools=[tool],
                 tool_choice={"type": "tool", "name": tool_name},
                 messages=[{"role": "user", "content": user}],
@@ -245,22 +236,22 @@ async def extract_eligibility(parsed_docs: List[str], surgery_date: str, freefor
     system = ELIGIBILITY_SYSTEM_PROMPT.replace("{{SURGERY_DATE}}", surgery_date or "(not provided)")
     user = _build_user_content(parsed_docs, freeform_notes)
     return await _call_with_retry(
-        _client(),
         system=system,
         user=user,
         tool=EXTRACT_TOOL,
         tool_name="extract_team_eligibility",
+        prompt_id="eligibility_extract",
     )
 
 
 async def extract_identity(doc_text: str) -> Dict[str, Any]:
     """Identity-fanout call used by the group-upload pipeline."""
     return await _call_with_retry(
-        _client(),
         system=ELIGIBILITY_IDENTITY_SYSTEM_PROMPT,
         user=doc_text,
         tool=IDENTITY_TOOL,
         tool_name="extract_patient_identity",
+        prompt_id="eligibility_extract",
     )
 
 
@@ -274,9 +265,9 @@ async def extract_patient_segments(doc_text: str) -> Dict[str, Any]:
     downstream eligibility extraction.
     """
     return await _call_with_retry(
-        _client(),
         system=ELIGIBILITY_SEGMENTS_SYSTEM_PROMPT,
         user=doc_text,
         tool=PATIENT_SEGMENTS_TOOL,
         tool_name="extract_patient_segments",
+        prompt_id="eligibility_extract",
     )

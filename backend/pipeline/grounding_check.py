@@ -12,11 +12,13 @@ import os
 import re
 from typing import Any, Dict, List, Literal, Optional
 
-from anthropic import AsyncAnthropic
 from pydantic import BaseModel, ValidationError
 
+from ai.llm_client import call_llm, first_text
+from ai.model_config import resolve
+
 GROUNDING_PROMPT_V = "2026-05-31.1"
-GROUNDING_JUDGE_MODEL = "claude-sonnet-4-6"
+GROUNDING_JUDGE_MODEL = resolve("grounding_judge")["model"]
 
 VALID_TRACKS = frozenset({"pre_op", "post_op_diagnosis", "post_op_treatment"})
 
@@ -343,18 +345,14 @@ async def check_grounding(
     script: str,
     track: str,
     *,
-    client: Optional[AsyncAnthropic] = None,
+    patient_id: Optional[str] = None,
+    client: Optional[Any] = None,
 ) -> GroundingReport:
     """Run coverage + faithfulness audit on a voice script."""
     required = build_required_items(structured_data, track)
 
-    if client is None:
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            return _fail_safe_report(track, required, "ANTHROPIC_API_KEY not configured")
-        anthropic_client = AsyncAnthropic(api_key=api_key)
-    else:
-        anthropic_client = client
+    if client is None and not os.getenv("ANTHROPIC_API_KEY"):
+        return _fail_safe_report(track, required, "ANTHROPIC_API_KEY not configured")
     user_msg = (
         f"TRACK: {track}\n\n"
         f"SOURCE:\n{json.dumps(structured_data, indent=2)}\n\n"
@@ -363,14 +361,26 @@ async def check_grounding(
     )
 
     try:
-        response = await anthropic_client.messages.create(
-            model=GROUNDING_JUDGE_MODEL,
-            max_tokens=1500,
-            temperature=0,
-            system=GROUNDING_JUDGE_PROMPT,
-            messages=[{"role": "user", "content": user_msg}],
-        )
-        raw = response.content[0].text.strip()
+        if client is None:
+            response, _ = await call_llm(
+                role="grounding_judge",
+                prompt_id="grounding_judge",
+                patient_id=patient_id,
+                purpose="grounding_judge",
+                system=GROUNDING_JUDGE_PROMPT,
+                messages=[{"role": "user", "content": user_msg}],
+            )
+        else:
+            # Test seam only: allow injected mocked SDK-like clients.
+            create_fn = getattr(getattr(client, "messages"), "create")
+            response = await create_fn(
+                model=resolve("grounding_judge")["model"],
+                max_tokens=1500,
+                temperature=0,
+                system=GROUNDING_JUDGE_PROMPT,
+                messages=[{"role": "user", "content": user_msg}],
+            )
+        raw = first_text(response).strip()
         return parse_grounding_response(raw, track, required)
     except (json.JSONDecodeError, ValidationError, IndexError, AttributeError) as exc:
         return _fail_safe_report(track, required, f"could not verify script ({exc})")

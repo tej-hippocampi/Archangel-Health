@@ -1445,3 +1445,70 @@ body[data-readonly-role="np_pa"] [data-clinical-write="true"] {
   cursor: not-allowed;
 }
 
+/* Teach-back inline panel */
+.teachback-panel {
+  border: 1px solid var(--gray-200);
+  border-radius: 14px;
+  background: #fff;
+  padding: 14px;
+}
+.teachback-header { margin-bottom: 10px; }
+.teachback-sub {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 14px;
+}
+.teachback-status {
+  margin: 10px 0 0;
+  color: #475569;
+  font-size: 13px;
+}
+.teachback-qa {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+.teachback-progress {
+  margin: 0;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+}
+.teachback-question {
+  margin: 0;
+  font-size: 16px;
+  color: #0f172a;
+  line-height: 1.45;
+}
+.teachback-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.teachback-callout {
+  border-left: 3px solid #2563eb;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+.teachback-care-path {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+.teachback-highlight {
+  outline: 3px solid rgba(59, 130, 246, 0.45);
+  border-radius: 8px;
+  animation: teachbackFlash 2.2s ease-out;
+}
+@keyframes teachbackFlash {
+  0% { background: rgba(59, 130, 246, 0.26); }
+  100% { background: transparent; }
+}
+

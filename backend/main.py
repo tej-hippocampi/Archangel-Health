@@ -23,7 +23,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, BackgroundTasks, APIRouter, Depends, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 from dotenv import dotenv_values
 
@@ -50,7 +50,9 @@ from pipeline.ingest   import IngestLayer
 from pipeline.extract  import ExtractionLayer
 from pipeline.classify import ClassificationLayer
 from pipeline.generate import GenerationLayer
-from pipeline.grounding_gate import apply_grounding_to_patient, audit_and_gate_script
+from pipeline.grounding_gate import apply_grounding_to_patient
+from pipeline.streaming import StreamingPipelineContext, run_postop_stream, run_preop_stream
+from pipeline.gated_synthesis import synthesize_script
 from integrations.elevenlabs   import ElevenLabsClient
 from integrations.tavus        import TavusClient
 from integrations.twilio_client import TwilioClient
@@ -63,6 +65,7 @@ from routers.intraop import router as intraop_router
 from routers.postop import router as postop_router
 from routers.initial_tier import router as initial_tier_router
 from routers.preop_retier import router as preop_retier_router
+from routers.teachback import router as teachback_router
 from routers.triage_explain import router as triage_explain_router
 from eligibility import store as elig_store
 import demo_credentials
@@ -119,6 +122,8 @@ from intake_form_parser import (
     reset_intake_section_for_interview_redo,
 )
 from intake_section_chat import accumulate_red_flags_from_section_messages, run_intake_section_turn
+from ai.llm_client import call_llm_sync, first_text
+from prompts.system import SEMANTIC_ESCALATION_PROMPT
 
 # ─── App Setup ────────────────────────────────────────────────
 app = FastAPI(
@@ -1166,26 +1171,16 @@ async def _evaluate_semantic_escalation_llm(message: str, conversation_history: 
     if not api_key:
         return _heuristic_semantic_escalation(message)
     try:
-        from anthropic import Anthropic
-
-        client = Anthropic(api_key=api_key)
-        eval_prompt = (
-            "Classify the patient message for post-op escalation. "
-            "Return only compact JSON object: "
-            '{"tier": 0|2|3, "reason": "short reason"}. '
-            "Use tier 2 for urgent same-day surgeon contact, "
-            "tier 3 for navigator follow-up within 24 hours, "
-            "tier 0 for no escalation."
-        )
         convo = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in (conversation_history or [])]
         convo.append({"role": "user", "content": message})
-        resp = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=120,
-            system=eval_prompt,
+        resp, _ = call_llm_sync(
+            role="escalation_classifier",
+            prompt_id="semantic_escalation",
+            patient_id=None,
+            system=SEMANTIC_ESCALATION_PROMPT,
             messages=convo,
         )
-        text = resp.content[0].text.strip()
+        text = first_text(resp).strip()
         parsed = json.loads(text)
         tier = int(parsed.get("tier", 0))
         if tier in (2, 3):
@@ -2972,6 +2967,36 @@ async def email_template_preview(
 
 
 # ─── New Two-Resource Pipeline ────────────────────────────────
+def _stream_ctx() -> StreamingPipelineContext:
+    return StreamingPipelineContext(
+        patient_store=_patient_store,
+        team_store=_team_store,
+        persist_demo=_persist_demo_patient_store,
+        base_url=os.getenv("BASE_URL", "http://localhost:8000"),
+    )
+
+
+async def _collect_stream_payload(gen) -> Dict[str, Any]:
+    payload: Optional[Dict[str, Any]] = None
+    async for ev in gen:
+        if ev.get("stage") == "complete":
+            maybe_payload = ev.get("payload")
+            if isinstance(maybe_payload, dict):
+                payload = maybe_payload
+    if payload is None:
+        raise RuntimeError("stream pipeline did not produce terminal payload")
+    return payload
+
+
+async def _sse(gen):
+    try:
+        async for ev in gen:
+            yield f"data: {json.dumps(ev)}\n\n"
+    except Exception as exc:  # noqa: BLE001
+        err = {"stage": "error", "status": "error", "message": str(exc), "ts": round(time.time(), 3)}
+        yield f"data: {json.dumps(err)}\n\n"
+
+
 @app.post("/api/process-discharge")
 async def process_discharge(
     input_data: DischargeInput,
@@ -3021,139 +3046,17 @@ async def process_discharge(
         resource_code = _generate_resource_code()
 
     try:
-        # 1. Extract structured data from raw discharge notes
-        print(f"[pipeline] Starting extraction for {patient_id}...")
-        raw_package = {
-            "metadata": {
-                "patient_id": patient_id,
-                "patient_name": input_data.patient_name,
-                "phone_number": input_data.phone_number or "",
-            },
-            "clinical_data": {
-                "clinical_notes": input_data.discharge_notes,
-                "after_visit_summary": input_data.discharge_notes,
-                "pmh": "",
-                "procedure_context": "",
-                "medication_list": "",
-                "allergies": "",
-                "problem_list": "",
-            },
-        }
-
-        structured_data = await ExtractionLayer().extract(raw_package)
-        print(f"[pipeline] Extraction complete. Generating resources...")
-
-        # 2. Generate two resource sets (diagnosis + treatment)
-        generator = GenerationLayer()
-        resources = await generator.generate_two_resources(structured_data)
-        print(f"[pipeline] Generation complete. Running grounding checks...")
-
-        async def _regen_diagnosis() -> str:
-            regen = await generator.generate_two_resources(structured_data)
-            resources["diagnosis"] = regen["diagnosis"]
-            return regen["diagnosis"]["voice_script"]
-
-        async def _regen_treatment() -> str:
-            regen = await generator.generate_two_resources(structured_data)
-            resources["treatment"] = regen["treatment"]
-            return regen["treatment"]["voice_script"]
-
-        diag_gate = await audit_and_gate_script(
-            patient_id=patient_id,
-            structured_data=structured_data,
-            script=resources["diagnosis"]["voice_script"],
-            track="post_op_diagnosis",
-            team_store=_team_store,
-            regenerate_fn=_regen_diagnosis,
+        return await _collect_stream_payload(
+            run_postop_stream(
+                input_data,
+                patient_id=patient_id,
+                clinic_code=clinic_code,
+                resource_code=resource_code,
+                office_phone=office_phone,
+                health_system_id=health_system_id,
+                ctx=_stream_ctx(),
+            )
         )
-        resources["diagnosis"]["voice_script"] = diag_gate.script
-
-        treat_gate = await audit_and_gate_script(
-            patient_id=patient_id,
-            structured_data=structured_data,
-            script=resources["treatment"]["voice_script"],
-            track="post_op_treatment",
-            team_store=_team_store,
-            regenerate_fn=_regen_treatment,
-        )
-        resources["treatment"]["voice_script"] = treat_gate.script
-
-        print(f"[pipeline] Grounding: diagnosis={diag_gate.report.verdict}, treatment={treat_gate.report.verdict}")
-
-        # 3. Synthesize audio for both via ElevenLabs (PASS only)
-        el_client = ElevenLabsClient()
-        diag_audio = None
-        treat_audio = None
-        if diag_gate.synthesize:
-            diag_audio = await el_client.synthesize(resources["diagnosis"]["voice_script"], f"{patient_id}_diagnosis")
-        if treat_gate.synthesize:
-            treat_audio = await el_client.synthesize(resources["treatment"]["voice_script"], f"{patient_id}_treatment")
-        print(f"[pipeline] Audio synthesis complete. Storing results...")
-
-        # 4. Build dashboard URL
-        base_url = os.getenv("BASE_URL", "http://localhost:8000")
-        dashboard_url = f"{base_url}/patient/{patient_id}"
-
-        # 5. Store everything (include clinic_code, resource_code, office_phone when from authenticated doctor)
-        _patient_store[patient_id] = {
-            "name": input_data.patient_name,
-            "health_system_id": health_system_id,
-            "phone": input_data.phone_number or "",
-            "email": input_data.email or "",
-            "pipeline_type": "post_op",
-            "voice_audio_url": diag_audio,
-            "battlecard_html": resources["diagnosis"]["battlecard_html"],
-            "avatar_url": None,
-            "voice_script": resources["diagnosis"]["voice_script"],
-            "structured_data": structured_data,
-            "clinic_code": clinic_code,
-            "resource_code": resource_code,
-            "office_phone": office_phone,
-            "resources": {
-                "diagnosis": {
-                    "voice_script": resources["diagnosis"]["voice_script"],
-                    "battlecard_html": resources["diagnosis"]["battlecard_html"],
-                    "voice_audio_url": diag_audio,
-                },
-                "treatment": {
-                    "voice_script": resources["treatment"]["voice_script"],
-                    "battlecard_html": resources["treatment"]["battlecard_html"],
-                    "voice_audio_url": treat_audio,
-                },
-            },
-        }
-        apply_grounding_to_patient(_patient_store[patient_id], "post_op_diagnosis", diag_gate)
-        apply_grounding_to_patient(_patient_store[patient_id], "post_op_treatment", treat_gate)
-        _team_store.ensure_episode(
-            patient_id=patient_id,
-            procedure_type=structured_data.get("procedure_name", ""),
-            clinic_code=clinic_code or "",
-            resource_code=resource_code or "",
-            health_system_id=health_system_id,
-        )
-        _persist_demo_patient_store()
-
-        print(f"[pipeline] Done! Dashboard: {dashboard_url}")
-
-        out = {
-            "patient_id": patient_id,
-            "dashboard_url": dashboard_url,
-            "clinic_code": clinic_code,
-            "resource_code": resource_code,
-            "diagnosis": {
-                "voice_script": resources["diagnosis"]["voice_script"],
-                "battlecard_html": resources["diagnosis"]["battlecard_html"],
-                "voice_audio_url": diag_audio,
-            },
-            "treatment": {
-                "voice_script": resources["treatment"]["voice_script"],
-                "battlecard_html": resources["treatment"]["battlecard_html"],
-                "voice_audio_url": treat_audio,
-            },
-            "structured_data": structured_data,
-        }
-        return out
-
     except Exception as exc:
         print(f"[pipeline] ERROR: {type(exc).__name__}: {exc}")
         raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(exc)}")
@@ -3204,107 +3107,139 @@ async def process_preop(
         resource_code = _generate_resource_code()
 
     try:
-        raw_package = {
-            "metadata": {
-                "patient_id": patient_id,
-                "patient_name": input_data.patient_name,
-                "phone_number": input_data.phone_number or "",
-            },
-            "clinical_data": {
-                "clinical_notes": input_data.preparation_notes,
-                "after_visit_summary": input_data.preparation_notes,
-                "pmh": "",
-                "procedure_context": input_data.procedure_type or "",
-                "medication_list": "",
-                "allergies": "",
-                "problem_list": "",
-            },
-        }
-        structured_data = await ExtractionLayer().extract(raw_package)
-        if input_data.procedure_type and not structured_data.get("procedure_name"):
-            structured_data["procedure_name"] = input_data.procedure_type
-        if input_data.scheduled_surgery_date:
-            structured_data["procedure_date"] = input_data.scheduled_surgery_date
-            structured_data["procedure_status"] = "scheduled"
-        structured_data["pre_op_instructions"] = (
-            structured_data.get("pre_op_instructions")
-            or input_data.preparation_notes
+        return await _collect_stream_payload(
+            run_preop_stream(
+                input_data,
+                patient_id=patient_id,
+                clinic_code=clinic_code,
+                resource_code=resource_code,
+                office_phone=office_phone,
+                health_system_id=health_system_id,
+                specialty_from_procedure=_specialty_from_procedure,
+                ctx=_stream_ctx(),
+            )
         )
-
-        generator = GenerationLayer()
-        preop_voice, preop_battlecard = await generator.generate(structured_data, "pre_op")
-
-        async def _regen_preop() -> str:
-            nonlocal preop_battlecard
-            v, b = await generator.generate(structured_data, "pre_op")
-            preop_battlecard = b
-            return v
-
-        preop_gate = await audit_and_gate_script(
-            patient_id=patient_id,
-            structured_data=structured_data,
-            script=preop_voice,
-            track="pre_op",
-            team_store=_team_store,
-            regenerate_fn=_regen_preop,
-        )
-        preop_voice = preop_gate.script
-
-        preop_audio = None
-        if preop_gate.synthesize:
-            preop_audio = await ElevenLabsClient().synthesize(preop_voice, f"{patient_id}_preop")
-
-        base_url = os.getenv("BASE_URL", "http://localhost:8000")
-        dashboard_url = f"{base_url}/patient/{patient_id}/pre-op"
-        specialty = _specialty_from_procedure(structured_data.get("procedure_name", ""))
-        _patient_store[patient_id] = {
-            "name": input_data.patient_name,
-            "health_system_id": health_system_id,
-            "phone": input_data.phone_number or "",
-            "email": input_data.email or "",
-            "pipeline_type": "pre_op",
-            "voice_audio_url": preop_audio,
-            "battlecard_html": preop_battlecard,
-            "avatar_url": None,
-            "voice_script": preop_voice,
-            "structured_data": structured_data,
-            "clinic_code": clinic_code,
-            "resource_code": resource_code,
-            "office_phone": office_phone,
-            "specialty": specialty,
-            "scheduled_surgery_date": structured_data.get("procedure_date", ""),
-            "resources": {
-                "preop": {
-                    "voice_script": preop_voice,
-                    "battlecard_html": preop_battlecard,
-                    "voice_audio_url": preop_audio,
-                }
-            },
-        }
-        apply_grounding_to_patient(_patient_store[patient_id], "pre_op", preop_gate)
-        _team_store.ensure_episode(
-            patient_id=patient_id,
-            procedure_type=structured_data.get("procedure_name", ""),
-            clinic_code=clinic_code or "",
-            resource_code=resource_code or "",
-            health_system_id=health_system_id,
-        )
-        _persist_demo_patient_store()
-        return {
-            "patient_id": patient_id,
-            "dashboard_url": dashboard_url,
-            "clinic_code": clinic_code,
-            "resource_code": resource_code,
-            "preop": {
-                "voice_script": preop_voice,
-                "battlecard_html": preop_battlecard,
-                "voice_audio_url": preop_audio,
-            },
-            "structured_data": structured_data,
-            "specialty": specialty,
-        }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Pre-op pipeline failed: {exc}")
+
+
+@app.post("/api/process-discharge/stream")
+async def process_discharge_stream(
+    input_data: DischargeInput,
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    import uuid
+
+    patient_id = input_data.patient_id or f"pt_{uuid.uuid4().hex[:8]}"
+    clinic_code = None
+    resource_code = None
+    office_phone = None
+    health_system_id: Optional[str] = None
+    if user and (user.role or "").lower() in ("surgeon", "doctor"):
+        profile = get_doctor_profile(user.email)
+        if profile:
+            clinic_code = profile["clinic_code"]
+            office_phone = profile.get("office_phone") or ""
+            resource_code = _generate_resource_code()
+            hs_row = _team_store.get_health_system_by_code(profile["clinic_code"] or "")
+            if hs_row:
+                health_system_id = hs_row["id"]
+    if staff and staff.source == "tenant" and staff.tenant_id:
+        health_system_id = staff.tenant_id
+        if not clinic_code:
+            clinic_code = (staff.health_system_code or "").strip().upper() or None
+        if not resource_code:
+            resource_code = _generate_resource_code()
+        hs = _team_store.get_health_system_by_id(staff.tenant_id)
+        if hs and not office_phone:
+            office_phone = (hs.get("phone") or "").strip() or None
+    if not office_phone:
+        office_phone = (input_data.doctor_office_phone or "").strip() or None
+    if not clinic_code:
+        clinic_code = (input_data.doctor_clinic_code or "").strip().upper() or None
+    if input_data.resource_code:
+        resource_code = (input_data.resource_code or "").strip().upper() or None
+    if clinic_code and not resource_code:
+        resource_code = _generate_resource_code()
+    gen = run_postop_stream(
+        input_data,
+        patient_id=patient_id,
+        clinic_code=clinic_code,
+        resource_code=resource_code,
+        office_phone=office_phone,
+        health_system_id=health_system_id,
+        ctx=_stream_ctx(),
+    )
+    return StreamingResponse(
+        _sse(gen),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@app.post("/api/process-preop/stream")
+async def process_preop_stream(
+    input_data: PreOpInput,
+    user: Optional[UserOut] = Depends(get_current_user_optional),
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    import uuid
+
+    patient_id = input_data.patient_id or f"preop_{uuid.uuid4().hex[:8]}"
+    clinic_code = None
+    resource_code = None
+    office_phone = None
+    health_system_id: Optional[str] = None
+    if user and (user.role or "").lower() in ("surgeon", "doctor"):
+        profile = get_doctor_profile(user.email)
+        if profile:
+            clinic_code = profile["clinic_code"]
+            office_phone = profile.get("office_phone") or ""
+            resource_code = _generate_resource_code()
+            hs_row = _team_store.get_health_system_by_code(profile["clinic_code"] or "")
+            if hs_row:
+                health_system_id = hs_row["id"]
+    if staff and staff.source == "tenant" and staff.tenant_id:
+        health_system_id = staff.tenant_id
+        if not clinic_code:
+            clinic_code = (staff.health_system_code or "").strip().upper() or None
+        if not resource_code:
+            resource_code = _generate_resource_code()
+        hs = _team_store.get_health_system_by_id(staff.tenant_id)
+        if hs and not office_phone:
+            office_phone = (hs.get("phone") or "").strip() or None
+    if not office_phone:
+        office_phone = (input_data.doctor_office_phone or "").strip() or None
+    if not clinic_code:
+        clinic_code = (input_data.doctor_clinic_code or "").strip().upper() or None
+    if input_data.resource_code:
+        resource_code = (input_data.resource_code or "").strip().upper() or None
+    if clinic_code and not resource_code:
+        resource_code = _generate_resource_code()
+    gen = run_preop_stream(
+        input_data,
+        patient_id=patient_id,
+        clinic_code=clinic_code,
+        resource_code=resource_code,
+        office_phone=office_phone,
+        health_system_id=health_system_id,
+        specialty_from_procedure=_specialty_from_procedure,
+        ctx=_stream_ctx(),
+    )
+    return StreamingResponse(
+        _sse(gen),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 # ─── Legacy Process Patient ───────────────────────────────────
@@ -3334,12 +3269,13 @@ async def process_patient(
             battlecard_html = b
             return v
 
-        legacy_gate = await audit_and_gate_script(
+        legacy_gate, audio_url = await synthesize_script(
             patient_id=bundle.patient_id,
             structured_data=structured_data,
             script=voice_script,
             track=grounding_track,
             team_store=_team_store,
+            audio_id=bundle.patient_id,
             regenerate_fn=_regen_legacy,
         )
         voice_script = legacy_gate.script
@@ -3362,12 +3298,17 @@ async def process_patient(
         }
         _legacy_grounding_gate = None
 
-    try:
-        audio_url = None
-        if _legacy_grounding_gate is None or _legacy_grounding_gate.synthesize:
-            audio_url = await ElevenLabsClient().synthesize(voice_script, bundle.patient_id)
-    except Exception:
-        audio_url = None
+    if _legacy_grounding_gate is None:
+        _legacy_grounding_gate, audio_url = await synthesize_script(
+            patient_id=bundle.patient_id,
+            structured_data=structured_data,
+            script=voice_script,
+            track=grounding_track,
+            team_store=_team_store,
+            audio_id=bundle.patient_id,
+            regenerate_fn=None,
+        )
+        voice_script = _legacy_grounding_gate.script
     try:
         avatar = await TavusClient().create_conversation(
             patient_id=bundle.patient_id,
@@ -3499,21 +3440,20 @@ async def _ensure_preop_voice_audio(
         return None
 
     if team_store is not None:
-        gate = await audit_and_gate_script(
+        gate, audio_url = await synthesize_script(
             patient_id=patient_id,
             structured_data=dict(store.get("structured_data") or {}),
             script=voice_script,
             track="pre_op",
             team_store=team_store,
+            audio_id=f"{patient_id}_preop",
             regenerate_fn=None,
+            patient_blob=store,
         )
         voice_script = gate.script
-        apply_grounding_to_patient(store, "pre_op", gate)
         if not gate.synthesize:
             return None
-
-    audio_url = await ElevenLabsClient().synthesize(voice_script, f"{patient_id}_preop")
-    if not audio_url:
+    else:
         return None
 
     store["voice_script"] = voice_script
@@ -3568,7 +3508,19 @@ async def get_patient_audio(
     voice_script = store.get("voice_script")
     if not voice_script:
         raise HTTPException(status_code=422, detail="No voice script available for this patient")
-    audio_url = await ElevenLabsClient().synthesize(voice_script, patient_id)
+
+    grounding_track = "pre_op" if (store.get("pipeline_type") or "").lower() == "pre_op" else "post_op_treatment"
+    gate, audio_url = await synthesize_script(
+        patient_id=patient_id,
+        structured_data=dict(store.get("structured_data") or {}),
+        script=voice_script,
+        track=grounding_track,
+        team_store=_team_store,
+        audio_id=patient_id,
+        regenerate_fn=None,
+        patient_blob=store,
+    )
+    store["voice_script"] = gate.script
     if not audio_url:
         raise HTTPException(status_code=503, detail="ElevenLabs not configured — set ELEVENLABS_API_KEY")
     store["voice_audio_url"] = audio_url
@@ -3779,9 +3731,6 @@ async def digital_care_companion_chat(
 
     try:
         from prompts.avatar import build_avatar_system_prompt
-        from anthropic import Anthropic
-
-        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
         clean_data = {k: v for k, v in patient_data["structured_data"].items()
                       if k != "_raw_clinical"}
@@ -3800,16 +3749,17 @@ async def digital_care_companion_chat(
         messages.append({"role": "user", "content": req.message})
 
         print(f"[digital_care_companion_chat] Sending to Claude for patient {req.patient_id}...")
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=350,
+        response, _ = call_llm_sync(
+            role="care_companion_chat",
+            prompt_id="care_companion_chat",
+            patient_id=req.patient_id,
             system=system_prompt,
             messages=messages,
         )
 
-        reply_text = response.content[0].text
+        reply_text = first_text(response)
         print(f"[digital_care_companion_chat] Got response ({len(reply_text)} chars), synthesizing audio...")
-        audio_url = await ElevenLabsClient().synthesize(reply_text, f"{req.patient_id}_chat")
+        audio_url = await ElevenLabsClient().synthesize(reply_text, f"{req.patient_id}_chat")  # gated-synth-exempt: live chat reply, not generated patient-education script
 
         return ChatResponse(response=reply_text, patient_id=req.patient_id, audio_url=audio_url, escalation=None)
 
@@ -5057,6 +5007,7 @@ app.include_router(intraop_router)
 app.include_router(postop_router)
 app.include_router(initial_tier_router)
 app.include_router(preop_retier_router)
+app.include_router(teachback_router)
 app.include_router(triage_explain_router)
 
 

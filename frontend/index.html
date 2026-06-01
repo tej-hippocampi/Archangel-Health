@@ -452,6 +452,24 @@
             <p>Loading diagnosis reference…</p>
           </div>
           </div>
+          <div class="teachback-panel" id="diagTeachbackPanel" style="margin-top:18px;">
+            <div class="teachback-header">
+              <h3 class="resource-subtitle">🧠 Teach-Back Comprehension</h3>
+              <p class="teachback-sub">One question at a time. Use your own words or tap “I'm not sure”.</p>
+            </div>
+            <button type="button" class="preop-btn primary" id="diagTeachbackStartBtn">Start teach-back</button>
+            <p class="teachback-status" id="diagTeachbackStatus">Available after diagnosis/treatment video completion.</p>
+            <div class="teachback-qa" id="diagTeachbackQA" style="display:none;">
+              <p class="teachback-progress" id="diagTeachbackProgress"></p>
+              <p class="teachback-question" id="diagTeachbackQuestion"></p>
+              <textarea id="diagTeachbackAnswer" class="postop-textarea" rows="3" placeholder="Type your answer in your own words..."></textarea>
+              <div class="teachback-actions">
+                <button type="button" class="preop-btn primary" id="diagTeachbackSubmitBtn">Submit answer</button>
+                <button type="button" class="preop-btn" id="diagTeachbackUnsureBtn">I'm not sure</button>
+              </div>
+              <div class="teachback-callout" id="diagTeachbackCallout" style="display:none;"></div>
+            </div>
+          </div>
         </div>
         <p class="detail-footer-cta">
           <a href="#" class="detail-voice-link" id="voiceLinkDiagnosis">Talk to Archangel Health</a>
@@ -491,6 +509,28 @@
             <div class="loading-spinner"></div>
             <p>Loading treatment reference…</p>
           </div>
+          </div>
+          <div class="teachback-panel" id="treatTeachbackPanel" style="margin-top:18px;">
+            <div class="teachback-header">
+              <h3 class="resource-subtitle">🧠 Teach-Back Comprehension</h3>
+              <p class="teachback-sub">One question at a time. Use your own words or tap “I'm not sure”.</p>
+            </div>
+            <button type="button" class="preop-btn primary" id="treatTeachbackStartBtn">Start teach-back</button>
+            <p class="teachback-status" id="treatTeachbackStatus">Available after red-flag video completion.</p>
+            <div class="teachback-qa" id="treatTeachbackQA" style="display:none;">
+              <p class="teachback-progress" id="treatTeachbackProgress"></p>
+              <p class="teachback-question" id="treatTeachbackQuestion"></p>
+              <textarea id="treatTeachbackAnswer" class="postop-textarea" rows="3" placeholder="Type your answer in your own words..."></textarea>
+              <div class="teachback-actions">
+                <button type="button" class="preop-btn primary" id="treatTeachbackSubmitBtn">Submit answer</button>
+                <button type="button" class="preop-btn" id="treatTeachbackUnsureBtn">I'm not sure</button>
+              </div>
+              <div class="teachback-callout" id="treatTeachbackCallout" style="display:none;"></div>
+              <div class="teachback-care-path" id="treatTeachbackCarePath" style="display:none;">
+                <strong>Let's connect you with your care team now.</strong>
+                <button type="button" class="questions-btn secondary" id="treatTeachbackEscalateBtn">Alert care team</button>
+              </div>
+            </div>
           </div>
         </div>
         <p class="detail-footer-cta">

@@ -169,3 +169,31 @@ def test_care_goal_change_suppresses_missed_engagement():
     assert no_pivot[0] > pivot[0]
     # WOUND_CONCERN_FROM_CHECKIN is a safety signal — preserved through the pivot.
     assert pivot[0] == POSTOP_POSITIVE_WEIGHTS["WOUND_CONCERN_FROM_CHECKIN"]
+
+
+def test_teachback_failed_med_and_critical_add_weights():
+    delta, _, reasons = compute_postop_delta(
+        _state(
+            teachback_failed_med=True,
+            teachback_failed_critical=True,
+        )
+    )
+    assert delta == (
+        POSTOP_POSITIVE_WEIGHTS["TEACHBACK_FAILED_MED_POSTLOOP"]
+        + POSTOP_POSITIVE_WEIGHTS["TEACHBACK_FAILED_CRITICAL_POSTLOOP"]
+    )
+    assert any(r.code == "TEACHBACK_FAILED_MED_POSTLOOP" for r in reasons)
+    assert any(r.code == "TEACHBACK_FAILED_CRITICAL_POSTLOOP" for r in reasons)
+
+
+def test_teachback_passed_all_is_audit_only():
+    delta, _, reasons = compute_postop_delta(
+        _state(
+            teachback_completed=True,
+            teachback_failed_med=False,
+            teachback_failed_critical=False,
+            teachback_failed_red_flag=False,
+        )
+    )
+    assert delta == 0
+    assert any(r.code == "TEACHBACK_PASSED_ALL" and r.kind == "ENGAGEMENT_AUDIT" for r in reasons)

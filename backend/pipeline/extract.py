@@ -4,10 +4,9 @@ Purpose: Convert messy EHR text into clean structured fields using Claude.
 """
 
 import json
-import os
 from typing import Any, Dict
 
-from anthropic import AsyncAnthropic
+from ai.llm_client import call_llm, first_text
 
 EXTRACTION_SYSTEM = """You are a clinical NLP extraction system.
 Parse raw EHR text and return ONLY a single valid JSON object — no markdown, no commentary.
@@ -64,7 +63,7 @@ Extract the following fields from the EHR sections below and return as JSON:
 
 class ExtractionLayer:
     def __init__(self) -> None:
-        self.client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        pass
 
     async def extract(self, raw_package: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -73,14 +72,15 @@ class ExtractionLayer:
         """
         combined = self._combine(raw_package["clinical_data"])
 
-        response = await self.client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2500,
+        response, _ = await call_llm(
+            role="extraction",
             system=EXTRACTION_SYSTEM,
+            prompt_id="ehr_extract",
+            patient_id=raw_package.get("metadata", {}).get("patient_id"),
             messages=[{"role": "user", "content": EXTRACTION_PROMPT + combined}],
         )
 
-        raw_text = response.content[0].text.strip()
+        raw_text = first_text(response).strip()
         if raw_text.startswith("```"):
             raw_text = raw_text.split("\n", 1)[1] if "\n" in raw_text else raw_text[3:]
             if raw_text.endswith("```"):

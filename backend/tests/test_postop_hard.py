@@ -105,6 +105,12 @@ def test_incision_flag_streak_2_does_not_fire():
     assert "MULTIPLE_INCISION_FLAGS" not in codes
 
 
+def test_teachback_red_flag_failure_fires_hard():
+    reasons = evaluate_postop_hard_escalators(_state(teachback_failed_red_flag=True))
+    codes = [r.code for r in reasons]
+    assert "TEACHBACK_FAILED_RED_FLAG_POSTLOOP" in codes
+
+
 def test_multiple_escalators_listed_in_order():
     """When several escalators trip, all are reported (orchestrator
     short-circuits, but the evaluator returns the full list)."""

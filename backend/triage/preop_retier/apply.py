@@ -69,6 +69,7 @@ _HARD_ALERT_WEIGHTS = {
     "SURVEY_T48_RED_CRITICAL":                    85,
     "SURVEY_T24_RED_CRITICAL":                    90,
     "PAM_LEVEL_LOW_HARD":                          75,
+    "TEACHBACK_FAILED_MED_HOLD_POSTLOOP":          85,
 }
 
 
@@ -376,6 +377,19 @@ def _gather_state(
         patient_id=patient_id, team_store=team_store, surgery_dt=surgery_dt,
     )
 
+    tb = patient.get("teachback") or {}
+    if not isinstance(tb, dict):
+        tb = {}
+    pre_tb = tb.get("pre_op") if isinstance(tb.get("pre_op"), dict) else {}
+    pre_tb = pre_tb or {}
+    teachback_started = bool(pre_tb.get("started"))
+    teachback_completed = bool(pre_tb.get("completed"))
+    teachback_failed_med_hold = bool(pre_tb.get("failed_med_hold") or pre_tb.get("failed_med"))
+    teachback_failed_fasting = bool(pre_tb.get("failed_fasting"))
+    teachback_failed_critical = bool(pre_tb.get("failed_critical"))
+    teachback_not_completed_by_t24 = bool(hours_until <= 24 and teachback_started and not teachback_completed)
+    teachback_passed_all = bool(teachback_completed and str(pre_tb.get("final_status") or "").upper() == "PASS")
+
     return PreOpReTierInput(
         initial_tier=initial_tier,
         initial_tier_was_hard_escalator=was_hard,
@@ -385,6 +399,12 @@ def _gather_state(
         surveys=surveys,
         video=video,
         battle_card=battle_card,
+        teachback_completed=teachback_completed,
+        teachback_failed_med_hold=teachback_failed_med_hold,
+        teachback_failed_fasting=teachback_failed_fasting,
+        teachback_failed_critical=teachback_failed_critical,
+        teachback_not_completed_by_t24=teachback_not_completed_by_t24,
+        teachback_passed_all=teachback_passed_all,
     )
 
 

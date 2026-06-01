@@ -421,3 +421,27 @@ def test_soft_initial_can_downgrade():
     )
     out = re_tier_preop(state)
     assert out.computed_tier == "TIER_1"
+
+
+def test_teachback_med_hold_failure_hard_escalates():
+    state = _state(
+        initial_tier="TIER_1",
+        hours_until_surgery=20,
+        intake=IntakeState(status="COMPLETE"),
+        teachback_failed_med_hold=True,
+    )
+    out = re_tier_preop(state)
+    assert out.computed_tier == "TIER_3"
+    assert out.reasons and out.reasons[0].code == "TEACHBACK_FAILED_MED_HOLD_POSTLOOP"
+
+
+def test_teachback_passed_all_adds_negative_soft_weight():
+    state = _state(
+        initial_tier="TIER_2",
+        hours_until_surgery=20,
+        intake=IntakeState(status="COMPLETE"),
+        teachback_passed_all=True,
+    )
+    out = re_tier_preop(state)
+    codes = {r.code: r.weight for r in out.reasons}
+    assert codes.get("TEACHBACK_PASSED_ALL") == -1

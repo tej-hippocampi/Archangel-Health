@@ -775,7 +775,7 @@
     .or-divider { display: flex; align-items: center; gap: 12px; margin: 14px 0; }
     .or-divider::before, .or-divider::after { content: ""; flex: 1; height: 1px; background: #e5e7eb; }
     .or-divider span { font-size: 12px; color: #9ca3af; font-weight: 500; white-space: nowrap; }
-    .processing-overlay { display: none; text-align: center; padding: 32px 28px; }
+    .processing-overlay { display: none; padding: 24px 20px; }
     .processing-overlay.active { display: block; }
     .processing-overlay .spinner { width: 36px; height: 36px; border: 3px solid #e5e7eb; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 14px; }
     .processing-overlay p { font-size: 14px; color: #6b7280; }
@@ -783,6 +783,43 @@
     .progress-bar-wrap { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin-top: 16px; }
     .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s ease; width: 0%; }
     .progress-pct { font-size: 13px; font-weight: 600; color: var(--accent); margin-top: 8px; }
+    .theater-shell {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 14px;
+      text-align: left;
+    }
+    .theater-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .theater-sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+    .theater-stage { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: #fff; }
+    .theater-stage.active { border-color: #bfdbfe; background: #f8fbff; }
+    .theater-stage.done { border-color: #bbf7d0; background: #f0fdf4; }
+    .theater-stage.blocked { border-color: #fecaca; background: #fef2f2; }
+    .theater-stage-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .theater-stage-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .theater-stage-meta { font-size: 12px; color: var(--muted); margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: #334155; background: #f8fafc; }
+    .chip.sha { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .lane { border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 8px; }
+    .lane:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+    .lane-title { font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 4px; }
+    .status-pill-lite { font-size: 10px; font-weight: 700; border-radius: 999px; padding: 2px 8px; border: 1px solid; text-transform: uppercase; letter-spacing: .03em; }
+    .status-pill-lite.pending { color: #475569; border-color: #cbd5e1; background: #f8fafc; }
+    .status-pill-lite.active { color: #1d4ed8; border-color: #bfdbfe; background: #eff6ff; }
+    .status-pill-lite.done { color: #166534; border-color: #86efac; background: #dcfce7; }
+    .status-pill-lite.blocked { color: #991b1b; border-color: #fca5a5; background: #fee2e2; }
+    .checklist { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 5px; }
+    .checklist li { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #374151; }
+    .severity { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; border: 1px solid; text-transform: uppercase; letter-spacing: .03em; }
+    .severity.critical { color: #991b1b; border-color: #fca5a5; background: #fee2e2; }
+    .severity.major { color: #92400e; border-color: #fcd34d; background: #fef3c7; }
+    .severity.minor { color: #475569; border-color: #cbd5e1; background: #f1f5f9; }
+    .meter-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .meter-box { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fafafa; }
+    .meter-label { font-size: 11px; color: var(--muted); }
+    .meter-val { font-size: 13px; font-weight: 700; color: var(--text); }
+    .theater-error { margin-top: 8px; font-size: 12px; color: var(--danger); }
     .error-msg { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 12px 16px; color: #991b1b; font-size: 13px; margin: 0 28px 14px; display: none; }
     .error-msg.active { display: block; }
 
@@ -1743,9 +1780,10 @@
       <div class="processing-overlay" id="processing">
         <div class="spinner"></div>
         <p>Generating resources...</p>
-        <div class="step" id="processingStep">Extracting clinical data</div>
-        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBarFill"></div></div>
-        <div class="progress-pct" id="progressPct">0%</div>
+        <div class="step" id="processingStep">Starting pipeline</div>
+        <div class="progress-bar-wrap" style="display:none;"><div class="progress-bar-fill" id="progressBarFill"></div></div>
+        <div class="progress-pct" id="progressPct" style="display:none;">0%</div>
+        <div id="generationTheater" aria-live="polite"></div>
       </div>
       <div class="error-msg" id="errorMsg"></div>
       <div class="modal-footer" id="modalFooter" style="display:none;">
@@ -1984,6 +2022,196 @@
       if (!res.ok) throw new Error(data.detail || `Request failed: ${res.status}`);
       return data;
     }
+
+    async function streamGeneration(path, body, onEvent) {
+      const res = await fetch(`${API}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `Request failed: ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n\n")) !== -1) {
+          const frame = buf.slice(0, i);
+          buf = buf.slice(i + 2);
+          const line = frame.split("\n").find((l) => l.startsWith("data: "));
+          if (!line) continue;
+          try {
+            onEvent(JSON.parse(line.slice(6)));
+          } catch (_e) {}
+        }
+      }
+    }
+
+    const theater = (() => {
+      let root = null;
+      let state = null;
+      const STAGE_LABELS = {
+        extract: "1. Reading the chart",
+        generate: "2. Writing the materials",
+        grounding: "3. Safety review",
+        synthesize: "4. Voicing the script",
+      };
+      function inferStage(evStage = "") {
+        if (evStage.startsWith("extract.")) return "extract";
+        if (evStage.startsWith("generate.")) return "generate";
+        if (evStage.startsWith("grounding.")) return "grounding";
+        if (evStage.startsWith("synthesize.")) return "synthesize";
+        if (evStage === "pipeline.start") return "extract";
+        return null;
+      }
+      function ensureTrack(track) {
+        if (!state.tracks[track]) {
+          state.tracks[track] = {
+            generate: { status: "pending", model: "", prompts: [] },
+            grounding: { status: "pending", required: [], coverage: [], faithfulness: [], verdict: "", summary: "", coveragePct: null, faithfulnessPct: null },
+            synthesize: { status: "pending", reason: "" },
+          };
+        }
+        return state.tracks[track];
+      }
+      function setStageStatus(stage, status) {
+        if (!state.stages[stage]) return;
+        state.stages[stage] = status;
+      }
+      function renderChecklist(lane) {
+        if (!lane.grounding.required.length) return "";
+        const statusById = {};
+        (lane.grounding.coverage || []).forEach((row) => { statusById[row.id] = row.status; });
+        return `<ul class="checklist">${lane.grounding.required.map((it) => {
+          const st = statusById[it.id] || "PENDING";
+          const icon = st === "COVERED" ? "✓" : st === "PARTIAL" ? "⚠" : st === "MISSING" ? "✗" : "⏳";
+          const sev = (it.severity || "MINOR").toLowerCase();
+          const text = esc(it.text || it.category || it.id || "");
+          return `<li><span>${icon}</span><span>${text}</span><span class="severity ${sev}">${esc(it.severity || "MINOR")}</span></li>`;
+        }).join("")}</ul>`;
+      }
+      function renderLane(track, lane) {
+        const gStatus = lane.grounding.status || "pending";
+        const sStatus = lane.synthesize.status || "pending";
+        const prompts = (lane.generate.prompts || []).map((p) =>
+          `<span class="chip">${esc(p.prompt_id || "")} v${esc(p.version || "")}</span><span class="chip sha">#${esc(p.sha || "")}</span>`
+        ).join("");
+        return `
+          <div class="lane">
+            <div class="lane-title">${esc(track)}</div>
+            <div class="theater-stage-meta">
+              ${lane.generate.model ? `<span class="chip">${esc(lane.generate.model)}</span>` : ""}
+              ${prompts}
+            </div>
+            ${renderChecklist(lane)}
+            ${lane.grounding.verdict ? `<div class="theater-stage-meta"><span class="status-pill-lite ${lane.grounding.verdict === "PASS" ? "done" : lane.grounding.verdict === "REVIEW" ? "active" : "blocked"}">${esc(lane.grounding.verdict)}</span><span>${esc(lane.grounding.summary || "")}</span></div>` : ""}
+            ${(lane.grounding.coveragePct != null || lane.grounding.faithfulnessPct != null) ? `<div class="meter-wrap"><div class="meter-box"><div class="meter-label">Coverage</div><div class="meter-val">${lane.grounding.coveragePct ?? "—"}%</div></div><div class="meter-box"><div class="meter-label">Faithfulness</div><div class="meter-val">${lane.grounding.faithfulnessPct ?? "—"}%</div></div></div>` : ""}
+            <div class="theater-stage-meta">
+              <span class="status-pill-lite ${gStatus}">grounding: ${esc(gStatus)}</span>
+              <span class="status-pill-lite ${sStatus}">voice: ${esc(sStatus)}</span>
+              ${lane.synthesize.reason ? `<span>${esc(lane.synthesize.reason)}</span>` : ""}
+            </div>
+          </div>`;
+      }
+      function render() {
+        if (!root || !state) return;
+        const stageCard = (stageKey, bodyHtml = "") => {
+          const s = state.stages[stageKey];
+          return `<div class="theater-stage ${esc(s)}"><div class="theater-stage-head"><div class="theater-stage-name">${STAGE_LABELS[stageKey]}</div><span class="status-pill-lite ${esc(s)}">${esc(s)}</span></div>${bodyHtml}</div>`;
+        };
+        const laneHtml = Object.entries(state.tracks).map(([track, lane]) => renderLane(track, lane)).join("");
+        root.innerHTML = `
+          <div class="theater-shell">
+            <div class="theater-title">Generating materials for ${esc(state.patientName)} · ${esc(state.trackLabel)}</div>
+            <div class="theater-sub">Live pipeline telemetry</div>
+            ${stageCard("extract", state.extractMeta ? `<div class="theater-stage-meta">${esc(state.extractMeta)}</div>` : "")}
+            ${stageCard("generate", laneHtml || '<div class="theater-stage-meta">Waiting for generation…</div>')}
+            ${stageCard("grounding", state.groundingMeta ? `<div class="theater-stage-meta">${esc(state.groundingMeta)}</div>` : "")}
+            ${stageCard("synthesize")}
+            ${state.error ? `<div class="theater-error">${esc(state.error)}</div>` : ""}
+          </div>`;
+      }
+      return {
+        mount(container, { track, patientName }) {
+          root = container;
+          state = {
+            patientName: patientName || "patient",
+            trackLabel: track === "pre_op" ? "Pre-op" : "Post-op",
+            stages: { extract: "pending", generate: "pending", grounding: "pending", synthesize: "pending" },
+            tracks: {},
+            extractMeta: "",
+            groundingMeta: "",
+            error: "",
+          };
+          render();
+        },
+        apply(ev) {
+          if (!state) return;
+          const stage = inferStage(ev.stage || "");
+          if (stage) {
+            if (state.stages[stage] === "pending") setStageStatus(stage, "active");
+            if ((ev.stage || "").endsWith(".done") || ev.stage === "grounding.result") setStageStatus(stage, "done");
+            if ((ev.stage || "").endsWith(".skipped")) setStageStatus(stage, "blocked");
+          }
+          if (ev.stage === "extract.start") {
+            state.extractMeta = `${ev.model || ""} · ${ev.prompt?.prompt_id || ""} v${ev.prompt?.version || ""}`;
+          }
+          if (ev.stage === "generate.start" && ev.track) {
+            const lane = ensureTrack(ev.track);
+            lane.generate.status = "active";
+            lane.generate.model = ev.model || "";
+            lane.generate.prompts = ev.prompts || [];
+          }
+          if (ev.stage === "generate.done" && ev.track) {
+            ensureTrack(ev.track).generate.status = "done";
+          }
+          if (ev.stage === "grounding.start" && ev.track) {
+            const lane = ensureTrack(ev.track);
+            lane.grounding.status = "active";
+            lane.grounding.required = ev.required_items || [];
+            state.groundingMeta = `${ev.judge_model || ""} · prompt ${ev.prompt_version || ""}`;
+          }
+          if (ev.stage === "grounding.result" && ev.track) {
+            const lane = ensureTrack(ev.track);
+            lane.grounding.status = ev.verdict === "PASS" ? "done" : "blocked";
+            lane.grounding.coverage = ev.coverage || [];
+            lane.grounding.faithfulness = ev.faithfulness || [];
+            lane.grounding.verdict = ev.verdict || "";
+            lane.grounding.summary = ev.summary || "";
+            lane.grounding.coveragePct = ev.coverage_pct;
+            lane.grounding.faithfulnessPct = ev.faithfulness_pct;
+          }
+          if (ev.stage === "synthesize.done" && ev.track) {
+            ensureTrack(ev.track).synthesize.status = "done";
+          }
+          if (ev.stage === "synthesize.skipped" && ev.track) {
+            const lane = ensureTrack(ev.track);
+            lane.synthesize.status = "blocked";
+            lane.synthesize.reason = `Held for ${ev.reason || "review"}`;
+          }
+          if (ev.stage === "error") {
+            state.error = ev.message || "Pipeline failed.";
+            Object.keys(state.stages).forEach((k) => { if (state.stages[k] === "active") state.stages[k] = "blocked"; });
+          }
+          render();
+        },
+        fail(msg) {
+          if (!state) return;
+          state.error = msg || "Pipeline failed.";
+          Object.keys(state.stages).forEach((k) => { if (state.stages[k] !== "done") state.stages[k] = "blocked"; });
+          render();
+        },
+      };
+    })();
 
     let analyticsCharts = [];
     let analyticsRowsCache = [];
@@ -3796,6 +4024,8 @@
       byId("progressBarFill").style.width = "0%";
       byId("progressPct").textContent = "0%";
       byId("processingStep").textContent = "Extracting clinical data";
+      const theaterWrap = byId("generationTheater");
+      if (theaterWrap) theaterWrap.innerHTML = "";
       selectedEpisodeType = null;
 
       // Clear new-flow inputs
@@ -4551,41 +4781,54 @@
         byId("modalForm").style.display = "none";
         byId("modalFooter").style.display = "none";
         byId("processing").classList.add("active");
-        byId("progressBarFill").style.width = "30%";
-        byId("progressPct").textContent = "30%";
+        const theaterRoot = byId("generationTheater");
+        theater.mount(theaterRoot, { track: selectedEpisodeType, patientName: name });
         byId("processingStep").textContent = selectedEpisodeType === "pre_op"
           ? "Generating pre-op preparation resources"
           : "Generating diagnosis and treatment resources";
         try {
-          if (selectedEpisodeType === "post_op") {
-            await apiJson("/api/process-discharge", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+          const reqBody = selectedEpisodeType === "post_op"
+            ? {
                 patient_name: name, phone_number: phone, email,
                 discharge_notes: notes,
                 doctor_office_phone: doctorOfficePhone,
                 doctor_clinic_code: doctorClinicCode,
-              }),
-            });
-          } else {
-            await apiJson("/api/process-preop", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+              }
+            : {
                 patient_name: name, phone_number: phone, email,
                 preparation_notes: notes,
                 doctor_office_phone: doctorOfficePhone,
                 doctor_clinic_code: doctorClinicCode,
                 procedure_type: "",
                 scheduled_surgery_date: scheduledSurgeryDate,
-              }),
+              };
+          const streamPath = selectedEpisodeType === "post_op"
+            ? "/api/process-discharge/stream"
+            : "/api/process-preop/stream";
+          const fallbackPath = selectedEpisodeType === "post_op"
+            ? "/api/process-discharge"
+            : "/api/process-preop";
+          let terminalPayload = null;
+          try {
+            await streamGeneration(streamPath, reqBody, (ev) => {
+              theater.apply(ev);
+              if (ev.stage === "complete") terminalPayload = ev.payload || null;
+              if (ev.stage === "error") throw new Error(ev.message || "Streaming pipeline failed");
+            });
+          } catch (streamErr) {
+            byId("processingStep").textContent = "Streaming unavailable. Falling back to standard pipeline…";
+            terminalPayload = await apiJson(fallbackPath, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(reqBody),
             });
           }
-          byId("progressBarFill").style.width = "100%";
-          byId("progressPct").textContent = "100%";
+          if (!terminalPayload) {
+            throw new Error("Pipeline completed without terminal payload.");
+          }
           showToast(selectedEpisodeType === "pre_op" ? "Pre-op patient added. Resources generated." : "Patient added. Resources generated.", "success");
           byId("modalForm").style.display = "block";
+          byId("processing").classList.remove("active");
           addPatientModal.classList.remove("active");
           ["patientNameLegacy","patientPhoneLegacy","patientEmailLegacy","scheduledSurgeryDateLegacy","dischargeNotes"].forEach((id) => { const el = byId(id); if (el) el.value = ""; });
           pdfText = "";
@@ -4593,6 +4836,7 @@
           if (uploadSuccess) uploadSuccess.style.display = "none";
           await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
         } catch (e) {
+          theater.fail(e.message || "Could not process patient.");
           byId("processing").classList.remove("active");
           byId("modalFooter").style.display = "flex";
           byId("modalForm").style.display = "block";

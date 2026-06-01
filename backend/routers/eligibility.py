@@ -935,6 +935,8 @@ async def confirm_postop_notes(
             patient_id=patient_id,
             team_store=getattr(request.app.state, "team_store", None),
             force_synthesize=True,
+            override_actor=_actor_id(staff),
+            override_reason="clinician-confirmed notes",
         )
     except Exception as e:
         log.exception("Discharge material generation failed for %s", patient_id)
@@ -1000,6 +1002,8 @@ async def confirm_preop_notes(
             patient_id=patient_id,
             team_store=getattr(request.app.state, "team_store", None),
             force_synthesize=True,
+            override_actor=_actor_id(staff),
+            override_reason="clinician-confirmed notes",
         )
     except Exception as e:
         log.exception("Prep material generation failed for %s", patient_id)

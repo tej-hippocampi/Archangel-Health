@@ -119,6 +119,14 @@ class PreOpReTierInput(BaseModel):
     video: VideoEngagement = Field(default_factory=VideoEngagement)
     battle_card: BattleCardEngagement = Field(default_factory=BattleCardEngagement)
 
+    # Teach-back (post-loop outcomes only)
+    teachback_completed: bool = False
+    teachback_failed_med_hold: bool = False
+    teachback_failed_fasting: bool = False
+    teachback_failed_critical: bool = False
+    teachback_not_completed_by_t24: bool = False
+    teachback_passed_all: bool = False
+
 
 ReTierReasonKind = Literal["HARD", "SOFT"]
 

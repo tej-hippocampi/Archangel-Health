@@ -11,8 +11,8 @@ from __future__ import annotations
 from typing import Any
 
 
-MODEL_VERSION = "preop-retier@1.0.0"
-TUNING_VERSION = 1
+MODEL_VERSION = "preop-retier@1.1.0"
+TUNING_VERSION = 2
 
 
 # ─── 5.3 Soft contributor weights ────────────────────────────────────────────
@@ -61,6 +61,12 @@ WEIGHTS: dict[str, int] = {
 
     # Cumulative engagement reward (caps to discourage gaming)
     "ENGAGEMENT_FULLY_COMPLETE_BY_T_24":       -1,
+
+    # Teach-back (post-loop outcomes only)
+    "TEACHBACK_FAILED_FASTING_POSTLOOP":       +4,
+    "TEACHBACK_FAILED_CRITICAL_POSTLOOP":      +2,
+    "TEACHBACK_NOT_COMPLETED_BY_T_24":         +2,
+    "TEACHBACK_PASSED_ALL":                    -1,
 }
 
 
@@ -100,6 +106,10 @@ SOFT_LABELS: dict[str, str] = {
     "BATTLECARD_NOT_VIEWED_BY_T_24":           "Battle-card not viewed by T-24",
 
     "ENGAGEMENT_FULLY_COMPLETE_BY_T_24":       "Fully engaged across all surfaces by T-24",
+    "TEACHBACK_FAILED_FASTING_POSTLOOP":       "Teach-back post-loop fasting/NPO misunderstanding",
+    "TEACHBACK_FAILED_CRITICAL_POSTLOOP":      "Teach-back post-loop critical comprehension miss",
+    "TEACHBACK_NOT_COMPLETED_BY_T_24":         "Teach-back not completed by T-24",
+    "TEACHBACK_PASSED_ALL":                    "Teach-back completed with all items passed",
 }
 
 
@@ -133,6 +143,12 @@ WEIGHT_GROUPS: list[dict[str, Any]] = [
     {"name": "Cumulative engagement reward", "codes": [
         "ENGAGEMENT_FULLY_COMPLETE_BY_T_24",
     ]},
+    {"name": "Teach-back (post-loop)", "codes": [
+        "TEACHBACK_FAILED_FASTING_POSTLOOP",
+        "TEACHBACK_FAILED_CRITICAL_POSTLOOP",
+        "TEACHBACK_NOT_COMPLETED_BY_T_24",
+        "TEACHBACK_PASSED_ALL",
+    ]},
 ]
 
 
@@ -157,6 +173,9 @@ HARD_ESCALATORS: list[dict[str, str]] = [
     {"code": "PAM_LEVEL_LOW_AT_T_24",
      "label": "PAM proxy LOW with no remediation window remaining (at T-24)",
      "source": "PAM proxy + cadence"},
+    {"code": "TEACHBACK_FAILED_MED_HOLD_POSTLOOP",
+     "label": "Teach-back post-loop medication-hold comprehension failure",
+     "source": "Teach-back (post-loop)"},
 ]
 
 HARD_LABELS: dict[str, str] = {h["code"]: h["label"] for h in HARD_ESCALATORS}

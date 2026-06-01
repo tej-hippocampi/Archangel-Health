@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import Any, Optional
 
 from triage.intraop.extractor import (
@@ -26,12 +25,12 @@ from triage.intraop.extractor import (
     confidence_for,
 )
 from triage.intraop.tuning import EXTRACTION
+from ai.llm_client import call_llm
 
 
 log = logging.getLogger("triage.intraop.extractor_llm")
 
 
-_MODEL = os.getenv("INTRAOP_EXTRACTOR_MODEL", "claude-sonnet-4-6")
 _MAX_TOKENS = 4096
 
 
@@ -171,13 +170,6 @@ def _system_prompt(family: Optional[str]) -> str:
     )
 
 
-# ─── Async client ────────────────────────────────────────────────────────────
-
-def _client():
-    from anthropic import AsyncAnthropic   # lazy import — keeps tests light
-    return AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-
-
 def _find_tool_use(response: Any, tool_name: str) -> Optional[dict[str, Any]]:
     for block in getattr(response, "content", []) or []:
         if getattr(block, "type", None) == "tool_use" and getattr(block, "name", None) == tool_name:
@@ -209,22 +201,23 @@ class LlmIntraopExtractor:
         raw_text = parsed.text
 
         # 2) Call Claude with tool-use, retrying transient failures.
-        client = _client()
         last_error: Optional[Exception] = None
         for attempt in range(1, self._attempts + 1):
             try:
                 resp = await asyncio.wait_for(
-                    client.messages.create(
-                        model=_MODEL,
-                        max_tokens=_MAX_TOKENS,
-                        temperature=0.0,
+                    call_llm(
+                        role="intraop_extract",
+                        prompt_id="intraop_extract",
+                        patient_id=context.patient_id,
                         system=_system_prompt(context.procedure_family),
+                        max_tokens=_MAX_TOKENS,
                         tools=[_TOOL],
                         tool_choice={"type": "tool", "name": "extract_intraop_form"},
                         messages=[{"role": "user", "content": raw_text}],
                     ),
                     timeout=self._timeout_sec,
                 )
+                resp = resp[0]
                 tool_input = _find_tool_use(resp, "extract_intraop_form")
                 if tool_input is None:
                     raise RuntimeError("Anthropic returned no tool_use block")
