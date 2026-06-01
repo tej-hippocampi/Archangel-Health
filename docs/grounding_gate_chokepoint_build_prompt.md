@@ -30,11 +30,17 @@
 
 ## Task 1 — Gate the eligibility/batch synthesis path (the real hole)
 
-In `backend/eligibility/pipeline.py`, in the function that does
-`gen.generate(sd, pipeline_type)` then `ElevenLabsClient().synthesize(...)`
-(around the `voice_script, battlecard_html = await gen.generate(sd, pipeline_type)`
-line): insert the gate **between generation and synthesis**, mirroring the legacy
-`/api/process-patient` flow.
+The ungated function is `regenerate_materials(patient, *, pipeline_type,
+notes_text)` in `backend/eligibility/pipeline.py` (Track B notes-confirm + batch
+onboarding). Today it does, in order: `gen.generate(...)` → compute `pid` →
+`ElevenLabsClient().synthesize(...)`. Insert the gate **between generation and
+synthesis**, mirroring the legacy `/api/process-patient` flow.
+
+> ⚠️ **Fix the `pid` ordering bug.** `pid` is currently computed *after*
+> generation but *just above* the synth call (≈ line 250). The gate needs
+> `patient_id` **before** it runs, so you must **move the `pid = (...)` block up**
+> to immediately after `gen.generate(...)` and **before** the gate. Do not leave a
+> second `pid` assignment behind — there must be exactly one, above the gate.
 
 ```python
 from pipeline.grounding_gate import audit_and_gate_script, apply_grounding_to_patient
@@ -45,6 +51,14 @@ _store = TeamStore()
 gen = GenerationLayer()
 voice_script, battlecard_html = await gen.generate(sd, pipeline_type)
 
+# MOVED UP: pid must exist before the gate (was previously computed below).
+audio_suffix = "preop" if pipeline_type == "pre_op" else "postop"
+pid = (
+    patient.get("id")
+    or (patient.get("structured_data") or {}).get("mbi")
+    or "unknown"
+)
+
 track = "pre_op" if pipeline_type == "pre_op" else "post_op_treatment"
 
 async def _regen():
@@ -53,19 +67,25 @@ async def _regen():
     battlecard_html = b
     return v
 
-gate = await audit_and_gate_script(
-    patient_id=pid,                     # the same pid used for the audio filename
-    structured_data=sd,
-    script=voice_script,
-    track=track,
-    team_store=_store,
-    regenerate_fn=_regen,
-)
+async with _grounding_semaphore():      # bounds concurrent judge calls in batch (Task 1a)
+    gate = await audit_and_gate_script(
+        patient_id=pid,                 # the same pid used for the audio filename
+        structured_data=sd,
+        script=voice_script,
+        track=track,
+        team_store=_store,
+        regenerate_fn=_regen,
+    )
 voice_script = gate.script
 
 voice_audio_url = None
 if gate.synthesize:                     # BLOCK -> no audio, exactly like main.py
-    voice_audio_url = await ElevenLabsClient().synthesize(voice_script, f"{pid}_{audio_suffix}")
+    try:
+        from integrations.elevenlabs import ElevenLabsClient
+        voice_audio_url = await ElevenLabsClient().synthesize(voice_script, f"{pid}_{audio_suffix}")
+    except Exception as e:              # keep the existing degrade-to-no-audio behavior
+        log.warning("ElevenLabs synth failed for %s (%s): %s", pid, audio_suffix, e)
+        voice_audio_url = None
 
 # persist verdict onto the patient blob so the batch path shows up in the
 # admin Grounding Checker tab and in requires_clinician_review, like the others
@@ -73,13 +93,37 @@ apply_grounding_to_patient(patient, track, gate)
 ```
 
 Notes:
-- Compute `pid` **before** the gate (it's currently computed just above the
-  synth call — move it up).
-- Keep the existing `try/except` around `synthesize` so a TTS failure still
-  degrades to "audio unavailable" rather than a hard error.
-- If this fans out over many patients (batch), the gate adds one judge call per
-  patient — that is intended; it is the safety check. If latency matters, gate
-  inside the same `asyncio.gather` you already use for generation.
+- **Delete the old `pid`/`audio_suffix` block** that sat just above the original
+  synth call — they now live above the gate. Don't duplicate them.
+- Keep the existing `try/except` around `synthesize` (shown above) so a TTS
+  failure still degrades to "audio unavailable" rather than a hard error.
+
+### Task 1a — Bound the judge concurrency in batch (fixes batch latency / rate limits)
+
+`regenerate_materials` runs per patient and the batch path fans many of them out
+concurrently. A gate per patient means one judge call per patient — intended, but
+unbounded fan-out will hit Anthropic rate limits and spike latency. **Follow the
+module's existing bounded-semaphore idiom** (`_patient_extract_semaphore()` /
+`PATIENT_EXTRACT_CONCURRENCY`) — do not invent a new pattern:
+
+```python
+# ─── v0.3 scaling knobs ─── (add alongside the existing knobs)
+GROUNDING_CONCURRENCY = 4    # bounded fan-out for grounding-judge calls in batch
+
+_grounding_sem: Optional[asyncio.Semaphore] = None
+
+def _grounding_semaphore() -> asyncio.Semaphore:
+    """Bounds concurrent grounding-judge calls. Lazy-init so it binds to the
+    running loop on first use (mirrors _patient_extract_semaphore)."""
+    global _grounding_sem
+    if _grounding_sem is None:
+        _grounding_sem = asyncio.Semaphore(GROUNDING_CONCURRENCY)
+    return _grounding_sem
+```
+
+The `async with _grounding_semaphore():` wrapper shown in the Task 1 snippet then
+caps in-flight judge calls at `GROUNDING_CONCURRENCY` regardless of batch size,
+exactly like extraction is capped today. Tune the constant with the other knobs.
 
 ---
 
@@ -116,23 +160,30 @@ generated script is impossible to ship ungated.
 Create `backend/pipeline/gated_synthesis.py`:
 
 ```python
+import contextlib
 from integrations.elevenlabs import ElevenLabsClient
 from pipeline.grounding_gate import audit_and_gate_script, apply_grounding_to_patient
 
 async def synthesize_script(*, patient_id, structured_data, script, track,
                             team_store, audio_id, regenerate_fn=None,
-                            patient_blob=None):
+                            patient_blob=None, sem=None):
     """The ONLY sanctioned way to turn a generated voice script into audio.
-    Runs the grounding gate first; synthesizes only on a non-BLOCK verdict."""
-    gate = await audit_and_gate_script(
-        patient_id=patient_id, structured_data=structured_data, script=script,
-        track=track, team_store=team_store, regenerate_fn=regenerate_fn,
-    )
+    Runs the grounding gate first; synthesizes only on a non-BLOCK verdict.
+    `sem` is an optional asyncio.Semaphore to bound judge concurrency in batch."""
+    guard = sem if sem is not None else contextlib.nullcontext()
+    async with guard:
+        gate = await audit_and_gate_script(
+            patient_id=patient_id, structured_data=structured_data, script=script,
+            track=track, team_store=team_store, regenerate_fn=regenerate_fn,
+        )
     if patient_blob is not None:
         apply_grounding_to_patient(patient_blob, track, gate)
     audio_url = None
     if gate.synthesize:
-        audio_url = await ElevenLabsClient().synthesize(gate.script, audio_id)
+        try:
+            audio_url = await ElevenLabsClient().synthesize(gate.script, audio_id)
+        except Exception:
+            audio_url = None
     return gate, audio_url
 ```
 
@@ -141,6 +192,14 @@ Migrate the script-synthesis call sites (the two-resource post-op flow,
 and the new eligibility path) to call `synthesize_script(...)` instead of calling
 the gate and `ElevenLabsClient().synthesize` separately. This collapses ~5 hand-
 wired gates into one audited helper.
+
+> Reconcile with Task 1: prefer routing the eligibility path through
+> `synthesize_script(..., sem=_grounding_semaphore(), patient_blob=patient,
+> audio_id=f"{pid}_{audio_suffix}")` rather than calling `audit_and_gate_script`
+> inline — that way the batch path gets the chokepoint **and** the bounded
+> concurrency in one call, and the Task 3b guard passes (no direct
+> `ElevenLabsClient().synthesize` outside the chokepoint). The inline snippet in
+> Task 1 is the fallback if you implement Task 1 before Task 3.
 
 ### 3b. Regression guard test
 
@@ -202,6 +261,13 @@ of a script — turning "remember to gate" into a guarantee.
    (omit a med-hold) → confirm a BLOCK report appears in the admin Grounding
    Checker tab and no audio was synthesized.
 4. Confirm `/api/process-preop` still gates (Task 0 sanity — do not double-gate).
+5. `grep -n "pid =" backend/eligibility/pipeline.py` → exactly one `pid`
+   assignment in `regenerate_materials`, and it sits **above** the gate call (the
+   ordering-bug fix; no leftover second assignment below).
+6. Batch a large group (or simulate N concurrent `regenerate_materials`) →
+   confirm in-flight judge calls never exceed `GROUNDING_CONCURRENCY` (add a temp
+   log/counter, or assert via the call log timestamps), so the gate doesn't blow
+   the Anthropic rate limit or serialize the batch.
 
 ---
 
