@@ -9,6 +9,12 @@ This directory holds the four PRDs that, together, specify the entire tier-track
 | Intra-Op Reassessment v1.0 | OR end → "Switch to post-op" click | Re-tier `Episode.tier` from intra-op data; transition episode → POST_OP | `intraop-reassessment-v1.md` |
 | Post-Op Scoring v1.0 | D1 → D30 | Re-tier `Episode.tier` from daily check-ins, surveys, engagement, adherence, wound photos | `postop-scoring-v1.md` |
 
+**Contributing-signal PRDs** (do not own `Episode.tier`; they emit signals consumed by the re-tier engines above):
+
+| PRD | Phase | Feeds | File |
+|---|---|---|---|
+| Teach-Back Comprehension v1.0 | Pre-op (post-video) + Post-op (post-video) | Comprehension signals into Pre-Op Re-Tier and Post-Op Re-Tier (incl. two new hard escalators — see §8.4) | `teachback-v1.md` |
+
 The existing `Triage Tracking PRD v0.1` (alert lifecycle, RN queue, priority scoring, patient self-flag, autonomous escalation, audit) is **reused unchanged** by all four PRDs above. The four PRDs in this directory **supersede** §4 (initial tier assignment) and §5 (dynamic re-tiering) of v0.1, and **leave §6–§13 intact** as the alert + queue + audit substrate they all write into.
 
 ---
@@ -195,11 +201,13 @@ Each PRD computes its result and stamps the result row with the version that pro
 | PAM proxy (in intake) | — | ✓ (high weight) | — | — | — |
 | Pre-op surveys T-96 / T-48 / T-24 | — | ✓ | — | — | — |
 | Pre-op video, battle-card views | — | ✓ | — | — | — |
+| Pre-op teach-back comprehension (post-loop) | — | ✓ (med-hold post-loop fail = hard escalator) | — | — | — |
 | Intra-op form (locked) | — | — | ✓ | — | — |
 | PDF op-note + extraction | — | — | ✓ | — | — |
 | Daily symptom check-in | — | — | — | ✓ | ✓ (`DAILY_CHECKIN_RED`, `WOUND_CONCERN`, `NEW_RED_FLAG_SYMPTOM`) |
 | Day 7 / 14 / 30 surveys | — | — | — | ✓ | ✓ (`SURVEY_DAY_X_RED`, `SURVEY_DAY_X_MISSED`) |
 | Diagnosis/treatment + red-flag videos | — | — | — | ✓ | — |
+| Post-op teach-back comprehension (post-loop) | — | — | — | ✓ (red-flag post-loop fail = hard escalator) | — |
 | Med adherence ping | — | — | — | ✓ | ✓ (`MED_ADHERENCE_LOW`, `MED_ADHERENCE_NON_RESPONSE_STREAK`) |
 | Wound photo submission (binary) | — | — | — | ✓ | ✓ (lost-engagement) |
 | Wound photo content (nurse-reviewed) | — | — | — | **No (v1)** | — |
@@ -415,9 +423,9 @@ Post-Op Re-Tier:   on signal + nightly 02:00 local + cron at D7, D14, D30
 | Stage | Hard escalators (any → TIER_3) |
 |---|---|
 | Initial Pre-Op Triage | Emergency case; sepsis 48h; ventilator; disseminated cancer; dialysis; CHF recent; severe low EF; ascites; functional status totally dependent; prior 30-d readmission; housing instability; food insecurity; lives alone with no caregiver |
-| Pre-Op Re-Tier | Intake disclosure of lives-alone-no-caregiver; intake disclosure of housing instability; intake disclosure of food insecurity; intake disclosure of transportation barrier day-of; survey red-flag-critical; PAM LOW at T-24 |
+| Pre-Op Re-Tier | Intake disclosure of lives-alone-no-caregiver; intake disclosure of housing instability; intake disclosure of food insecurity; intake disclosure of transportation barrier day-of; survey red-flag-critical; PAM LOW at T-24; **teach-back medication-hold post-loop failure** (`TEACHBACK_FAILED_MED_HOLD_POSTLOOP`) |
 | Intra-Op Reassessment | Documented complication; spinal dural tear; bowel contamination class 4; CABG mechanical-support bypass weaning; procedure aborted |
-| Post-Op Re-Tier | Patient self-flag active; new red-flag symptom (chest pain, severe SOB, calf swelling, etc.); lost contact 24h (Tier 3) or 72h (general); multiple incision flags (≥2 chips/day or chip on 3 consecutive days); D7/D14 survey RED + red-flag chip |
+| Post-Op Re-Tier | Patient self-flag active; new red-flag symptom (chest pain, severe SOB, calf swelling, etc.); lost contact 24h (Tier 3) or 72h (general); multiple incision flags (≥2 chips/day or chip on 3 consecutive days); D7/D14 survey RED + red-flag chip; **teach-back red-flag post-loop failure** (`TEACHBACK_FAILED_RED_FLAG_POSTLOOP`) |
 
 ### 8.5 Module / file roots
 
