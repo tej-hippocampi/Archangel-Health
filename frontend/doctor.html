@@ -504,17 +504,59 @@
       color: #0f172a;
       text-align: right;
     }
-    .esc-list { display: grid; gap: 8px; }
+    .esc-list { display: grid; gap: 10px; }
     .esc-item {
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-left: 4px solid var(--line);
+      border-radius: 12px;
       background: #fff;
-      padding: 12px;
+      padding: 14px;
     }
-    .esc-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
-    .esc-name { font-size: 14px; font-weight: 700; }
-    .esc-meta { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
-    .yn-wrap { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; }
+    .esc-item.tier-3 { border-left-color: #dc2626; }
+    .esc-item.tier-2 { border-left-color: #f59e0b; }
+    .esc-item.tier-1 { border-left-color: #10b981; }
+    .esc-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+    .esc-name { font-size: 16px; font-weight: 700; color: #0f172a; }
+    .esc-phase { margin-top: 8px; }
+    .esc-tier-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 110px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      padding: 8px 12px;
+      margin-top: 12px;
+    }
+    .esc-tier-badge.tier-t1 { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .esc-tier-badge.tier-t2 { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .esc-tier-badge.tier-t3 { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .esc-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+    .esc-footer {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .esc-link-btn {
+      border: 0;
+      background: transparent;
+      color: #2563eb;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+    }
+    .esc-link-btn:hover { text-decoration: underline; }
+    .esc-meta { font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .yn-wrap { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
     .yn-btn {
       border: 1px solid var(--line);
       border-radius: 999px;
@@ -526,6 +568,106 @@
     }
     .yn-btn.active.y { border-color: #86efac; background: #dcfce7; color: #166534; }
     .yn-btn.active.n { border-color: #fca5a5; background: #fee2e2; color: #991b1b; }
+    .triage-modal-shell { display: grid; gap: 14px; }
+    .triage-headline { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .triage-tier-line { font-size: 13px; color: #475569; margin-top: 8px; }
+    .triage-tier-large {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 800;
+      border: 1px solid #d1d5db;
+      letter-spacing: 0.03em;
+    }
+    .triage-tier-large.tier-t1 { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .triage-tier-large.tier-t2 { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .triage-tier-large.tier-t3 { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .triage-panel {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px;
+      background: #fff;
+    }
+    .triage-panel h4 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .triage-timeline-list { display: grid; gap: 10px; }
+    .triage-node {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px;
+      background: #f8fafc;
+    }
+    .triage-node.assessment { opacity: 0.75; }
+    .triage-node-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: #475569;
+      flex-wrap: wrap;
+    }
+    .triage-node-phase { font-weight: 700; color: #0f172a; }
+    .triage-node-trigger { margin-top: 6px; font-size: 12px; color: #334155; }
+    .triage-reasons { margin-top: 8px; display: grid; gap: 6px; }
+    .triage-reason {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px;
+      background: #fff;
+      font-size: 12px;
+      color: #1f2937;
+    }
+    .triage-reason.hard {
+      border-color: #fecaca;
+      background: #fff1f2;
+    }
+    .triage-reason-tags { margin-top: 5px; display: inline-flex; gap: 6px; }
+    .triage-tag {
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      padding: 1px 7px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #475569;
+      background: #f8fafc;
+      text-transform: uppercase;
+    }
+    .triage-tag.critical { border-color: #fecaca; color: #b91c1c; background: #fef2f2; }
+    .triage-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .triage-composer { margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+    .triage-composer-row { margin-bottom: 8px; }
+    .triage-composer-row label {
+      display: block;
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+    }
+    .triage-composer-row input,
+    .triage-composer-row textarea {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: var(--font);
+      padding: 8px 10px;
+      background: #fff;
+      color: #0f172a;
+    }
+    .triage-composer-row input[readonly] { background: #f8fafc; color: #475569; }
+    .triage-muted { font-size: 12px; color: #64748b; }
 
     /* Compliance */
     .table { width: 100%; border-collapse: collapse; }
@@ -1242,7 +1384,7 @@
         <div class="escalation-head">
           <div>
             <h1 class="page-title">Escalation Log</h1>
-            <p class="page-sub" id="escalationSub">Sorted most recent to least recent.</p>
+            <p class="page-sub" id="escalationSub">Sorted by risk tier (highest urgency first).</p>
           </div>
           <div class="resolved-counter" id="resolvedCounter">0/0 Escalations Resolved</div>
         </div>
@@ -1592,6 +1734,17 @@
         <button class="modal-close" data-close="surveyModal">×</button>
       </div>
       <div class="modal-body" id="surveyBody"></div>
+    </div>
+  </div>
+
+  <!-- Escalation triage modal -->
+  <div class="modal-overlay" id="triageModal">
+    <div class="modal" style="max-width: 940px;">
+      <div class="modal-head">
+        <div class="modal-title" id="triageTitle">Triage Details</div>
+        <button class="modal-close" data-close="triageModal">×</button>
+      </div>
+      <div class="modal-body" id="triageBody"></div>
     </div>
   </div>
 
@@ -1977,6 +2130,30 @@
       if (u === "TIER_2") return "Tier 2";
       if (u === "TIER_1") return "Tier 1";
       return "—";
+    }
+
+    function normalizeTierInt(raw) {
+      if (raw == null) return null;
+      const asNum = Number(raw);
+      if (Number.isInteger(asNum) && asNum >= 1 && asNum <= 3) return asNum;
+      const text = String(raw).trim().toUpperCase();
+      if (text === "TIER_1") return 1;
+      if (text === "TIER_2") return 2;
+      if (text === "TIER_3") return 3;
+      return null;
+    }
+
+    function tierClassFromInt(tier) {
+      const t = normalizeTierInt(tier);
+      if (t === 3) return "tier-t3";
+      if (t === 2) return "tier-t2";
+      if (t === 1) return "tier-t1";
+      return "tier-empty";
+    }
+
+    function tierLabelFromInt(tier) {
+      const t = normalizeTierInt(tier);
+      return t ? `TIER ${t}` : "TIER —";
     }
 
     function tierEvolutionDiagramHtml(initialTier, currentTier) {
@@ -3452,6 +3629,201 @@
       return code;
     }
 
+    function openEscalationConversation(escRec) {
+      if (!escRec) return;
+      byId("chatTitle").textContent = `${escRec.patient_name} — Escalation Conversation`;
+      const convo = (escRec.conversation_snapshot || []).map((m) => `${m.role || "unknown"}: ${m.content || ""}`).join("\n");
+      byId("chatBody").innerHTML = `<div class="chat-box">${esc(convo || "No conversation snapshot saved.")}</div>`;
+      byId("chatModal").classList.add("active");
+    }
+
+    function resolveEscalationPatient(e) {
+      const p = PATIENTS.find((x) => x.id === e.patient_id) || {};
+      const phase = String(e.episode_phase || p.phase || p.pipelineType || p.pipeline_type || inferEpisodeType(p) || "post_op").toLowerCase();
+      return { patient: p, phase };
+    }
+
+    function tierScoreForEscalation(e) {
+      return normalizeTierInt(e.current_tier) || normalizeTierInt(e.tier) || 1;
+    }
+
+    function formatTierTransition(node) {
+      const before = normalizeTierInt(node.tier_before);
+      const after = normalizeTierInt(node.tier_after);
+      if (before == null && after == null) return `<span class="triage-muted">Assessment only</span>`;
+      if (before == null) {
+        return `<span class="tier-chip ${tierClassFromInt(after)}">${esc(tierLabelFromInt(after))}</span>`;
+      }
+      if (after == null) {
+        return `<span class="tier-chip ${tierClassFromInt(before)}">${esc(tierLabelFromInt(before))}</span>`;
+      }
+      return `<span class="tier-chain"><span class="tier-chip ${tierClassFromInt(before)}">${esc(tierLabelFromInt(before))}</span><span class="tier-arrow changed">→</span><span class="tier-chip ${tierClassFromInt(after)}">${esc(tierLabelFromInt(after))}</span></span>`;
+    }
+
+    function renderTriageModal(data, escRec) {
+      const currentTier = normalizeTierInt(data.current_tier) || tierScoreForEscalation(escRec);
+      const phase = String(data.episode_phase || "").toLowerCase().includes("pre") ? "pre_op" : "post_op";
+      const timeline = Array.isArray(data.timeline) ? data.timeline : [];
+      const changedOnly = timeline.filter((node) => node.source === "initial" || node.changed);
+      const hasFilteredAssessments = changedOnly.length !== timeline.length;
+      const defaultTimeline = changedOnly.length ? changedOnly : timeline;
+      const subjectPreview = data.intervention_subject || "Provider, Clinician, Archangel Health — URGENT CARE MESSAGE";
+      const patientEmail = (PATIENTS.find((p) => p.id === escRec.patient_id)?.email || "").trim();
+      const canSend = !!patientEmail;
+
+      byId("triageTitle").textContent = `${escRec.patient_name} — Triage`;
+      byId("triageBody").innerHTML = `
+        <div class="triage-modal-shell" data-triage-escalation-id="${esc(escRec.id)}">
+          <div class="triage-panel">
+            <div class="triage-headline">
+              <div>
+                <div class="esc-name"><span class="name-wrap">${episodePillHtml(phase)}<span>${esc(data.patient_name || escRec.patient_name)}</span></span></div>
+                <div class="triage-tier-line">${esc(`Tier ${currentTier} since ${fmt(data.current_tier_since || escRec.created_at)}`)}</div>
+              </div>
+              <span class="triage-tier-large ${tierClassFromInt(currentTier)}">${esc(tierLabelFromInt(currentTier))}</span>
+            </div>
+          </div>
+
+          <div class="triage-panel">
+            <h4>Risk Timeline</h4>
+            <div class="triage-muted" style="margin-bottom:8px;">Oldest to newest with phase context and tier transitions.</div>
+            ${hasFilteredAssessments ? `<button type="button" class="btn" data-show-all-triage style="padding:5px 9px;font-size:12px;margin-bottom:8px;">Show all assessments</button>` : ""}
+            <div class="triage-timeline-list" data-timeline-list></div>
+          </div>
+
+          <div class="triage-panel">
+            <h4>Escalation Context</h4>
+            <div class="esc-meta">Origin: ${esc(escRec.origin || "Chat")}</div>
+            <div class="esc-meta">Trigger: ${esc(prettyTrigger(escRec.trigger_type) || "—")}</div>
+            ${normalizeTierInt(escRec.tier) === 3 ? `<div class="esc-meta">Consent: ${esc((escRec.consent || "pending").toUpperCase())}${escRec.consent_at ? ` at ${esc(fmt(escRec.consent_at))}` : ""}</div>` : ""}
+          </div>
+
+          <div class="triage-panel">
+            <div class="triage-actions">
+              <button type="button" class="btn primary" data-open-intervention>Send Intervention</button>
+              <button type="button" class="esc-link-btn" data-modal-chat-id="${esc(escRec.id)}">View Conversation</button>
+            </div>
+            <div class="triage-composer" data-intervention-composer style="display:none;">
+              <div class="triage-composer-row">
+                <label>To</label>
+                <input type="text" value="${esc(patientEmail || "No email on file for this patient.")}" readonly />
+              </div>
+              <div class="triage-composer-row">
+                <label>Subject</label>
+                <input type="text" value="${esc(subjectPreview)}" readonly />
+              </div>
+              <div class="triage-composer-row">
+                <label>Message</label>
+                <textarea rows="5" data-intervention-message placeholder="Write your urgent care message to the patient..."></textarea>
+              </div>
+              <div class="triage-actions">
+                <button type="button" class="btn primary" data-send-intervention ${canSend ? "" : "disabled"}>${canSend ? "Send" : "No email on file"}</button>
+                <button type="button" class="btn" data-cancel-intervention>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const modal = byId("triageModal");
+      const shell = byId("triageBody").querySelector("[data-triage-escalation-id]");
+      const timelineListEl = shell.querySelector("[data-timeline-list]");
+      const renderTimeline = (nodes) => {
+        timelineListEl.innerHTML = nodes.map((node) => {
+          const changed = !!node.changed;
+          const reasons = Array.isArray(node.reasons) ? node.reasons : [];
+          return `
+            <div class="triage-node ${changed ? "" : "assessment"}">
+              <div class="triage-node-top">
+                <span>${esc(fmt(node.at || ""))}</span>
+                <span class="triage-node-phase">${esc(node.phase_label || "Assessment")}</span>
+                ${formatTierTransition(node)}
+              </div>
+              <div class="triage-node-trigger">${esc(prettyTrigger(node.triggered_by || node.source || "Assessment"))}</div>
+              ${changed && reasons.length ? `<div class="triage-reasons">${reasons.map((r) => {
+                const kind = String(r.kind || "").toUpperCase();
+                return `<div class="triage-reason ${kind === "HARD" ? "hard" : ""}">
+                  <div>${esc(r.label || r.code || "Clinical finding")}</div>
+                  ${r.detail ? `<div class="triage-muted" style="margin-top:4px;">${esc(r.detail)}</div>` : ""}
+                  <div class="triage-reason-tags">
+                    <span class="triage-tag ${kind === "HARD" ? "critical" : ""}">${esc(kind || "INFO")}</span>
+                    ${r.weight != null ? `<span class="triage-tag">w ${esc(r.weight)}</span>` : ""}
+                  </div>
+                </div>`;
+              }).join("")}</div>` : ""}
+            </div>
+          `;
+        }).join("");
+      };
+
+      renderTimeline(defaultTimeline);
+      const showAllBtn = shell.querySelector("[data-show-all-triage]");
+      if (showAllBtn) {
+        let showingAll = false;
+        showAllBtn.addEventListener("click", () => {
+          showingAll = !showingAll;
+          renderTimeline(showingAll ? timeline : defaultTimeline);
+          showAllBtn.textContent = showingAll ? "Show tier changes only" : "Show all assessments";
+        });
+      }
+
+      shell.querySelector("[data-modal-chat-id]")?.addEventListener("click", () => openEscalationConversation(escRec));
+      const composer = shell.querySelector("[data-intervention-composer]");
+      const openComposerBtn = shell.querySelector("[data-open-intervention]");
+      const cancelComposerBtn = shell.querySelector("[data-cancel-intervention]");
+      const sendBtn = shell.querySelector("[data-send-intervention]");
+      const messageInput = shell.querySelector("[data-intervention-message]");
+
+      openComposerBtn?.addEventListener("click", () => {
+        composer.style.display = "block";
+        openComposerBtn.disabled = true;
+      });
+      cancelComposerBtn?.addEventListener("click", () => {
+        composer.style.display = "none";
+        openComposerBtn.disabled = false;
+        if (messageInput) messageInput.value = "";
+      });
+      sendBtn?.addEventListener("click", async () => {
+        const msg = (messageInput?.value || "").trim();
+        if (!msg) {
+          showToast("Please write an intervention message.", "error");
+          return;
+        }
+        sendBtn.disabled = true;
+        sendBtn.textContent = "Sending…";
+        try {
+          await apiJson(`/api/escalations/${encodeURIComponent(escRec.id)}/intervention`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: msg }),
+          });
+          sendBtn.textContent = "Intervention Sent";
+          sendBtn.classList.add("sent");
+          showToast("Intervention sent to patient", "success");
+        } catch (e) {
+          sendBtn.disabled = false;
+          sendBtn.textContent = "Send";
+          showToast(e.message || "Could not send intervention.", "error");
+        }
+      });
+
+      modal.classList.add("active");
+    }
+
+    async function openTriageModal(escalationId) {
+      const escRec = escalations.find((x) => String(x.id) === String(escalationId));
+      if (!escRec) return;
+      byId("triageTitle").textContent = `${escRec.patient_name} — Triage`;
+      byId("triageBody").innerHTML = `<p class="triage-muted">Loading triage timeline…</p>`;
+      byId("triageModal").classList.add("active");
+      try {
+        const data = await apiJson(`/api/escalations/${encodeURIComponent(escalationId)}/triage-timeline`);
+        renderTriageModal(data, escRec);
+      } catch (e) {
+        byId("triageBody").innerHTML = `<p style="font-size:14px;color:#991b1b;">${esc(e.message || "Could not load triage timeline.")}</p>`;
+      }
+    }
+
     async function loadEscalations() {
       const data = await apiJson("/api/escalations");
       escalations = data.escalations || [];
@@ -3460,38 +3832,52 @@
       if (sub) {
         sub.textContent = data.filter_applied === "surgeon_tier3_only"
           ? "Showing Tier 3 escalations only (surgeon view)."
-          : "Sorted most recent to least recent.";
+          : "Sorted by risk tier (Tier 3 → Tier 2 → Tier 1).";
       }
+
+      const sortedEscalations = [...escalations].sort((a, b) => {
+        const tierDiff = tierScoreForEscalation(b) - tierScoreForEscalation(a);
+        if (tierDiff !== 0) return tierDiff;
+        const ta = Date.parse(a.created_at || 0);
+        const tb = Date.parse(b.created_at || 0);
+        return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
+      });
       byId("resolvedCounter").textContent = `${data.resolved_count || 0}/${data.total_count || 0} Escalations Resolved`;
-      byId("escalationList").innerHTML = escalations.map((e) => `
-        <div class="esc-item" data-id="${esc(e.id)}">
+      byId("escalationList").innerHTML = sortedEscalations.map((e) => {
+        const { patient, phase } = resolveEscalationPatient(e);
+        const tier = tierScoreForEscalation(e);
+        return `
+        <div class="esc-item tier-${esc(tier)}" data-id="${esc(e.id)}">
           <div class="esc-top">
             <div>
-              <div class="esc-name"><span class="name-wrap">${episodePillHtml(inferEpisodeType(PATIENTS.find((p) => p.id === e.patient_id) || {}))}<span>${esc(e.patient_name)}</span></span></div>
-              <div class="esc-meta">Tier ${esc(e.tier)} • ${esc(fmt(e.created_at))}</div>
-              <div class="esc-meta">Origin: ${esc(e.origin || "Chat")}</div>
-              <div class="esc-meta">Trigger: ${esc(prettyTrigger(e.trigger_type))}</div>
-              ${e.tier === 3 ? `<div class="esc-meta">Consent: ${esc((e.consent || "pending").toUpperCase())}${e.consent_at ? ` at ${esc(fmt(e.consent_at))}` : ""}</div>` : ""}
+              <div class="esc-name">${esc(e.patient_name)}</div>
+              <div class="esc-phase">${episodePillHtml(phase || inferEpisodeType(patient || {}))}</div>
+              <div class="esc-tier-badge ${tierClassFromInt(tier)}">${esc(tierLabelFromInt(tier))}</div>
             </div>
-            <button class="btn" data-chat-id="${esc(e.id)}">View Conversation</button>
+            <div class="esc-actions">
+              <button class="btn" data-triage-id="${esc(e.id)}">View Triage</button>
+            </div>
           </div>
-          <div class="yn-wrap">
-            <span>Escalation Resolved:</span>
-            <button type="button" class="yn-btn ${e.resolved ? "active y" : ""}" data-toggle="y">Y</button>
-            <button type="button" class="yn-btn ${!e.resolved ? "active n" : ""}" data-toggle="n">N</button>
+          <div class="esc-footer">
+            <div class="yn-wrap">
+              <span>Escalation Resolved:</span>
+              <button type="button" class="yn-btn ${e.resolved ? "active y" : ""}" data-toggle="y">Y</button>
+              <button type="button" class="yn-btn ${!e.resolved ? "active n" : ""}" data-toggle="n">N</button>
+            </div>
+            <button class="esc-link-btn" type="button" data-chat-id="${esc(e.id)}">View Conversation</button>
           </div>
         </div>
-      `).join("");
+      `;
+      }).join("");
 
       byId("escalationList").querySelectorAll("[data-chat-id]").forEach((btn) => {
         btn.addEventListener("click", () => {
           const escRec = escalations.find((x) => String(x.id) === btn.dataset.chatId);
-          if (!escRec) return;
-          byId("chatTitle").textContent = `${escRec.patient_name} — Escalation Conversation`;
-          const convo = (escRec.conversation_snapshot || []).map((m) => `${m.role || "unknown"}: ${m.content || ""}`).join("\n");
-          byId("chatBody").innerHTML = `<div class="chat-box">${esc(convo || "No conversation snapshot saved.")}</div>`;
-          byId("chatModal").classList.add("active");
+          openEscalationConversation(escRec);
         });
+      });
+      byId("escalationList").querySelectorAll("[data-triage-id]").forEach((btn) => {
+        btn.addEventListener("click", () => openTriageModal(btn.dataset.triageId));
       });
 
       byId("escalationList").querySelectorAll(".esc-item").forEach((item) => {
