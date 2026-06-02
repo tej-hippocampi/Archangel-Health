@@ -215,7 +215,7 @@ GET /api/escalations/{escalation_id}/triage-timeline
 ```
 (Equivalently keyed by patient; using the escalation id keeps the frontend call simple since the card already has it. Resolve `patient_id` from the escalation server-side.)
 
-**Auth:** same clinical-staff guard as `GET /api/escalations`, and reuse `_assert_clinical_staff_can_access_patient()`.
+**Auth:** mirror the existing escalation endpoints exactly (see Appendix C): take `staff: Optional[StaffContext] = Depends(get_staff_context_optional)`, then call `_assert_clinical_staff_can_access_patient(patient_id, staff)` after resolving the escalation's `patient_id`.
 
 **Response:**
 ```json
@@ -277,7 +277,7 @@ GET /api/escalations/{escalation_id}/triage-timeline
 3. Append all `list_preop_retier_events(patient_id)` → `source: "preop"`.
 4. Append all `list_intraop_reassessments(patient_id)` → `source: "intraop"`; map `pre_or_current_tier`→`tier_before`, `final_tier`→`tier_after`, `triggered_at`→`at`.
 5. Append all `list_postop_retier_events(patient_id)` → `source: "postop"`.
-6. Normalize every tier to int 1/2/3 (§4). Parse each `reasons_json`.
+6. Normalize every tier to int 1/2/3 (§4). **Do not parse `reasons_json` yourself** — the `team_store` list methods already hydrate it: each record exposes a parsed `reasons` list and a `changed` bool (and `inputs_snapshot` / `form_snapshot`). Read `rec["reasons"]` and `rec["changed"]` directly. See Appendix C for exact hydrated shapes.
 7. Sort ascending by `at`.
 8. Compute `phase` + `phase_label` per §6.2.
 9. `current_tier` = patient `current_tier` (normalized); `current_tier_since` = `tier_last_changed` (fallback to the `at` of the last node whose `changed == true`).
@@ -291,6 +291,8 @@ For each event timestamp `at`, given `or_started_at`, `or_ended_at`, `discharge_
 - else if `at > or_ended_at` and `at < discharge_at` → label **"After Intra-Op Procedure"** (still inpatient, post-procedure).
 - else if `discharge_at` exists and `at >= discharge_at` → `POST_OP`, label **"Post-Op — Day N"** where `N = floor((at - discharge_at)/1 day) + 1`.
 - Fallbacks: if timestamps are missing, label by `source` (`preop → "Pre-Op"`, `postop → "Post-Op"`).
+
+> **⚠️ Verify the discharge timestamp source.** `or_started_at`, `or_ended_at`, and `procedure_date` (under `structured_data`) are confirmed present on the patient blob (`_patient_store[patient_id]`). The exact **discharge** timestamp field is NOT confirmed on the blob — Cursor must locate it before relying on it. Likely sources, in order: (a) a `discharge_at` key on the patient blob; (b) `episode_snapshots` (`post_intraop_tier` is stamped at discharge in the demo seed); (c) the `inputs_snapshot` of post-op re-tier events (the post-op input model carries `discharge_at` / `days_since_discharge`). If no discharge timestamp can be resolved, fall back to: `source == "postop"` → label **"Post-Op — Day N"** using the event's own `days_since_discharge` from `inputs_snapshot` if present, else just **"Post-Op"**. Do not crash when it's absent.
 
 ### 6.3 New endpoint — send intervention email
 
@@ -393,6 +395,76 @@ np_pa           -> "NP/PA"
 system_admin    -> "Administrator"
 (other)         -> role.replace('_',' ').title()
 ```
+
+## Appendix C — Verified backend signatures & wiring (use these exactly)
+
+> Verified against the live code in `backend/`. Names, signatures, and patterns below are confirmed real — build against them as-is.
+
+### C.1 Auth pattern (copy this for both new endpoints)
+Existing escalation endpoints in `main.py` use FastAPI dependency injection. Mirror it:
+```python
+from <module> import get_staff_context_optional  # already imported at main.py:75
+# _require_clinical_staff is defined at main.py:157
+# _assert_clinical_staff_can_access_patient is defined at main.py:161
+
+@app.get("/api/escalations/{escalation_id}/triage-timeline")
+async def get_triage_timeline(
+    escalation_id: int,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    row = _team_store.get_escalation(escalation_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Escalation not found")
+    _assert_clinical_staff_can_access_patient(row["patient_id"], staff)
+    ...
+
+@app.post("/api/escalations/{escalation_id}/intervention")
+async def send_intervention(
+    escalation_id: int,
+    body: EscalationInterventionRequest,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    row = _team_store.get_escalation(escalation_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Escalation not found")
+    _assert_clinical_staff_can_access_patient(row["patient_id"], staff)
+    ...
+```
+- The module-level store instance is `_team_store`; the patient dict is `_patient_store` (both already in `main.py`).
+- List endpoints (no patient scope) use `staff = _require_clinical_staff(staff)` instead — see `list_escalations` at `main.py:2340`.
+
+### C.2 `team_store` methods (confirmed signatures + return shapes)
+```python
+get_escalation(escalation_id: int) -> Optional[Dict]            # team_store.py:1421
+list_preop_retier_events(patient_id, *, limit=200) -> List[Dict] # :2974  (queries by episode_id == patient_id)
+list_intraop_reassessments(patient_id) -> List[Dict]             # :2182
+list_postop_retier_events(patient_id, *, limit=200) -> List[Dict]# :2793
+log_event(*, patient_id=None, event_type, occurred_at=None, payload=None) -> None  # :1174  (keyword-only)
+get_health_system_by_id(hs_id: str) -> Optional[Dict]            # :798
+```
+All three retier-list methods already **return newest-first** (`ORDER BY datetime(... ) DESC`). Re-sort ascending by timestamp for the timeline.
+
+**Hydrated record shapes (already JSON-parsed by the store — do NOT re-parse):**
+- preop event (`_hydrate_preop_retier_event`): `{ id, episode_id, triggered_by, tier_before, tier_after, changed (bool), reasons (list), inputs_snapshot (dict), initial_tier, initial_tier_was_hard (bool), created_at, ... }`
+- postop event (`_hydrate_postop_retier_event`): `{ id, patient_id, triggered_by, tier_before, tier_after, changed (bool), reasons (list), inputs_snapshot (dict), post_intraop_tier, created_at, ... }`
+- intraop reassessment (`_row_to_reassessment`): `{ id, patient_id, pre_or_current_tier, proposed_tier, final_tier, hard_upgrade_applied (bool), is_conservative_default (bool), reasons (list), form_snapshot (dict), triggered_by, triggered_at, ... }`
+  - **Note:** intraop has **no `created_at`** — use `triggered_at`. Map `pre_or_current_tier → tier_before`, `final_tier → tier_after`.
+- Tier values in all these tables are **strings** (`"TIER_1"/"TIER_2"/"TIER_3"`) — run them through `normalize_tier` (§4).
+
+### C.3 Email (confirmed)
+```python
+# backend/email_utils.py
+is_email_transport_configured() -> bool                                   # :28
+async def send_html_email(to_email, subject, html_body, *, importance_headers=False) -> bool  # :53
+```
+
+### C.4 Provider identity (`StaffContext`, backend/staff_context.py:35)
+Confirmed fields: `source` ("tenant"|"landing"), `email`, `name` (Optional), `role`, `tenant_id` (Optional), `tenant_slug` (Optional). Build the subject signature from `staff.name`, role-map (Appendix A), and `get_health_system_by_id(staff.tenant_id)["name"]` (fallback `"Archangel Health"`).
+
+### C.5 Patient blob fields (confirmed in `main.py`)
+`current_tier`, `tier_last_changed`, `or_started_at`, `or_ended_at`, `pipeline_type`, and `structured_data["procedure_date"]` are present. `email` and `name` are present. (Discharge timestamp: see the warning in §6.2 — verify before use.)
+
+---
 
 ## Appendix B — Reason `kind` → display
 ```
