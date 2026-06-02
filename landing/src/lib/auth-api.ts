@@ -3,18 +3,17 @@
  * Uses relative /api in dev (Vite proxy to backend) or VITE_API_URL when set.
  */
 
-/** Empty in dev (Vite proxies /api); set VITE_API_URL in production (e.g. https://app.archangelhealth.ai). */
-export const API_BASE =
-  (import.meta as unknown as { env: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? '';
+const viteEnv = ((import.meta as unknown as {
+  env?: { VITE_DASHBOARD_URL?: string; VITE_API_URL?: string; DEV?: boolean };
+})?.env ?? {});
 
-const env = import.meta as unknown as {
-  env: { VITE_DASHBOARD_URL?: string; VITE_API_URL?: string; DEV?: boolean };
-};
+/** Empty in dev (Vite proxies /api); set VITE_API_URL in production (e.g. https://app.archangelhealth.ai). */
+export const API_BASE = viteEnv.VITE_API_URL ?? "";
 
 /** Backend origin for doctor portal redirects (no trailing slash). */
 export function dashboardBaseUrl(): string {
   const raw =
-    env.env.VITE_DASHBOARD_URL ?? env.env.VITE_API_URL ?? (env.env.DEV ? "http://localhost:8000" : "");
+    viteEnv.VITE_DASHBOARD_URL ?? viteEnv.VITE_API_URL ?? (viteEnv.DEV ? "http://localhost:8000" : "");
   return raw.replace(/\/$/, "");
 }
 
