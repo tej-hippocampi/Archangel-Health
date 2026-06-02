@@ -775,11 +775,16 @@
     .or-divider { display: flex; align-items: center; gap: 12px; margin: 14px 0; }
     .or-divider::before, .or-divider::after { content: ""; flex: 1; height: 1px; background: #e5e7eb; }
     .or-divider span { font-size: 12px; color: #9ca3af; font-weight: 500; white-space: nowrap; }
-    .processing-overlay { display: none; padding: 24px 20px; }
-    .processing-overlay.active { display: block; }
-    .processing-overlay .spinner { width: 36px; height: 36px; border: 3px solid #e5e7eb; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 14px; }
-    .processing-overlay p { font-size: 14px; color: #6b7280; }
-    .processing-overlay .step { font-size: 12px; color: #9ca3af; margin-top: 6px; }
+    .processing-overlay { display: none; padding: 14px 20px 18px; min-height: 420px; max-height: 72vh; }
+    .processing-overlay.active { display: flex; flex-direction: column; }
+    .processing-overlay .step { display: none; }
+    #generationTheater {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
     .progress-bar-wrap { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin-top: 16px; }
     .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s ease; width: 0%; }
     .progress-pct { font-size: 13px; font-weight: 600; color: var(--accent); margin-top: 8px; }
@@ -822,6 +827,33 @@
     .theater-error { margin-top: 8px; font-size: 12px; color: var(--danger); }
     .error-msg { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 12px 16px; color: #991b1b; font-size: 13px; margin: 0 28px 14px; display: none; }
     .error-msg.active { display: block; }
+    .review-summary {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 14px;
+      margin-bottom: 12px;
+    }
+    .review-item .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .review-item .v { margin-top: 3px; font-size: 14px; color: var(--text); font-weight: 600; }
+    .review-track-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+    .review-track {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: #fff;
+    }
+    .review-track-name { font-size: 13px; font-weight: 700; color: #334155; }
+    .review-track-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .review-track-meta .chip { margin: 0; }
+    @media (max-width: 760px) {
+      .review-summary { grid-template-columns: 1fr; }
+      .review-track { align-items: flex-start; flex-direction: column; }
+      .review-track-meta { justify-content: flex-start; }
+    }
 
     .toast {
       position: fixed; bottom: 24px; right: 24px; background: #111827; color: #fff;
@@ -1778,8 +1810,6 @@
         </div>
       </div>
       <div class="processing-overlay" id="processing">
-        <div class="spinner"></div>
-        <p>Generating resources...</p>
         <div class="step" id="processingStep">Starting pipeline</div>
         <div class="progress-bar-wrap" style="display:none;"><div class="progress-bar-fill" id="progressBarFill"></div></div>
         <div class="progress-pct" id="progressPct" style="display:none;">0%</div>
@@ -1878,6 +1908,37 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="generationReviewModal">
+    <div class="modal" style="max-width: 760px;">
+      <div class="modal-head">
+        <div class="modal-title" id="generationReviewTitle">Review &amp; Send Materials</div>
+        <button class="modal-close" data-close="generationReviewModal">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="panel-note" id="generationReviewSubtitle" style="font-size:14px;color:var(--muted);margin:0 0 10px;">
+          Confirm generated resources and send them to the patient.
+        </p>
+        <div class="panel" style="margin-bottom: 12px;">
+          <div class="panel-head"><span>Session Summary</span></div>
+          <div class="panel-body">
+            <div class="review-summary" id="generationReviewSummary"></div>
+          </div>
+        </div>
+        <div class="panel" style="margin-bottom: 0;">
+          <div class="panel-head"><span>Generated Tracks</span></div>
+          <div class="panel-body">
+            <ul class="review-track-list" id="generationReviewTracks"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="generationReviewOpenDetailBtn" type="button">Open Patient Detail</button>
+        <button class="btn" id="generationReviewViewBtn" type="button">View Materials</button>
+        <button class="btn primary" id="generationReviewSendBtn" type="button">Send to Patient</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script>
     const PROFILE_KEY = "archangel_doctor_profile_ui_v2";
@@ -1894,6 +1955,7 @@
     let selectedEpisodeType = null;
     const sentPreparationMaterials = new Set();
     let _triageTierSnap = {};
+    let generatedReviewContext = null;
 
     function isTriageDemoTenant() {
       const c = (document.body.dataset.clinicCode || "").toUpperCase();
@@ -4835,6 +4897,11 @@
           if (uploadContent) uploadContent.style.display = "block";
           if (uploadSuccess) uploadSuccess.style.display = "none";
           await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
+          openGenerationReviewModal({
+            payload: terminalPayload,
+            episodeType: selectedEpisodeType,
+            patientName: name,
+          });
         } catch (e) {
           theater.fail(e.message || "Could not process patient.");
           byId("processing").classList.remove("active");
@@ -4899,6 +4966,101 @@
       setTimeout(() => toast.classList.remove("active"), 2400);
     }
 
+    function _reviewTracksFromPayload(payload, episodeType) {
+      if (episodeType === "pre_op") {
+        return [{ label: "Pre-op preparation", data: payload?.preop || null }];
+      }
+      return [
+        { label: "Post-op diagnosis", data: payload?.diagnosis || null },
+        { label: "Post-op treatment", data: payload?.treatment || null },
+      ];
+    }
+
+    function openGenerationReviewModal({ payload, episodeType, patientName }) {
+      const pid = payload?.patient_id;
+      if (!pid) return;
+      generatedReviewContext = {
+        payload,
+        episodeType,
+        patientName: patientName || "Patient",
+        sent: false,
+      };
+      const episodeLabel = episodeType === "pre_op" ? "Pre-op" : "Post-op";
+      byId("generationReviewTitle").textContent = `Review & Send Materials · ${episodeLabel}`;
+      byId("generationReviewSubtitle").textContent = `${generatedReviewContext.patientName} resources were generated. Review and send now.`;
+      const summaryRows = [
+        ["Patient", generatedReviewContext.patientName],
+        ["Episode", episodeLabel],
+        ["Patient ID", pid],
+        ["Resource code", payload?.resource_code || "—"],
+      ];
+      byId("generationReviewSummary").innerHTML = summaryRows.map(([k, v]) => `
+        <div class="review-item">
+          <div class="k">${esc(k)}</div>
+          <div class="v">${esc(v)}</div>
+        </div>
+      `).join("");
+
+      const tracks = _reviewTracksFromPayload(payload, episodeType);
+      byId("generationReviewTracks").innerHTML = tracks.map((t) => {
+        const hasVoice = !!(t.data && t.data.voice_audio_url);
+        const hasBattlecard = !!(t.data && t.data.battlecard_html);
+        return `
+          <li class="review-track">
+            <div class="review-track-name">${esc(t.label)}</div>
+            <div class="review-track-meta">
+              <span class="chip">${hasBattlecard ? "battlecard ready" : "battlecard pending"}</span>
+              <span class="chip">${hasVoice ? "voice ready" : "voice pending"}</span>
+            </div>
+          </li>
+        `;
+      }).join("");
+
+      const sendBtn = byId("generationReviewSendBtn");
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Send to Patient";
+      sendBtn.classList.add("primary");
+      byId("generationReviewModal").classList.add("active");
+    }
+
+    function setupGenerationReviewModal() {
+      byId("generationReviewOpenDetailBtn").addEventListener("click", async () => {
+        const ctx = generatedReviewContext;
+        if (!ctx?.payload?.patient_id) return;
+        byId("generationReviewModal").classList.remove("active");
+        await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
+        openPatientDetail(ctx.payload.patient_id);
+      });
+      byId("generationReviewViewBtn").addEventListener("click", () => {
+        const url = generatedReviewContext?.payload?.dashboard_url;
+        if (!url) {
+          showToast("Dashboard URL unavailable for this patient.", "error");
+          return;
+        }
+        window.open(url, "_blank", "noopener");
+      });
+      byId("generationReviewSendBtn").addEventListener("click", async () => {
+        const ctx = generatedReviewContext;
+        if (!ctx?.payload?.patient_id) return;
+        const sendBtn = byId("generationReviewSendBtn");
+        if (sendBtn.disabled) return;
+        sendBtn.disabled = true;
+        sendBtn.textContent = "Sending…";
+        try {
+          await apiJson(`/api/send-to-patient/${encodeURIComponent(ctx.payload.patient_id)}`, { method: "POST" });
+          ctx.sent = true;
+          sendBtn.textContent = "Sent to Patient";
+          sendBtn.classList.remove("primary");
+          showToast(`${ctx.episodeType === "pre_op" ? "Preparation" : "Discharge"} materials sent to ${ctx.patientName}.`, "success");
+          await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
+        } catch (e) {
+          sendBtn.disabled = false;
+          sendBtn.textContent = "Send to Patient";
+          showToast(e.message || "Failed to send materials.", "error");
+        }
+      });
+    }
+
     function setupSidebarToggle() {
       const shell = byId("appShell");
       const btn = byId("sidebarToggleBtn");
@@ -4922,6 +5084,7 @@
     setupGlobalModals();
     setupProfile();
     setupAddPatientFlow();
+    setupGenerationReviewModal();
     setupRosterSearch();
     setupEditPatientModal();
     setupPatientActions();
