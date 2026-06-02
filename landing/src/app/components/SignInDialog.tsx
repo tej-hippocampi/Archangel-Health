@@ -23,6 +23,11 @@ export function SignInDialog({ open, onOpenChange }: Props) {
   const [apiError, setApiError] = React.useState<string | null>(null);
   const [demoRoutes, setDemoRoutes] = React.useState<Record<string, authApi.DemoSignInRoute>>({});
 
+  const parseTenantSlugFromError = React.useCallback((message: string): string | null => {
+    const m = String(message || "").match(/\/t\/([^/\s]+)\/sign-in/i);
+    return m?.[1] ? decodeURIComponent(m[1]) : null;
+  }, []);
+
   React.useEffect(() => {
     if (!open || step !== "doctor") return;
     authApi.getDemoSignInRoutes().then(setDemoRoutes).catch(() => setDemoRoutes({}));
@@ -45,8 +50,18 @@ export function SignInDialog({ open, onOpenChange }: Props) {
     setApiError(null);
     setSubmitting(true);
     const trimmedEmail = email.trim();
-    const route = demoRoutes[trimmedEmail.toLowerCase()];
+    const normalizedEmail = trimmedEmail.toLowerCase();
+    const resolveRoute = async (): Promise<authApi.DemoSignInRoute | undefined> => {
+      const cached = demoRoutes[normalizedEmail];
+      if (cached) return cached;
+      const fresh = await authApi.getDemoSignInRoutes();
+      if (Object.keys(fresh).length) {
+        setDemoRoutes(fresh);
+      }
+      return fresh[normalizedEmail];
+    };
     try {
+      const route = await resolveRoute();
       if (route?.type === "tenant" && route.slug) {
         const data = await authApi.tenantLogin(route.slug, trimmedEmail, password);
         if (!data.access_token) {
@@ -60,6 +75,22 @@ export function SignInDialog({ open, onOpenChange }: Props) {
       resetAndClose();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Sign in failed";
+      const fallbackSlug = parseTenantSlugFromError(msg);
+      if (fallbackSlug) {
+        try {
+          const data = await authApi.tenantLogin(fallbackSlug, trimmedEmail, password);
+          if (!data.access_token) {
+            throw new Error("Could not open doctor portal.");
+          }
+          resetAndClose();
+          await authApi.redirectToDoctorPortal(data.access_token);
+          return;
+        } catch (tenantErr) {
+          const tenantMsg = tenantErr instanceof Error ? tenantErr.message : "Sign in failed";
+          setApiError(tenantMsg);
+          return;
+        }
+      }
       setApiError(msg);
     } finally {
       setSubmitting(false);
