@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Escalation Log | Archangel Health — Design</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!--
+    SELF-CONTAINED EXTRACT for Claude Design.
+    This file isolates the Doctor Portal "Escalation Log" view from
+    frontend/doctor.html so the design can be iterated on in isolation.
+
+    It contains:
+      1. The design tokens (:root) used across the real app
+      2. Only the shared base styles the Escalation Log depends on
+         (body, page, panel, btn, modal, chat-box, name-wrap, episode-pill)
+      3. The Escalation-specific CSS (the `.esc-*` / `.escalation-head` block)
+      4. The real Escalation page markup + "View Conversation" chat modal
+      5. Hardcoded SAMPLE escalations so the list renders without a backend
+
+    The render logic mirrors loadEscalations() in doctor.html. When you
+    finish the redesign, port the markup/CSS changes back into doctor.html:
+      - CSS lives in the <style> block around lines 494-528
+      - Page markup lives around lines 1208-1219
+      - Chat modal lives around lines 1566-1575
+      - Render template lives in loadEscalations() around lines 3404-3422
+  -->
+  <style>
+    /* ─── Design tokens (from doctor.html :root) ─────────────────────── */
+    :root {
+      --bg: #f6f7fb;
+      --surface: #fff;
+      --line: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --accent-dark: #1d4ed8;
+      --ok: #16a34a;
+      --warn: #d97706;
+      --danger: #dc2626;
+      --radius: 12px;
+      --space: 8px;
+      --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* Simple page frame so the view has breathing room in isolation */
+    .main { padding: calc(var(--space) * 3); max-width: 900px; margin: 0 auto; }
+
+    /* ─── Shared base styles the Escalation Log depends on ───────────── */
+    .page-title { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.12; }
+    .page-sub { margin-top: 4px; font-size: 14px; color: var(--muted); }
+
+    .btn {
+      border: 1px solid var(--line); background: #fff; color: var(--text);
+      border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: var(--font);
+    }
+    .btn:hover { background: #f9fafb; }
+
+    /* name + episode pill (reused from the roster) */
+    .name-wrap { display: inline-flex; align-items: center; gap: 8px; }
+    .episode-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .03em;
+      padding: 2px 7px;
+      text-transform: uppercase;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      color: #334155;
+      white-space: nowrap;
+    }
+    .episode-pill.pre { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .episode-pill.post { background: #ecfdf5; border-color: #bbf7d0; color: #15803d; }
+
+    /* ─── Escalation (the block being redesigned) ────────────────────── */
+    .escalation-head {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .resolved-counter {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      color: #0f172a;
+      text-align: right;
+    }
+    .esc-list { display: grid; gap: 8px; }
+    .esc-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 12px;
+    }
+    .esc-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+    .esc-name { font-size: 14px; font-weight: 700; }
+    .esc-meta { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+    .yn-wrap { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; }
+    .yn-btn {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+    .yn-btn.active.y { border-color: #86efac; background: #dcfce7; color: #166534; }
+    .yn-btn.active.n { border-color: #fca5a5; background: #fee2e2; color: #991b1b; }
+
+    /* ─── Escalation "View Conversation" modal ───────────────────────── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 120;
+      justify-content: center; align-items: center; padding: 24px;
+      background: rgba(0,0,0,.5);
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      width: 100%; max-width: 780px; max-height: 90vh;
+      background: #fff; border: 1px solid var(--line); border-radius: 16px;
+      overflow: hidden; display: flex; flex-direction: column;
+    }
+    .modal-head {
+      border-bottom: 1px solid var(--line);
+      padding: 14px 18px;
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    }
+    .modal-title { font-size: 15px; font-weight: 700; }
+    .modal-close {
+      width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px;
+      background: #fff; cursor: pointer; color: var(--muted); font-weight: 700;
+    }
+    .modal-close:hover { background: #f9fafb; }
+    .modal-body { padding: 16px 18px; overflow-y: auto; }
+    .chat-box {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      background: #fff;
+    }
+
+    @media (max-width: 860px) {
+      .main { padding: 16px; }
+      .resolved-counter { font-size: 28px; text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <main class="main">
+    <!-- Escalation page (from doctor.html lines 1208-1219) -->
+    <section class="page" id="tab-escalation">
+      <div class="escalation-head">
+        <div>
+          <h1 class="page-title">Escalation Log</h1>
+          <p class="page-sub" id="escalationSub">Sorted most recent to least recent.</p>
+        </div>
+        <div class="resolved-counter" id="resolvedCounter">0/0 Escalations Resolved</div>
+      </div>
+
+      <div class="esc-list" id="escalationList"></div>
+    </section>
+  </main>
+
+  <!-- Escalation chat modal (from doctor.html lines 1566-1575) -->
+  <div class="modal-overlay" id="chatModal">
+    <div class="modal">
+      <div class="modal-head">
+        <div class="modal-title" id="chatTitle">Escalation Chat</div>
+        <button class="modal-close" data-close="chatModal">×</button>
+      </div>
+      <div class="modal-body" id="chatBody"></div>
+    </div>
+  </div>
+
+  <script>
+    /* ─── Sample data + render logic (mirrors loadEscalations()) ──────── */
+
+    // Stand-in for the live /api/escalations response.
+    const SAMPLE = {
+      resolved_count: 1,
+      total_count: 3,
+      escalations: [
+        {
+          id: 1, patient_id: "p1", patient_name: "Maria Gonzalez",
+          episode_type: "post", tier: 3, created_at: "2026-06-02T09:14:00Z",
+          origin: "Chat", trigger_type: "uncontrolled_pain",
+          consent: "granted", consent_at: "2026-06-02T09:15:00Z", resolved: false,
+          conversation_snapshot: [
+            { role: "patient", content: "My incision pain is a 9/10 and the meds aren't helping." },
+            { role: "assistant", content: "That level of pain is concerning. I'd like to notify your care navigator. Is that okay?" },
+            { role: "patient", content: "Yes please." },
+          ],
+        },
+        {
+          id: 2, patient_id: "p2", patient_name: "James Whitfield",
+          episode_type: "post", tier: 2, created_at: "2026-06-02T07:42:00Z",
+          origin: "Chat", trigger_type: "fever", consent: null, consent_at: null, resolved: false,
+          conversation_snapshot: [
+            { role: "patient", content: "I have a low fever, around 100.6°F since last night." },
+            { role: "assistant", content: "Thanks for letting me know. Let's keep an eye on it and flag your nurse." },
+          ],
+        },
+        {
+          id: 3, patient_id: "p3", patient_name: "Aisha Rahman",
+          episode_type: "pre", tier: 1, created_at: "2026-06-01T18:05:00Z",
+          origin: "Intake", trigger_type: "medication_question", consent: null, consent_at: null, resolved: true,
+          conversation_snapshot: [
+            { role: "patient", content: "Should I stop my blood thinner before surgery?" },
+            { role: "assistant", content: "Good question — I'll route this to your surgical team to confirm timing." },
+          ],
+        },
+      ],
+    };
+
+    let escalations = [];
+
+    // Minimal stand-ins for the helpers doctor.html provides.
+    const byId = (id) => document.getElementById(id);
+    const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+    const fmt = (iso) => {
+      const d = new Date(iso);
+      return isNaN(d) ? String(iso) : d.toLocaleString(undefined, {
+        month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+      });
+    };
+    const prettyTrigger = (t) => String(t || "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+    const episodePillHtml = (type) => type === "pre"
+      ? `<span class="episode-pill pre">Pre-op</span>`
+      : `<span class="episode-pill post">Post-op</span>`;
+
+    function loadEscalations() {
+      const data = SAMPLE;
+      escalations = data.escalations || [];
+
+      byId("resolvedCounter").textContent =
+        `${data.resolved_count || 0}/${data.total_count || 0} Escalations Resolved`;
+
+      byId("escalationList").innerHTML = escalations.map((e) => `
+        <div class="esc-item" data-id="${esc(e.id)}">
+          <div class="esc-top">
+            <div>
+              <div class="esc-name"><span class="name-wrap">${episodePillHtml(e.episode_type)}<span>${esc(e.patient_name)}</span></span></div>
+              <div class="esc-meta">Tier ${esc(e.tier)} • ${esc(fmt(e.created_at))}</div>
+              <div class="esc-meta">Origin: ${esc(e.origin || "Chat")}</div>
+              <div class="esc-meta">Trigger: ${esc(prettyTrigger(e.trigger_type))}</div>
+              ${e.tier === 3 ? `<div class="esc-meta">Consent: ${esc((e.consent || "pending").toUpperCase())}${e.consent_at ? ` at ${esc(fmt(e.consent_at))}` : ""}</div>` : ""}
+            </div>
+            <button class="btn" data-chat-id="${esc(e.id)}">View Conversation</button>
+          </div>
+          <div class="yn-wrap">
+            <span>Escalation Resolved:</span>
+            <button type="button" class="yn-btn ${e.resolved ? "active y" : ""}" data-toggle="y">Y</button>
+            <button type="button" class="yn-btn ${!e.resolved ? "active n" : ""}" data-toggle="n">N</button>
+          </div>
+        </div>
+      `).join("");
+
+      byId("escalationList").querySelectorAll("[data-chat-id]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const escRec = escalations.find((x) => String(x.id) === btn.dataset.chatId);
+          if (!escRec) return;
+          byId("chatTitle").textContent = `${escRec.patient_name} — Escalation Conversation`;
+          const convo = (escRec.conversation_snapshot || []).map((m) => `${m.role || "unknown"}: ${m.content || ""}`).join("\n");
+          byId("chatBody").innerHTML = `<div class="chat-box">${esc(convo || "No conversation snapshot saved.")}</div>`;
+          byId("chatModal").classList.add("active");
+        });
+      });
+
+      // Local-only toggle so the Y/N buttons feel live in the design preview.
+      byId("escalationList").querySelectorAll(".esc-item").forEach((item) => {
+        const escId = Number(item.dataset.id);
+        item.querySelectorAll(".yn-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const rec = escalations.find((x) => x.id === escId);
+            if (rec) rec.resolved = btn.dataset.toggle === "y";
+            const newResolved = escalations.filter((x) => x.resolved).length;
+            SAMPLE.resolved_count = newResolved;
+            loadEscalations();
+          });
+        });
+      });
+    }
+
+    // Close modal on overlay / close-button click.
+    document.addEventListener("click", (e) => {
+      if (e.target.matches("[data-close], .modal-overlay")) {
+        byId("chatModal").classList.remove("active");
+      }
+    });
+
+    loadEscalations();
+  </script>
+</body>
+</html>
