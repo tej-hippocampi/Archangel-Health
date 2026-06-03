@@ -169,6 +169,55 @@ def _staff_actor_id(staff: Optional[StaffContext]) -> str:
     return "unknown"
 
 
+def _normalize_tier(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value if value in (1, 2, 3) else None
+    raw = str(value).strip().upper()
+    if raw in ("1", "2", "3"):
+        return int(raw)
+    if raw.startswith("TIER_"):
+        tail = raw.split("_")[-1]
+        if tail in ("1", "2", "3"):
+            return int(tail)
+    return None
+
+
+def _parse_iso_datetime(value: Any) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        return None
+
+
+def _provider_role_display(role: str) -> str:
+    norm = str(role or "").strip().lower()
+    if norm == "surgeon":
+        return "Surgeon"
+    if norm == "rn_coordinator":
+        return "RN Coordinator"
+    if norm == "np_pa":
+        return "NP/PA"
+    if norm == "system_admin":
+        return "Administrator"
+    return norm.replace("_", " ").title() if norm else "Clinician"
+
+
+def _provider_email_signature(staff: Optional[StaffContext]) -> str:
+    if not staff:
+        return "Care Team, Clinician, Archangel Health"
+    provider_name = (staff.name or "").strip() or (staff.email or "").strip() or "Care Team"
+    provider_role = _provider_role_display(staff.role)
+    institution = "Archangel Health"
+    if staff.tenant_id:
+        hs = _team_store.get_health_system_by_id(staff.tenant_id) or {}
+        institution = str(hs.get("name") or institution).strip() or institution
+    return f"{provider_name}, {provider_role}, {institution}"
+
+
 def _validate_patient_iso_date(value: str, field_name: str) -> None:
     try:
         date.fromisoformat(value)
@@ -1489,6 +1538,10 @@ class EscalationResolveRequest(BaseModel):
     resolved: bool
 
 
+class EscalationInterventionRequest(BaseModel):
+    message: str
+
+
 class EscalationConsentRequest(BaseModel):
     escalation_id: int
     consent: str
@@ -2380,6 +2433,8 @@ async def list_escalations(staff: Optional[StaffContext] = Depends(get_staff_con
         trigger = row["trigger_type"]
         origin = "Care Team Notification" if str(trigger).startswith("care_team_notification") else "Chat"
         tier_val = row["tier"]
+        current_tier = _normalize_tier(patient.get("current_tier")) or _normalize_tier(tier_val) or 1
+        episode_phase = (patient.get("phase") or patient.get("pipeline_type") or "post_op")
         if (
             staff
             and staff.source == "tenant"
@@ -2393,6 +2448,8 @@ async def list_escalations(staff: Optional[StaffContext] = Depends(get_staff_con
                 "patient_id": row["patient_id"],
                 "patient_name": patient.get("name", row["patient_id"]),
                 "tier": tier_val,
+                "current_tier": current_tier,
+                "episode_phase": episode_phase,
                 "trigger_type": row["trigger_type"],
                 "origin": origin,
                 "message": row.get("message", ""),
@@ -2422,6 +2479,249 @@ async def set_escalation_resolved(
     _assert_clinical_staff_can_access_patient(row["patient_id"], staff)
     _team_store.set_escalation_resolved(escalation_id, body.resolved)
     return {"ok": True, "resolved": body.resolved}
+
+
+@app.get("/api/escalations/{escalation_id}/triage-timeline")
+async def get_triage_timeline(
+    escalation_id: int,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    row = _team_store.get_escalation(escalation_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Escalation not found")
+    patient_id = row["patient_id"]
+    _assert_clinical_staff_can_access_patient(patient_id, staff)
+    staff = _require_clinical_staff(staff)
+    patient = _patient_store.get(patient_id) or {}
+    snapshot = _team_store.get_episode_snapshot(patient_id) or {}
+
+    surgery = {
+        "procedure_date": (patient.get("structured_data") or {}).get("procedure_date"),
+        "or_started_at": patient.get("or_started_at"),
+        "or_ended_at": patient.get("or_ended_at"),
+        "discharge_at": patient.get("discharge_at"),
+    }
+    or_started_dt = _parse_iso_datetime(surgery["or_started_at"])
+    or_ended_dt = _parse_iso_datetime(surgery["or_ended_at"])
+    discharge_dt = _parse_iso_datetime(surgery["discharge_at"])
+
+    def classify_phase(
+        at_iso: Optional[str],
+        source: str,
+        inputs_snapshot: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, str]:
+        at_dt = _parse_iso_datetime(at_iso)
+        src = (source or "").strip().lower()
+        if src == "intraop":
+            return {"phase": "INTRA_OP", "phase_label": "After Intra-Op Procedure"}
+        if at_dt is None:
+            if src == "postop":
+                days = inputs_snapshot.get("days_since_discharge") if inputs_snapshot else None
+                if isinstance(days, int) and days > 0:
+                    return {"phase": "POST_OP", "phase_label": f"Post-Op — Day {days}"}
+                return {"phase": "POST_OP", "phase_label": "Post-Op"}
+            if src == "preop":
+                return {"phase": "PRE_OP", "phase_label": "Pre-Op"}
+            return {"phase": "PRE_OP", "phase_label": "Pre-Op"}
+        if or_started_dt is None or (or_started_dt and at_dt < or_started_dt):
+            return {"phase": "PRE_OP", "phase_label": "Pre-Op"}
+        if or_ended_dt and or_started_dt and or_started_dt <= at_dt <= or_ended_dt:
+            return {"phase": "INTRA_OP", "phase_label": "Intra-Op (in OR)"}
+        if or_ended_dt and at_dt > or_ended_dt:
+            if discharge_dt and at_dt < discharge_dt:
+                return {"phase": "INTRA_OP", "phase_label": "After Intra-Op Procedure"}
+            if discharge_dt and at_dt >= discharge_dt:
+                day_n = max(1, int((at_dt - discharge_dt).days) + 1)
+                return {"phase": "POST_OP", "phase_label": f"Post-Op — Day {day_n}"}
+            if src == "postop":
+                days = inputs_snapshot.get("days_since_discharge") if inputs_snapshot else None
+                if isinstance(days, int) and days > 0:
+                    return {"phase": "POST_OP", "phase_label": f"Post-Op — Day {days}"}
+                return {"phase": "POST_OP", "phase_label": "Post-Op"}
+            return {"phase": "INTRA_OP", "phase_label": "After Intra-Op Procedure"}
+        if src == "postop":
+            days = inputs_snapshot.get("days_since_discharge") if inputs_snapshot else None
+            if isinstance(days, int) and days > 0:
+                return {"phase": "POST_OP", "phase_label": f"Post-Op — Day {days}"}
+            return {"phase": "POST_OP", "phase_label": "Post-Op"}
+        return {"phase": "PRE_OP", "phase_label": "Pre-Op"}
+
+    timeline: List[Dict[str, Any]] = []
+
+    initial_tier = _normalize_tier(patient.get("initial_tier") or snapshot.get("initial_tier"))
+    current_tier_fallback = _normalize_tier(row.get("tier"))
+    if initial_tier is None and current_tier_fallback is not None:
+        initial_tier = current_tier_fallback
+    if initial_tier is not None:
+        initial_at = (
+            patient.get("initial_tier_assigned_at")
+            or patient.get("tier_last_changed")
+            or row.get("created_at")
+        )
+        init_phase = classify_phase(initial_at, "initial")
+        timeline.append(
+            {
+                "at": initial_at,
+                "phase": init_phase["phase"],
+                "phase_label": init_phase["phase_label"],
+                "tier_before": None,
+                "tier_after": initial_tier,
+                "changed": True,
+                "triggered_by": "INITIAL_ASSESSMENT",
+                "source": "initial",
+                "reasons": list(patient.get("initial_tier_reasons") or []),
+            }
+        )
+
+    for rec in _team_store.list_preop_retier_events(patient_id, limit=200):
+        at = rec.get("created_at")
+        phase = classify_phase(at, "preop", rec.get("inputs_snapshot") or {})
+        timeline.append(
+            {
+                "at": at,
+                "phase": phase["phase"],
+                "phase_label": phase["phase_label"],
+                "tier_before": _normalize_tier(rec.get("tier_before")),
+                "tier_after": _normalize_tier(rec.get("tier_after")),
+                "changed": bool(rec.get("changed")),
+                "triggered_by": rec.get("triggered_by"),
+                "source": "preop",
+                "reasons": list(rec.get("reasons") or []),
+            }
+        )
+
+    for rec in _team_store.list_intraop_reassessments(patient_id):
+        at = rec.get("triggered_at")
+        before_t = _normalize_tier(rec.get("pre_or_current_tier"))
+        after_t = _normalize_tier(rec.get("final_tier"))
+        phase = classify_phase(at, "intraop", rec.get("form_snapshot") or {})
+        timeline.append(
+            {
+                "at": at,
+                "phase": phase["phase"],
+                "phase_label": phase["phase_label"],
+                "tier_before": before_t,
+                "tier_after": after_t,
+                "changed": bool(before_t is not None and after_t is not None and before_t != after_t),
+                "triggered_by": rec.get("triggered_by"),
+                "source": "intraop",
+                "reasons": list(rec.get("reasons") or []),
+            }
+        )
+
+    for rec in _team_store.list_postop_retier_events(patient_id, limit=200):
+        at = rec.get("created_at")
+        phase = classify_phase(at, "postop", rec.get("inputs_snapshot") or {})
+        timeline.append(
+            {
+                "at": at,
+                "phase": phase["phase"],
+                "phase_label": phase["phase_label"],
+                "tier_before": _normalize_tier(rec.get("tier_before")),
+                "tier_after": _normalize_tier(rec.get("tier_after")),
+                "changed": bool(rec.get("changed")),
+                "triggered_by": rec.get("triggered_by"),
+                "source": "postop",
+                "reasons": list(rec.get("reasons") or []),
+            }
+        )
+
+    def sort_key(item: Dict[str, Any]) -> tuple:
+        dt = _parse_iso_datetime(item.get("at"))
+        return (dt is None, dt or datetime.min)
+
+    timeline.sort(key=sort_key)
+    for node in timeline:
+        if node.get("phase") and node.get("phase_label"):
+            continue
+        phase = classify_phase(node.get("at"), str(node.get("source") or ""), {})
+        node["phase"] = phase["phase"]
+        node["phase_label"] = phase["phase_label"]
+
+    current_tier = _normalize_tier(patient.get("current_tier")) or current_tier_fallback or 1
+    current_tier_since = patient.get("tier_last_changed")
+    if not current_tier_since:
+        changed_nodes = [n for n in timeline if n.get("changed")]
+        if changed_nodes:
+            current_tier_since = changed_nodes[-1].get("at")
+
+    return {
+        "patient_id": patient_id,
+        "patient_name": patient.get("name") or row.get("patient_id"),
+        "episode_phase": (patient.get("phase") or patient.get("pipeline_type") or "post_op"),
+        "current_tier": current_tier,
+        "current_tier_since": current_tier_since,
+        "intervention_subject": f"{_provider_email_signature(staff)} — URGENT CARE MESSAGE",
+        "surgery": surgery,
+        "timeline": timeline,
+    }
+
+
+@app.post("/api/escalations/{escalation_id}/intervention")
+async def send_intervention(
+    escalation_id: int,
+    body: EscalationInterventionRequest,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    row = _team_store.get_escalation(escalation_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Escalation not found")
+    patient_id = row["patient_id"]
+    _assert_clinical_staff_can_access_patient(patient_id, staff)
+    staff = _require_clinical_staff(staff)
+
+    message = (body.message or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Message is required.")
+
+    patient = _patient_store.get(patient_id) or {}
+    patient_email = (patient.get("email") or "").strip()
+    if not patient_email:
+        raise HTTPException(status_code=409, detail="No email on file for this patient.")
+    if not is_email_transport_configured():
+        raise HTTPException(status_code=503, detail="Email transport is not configured.")
+
+    subject = f"{_provider_email_signature(staff)} — URGENT CARE MESSAGE"
+    safe_message_html = html_lib.escape(message).replace("\n", "<br>")
+    patient_name = html_lib.escape(str(patient.get("name") or "Patient"))
+    sender_line = html_lib.escape(_provider_email_signature(staff))
+    html_body = (
+        "<html><body style='margin:0;padding:20px;background:#f8fafc;"
+        "font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#0f172a;'>"
+        "<div style='max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;"
+        "border-radius:12px;padding:22px;'>"
+        "<div style='font-size:12px;font-weight:700;letter-spacing:0.08em;color:#1d4ed8;"
+        "text-transform:uppercase;margin-bottom:10px;'>Archangel Health</div>"
+        f"<h2 style='font-size:22px;line-height:1.25;margin:0 0 8px;'>Urgent Care Message for {patient_name}</h2>"
+        f"<p style='margin:0 0 16px;font-size:14px;color:#334155;'>Sent by {sender_line}</p>"
+        f"<div style='font-size:15px;line-height:1.65;color:#0f172a;background:#f8fafc;border:1px solid #e2e8f0;"
+        f"border-radius:10px;padding:14px 16px;'>{safe_message_html}</div>"
+        "<p style='margin:16px 0 0;font-size:12px;line-height:1.55;color:#64748b;'>"
+        "If this message was sent in error, please contact your care team directly. "
+        "This message may contain confidential medical information intended only for the recipient."
+        "</p></div></body></html>"
+    )
+
+    ok = await _send_html_email_impl(
+        patient_email,
+        subject,
+        html_body,
+        importance_headers=True,
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail="Failed to send intervention email.")
+
+    _team_store.log_event(
+        patient_id=patient_id,
+        event_type="provider_intervention_email",
+        payload={
+            "escalation_id": escalation_id,
+            "subject": subject,
+            "provider_email": staff.email,
+            "message_excerpt": message[:500],
+        },
+    )
+    return {"ok": True}
 
 
 @app.post("/api/escalations/consent")
