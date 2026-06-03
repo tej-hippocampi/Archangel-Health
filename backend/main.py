@@ -895,10 +895,12 @@ def _build_recovery_resources_email_html(
     recovery_plan_entry_url: str,
     hero_image_src: str,
     logo_image_src: str,
+    is_preop: bool = False,
 ) -> str:
     """
-    Build a clean, image-free recovery resources email body.
+    Build a clean, image-free resources email body.
     Keeps broad email-client compatibility (Gmail/Outlook/Apple Mail).
+    Wording adapts to pre-op (surgery preparation) vs post-op (recovery).
     """
     first_name_safe = html_lib.escape(first_name or "Patient")
     clinic_code_safe = html_lib.escape(clinic_code or "N/A")
@@ -906,6 +908,19 @@ def _build_recovery_resources_email_html(
     recovery_url_safe = html_lib.escape(recovery_plan_entry_url or "#", quote=True)
     _ = hero_image_src
     _ = logo_image_src
+
+    if is_preop:
+        header_sub = "Your surgery preparation resources are ready"
+        intro_line = "Your care team has prepared personalized surgery preparation resources for you, including voice explanations and quick reference guides."
+        codes_hint = "Use these codes to open your personalized preparation dashboard"
+        cta_label = "View Your Preparation Plan"
+        tip_line = "Save these codes somewhere safe. You can re-open your resources anytime before your surgery."
+    else:
+        header_sub = "Your recovery resources are ready"
+        intro_line = "Your care team has prepared personalized recovery resources for you, including voice explanations and quick reference guides."
+        codes_hint = "Use these codes to open your personalized recovery dashboard"
+        cta_label = "View Your Recovery Plan"
+        tip_line = "Save these codes somewhere safe. You can re-open your resources anytime during recovery."
 
     return f"""
     <div style="margin:0;padding:0;background:#f3f6f9;">
@@ -922,7 +937,7 @@ def _build_recovery_resources_email_html(
                           Archangel Health
                         </div>
                         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#e0f2fe;font-size:14px;line-height:1.6;margin-top:8px;">
-                          Your recovery resources are ready
+                          {header_sub}
                         </div>
                       </td>
                     </tr>
@@ -936,7 +951,7 @@ def _build_recovery_resources_email_html(
               </tr>
               <tr>
                 <td style="padding:0 28px 22px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#334155;font-size:16px;line-height:1.75;">
-                  Your care team has prepared personalized recovery resources for you, including voice explanations and quick reference guides.
+                  {intro_line}
                 </td>
               </tr>
               <tr>
@@ -948,7 +963,7 @@ def _build_recovery_resources_email_html(
               <tr>
                 <td align="center" style="padding:22px 28px 8px 28px;">
                   <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0891b2;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;">Your Access Codes</div>
-                  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#64748b;font-size:13px;line-height:1.6;margin-top:6px;">Use these codes to open your personalized recovery dashboard</div>
+                  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#64748b;font-size:13px;line-height:1.6;margin-top:6px;">{codes_hint}</div>
                 </td>
               </tr>
 
@@ -973,7 +988,7 @@ def _build_recovery_resources_email_html(
               <tr>
                 <td style="padding:22px 28px 14px 28px;">
                   <a href="{recovery_url_safe}" style="display:block;text-decoration:none;text-align:center;background:#0891b2;color:#ffffff;border:1px solid #0e7490;border-radius:12px;padding:15px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;font-weight:700;line-height:1.2;">
-                    View Your Recovery Plan
+                    {cta_label}
                   </a>
                 </td>
               </tr>
@@ -981,7 +996,7 @@ def _build_recovery_resources_email_html(
               <tr>
                 <td style="padding:0 28px 22px 28px;">
                   <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:13px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#334155;font-size:13px;line-height:1.65;text-align:center;">
-                    <strong style="color:#0e7490;">Tip:</strong> Save these codes somewhere safe. You can re-open your resources anytime during recovery.
+                    <strong style="color:#0e7490;">Tip:</strong> {tip_line}
                   </div>
                 </td>
               </tr>
@@ -1037,6 +1052,7 @@ def _render_recovery_email_html(
     resource_code: str,
     recovery_plan_entry_url: str,
     use_local_preview_assets: bool = False,
+    is_preop: bool = False,
 ) -> str:
     _ = use_local_preview_assets
 
@@ -1047,6 +1063,7 @@ def _render_recovery_email_html(
         recovery_plan_entry_url=recovery_plan_entry_url,
         hero_image_src="",
         logo_image_src="",
+        is_preop=is_preop,
     )
     return _minify_email_html(html_body)
 
@@ -2895,9 +2912,17 @@ async def send_to_patient(
     first_name = name.split()[0]
     phone = d.get("phone", "")
     email = d.get("email", "")
+    is_preop = (d.get("pipeline_type") or "").lower() == "pre_op"
+    materials_label = "surgery preparation resources" if is_preop else "post-surgery recovery resources"
+    plan_label = "preparation plan" if is_preop else "recovery plan"
+    email_subject = (
+        "Your Surgery Preparation Resources Are Ready - Archangel Health"
+        if is_preop else
+        "Your Recovery Resources Are Ready - Archangel Health"
+    )
     base_url = os.getenv("BASE_URL", "http://localhost:8000")
     landing_url = (os.getenv("LANDING_URL") or "").strip().rstrip("/")
-    dashboard_url = f"{base_url}/patient/{patient_id}"
+    dashboard_url = f"{base_url}/patient/{patient_id}/pre-op" if is_preop else f"{base_url}/patient/{patient_id}"
     clinic_code = (d.get("clinic_code") or "").strip()
     resource_code = (d.get("resource_code") or "").strip()
     # Link must go to landing page so patient can enter codes; never use backend root (doctor dashboard)
@@ -2909,8 +2934,8 @@ async def send_to_patient(
     if phone:
         try:
             sms_body = (
-                f"Hi {first_name}, your post-surgery recovery resources from your care team are ready. "
-                f"View your personalized recovery plan here: {recovery_plan_entry_url} "
+                f"Hi {first_name}, your {materials_label} from your care team are ready. "
+                f"View your personalized {plan_label} here: {recovery_plan_entry_url} "
                 f"Use Health System Code: {clinic_code or 'N/A'}, Resource Code: {resource_code or 'N/A'}. "
                 f"(Best viewed on a computer)"
             )
@@ -2930,6 +2955,7 @@ async def send_to_patient(
                 clinic_code=clinic_code,
                 resource_code=resource_code,
                 recovery_plan_entry_url=recovery_plan_entry_url,
+                is_preop=is_preop,
             )
             if not is_email_transport_configured():
                 results["email"] = "sendgrid_not_configured"
@@ -2937,7 +2963,7 @@ async def send_to_patient(
             else:
                 sent_ok = await _send_html_email_impl(
                     email,
-                    "Your Recovery Resources Are Ready - Archangel Health",
+                    email_subject,
                     html_body,
                 )
                 if sent_ok:
