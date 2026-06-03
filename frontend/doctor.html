@@ -3263,13 +3263,22 @@
         tpr.style.display = "flex";
         tpr.style.gap = "8px";
         tpr.style.flexWrap = "wrap";
+        // "Regenerate" reuses the same generation flow, which threads this patient's
+        // id so it updates the materials in place. View / Send Again read the live
+        // patient record, so they automatically reflect the regenerated materials.
+        const regenBtnHtml = isTriageDemoTenant()
+          ? `<button type="button" class="btn" id="regeneratePostopBtn">Regenerate Post-Op Materials</button>`
+          : "";
         tpr.innerHTML = `
           <button type="button" class="btn" id="viewPatientMaterialsBtn">View Patient Materials</button>
-          <button type="button" class="btn primary" id="sendToPatientAgainBtn">Send to Patient Again</button>`;
+          <button type="button" class="btn primary" id="sendToPatientAgainBtn">Send to Patient Again</button>
+          ${regenBtnHtml}`;
         byId("viewPatientMaterialsBtn").onclick = () => {
           window.open(`${location.origin}/patient/${encodeURIComponent(patient.id)}`, "_blank", "noopener");
         };
         byId("sendToPatientAgainBtn").onclick = (ev) => sendMaterialsToPatient(patient, ev.currentTarget);
+        const regenBtn = byId("regeneratePostopBtn");
+        if (regenBtn) regenBtn.onclick = () => openTriagePostopResourceModal(patient);
       } else if (isTriageDemoTenant()) {
         tpr.style.display = "block";
         tpr.innerHTML = `<button type="button" class="btn primary" id="generatePostopResourcesBtn">Generate post-op resources</button>`;
