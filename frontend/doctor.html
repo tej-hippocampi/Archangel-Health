@@ -3248,6 +3248,52 @@
         ${lines ? `<ul style="margin:8px 0 0;padding-left:18px;font-weight:400;">${lines}</ul>` : ""}`;
     }
 
+    // Post-op resource row: before materials exist, show "Generate post-op resources"
+    // (triage-demo entry point). Once materials are generated and stored on the
+    // patient, switch permanently to "View Patient Materials" + "Send to Patient Again".
+    function renderPostopResourceRow(patient) {
+      const tpr = byId("triagePostopResourceRow");
+      if (!tpr) return;
+      if (inferEpisodeType(patient) !== "post_op") {
+        tpr.style.display = "none";
+        tpr.innerHTML = "";
+        return;
+      }
+      if (patient.materialsReady) {
+        tpr.style.display = "flex";
+        tpr.style.gap = "8px";
+        tpr.style.flexWrap = "wrap";
+        tpr.innerHTML = `
+          <button type="button" class="btn" id="viewPatientMaterialsBtn">View Patient Materials</button>
+          <button type="button" class="btn primary" id="sendToPatientAgainBtn">Send to Patient Again</button>`;
+        byId("viewPatientMaterialsBtn").onclick = () => {
+          window.open(`${location.origin}/patient/${encodeURIComponent(patient.id)}`, "_blank", "noopener");
+        };
+        byId("sendToPatientAgainBtn").onclick = (ev) => sendMaterialsToPatient(patient, ev.currentTarget);
+      } else if (isTriageDemoTenant()) {
+        tpr.style.display = "block";
+        tpr.innerHTML = `<button type="button" class="btn primary" id="generatePostopResourcesBtn">Generate post-op resources</button>`;
+        byId("generatePostopResourcesBtn").onclick = () => openTriagePostopResourceModal(patient);
+      } else {
+        tpr.style.display = "none";
+        tpr.innerHTML = "";
+      }
+    }
+
+    async function sendMaterialsToPatient(patient, btn) {
+      const label = btn ? btn.textContent : "Send to Patient Again";
+      if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+      try {
+        const res = await apiJson(`/api/send-to-patient/${encodeURIComponent(patient.id)}`, { method: "POST" });
+        reportSendResult(res, patient.name, "Discharge materials");
+        await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
+      } catch (e) {
+        showToast(e.message || "Failed to send materials.", "error");
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = label; }
+      }
+    }
+
     async function openTimeline(pid) {
       const patient = PATIENTS.find((p) => p.id === pid);
       if (!patient) return;
@@ -3257,10 +3303,12 @@
       selectedTimeline = timeline;
       byId("timelineModalTitle").textContent = `${patient.name} Episode Timeline`;
       const pm = byId("postopMaterialsPanel");
-      const tpr = byId("triagePostopResourceRow");
+      // The legacy "Discharge Materials / Confirm Post-Op Notes" panel is removed from
+      // the post-op view. Generation happens via the resource row below, and review /
+      // send via the generation review modal.
+      if (pm) pm.style.display = "none";
       if (isTriageDemoTenant()) {
         const ct = patient.currentTier || patient.current_tier || "";
-        const ph = patient.phase || "";
         byId("timelineHeading").innerHTML = `
           <span class="detail-head-name">${esc(patient.name)}</span>
           <span class="detail-head-sep">·</span>
@@ -3269,15 +3317,10 @@
           ${renderTeamBadge(patient)}
         `;
         wireDetailTierHit(byId("whyTierTimelineBody"), patient.id, byId("timelineModal"));
-        // Show the post-op materials review/send panel for the triage-demo tenant too,
-        // so post-op generation reaches the same review & send (sign-off) screen as pre-op.
-        if (pm) pm.style.display = "block";
-        if (tpr) tpr.style.display = ph === "post_op" ? "block" : "none";
       } else {
         byId("timelineHeading").innerHTML = `${esc(patient.name)} ${renderTeamBadge(patient)} — Episode Timeline`;
-        if (pm) pm.style.display = "block";
-        if (tpr) tpr.style.display = "none";
       }
+      renderPostopResourceRow(patient);
       // Reset post-op materials panel state for this patient
       resetPostopPanel();
       hydratePostopPanel(patient);
@@ -5476,11 +5519,17 @@
         sendBtn.disabled = true;
         sendBtn.textContent = "Sending…";
         try {
-          await apiJson(`/api/send-to-patient/${encodeURIComponent(ctx.payload.patient_id)}`, { method: "POST" });
-          ctx.sent = true;
-          sendBtn.textContent = "Sent to Patient";
-          sendBtn.classList.remove("primary");
-          showToast(`${ctx.episodeType === "pre_op" ? "Preparation" : "Discharge"} materials sent to ${ctx.patientName}.`, "success");
+          const res = await apiJson(`/api/send-to-patient/${encodeURIComponent(ctx.payload.patient_id)}`, { method: "POST" });
+          const label = ctx.episodeType === "pre_op" ? "Preparation materials" : "Discharge materials";
+          const delivered = reportSendResult(res, ctx.patientName, label);
+          if (delivered) {
+            ctx.sent = true;
+            sendBtn.textContent = "Sent to Patient";
+            sendBtn.classList.remove("primary");
+          } else {
+            sendBtn.disabled = false;
+            sendBtn.textContent = "Send to Patient";
+          }
           await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
         } catch (e) {
           sendBtn.disabled = false;

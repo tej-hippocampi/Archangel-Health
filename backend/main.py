@@ -87,7 +87,11 @@ from triage_demo_seed import (
     spinal_fusion_postop_demo_resources,
 )
 from tenant_jwt import decode_tenant_staff_token
-from email_utils import is_email_transport_configured, send_html_email as _send_html_email_impl
+from email_utils import (
+    is_email_transport_configured,
+    send_html_email as _send_html_email_impl,
+    send_html_email_with_reason as _send_html_email_with_reason_impl,
+)
 from auth import (
     UserCreate,
     UserLogin,
@@ -2129,6 +2133,19 @@ async def list_patients(
         row["initialTier"] = d.get("initial_tier")
         row["postIntakeTier"] = post_intake_tier
         row["currentTier"] = d.get("current_tier")
+        # True once generated materials (voice/battlecard) exist on the patient, so
+        # the UI can switch the "Generate resources" CTA to View / Send and persist it.
+        _res = d.get("resources") or {}
+        def _track_has_materials(_t):
+            _td = _res.get(_t) or {}
+            return bool(_td.get("voice_audio_url") or _td.get("battlecard_html"))
+        row["materialsReady"] = bool(
+            d.get("voice_audio_url")
+            or d.get("battlecard_html")
+            or _track_has_materials("preop")
+            or _track_has_materials("diagnosis")
+            or _track_has_materials("treatment")
+        )
         row["requiresClinicianReview"] = bool(d.get("requires_clinician_review"))
         row["groundingSummaries"] = d.get("grounding_summaries") or {}
         row["groundingPendingTracks"] = d.get("grounding_pending_tracks") or []
@@ -3261,7 +3278,7 @@ async def send_to_patient(
                 results["email"] = "sendgrid_not_configured"
                 print(f"[send] Email skipped — SENDGRID_API_KEY / SMTP not configured. Would send to: {email}")
             else:
-                sent_ok = await _send_html_email_impl(
+                sent_ok, reason = await _send_html_email_with_reason_impl(
                     email,
                     email_subject,
                     html_body,
@@ -3271,7 +3288,8 @@ async def send_to_patient(
                     _team_store.log_event(patient_id=patient_id, event_type="email_sent", payload={"channel": "email_initial"})
                     print(f"[send] Email sent → {email}")
                 else:
-                    results["email"] = "error: send_failed"
+                    results["email"] = f"error: {reason}"
+                    print(f"[send] Email FAILED → {email}: {reason}")
 
         except Exception as e:
             print(f"[send] Email error: {e}")

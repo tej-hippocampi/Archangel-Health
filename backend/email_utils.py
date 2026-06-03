@@ -57,6 +57,21 @@ async def send_html_email(
     *,
     importance_headers: bool = False,
 ) -> bool:
+    ok, _reason = await send_html_email_with_reason(
+        to_email, subject, html_body, importance_headers=importance_headers
+    )
+    return ok
+
+
+async def send_html_email_with_reason(
+    to_email: str,
+    subject: str,
+    html_body: str,
+    *,
+    importance_headers: bool = False,
+) -> "tuple[bool, str]":
+    """Send an HTML email. Returns (ok, reason). `reason` is a short, human-
+    readable explanation suitable for surfacing in the UI when ok is False."""
     # Dev mode short-circuit: print the message to stdout and return success.
     # This lets onboarding / OTP / invite flows run end-to-end without SendGrid.
     if _is_dev_mode():
@@ -67,7 +82,7 @@ async def send_html_email(
         print("-" * 72)
         print(_strip_html(html_body))
         print("=" * 72 + "\n", flush=True)
-        return True
+        return True, "dev_mode"
 
     try:
         api_key = _normalize_sendgrid_api_key(os.getenv("SENDGRID_API_KEY"))
@@ -96,8 +111,18 @@ async def send_html_email(
                 except Exception:
                     body_preview = str(raw)[:4000]
                 print(f"[email_utils] SendGrid HTTP {status_code} for to={to_email!r}: {body_preview}")
-                return False
-            return True
+                if status_code == 403:
+                    reason = (
+                        f"SendGrid rejected the send (403). The From address "
+                        f"'{from_email}' is almost certainly not a verified sender — "
+                        f"verify it (or your domain) in SendGrid."
+                    )
+                elif status_code == 401:
+                    reason = "SendGrid rejected the API key (401). Check SENDGRID_API_KEY."
+                else:
+                    reason = f"SendGrid returned HTTP {status_code}."
+                return False, reason
+            return True, "sent"
 
         import smtplib
         from email.mime.text import MIMEText
@@ -120,7 +145,8 @@ async def send_html_email(
                 server.starttls()
                 server.login(smtp_user, smtp_pass)
                 server.send_message(msg)
-            return True
+            return True, "sent"
+        return False, "Email transport is not configured (no SendGrid key or SMTP credentials)."
     except Exception as e:
         print(f"[email_utils] send failed: {e}")
         msg = str(e).lower()
@@ -129,9 +155,11 @@ async def send_html_email(
                 "[email_utils] SendGrid 401: the API key was rejected. "
                 "For local dev, set SENDGRID_API_KEY in backend/.env to the same key as production (Railway) and restart uvicorn."
             )
+            return False, "SendGrid rejected the API key (401). Check SENDGRID_API_KEY."
         if "403" in msg or "forbidden" in msg:
             print(
                 "[email_utils] SendGrid 403: often means the From address is not verified for this SendGrid account. "
                 "Set SENDGRID_FROM_EMAIL to a verified sender (or verify your domain)."
             )
-    return False
+            return False, "SendGrid 403 — the From address is not a verified sender. Verify SENDGRID_FROM_EMAIL in SendGrid."
+        return False, f"Email send failed: {e}"
