@@ -44,50 +44,34 @@ async def synthesize_script(
     if patient_blob is not None:
         apply_grounding_to_patient(patient_blob, track, gate)
 
+    # Always synthesize the voice audio so the clinician can review and send it,
+    # regardless of the grounding verdict. The grounding report is still recorded
+    # and surfaced to the clinician for compliance and trust — the clinician is the
+    # final gate before any material reaches the patient.
     audio_url = None
-    overrode = False
-    if gate.synthesize:
-        try:
-            audio_url = await ElevenLabsClient().synthesize(gate.script, audio_id)
-        except Exception:
-            audio_url = None
-    elif force_synthesize:
+    try:
+        audio_url = await ElevenLabsClient().synthesize(gate.script, audio_id)
+    except Exception:
+        audio_url = None
+
+    # Compliance audit trail: when the grounding gate flagged the script (it would
+    # previously have blocked synthesis), record that audio was produced for
+    # clinician review anyway — including the acting clinician when known.
+    if not gate.synthesize and team_store is not None:
         actor = (override_actor or "").strip()
-        if not actor:
-            if team_store is not None:
-                try:
-                    team_store.log_event(
-                        patient_id=patient_id,
-                        event_type="grounding_override_missing_actor",
-                        payload={
-                            "track": track,
-                            "verdict": getattr(getattr(gate, "report", None), "verdict", None),
-                            "report_id": getattr(gate, "report_id", None),
-                            "audio_id": audio_id,
-                        },
-                    )
-                except Exception:
-                    pass
-            return gate, None
-        overrode = True
         try:
-            audio_url = await ElevenLabsClient().synthesize(gate.script, audio_id)
+            team_store.log_event(
+                patient_id=patient_id,
+                event_type="grounding_override" if actor else "grounding_review_audio_for_clinician",
+                payload={
+                    "track": track,
+                    "verdict": getattr(getattr(gate, "report", None), "verdict", None),
+                    "report_id": getattr(gate, "report_id", None),
+                    "actor": actor or None,
+                    "reason": (override_reason or "").strip() or "audio generated for clinician review",
+                    "audio_id": audio_id,
+                },
+            )
         except Exception:
-            audio_url = None
-        if team_store is not None and overrode:
-            try:
-                team_store.log_event(
-                    patient_id=patient_id,
-                    event_type="grounding_override",
-                    payload={
-                        "track": track,
-                        "verdict": getattr(getattr(gate, "report", None), "verdict", None),
-                        "report_id": getattr(gate, "report_id", None),
-                        "actor": actor,
-                        "reason": (override_reason or "").strip() or "clinician-confirmed notes",
-                        "audio_id": audio_id,
-                    },
-                )
-            except Exception:
-                pass
+            pass
     return gate, audio_url

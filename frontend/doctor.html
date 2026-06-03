@@ -3004,8 +3004,8 @@
       }).join("");
       el.hidden = false;
       el.innerHTML = `
-        <strong>Script failed safety check — clinician review required</strong>
-        <span>Voice synthesis was blocked until review. Audio may be unavailable for affected tracks.</span>
+        <strong>AI safety review flagged items for your sign-off</strong>
+        <span>The voice audio and battlecard were generated and are ready to review below. Please review the flagged items, then confirm and send to the patient.</span>
         ${lines ? `<ul style="margin:8px 0 0;padding-left:18px;font-weight:400;">${lines}</ul>` : ""}`;
     }
 
@@ -3778,8 +3778,8 @@
       byId("sendMaterialsBtn").addEventListener("click", async () => {
         if (!selectedPatient) return;
         try {
-          await apiJson(`/api/send-to-patient/${encodeURIComponent(selectedPatient.id)}`, { method: "POST" });
-          showToast(`Discharge materials sent to ${selectedPatient.name}`, "success");
+          const res = await apiJson(`/api/send-to-patient/${encodeURIComponent(selectedPatient.id)}`, { method: "POST" });
+          reportSendResult(res, selectedPatient.name, "Discharge materials");
           await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
         } catch (e) {
           showToast(e.message || "Failed to send materials.", "error");
@@ -3804,6 +3804,9 @@
       showStepEls("patientFormFields");
       showLegacyFooter();
       selectedEpisodeType = "post_op";
+      // Regenerate in place for this existing patient (preserves their seeded
+      // triage data) rather than creating a duplicate record.
+      regenTargetPatientId = patient.id || null;
       applyLegacyEpisodeTypeFormState();
       byId("patientNameLegacy").value = patient.name || "";
       byId("patientPhoneLegacy").value = patient.phone || "";
@@ -3888,10 +3891,12 @@
         if (!selectedPreopPatient) return;
         if (sentPreparationMaterials.has(selectedPreopPatient.id)) return;
         try {
-          await apiJson(`/api/send-to-patient/${encodeURIComponent(selectedPreopPatient.id)}`, { method: "POST" });
-          sentPreparationMaterials.add(selectedPreopPatient.id);
-          updatePrepSendButtonState(selectedPreopPatient.id);
-          showToast(`Preparation materials sent to ${selectedPreopPatient.name}`, "success");
+          const res = await apiJson(`/api/send-to-patient/${encodeURIComponent(selectedPreopPatient.id)}`, { method: "POST" });
+          const delivered = reportSendResult(res, selectedPreopPatient.name, "Preparation materials");
+          if (delivered) {
+            sentPreparationMaterials.add(selectedPreopPatient.id);
+            updatePrepSendButtonState(selectedPreopPatient.id);
+          }
           await refreshLiveViews({ includeEscalations: true, refreshTimeline: true });
         } catch (e) {
           showToast(e.message || "Failed to send preparation materials.", "error");
@@ -3940,6 +3945,9 @@
     }
 
     const addPatientModal = byId("addPatientModal");
+    // When set, the Add-Patient generation flow regenerates materials for an
+    // EXISTING patient (updating that record) instead of creating a new one.
+    let regenTargetPatientId = null;
 
     /* ────────────────────────────────────────────────────────────────
        Add-Patient state machine (TEAM eligibility flow)
@@ -4029,6 +4037,7 @@
       const theaterWrap = byId("generationTheater");
       if (theaterWrap) theaterWrap.innerHTML = "";
       selectedEpisodeType = null;
+      regenTargetPatientId = null;
 
       // Clear new-flow inputs
       ["patientName","patientPhone","patientEmail","scheduledSurgeryDate","patientMBI","patientDOB","freeformNotes"].forEach((id) => {
@@ -4795,6 +4804,7 @@
                 discharge_notes: notes,
                 doctor_office_phone: doctorOfficePhone,
                 doctor_clinic_code: doctorClinicCode,
+                ...(regenTargetPatientId ? { patient_id: regenTargetPatientId } : {}),
               }
             : {
                 patient_name: name, phone_number: phone, email,
@@ -4803,6 +4813,7 @@
                 doctor_clinic_code: doctorClinicCode,
                 procedure_type: "",
                 scheduled_surgery_date: scheduledSurgeryDate,
+                ...(regenTargetPatientId ? { patient_id: regenTargetPatientId } : {}),
               };
           const streamPath = selectedEpisodeType === "post_op"
             ? "/api/process-discharge/stream"
@@ -4910,6 +4921,32 @@
           });
         });
       });
+    }
+
+    // Interpret the /api/send-to-patient response and surface an honest toast.
+    // Returns true only if the materials were actually delivered (email or SMS).
+    function reportSendResult(res, name, label) {
+      const email = res && res.email;
+      const sms = res && res.sms;
+      const channels = [];
+      if (email === "sent") channels.push("email");
+      if (sms === "sent") channels.push("SMS");
+      if (channels.length) {
+        showToast(`${label} sent to ${name} via ${channels.join(" + ")}.`, "success");
+        return true;
+      }
+      let reason;
+      if (email === "sendgrid_not_configured") {
+        reason = "Email transport is not configured (set SENDGRID_API_KEY). Nothing was sent.";
+      } else if (typeof email === "string" && email.indexOf("error") === 0) {
+        reason = `Email delivery failed: ${email.replace(/^error:\s*/, "")}.`;
+      } else if (!email && !sms) {
+        reason = `No email or phone on file for ${name}. Nothing was sent.`;
+      } else {
+        reason = "Materials could not be delivered.";
+      }
+      showToast(reason, "error");
+      return false;
     }
 
     function showToast(msg, type = "success") {

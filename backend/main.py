@@ -1065,11 +1065,19 @@ def _episode_day_from_open(open_date_str: str, ts_iso: str) -> Optional[int]:
 
 
 # Internal post-op cron/audit rows — hidden from the doctor episode timeline.
-_TIMELINE_HIDDEN_EVENT_PREFIXES = ("POSTOP_RETIER_", "POSTOP_DAILY_CHECKIN_")
+# 30-Day Calendar shows ONLY patient-facing engagement events. Internal pipeline
+# events (llm_call, grounding_check, retier, daily-checkin internals, etc.) are
+# never surfaced here. Survey completed/pending markers are added separately.
+_TIMELINE_VISIBLE_EVENT_TYPES = frozenset({
+    "platform_opened",            # 🟢 Platform Opened
+    "diagnosis_video_watched",    # 🔵 Discharge Video Watched
+    "treatment_video_watched",    # 🔵 Discharge Video Watched
+    "sms_sent",                   # 📩 SMS Sent
+})
 
 
 def _timeline_event_visible(event_type: str) -> bool:
-    return not any(str(event_type or "").startswith(p) for p in _TIMELINE_HIDDEN_EVENT_PREFIXES)
+    return str(event_type or "") in _TIMELINE_VISIBLE_EVENT_TYPES
 
 
 def _question_set_for_day(survey_day: int) -> dict:

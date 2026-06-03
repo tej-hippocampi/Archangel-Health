@@ -168,7 +168,7 @@ async def run_postop_stream(
             critical_failures=diag_gate.report.critical_failures,
             summary=diag_gate.report.summary,
         )
-    if diag_gate.synthesize and diag_audio:
+    if diag_audio:
         yield _ev("synthesize.done", track="post_op_diagnosis", audio_url=diag_audio)
     else:
         yield _ev("synthesize.skipped", track="post_op_diagnosis", reason=diag_gate.report.verdict)
@@ -207,13 +207,20 @@ async def run_postop_stream(
             critical_failures=treat_gate.report.critical_failures,
             summary=treat_gate.report.summary,
         )
-    if treat_gate.synthesize and treat_audio:
+    if treat_audio:
         yield _ev("synthesize.done", track="post_op_treatment", audio_url=treat_audio)
     else:
         yield _ev("synthesize.skipped", track="post_op_treatment", reason=treat_gate.report.verdict)
 
     dashboard_url = f"{ctx.base_url}/patient/{patient_id}"
-    ctx.patient_store[patient_id] = {
+    # MERGE generated material onto any existing patient record instead of
+    # replacing it wholesale. Replacing wiped seeded/triage fields (current_tier,
+    # initial_tier, phase, windows, etc.) when regenerating for an existing patient.
+    blob = ctx.patient_store.get(patient_id)
+    if not isinstance(blob, dict):
+        blob = {}
+        ctx.patient_store[patient_id] = blob
+    blob.update({
         "name": input_data.patient_name,
         "health_system_id": health_system_id,
         "phone": input_data.phone_number or "",
@@ -239,7 +246,7 @@ async def run_postop_stream(
                 "voice_audio_url": treat_audio,
             },
         },
-    }
+    })
     apply_grounding_to_patient(ctx.patient_store[patient_id], "post_op_diagnosis", diag_gate)
     apply_grounding_to_patient(ctx.patient_store[patient_id], "post_op_treatment", treat_gate)
     ctx.team_store.ensure_episode(
@@ -369,14 +376,20 @@ async def run_preop_stream(
             critical_failures=preop_gate.report.critical_failures,
             summary=preop_gate.report.summary,
         )
-    if preop_gate.synthesize and preop_audio:
+    if preop_audio:
         yield _ev("synthesize.done", track="pre_op", audio_url=preop_audio)
     else:
         yield _ev("synthesize.skipped", track="pre_op", reason=preop_gate.report.verdict)
 
     dashboard_url = f"{ctx.base_url}/patient/{patient_id}/pre-op"
     specialty = specialty_from_procedure(structured_data.get("procedure_name", ""))
-    ctx.patient_store[patient_id] = {
+    # MERGE generated material onto any existing patient record instead of
+    # replacing it wholesale (preserves seeded/triage fields on regeneration).
+    blob = ctx.patient_store.get(patient_id)
+    if not isinstance(blob, dict):
+        blob = {}
+        ctx.patient_store[patient_id] = blob
+    blob.update({
         "name": input_data.patient_name,
         "health_system_id": health_system_id,
         "phone": input_data.phone_number or "",
@@ -399,7 +412,7 @@ async def run_preop_stream(
                 "voice_audio_url": preop_audio,
             }
         },
-    }
+    })
     apply_grounding_to_patient(ctx.patient_store[patient_id], "pre_op", preop_gate)
     ctx.team_store.ensure_episode(
         patient_id=patient_id,

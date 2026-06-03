@@ -66,7 +66,11 @@ def test_force_override_logs_event_with_actor(monkeypatch):
     )
 
 
-def test_force_override_without_actor_does_not_ship(monkeypatch):
+def test_blocked_without_actor_still_ships_audio_for_review(monkeypatch):
+    # New behaviour: the voice audio is ALWAYS generated so the clinician can
+    # review and send it, even when the grounding gate flagged the script and no
+    # acting clinician was supplied. The grounding verdict is still recorded for
+    # compliance, and a review-audit event is logged.
     gate = types.SimpleNamespace(
         script="blocked script",
         synthesize=False,
@@ -97,5 +101,9 @@ def test_force_override_without_actor_does_not_ship(monkeypatch):
             override_actor="",
         )
     )
-    assert audio is None
-    assert any(e["event_type"] == "grounding_override_missing_actor" for e in store.events)
+    assert audio == "/audio/p2_preop.mp3"
+    assert any(
+        e["event_type"] == "grounding_review_audio_for_clinician"
+        and e["payload"].get("report_id") == 11
+        for e in store.events
+    )
