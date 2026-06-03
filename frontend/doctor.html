@@ -3248,9 +3248,9 @@
         ${lines ? `<ul style="margin:8px 0 0;padding-left:18px;font-weight:400;">${lines}</ul>` : ""}`;
     }
 
-    // Post-op resource row: before materials exist, show "Generate post-op resources"
-    // (triage-demo entry point). Once materials are generated and stored on the
-    // patient, switch permanently to "View Patient Materials" + "Send to Patient Again".
+    // Post-op resource row (available for any patient / tenant): before materials
+    // exist, show "Generate post-op resources". Once materials are generated and
+    // stored on the patient, switch permanently to View / Send Again / Regenerate.
     function renderPostopResourceRow(patient) {
       const tpr = byId("triagePostopResourceRow");
       if (!tpr) return;
@@ -3266,26 +3266,19 @@
         // "Regenerate" reuses the same generation flow, which threads this patient's
         // id so it updates the materials in place. View / Send Again read the live
         // patient record, so they automatically reflect the regenerated materials.
-        const regenBtnHtml = isTriageDemoTenant()
-          ? `<button type="button" class="btn" id="regeneratePostopBtn">Regenerate Post-Op Materials</button>`
-          : "";
         tpr.innerHTML = `
           <button type="button" class="btn" id="viewPatientMaterialsBtn">View Patient Materials</button>
           <button type="button" class="btn primary" id="sendToPatientAgainBtn">Send to Patient Again</button>
-          ${regenBtnHtml}`;
+          <button type="button" class="btn" id="regeneratePostopBtn">Regenerate Post-Op Materials</button>`;
         byId("viewPatientMaterialsBtn").onclick = () => {
           window.open(`${location.origin}/patient/${encodeURIComponent(patient.id)}`, "_blank", "noopener");
         };
         byId("sendToPatientAgainBtn").onclick = (ev) => sendMaterialsToPatient(patient, ev.currentTarget);
-        const regenBtn = byId("regeneratePostopBtn");
-        if (regenBtn) regenBtn.onclick = () => openTriagePostopResourceModal(patient);
-      } else if (isTriageDemoTenant()) {
+        byId("regeneratePostopBtn").onclick = () => openTriagePostopResourceModal(patient);
+      } else {
         tpr.style.display = "block";
         tpr.innerHTML = `<button type="button" class="btn primary" id="generatePostopResourcesBtn">Generate post-op resources</button>`;
         byId("generatePostopResourcesBtn").onclick = () => openTriagePostopResourceModal(patient);
-      } else {
-        tpr.style.display = "none";
-        tpr.innerHTML = "";
       }
     }
 
@@ -4297,7 +4290,8 @@
     }
 
     function openTriagePostopResourceModal(patient) {
-      if (!addPatientModal || !patient || !isTriageDemoTenant()) return;
+      // Available for any patient / tenant (not just the triage demo).
+      if (!addPatientModal || !patient) return;
       resetAddPatientModal();
       teamFlow.mode = "legacy";
       teamFlow.step = "legacy";
