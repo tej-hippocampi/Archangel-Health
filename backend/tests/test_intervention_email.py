@@ -49,10 +49,10 @@ def test_intervention_send_success_logs_audit(monkeypatch):
         sent["subject"] = subject
         sent["html_body"] = html_body
         sent["importance_headers"] = str(importance_headers)
-        return True
+        return True, "sent"
 
     monkeypatch.setattr(main_module, "is_email_transport_configured", lambda: True)
-    monkeypatch.setattr(main_module, "_send_html_email_impl", _fake_send)
+    monkeypatch.setattr(main_module, "_send_html_email_with_reason_impl", _fake_send)
 
     with TestClient(app, headers=auth_headers("surgeon", source="landing", email="intervention@test.local")) as client:
         r = client.post(

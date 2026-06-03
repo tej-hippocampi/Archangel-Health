@@ -2719,14 +2719,15 @@ async def send_intervention(
         "</p></div></body></html>"
     )
 
-    ok = await _send_html_email_impl(
+    ok, reason = await _send_html_email_with_reason_impl(
         patient_email,
         subject,
         html_body,
         importance_headers=True,
     )
     if not ok:
-        raise HTTPException(status_code=502, detail="Failed to send intervention email.")
+        print(f"[intervention] Email FAILED → {patient_email}: {reason}")
+        raise HTTPException(status_code=502, detail=f"Failed to send intervention email: {reason}")
 
     _team_store.log_event(
         patient_id=patient_id,
