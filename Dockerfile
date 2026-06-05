@@ -18,4 +18,7 @@ EXPOSE 8000
 
 # PORT comes from the host (Railway, Render, etc.); default to 8000 locally.
 ENV PORT=8000
-CMD ["sh", "-c", "python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
+# --proxy-headers/--forwarded-allow-ips let the app trust the platform's TLS
+# terminator (Railway/Render) for X-Forwarded-Proto/For so HTTPS redirect and
+# IP-based rate limiting behave correctly behind the proxy (PRD-2).
+CMD ["sh", "-c", "python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]

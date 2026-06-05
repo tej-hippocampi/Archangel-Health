@@ -5,8 +5,10 @@ import string
 from typing import Any, Dict
 
 import secrets
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
+
+from ratelimit import rate_limiter
 
 from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import (
@@ -175,7 +177,7 @@ async def step1_identity(body: Step1Body, request: Request):
     return {"ok": True, "step": 1}
 
 
-@router.post("/request-otp")
+@router.post("/request-otp", dependencies=[Depends(rate_limiter("onboarding_otp", 5, 60))])
 async def request_otp(body: OnboardTokenBody, request: Request):
     if not _email_configured():
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")

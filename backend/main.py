@@ -96,6 +96,14 @@ from patient_session import (
     revoke_patient_session,
     set_patient_session_cookie,
 )
+from http_security import (
+    SecurityHeadersMiddleware,
+    allowed_hosts,
+    allowed_origins,
+    assert_production_secrets,
+    is_production,
+)
+from ratelimit import rate_limiter
 from email_utils import (
     is_email_transport_configured,
     send_html_email as _send_html_email_impl,
@@ -145,16 +153,34 @@ app = FastAPI(
     version="0.2.0",
 )
 
+# CORS restricted to an explicit origin allowlist (PRD-2). Wildcard origins with
+# credentials are invalid + unsafe; the landing app's origin must be allowlisted
+# in production via ALLOWED_ORIGINS.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Patient-Session", "X-Admin-Token"],
+    max_age=600,
 )
 
 # Resolve the pt_session cookie into a per-request PatientSession (PRD-1).
 app.add_middleware(PatientSessionMiddleware)
+
+# Security headers (HSTS in prod, CSP report-only by default) on every response.
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Production-only transport hardening (no-op in local dev / tests). Added last so
+# they are the outermost middlewares and reject before any app work happens.
+if is_production():
+    from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+    _hosts = allowed_hosts()
+    if _hosts:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=_hosts)
+    app.add_middleware(HTTPSRedirectMiddleware)
 
 _patient_store: dict = {}
 app.state.patient_store = _patient_store
@@ -1722,7 +1748,7 @@ class PortalHandoffConsumeRequest(BaseModel):
 
 
 # ─── Auth (Elysium Health landing) ────────────────────────────
-@app.post("/api/auth/register")
+@app.post("/api/auth/register", dependencies=[Depends(rate_limiter("auth_register", 10, 60))])
 async def auth_register(body: UserCreate):
     """Register a new user; returns access token and user."""
     try:
@@ -1737,7 +1763,7 @@ async def auth_register(body: UserCreate):
     }
 
 
-@app.post("/api/auth/login")
+@app.post("/api/auth/login", dependencies=[Depends(rate_limiter("auth_login", 10, 60))])
 async def auth_login(body: UserLogin):
     """Sign in; returns access token and user."""
     # Shared public demo account (marketing landing): always authenticate here first so
@@ -1911,7 +1937,7 @@ async def doctor_onboard(body: DoctorOnboard, user: UserOut = Depends(get_curren
 
 
 # ─── Patient access by codes (for landing code-entry form) ───────
-@app.get("/api/patient/by-codes")
+@app.get("/api/patient/by-codes", dependencies=[Depends(rate_limiter("by_codes", 10, 60))])
 async def patient_by_codes(
     clinic_code: Optional[str] = None,
     resource_code: str = "",
@@ -2920,7 +2946,7 @@ async def survey_page(clinic_code: str, resource_code: str, day: int):
     return HTMLResponse(content=html)
 
 
-@app.post("/api/survey/submit")
+@app.post("/api/survey/submit", dependencies=[Depends(rate_limiter("survey_submit", 30, 60))])
 async def submit_survey(body: SurveySubmitRequest):
     day = int(body.day)
     if day not in (7, 14, 30):
@@ -3034,7 +3060,7 @@ async def get_preop_survey_questions(window: str, patient_id: Optional[str] = No
     }
 
 
-@app.post("/api/preop-survey/submit")
+@app.post("/api/preop-survey/submit", dependencies=[Depends(rate_limiter("preop_survey_submit", 30, 60))])
 async def submit_preop_survey(body: PreOpSurveySubmitBody):
     w = (body.window or "").lower()
     if w not in WINDOW_SURVEY_DAY:
@@ -5401,6 +5427,8 @@ async def _postop_nightly_retier_loop() -> None:
 
 @app.on_event("startup")
 async def startup_team_scheduler():
+    # Fail closed in production if secrets are still default/weak (PRD-2 §8).
+    assert_production_secrets()
     if not _disable_public_demo_account():
         _ensure_demo_doctor()
     await _seed_demo_mode_data()

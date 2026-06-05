@@ -13,8 +13,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
+from ratelimit import rate_limiter
 from demo_credentials import list_demo_credentials
 from tenant_constants import DEMO_HEALTH_SYSTEM_ID
 from jose import JWTError, jwt
@@ -118,7 +119,7 @@ class IntakeFrameworkUpdateRequest(BaseModel):
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
-@router.post("/auth/login")
+@router.post("/auth/login", dependencies=[Depends(rate_limiter("admin_login", 10, 60))])
 async def admin_login(body: AdminLoginRequest):
     if not _check_credentials(body.username, body.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
