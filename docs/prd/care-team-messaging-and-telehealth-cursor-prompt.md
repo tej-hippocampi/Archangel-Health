@@ -461,9 +461,15 @@ POST /api/telehealth/encounters/{id}/end    (staff) body:{ duration_seconds, out
      COMPLETED but claim build is blocked until attestation posted.
 POST /api/telehealth/encounters/{id}/attest (staff) body:{ type:'STAFF_ONSITE'|'STAFF_NOT_REQUIRED', note }
 POST /api/telehealth/encounters/{id}/build-claim (staff)
-   - requires: ended + (l45 attestation if gated) + sign-off. Build DRAFT_READY_FOR_REVIEW claim with all
-     pre-stamped TEAM attributes. Enforce ride-alone. No claim for NO_SHOW / REDIRECTED_TO_ED.
-GET  /api/telehealth/claims  (staff/billing)  -> billing review queue
+   - requires: ended + (l45 attestation if gated). Build DRAFT_READY_FOR_REVIEW claim with all pre-stamped
+     TEAM attributes. Enforce ride-alone. No claim for NO_SHOW / REDIRECTED_TO_ED. Returns { claim_id }.
+GET  /api/telehealth/claims/{id}/download (staff)
+   - **the doctor-facing deliverable.** Returns the draft claim as a downloadable file with
+     Content-Disposition: attachment (filename e.g. `claim_{patient_last}_{serviceDate}_{hcpcs}.pdf`).
+     Generate a simple one-page PDF (or, if no PDF lib is wired, a clean human-readable .txt/.json) listing
+     every claim field: patient, service date, HCPCS, POS, type-of-bill 13X, revenue 0780, demo A9,
+     ride-alone, duration, L4/L5 attestation, and the audit trail. No external billing-queue workflow is
+     required — the doctor just downloads the draft. Log a `claim_downloaded` event.
 ```
 
 Every transition writes `team_store.log_event(...)` and appends to the claim `audit_trail_json`
@@ -494,7 +500,9 @@ Persist the chosen `patient_type` to the encounter (`PATCH`/dedicated endpoint) 
   heartbeat accumulation, not client wall-clock). Show the **G-code ladder** with the next threshold as
   information only — **never nudge upward** (TEAM inverts the incentive; shorter is often better).
 - **End call** → if gated code, show the **L4/L5 attestation modal** (PRD §10.8 copy verbatim) and block
-  finalize until one option + note is provided → build claim → toast with the resulting G-code.
+  finalize until one option + note is provided → build the draft claim → show the resulting G-code **and a
+  prominent "Download draft claim" button** (`GET /api/telehealth/claims/{id}/download`). That download is
+  the end state for the doctor — no separate billing-queue handoff to chase.
 
 **Patient join page** (`/telehealth/join/{id}?t=...` → HTML, no login):
 - Verify token, show a friendly waiting room with a 15s mic/cam check and a "join by phone" fallback line.
@@ -506,13 +514,15 @@ Persist the chosen `patient_type` to the encounter (`PATCH`/dedicated endpoint) 
 
 On `build-claim`, construct the draft per PRD §10.9 with `pos` from location, `hcpcs_code` from the ladder,
 and the pre-stamped `type_of_bill='13X'`, `revenue_code='0780'`, `demo_code='A9'`, `ride_alone=True`.
-The claim builder must reject any second/FFS line item with `RIDE_ALONE_VIOLATION`. Claims land in
-`GET /api/telehealth/claims` as `DRAFT_READY_FOR_REVIEW`.
+The claim builder must reject any second/FFS line item with `RIDE_ALONE_VIOLATION`. The claim is saved as
+`DRAFT_READY_FOR_REVIEW` and surfaced to the doctor as a **downloadable file** at end-of-call
+(`GET /api/telehealth/claims/{id}/download`) — that download is the deliverable.
 
 ## 2.8 Acceptance criteria (Part 2)
 
 - **AC-2.1** Patient opens the SMS/email magic link and reaches the waiting room with no login/install.
-- **AC-2.2** 17-min established-patient call → claim built with **G0666**; ladder displayed during call.
+- **AC-2.2** 17-min established-patient call → at End call a **draft claim is built with G0666 and offered
+  as a download** (file contains all TEAM attributes + audit trail); ladder shown during the call.
 - **AC-2.3** 47-min established call → **L4/L5 attestation required** before the claim leaves draft.
 - **AC-2.4** Any FFS/second line item on a TEAM telehealth claim fails with `RIDE_ALONE_VIOLATION`.
 - **AC-2.5** Starting a visit on an **INELIGIBLE** episode is blocked with explanation.
