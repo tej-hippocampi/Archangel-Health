@@ -169,8 +169,11 @@ GET  /api/patient/{patient_id}/care-team-messages
 
 POST /api/patient/{patient_id}/care-team-messages/reply
   body: { message: str, in_reply_to?: int }
-  - persist a PATIENT message. Derive recipient_role/recipient_email from the most recent CARE_TEAM
-    message in the thread (or from in_reply_to if provided) so the reply is targeted to that clinician.
+  - persist a PATIENT message. **The patient explicitly picks who they are replying to** — the reply UI
+    presents the distinct clinicians/roles who have messaged this patient (e.g. "Reply to your Surgeon —
+    Dr. Thompson" vs "Reply to your RN Coordinator — Maria Castillo"). The chosen recipient sets
+    recipient_role/recipient_email. If only one clinician is in the thread, preselect them. `in_reply_to`
+    may also pin the target to a specific prior message.
   - **DO NOT send any email.** Clinicians are alerted in-app only.
   - team_store.log_event(patient_id, 'patient_care_team_reply', {message_id, recipient_role})
   - returns { ok, message_id }
@@ -224,17 +227,30 @@ overlay helpers, and `PATIENT` from `window.__PATIENT__`):
     (**"Maria Castillo, RN Coordinator"** / **"Dr. Thompson, Surgeon"**), outgoing (patient) replies
     right-aligned. Show timestamps. Reuse the chat bubble styles already in `styles.css`
     (`.assistant-message` / `.patient-message`).
-  - A **reply composer** at the bottom (textarea + Send) → `POST /api/patient/${id}/care-team-messages/reply`.
-    On success, append the bubble optimistically and clear unread.
+  - A **reply composer** at the bottom: a **recipient picker** (the distinct clinicians/roles who have
+    messaged this patient — "Surgeon — Dr. Thompson" / "RN Coordinator — Maria Castillo"; auto-selected
+    when there's only one) + textarea + Send → `POST /api/patient/${id}/care-team-messages/reply` with the
+    chosen recipient. On success, append the bubble optimistically and clear unread.
   - Mark-read happens server-side on GET; clear the badge after open.
 
 > Accessibility: keyboard-focusable button, `aria-label`, the overlay traps focus like existing overlays.
 
 ## 1.6 Doctor frontend — "Intervention Messages & History" section
 
-In `frontend/doctor.html`, inside the triage detail view (`renderTriageModal()`, ~line 3710), **below the
-existing Send-Intervention composer**, add a new **"Intervention Messages & History"** panel using the
-existing `.triage-panel` / `.triage-composer` / `.btn`/`.btn.primary` classes:
+**Entry point — the "Send Intervention" button becomes a two-way chooser.** In `frontend/doctor.html`,
+inside the triage detail view (`renderTriageModal()`, ~line 3710), the existing **"Send Intervention"**
+action no longer opens the email composer directly. Clicking it now reveals **two choices**:
+- **"Start Telehealth Visit"** → creates an encounter (`POST /api/telehealth/encounters`) and opens the
+  clinician room (Part 2).
+- **"Send Patient a Message"** → opens the message composer that posts to
+  `POST /api/patients/{pid}/care-team-messages` (persist + notification email) and refreshes the history
+  panel below.
+
+Keep this lightweight (two buttons / a small inline menu using existing `.btn` styles) — don't introduce a
+new modal framework.
+
+Then, **below that chooser**, add a new **"Intervention Messages & History"** panel using the existing
+`.triage-panel` / `.triage-composer` / `.btn`/`.btn.primary` classes:
 
 - On modal open, `apiJson('/api/patients/${pid}/care-team-messages')` and render the full thread, newest
   last. Label each message: care-team messages show the sender role + name and a tier-styled chip;
@@ -242,10 +258,9 @@ existing `.triage-panel` / `.triage-composer` / `.btn`/`.btn.primary` classes:
 - A **reply box** at the bottom of the panel → `POST /api/patients/${pid}/care-team-messages` (this both
   persists and emails the patient). After send, append to the thread and toast "Message sent — patient
   notified by email."
-- The legacy "Send Intervention" button can remain as the primary CTA but should now post through the
-  same endpoint and then refresh this history panel (so a sent intervention immediately appears in the
-  thread). Avoid two parallel code paths — have the composer and the history reply box call the same JS
-  helper.
+- The "Send Patient a Message" chooser action and this history reply box must call the **same JS helper**
+  hitting the same endpoint — avoid two parallel code paths — so a sent message immediately appears in the
+  thread.
 - **No email is sent to the doctor for patient replies.** New patient replies surface here and via an
   unread indicator on the escalation row / roster (use `count_unread_for_care_team`); optionally add a
   small dot on the patient's roster row. Polling on modal-open is sufficient — no websockets.
@@ -452,10 +467,9 @@ Every transition writes `team_store.log_event(...)` and appends to the claim `au
 
 ## 2.6 Frontend
 
-**Clinician launch point:** add a **"Schedule / Start Telehealth Visit"** action in the doctor portal's
-patient detail / triage view (`doctor.html`) — alongside the new messaging panel from Part 1, and from the
-RN-queue actions described in PRD §9.5. It calls `POST /api/telehealth/encounters` then opens
-`/telehealth/room/{id}`.
+**Clinician launch point:** this is the **"Start Telehealth Visit"** branch of the two-way chooser added in
+Part 1 §1.6 (the former "Send Intervention" button → choose **"Start Telehealth Visit"** or **"Send
+Patient a Message"**). It calls `POST /api/telehealth/encounters` then opens `/telehealth/room/{id}`.
 
 **Clinician in-call page** (`/telehealth/room/{id}` → an HTML page; build it like the other served pages):
 - Daily prebuilt iframe (clinician = owner token).
@@ -513,20 +527,20 @@ The claim builder must reject any second/FFS line item with `RIDE_ALONE_VIOLATIO
 
 ---
 
-## Open questions for the human (resolve before/with implementation)
+## Resolved decisions (locked)
 
-These are the decisions where I picked a sensible default but you may want to steer:
+1. **Thread scope** — **Per patient**, surfaced from the triage view. ✅
+2. **Reply targeting** — **The patient explicitly picks the recipient** (Surgeon vs RN Coordinator, etc.)
+   via a recipient picker; auto-selected when only one clinician is in the thread. ✅
+3. **Telehealth entry** — From the triage detail view, the former "Send Intervention" button becomes a
+   **two-way chooser: "Start Telehealth Visit" / "Send Patient a Message."** ✅
+4. **Email subject tone** — **Softened to "New secure message"**; only escalation-flagged sends read as
+   urgent. ✅
 
-1. **Thread scope** — I scoped messaging **per patient** (not per escalation), surfaced from the triage
-   view. If you instead want each escalation to have its own isolated thread, say so.
-2. **Reply targeting** — a patient reply currently routes to the **most-recent clinician sender**. If
-   multiple roles message the same patient and you want the patient to explicitly pick "reply to Surgeon"
-   vs "reply to RN," I'll add a recipient selector.
-3. **Urgency wording** — I softened the subject from "URGENT CARE MESSAGE" to "New secure message" for
-   non-escalation sends. If all care-team messages should read as urgent, keep the caps version.
-4. **Clinician notifications** — patient replies are **in-app only** (per your instruction). Want an
-   optional in-portal toast/badge counter on the roster, or is the unread dot on "view triage" enough?
-5. **Telehealth launch surface** — I put "Start Telehealth Visit" in the triage detail view. Confirm
-   that's where NP/PA expect it, or whether it should also live on the RN queue row actions.
-6. **Patient-type detection** — NEW vs ESTABLISHED is auto-derived from prior encounters/episode age.
+## Remaining open questions (sensible defaults applied; steer if needed)
+
+1. **Clinician notifications** — patient replies are **in-app only** (per your instruction). Default: an
+   unread dot on the "view triage" / roster row using `count_unread_for_care_team`. Say if you want a
+   portal-wide badge counter instead.
+2. **Patient-type detection** — NEW vs ESTABLISHED is auto-derived from prior encounters/episode age.
    If you have an EHR/FHIR signal you'd rather key off, point me at it.
