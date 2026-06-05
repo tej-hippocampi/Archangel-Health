@@ -261,9 +261,12 @@ Then, **below that chooser**, add a new **"Intervention Messages & History"** pa
 - The "Send Patient a Message" chooser action and this history reply box must call the **same JS helper**
   hitting the same endpoint — avoid two parallel code paths — so a sent message immediately appears in the
   thread.
-- **No email is sent to the doctor for patient replies.** New patient replies surface here and via an
-  unread indicator on the escalation row / roster (use `count_unread_for_care_team`); optionally add a
-  small dot on the patient's roster row. Polling on modal-open is sufficient — no websockets.
+- **No email is sent to the doctor for patient replies.** New patient replies surface **in the existing
+  top-right notification bell** (`#doctorNotifBell`, fed by `/api/doctors/me/notifications`,
+  `loadIntakeNotifications()` ~line 2977). Extend that feed so each unread patient reply appears as its own
+  notification line that **names the patient**, e.g. *"New message from John Doe"*, and clicking it opens
+  that patient's "view triage" Intervention Messages & History panel. Update the bell count to include these
+  unread replies (`count_unread_for_care_team`). Poll on portal load / modal-open — no websockets.
 
 **Targeting requirement (explicit in the ask):** if Dr. Thompson (Surgeon) messages John Doe and John Doe
 replies, the reply's `recipient_role/recipient_email` resolve to Dr. Thompson, and the thread shown under
@@ -431,8 +434,9 @@ patient join route is **token-gated, not login-gated**.
 ```
 POST /api/telehealth/encounters
   (staff) body: { patient_id, scheduled_for?, escalation_id? }
-  - scope-check patient; patient_type derived automatically (NEW vs ESTABLISHED) from prior encounters /
-    episode age — clinician does NOT pick it (PRD §10.7). Create encounter status=SCHEDULED.
+  - scope-check patient. Create encounter status=SCHEDULED. patient_type starts NULL; the clinician sets it
+    on the pre-visit setup page (see below) — we surface a suggested default (derived from prior
+    encounters / episode age) but the clinician confirms NEW vs ESTABLISHED explicitly.
   - **eligibility gate (AC-5.5):** if the parent episode's TEAM eligibility verdict is INELIGIBLE, block
     creation with a clear 409. (Eligibility lives in backend/eligibility + team_store; reuse it.)
   - returns { encounter_id }
@@ -469,7 +473,16 @@ Every transition writes `team_store.log_event(...)` and appends to the claim `au
 
 **Clinician launch point:** this is the **"Start Telehealth Visit"** branch of the two-way chooser added in
 Part 1 §1.6 (the former "Send Intervention" button → choose **"Start Telehealth Visit"** or **"Send
-Patient a Message"**). It calls `POST /api/telehealth/encounters` then opens `/telehealth/room/{id}`.
+Patient a Message"**). It calls `POST /api/telehealth/encounters` and then routes the clinician to an
+**inline pre-visit setup page** (not straight into the call).
+
+**Pre-visit setup page** (inline, before the room): the clinician confirms a couple of billing-relevant
+facts before the call starts:
+- **Patient type — NEW vs ESTABLISHED** (a clear two-option selector; preselect the system's suggested
+  default but require the clinician to confirm). This drives the entire G-code ladder.
+- A quick visit reason (optional) and a "Send patient the join link" action (`/invite`).
+- A **"Begin visit"** button → opens `/telehealth/room/{id}`.
+Persist the chosen `patient_type` to the encounter (`PATCH`/dedicated endpoint) before the room opens.
 
 **Clinician in-call page** (`/telehealth/room/{id}` → an HTML page; build it like the other served pages):
 - Daily prebuilt iframe (clinician = owner token).
@@ -537,10 +550,8 @@ The claim builder must reject any second/FFS line item with `RIDE_ALONE_VIOLATIO
 4. **Email subject tone** — **Softened to "New secure message"**; only escalation-flagged sends read as
    urgent. ✅
 
-## Remaining open questions (sensible defaults applied; steer if needed)
-
-1. **Clinician notifications** — patient replies are **in-app only** (per your instruction). Default: an
-   unread dot on the "view triage" / roster row using `count_unread_for_care_team`. Say if you want a
-   portal-wide badge counter instead.
-2. **Patient-type detection** — NEW vs ESTABLISHED is auto-derived from prior encounters/episode age.
-   If you have an EHR/FHIR signal you'd rather key off, point me at it.
+5. **Clinician notifications** — patient replies surface in the **existing top-right notification bell**,
+   one line per reply, **naming the patient** ("New message from John Doe"); clicking opens that patient's
+   Intervention Messages & History. ✅
+6. **Patient type (NEW vs ESTABLISHED)** — the clinician **picks it on the inline pre-visit setup page**
+   (system suggests a default; clinician confirms). No EHR/FHIR dependency. ✅
