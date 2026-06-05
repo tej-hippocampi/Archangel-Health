@@ -207,12 +207,16 @@ def _patient_principal_ok(patient_id: str, staff: Optional[StaffContext]) -> boo
     if patient_id not in _patient_store:
         return False
     if staff is not None:
-        # Tenant staff are scoped to their own health system; landing/demo staff
-        # retain the prior lenient visibility (kept for back-compat).
-        if staff.source == "tenant" and staff.tenant_id:
-            d = _patient_store.get(patient_id)
-            return bool(d) and (d.get("health_system_id") or "") == staff.tenant_id
-        return True
+        # Mirror staff_context.assert_staff_patient_scope so the patient-facing
+        # gate is consistent with the strict clinical gate: tenant staff are
+        # scoped to their own health system; landing/demo staff are scoped to the
+        # demo health system (a self-registered landing user must NOT be able to
+        # read real tenant PHI). Patients with no health_system_id stay reachable.
+        d = _patient_store.get(patient_id) or {}
+        hs = str(d.get("health_system_id") or "")
+        if staff.source == "tenant":
+            return (not hs) or (bool(staff.tenant_id) and hs == str(staff.tenant_id))
+        return (not hs) or hs == DEMO_HEALTH_SYSTEM_ID
     ps = current_patient_session()
     return ps is not None and ps.patient_id == patient_id
 
@@ -3252,7 +3256,8 @@ async def doctor_patient_view(
     """Doctor's view of a patient dashboard (same as patient view but with back-to-roster nav)."""
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
-    _assert_staff_can_access_patient(patient_id, staff)
+    # Staff-only: reject patient sessions (this is the clinician surface).
+    _assert_clinical_staff_can_access_patient(patient_id, staff)
 
     d = _patient_store[patient_id]
 
@@ -3342,7 +3347,8 @@ async def send_to_patient(
     """Send the patient dashboard link via SMS (Twilio) and email. Email includes clinic/resource codes and link to code-entry page."""
     if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
-    _assert_staff_can_access_patient(patient_id, staff)
+    # Staff-only action: reject patient sessions.
+    _assert_clinical_staff_can_access_patient(patient_id, staff)
 
     d = _patient_store[patient_id]
     name = d.get("name", "Patient")

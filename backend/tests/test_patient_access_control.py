@@ -182,6 +182,37 @@ def test_cross_tenant_staff_blocked(client):
     assert r.status_code == 404, r.text
 
 
+# ─── 6b. Self-registered landing user cannot read real tenant PHI ────────────
+
+def test_landing_user_cannot_read_tenant_patient(client):
+    """A self-registered landing account (role surgeon, no tenant) must be scoped
+    to the demo health system — not able to read a real tenant patient's PHI."""
+    from auth import create_access_token, register_user
+    pid = _seed_patient(health_system_id="hs_real_tenant")
+    try:
+        register_user("attacker@example.com", "pw123456", "Attacker")
+    except ValueError:
+        pass
+    token = create_access_token("attacker@example.com")
+    for route in (f"/api/patient/{pid}/discharge", f"/api/patient/{pid}/config",
+                  f"/api/patient/{pid}/battlecard"):
+        r = client.get(route, headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 404, f"{route} -> {r.status_code}"
+
+
+# ─── 6c. Patient sessions cannot reach staff-only routes ─────────────────────
+
+def test_patient_session_blocked_on_staff_only_routes(client):
+    pid = _seed_patient()
+    client.cookies.set("pt_session", ps_mod.create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
+    # Clinician HTML view is staff-only.
+    r1 = client.get(f"/doctor/patient/{pid}", follow_redirects=False)
+    assert r1.status_code in (401, 403, 404), r1.status_code
+    # Sending the patient link is a staff-only action.
+    r2 = client.post(f"/api/send-to-patient/{pid}")
+    assert r2.status_code in (401, 403, 404), r2.status_code
+
+
 # ─── 7. Enumeration guard: no anonymous 200 on any {patient_id} GET route ─────
 
 def test_no_anonymous_phi_route_returns_200(client):
