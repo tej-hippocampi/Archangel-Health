@@ -20,7 +20,7 @@ from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, APIRouter, Depends, Request, Header
+from fastapi import FastAPI, HTTPException, BackgroundTasks, APIRouter, Depends, Request, Header, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
@@ -87,6 +87,15 @@ from triage_demo_seed import (
     spinal_fusion_postop_demo_resources,
 )
 from tenant_jwt import decode_tenant_staff_token
+from patient_session import (
+    PatientSessionMiddleware,
+    clear_patient_session_cookie,
+    consume_entry_token,
+    create_entry_token,
+    current_patient_session,
+    revoke_patient_session,
+    set_patient_session_cookie,
+)
 from email_utils import (
     is_email_transport_configured,
     send_html_email as _send_html_email_impl,
@@ -144,18 +153,85 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Resolve the pt_session cookie into a per-request PatientSession (PRD-1).
+app.add_middleware(PatientSessionMiddleware)
+
 _patient_store: dict = {}
 app.state.patient_store = _patient_store
 _team_store = TeamStore()
 app.state.team_store = _team_store
 
 
+import logging as _logging
+
+_auth_logger = _logging.getLogger("patient_auth")
+
+# Feature flag for staged rollout. When "0", unauthenticated patient access falls
+# back to legacy (open) behavior with a WARNING. Default ON (enforce). Remove the
+# flag once the rollout is verified (PRD-1 §12).
+def _enforce_patient_auth() -> bool:
+    return os.getenv("ENFORCE_PATIENT_AUTH", "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _patient_principal_ok(patient_id: str, staff: Optional[StaffContext]) -> bool:
+    """True if the caller may access this patient: either authorized clinical
+    staff (scoped to the patient's health system) or a patient session bound to
+    this exact patient_id. Mirrors the prior lenient behavior for landing/demo
+    staff so existing staff flows are unchanged."""
+    if patient_id not in _patient_store:
+        return False
+    if staff is not None:
+        # Tenant staff are scoped to their own health system; landing/demo staff
+        # retain the prior lenient visibility (kept for back-compat).
+        if staff.source == "tenant" and staff.tenant_id:
+            d = _patient_store.get(patient_id)
+            return bool(d) and (d.get("health_system_id") or "") == staff.tenant_id
+        return True
+    ps = current_patient_session()
+    return ps is not None and ps.patient_id == patient_id
+
+
 def _assert_staff_can_access_patient(patient_id: str, staff: Optional[StaffContext]) -> None:
-    if staff is None or staff.source != "tenant" or not staff.tenant_id:
+    """Authorize a patient-or-staff route. Requires EITHER scoped clinical staff
+    OR a patient session bound to this patient_id. Unauthenticated/wrong-patient
+    access returns 404 (no id enumeration). Previously this returned early when
+    ``staff is None``, which left every patient PHI route open (PRD-1)."""
+    if _patient_principal_ok(patient_id, staff):
         return
-    d = _patient_store.get(patient_id)
-    if not d or (d.get("health_system_id") or "") != staff.tenant_id:
+    if staff is None and current_patient_session() is None and not _enforce_patient_auth():
+        _auth_logger.warning(
+            "ENFORCE_PATIENT_AUTH=0: allowing unauthenticated access to patient %s", patient_id
+        )
+        return
+    raise HTTPException(status_code=404, detail="Patient not found")
+
+
+def _patient_page_entry(
+    request: Request,
+    patient_id: str,
+    k: Optional[str],
+    staff: Optional[StaffContext],
+):
+    """Guard for server-rendered patient pages. Returns a RedirectResponse (which
+    mints the pt_session cookie from a one-time entry token ``?k=``) that the
+    caller must return; returns None when the caller is already authorized and the
+    page should render; raises 404 otherwise."""
+    if patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    if _patient_principal_ok(patient_id, staff):
+        return None
+    if k:
+        sess = consume_entry_token(k)
+        if sess and sess.patient_id == patient_id:
+            resp = RedirectResponse(url=request.url.path, status_code=302)
+            set_patient_session_cookie(resp, patient_id, sess.health_system_id)
+            return resp
+    if current_patient_session() is None and staff is None and not _enforce_patient_auth():
+        _auth_logger.warning(
+            "ENFORCE_PATIENT_AUTH=0: rendering patient page %s without auth", patient_id
+        )
+        return None
+    raise HTTPException(status_code=404, detail="Patient not found")
 
 
 def _require_clinical_staff(staff: Optional[StaffContext]) -> StaffContext:
@@ -1860,8 +1936,25 @@ async def patient_by_codes(
             _team_store.log_event(patient_id=pid, event_type="platform_opened", payload={"clinic_code": cc})
             is_preop = (d.get("pipeline_type") or "").lower() == "pre_op"
             dashboard_path = f"/patient/{pid}/pre-op" if is_preop else f"/patient/{pid}"
-            return {"patient_id": pid, "dashboard_url": f"{base_url}{dashboard_path}"}
+            # Mint a one-time entry token; the page route exchanges it for an
+            # HttpOnly pt_session cookie (PRD-1). Cross-origin-safe: the token
+            # rides into the backend origin on a first-party navigation.
+            entry = create_entry_token(pid, d.get("health_system_id"))
+            return {
+                "patient_id": pid,
+                "dashboard_url": f"{base_url}{dashboard_path}?k={entry}",
+            }
     raise HTTPException(status_code=404, detail="No patient found for these codes. Check and try again.")
+
+
+@app.post("/api/patient/logout")
+async def patient_logout(request: Request, response: Response):
+    """Clear and revoke the current patient session cookie (PRD-1 §10)."""
+    tok = request.cookies.get("pt_session")
+    if tok:
+        revoke_patient_session(tok)
+    clear_patient_session_cookie(response)
+    return {"ok": True}
 
 
 async def _maybe_trigger_preop_outreach(app: FastAPI) -> None:
@@ -3934,12 +4027,14 @@ async def get_discharge_instructions(
 @app.get("/patient/{patient_id}/voice", response_class=HTMLResponse)
 async def digital_care_companion_page(
     patient_id: str,
+    request: Request,
+    k: Optional[str] = None,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
     """Serves the Digital Care Companion conversation interface."""
-    if patient_id not in _patient_store:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    _assert_staff_can_access_patient(patient_id, staff)
+    _redir = _patient_page_entry(request, patient_id, k, staff)
+    if _redir is not None:
+        return _redir
 
     d = _patient_store[patient_id]
     patient_json = json.dumps({
@@ -3961,12 +4056,14 @@ async def digital_care_companion_page(
 @app.get("/patient/{patient_id}/pre-op", response_class=HTMLResponse)
 async def pre_op_page(
     patient_id: str,
+    request: Request,
+    k: Optional[str] = None,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
     """Serves the pre-operative preparation page."""
-    if patient_id not in _patient_store:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    _assert_staff_can_access_patient(patient_id, staff)
+    _redir = _patient_page_entry(request, patient_id, k, staff)
+    if _redir is not None:
+        return _redir
     d = _patient_store[patient_id]
     patient_json = json.dumps(
         {
@@ -3989,11 +4086,13 @@ async def pre_op_page(
 @app.get("/patient/{patient_id}", response_class=HTMLResponse)
 async def patient_dashboard(
     patient_id: str,
+    request: Request,
+    k: Optional[str] = None,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
-    if patient_id not in _patient_store:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    _assert_staff_can_access_patient(patient_id, staff)
+    _redir = _patient_page_entry(request, patient_id, k, staff)
+    if _redir is not None:
+        return _redir
 
     d = _patient_store[patient_id]
     if (d.get("pipeline_type") or "").lower() == "pre_op":
@@ -4811,9 +4910,13 @@ async def intake_notifications_mark_read(
 
 
 @app.post("/api/pre-op/intake/start")
-async def preop_intake_start(body: IntakeStartRequest):
+async def preop_intake_start(
+    body: IntakeStartRequest,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if body.patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(body.patient_id, staff)
     patient = _patient_store[body.patient_id]
     procedure = (patient.get("structured_data") or {}).get("procedure_name", "")
     specialty = patient.get("specialty") or _specialty_from_procedure(procedure)
@@ -4833,9 +4936,13 @@ async def preop_intake_start(body: IntakeStartRequest):
 
 
 @app.post("/api/pre-op/intake/answer")
-async def preop_intake_answer(body: IntakeAnswerRequest):
+async def preop_intake_answer(
+    body: IntakeAnswerRequest,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if body.patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(body.patient_id, staff)
     patient = _patient_store[body.patient_id]
     procedure = (patient.get("structured_data") or {}).get("procedure_name", "")
     specialty = patient.get("specialty") or _specialty_from_procedure(procedure)
@@ -4873,9 +4980,13 @@ async def preop_intake_answer(body: IntakeAnswerRequest):
 
 
 @app.post("/api/pre-op/intake/submit")
-async def preop_intake_submit(body: IntakeSubmitRequest):
+async def preop_intake_submit(
+    body: IntakeSubmitRequest,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if body.patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_staff_can_access_patient(body.patient_id, staff)
     patient = _patient_store[body.patient_id]
     specialty = patient.get("specialty") or _specialty_from_procedure((patient.get("structured_data") or {}).get("procedure_name", ""))
     library = _load_form_library()

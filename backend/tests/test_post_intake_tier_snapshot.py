@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
 
 from main import app  # noqa: E402
+from patient_session import create_patient_session  # noqa: E402
 from tests._role_auth import tenant_token  # noqa: E402
 from triage.preop_retier.apply import apply_preop_retier  # noqa: E402
 
@@ -41,7 +42,7 @@ def client():
         yield c
 
 
-def _seed_preop_t1(pid: str, *, hours_until_surgery: int = 96) -> None:
+def _seed_preop_t1(client, pid: str, *, hours_until_surgery: int = 96) -> None:
     surgery_iso = (datetime.utcnow() + timedelta(hours=hours_until_surgery)).isoformat()
     app.state.patient_store[pid] = {
         "id": pid,
@@ -56,6 +57,7 @@ def _seed_preop_t1(pid: str, *, hours_until_surgery: int = 96) -> None:
         },
         "anchor_procedure_family": "LEJR",
     }
+    client.cookies.set("pt_session", create_patient_session(pid, None))
 
 
 def _section10_pam(value: str) -> dict:
@@ -71,7 +73,7 @@ def _section10_pam(value: str) -> dict:
 def test_first_intake_stamps_post_intake_tier(client):
     """Initial T1 + intake submission → `post_intake_tier` stamped."""
     pid = f"pit_first_{uuid.uuid4().hex[:8]}"
-    _seed_preop_t1(pid)
+    _seed_preop_t1(client, pid)
 
     r = client.post(
         "/api/pre-op/intake/submit",
@@ -108,7 +110,7 @@ def test_post_intake_tier_immutable_when_current_changes(client):
     """A signal that pushes `current_tier` upward after intake must NOT
     move `post_intake_tier`. The snapshot is once-per-episode."""
     pid = f"pit_immut_{uuid.uuid4().hex[:8]}"
-    _seed_preop_t1(pid)
+    _seed_preop_t1(client, pid)
 
     r = client.post(
         "/api/pre-op/intake/submit",
@@ -160,7 +162,7 @@ def test_post_intake_tier_immutable_when_current_changes(client):
 
 def test_second_intake_does_not_overwrite_snapshot(client):
     pid = f"pit_second_{uuid.uuid4().hex[:8]}"
-    _seed_preop_t1(pid)
+    _seed_preop_t1(client, pid)
 
     # First intake — establishes the snapshot.
     client.post(
@@ -202,7 +204,7 @@ def test_second_intake_does_not_overwrite_snapshot(client):
 
 def test_patients_endpoint_serializes_tier_chain(client):
     pid = f"pit_api_{uuid.uuid4().hex[:8]}"
-    _seed_preop_t1(pid)
+    _seed_preop_t1(client, pid)
     app.state.patient_store[pid].update({
         "name": "Chain Patient",
         "phone": "555-0100",

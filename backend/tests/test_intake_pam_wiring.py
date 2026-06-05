@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
 
 from main import app  # noqa: E402
+from patient_session import create_patient_session  # noqa: E402
 
 
 @pytest.fixture()
@@ -34,8 +35,9 @@ def client():
         yield c
 
 
-def _seed_preop_patient(*, surgery_iso: str = "2099-12-15T07:00:00") -> str:
-    """Seed an in-memory pre-op patient with an initial tier already set."""
+def _seed_preop_patient(client, *, surgery_iso: str = "2099-12-15T07:00:00") -> str:
+    """Seed an in-memory pre-op patient with an initial tier already set, and
+    authenticate the client as that patient (PRD-1 patient session)."""
     pid = f"intake_pam_{uuid.uuid4().hex[:8]}"
     app.state.patient_store[pid] = {
         "id": pid,
@@ -48,6 +50,7 @@ def _seed_preop_patient(*, surgery_iso: str = "2099-12-15T07:00:00") -> str:
                              "procedure_date": surgery_iso},
         "anchor_procedure_family": "LEJR",
     }
+    client.cookies.set("pt_session", create_patient_session(pid, None))
     return pid
 
 
@@ -57,7 +60,7 @@ def _pam_responses_high() -> dict:
 
 
 def test_intake_submit_persists_pam_and_triggers_retier(client):
-    pid = _seed_preop_patient()
+    pid = _seed_preop_patient(client)
     form_data = {
         **_pam_responses_high(),
         "lives_alone": False,
@@ -97,7 +100,7 @@ def test_intake_submit_persists_pam_and_triggers_retier(client):
 def test_intake_submit_partial_pam_still_triggers_retier(client):
     """Partial PAM submission (5 items) still saves a row with is_complete=False
     and triggers a re-tier; the algorithm treats it as 'not completed'."""
-    pid = _seed_preop_patient()
+    pid = _seed_preop_patient(client)
     form_data = {f"pam_{i}": 3 for i in range(1, 6)}
     r = client.post(
         "/api/pre-op/intake/submit",
@@ -119,7 +122,7 @@ def test_intake_submit_partial_pam_still_triggers_retier(client):
 def test_intake_submit_without_pam_still_triggers_retier(client):
     """Even with no PAM data in the form, the re-tier still runs (partial
     intake submit) and the patient is marked intake-complete."""
-    pid = _seed_preop_patient()
+    pid = _seed_preop_patient(client)
     r = client.post(
         "/api/pre-op/intake/submit",
         json={"patient_id": pid, "form_data": {"lives_alone": False}},
@@ -154,7 +157,7 @@ def test_intake_submit_pam_in_section10_schema_completes_pam(client):
     to a complete `pam_assessments` row and must NOT trigger the
     `PAM_NOT_COMPLETED_BY_T_72` penalty.
     """
-    pid = _seed_preop_patient()
+    pid = _seed_preop_patient(client)
     form_data = {
         "section10_dayOfSurgeryReadiness": _section10_pam("4"),
     }
@@ -186,7 +189,7 @@ def test_intake_submit_no_pam_fires_not_completed_penalty_exactly_once(client):
     where the not-completed contributor evaluates."""
     from datetime import datetime, timedelta
 
-    pid = _seed_preop_patient()
+    pid = _seed_preop_patient(client)
     # Place surgery 71 hours out so we're past the T-72 deadline for PAM
     # completion (PRD §4.2 — `PAM_NOT_COMPLETED_BY_T_72` at hours <= 72).
     soon = (datetime.utcnow() + timedelta(hours=71)).isoformat()

@@ -301,6 +301,15 @@ async function sendMessage() {
     const data = await res.json();
     typingEl.remove();
 
+    if (res.status === 401 || res.status === 404) {
+      // Patient session expired or not established (PRD-1). Prompt re-entry.
+      appendMessage(
+        'Your secure session has expired. Please re-open the link from your email, or re-enter your access codes to continue.',
+        'error',
+      );
+      return;
+    }
+
     if (!res.ok) {
       appendMessage(`Error (${res.status}): ${data.detail || 'Unknown error'}. Check your server terminal for details.`, 'error');
       return;
