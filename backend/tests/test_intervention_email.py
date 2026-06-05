@@ -16,7 +16,7 @@ from main import app  # noqa: E402
 from tests._role_auth import auth_headers  # noqa: E402
 
 
-def _seed_escalation(*, email: str = "patient@example.com") -> tuple[str, int]:
+def _seed_escalation(*, email: str = "patient@example.com", tier: int = 3) -> tuple[str, int]:
     pid = f"intervention_case_{uuid.uuid4().hex[:8]}"
     app.state.patient_store[pid] = {
         "id": pid,
@@ -25,14 +25,16 @@ def _seed_escalation(*, email: str = "patient@example.com") -> tuple[str, int]:
         "phase": "post_op",
         "pipeline_type": "post_op",
         "initial_tier": "TIER_1",
-        "current_tier": "TIER_3",
+        "current_tier": f"TIER_{tier}",
         "structured_data": {"procedure_date": "2026-06-01"},
+        "clinic_code": "DEMO",
+        "resource_code": "RES001",
     }
     ts = app.state.team_store
     ts.ensure_episode(patient_id=pid)
     esc_id = ts.create_escalation(
         patient_id=pid,
-        tier=3,
+        tier=tier,
         trigger_type="chat:semantic",
         message="urgent concern",
         conversation_snapshot=[],
@@ -49,7 +51,7 @@ def test_intervention_send_success_logs_audit(monkeypatch):
         sent["subject"] = subject
         sent["html_body"] = html_body
         sent["importance_headers"] = str(importance_headers)
-        return True, "sent"
+        return True, None
 
     monkeypatch.setattr(main_module, "is_email_transport_configured", lambda: True)
     monkeypatch.setattr(main_module, "_send_html_email_with_reason_impl", _fake_send)
@@ -60,18 +62,17 @@ def test_intervention_send_success_logs_audit(monkeypatch):
             json={"message": "Please call us immediately."},
         )
     assert r.status_code == 200, r.text
-    assert r.json().get("ok") is True
+    body = r.json()
+    assert body.get("ok") is True
+    assert body.get("emailed") is True
     assert sent["to_email"] == "patient@example.com"
-    assert sent["subject"] == "Tester, Surgeon, Archangel Health — URGENT CARE MESSAGE"
+    assert "New secure message" in sent["subject"] or "URGENT CARE MESSAGE" in sent["subject"]
+    assert "Please call us immediately" not in sent["html_body"]
     assert sent["importance_headers"] == "True"
 
     logs = app.state.team_store.get_events(pid)
-    intervention_logs = [e for e in logs if e.get("event_type") == "provider_intervention_email"]
-    assert intervention_logs
-    payload = intervention_logs[-1].get("payload") or {}
-    assert payload.get("escalation_id") == escalation_id
-    assert payload.get("provider_email") == "intervention@test.local"
-    assert "URGENT CARE MESSAGE" in str(payload.get("subject") or "")
+    sent_logs = [e for e in logs if e.get("event_type") == "care_team_message_sent"]
+    assert sent_logs
 
 
 def test_intervention_rejects_empty_message():
@@ -84,7 +85,7 @@ def test_intervention_rejects_empty_message():
     assert r.status_code == 400
 
 
-def test_intervention_returns_409_without_patient_email(monkeypatch):
+def test_intervention_persists_without_patient_email(monkeypatch):
     _, escalation_id = _seed_escalation(email="")
     monkeypatch.setattr(main_module, "is_email_transport_configured", lambda: True)
     with TestClient(app, headers=auth_headers("surgeon", source="landing", email="missing-email@test.local")) as client:
@@ -92,17 +93,18 @@ def test_intervention_returns_409_without_patient_email(monkeypatch):
             f"/api/escalations/{escalation_id}/intervention",
             json={"message": "Please contact clinic."},
         )
-    assert r.status_code == 409
-    assert "No email on file" in r.json().get("detail", "")
+    assert r.status_code == 200
+    assert r.json().get("emailed") is False
 
 
-def test_intervention_returns_503_when_email_unconfigured(monkeypatch):
+def test_intervention_persists_when_email_unconfigured(monkeypatch):
     _, escalation_id = _seed_escalation()
     monkeypatch.setattr(main_module, "is_email_transport_configured", lambda: False)
+    monkeypatch.setattr("email_utils.is_email_transport_configured", lambda: False)
     with TestClient(app, headers=auth_headers("surgeon", source="landing", email="config@test.local")) as client:
         r = client.post(
             f"/api/escalations/{escalation_id}/intervention",
             json={"message": "Please contact clinic."},
         )
-    assert r.status_code == 503
-    assert "not configured" in str(r.json().get("detail") or "").lower()
+    assert r.status_code == 200
+    assert r.json().get("emailed") is False

@@ -50,3 +50,23 @@ def decode_tenant_staff_token(token: str) -> Optional[Dict[str, Any]]:
         return payload
     except JWTError:
         return None
+
+
+def create_telehealth_join_token(encounter_id: str, *, minutes: int = 120) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=minutes)
+    payload: Dict[str, Any] = {
+        "typ": "telehealth_join",
+        "enc": encounter_id,
+        "exp": expire,
+    }
+    return jwt.encode(payload, AUTH_SECRET, algorithm=ALGORITHM)
+
+
+def decode_telehealth_join_token(token: str) -> Optional[Dict[str, Any]]:
+    try:
+        payload = jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
+        if payload.get("typ") != "telehealth_join":
+            return None
+        return payload
+    except JWTError:
+        return None

@@ -134,3 +134,65 @@ def test_triage_timeline_aggregates_sources_and_labels_phases():
     assert postop[-1].get("phase") == "POST_OP"
     assert str(postop[-1].get("phase_label") or "").startswith("Post-Op")
     assert any(str(reason.get("kind")).upper() == "HARD" for reason in (postop[-1].get("reasons") or []))
+
+
+def test_postop_source_classifies_post_op_without_surgery_timestamps():
+    """Regression: postop events must never fall through to Pre-Op when OR times are missing."""
+    pid = f"timeline_no_or_{uuid.uuid4().hex[:8]}"
+    now = datetime.utcnow().replace(microsecond=0)
+    app.state.patient_store[pid] = {
+        "id": pid,
+        "name": "No OR Timestamps Patient",
+        "email": "noor@example.com",
+        "phase": "post_op",
+        "pipeline_type": "post_op",
+        "initial_tier": "TIER_2",
+        "initial_tier_assigned_at": (now - timedelta(days=20)).isoformat(),
+        "current_tier": "TIER_3",
+        "tier_last_changed": (now - timedelta(days=2)).isoformat(),
+    }
+
+    ts = app.state.team_store
+    ts.ensure_episode(patient_id=pid)
+    esc_id = ts.create_escalation(
+        patient_id=pid,
+        tier=3,
+        trigger_type="survey:day7",
+        message="Day 7 RED",
+        conversation_snapshot=[],
+    )
+    ts.save_postop_retier_event(
+        event_id=f"post_{uuid.uuid4().hex[:8]}",
+        patient_id=pid,
+        triggered_by="demo:day7-plus-checkins",
+        inputs_snapshot={"day": 7},
+        post_intraop_tier="TIER_2",
+        computed_delta=1,
+        computed_tier="TIER_3",
+        tier_before="TIER_2",
+        tier_after="TIER_3",
+        changed=True,
+        reasons=[
+            {
+                "kind": "SOFT",
+                "code": "DAY7_RED_SURVEY",
+                "label": "Patient scored RED on Day 7 survey.",
+                "weight": 5,
+            },
+        ],
+        model_version="test",
+        tuning_version=1,
+    )
+
+    with TestClient(app, headers=auth_headers("rn_coordinator", source="landing", email="timeline-noor@test.local")) as client:
+        r = client.get(f"/api/escalations/{esc_id}/triage-timeline")
+    assert r.status_code == 200, r.text
+    postop = [
+        row for row in (r.json().get("timeline") or [])
+        if row.get("source") == "postop" and row.get("triggered_by") == "demo:day7-plus-checkins"
+    ]
+    assert postop, "Expected postop retier node for demo:day7-plus-checkins"
+    node = postop[-1]
+    assert node.get("phase") == "POST_OP"
+    assert str(node.get("phase_label") or "").startswith("Post-Op")
+    assert "Day 7" in str(node.get("phase_label") or "")

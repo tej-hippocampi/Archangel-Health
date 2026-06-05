@@ -534,6 +534,74 @@ class TeamStore:
                     created_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS care_team_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id TEXT NOT NULL,
+                    escalation_id INTEGER,
+                    health_system_id TEXT,
+                    sender_type TEXT NOT NULL,
+                    sender_role TEXT,
+                    sender_name TEXT,
+                    sender_email TEXT,
+                    recipient_role TEXT,
+                    recipient_email TEXT,
+                    body TEXT NOT NULL,
+                    read_by_patient INTEGER NOT NULL DEFAULT 0,
+                    read_by_care_team INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_ctm_patient ON care_team_messages(patient_id);
+                CREATE INDEX IF NOT EXISTS idx_ctm_hs ON care_team_messages(health_system_id);
+                CREATE INDEX IF NOT EXISTS idx_ctm_created ON care_team_messages(created_at);
+
+                CREATE TABLE IF NOT EXISTS telehealth_encounters (
+                    id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    health_system_id TEXT,
+                    escalation_id INTEGER,
+                    scheduled_for TEXT,
+                    scheduled_clinician TEXT,
+                    clinician_role TEXT,
+                    provider TEXT,
+                    vendor_session_id TEXT,
+                    room_url TEXT,
+                    patient_location TEXT,
+                    patient_type TEXT,
+                    started_at TEXT,
+                    ended_at TEXT,
+                    duration_seconds INTEGER,
+                    hcpcs_code TEXT,
+                    l45_attestation_json TEXT,
+                    documentation_json TEXT,
+                    status TEXT NOT NULL,
+                    claim_id TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS telehealth_claims (
+                    id TEXT PRIMARY KEY,
+                    encounter_id TEXT NOT NULL UNIQUE,
+                    patient_id TEXT NOT NULL,
+                    health_system_id TEXT,
+                    hcpcs_code TEXT NOT NULL,
+                    pos TEXT NOT NULL,
+                    type_of_bill TEXT NOT NULL,
+                    revenue_code TEXT NOT NULL,
+                    demo_code TEXT NOT NULL,
+                    ride_alone INTEGER NOT NULL DEFAULT 1,
+                    duration_minutes INTEGER,
+                    status TEXT NOT NULL,
+                    audit_trail_json TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_th_enc_patient ON telehealth_encounters(patient_id);
+                CREATE INDEX IF NOT EXISTS idx_th_enc_status ON telehealth_encounters(status);
+                CREATE INDEX IF NOT EXISTS idx_th_claim_enc ON telehealth_claims(encounter_id);
+
                 CREATE TABLE IF NOT EXISTS _schema_migrations (
                     name TEXT PRIMARY KEY
                 );
@@ -562,6 +630,10 @@ class TeamStore:
             )
             self._migrate_team_member_roles_v4(conn)
             self._migrate_event_logs_patient_nullable(conn)
+            self._add_column_if_missing(
+                conn, "telehealth_encounters", "connected_seconds", "INTEGER NOT NULL DEFAULT 0"
+            )
+            self._add_column_if_missing(conn, "telehealth_encounters", "last_heartbeat_at", "TEXT")
 
     @staticmethod
     def _migrate_team_member_roles_v4(conn: sqlite3.Connection) -> None:
@@ -1427,6 +1499,353 @@ class TeamStore:
             rec["conversation_snapshot"] = json.loads(rec.get("conversation_snapshot") or "[]")
             rec["resolved"] = bool(rec.get("resolved"))
             return rec
+
+    def create_care_team_message(
+        self,
+        *,
+        patient_id: str,
+        sender_type: str,
+        body: str,
+        escalation_id: Optional[int] = None,
+        health_system_id: Optional[str] = None,
+        sender_role: Optional[str] = None,
+        sender_name: Optional[str] = None,
+        sender_email: Optional[str] = None,
+        recipient_role: Optional[str] = None,
+        recipient_email: Optional[str] = None,
+        created_at: Optional[str] = None,
+    ) -> int:
+        ts = created_at or _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO care_team_messages (
+                    patient_id, escalation_id, health_system_id, sender_type,
+                    sender_role, sender_name, sender_email,
+                    recipient_role, recipient_email, body,
+                    read_by_patient, read_by_care_team, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
+                """,
+                (
+                    patient_id,
+                    escalation_id,
+                    health_system_id,
+                    sender_type,
+                    sender_role,
+                    sender_name,
+                    sender_email,
+                    recipient_role,
+                    recipient_email,
+                    body,
+                    ts,
+                ),
+            )
+            return int(cur.lastrowid)
+
+    def list_care_team_messages(self, patient_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM care_team_messages WHERE patient_id = ? ORDER BY datetime(created_at) ASC",
+                (patient_id,),
+            ).fetchall()
+            out = []
+            for row in rows:
+                rec = dict(row)
+                rec["read_by_patient"] = bool(rec.get("read_by_patient"))
+                rec["read_by_care_team"] = bool(rec.get("read_by_care_team"))
+                out.append(rec)
+            return out
+
+    def mark_care_team_thread_read(self, patient_id: str, *, by: str) -> None:
+        with self._conn() as conn:
+            if by == "patient":
+                conn.execute(
+                    """
+                    UPDATE care_team_messages
+                    SET read_by_patient = 1
+                    WHERE patient_id = ? AND sender_type = 'CARE_TEAM' AND read_by_patient = 0
+                    """,
+                    (patient_id,),
+                )
+            elif by == "care_team":
+                conn.execute(
+                    """
+                    UPDATE care_team_messages
+                    SET read_by_care_team = 1
+                    WHERE patient_id = ? AND sender_type = 'PATIENT' AND read_by_care_team = 0
+                    """,
+                    (patient_id,),
+                )
+
+    def count_unread_for_patient(self, patient_id: str) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM care_team_messages
+                WHERE patient_id = ? AND sender_type = 'CARE_TEAM' AND read_by_patient = 0
+                """,
+                (patient_id,),
+            ).fetchone()
+            return int(row["c"] if row else 0)
+
+    def count_unread_for_care_team(self, patient_id: str) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM care_team_messages
+                WHERE patient_id = ? AND sender_type = 'PATIENT' AND read_by_care_team = 0
+                """,
+                (patient_id,),
+            ).fetchone()
+            return int(row["c"] if row else 0)
+
+    def list_unread_care_team_reply_patients(self, health_system_id: str) -> List[Dict[str, Any]]:
+        """Patients with unread PATIENT messages for a tenant."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT patient_id, COUNT(*) AS unread_count, MAX(created_at) AS latest_at
+                FROM care_team_messages
+                WHERE health_system_id = ? AND sender_type = 'PATIENT' AND read_by_care_team = 0
+                GROUP BY patient_id
+                ORDER BY datetime(latest_at) DESC
+                """,
+                (health_system_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def list_care_team_clinicians_in_thread(self, patient_id: str) -> List[Dict[str, Any]]:
+        """Distinct care-team senders who have messaged this patient."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT sender_email, sender_name, sender_role
+                FROM care_team_messages
+                WHERE patient_id = ? AND sender_type = 'CARE_TEAM'
+                  AND sender_email IS NOT NULL AND sender_email != ''
+                ORDER BY sender_name ASC
+                """,
+                (patient_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def create_telehealth_encounter(
+        self,
+        *,
+        encounter_id: str,
+        patient_id: str,
+        health_system_id: Optional[str] = None,
+        escalation_id: Optional[int] = None,
+        scheduled_clinician: Optional[str] = None,
+        clinician_role: Optional[str] = None,
+        scheduled_for: Optional[str] = None,
+        status: str = "SCHEDULED",
+        provider: str = "daily",
+    ) -> Dict[str, Any]:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO telehealth_encounters (
+                    id, patient_id, health_system_id, escalation_id,
+                    scheduled_for, scheduled_clinician, clinician_role,
+                    provider, status, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    encounter_id,
+                    patient_id,
+                    health_system_id,
+                    escalation_id,
+                    scheduled_for,
+                    scheduled_clinician,
+                    clinician_role,
+                    provider,
+                    status,
+                    now,
+                    now,
+                ),
+            )
+        return self.get_telehealth_encounter(encounter_id) or {}
+
+    def get_telehealth_encounter(self, encounter_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM telehealth_encounters WHERE id = ?",
+                (encounter_id,),
+            ).fetchone()
+            if not row:
+                return None
+            rec = dict(row)
+            if rec.get("l45_attestation_json"):
+                try:
+                    rec["l45_attestation"] = json.loads(rec["l45_attestation_json"])
+                except json.JSONDecodeError:
+                    rec["l45_attestation"] = None
+            if rec.get("documentation_json"):
+                try:
+                    rec["documentation"] = json.loads(rec["documentation_json"])
+                except json.JSONDecodeError:
+                    rec["documentation"] = None
+            return rec
+
+    def update_telehealth_encounter(self, encounter_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
+        if not fields:
+            return self.get_telehealth_encounter(encounter_id)
+        allowed = {
+            "scheduled_for", "scheduled_clinician", "clinician_role", "provider",
+            "vendor_session_id", "room_url", "patient_location", "patient_type",
+            "started_at", "ended_at", "duration_seconds", "connected_seconds",
+            "last_heartbeat_at", "hcpcs_code",
+            "l45_attestation_json", "documentation_json", "status", "claim_id",
+        }
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        if "l45_attestation" in fields and "l45_attestation_json" not in updates:
+            updates["l45_attestation_json"] = json.dumps(fields["l45_attestation"])
+        if "documentation" in fields and "documentation_json" not in updates:
+            updates["documentation_json"] = json.dumps(fields["documentation"])
+        if not updates:
+            return self.get_telehealth_encounter(encounter_id)
+        updates["updated_at"] = _utcnow_iso()
+        sets = ", ".join(f"{k} = ?" for k in updates)
+        vals = list(updates.values()) + [encounter_id]
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE telehealth_encounters SET {sets} WHERE id = ?",
+                tuple(vals),
+            )
+        return self.get_telehealth_encounter(encounter_id)
+
+    def list_telehealth_encounters(
+        self,
+        *,
+        patient_id: Optional[str] = None,
+        status: Optional[str] = None,
+        health_system_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        where = ["1=1"]
+        args: List[Any] = []
+        if patient_id:
+            where.append("patient_id = ?")
+            args.append(patient_id)
+        if status:
+            where.append("status = ?")
+            args.append(status)
+        if health_system_id:
+            where.append("health_system_id = ?")
+            args.append(health_system_id)
+        q = (
+            "SELECT * FROM telehealth_encounters WHERE "
+            + " AND ".join(where)
+            + " ORDER BY datetime(created_at) DESC"
+        )
+        with self._conn() as conn:
+            rows = conn.execute(q, tuple(args)).fetchall()
+            return [dict(r) for r in rows]
+
+    def create_telehealth_claim(
+        self,
+        *,
+        claim_id: str,
+        encounter_id: str,
+        patient_id: str,
+        hcpcs_code: str,
+        pos: str,
+        type_of_bill: str,
+        revenue_code: str,
+        demo_code: str,
+        ride_alone: bool = True,
+        duration_minutes: Optional[int] = None,
+        health_system_id: Optional[str] = None,
+        status: str = "DRAFT_READY_FOR_REVIEW",
+        audit_trail: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        now = _utcnow_iso()
+        audit_json = json.dumps(audit_trail or [])
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO telehealth_claims (
+                    id, encounter_id, patient_id, health_system_id,
+                    hcpcs_code, pos, type_of_bill, revenue_code, demo_code,
+                    ride_alone, duration_minutes, status, audit_trail_json,
+                    created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    claim_id,
+                    encounter_id,
+                    patient_id,
+                    health_system_id,
+                    hcpcs_code,
+                    pos,
+                    type_of_bill,
+                    revenue_code,
+                    demo_code,
+                    1 if ride_alone else 0,
+                    duration_minutes,
+                    status,
+                    audit_json,
+                    now,
+                    now,
+                ),
+            )
+        return self.get_telehealth_claim(claim_id) or {}
+
+    def get_telehealth_claim(self, claim_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM telehealth_claims WHERE id = ?",
+                (claim_id,),
+            ).fetchone()
+            if not row:
+                return None
+            rec = dict(row)
+            rec["ride_alone"] = bool(rec.get("ride_alone"))
+            try:
+                rec["audit_trail"] = json.loads(rec.get("audit_trail_json") or "[]")
+            except json.JSONDecodeError:
+                rec["audit_trail"] = []
+            return rec
+
+    def get_telehealth_claim_by_encounter(self, encounter_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM telehealth_claims WHERE encounter_id = ?",
+                (encounter_id,),
+            ).fetchone()
+            if not row:
+                return None
+            rec = dict(row)
+            rec["ride_alone"] = bool(rec.get("ride_alone"))
+            try:
+                rec["audit_trail"] = json.loads(rec.get("audit_trail_json") or "[]")
+            except json.JSONDecodeError:
+                rec["audit_trail"] = []
+            return rec
+
+    def append_telehealth_claim_audit(self, claim_id: str, entry: Dict[str, Any]) -> None:
+        claim = self.get_telehealth_claim(claim_id)
+        if not claim:
+            return
+        trail = list(claim.get("audit_trail") or [])
+        trail.append(entry)
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE telehealth_claims SET audit_trail_json = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(trail), now, claim_id),
+            )
+
+    def update_telehealth_claim_status(self, claim_id: str, status: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE telehealth_claims SET status = ?, updated_at = ? WHERE id = ?",
+                (status, _utcnow_iso(), claim_id),
+            )
 
     def save_preop_intake_submission(
         self,
