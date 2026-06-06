@@ -1767,6 +1767,30 @@ async def auth_register(body: UserCreate):
     }
 
 
+def _require_staff_mfa() -> bool:
+    return os.getenv("REQUIRE_STAFF_MFA", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _issue_login_response(user: dict) -> dict:
+    """Return the access-token payload, or an `mfa_required` challenge when the
+    account has TOTP enabled (PRD-3, opt-in)."""
+    email = user["email"]
+    mfa_on = auth_module.user_mfa_enabled(email)
+    if _require_staff_mfa() and not mfa_on:
+        raise HTTPException(
+            status_code=403,
+            detail="MFA enrollment required. Set up an authenticator app to continue.",
+        )
+    if mfa_on:
+        return {"mfa_required": True, "mfa_token": auth_module.create_mfa_pending_token(email)}
+    token = create_access_token(email)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": UserOut(email=email, name=user.get("name"), role=user.get("role")),
+    }
+
+
 @app.post("/api/auth/login", dependencies=[Depends(rate_limiter("auth_login", 10, 60))])
 async def auth_login(body: UserLogin):
     """Sign in; returns access token and user."""
@@ -1778,12 +1802,7 @@ async def auth_login(body: UserLogin):
         user = authenticate_user(body.email, body.password)
         if not user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
-        token = create_access_token(user["email"])
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "user": UserOut(email=user["email"], name=user.get("name"), role=user.get("role")),
-        }
+        return _issue_login_response(user)
     tm = _team_store.find_team_member_by_email_any_hs(body.email)
     if tm:
         hs = _team_store.get_health_system_by_id(tm.get("health_system_id") or "")
@@ -1800,12 +1819,70 @@ async def auth_login(body: UserLogin):
     user = authenticate_user(body.email, body.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    token = create_access_token(user["email"])
+    return _issue_login_response(user)
+
+
+class MfaCodeBody(BaseModel):
+    code: str
+
+
+class MfaLoginBody(BaseModel):
+    mfa_token: str
+    code: str
+
+
+@app.post("/api/auth/mfa/enroll")
+async def mfa_enroll(user: UserOut = Depends(get_current_user)):
+    """Begin TOTP enrollment: returns the secret + otpauth URI to render a QR.
+    Not active until confirmed via /api/auth/mfa/verify."""
+    secret, uri = auth_module.mfa_begin_enrollment(user.email)
+    return {"secret": secret, "otpauth_uri": uri, "issuer": auth_module.MFA_ISSUER}
+
+
+@app.post("/api/auth/mfa/verify")
+async def mfa_verify_enroll(body: MfaCodeBody, user: UserOut = Depends(get_current_user)):
+    if not auth_module.mfa_confirm_enrollment(user.email, body.code):
+        raise HTTPException(status_code=400, detail="Invalid code. Please try again.")
+    return {"ok": True, "mfa_enabled": True}
+
+
+@app.post("/api/auth/mfa/disable")
+async def mfa_disable_endpoint(body: MfaCodeBody, user: UserOut = Depends(get_current_user)):
+    if not auth_module.mfa_disable(user.email, body.code):
+        raise HTTPException(status_code=400, detail="Invalid code.")
+    return {"ok": True, "mfa_enabled": False}
+
+
+@app.get("/api/auth/mfa/status")
+async def mfa_status(user: UserOut = Depends(get_current_user)):
+    return {"mfa_enabled": auth_module.user_mfa_enabled(user.email)}
+
+
+@app.post("/api/auth/mfa/login", dependencies=[Depends(rate_limiter("mfa_login", 10, 60))])
+async def mfa_login(body: MfaLoginBody):
+    """Second step of login: exchange the mfa_token + TOTP code for an access token."""
+    email = auth_module.decode_mfa_pending_token(body.mfa_token)
+    if not email:
+        raise HTTPException(status_code=401, detail="MFA session expired. Please sign in again.")
+    if not auth_module.mfa_verify(email, body.code):
+        raise HTTPException(status_code=401, detail="Invalid authentication code.")
+    u = auth_module._get_users().get(email) or {}  # noqa: SLF001
+    token = create_access_token(email)
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": UserOut(email=user["email"], name=user.get("name"), role=user.get("role")),
+        "user": UserOut(email=email, name=u.get("name"), role=u.get("role")),
     }
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(authorization: Optional[str] = Header(None)):
+    """Revoke the presented staff token (landing or tenant) so it can't be reused (PRD-3)."""
+    from token_revocation import revoke_token
+
+    if authorization and authorization.startswith("Bearer "):
+        revoke_token(authorization.removeprefix("Bearer ").strip())
+    return {"ok": True}
 
 
 @app.post("/api/auth/portal-handoff", response_model=PortalHandoffCreateResponse)

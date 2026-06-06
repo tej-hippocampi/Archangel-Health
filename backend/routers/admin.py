@@ -52,22 +52,29 @@ def _secret() -> str:
 
 
 def _create_token() -> str:
+    import uuid
+
     payload = {
         "role": "admin",
+        "jti": uuid.uuid4().hex,
         "exp": datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS),
     }
     return jwt.encode(payload, _secret(), algorithm=ALGORITHM)
 
 
 def _verify_token(authorization: Optional[str]) -> None:
+    from token_revocation import is_revoked
+
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Admin token required")
     token = authorization.removeprefix("Bearer ")
     try:
         payload = jwt.decode(token, _secret(), algorithms=[ALGORITHM])
-        if payload.get("role") != "admin":
-            raise HTTPException(status_code=403, detail="Not an admin token")
     except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired admin token")
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Not an admin token")
+    if is_revoked(payload.get("jti")):
         raise HTTPException(status_code=401, detail="Invalid or expired admin token")
 
 
@@ -126,6 +133,16 @@ async def admin_login(body: AdminLoginRequest):
     token = _create_token()
     internal_secret = os.getenv("INTERNAL_TOOL_SECRET", "")
     return {"token": token, "internal_tool_secret": internal_secret}
+
+
+@router.post("/auth/logout")
+async def admin_logout(authorization: Optional[str] = Header(None)):
+    """Revoke the presented admin token (PRD-3)."""
+    from token_revocation import revoke_token
+
+    if authorization and authorization.startswith("Bearer "):
+        revoke_token(authorization.removeprefix("Bearer ").strip(), secret=_secret())
+    return {"ok": True}
 
 
 @router.get("/demo-credentials")

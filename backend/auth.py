@@ -7,15 +7,19 @@ import os
 import json
 import secrets
 import string
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
+import pyotp
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
+
+from token_revocation import is_revoked
 
 # ─── Config ──────────────────────────────────────────────────
 AUTH_SECRET = os.getenv("AUTH_SECRET", "change-me-in-production-elysium")
@@ -83,16 +87,35 @@ def _verify_password(plain: str, hashed: str) -> bool:
 
 def _create_token(sub: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": sub, "exp": expire}
+    payload = {"sub": sub, "exp": expire, "jti": uuid.uuid4().hex}
     return jwt.encode(payload, AUTH_SECRET, algorithm=ALGORITHM)
 
 
 def _decode_token(token: str) -> Optional[str]:
     try:
         payload = jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
-        return payload.get("sub")
     except JWTError:
         return None
+    if is_revoked(payload.get("jti")):
+        return None
+    return payload.get("sub")
+
+
+# ─── MFA pending (pre-auth) token — issued after password, before TOTP ───────
+def create_mfa_pending_token(email: str) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=5)
+    payload = {"typ": "mfa_pending", "sub": email.lower().strip(), "exp": expire}
+    return jwt.encode(payload, AUTH_SECRET, algorithm=ALGORITHM)
+
+
+def decode_mfa_pending_token(token: str) -> Optional[str]:
+    try:
+        payload = jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
+    except JWTError:
+        return None
+    if payload.get("typ") != "mfa_pending":
+        return None
+    return payload.get("sub")
 
 
 # ─── User store (in-memory + optional file) ────────────────────
@@ -117,6 +140,8 @@ def _load_users() -> dict:
             u.setdefault("doctor_type", None)
             u.setdefault("hospital_affiliations", None)
             u.setdefault("clinic_code", None)
+            u.setdefault("mfa_secret", None)
+            u.setdefault("mfa_enabled", False)
     return data
 
 
@@ -157,9 +182,79 @@ def register_user(email: str, password: str, name: Optional[str] = None, role: s
         "doctor_type": None,
         "hospital_affiliations": None,
         "clinic_code": None,
+        "mfa_secret": None,
+        "mfa_enabled": False,
     }
     _persist_users()
     return {"email": users[key]["email"], "name": users[key]["name"], "role": users[key]["role"]}
+
+
+# ─── MFA (TOTP) — opt-in second factor for landing/staff accounts (PRD-3) ─────
+MFA_ISSUER = "Archangel Health"
+
+
+def user_mfa_enabled(email: str) -> bool:
+    u = _get_users().get(email.lower().strip())
+    return bool(u and u.get("mfa_enabled"))
+
+
+def mfa_begin_enrollment(email: str) -> Tuple[str, str]:
+    """Generate (and persist, pending) a TOTP secret. Returns (secret, otpauth_uri).
+    Enrollment is not active until confirmed with a valid code."""
+    users = _get_users()
+    key = email.lower().strip()
+    if key not in users:
+        raise ValueError("User not found")
+    secret = pyotp.random_base32()
+    users[key]["mfa_secret"] = secret
+    users[key]["mfa_enabled"] = False
+    _persist_users()
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(name=key, issuer_name=MFA_ISSUER)
+    return secret, uri
+
+
+def _verify_code(secret: Optional[str], code: str) -> bool:
+    if not secret or not code:
+        return False
+    try:
+        return pyotp.TOTP(secret).verify(str(code).strip(), valid_window=1)
+    except Exception:
+        return False
+
+
+def mfa_confirm_enrollment(email: str, code: str) -> bool:
+    users = _get_users()
+    key = email.lower().strip()
+    u = users.get(key)
+    if not u or not u.get("mfa_secret"):
+        return False
+    if not _verify_code(u.get("mfa_secret"), code):
+        return False
+    u["mfa_enabled"] = True
+    _persist_users()
+    return True
+
+
+def mfa_verify(email: str, code: str) -> bool:
+    """Verify a TOTP code for an MFA-enabled user (login second step)."""
+    u = _get_users().get(email.lower().strip())
+    if not u or not u.get("mfa_enabled"):
+        return False
+    return _verify_code(u.get("mfa_secret"), code)
+
+
+def mfa_disable(email: str, code: str) -> bool:
+    users = _get_users()
+    key = email.lower().strip()
+    u = users.get(key)
+    if not u or not u.get("mfa_enabled"):
+        return False
+    if not _verify_code(u.get("mfa_secret"), code):
+        return False
+    u["mfa_secret"] = None
+    u["mfa_enabled"] = False
+    _persist_users()
+    return True
 
 
 def authenticate_user(email: str, password: str) -> Optional[dict]:

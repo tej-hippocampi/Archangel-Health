@@ -7,10 +7,13 @@ so in-flight sessions keep working across the role-token migration.
 """
 
 import os
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from jose import JWTError, jwt
+
+from token_revocation import is_revoked
 
 AUTH_SECRET = os.getenv("AUTH_SECRET", "change-me-in-production-elysium")
 ALGORITHM = "HS256"
@@ -37,6 +40,7 @@ def create_tenant_staff_token(
         "slug": tenant_slug,
         "hcode": health_system_code or "",
         "itd": 1 if is_team_director else 0,
+        "jti": uuid.uuid4().hex,
         "exp": expire,
     }
     return jwt.encode(payload, AUTH_SECRET, algorithm=ALGORITHM)
@@ -45,8 +49,10 @@ def create_tenant_staff_token(
 def decode_tenant_staff_token(token: str) -> Optional[Dict[str, Any]]:
     try:
         payload = jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
-        if payload.get("typ") != "tenant_staff":
-            return None
-        return payload
     except JWTError:
         return None
+    if payload.get("typ") != "tenant_staff":
+        return None
+    if is_revoked(payload.get("jti")):
+        return None
+    return payload
