@@ -62,10 +62,16 @@ def revoke_jti(jti: str, exp_ts: int) -> None:
 def is_revoked(jti: Optional[str]) -> bool:
     if not jti:
         return False
-    with _conn() as conn:
-        _ensure_table(conn)
-        row = conn.execute("SELECT 1 FROM revoked_tokens WHERE jti = ?", (jti,)).fetchone()
-    return row is not None
+    # Called on every token decode. Fail OPEN on a DB hiccup (locked/unavailable):
+    # the token is still cryptographically valid + unexpired, and revocation is a
+    # secondary control — a transient DB error must not 500 all authentication.
+    try:
+        with _conn() as conn:
+            _ensure_table(conn)
+            row = conn.execute("SELECT 1 FROM revoked_tokens WHERE jti = ?", (jti,)).fetchone()
+        return row is not None
+    except sqlite3.Error:
+        return False
 
 
 def revoke_token(token: str, *, secret: str = AUTH_SECRET) -> bool:

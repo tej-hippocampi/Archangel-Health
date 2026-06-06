@@ -96,13 +96,18 @@ def _record_jti(jti: str, kind: str, exp_ts: int) -> None:
 def _has_jti(jti: str, kind: str) -> bool:
     if not jti:
         return False
-    with _conn() as conn:
-        _ensure_table(conn)
-        row = conn.execute(
-            "SELECT 1 FROM patient_session_jti WHERE jti = ? AND kind = ?",
-            (jti, kind),
-        ).fetchone()
-    return row is not None
+    # Fail open on a DB hiccup so a transient lock can't 500 the auth path; the
+    # JWT itself is still validated cryptographically by the caller.
+    try:
+        with _conn() as conn:
+            _ensure_table(conn)
+            row = conn.execute(
+                "SELECT 1 FROM patient_session_jti WHERE jti = ? AND kind = ?",
+                (jti, kind),
+            ).fetchone()
+        return row is not None
+    except sqlite3.Error:
+        return False
 
 
 # ─── Token mint / decode ─────────────────────────────────────────────────────

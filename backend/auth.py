@@ -141,6 +141,7 @@ def _load_users() -> dict:
             u.setdefault("hospital_affiliations", None)
             u.setdefault("clinic_code", None)
             u.setdefault("mfa_secret", None)
+            u.setdefault("mfa_pending_secret", None)
             u.setdefault("mfa_enabled", False)
     return data
 
@@ -183,6 +184,7 @@ def register_user(email: str, password: str, name: Optional[str] = None, role: s
         "hospital_affiliations": None,
         "clinic_code": None,
         "mfa_secret": None,
+        "mfa_pending_secret": None,
         "mfa_enabled": False,
     }
     _persist_users()
@@ -206,8 +208,9 @@ def mfa_begin_enrollment(email: str) -> Tuple[str, str]:
     if key not in users:
         raise ValueError("User not found")
     secret = pyotp.random_base32()
-    users[key]["mfa_secret"] = secret
-    users[key]["mfa_enabled"] = False
+    # Stage the new secret separately so re-enrolling never disturbs (or silently
+    # disables) an already-active MFA setup until the new secret is confirmed.
+    users[key]["mfa_pending_secret"] = secret
     _persist_users()
     uri = pyotp.totp.TOTP(secret).provisioning_uri(name=key, issuer_name=MFA_ISSUER)
     return secret, uri
@@ -226,10 +229,12 @@ def mfa_confirm_enrollment(email: str, code: str) -> bool:
     users = _get_users()
     key = email.lower().strip()
     u = users.get(key)
-    if not u or not u.get("mfa_secret"):
+    if not u or not u.get("mfa_pending_secret"):
         return False
-    if not _verify_code(u.get("mfa_secret"), code):
+    if not _verify_code(u.get("mfa_pending_secret"), code):
         return False
+    u["mfa_secret"] = u["mfa_pending_secret"]
+    u["mfa_pending_secret"] = None
     u["mfa_enabled"] = True
     _persist_users()
     return True
@@ -252,6 +257,7 @@ def mfa_disable(email: str, code: str) -> bool:
     if not _verify_code(u.get("mfa_secret"), code):
         return False
     u["mfa_secret"] = None
+    u["mfa_pending_secret"] = None
     u["mfa_enabled"] = False
     _persist_users()
     return True

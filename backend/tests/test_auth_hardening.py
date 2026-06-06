@@ -138,3 +138,19 @@ def test_mfa_status_endpoint(client):
     _, data = _register_and_login(client)
     h = {"Authorization": f"Bearer {data['access_token']}"}
     assert client.get("/api/auth/mfa/status", headers=h).json() == {"mfa_enabled": False}
+
+
+def test_reenroll_does_not_silently_disable_mfa(client):
+    """Re-calling /mfa/enroll must NOT drop an already-enabled account to no-MFA
+    until the new secret is confirmed (security regression guard)."""
+    email, data = _register_and_login(client)
+    h = {"Authorization": f"Bearer {data['access_token']}"}
+    secret1 = client.post("/api/auth/mfa/enroll", headers=h).json()["secret"]
+    assert client.post("/api/auth/mfa/verify",
+                       json={"code": pyotp.TOTP(secret1).now()}, headers=h).json()["mfa_enabled"]
+
+    # Begin a second enrollment but do NOT confirm it.
+    client.post("/api/auth/mfa/enroll", headers=h)
+    # MFA must still be enabled and the ORIGINAL secret must still authenticate.
+    assert client.get("/api/auth/mfa/status", headers=h).json()["mfa_enabled"] is True
+    assert auth_module.mfa_verify(email, pyotp.TOTP(secret1).now()) is True
