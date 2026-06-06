@@ -21,6 +21,7 @@ const PATIENT = window.__PATIENT__ || {
 document.addEventListener('DOMContentLoaded', () => {
   initPatientInfo();
   initOverlays();
+  initCareTeamMessages();
   initChat();
   initSuggestedQuestions();
   initFooterActions();
@@ -115,6 +116,136 @@ function initOverlays() {
   const voiceLinkTreat = document.getElementById('voiceLinkTreatment');
   if (voiceLinkDiag) voiceLinkDiag.href = `/patient/${PATIENT.id}/digital-care-companion`;
   if (voiceLinkTreat) voiceLinkTreat.href = `/patient/${PATIENT.id}/digital-care-companion`;
+}
+
+function initCareTeamMessages() {
+  const btn = document.getElementById('careTeamMsgBtn');
+  const overlay = document.getElementById('overlay-care-team-messages');
+  const closeBtn = document.getElementById('careTeamMsgClose');
+  const sendBtn = document.getElementById('careTeamReplySend');
+  if (!btn || !overlay) return;
+
+  let threadData = { messages: [], clinicians_in_thread: [] };
+
+  function updateBadge(count) {
+    const badge = document.getElementById('careTeamUnreadBadge');
+    if (!badge) return;
+    if (count > 0) {
+      badge.hidden = false;
+      badge.removeAttribute('aria-hidden');
+      badge.textContent = count > 9 ? '9+' : String(count);
+    } else {
+      badge.hidden = true;
+      badge.setAttribute('aria-hidden', 'true');
+      badge.textContent = '';
+    }
+  }
+
+  function fmtTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  function renderThread() {
+    const container = document.getElementById('careTeamThread');
+    const select = document.getElementById('careTeamRecipient');
+    if (!container) return;
+    const messages = threadData.messages || [];
+    if (!messages.length) {
+      container.innerHTML = '<p class="care-team-empty">No messages from your care team yet.</p>';
+    } else {
+      container.innerHTML = messages.map((msg) => {
+        const cls = msg.direction === 'outgoing' ? 'patient-message' : 'assistant-message';
+        const label = msg.direction === 'incoming'
+          ? `<div class="message-time">${escapeHtml(msg.sender_label || 'Care Team')}</div>`
+          : '';
+        return `<div class="message ${cls}">
+          ${label}
+          <div class="message-bubble">${escapeHtml(msg.body || '')}</div>
+          <div class="message-time">${fmtTime(msg.created_at)}</div>
+        </div>`;
+      }).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+    if (select) {
+      const clinicians = threadData.clinicians_in_thread || [];
+      select.innerHTML = clinicians.length
+        ? clinicians.map((c) => `<option value="${escapeAttr(c.email)}" data-role="${escapeAttr(c.role || '')}">${escapeHtml(c.label || c.email)}</option>`).join('')
+        : '<option value="">No clinician in thread</option>';
+      select.disabled = !clinicians.length;
+    }
+    if (sendBtn) sendBtn.disabled = !(threadData.clinicians_in_thread || []).length;
+  }
+
+  async function refreshThread() {
+    try {
+      const res = await fetch(`${window.location.origin}/api/patient/${PATIENT.id}/care-team-messages`);
+      if (!res.ok) return;
+      threadData = await res.json();
+      updateBadge(threadData.unread_count || 0);
+      if (overlay.classList.contains('is-open')) renderThread();
+    } catch (_err) { /* non-blocking */ }
+  }
+
+  function openOverlay() {
+    overlay.classList.add('is-open');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    refreshThread().then(renderThread);
+  }
+
+  function closeOverlay() {
+    overlay.classList.remove('is-open');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  btn.addEventListener('click', openOverlay);
+  closeBtn?.addEventListener('click', closeOverlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.classList.contains('is-open')) closeOverlay();
+  });
+
+  sendBtn?.addEventListener('click', async () => {
+    const select = document.getElementById('careTeamRecipient');
+    const input = document.getElementById('careTeamReplyInput');
+    const message = (input?.value || '').trim();
+    const recipientEmail = select?.value || '';
+    const recipientRole = select?.selectedOptions?.[0]?.dataset?.role || '';
+    if (!message || !recipientEmail) return;
+    sendBtn.disabled = true;
+    try {
+      const res = await fetch(`${window.location.origin}/api/patient/${PATIENT.id}/care-team-messages/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, recipient_email: recipientEmail, recipient_role: recipientRole || undefined }),
+      });
+      if (!res.ok) throw new Error('Send failed');
+      if (input) input.value = '';
+      await refreshThread();
+      renderThread();
+    } catch (_err) {
+      alert('Could not send your message. Please try again.');
+    } finally {
+      sendBtn.disabled = !(threadData.clinicians_in_thread || []).length;
+    }
+  });
+
+  refreshThread();
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function escapeAttr(str) {
+  return escapeHtml(str).replace(/'/g, '&#39;');
 }
 
 function initQuestionsButton() {

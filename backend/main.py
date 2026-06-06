@@ -67,6 +67,8 @@ from routers.initial_tier import router as initial_tier_router
 from routers.preop_retier import router as preop_retier_router
 from routers.teachback import router as teachback_router
 from routers.triage_explain import router as triage_explain_router
+from routers.messaging import router as messaging_router
+from routers.telehealth import router as telehealth_router
 from eligibility import store as elig_store
 import demo_credentials
 from staff_context import (
@@ -2722,6 +2724,31 @@ async def get_triage_timeline(
     or_ended_dt = _parse_iso_datetime(surgery["or_ended_at"])
     discharge_dt = _parse_iso_datetime(surgery["discharge_at"])
 
+    def _postop_day_number(
+        inputs_snapshot: Optional[Dict[str, Any]],
+        at_dt: Optional[datetime] = None,
+    ) -> Optional[int]:
+        snap = inputs_snapshot or {}
+        days = snap.get("days_since_discharge")
+        if days is not None:
+            try:
+                days_i = int(days)
+                if days_i > 0:
+                    return days_i
+            except (TypeError, ValueError):
+                pass
+        day_alt = snap.get("day")
+        if day_alt is not None:
+            try:
+                day_i = int(day_alt)
+                if day_i > 0:
+                    return day_i
+            except (TypeError, ValueError):
+                pass
+        if at_dt and discharge_dt and at_dt >= discharge_dt:
+            return max(1, int((at_dt - discharge_dt).days) + 1)
+        return None
+
     def classify_phase(
         at_iso: Optional[str],
         source: str,
@@ -2729,18 +2756,30 @@ async def get_triage_timeline(
     ) -> Dict[str, str]:
         at_dt = _parse_iso_datetime(at_iso)
         src = (source or "").strip().lower()
+
+        if src == "postop":
+            day_n = _postop_day_number(inputs_snapshot, at_dt)
+            if day_n:
+                return {"phase": "POST_OP", "phase_label": f"Post-Op — Day {day_n}"}
+            return {"phase": "POST_OP", "phase_label": "Post-Op"}
+
         if src == "intraop":
+            if (
+                at_dt
+                and or_ended_dt
+                and or_started_dt
+                and or_started_dt <= at_dt <= or_ended_dt
+            ):
+                return {"phase": "INTRA_OP", "phase_label": "Intra-Op (in OR)"}
             return {"phase": "INTRA_OP", "phase_label": "After Intra-Op Procedure"}
-        if at_dt is None:
-            if src == "postop":
-                days = inputs_snapshot.get("days_since_discharge") if inputs_snapshot else None
-                if isinstance(days, int) and days > 0:
-                    return {"phase": "POST_OP", "phase_label": f"Post-Op — Day {days}"}
-                return {"phase": "POST_OP", "phase_label": "Post-Op"}
-            if src == "preop":
-                return {"phase": "PRE_OP", "phase_label": "Pre-Op"}
+
+        if src == "preop":
             return {"phase": "PRE_OP", "phase_label": "Pre-Op"}
-        if or_started_dt is None or (or_started_dt and at_dt < or_started_dt):
+
+        if at_dt is None:
+            return {"phase": "PRE_OP", "phase_label": "Pre-Op"}
+
+        if or_started_dt is None or at_dt < or_started_dt:
             return {"phase": "PRE_OP", "phase_label": "Pre-Op"}
         if or_ended_dt and or_started_dt and or_started_dt <= at_dt <= or_ended_dt:
             return {"phase": "INTRA_OP", "phase_label": "Intra-Op (in OR)"}
@@ -2750,17 +2789,7 @@ async def get_triage_timeline(
             if discharge_dt and at_dt >= discharge_dt:
                 day_n = max(1, int((at_dt - discharge_dt).days) + 1)
                 return {"phase": "POST_OP", "phase_label": f"Post-Op — Day {day_n}"}
-            if src == "postop":
-                days = inputs_snapshot.get("days_since_discharge") if inputs_snapshot else None
-                if isinstance(days, int) and days > 0:
-                    return {"phase": "POST_OP", "phase_label": f"Post-Op — Day {days}"}
-                return {"phase": "POST_OP", "phase_label": "Post-Op"}
             return {"phase": "INTRA_OP", "phase_label": "After Intra-Op Procedure"}
-        if src == "postop":
-            days = inputs_snapshot.get("days_since_discharge") if inputs_snapshot else None
-            if isinstance(days, int) and days > 0:
-                return {"phase": "POST_OP", "phase_label": f"Post-Op — Day {days}"}
-            return {"phase": "POST_OP", "phase_label": "Post-Op"}
         return {"phase": "PRE_OP", "phase_label": "Pre-Op"}
 
     timeline: List[Dict[str, Any]] = []
@@ -2878,6 +2907,7 @@ async def get_triage_timeline(
 async def send_intervention(
     escalation_id: int,
     body: EscalationInterventionRequest,
+    request: Request,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
     row = _team_store.get_escalation(escalation_id)
@@ -2891,55 +2921,18 @@ async def send_intervention(
     if not message:
         raise HTTPException(status_code=400, detail="Message is required.")
 
-    patient = _patient_store.get(patient_id) or {}
-    patient_email = (patient.get("email") or "").strip()
-    if not patient_email:
-        raise HTTPException(status_code=409, detail="No email on file for this patient.")
-    if not is_email_transport_configured():
-        raise HTTPException(status_code=503, detail="Email transport is not configured.")
+    from routers.messaging import persist_and_notify_care_team_message
 
-    subject = f"{_provider_email_signature(staff)} — URGENT CARE MESSAGE"
-    safe_message_html = html_lib.escape(message).replace("\n", "<br>")
-    patient_name = html_lib.escape(str(patient.get("name") or "Patient"))
-    sender_line = html_lib.escape(_provider_email_signature(staff))
-    html_body = (
-        "<html><body style='margin:0;padding:20px;background:#f8fafc;"
-        "font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#0f172a;'>"
-        "<div style='max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;"
-        "border-radius:12px;padding:22px;'>"
-        "<div style='font-size:12px;font-weight:700;letter-spacing:0.08em;color:#1d4ed8;"
-        "text-transform:uppercase;margin-bottom:10px;'>Archangel Health</div>"
-        f"<h2 style='font-size:22px;line-height:1.25;margin:0 0 8px;'>Urgent Care Message for {patient_name}</h2>"
-        f"<p style='margin:0 0 16px;font-size:14px;color:#334155;'>Sent by {sender_line}</p>"
-        f"<div style='font-size:15px;line-height:1.65;color:#0f172a;background:#f8fafc;border:1px solid #e2e8f0;"
-        f"border-radius:10px;padding:14px 16px;'>{safe_message_html}</div>"
-        "<p style='margin:16px 0 0;font-size:12px;line-height:1.55;color:#64748b;'>"
-        "If this message was sent in error, please contact your care team directly. "
-        "This message may contain confidential medical information intended only for the recipient."
-        "</p></div></body></html>"
-    )
-
-    ok, reason = await _send_html_email_with_reason_impl(
-        patient_email,
-        subject,
-        html_body,
-        importance_headers=True,
-    )
-    if not ok:
-        print(f"[intervention] Email FAILED → {patient_email}: {reason}")
-        raise HTTPException(status_code=502, detail=f"Failed to send intervention email: {reason}")
-
-    _team_store.log_event(
+    urgent = int(row.get("tier") or 0) >= 3
+    result = await persist_and_notify_care_team_message(
+        request,
         patient_id=patient_id,
-        event_type="provider_intervention_email",
-        payload={
-            "escalation_id": escalation_id,
-            "subject": subject,
-            "provider_email": staff.email,
-            "message_excerpt": message[:500],
-        },
+        message=message,
+        staff=staff,
+        escalation_id=escalation_id,
+        urgent=urgent,
     )
-    return {"ok": True}
+    return result
 
 
 @app.post("/api/escalations/consent")
@@ -5001,6 +4994,27 @@ async def intake_notifications_list(
         unread_only=unread_only,
         notif_type=notif_type,
     )
+    if staff and staff.source == "tenant" and staff.tenant_id:
+        unread_patients = _team_store.list_unread_care_team_reply_patients(staff.tenant_id)
+        for entry in unread_patients:
+            pid = entry.get("patient_id")
+            pdata = _patient_store.get(pid) or {}
+            pname = pdata.get("name") or pid
+            rows.append(
+                {
+                    "id": f"ctm-{pid}",
+                    "doctor_id": resolved_doctor_id,
+                    "intake_form_id": pid,
+                    "type": "care_team_reply",
+                    "message": f"New message from {pname}",
+                    "patient_id": pid,
+                    "is_read": 0,
+                    "read": False,
+                    "created_at": entry.get("latest_at") or "",
+                }
+            )
+        if unread_only:
+            rows = [r for r in rows if not r.get("read") and not r.get("is_read")]
     return {"doctorId": resolved_doctor_id, "notifications": rows}
 
 
@@ -5012,6 +5026,11 @@ async def intake_notifications_mark_read(
     user: Optional[UserOut] = Depends(get_current_user_optional),
 ):
     resolved_doctor_id = _resolve_notif_doctor_id(doctor_id, staff, user)
+    if notif_id.startswith("ctm-"):
+        pid = notif_id.removeprefix("ctm-")
+        if pid in _patient_store:
+            _team_store.mark_care_team_thread_read(pid, by="care_team")
+            return {"ok": True}
     ok = _team_store.mark_intake_notification_read(resolved_doctor_id, notif_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Notification not found")
@@ -5584,6 +5603,8 @@ app.include_router(initial_tier_router)
 app.include_router(preop_retier_router)
 app.include_router(teachback_router)
 app.include_router(triage_explain_router)
+app.include_router(messaging_router)
+app.include_router(telehealth_router)
 
 
 @app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)

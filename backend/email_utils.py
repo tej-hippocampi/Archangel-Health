@@ -8,7 +8,7 @@ local end-to-end testing of onboarding flows without configuring SendGrid.
 
 import os
 import re
-from typing import Optional
+from typing import Optional, Tuple
 
 
 def _normalize_sendgrid_api_key(raw: Optional[str]) -> str:

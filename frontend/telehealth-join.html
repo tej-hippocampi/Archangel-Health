@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Join Video Visit | Archangel Health</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, sans-serif; background: #0f172a; color: #f8fafc; min-height: 100vh; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 20px; }
+    h1 { font-size: 22px; margin: 0 0 8px; }
+    .sub { color: #94a3b8; margin-bottom: 16px; font-size: 14px; }
+    .check { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .btn { width: 100%; border: none; border-radius: 10px; padding: 14px; font-weight: 700; font-size: 16px; cursor: pointer; background: #0891b2; color: #fff; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #videoFrame { width: 100%; min-height: 50vh; border: 0; border-radius: 12px; background: #000; margin-top: 16px; display: none; }
+    .status { font-size: 13px; color: #cbd5e1; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Your video visit</h1>
+    <p class="sub">Your care team is ready to connect. Allow camera and microphone when prompted.</p>
+    <div class="check" id="precheck">
+      <p id="checkStatus">Checking camera and microphone…</p>
+      <button type="button" class="btn" id="joinBtn" disabled>Join visit</button>
+      <p class="status" id="status"></p>
+    </div>
+    <iframe id="videoFrame" title="Video visit" allow="camera; microphone; fullscreen"></iframe>
+  </div>
+  <script>
+    const ENCOUNTER_ID = "__ENCOUNTER_ID__";
+    const JOIN_TOKEN = "__JOIN_TOKEN__";
+
+    async function runPrecheck() {
+      const status = document.getElementById("checkStatus");
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        stream.getTracks().forEach((t) => t.stop());
+        status.textContent = "Camera and microphone look good.";
+        document.getElementById("joinBtn").disabled = false;
+      } catch (_e) {
+        status.textContent = "Could not access camera/mic — you can still try to join.";
+        document.getElementById("joinBtn").disabled = false;
+      }
+    }
+
+    document.getElementById("joinBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("joinBtn");
+      btn.disabled = true;
+      btn.textContent = "Connecting…";
+      try {
+        const res = await fetch(`/api/telehealth/encounters/${ENCOUNTER_ID}/patient-join-token?t=${encodeURIComponent(JOIN_TOKEN)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Could not join");
+        const url = data.join_url;
+        document.getElementById("precheck").style.display = "none";
+        const frame = document.getElementById("videoFrame");
+        frame.style.display = "block";
+        frame.src = url.startsWith("http") || url.startsWith("/") ? url : url;
+      } catch (e) {
+        document.getElementById("status").textContent = e.message;
+        btn.disabled = false;
+        btn.textContent = "Join visit";
+      }
+    });
+
+    setTimeout(runPrecheck, 300);
+  </script>
+</body>
+</html>

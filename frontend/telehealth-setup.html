@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telehealth Setup | Archangel Health</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --line: #e2e8f0; --muted: #64748b; --primary: #0891b2; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, sans-serif; background: #f8fafc; color: #0f172a; }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 32px 20px; }
+    h1 { font-size: 24px; margin: 0 0 8px; }
+    .sub { color: var(--muted); margin-bottom: 24px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+    select, textarea, input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; }
+    textarea { min-height: 80px; resize: vertical; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .btn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .status { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Pre-visit setup</h1>
+    <p class="sub">Configure the visit before joining the video room.</p>
+    <div class="card">
+      <label for="patientType">Patient type</label>
+      <select id="patientType">
+        <option value="ESTABLISHED">Established patient</option>
+        <option value="NEW">New patient</option>
+      </select>
+      <label for="visitReason" style="margin-top:14px;">Visit reason (optional)</label>
+      <textarea id="visitReason" placeholder="Brief reason for visit…"></textarea>
+      <div class="actions">
+        <button type="button" class="btn" id="inviteBtn">Send patient join link</button>
+        <button type="button" class="btn primary" id="beginBtn">Begin visit</button>
+      </div>
+      <p class="status" id="status"></p>
+    </div>
+  </div>
+  <script>
+    const ENCOUNTER_ID = "__ENCOUNTER_ID__";
+    const AUTH_KEY = "archangel_doctor_auth_token";
+    const token = localStorage.getItem(AUTH_KEY) || "";
+
+    async function api(path, options = {}) {
+      const headers = new Headers(options.headers || {});
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      if (!headers.has("Content-Type") && options.body) headers.set("Content-Type", "application/json");
+      const res = await fetch(path, { ...options, headers });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `Request failed (${res.status})`);
+      return data;
+    }
+
+    function setStatus(msg) {
+      document.getElementById("status").textContent = msg || "";
+    }
+
+    document.getElementById("inviteBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("inviteBtn");
+      btn.disabled = true;
+      try {
+        const data = await api(`/api/telehealth/encounters/${ENCOUNTER_ID}/invite`, { method: "POST" });
+        setStatus(data.join_url ? `Invite sent. Join link: ${data.join_url}` : "Invite processed.");
+      } catch (e) {
+        setStatus(e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("beginBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("beginBtn");
+      btn.disabled = true;
+      try {
+        const patientType = document.getElementById("patientType").value;
+        const reason = document.getElementById("visitReason").value.trim();
+        await api(`/api/telehealth/encounters/${ENCOUNTER_ID}/patient-type`, {
+          method: "POST",
+          body: JSON.stringify({ patient_type: patientType }),
+        });
+        if (reason) {
+          await api(`/api/telehealth/encounters/${ENCOUNTER_ID}/documentation`, {
+            method: "POST",
+            body: JSON.stringify({ documentation: reason }),
+          });
+        }
+        await api(`/api/telehealth/encounters/${ENCOUNTER_ID}/start`, { method: "POST" });
+        window.location.href = `/telehealth/room/${ENCOUNTER_ID}`;
+      } catch (e) {
+        setStatus(e.message);
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

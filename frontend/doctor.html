@@ -209,20 +209,39 @@
       border-radius: 10px;
       background: #fff;
     }
+    .roster-header,
     .roster-row {
       display: grid;
-      grid-template-columns: 1.1fr 1fr 1.2fr .7fr .9fr 1.1fr;
+      grid-template-columns: 1.15fr 0.85fr 0.75fr 0.95fr 1.15fr 0.65fr 0.95fr 0.95fr;
       gap: 10px;
       align-items: center;
       text-align: center;
       padding: 11px 12px;
+      font-size: 13px;
+    }
+    .roster-header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--line);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      cursor: default;
+    }
+    .roster-row {
       border-bottom: 1px solid var(--line);
       cursor: pointer;
-      font-size: 13px;
     }
     .roster-row:last-child { border-bottom: none; }
     .roster-row:hover { background: #f9fbff; }
-    .roster-cell.name { font-weight: 600; color: #0f172a; }
+    .roster-cell.name { font-weight: 600; color: #0f172a; text-align: left; }
+    .roster-cell.name .name-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .roster-cell.stage,
+    .roster-cell.tier { display: flex; justify-content: center; }
     .roster-cell.muted { color: var(--muted); }
     .roster-cell.cta { display: flex; justify-content: center; }
     .btn-intraop {
@@ -611,38 +630,71 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 10px;
       font-size: 12px;
-      color: #475569;
+      color: #64748b;
       flex-wrap: wrap;
+      margin-bottom: 6px;
     }
-    .triage-node-phase { font-weight: 700; color: #0f172a; }
-    .triage-node-trigger { margin-top: 6px; font-size: 12px; color: #334155; }
-    .triage-reasons { margin-top: 8px; display: grid; gap: 6px; }
+    .triage-node-date { white-space: nowrap; }
+    .triage-node-phase { font-weight: 700; color: #0f172a; font-size: 12px; }
+    .triage-node-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+      line-height: 1.35;
+      margin-bottom: 8px;
+    }
+    .triage-reasons { margin-top: 4px; display: grid; gap: 8px; }
     .triage-reason {
       border: 1px solid #e2e8f0;
+      border-left: 3px solid #cbd5e1;
       border-radius: 8px;
-      padding: 8px;
+      padding: 10px 12px;
       background: #fff;
-      font-size: 12px;
-      color: #1f2937;
+      font-size: 13px;
+      color: #1e293b;
+      line-height: 1.45;
     }
     .triage-reason.hard {
       border-color: #fecaca;
+      border-left-color: #dc2626;
       background: #fff1f2;
     }
-    .triage-reason-tags { margin-top: 5px; display: inline-flex; gap: 6px; }
-    .triage-tag {
-      border-radius: 999px;
-      border: 1px solid #cbd5e1;
-      padding: 1px 7px;
-      font-size: 10px;
-      font-weight: 700;
-      color: #475569;
-      background: #f8fafc;
-      text-transform: uppercase;
+    .triage-reason.tier3 {
+      border-left-color: #dc2626;
     }
-    .triage-tag.critical { border-color: #fecaca; color: #b91c1c; background: #fef2f2; }
+    .triage-latest-change {
+      border-width: 2px;
+      background: #f8fafc;
+    }
+    .triage-latest-change.tier-t1 { border-color: #a7f3d0; }
+    .triage-latest-change.tier-t2 { border-color: #fde68a; }
+    .triage-latest-change.tier-t3 { border-color: #fecaca; background: #fffbfb; }
+    .triage-latest-change-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .triage-latest-change-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-top: 4px;
+    }
+    .triage-latest-change-reason {
+      font-size: 13px;
+      color: #334155;
+      line-height: 1.45;
+      padding: 10px 12px;
+      background: #fff;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      border-left: 3px solid #dc2626;
+    }
     .triage-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .triage-composer { margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 10px; }
     .triage-composer-row { margin-bottom: 8px; }
@@ -668,6 +720,43 @@
     }
     .triage-composer-row input[readonly] { background: #f8fafc; color: #475569; }
     .triage-muted { font-size: 12px; color: #64748b; }
+    .care-team-thread {
+      max-height: 280px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+    .care-team-bubble {
+      max-width: 85%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .care-team-bubble.from-team {
+      align-self: flex-start;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+    }
+    .care-team-bubble.from-patient {
+      align-self: flex-end;
+      background: #0891b2;
+      color: #fff;
+    }
+    .care-team-bubble.from-patient.unread {
+      box-shadow: 0 0 0 2px #fbbf24;
+    }
+    .care-team-bubble-meta {
+      font-size: 10px;
+      opacity: 0.75;
+      margin-bottom: 4px;
+    }
 
     /* Compliance */
     .table { width: 100%; border-collapse: collapse; }
@@ -1292,11 +1381,87 @@
       background: #f8fafc;
     }
 
+    /* AI Security & Compliance sub-sections */
+    .compliance-section { margin-bottom: 20px; }
+    .compliance-section-head {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
+    }
+    .compliance-section-head h2 { font-size: 18px; font-weight: 700; line-height: 1.2; }
+    .compliance-section-head p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .compliance-refresh-btn {
+      border: 1px solid var(--line); background: #fff; border-radius: 8px;
+      padding: 7px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);
+    }
+    .compliance-refresh-btn:hover { background: #f9fafb; }
+    .data-section { margin-top: 16px; }
+    .data-section-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px;
+    }
+    .data-section-header h3 { font-size: 14px; font-weight: 700; }
+    .data-section-header span { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .empty-table { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
+    .verdict-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+    .verdict-PASS { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+    .verdict-REVIEW { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+    .verdict-BLOCK { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .grounding-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: center; font-size: 13px; }
+    .grounding-filters select, .grounding-filters input {
+      padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; font-family: var(--font);
+    }
+    .grounding-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .grounding-kpi { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+    .grounding-kpi .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .grounding-kpi .value { font-size: 1.25rem; font-weight: 700; margin-top: 4px; }
+    .recall-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+    .recall-badge.ok { background: #dcfce7; color: #166534; }
+    .recall-badge.warn { background: #fee2e2; color: #991b1b; }
+    .grounding-drawer-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 200;
+      display: none; align-items: stretch; justify-content: flex-end;
+    }
+    .grounding-drawer-overlay.open { display: flex; }
+    .grounding-drawer {
+      width: min(720px, 100%); background: #fff; height: 100%; overflow-y: auto;
+      box-shadow: -8px 0 24px rgba(0,0,0,0.12); padding: 24px;
+    }
+    .grounding-drawer h3 { margin: 16px 0 8px; font-size: 14px; }
+    .cov-row, .faith-row {
+      border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px 12px; margin-bottom: 8px; font-size: 13px;
+    }
+    .status-COVERED, .status-SUPPORTED { color: #166534; }
+    .status-PARTIAL { color: #92400e; }
+    .status-MISSING, .status-UNSUPPORTED { color: #991b1b; }
+    .grounding-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .grounding-table th, .grounding-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+    .grounding-table tr { cursor: pointer; }
+    .grounding-table tr:hover { background: #f9fafb; }
+    .notif-self-flag { border-left: 3px solid #dc2626; padding-left: 10px; margin-bottom: 10px; }
+    .notif-self-flag-names { font-size: 12px; margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .notif-patient-link {
+      border: 1px solid var(--line); background: #fff; border-radius: 6px;
+      padding: 3px 8px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);
+    }
+    .notif-patient-link:hover { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+
     @media (max-width: 860px) {
       .main { padding: 16px; }
       .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .calendar-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .roster-header { display: none; }
       .roster-row { grid-template-columns: 1fr; text-align: left; gap: 4px; }
+      .roster-row .roster-cell::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        margin-bottom: 2px;
+      }
       .roster-controls { grid-template-columns: 1fr; }
       .search-wrap { max-width: 100%; justify-self: stretch; }
       .resolved-counter { font-size: 28px; text-align: left; }
@@ -1336,10 +1501,9 @@
 
       <nav class="tabs">
         <button class="tab-btn active" data-tab="roster">Patient Roster</button>
-        <button class="tab-btn" data-tab="escalation">Escalation Log</button>
-        <button class="tab-btn" data-tab="compliance">Compliance</button>
+        <button class="tab-btn" data-tab="escalation">Intervention Log</button>
+        <button class="tab-btn" data-tab="compliance">AI Security and Compliance</button>
         <button class="tab-btn" data-tab="analytics">Population Analytics</button>
-        <button class="tab-btn" data-tab="audit" id="tab-btn-audit" style="display:none;">Audit Log</button>
       </nav>
 
       <div class="sidebar-bottom">
@@ -1361,7 +1525,6 @@
           </div>
         </div>
 
-        <div id="triageAlertBanner" class="triage-alert-banner" style="display:none;" role="status"></div>
         <div class="roster-controls">
           <div style="font-size:13px;color:var(--muted);" id="rosterCount">0 patients</div>
           <div class="search-wrap">
@@ -1383,7 +1546,7 @@
       <section class="page" id="tab-escalation">
         <div class="escalation-head">
           <div>
-            <h1 class="page-title">Escalation Log</h1>
+            <h1 class="page-title">Intervention Log</h1>
             <p class="page-sub" id="escalationSub">Sorted by risk tier (highest urgency first).</p>
           </div>
           <div class="resolved-counter" id="resolvedCounter">0/0 Escalations Resolved</div>
@@ -1392,16 +1555,104 @@
         <div class="esc-list" id="escalationList"></div>
       </section>
 
-      <!-- Compliance -->
+      <!-- AI Security and Compliance -->
       <section class="page" id="tab-compliance">
         <div class="page-head">
           <div>
-            <h1 class="page-title">Compliance</h1>
-            <p class="page-sub">PCP referral documentation and beneficiary notification status.</p>
+            <h1 class="page-title">AI Security and Compliance</h1>
+            <p class="page-sub">Grounding audits, AI call telemetry, sign-in audit log, and PCP referral compliance.</p>
           </div>
         </div>
 
-        <div class="panel">
+        <div class="panel compliance-section" data-section="grounding">
+          <div class="panel-body">
+            <div class="compliance-section-head">
+              <div>
+                <h2>Grounding Checker</h2>
+                <p>Every generated patient script, audited for omissions and fabrications before it ships.</p>
+              </div>
+              <button class="compliance-refresh-btn" type="button" id="grounding-refresh-btn">↺ Refresh</button>
+            </div>
+            <div id="grounding-recall-wrap" style="margin-bottom:16px;"></div>
+            <div class="grounding-kpi-grid" id="grounding-kpi-grid">
+              <div class="grounding-kpi"><div class="label">Total (30d)</div><div class="value" id="gk-total">—</div></div>
+              <div class="grounding-kpi"><div class="label">PASS</div><div class="value" id="gk-pass">—</div></div>
+              <div class="grounding-kpi"><div class="label">REVIEW</div><div class="value" id="gk-review">—</div></div>
+              <div class="grounding-kpi"><div class="label">BLOCK</div><div class="value" id="gk-block">—</div></div>
+              <div class="grounding-kpi"><div class="label">Block rate</div><div class="value" id="gk-block-rate">—</div></div>
+              <div class="grounding-kpi"><div class="label">Avg coverage</div><div class="value" id="gk-coverage">—</div></div>
+              <div class="grounding-kpi"><div class="label">Avg faithfulness</div><div class="value" id="gk-faith">—</div></div>
+            </div>
+            <div class="grounding-filters">
+              <label>Verdict <select id="grounding-filter-verdict"><option value="">All</option><option value="BLOCK" selected>BLOCK</option><option value="REVIEW">REVIEW</option><option value="PASS">PASS</option></select></label>
+              <label>Track <select id="grounding-filter-track"><option value="">All</option><option value="pre_op">pre_op</option><option value="post_op_diagnosis">post_op_diagnosis</option><option value="post_op_treatment">post_op_treatment</option></select></label>
+              <label>Search <input type="search" id="grounding-filter-search" placeholder="Patient or summary…" /></label>
+            </div>
+            <div class="data-section">
+              <div class="data-section-header"><h3>Reports</h3><span id="grounding-reports-count">—</span></div>
+              <div id="grounding-reports-wrap"><div class="empty-table">Open this tab to load reports.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel compliance-section" data-section="ai-calls">
+          <div class="panel-body">
+            <div class="compliance-section-head">
+              <div>
+                <h2>AI Call Log</h2>
+                <p>Every Claude call by feature — model, prompt version, tokens, and latency.</p>
+              </div>
+              <button class="compliance-refresh-btn" type="button" id="ai-calls-refresh-btn">↺ Refresh</button>
+            </div>
+            <div class="grounding-kpi-grid" id="ai-calls-kpi-grid">
+              <div class="grounding-kpi"><div class="label">Total calls (30d)</div><div class="value" id="ack-total">—</div></div>
+              <div class="grounding-kpi"><div class="label">Input tokens</div><div class="value" id="ack-input">—</div></div>
+              <div class="grounding-kpi"><div class="label">Output tokens</div><div class="value" id="ack-output">—</div></div>
+              <div class="grounding-kpi"><div class="label">Models in use</div><div class="value" id="ack-models" style="font-size:0.85rem;line-height:1.4;">—</div></div>
+            </div>
+            <div class="data-section">
+              <div class="data-section-header"><h3>Per-role usage</h3></div>
+              <div id="ai-calls-role-wrap"><div class="empty-table">Open this tab to load data.</div></div>
+            </div>
+            <div class="grounding-filters">
+              <label>Role <select id="ai-calls-filter-role"><option value="">All</option></select></label>
+              <label>Prompt <select id="ai-calls-filter-prompt"><option value="">All</option></select></label>
+              <label>Version <input type="text" id="ai-calls-filter-version" placeholder="1.0.0" /></label>
+            </div>
+            <div class="data-section">
+              <div class="data-section-header"><h3>Calls</h3><span id="ai-calls-count">—</span></div>
+              <div id="ai-calls-wrap"><div class="empty-table">Open this tab to load calls.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel compliance-section" data-section="audit">
+          <div class="panel-body">
+            <div class="compliance-section-head">
+              <div>
+                <h2>Audit Log</h2>
+                <p>Chronological sign-in events for your health system team.</p>
+              </div>
+              <button class="compliance-refresh-btn" type="button" id="audit-refresh-btn">↺ Refresh</button>
+            </div>
+            <div style="overflow:auto;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Email</th>
+                    <th>Time (UTC)</th>
+                  </tr>
+                </thead>
+                <tbody id="auditLogBody"><tr><td colspan="4">Open this tab to load audit log.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel compliance-section" data-section="pcp">
+          <div class="panel-head">PCP Referral Compliance</div>
           <div class="panel-body">
             <table class="table">
               <thead>
@@ -1488,31 +1739,11 @@
           </div>
         </div>
       </section>
-
-      <section class="page" id="tab-audit">
-        <div class="page-head">
-          <div>
-            <h1 class="page-title">Audit Log</h1>
-            <p class="page-sub">Chronological sign-in events for your health system team.</p>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-body" style="overflow:auto;">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Role</th>
-                  <th>Email</th>
-                  <th>Time (UTC)</th>
-                </tr>
-              </thead>
-              <tbody id="auditLogBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
     </main>
+  </div>
+
+  <div class="grounding-drawer-overlay" id="grounding-drawer-overlay">
+    <div class="grounding-drawer" id="grounding-drawer"></div>
   </div>
 
   <!-- Onboarding -->
@@ -2104,6 +2335,10 @@
     let selectedTimeline = null;
     let escalations = [];
     let intakeNotifications = [];
+    let selfFlagPatients = [];
+    let complianceTabLoaded = false;
+    let groundingReports = [];
+    let aiCallsPromptMeta = [];
     let pdfText = "";
     let selectedEpisodeType = null;
     const sentPreparationMaterials = new Set();
@@ -2210,6 +2445,30 @@
 
     function byId(id) { return document.getElementById(id); }
     function esc(str) { return String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+    function escAttr(str) { return esc(str).replace(/"/g, "&quot;"); }
+
+    function getTenantSlug() {
+      try {
+        const raw = localStorage.getItem(PROFILE_KEY);
+        if (!raw) return "";
+        return JSON.parse(raw).tenantSlug || "";
+      } catch (_e) {
+        return "";
+      }
+    }
+
+    function tenantApiPath(suffix) {
+      const slug = getTenantSlug();
+      if (!slug) return null;
+      return `/api/tenant/${encodeURIComponent(slug)}${suffix}`;
+    }
+
+    function updateNotificationBellCount() {
+      const bell = byId("doctorNotifBell");
+      if (!bell) return;
+      const selfCount = isTriageDemoTenant() ? selfFlagPatients.length : 0;
+      bell.textContent = `Notifications: ${intakeNotifications.length + selfCount}`;
+    }
 
     function computeSurgeryWindow(dateStr) {
       if (!dateStr) return null;
@@ -2726,11 +2985,20 @@
           document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
           btn.classList.add("active");
           byId(`tab-${btn.dataset.tab}`).classList.add("active");
-          if (btn.dataset.tab === "audit") {
-            void loadAuditLog();
+          if (btn.dataset.tab === "compliance" && !complianceTabLoaded) {
+            complianceTabLoaded = true;
+            void loadComplianceTab();
           }
         });
       });
+    }
+
+    async function loadComplianceTab() {
+      await Promise.all([
+        loadGroundingChecker(),
+        loadAiCallLog(true),
+        loadAuditLog(),
+      ]);
     }
 
     async function loadAuditLog() {
@@ -2872,26 +3140,12 @@
           }
           _triageTierSnap[p.id] = cur;
         });
-        const ban = byId("triageAlertBanner");
         const flags = PATIENTS.filter((p) => p.hasActiveSelfFlag);
-        const role = document.body.dataset.role || "";
-        if (ban) {
-          ban.classList.remove("triage-alert-muted");
-          if (role === "rn_coordinator" && flags.length) {
-            ban.style.display = "block";
-            ban.innerHTML = `<strong>${flags.length} patient(s)</strong> have an active “I need help” self-flag — review the roster.`;
-          } else if (role === "surgeon" && flags.length) {
-            ban.style.display = "block";
-            ban.classList.add("triage-alert-muted");
-            ban.textContent = `FYI: ${flags.length} active self-flag(s); RN coordinates resolution.`;
-          } else {
-            ban.style.display = "none";
-            ban.innerHTML = "";
-          }
-        }
+        selfFlagPatients = isTriageDemoTenant() ? flags : [];
+        updateNotificationBellCount();
       } else {
-        const ban = byId("triageAlertBanner");
-        if (ban) { ban.style.display = "none"; ban.innerHTML = ""; }
+        selfFlagPatients = [];
+        updateNotificationBellCount();
       }
       renderRoster();
       renderCompliance();
@@ -2981,8 +3235,7 @@
       } catch (_e) {
         intakeNotifications = [];
       }
-      const bell = byId("doctorNotifBell");
-      if (bell) bell.textContent = `Notifications: ${intakeNotifications.length}`;
+      updateNotificationBellCount();
     }
 
     function openPatientDetail(pid) {
@@ -3001,6 +3254,12 @@
       if (tier === "TIER_1") return "tier-t1";
       return "tier-empty";
     }
+    function rosterTierDisplayLabel(tier) {
+      if (tier === "TIER_3") return "Tier 3";
+      if (tier === "TIER_2") return "Tier 2";
+      if (tier === "TIER_1") return "Tier 1";
+      return "—";
+    }
     function tierChipLabel(tier) {
       if (tier === "TIER_3") return "T3";
       if (tier === "TIER_2") return "T2";
@@ -3010,26 +3269,39 @@
 
     function renderRoster(list = PATIENTS) {
       byId("rosterCount").textContent = `${PATIENTS.length} patients`;
-      byId("rosterList").innerHTML = list.map((p) => {
+      const headerHtml = `
+        <div class="roster-header">
+          <div class="roster-header-cell">Name</div>
+          <div class="roster-header-cell">Surgical Stage</div>
+          <div class="roster-header-cell">Risk Tier</div>
+          <div class="roster-header-cell">Phone</div>
+          <div class="roster-header-cell">Email</div>
+          <div class="roster-header-cell">Episode Day</div>
+          <div class="roster-header-cell">Intake Status</div>
+          <div class="roster-header-cell">Actions</div>
+        </div>`;
+      byId("rosterList").innerHTML = headerHtml + list.map((p) => {
         const curT = (p.currentTier || p.current_tier || "").toString().toUpperCase();
         const tier3 = curT === "TIER_3";
-        const tierPill = isTriageDemoTenant()
-          ? `<span class="roster-tier-chip ${tierChipClass(curT)}">${esc(tierChipLabel(curT))}</span>`
-          : "";
-        const metaHtml = isTriageDemoTenant()
-          ? `${episodePillHtml(inferEpisodeType(p))}${tierPill}${renderTeamBadge(p)}`
-          : `${episodePillHtml(inferEpisodeType(p))}${renderTeamBadge(p)}`;
+        const episodeType = inferEpisodeType(p);
+        const tierCell = isTriageDemoTenant()
+          ? `<span class="roster-tier-chip ${tierChipClass(curT)}">${esc(rosterTierDisplayLabel(curT))}</span>`
+          : `<span class="muted">—</span>`;
+        const nameCell = `<span class="name-wrap">${renderTeamBadge(p)}<span class="roster-name-text">${esc(p.name)}</span></span>`;
+        const intraopExtra = intraopCtaHtml(p);
         return `
         <div class="roster-row${tier3 ? " tier-3-patient" : ""}" data-pid="${esc(p.id)}">
-          <div class="roster-cell name"><span class="name-wrap">${metaHtml}<span class="roster-name-text">${esc(p.name)}</span></span></div>
-          <div class="roster-cell muted">${esc(p.phone || "—")}</div>
-          <div class="roster-cell muted">${esc(p.email || "—")}</div>
-          <div class="roster-cell muted">Day ${esc(p.episode?.currentDay ?? "—")}</div>
-          <div class="roster-cell muted">${inferEpisodeType(p) === "pre_op" ? intakeStatusPillHtml(p.intakeFormStatus) : "—"}</div>
-          <div class="roster-cell cta">
+          <div class="roster-cell name" data-label="Name">${nameCell}</div>
+          <div class="roster-cell stage" data-label="Surgical Stage">${episodePillHtml(episodeType)}</div>
+          <div class="roster-cell tier" data-label="Risk Tier">${tierCell}</div>
+          <div class="roster-cell muted" data-label="Phone">${esc(p.phone || "—")}</div>
+          <div class="roster-cell muted" data-label="Email">${esc(p.email || "—")}</div>
+          <div class="roster-cell muted" data-label="Episode Day">Day ${esc(p.episode?.currentDay ?? "—")}</div>
+          <div class="roster-cell muted" data-label="Intake Status">${episodeType === "pre_op" ? intakeStatusPillHtml(p.intakeFormStatus) : "—"}</div>
+          <div class="roster-cell cta" data-label="Actions">
             <div class="postop-cta-cell">
-              <button class="btn-intraop edit-patient" type="button" data-pid="${esc(p.id)}">Edit</button>
-              ${intraopCtaHtml(p)}
+              <button class="btn-intraop edit-patient" type="button" data-pid="${esc(p.id)}">Edit patient details</button>
+              ${intraopExtra}
             </div>
           </div>
         </div>`;
@@ -3054,18 +3326,10 @@
 
     function intraopCtaHtml(p) {
       const phase = p.phase || (inferEpisodeType(p) === "post_op" ? "post_op" : "pre_op");
-      if (phase === "post_op") {
-        const tier = p.currentTier || p.current_tier || "TIER_1";
-        const tierClass = tier === "TIER_3" ? "danger" : (tier === "TIER_2" ? "warn" : "ok");
-        return `
-            <span class="postop-tier-badge postop-tier-${tierClass}">${esc(tier)}</span>
-            <button class="btn-intraop go-postop" data-action="postop-retier" data-pid="${esc(p.id)}">Recompute now</button>
-        `;
-      }
       if (phase === "intra_op" && p.or_ended_at) {
         return `<button class="btn-intraop open-form" data-action="open" data-pid="${esc(p.id)}">Open intra-op form</button>`;
       }
-      return `<button class="btn-intraop go-postop" data-action="switch" data-pid="${esc(p.id)}">Switch to post-op</button>`;
+      return "";
     }
 
     async function handleIntraopCtaClick(action, pid) {
@@ -3667,21 +3931,79 @@
       DAYX_SECTION_B_RED: "Day-X PROM section red",
       INCISION_FLAGS_X3: "Three+ incision-flag check-ins",
     };
-    function prettyTrigger(code) {
-      if (!code) return "";
-      if (POSTOP_TRIGGER_LABELS[code]) return POSTOP_TRIGGER_LABELS[code];
+    const TRIAGE_EVENT_LABELS = {
+      INITIAL_ASSESSMENT: "Initial assessment",
+      SURGEON_LOCK: "Intra-op procedure event",
+      PREOP_PAM: "Pre-op reassessment",
+      SURVEY_D7: "Day 7 check-in survey",
+    };
+
+    function humanizeTriageEventTitle(code, node) {
+      if (!code) return "Assessment";
+      const raw = String(code);
+      const upper = raw.toUpperCase();
+      if (TRIAGE_EVENT_LABELS[upper] || TRIAGE_EVENT_LABELS[raw]) {
+        return TRIAGE_EVENT_LABELS[upper] || TRIAGE_EVENT_LABELS[raw];
+      }
+      if (POSTOP_TRIGGER_LABELS[raw]) return POSTOP_TRIGGER_LABELS[raw];
+      const lower = raw.toLowerCase();
+      if (lower.includes("seed-intraop") || lower.includes("intra-op") || lower.includes("intraop")) {
+        return "Intra-op procedure event";
+      }
+      if (lower.includes("day7-plus-checkins") || lower.includes("day7") || lower.includes("day_7")) {
+        return "Day 7 check-in survey";
+      }
+      const dayMatch = lower.match(/day[_-]?(\d+)/);
+      if (dayMatch && (lower.includes("checkin") || lower.includes("check-in") || lower.includes("survey"))) {
+        return `Day ${dayMatch[1]} check-in survey`;
+      }
       if (typeof code === "string" && code.startsWith("POSTOP_RED_")) {
         return "Post-op RED via soft delta — " + code.replace("POSTOP_RED_", "").replaceAll("_", " ").toLowerCase();
       }
-      return code;
+      let cleaned = raw.replace(/^demo:/i, "").replace(/[_-]+/g, " ").trim();
+      if (!cleaned) return "Assessment";
+      if (cleaned === cleaned.toUpperCase() && cleaned.indexOf(" ") === -1) {
+        cleaned = cleaned.toLowerCase();
+      }
+      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
     }
 
-    function openEscalationConversation(escRec) {
-      if (!escRec) return;
-      byId("chatTitle").textContent = `${escRec.patient_name} — Escalation Conversation`;
-      const convo = (escRec.conversation_snapshot || []).map((m) => `${m.role || "unknown"}: ${m.content || ""}`).join("\n");
-      byId("chatBody").innerHTML = `<div class="chat-box">${esc(convo || "No conversation snapshot saved.")}</div>`;
-      byId("chatModal").classList.add("active");
+    function prettyTrigger(code) {
+      return humanizeTriageEventTitle(code);
+    }
+
+    function reasonBoxClass(reason, node) {
+      const kind = String(reason?.kind || "").toUpperCase();
+      if (kind === "HARD") return "hard";
+      const after = normalizeTierInt(node?.tier_after);
+      if (after === 3) return "tier3";
+      return "";
+    }
+
+    function renderLatestChangeHighlight(timeline, currentTier) {
+      const changedNodes = timeline.filter((n) => n.changed);
+      const latest = changedNodes.length ? changedNodes[changedNodes.length - 1] : null;
+      if (!latest) {
+        return `
+          <div class="triage-panel triage-latest-change ${tierClassFromInt(currentTier)}">
+            <h4>Most recent triage change</h4>
+            <div class="triage-muted">No tier changes recorded — currently ${esc(tierLabelFromInt(currentTier))}.</div>
+          </div>`;
+      }
+      const primaryReason = (latest.reasons || [])[0];
+      const accentTier = normalizeTierInt(latest.tier_after) || currentTier;
+      return `
+        <div class="triage-panel triage-latest-change ${tierClassFromInt(accentTier)}">
+          <h4>Most recent triage change</h4>
+          <div class="triage-latest-change-head">
+            <div>
+              <div class="triage-latest-change-title">${esc(humanizeTriageEventTitle(latest.triggered_by || latest.source, latest))}</div>
+              <div class="triage-muted" style="margin-top:4px;">${esc(latest.phase_label || "Assessment")}</div>
+            </div>
+            ${formatTierTransition(latest)}
+          </div>
+          ${primaryReason ? `<div class="triage-latest-change-reason">${esc(primaryReason.label || primaryReason.code || "Clinical finding")}</div>` : ""}
+        </div>`;
     }
 
     function resolveEscalationPatient(e) {
@@ -3707,6 +4029,51 @@
       return `<span class="tier-chain"><span class="tier-chip ${tierClassFromInt(before)}">${esc(tierLabelFromInt(before))}</span><span class="tier-arrow changed">→</span><span class="tier-chip ${tierClassFromInt(after)}">${esc(tierLabelFromInt(after))}</span></span>`;
     }
 
+    async function sendCareTeamMessage(patientId, message, escalationId) {
+      return apiJson(`/api/patients/${encodeURIComponent(patientId)}/care-team-messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, escalation_id: escalationId || undefined }),
+      });
+    }
+
+    async function loadCareTeamThread(patientId) {
+      return apiJson(`/api/patients/${encodeURIComponent(patientId)}/care-team-messages`);
+    }
+
+    function renderCareTeamThreadHtml(messages) {
+      if (!messages || !messages.length) {
+        return `<div class="triage-muted">No messages yet.</div>`;
+      }
+      return messages.map((msg) => {
+        const fromPatient = msg.sender_type === "PATIENT";
+        const unread = fromPatient && !msg.read_by_care_team;
+        return `<div class="care-team-bubble ${fromPatient ? "from-patient" : "from-team"}${unread ? " unread" : ""}">
+          <div class="care-team-bubble-meta">${esc(fromPatient ? "Patient" : (msg.sender_label || "Care Team"))} · ${esc(fmt(msg.created_at || ""))}</div>
+          <div>${esc(msg.body || "")}</div>
+        </div>`;
+      }).join("");
+    }
+
+    async function startTelehealthVisit(patientId, escalationId) {
+      const data = await apiJson("/api/telehealth/encounters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patient_id: patientId, escalation_id: escalationId || undefined }),
+      });
+      window.location.href = `/telehealth/setup/${encodeURIComponent(data.encounter_id)}`;
+    }
+
+    function openTriageForPatientMessages(patientId) {
+      const escRec = escalations.find((e) => e.patient_id === patientId && !e.resolved)
+        || escalations.find((e) => e.patient_id === patientId);
+      if (escRec) {
+        openTriageModal(escRec.id);
+        return;
+      }
+      showToast("No escalation found for this patient — check the roster.", "error");
+    }
+
     function renderTriageModal(data, escRec) {
       const currentTier = normalizeTierInt(data.current_tier) || tierScoreForEscalation(escRec);
       const phase = String(data.episode_phase || "").toLowerCase().includes("pre") ? "pre_op" : "post_op";
@@ -3714,13 +4081,10 @@
       const changedOnly = timeline.filter((node) => node.source === "initial" || node.changed);
       const hasFilteredAssessments = changedOnly.length !== timeline.length;
       const defaultTimeline = changedOnly.length ? changedOnly : timeline;
-      const subjectPreview = data.intervention_subject || "Provider, Clinician, Archangel Health — URGENT CARE MESSAGE";
-      const patientEmail = (PATIENTS.find((p) => p.id === escRec.patient_id)?.email || "").trim();
-      const canSend = !!patientEmail;
 
       byId("triageTitle").textContent = `${escRec.patient_name} — Triage`;
       byId("triageBody").innerHTML = `
-        <div class="triage-modal-shell" data-triage-escalation-id="${esc(escRec.id)}">
+        <div class="triage-modal-shell" data-triage-escalation-id="${esc(escRec.id)}" data-triage-patient-id="${esc(escRec.patient_id)}">
           <div class="triage-panel">
             <div class="triage-headline">
               <div>
@@ -3731,6 +4095,8 @@
             </div>
           </div>
 
+          ${renderLatestChangeHighlight(timeline, currentTier)}
+
           <div class="triage-panel">
             <h4>Risk Timeline</h4>
             <div class="triage-muted" style="margin-bottom:8px;">Oldest to newest with phase context and tier transitions.</div>
@@ -3739,34 +4105,32 @@
           </div>
 
           <div class="triage-panel">
-            <h4>Escalation Context</h4>
-            <div class="esc-meta">Origin: ${esc(escRec.origin || "Chat")}</div>
-            <div class="esc-meta">Trigger: ${esc(prettyTrigger(escRec.trigger_type) || "—")}</div>
-            ${normalizeTierInt(escRec.tier) === 3 ? `<div class="esc-meta">Consent: ${esc((escRec.consent || "pending").toUpperCase())}${escRec.consent_at ? ` at ${esc(fmt(escRec.consent_at))}` : ""}</div>` : ""}
+            <h4>Intervention</h4>
+            <div class="triage-actions">
+              <button type="button" class="btn primary" data-start-telehealth>Start Telehealth Visit</button>
+              <button type="button" class="btn" data-open-message-composer>Send Patient a Message</button>
+            </div>
+            <div class="triage-composer" data-message-composer style="display:none;">
+              <div class="triage-composer-row">
+                <label>Message</label>
+                <textarea rows="4" data-intervention-message placeholder="Write a secure message to the patient…"></textarea>
+              </div>
+              <div class="triage-actions">
+                <button type="button" class="btn primary" data-send-intervention>Send message</button>
+                <button type="button" class="btn" data-cancel-intervention>Cancel</button>
+              </div>
+            </div>
           </div>
 
           <div class="triage-panel">
-            <div class="triage-actions">
-              <button type="button" class="btn primary" data-open-intervention>Send Intervention</button>
-              <button type="button" class="esc-link-btn" data-modal-chat-id="${esc(escRec.id)}">View Conversation</button>
+            <h4>Intervention Messages &amp; History</h4>
+            <div class="care-team-thread" data-care-team-thread><div class="triage-muted">Loading messages…</div></div>
+            <div class="triage-composer-row">
+              <label>Reply to patient</label>
+              <textarea rows="3" data-care-team-reply placeholder="Write a reply…"></textarea>
             </div>
-            <div class="triage-composer" data-intervention-composer style="display:none;">
-              <div class="triage-composer-row">
-                <label>To</label>
-                <input type="text" value="${esc(patientEmail || "No email on file for this patient.")}" readonly />
-              </div>
-              <div class="triage-composer-row">
-                <label>Subject</label>
-                <input type="text" value="${esc(subjectPreview)}" readonly />
-              </div>
-              <div class="triage-composer-row">
-                <label>Message</label>
-                <textarea rows="5" data-intervention-message placeholder="Write your urgent care message to the patient..."></textarea>
-              </div>
-              <div class="triage-actions">
-                <button type="button" class="btn primary" data-send-intervention ${canSend ? "" : "disabled"}>${canSend ? "Send" : "No email on file"}</button>
-                <button type="button" class="btn" data-cancel-intervention>Cancel</button>
-              </div>
+            <div class="triage-actions">
+              <button type="button" class="btn primary" data-send-care-team-reply>Send reply</button>
             </div>
           </div>
         </div>
@@ -3779,23 +4143,20 @@
         timelineListEl.innerHTML = nodes.map((node) => {
           const changed = !!node.changed;
           const reasons = Array.isArray(node.reasons) ? node.reasons : [];
+          const eventTitle = humanizeTriageEventTitle(node.triggered_by || node.source, node);
           return `
             <div class="triage-node ${changed ? "" : "assessment"}">
               <div class="triage-node-top">
-                <span>${esc(fmt(node.at || ""))}</span>
+                <span class="triage-node-date">${esc(fmt(node.at || ""))}</span>
                 <span class="triage-node-phase">${esc(node.phase_label || "Assessment")}</span>
                 ${formatTierTransition(node)}
               </div>
-              <div class="triage-node-trigger">${esc(prettyTrigger(node.triggered_by || node.source || "Assessment"))}</div>
+              <div class="triage-node-title">${esc(eventTitle)}</div>
               ${changed && reasons.length ? `<div class="triage-reasons">${reasons.map((r) => {
-                const kind = String(r.kind || "").toUpperCase();
-                return `<div class="triage-reason ${kind === "HARD" ? "hard" : ""}">
+                const cls = reasonBoxClass(r, node);
+                return `<div class="triage-reason ${cls}">
                   <div>${esc(r.label || r.code || "Clinical finding")}</div>
-                  ${r.detail ? `<div class="triage-muted" style="margin-top:4px;">${esc(r.detail)}</div>` : ""}
-                  <div class="triage-reason-tags">
-                    <span class="triage-tag ${kind === "HARD" ? "critical" : ""}">${esc(kind || "INFO")}</span>
-                    ${r.weight != null ? `<span class="triage-tag">w ${esc(r.weight)}</span>` : ""}
-                  </div>
+                  ${r.detail ? `<div class="triage-muted" style="margin-top:4px;font-size:12px;">${esc(r.detail)}</div>` : ""}
                 </div>`;
               }).join("")}</div>` : ""}
             </div>
@@ -3814,43 +4175,84 @@
         });
       }
 
-      shell.querySelector("[data-modal-chat-id]")?.addEventListener("click", () => openEscalationConversation(escRec));
-      const composer = shell.querySelector("[data-intervention-composer]");
-      const openComposerBtn = shell.querySelector("[data-open-intervention]");
+      const threadEl = shell.querySelector("[data-care-team-thread]");
+      async function refreshCareTeamThread() {
+        try {
+          const thread = await loadCareTeamThread(escRec.patient_id);
+          if (threadEl) threadEl.innerHTML = renderCareTeamThreadHtml(thread.messages || []);
+        } catch (_e) {
+          if (threadEl) threadEl.innerHTML = `<div class="triage-muted">Could not load messages.</div>`;
+        }
+      }
+      refreshCareTeamThread();
+
+      const composer = shell.querySelector("[data-message-composer]");
+      const openComposerBtn = shell.querySelector("[data-open-message-composer]");
       const cancelComposerBtn = shell.querySelector("[data-cancel-intervention]");
       const sendBtn = shell.querySelector("[data-send-intervention]");
       const messageInput = shell.querySelector("[data-intervention-message]");
+      const telehealthBtn = shell.querySelector("[data-start-telehealth]");
+      const replyInput = shell.querySelector("[data-care-team-reply]");
+      const replyBtn = shell.querySelector("[data-send-care-team-reply]");
 
       openComposerBtn?.addEventListener("click", () => {
         composer.style.display = "block";
-        openComposerBtn.disabled = true;
       });
       cancelComposerBtn?.addEventListener("click", () => {
         composer.style.display = "none";
-        openComposerBtn.disabled = false;
         if (messageInput) messageInput.value = "";
       });
       sendBtn?.addEventListener("click", async () => {
         const msg = (messageInput?.value || "").trim();
         if (!msg) {
-          showToast("Please write an intervention message.", "error");
+          showToast("Please write a message.", "error");
           return;
         }
         sendBtn.disabled = true;
         sendBtn.textContent = "Sending…";
         try {
-          await apiJson(`/api/escalations/${encodeURIComponent(escRec.id)}/intervention`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: msg }),
-          });
-          sendBtn.textContent = "Intervention Sent";
-          sendBtn.classList.add("sent");
-          showToast("Intervention sent to patient", "success");
+          await sendCareTeamMessage(escRec.patient_id, msg, escRec.id);
+          sendBtn.textContent = "Message sent";
+          if (messageInput) messageInput.value = "";
+          composer.style.display = "none";
+          showToast("Message sent to patient", "success");
+          await refreshCareTeamThread();
+          await loadIntakeNotifications();
         } catch (e) {
           sendBtn.disabled = false;
-          sendBtn.textContent = "Send";
-          showToast(e.message || "Could not send intervention.", "error");
+          sendBtn.textContent = "Send message";
+          showToast(e.message || "Could not send message.", "error");
+        }
+      });
+
+      replyBtn?.addEventListener("click", async () => {
+        const msg = (replyInput?.value || "").trim();
+        if (!msg) {
+          showToast("Please write a reply.", "error");
+          return;
+        }
+        replyBtn.disabled = true;
+        try {
+          await sendCareTeamMessage(escRec.patient_id, msg, escRec.id);
+          if (replyInput) replyInput.value = "";
+          showToast("Reply sent", "success");
+          await refreshCareTeamThread();
+        } catch (e) {
+          showToast(e.message || "Could not send reply.", "error");
+        } finally {
+          replyBtn.disabled = false;
+        }
+      });
+
+      telehealthBtn?.addEventListener("click", async () => {
+        telehealthBtn.disabled = true;
+        telehealthBtn.textContent = "Starting…";
+        try {
+          await startTelehealthVisit(escRec.patient_id, escRec.id);
+        } catch (e) {
+          telehealthBtn.disabled = false;
+          telehealthBtn.textContent = "Start Telehealth Visit";
+          showToast(e.message || "Could not start telehealth visit.", "error");
         }
       });
 
@@ -3911,18 +4313,11 @@
               <button type="button" class="yn-btn ${e.resolved ? "active y" : ""}" data-toggle="y">Y</button>
               <button type="button" class="yn-btn ${!e.resolved ? "active n" : ""}" data-toggle="n">N</button>
             </div>
-            <button class="esc-link-btn" type="button" data-chat-id="${esc(e.id)}">View Conversation</button>
           </div>
         </div>
       `;
       }).join("");
 
-      byId("escalationList").querySelectorAll("[data-chat-id]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const escRec = escalations.find((x) => String(x.id) === btn.dataset.chatId);
-          openEscalationConversation(escRec);
-        });
-      });
       byId("escalationList").querySelectorAll("[data-triage-id]").forEach((btn) => {
         btn.addEventListener("click", () => openTriageModal(btn.dataset.triageId));
       });
@@ -4078,11 +4473,6 @@
       if (autofill) autofill.style.display = isTriageDemoTenant() ? "block" : "none";
       const irp = byId("intraopReviewPanel");
       if (irp) irp.classList.toggle("intraop-review-emphasis", profile.role === "surgeon" && isTriageDemoTenant());
-      const auditBtn = byId("tab-btn-audit");
-      if (auditBtn) {
-        const show = profile.isTeamDirector === true && profile.tenantSlug;
-        auditBtn.style.display = show ? "block" : "none";
-      }
       byId("onboardFullName").value = profile.fullName || "";
       byId("onboardEmail").value = profile.email || "";
       byId("onboardOfficePhone").value = profile.officePhone || "";
@@ -5374,20 +5764,46 @@
       if (!bell) return;
       bell.addEventListener("click", async () => {
         byId("chatTitle").textContent = "Doctor Notifications";
-        if (!intakeNotifications.length) {
+        const role = document.body.dataset.role || "";
+        const selfFlagHtml = selfFlagPatients.length ? `
+          <div class="notif-self-flag">
+            <div style="font-size:12px;font-weight:700;color:#991b1b;">Self-flag alert</div>
+            <div style="font-size:13px;margin-top:4px;">
+              ${selfFlagPatients.length} patient(s) have an active "I need help" self-flag — review the roster.
+              ${role === "surgeon" ? `<div style="font-size:12px;color:#92400e;margin-top:4px;">RN coordinates resolution.</div>` : ""}
+            </div>
+            <div class="notif-self-flag-names">
+              ${selfFlagPatients.map((p) => `<button type="button" class="notif-patient-link" data-open-pid="${escAttr(p.id)}">${esc(p.name)}</button>`).join("")}
+            </div>
+          </div>` : "";
+        if (!intakeNotifications.length && !selfFlagPatients.length) {
           byId("chatBody").innerHTML = `<div class="chat-box">No unread notifications.</div>`;
           byId("chatModal").classList.add("active");
           return;
         }
-        byId("chatBody").innerHTML = `<div class="chat-box">${intakeNotifications.map((n) => `
+        const intakeHtml = intakeNotifications.length ? intakeNotifications.map((n) => `
           <div style="padding:6px 0;border-bottom:1px solid #e5e7eb;">
-            <div style="font-size:12px;font-weight:700;color:#334155;">${esc(n.type || "Notification")}</div>
+            <div style="font-size:12px;font-weight:700;color:#334155;">${esc(n.type === "care_team_reply" ? "Care team message" : (n.type || "Notification"))}</div>
             <div style="font-size:13px;margin-top:2px;">${esc(n.message || "")}</div>
             <div style="font-size:11px;color:#64748b;margin-top:2px;">${esc(fmt(n.created_at || ""))}</div>
+            ${n.type === "care_team_reply" && n.patient_id ? `<button class="btn" style="margin-top:6px;padding:4px 8px;font-size:11px;margin-right:6px;" data-open-care-team="${escAttr(n.patient_id)}">Open messages</button>` : ""}
             <button class="btn" style="margin-top:6px;padding:4px 8px;font-size:11px;" data-mark-read="${esc(n.id)}">Mark read</button>
           </div>
-        `).join("")}</div>`;
+        `).join("") : "";
+        byId("chatBody").innerHTML = `<div class="chat-box">${selfFlagHtml}${intakeHtml}</div>`;
         byId("chatModal").classList.add("active");
+        byId("chatBody").querySelectorAll("[data-open-pid]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            byId("chatModal").classList.remove("active");
+            openPatientDetail(btn.dataset.openPid);
+          });
+        });
+        byId("chatBody").querySelectorAll("[data-open-care-team]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            byId("chatModal").classList.remove("active");
+            openTriageForPatientMessages(btn.dataset.openCareTeam);
+          });
+        });
         byId("chatBody").querySelectorAll("[data-mark-read]").forEach((btn) => {
           btn.addEventListener("click", async () => {
             try {
@@ -5426,6 +5842,259 @@
       }
       showToast(reason, "error");
       return false;
+    }
+
+    async function loadGroundingChecker() {
+      await Promise.all([loadGroundingStats(), loadGroundingRecall(), loadGroundingReports()]);
+    }
+
+    async function loadGroundingStats() {
+      const path = tenantApiPath("/grounding/stats?window_days=30");
+      if (!path) return;
+      try {
+        const s = await apiJson(path);
+        byId("gk-total").textContent = s.total ?? 0;
+        byId("gk-pass").textContent = s.pass ?? 0;
+        byId("gk-review").textContent = s.review ?? 0;
+        byId("gk-block").textContent = s.block ?? 0;
+        byId("gk-block-rate").textContent = s.block_rate != null ? `${(s.block_rate * 100).toFixed(1)}%` : "—";
+        byId("gk-coverage").textContent = s.avg_coverage_pct != null ? `${s.avg_coverage_pct}%` : "—";
+        byId("gk-faith").textContent = s.avg_faithfulness_pct != null ? `${s.avg_faithfulness_pct}%` : "—";
+      } catch (_e) {}
+    }
+
+    async function loadGroundingRecall() {
+      const wrap = byId("grounding-recall-wrap");
+      if (!wrap) return;
+      const path = tenantApiPath("/grounding/inspector-recall");
+      if (!path) return;
+      try {
+        const data = await apiJson(path);
+        if (!data.available) {
+          wrap.innerHTML = `<span class="recall-badge warn" title="Run pytest tests/test_grounding_validation.py to populate">Inspector recall: no snapshot yet</span>`;
+          return;
+        }
+        const table = data.table || {};
+        const byType = table.by_defect_type || {};
+        let minRecall = 1.0;
+        Object.values(byType).forEach((r) => { if (r.recall < minRecall) minRecall = r.recall; });
+        const cls = minRecall >= 0.9 ? "ok" : "warn";
+        wrap.innerHTML = `<span class="recall-badge ${cls}" title="Catch rate on seeded clinical near-misses. This is what makes the live BLOCK rate trustworthy.">Inspector recall: min ${(minRecall * 100).toFixed(0)}% · ${esc(data.prompt_version || "")} · ${esc(data.created_at || "")}</span>`;
+      } catch (_e) {
+        wrap.innerHTML = "";
+      }
+    }
+
+    async function loadGroundingReports() {
+      const verdict = byId("grounding-filter-verdict").value;
+      const track = byId("grounding-filter-track").value;
+      let path = tenantApiPath("/grounding/reports?limit=200");
+      if (!path) return;
+      if (verdict) path += `&verdict=${encodeURIComponent(verdict)}`;
+      if (track) path += `&track=${encodeURIComponent(track)}`;
+      try {
+        const data = await apiJson(path);
+        groundingReports = data.reports || [];
+        renderGroundingReportsTable();
+      } catch (_e) {}
+    }
+
+    function renderGroundingReportsTable() {
+      const q = (byId("grounding-filter-search").value || "").toLowerCase();
+      const rows = groundingReports.filter((r) => {
+        if (!q) return true;
+        return (r.patient_name || "").toLowerCase().includes(q)
+          || (r.summary || "").toLowerCase().includes(q)
+          || (r.patient_id || "").toLowerCase().includes(q);
+      });
+      byId("grounding-reports-count").textContent = rows.length;
+      const wrap = byId("grounding-reports-wrap");
+      if (!rows.length) {
+        wrap.innerHTML = "<div class=\"empty-table\">No grounding reports yet — they appear here after the next patient is processed.</div>";
+        return;
+      }
+      wrap.innerHTML = `<table class="grounding-table"><thead><tr>
+        <th>Time</th><th>Patient</th><th>Track</th><th>Verdict</th><th>Coverage</th><th>Faithfulness</th><th>Critical</th><th>Summary</th>
+      </tr></thead><tbody>${rows.map((r) => `
+        <tr data-id="${r.id}">
+          <td style="white-space:nowrap;font-size:0.8rem;">${esc((r.created_at || "").replace("T", " ").slice(0, 19))}</td>
+          <td>${esc(r.patient_name || r.patient_id)}</td>
+          <td style="font-family:monospace;font-size:0.78rem;">${esc(r.track)}</td>
+          <td><span class="verdict-pill verdict-${esc(r.verdict)}">${esc(r.verdict)}</span></td>
+          <td>${r.coverage_pct != null ? r.coverage_pct + "%" : "—"}</td>
+          <td>${r.faithfulness_pct != null ? r.faithfulness_pct + "%" : "—"}</td>
+          <td>${r.critical_failures ?? 0}</td>
+          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.summary || "")}</td>
+        </tr>`).join("")}</tbody></table>`;
+      wrap.querySelectorAll("tr[data-id]").forEach((tr) => {
+        tr.addEventListener("click", () => openGroundingDrawer(parseInt(tr.dataset.id, 10)));
+      });
+    }
+
+    async function openGroundingDrawer(reportId) {
+      const drawer = byId("grounding-drawer");
+      drawer.innerHTML = "<div class=\"empty-table\">Loading…</div>";
+      byId("grounding-drawer-overlay").classList.add("open");
+      const path = tenantApiPath(`/grounding/reports/${reportId}`);
+      if (!path) return;
+      try {
+        const row = await apiJson(path);
+        const rep = row.report || {};
+        const cov = rep.coverage || [];
+        const faith = rep.faithfulness || [];
+        drawer.innerHTML = `
+          <button type="button" class="compliance-refresh-btn" onclick="closeGroundingDrawer()" style="margin-bottom:12px;">✕ Close</button>
+          <div class="verdict-pill verdict-${esc(rep.verdict || row.verdict)}" style="font-size:0.9rem;margin-bottom:8px;">${esc(rep.verdict || row.verdict)}</div>
+          <p style="font-size:0.9rem;color:#475569;">${esc(rep.summary || row.summary || "")}</p>
+          <p style="font-size:0.78rem;color:var(--muted);">${esc(row.patient_name || "")} · ${esc(row.track)} · ${esc(rep.model || row.model || "")} · ${esc(rep.prompt_version || row.prompt_version || "")}</p>
+          ${(rep.critical_failures || []).length ? `<ul style="margin:12px 0;padding-left:18px;color:#991b1b;font-size:0.84rem;">${(rep.critical_failures || []).map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+            <div><h3>Coverage</h3>${cov.map((c) => `
+              <div class="cov-row">
+                <strong class="status-${esc(c.status)}">${esc(c.status === "COVERED" ? "✅" : c.status === "PARTIAL" ? "⚠️" : "❌")} ${esc(c.status)}</strong>
+                <span style="font-size:0.72rem;margin-left:6px;">${esc(c.severity)}</span>
+                <div style="margin-top:4px;">${esc(c.category || "")}: ${esc(c.id || "")}</div>
+                ${c.evidence ? `<blockquote style="margin:6px 0 0;font-size:0.78rem;color:var(--muted);border-left:3px solid var(--line);padding-left:8px;">${esc(c.evidence)}</blockquote>` : ""}
+              </div>`).join("") || "<div class=\"empty-table\">No coverage items</div>"}</div>
+            <div><h3>Faithfulness</h3>${faith.map((f) => `
+              <div class="faith-row">
+                <strong class="status-${esc(f.status)}">${esc(f.status === "SUPPORTED" ? "✅" : "❌")} ${esc(f.status)}</strong>
+                <div style="margin-top:4px;">${esc(f.claim || "")} <span style="font-size:0.72rem;">(${esc(f.claim_type || "")})</span></div>
+                ${f.source_evidence ? `<div style="font-size:0.78rem;color:var(--muted);margin-top:4px;">Source: ${esc(f.source_evidence)}</div>` : ""}
+              </div>`).join("") || "<div class=\"empty-table\">No faithfulness claims extracted</div>"}</div>
+          </div>
+          <details style="margin-top:16px;"><summary style="cursor:pointer;font-weight:600;">Script excerpt</summary>
+            <pre style="white-space:pre-wrap;font-size:0.78rem;background:#f9fafb;padding:12px;border-radius:8px;margin-top:8px;">${esc(row.script_excerpt || "")}</pre>
+          </details>`;
+      } catch (_e) {
+        drawer.innerHTML = "<div class=\"empty-table\">Could not load report.</div>";
+      }
+    }
+
+    function closeGroundingDrawer() {
+      byId("grounding-drawer-overlay").classList.remove("open");
+    }
+    window.closeGroundingDrawer = closeGroundingDrawer;
+
+    async function loadAiCallLog(force = false) {
+      await Promise.all([loadAiCallsStats(), loadAiCallsPromptOptions(), loadAiCallsTable()]);
+    }
+
+    async function loadAiCallsStats() {
+      const path = tenantApiPath("/ai-calls/stats?window_days=30");
+      if (!path) return;
+      try {
+        const data = await apiJson(path);
+        byId("ack-total").textContent = data.total_calls ?? 0;
+        byId("ack-input").textContent = data.total_input_tokens ?? 0;
+        byId("ack-output").textContent = data.total_output_tokens ?? 0;
+        byId("ack-models").textContent = (data.models_in_use || []).join(", ") || "—";
+
+        const roles = Object.entries(data.by_role || {});
+        const roleWrap = byId("ai-calls-role-wrap");
+        if (!roles.length) {
+          roleWrap.innerHTML = "<div class=\"empty-table\">No llm_call rows in selected window.</div>";
+          return;
+        }
+        roleWrap.innerHTML = `<table class="table"><thead><tr>
+          <th>Role</th><th>Calls</th><th>Input tok</th><th>Output tok</th><th>Avg latency (ms)</th>
+        </tr></thead><tbody>${roles.map(([role, row]) => `
+          <tr>
+            <td style="font-family:monospace;">${esc(role)}</td>
+            <td>${row.calls ?? 0}</td>
+            <td>${row.input_tokens ?? 0}</td>
+            <td>${row.output_tokens ?? 0}</td>
+            <td>${row.avg_latency_ms ?? 0}</td>
+          </tr>`).join("")}</tbody></table>`;
+
+        const roleSelect = byId("ai-calls-filter-role");
+        const current = roleSelect.value;
+        roleSelect.innerHTML = "<option value=\"\">All</option>" + roles
+          .map(([role]) => `<option value="${escAttr(role)}">${esc(role)}</option>`)
+          .join("");
+        roleSelect.value = current;
+      } catch (_e) {}
+    }
+
+    async function loadAiCallsPromptOptions() {
+      const path = tenantApiPath("/ai-calls/prompts");
+      if (!path) return;
+      try {
+        const data = await apiJson(path);
+        aiCallsPromptMeta = data.prompts || [];
+        const sel = byId("ai-calls-filter-prompt");
+        const current = sel.value;
+        sel.innerHTML = "<option value=\"\">All</option>" + aiCallsPromptMeta.map((p) => {
+          const label = `${p.label || p.prompt_id} — ${p.version || "0.0.0"} (${p.sha || "n/a"})`;
+          return `<option value="${escAttr(p.prompt_id)}">${esc(label)}</option>`;
+        }).join("");
+        sel.value = current;
+      } catch (_e) {}
+    }
+
+    async function loadAiCallsTable() {
+      let path = tenantApiPath("/ai-calls?limit=200");
+      if (!path) return;
+      const role = byId("ai-calls-filter-role").value;
+      const promptId = byId("ai-calls-filter-prompt").value;
+      const promptVersion = (byId("ai-calls-filter-version").value || "").trim();
+      if (role) path += `&role=${encodeURIComponent(role)}`;
+      if (promptId) path += `&prompt_id=${encodeURIComponent(promptId)}`;
+      if (promptVersion) path += `&prompt_version=${encodeURIComponent(promptVersion)}`;
+      try {
+        const data = await apiJson(path);
+        const rows = data.calls || [];
+        byId("ai-calls-count").textContent = rows.length;
+        const wrap = byId("ai-calls-wrap");
+        if (!rows.length) {
+          wrap.innerHTML = "<div class=\"empty-table\">No AI calls for current filters.</div>";
+          return;
+        }
+        wrap.innerHTML = `<table class="table"><thead><tr>
+          <th>Time</th><th>Patient</th><th>Role</th><th>Model</th><th>Prompt</th><th>Version</th><th>SHA</th>
+          <th>Input</th><th>Output</th><th>Latency</th><th>Request id</th>
+        </tr></thead><tbody>${rows.map((r) => `
+          <tr>
+            <td style="white-space:nowrap;font-size:0.8rem;">${esc((r.occurred_at || "").replace("T", " ").slice(0, 19))}</td>
+            <td>${esc(r.patient_name || r.patient_id || "")}</td>
+            <td style="font-family:monospace;">${esc(r.role || "")}</td>
+            <td style="font-family:monospace;">${esc(r.model || "")}</td>
+            <td style="font-family:monospace;">${esc(r.prompt_id || "")}</td>
+            <td style="font-family:monospace;">${esc(r.prompt_version || "")}</td>
+            <td style="font-family:monospace;"><button class="compliance-refresh-btn" type="button" data-sha="${escAttr(r.prompt_sha || "")}" data-prompt="${escAttr(r.prompt_id || "")}" data-version="${escAttr(r.prompt_version || "")}" style="padding:2px 6px;">${esc(r.prompt_sha || "")}</button></td>
+            <td>${r.input_tokens ?? "—"}</td>
+            <td>${r.output_tokens ?? "—"}</td>
+            <td>${r.latency_ms ?? "—"}</td>
+            <td style="font-family:monospace;">${esc(r.request_id || "")}${r.audit_error ? ` <span style="color:#b91c1c;" title="${escAttr(r.audit_error)}">⚠</span>` : ""}</td>
+          </tr>`).join("")}</tbody></table>`;
+        wrap.querySelectorAll("button[data-sha]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            byId("ai-calls-filter-prompt").value = btn.dataset.prompt || "";
+            byId("ai-calls-filter-version").value = btn.dataset.version || "";
+            loadAiCallsTable();
+          });
+        });
+      } catch (_e) {}
+    }
+
+    function setupComplianceListeners() {
+      byId("grounding-refresh-btn").addEventListener("click", () => loadGroundingChecker());
+      byId("grounding-filter-verdict").addEventListener("change", () => loadGroundingReports());
+      byId("grounding-filter-track").addEventListener("change", () => loadGroundingReports());
+      byId("grounding-filter-search").addEventListener("input", renderGroundingReportsTable);
+      byId("grounding-drawer-overlay").addEventListener("click", (e) => {
+        if (e.target.id === "grounding-drawer-overlay") closeGroundingDrawer();
+      });
+      byId("ai-calls-refresh-btn").addEventListener("click", () => loadAiCallLog(true));
+      byId("ai-calls-filter-role").addEventListener("change", () => loadAiCallsTable());
+      byId("ai-calls-filter-prompt").addEventListener("change", () => {
+        const pid = byId("ai-calls-filter-prompt").value;
+        const meta = aiCallsPromptMeta.find((p) => p.prompt_id === pid);
+        byId("ai-calls-filter-version").value = meta?.version || "";
+        loadAiCallsTable();
+      });
+      byId("ai-calls-filter-version").addEventListener("change", () => loadAiCallsTable());
+      byId("audit-refresh-btn").addEventListener("click", () => loadAuditLog());
     }
 
     function showToast(msg, type = "success") {
@@ -5571,6 +6240,7 @@
     setupPatientActions();
     setupPreopPatientActions();
     setupNotificationBell();
+    setupComplianceListeners();
     setupSidebarToggle();
     loadPatients().catch((e) => showToast(e.message, "error"));
     loadEscalations().catch((e) => showToast(e.message, "error"));

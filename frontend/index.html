@@ -7,13 +7,20 @@
   <link rel="stylesheet" href="/static/styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <style>
+    .episode-top-tabs-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
     .episode-top-tabs {
       display: inline-flex;
       gap: 0;
       border: 1px solid #e2e8f0;
       border-radius: 10px;
       overflow: hidden;
-      margin-bottom: 14px;
       background: #fff;
     }
     .episode-top-tab {
@@ -55,9 +62,15 @@
   <!-- ─── Main (Dashboard: two cards only) ────────────────── -->
   <main class="main-content">
     <div class="page-wrapper">
-      <div class="episode-top-tabs">
-        <a href="#" class="episode-top-tab" id="preOperationTab">Pre Operation</a>
-        <a href="#" class="episode-top-tab active" id="postOperationTab">Post Operation</a>
+      <div class="episode-top-tabs-row">
+        <div class="episode-top-tabs">
+          <a href="#" class="episode-top-tab" id="preOperationTab">Pre Operation</a>
+          <a href="#" class="episode-top-tab active" id="postOperationTab">Post Operation</a>
+        </div>
+        <button type="button" class="care-team-msg-btn" id="careTeamMsgBtn" aria-label="View care team messages">
+          View Care Team Message
+          <span class="care-team-unread-badge" id="careTeamUnreadBadge" hidden aria-hidden="true"></span>
+        </button>
       </div>
 
       <!-- Recovery Plan Card -->
@@ -536,6 +549,25 @@
         <p class="detail-footer-cta">
           <a href="#" class="detail-voice-link" id="voiceLinkTreatment">Talk to Archangel Health</a>
         </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Care team messages overlay -->
+  <div class="detail-overlay" id="overlay-care-team-messages" aria-hidden="true">
+    <div class="detail-overlay-inner care-team-overlay-inner">
+      <header class="detail-header">
+        <button type="button" class="detail-back" id="careTeamMsgClose" aria-label="Close messages">← Back</button>
+        <h1 class="detail-title">Care Team Messages</h1>
+      </header>
+      <div class="care-team-thread-wrap">
+        <div class="chat-messages care-team-thread" id="careTeamThread" role="log" aria-live="polite"></div>
+        <div class="care-team-reply-box">
+          <label class="care-team-reply-label" for="careTeamRecipient">Reply to</label>
+          <select id="careTeamRecipient" class="care-team-recipient-select"></select>
+          <textarea id="careTeamReplyInput" class="postop-textarea" rows="3" placeholder="Write a message to your care team…"></textarea>
+          <button type="button" class="preop-btn primary" id="careTeamReplySend">Send reply</button>
+        </div>
       </div>
     </div>
   </div>

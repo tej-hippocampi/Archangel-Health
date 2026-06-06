@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telehealth Visit | Archangel Health</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --line: #e2e8f0; --muted: #64748b; --primary: #0891b2; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, sans-serif; background: #0f172a; color: #f8fafc; }
+    .layout { display: grid; grid-template-columns: 1fr 320px; min-height: 100vh; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .video-pane { background: #000; min-height: 60vh; position: relative; }
+    #dailyFrame { width: 100%; height: 100%; min-height: 60vh; border: 0; }
+    .sidebar { background: #1e293b; padding: 16px; overflow-y: auto; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    .patient-card { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px; margin-bottom: 14px; }
+    .patient-card-name { font-size: 15px; font-weight: 700; margin: 0 0 6px; }
+    .tier-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: #334155; color: #e2e8f0; margin-bottom: 8px; }
+    .tier-badge.t3 { background: #7f1d1d; color: #fecaca; }
+    .tier-badge.t2 { background: #78350f; color: #fde68a; }
+    .tier-badge.t1 { background: #14532d; color: #bbf7d0; }
+    .patient-procedure { font-size: 12px; color: #94a3b8; margin: 0 0 8px; }
+    .signal-list { margin: 0; padding-left: 16px; font-size: 12px; color: #cbd5e1; line-height: 1.45; }
+    .signal-list li { margin-bottom: 4px; }
+    .timer { font-size: 28px; font-weight: 700; margin: 8px 0 16px; }
+    .ladder { font-size: 12px; color: #94a3b8; margin-bottom: 16px; line-height: 1.45; }
+    label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; }
+    select, textarea { width: 100%; border: 1px solid #334155; border-radius: 8px; padding: 8px; font: inherit; background: #0f172a; color: #f8fafc; }
+    textarea { min-height: 100px; resize: vertical; }
+    .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    .btn { border: 1px solid #475569; background: #334155; color: #fff; border-radius: 8px; padding: 10px; font-weight: 600; cursor: pointer; text-align: center; }
+    .btn.danger { background: #b91c1c; border-color: #b91c1c; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); align-items: center; justify-content: center; padding: 20px; }
+    .modal.open { display: flex; }
+    .modal-card { background: #fff; color: #0f172a; border-radius: 12px; padding: 20px; max-width: 420px; width: 100%; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="video-pane">
+      <iframe id="dailyFrame" title="Video visit" allow="camera; microphone; fullscreen; display-capture"></iframe>
+    </div>
+    <aside class="sidebar">
+      <h1>Telehealth visit</h1>
+      <div class="patient-card" id="patientCard">
+        <p class="patient-card-name" id="patientName">Loading…</p>
+        <span class="tier-badge" id="patientTier">—</span>
+        <p class="patient-procedure" id="patientProcedure"></p>
+        <ul class="signal-list" id="patientSignals"></ul>
+      </div>
+      <div class="timer" id="visitTimer">00:00</div>
+      <div class="ladder" id="gcodeLadder">G-code ladder loading…</div>
+      <label for="location">Patient location</label>
+      <select id="location">
+        <option value="HOME">Home (POS 10)</option>
+        <option value="FACILITY_OTHER">Facility / other (POS 02)</option>
+      </select>
+      <label for="notes" style="margin-top:12px;">Documentation</label>
+      <textarea id="notes" placeholder="Visit notes…"></textarea>
+      <div class="actions">
+        <button type="button" class="btn danger" id="endBtn">End visit</button>
+        <button type="button" class="btn" id="claimDownload" style="display:none;">Download draft claim</button>
+      </div>
+    </aside>
+  </div>
+
+  <div class="modal" id="l45Modal">
+    <div class="modal-card">
+      <h2 style="margin-top:0;">L4/L5 attestation required</h2>
+      <p>This visit duration requires staff onsite attestation before claim build.</p>
+      <label for="attestNote">Attestation note</label>
+      <textarea id="attestNote" rows="3" placeholder="RN present onsite…"></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button type="button" class="btn" id="attestBtn">Submit attestation</button>
+        <button type="button" class="btn" id="cancelAttest">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ENCOUNTER_ID = "__ENCOUNTER_ID__";
+    const AUTH_KEY = "archangel_doctor_auth_token";
+    const token = localStorage.getItem(AUTH_KEY) || "";
+    let encounter = null;
+    let serverBaseSeconds = 0;
+    let serverBaseAt = Date.now();
+    let timerHandle = null;
+    let heartbeatHandle = null;
+    let pendingEndPayload = null;
+    let pendingClaimId = null;
+
+    async function api(path, options = {}) {
+      const headers = new Headers(options.headers || {});
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      if (!headers.has("Content-Type") && options.body) headers.set("Content-Type", "application/json");
+      const res = await fetch(path, { ...options, headers });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `Request failed (${res.status})`);
+      return data;
+    }
+
+    function fmtTimer(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
+
+    function displaySeconds() {
+      return serverBaseSeconds + Math.floor((Date.now() - serverBaseAt) / 1000);
+    }
+
+    function syncTimerFromServer(seconds) {
+      serverBaseSeconds = Math.max(0, Number(seconds) || 0);
+      serverBaseAt = Date.now();
+      document.getElementById("visitTimer").textContent = fmtTimer(displaySeconds());
+    }
+
+    function renderLadder(ladder) {
+      const el = document.getElementById("gcodeLadder");
+      if (!ladder) {
+        el.textContent = "Maximum billable threshold reached for this patient type (informational).";
+        return;
+      }
+      el.textContent = `Next threshold (informational): ${ladder.minutes} min → ${ladder.hcpcs}`;
+    }
+
+    function renderPatientSummary(summary) {
+      if (!summary) return;
+      document.getElementById("patientName").textContent = summary.name || "Patient";
+      const tierEl = document.getElementById("patientTier");
+      tierEl.textContent = summary.tier_label || "—";
+      tierEl.className = "tier-badge";
+      if (summary.tier === 3) tierEl.classList.add("t3");
+      else if (summary.tier === 2) tierEl.classList.add("t2");
+      else if (summary.tier === 1) tierEl.classList.add("t1");
+      document.getElementById("patientProcedure").textContent = summary.procedure || "";
+      const signalsEl = document.getElementById("patientSignals");
+      const signals = summary.signals || [];
+      signalsEl.innerHTML = signals.length
+        ? signals.map((s) => `<li>${escapeHtml(s)}</li>`).join("")
+        : "<li>No recent triage signals on file</li>";
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    async function refreshEncounterMeta() {
+      const data = await api(`/api/telehealth/encounters/${ENCOUNTER_ID}`);
+      encounter = data.encounter || {};
+      if (typeof data.connected_seconds === "number") syncTimerFromServer(data.connected_seconds);
+      renderLadder(data.ladder_next);
+      renderPatientSummary(data.patient_summary);
+      if (encounter.documentation?.note) document.getElementById("notes").value = encounter.documentation.note;
+      if (encounter.patient_location) document.getElementById("location").value = encounter.patient_location;
+    }
+
+    async function sendHeartbeat() {
+      try {
+        const data = await api(`/api/telehealth/encounters/${ENCOUNTER_ID}/heartbeat`, { method: "POST" });
+        syncTimerFromServer(data.connected_seconds);
+        const encData = await api(`/api/telehealth/encounters/${ENCOUNTER_ID}`);
+        renderLadder(encData.ladder_next);
+      } catch (_err) { /* non-blocking */ }
+    }
+
+    async function initVideo() {
+      try {
+        const sess = await api(`/api/telehealth/encounters/${ENCOUNTER_ID}/session`, { method: "POST" });
+        const url = sess.join_url || sess.room_url;
+        if (url) {
+          document.getElementById("dailyFrame").src = url;
+        } else {
+          document.getElementById("dailyFrame").replaceWith(Object.assign(document.createElement("div"), {
+            textContent: "Video unavailable — configure DAILY_API_KEY.",
+            style: "padding:40px;color:#fff;text-align:center;",
+          }));
+        }
+      } catch (e) {
+        document.getElementById("patientName").textContent += ` (${e.message})`;
+      }
+    }
+
+    function parseFilenameFromDisposition(header) {
+      if (!header) return null;
+      const match = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(header);
+      if (!match) return null;
+      try {
+        return decodeURIComponent(match[1].replace(/"/g, "").trim());
+      } catch (_e) {
+        return match[1].replace(/"/g, "").trim();
+      }
+    }
+
+    async function downloadClaim(claimId) {
+      const url = `/api/telehealth/claims/${encodeURIComponent(claimId)}/download`;
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `Download failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const filename = parseFilenameFromDisposition(res.headers.get("Content-Disposition")) || "draft-claim.txt";
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    }
+
+    document.getElementById("location").addEventListener("change", async (e) => {
+      try {
+        await api(`/api/telehealth/encounters/${ENCOUNTER_ID}/location`, {
+          method: "POST",
+          body: JSON.stringify({ location: e.target.value }),
+        });
+      } catch (_err) { /* ignore */ }
+    });
+
+    let notesTimer = null;
+    document.getElementById("notes").addEventListener("input", () => {
+      clearTimeout(notesTimer);
+      notesTimer = setTimeout(async () => {
+        try {
+          await api(`/api/telehealth/encounters/${ENCOUNTER_ID}/documentation`, {
+            method: "POST",
+            body: JSON.stringify({ documentation: document.getElementById("notes").value }),
+          });
+        } catch (_err) { /* ignore */ }
+      }, 800);
+    });
+
+    async function finishVisit(endResult) {
+      if (endResult.requires_l45) {
+        pendingEndPayload = endResult;
+        document.getElementById("l45Modal").classList.add("open");
+        return;
+      }
+      const claim = await api(`/api/telehealth/encounters/${ENCOUNTER_ID}/build-claim`, { method: "POST" });
+      pendingClaimId = claim.claim_id;
+      const btn = document.getElementById("claimDownload");
+      btn.style.display = "block";
+      btn.textContent = `Download draft claim (${claim.hcpcs_code})`;
+    }
+
+    document.getElementById("claimDownload").addEventListener("click", async () => {
+      if (!pendingClaimId) return;
+      const btn = document.getElementById("claimDownload");
+      btn.disabled = true;
+      try {
+        await downloadClaim(pendingClaimId);
+      } catch (e) {
+        alert(e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("endBtn").addEventListener("click", async () => {
+      clearInterval(timerHandle);
+      clearInterval(heartbeatHandle);
+      const btn = document.getElementById("endBtn");
+      btn.disabled = true;
+      try {
+        const endResult = await api(`/api/telehealth/encounters/${ENCOUNTER_ID}/end`, {
+          method: "POST",
+          body: JSON.stringify({ duration_seconds: displaySeconds(), outcome: "COMPLETED" }),
+        });
+        if (typeof endResult.duration_minutes === "number") {
+          syncTimerFromServer(endResult.duration_minutes * 60);
+        }
+        await finishVisit(endResult);
+      } catch (e) {
+        alert(e.message);
+        btn.disabled = false;
+        timerHandle = setInterval(() => {
+          document.getElementById("visitTimer").textContent = fmtTimer(displaySeconds());
+        }, 1000);
+        heartbeatHandle = setInterval(sendHeartbeat, 15000);
+      }
+    });
+
+    document.getElementById("attestBtn").addEventListener("click", async () => {
+      const note = document.getElementById("attestNote").value.trim();
+      try {
+        await api(`/api/telehealth/encounters/${ENCOUNTER_ID}/attest`, {
+          method: "POST",
+          body: JSON.stringify({ type: "STAFF_ONSITE", note }),
+        });
+        document.getElementById("l45Modal").classList.remove("open");
+        await finishVisit(pendingEndPayload || {});
+      } catch (e) {
+        alert(e.message);
+      }
+    });
+    document.getElementById("cancelAttest").addEventListener("click", () => {
+      document.getElementById("l45Modal").classList.remove("open");
+      document.getElementById("endBtn").disabled = false;
+    });
+
+    refreshEncounterMeta().then(initVideo);
+    sendHeartbeat();
+    heartbeatHandle = setInterval(sendHeartbeat, 15000);
+    timerHandle = setInterval(() => {
+      document.getElementById("visitTimer").textContent = fmtTimer(displaySeconds());
+    }, 1000);
+  </script>
+</body>
+</html>

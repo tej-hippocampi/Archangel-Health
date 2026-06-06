@@ -738,6 +738,77 @@ body {
 
 .patient-message .message-time { text-align: right; }
 
+/* Care team messaging (patient dashboard) */
+.care-team-msg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: #0d9488;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+.care-team-msg-btn:hover { background: #0f766e; }
+.care-team-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 800;
+  background: #dc2626;
+  color: #fff;
+  border-radius: 999px;
+}
+.care-team-overlay-inner { max-width: 720px; margin: 0 auto; }
+.care-team-thread-wrap {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+  padding: 0 16px 16px;
+}
+.care-team-thread {
+  flex: 1;
+  min-height: 200px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  margin-bottom: 12px;
+}
+.care-team-reply-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.care-team-reply-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gray-500);
+}
+.care-team-recipient-select {
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: var(--font);
+  background: #fff;
+}
+.care-team-empty {
+  text-align: center;
+  color: var(--gray-500);
+  font-size: 14px;
+  padding: 24px 12px;
+}
+
 /* Typing Indicator */
 .typing-indicator .message-bubble {
   display: flex;
