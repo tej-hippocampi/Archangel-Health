@@ -273,6 +273,9 @@ def test_check_grounding_routes_through_call_llm_with_provenance(monkeypatch):
         _fake_call_llm.kwargs = kwargs
         return resp, {}
 
+    # check_grounding fail-safes to BLOCK when no API key is configured, before it
+    # ever reaches call_llm; set one so the mocked call_llm path is exercised.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr("pipeline.grounding_check.call_llm", _fake_call_llm)
     report = asyncio.run(
         check_grounding(PREOP_SD, "script", "pre_op", patient_id="p_ground")

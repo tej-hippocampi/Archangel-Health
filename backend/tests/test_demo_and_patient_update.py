@@ -177,7 +177,10 @@ def test_landing_token_sees_only_cedar_patients(client):
     assert "landing_hidden_triage" not in ids
 
 
-def test_internal_run_daily_jobs_requires_internal_secret(client):
+def test_internal_run_daily_jobs_requires_internal_secret(client, monkeypatch):
+    # With a secret configured, an unauthenticated call must be rejected (401).
+    # Without this, an unset secret returns 503 (misconfigured) before the auth check.
+    monkeypatch.setenv("INTERNAL_TOOL_SECRET", "test-internal-secret")
     r = client.post("/internal/team/run-daily-jobs")
     assert r.status_code == 401
 

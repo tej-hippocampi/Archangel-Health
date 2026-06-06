@@ -54,6 +54,10 @@ def test_intervention_send_success_logs_audit(monkeypatch):
         return True, None
 
     monkeypatch.setattr(main_module, "is_email_transport_configured", lambda: True)
+    # persist_and_notify_care_team_message imports this fresh from email_utils,
+    # so the email_utils symbol must be patched too (the main_module binding alone
+    # is not consulted on the send path).
+    monkeypatch.setattr("email_utils.is_email_transport_configured", lambda: True)
     monkeypatch.setattr(main_module, "_send_html_email_with_reason_impl", _fake_send)
 
     with TestClient(app, headers=auth_headers("surgeon", source="landing", email="intervention@test.local")) as client:
