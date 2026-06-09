@@ -15,6 +15,7 @@ os.environ.setdefault("AUTH_SECRET", "test-auth-secret")
 
 import main as main_module  # noqa: E402
 from main import app  # noqa: E402
+from patient_session import create_patient_session  # noqa: E402
 from tenant_constants import DEMO_HEALTH_SYSTEM_ID  # noqa: E402
 from tests._role_auth import auth_headers, tenant_token  # noqa: E402
 
@@ -130,6 +131,7 @@ def test_read_state_transitions():
     )
     assert ts.count_unread_for_patient(pid) == 1
     with TestClient(app) as client:
+        client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
         client.get(f"/api/patient/{pid}/care-team-messages")
     assert ts.count_unread_for_patient(pid) == 0
 

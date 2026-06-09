@@ -80,6 +80,44 @@ def test_anon_page_without_k_blocked(client):
     assert r.status_code == 404, r.text
 
 
+def test_expired_page_is_friendly_html_and_non_enumerable(client):
+    # An existent patient with no session/k gets a friendly 404 HTML re-entry page.
+    pid = _seed_patient()
+    r1 = client.get(f"/patient/{pid}", follow_redirects=False)
+    assert r1.status_code == 404
+    assert "text/html" in r1.headers.get("content-type", "")
+    assert "session" in r1.text.lower()
+    # A nonexistent patient returns an identical status + body (no id enumeration).
+    r2 = client.get(f"/patient/missing_{uuid.uuid4().hex}", follow_redirects=False)
+    assert r2.status_code == 404
+    assert r2.text == r1.text
+
+
+def test_anon_care_team_messages_blocked(client):
+    # Regression: the merged care-team messaging feature must not re-introduce an
+    # unauthenticated PHI IDOR on the patient-facing message thread.
+    pid = _seed_patient()
+    assert client.get(f"/api/patient/{pid}/care-team-messages").status_code == 404
+    assert client.post(
+        f"/api/patient/{pid}/care-team-messages/reply",
+        json={"message": "hi", "recipient_email": "x@y.com"},
+    ).status_code == 404
+    # With a valid patient session bound to this id, it is reachable.
+    client.cookies.set("pt_session", ps_mod.create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
+    assert client.get(f"/api/patient/{pid}/care-team-messages").status_code == 200
+
+
+def test_recovery_code_entry_page_renders(client):
+    r = client.get("/recovery")
+    assert r.status_code == 200
+    assert "text/html" in r.headers.get("content-type", "")
+    # Two code inputs + the by-codes resolution call.
+    assert "id='hs'" in r.text and "id='rc'" in r.text
+    assert "by-codes" in r.text
+    # ?hs= pre-fills the (non-sensitive) health-system code.
+    assert "value='CLINIC01'" in client.get("/recovery?hs=CLINIC01").text
+
+
 def test_anon_chat_blocked_before_llm(client):
     pid = _seed_patient()
     r = client.post("/api/digital-care-companion/chat",

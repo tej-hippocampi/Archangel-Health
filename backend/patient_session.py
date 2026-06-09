@@ -229,14 +229,16 @@ class PatientSessionMiddleware:
             return
         ps: Optional[PatientSession] = None
         try:
-            for key, val in scope.get("headers", []):
-                if key == b"cookie":
-                    jar = SimpleCookie()
-                    jar.load(val.decode("latin-1"))
-                    morsel = jar.get(COOKIE_NAME)
-                    if morsel and morsel.value:
-                        ps = decode_patient_session(morsel.value)
-                    break
+            # Merge all Cookie headers (HTTP/2 may split them) before parsing.
+            cookie_blob = "; ".join(
+                val.decode("latin-1") for key, val in scope.get("headers", []) if key == b"cookie"
+            )
+            if cookie_blob:
+                jar = SimpleCookie()
+                jar.load(cookie_blob)
+                morsel = jar.get(COOKIE_NAME)
+                if morsel and morsel.value:
+                    ps = decode_patient_session(morsel.value)
         except Exception:
             ps = None
         reset_token = _current_patient_session.set(ps)

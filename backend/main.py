@@ -173,15 +173,22 @@ app.add_middleware(PatientSessionMiddleware)
 # Security headers (HSTS in prod, CSP report-only by default) on every response.
 app.add_middleware(SecurityHeadersMiddleware)
 
-# Production-only transport hardening (no-op in local dev / tests). Added last so
-# they are the outermost middlewares and reject before any app work happens.
+# Production-only Host allowlist (no-op unless ALLOWED_HOSTS is set).
 if is_production():
-    from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
-    from starlette.middleware.trustedhost import TrustedHostMiddleware
-
     _hosts = allowed_hosts()
     if _hosts:
+        from starlette.middleware.trustedhost import TrustedHostMiddleware
+
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=_hosts)
+
+# App-level HTTP->HTTPS redirect is OPT-IN and intentionally decoupled from ENV.
+# It requires uvicorn to run with --proxy-headers, otherwise it loops forever
+# behind a TLS-terminating proxy (Railway/Render) and breaks healthchecks. HSTS
+# (set in production) plus the platform edge already enforce HTTPS, so this stays
+# off unless explicitly enabled by an operator who has verified proxy headers.
+if os.getenv("FORCE_HTTPS_REDIRECT", "0").strip().lower() in ("1", "true", "yes", "on"):
+    from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+
     app.add_middleware(HTTPSRedirectMiddleware)
 
 _patient_store: dict = {}
@@ -238,6 +245,116 @@ def _assert_staff_can_access_patient(patient_id: str, staff: Optional[StaffConte
     raise HTTPException(status_code=404, detail="Patient not found")
 
 
+# ─── Patient entry experience (code-entry page + session-expired page) ────────
+# Shared chrome so the self-contained patient pages match the recovery email /
+# dashboard brand (cyan header, Archangel Health wordmark, soft card on #f3f6f9).
+_PATIENT_PAGE_CSS = (
+    "*{box-sizing:border-box}"
+    "body{margin:0;background:#f3f6f9;font-family:-apple-system,BlinkMacSystemFont,"
+    "'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a}"
+    ".wrap{max-width:560px;margin:0 auto;padding:32px 16px}"
+    ".card{background:#fff;border:1px solid #dbe5ec;border-radius:14px;overflow:hidden;"
+    "box-shadow:0 1px 2px rgba(15,23,42,.04)}"
+    ".head{background:#0891b2;padding:28px 24px;text-align:center}"
+    ".brand{font-family:Georgia,serif;color:#fff;font-size:32px;font-weight:700;line-height:1.15}"
+    ".sub{color:#e0f2fe;font-size:14px;margin-top:6px}"
+    ".body{padding:26px 26px 30px}"
+    "h1{font-size:20px;margin:0 0 6px}"
+    "p.lead{color:#475569;font-size:15px;line-height:1.6;margin:0 0 8px}"
+    "label{display:block;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;"
+    "color:#64748b;margin:18px 0 8px}"
+    "input{width:100%;padding:14px 16px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;"
+    "font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Courier New',monospace;font-size:20px;"
+    "font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#111827}"
+    "input:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.15);background:#fff}"
+    ".btn{display:block;width:100%;margin-top:22px;padding:15px 16px;background:#0891b2;border:1px solid #0e7490;"
+    "border-radius:12px;color:#fff;font-size:17px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none}"
+    ".btn:disabled{opacity:.6;cursor:default}"
+    ".msg{margin-top:14px;font-size:14px;color:#b91c1c;min-height:20px;text-align:center}"
+    ".tip{margin-top:18px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:12px 14px;"
+    "color:#334155;font-size:13px;line-height:1.6;text-align:center}"
+    ".foot{text-align:center;color:#64748b;font-size:12px;padding-top:16px}"
+)
+
+
+def _patient_entry_url() -> str:
+    """Canonical patient code-entry URL. Prefer the landing app's recovery-plan
+    form when LANDING_URL is configured; otherwise fall back to the self-contained
+    backend code-entry page (/recovery) so patient links never dead-end on a bare
+    dashboard URL (which now requires a session)."""
+    landing = (os.getenv("LANDING_URL") or "").strip().rstrip("/")
+    if landing:
+        return f"{landing}/#recovery-plan"
+    base = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
+    return f"{base}/recovery"
+
+
+def _render_patient_entry_page(prefill_hs: str = "") -> str:
+    hs_safe = html_lib.escape(prefill_hs or "", quote=True)
+    return (
+        "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        "<title>Open Your Plan — Archangel Health</title>"
+        f"<style>{_PATIENT_PAGE_CSS}</style></head><body><div class='wrap'><div class='card'>"
+        "<div class='head'><div class='brand'>Archangel Health</div>"
+        "<div class='sub'>Open your personalized care plan</div></div>"
+        "<div class='body'><h1>Enter your access codes</h1>"
+        "<p class='lead'>These two codes are in the email or text from your care team. "
+        "They keep your health information private.</p>"
+        "<label for='hs'>Health System Code</label>"
+        f"<input id='hs' autocomplete='off' autocapitalize='characters' spellcheck='false' "
+        f"placeholder='ABCD1234' value='{hs_safe}'>"
+        "<label for='rc'>Resource Code</label>"
+        "<input id='rc' autocomplete='off' autocapitalize='characters' spellcheck='false' placeholder='WXYZ5678'>"
+        "<button class='btn' id='go'>View My Plan</button>"
+        "<p class='msg' id='msg' role='alert'></p>"
+        "<div class='tip'>Tip: codes are not case-sensitive. For the best experience, open this on a computer.</div>"
+        "</div></div><div class='foot'>Archangel Health · Your personalized healthcare companion</div></div>"
+        "<script>"
+        "var hs=document.getElementById('hs'),rc=document.getElementById('rc'),"
+        "go=document.getElementById('go'),msg=document.getElementById('msg');"
+        "(hs.value?rc:hs).focus();"
+        "async function submit(){"
+        "var h=hs.value.trim().toUpperCase(),r=rc.value.trim().toUpperCase();"
+        "if(!h||!r){msg.textContent='Please enter both codes.';return;}"
+        "go.disabled=true;msg.style.color='#475569';msg.textContent='Opening your plan…';"
+        "try{var p=new URLSearchParams({health_system_code:h,resource_code:r});"
+        "var res=await fetch('/api/patient/by-codes?'+p.toString());"
+        "if(res.ok){var data=await res.json();window.location.href=data.dashboard_url;return;}"
+        "var d=await res.json().catch(function(){return {};});msg.style.color='#b91c1c';"
+        "msg.textContent=(res.status===429)?'Too many attempts. Please wait a minute and try again.':"
+        "(d.detail||'We could not find a match. Check your codes and try again.');"
+        "}catch(e){msg.style.color='#b91c1c';msg.textContent='Connection problem. Please try again.';}"
+        "go.disabled=false;}"
+        "go.addEventListener('click',submit);"
+        "rc.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});"
+        "hs.addEventListener('keydown',function(e){if(e.key==='Enter')rc.focus();});"
+        "</script></body></html>"
+    )
+
+
+def _patient_reentry_response() -> HTMLResponse:
+    """Friendly 'session expired' page for unauthenticated patient *page* loads.
+    Identical regardless of whether the patient_id exists (status 404, same body)
+    so it cannot be used to enumerate valid patient ids (PRD-1)."""
+    entry = html_lib.escape(_patient_entry_url(), quote=True)
+    body = (
+        "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        "<title>Session expired — Archangel Health</title>"
+        f"<style>{_PATIENT_PAGE_CSS}</style></head><body><div class='wrap'><div class='card'>"
+        "<div class='head'><div class='brand'>Archangel Health</div>"
+        "<div class='sub'>Secure patient access</div></div>"
+        "<div class='body' style='text-align:center'><h1>Your secure session has ended</h1>"
+        "<p class='lead'>For your privacy, access expires after a period of inactivity. "
+        "Re-enter your access codes (from your email or text) to continue.</p>"
+        f"<a class='btn' href='{entry}'>Enter my codes</a>"
+        "</div></div><div class='foot'>Archangel Health · Your personalized healthcare companion</div></div>"
+        "</body></html>"
+    )
+    return HTMLResponse(content=body, status_code=404)
+
+
 def _patient_page_entry(
     request: Request,
     patient_id: str,
@@ -247,23 +364,23 @@ def _patient_page_entry(
     """Guard for server-rendered patient pages. Returns a RedirectResponse (which
     mints the pt_session cookie from a one-time entry token ``?k=``) that the
     caller must return; returns None when the caller is already authorized and the
-    page should render; raises 404 otherwise."""
-    if patient_id not in _patient_store:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    if _patient_principal_ok(patient_id, staff):
-        return None
-    if k:
-        sess = consume_entry_token(k)
-        if sess and sess.patient_id == patient_id:
-            resp = RedirectResponse(url=request.url.path, status_code=302)
-            set_patient_session_cookie(resp, patient_id, sess.health_system_id)
-            return resp
-    if current_patient_session() is None and staff is None and not _enforce_patient_auth():
-        _auth_logger.warning(
-            "ENFORCE_PATIENT_AUTH=0: rendering patient page %s without auth", patient_id
-        )
-        return None
-    raise HTTPException(status_code=404, detail="Patient not found")
+    page should render; otherwise returns a friendly 404 re-entry page."""
+    if patient_id in _patient_store:
+        if _patient_principal_ok(patient_id, staff):
+            return None
+        if k:
+            sess = consume_entry_token(k)
+            if sess and sess.patient_id == patient_id:
+                resp = RedirectResponse(url=request.url.path, status_code=302)
+                set_patient_session_cookie(resp, patient_id, sess.health_system_id)
+                return resp
+        if current_patient_session() is None and staff is None and not _enforce_patient_auth():
+            _auth_logger.warning(
+                "ENFORCE_PATIENT_AUTH=0: rendering patient page %s without auth", patient_id
+            )
+            return None
+    # Unauthorized OR nonexistent -> identical response (no id enumeration).
+    return _patient_reentry_response()
 
 
 def _require_clinical_staff(staff: Optional[StaffContext]) -> StaffContext:
@@ -2066,6 +2183,16 @@ async def patient_logout(request: Request, response: Response):
     return {"ok": True}
 
 
+@app.get("/recovery", response_class=HTMLResponse)
+@app.get("/care-plan", response_class=HTMLResponse)
+async def patient_code_entry(hs: Optional[str] = None):
+    """Self-contained patient code-entry page. Used as the entry point when the
+    landing app isn't configured (LANDING_URL unset) so patient SMS/email links
+    always reach a real code-entry experience instead of a bare dashboard URL.
+    Optional ?hs= pre-fills the (non-sensitive) health-system code."""
+    return HTMLResponse(content=_render_patient_entry_page(prefill_hs=hs or ""))
+
+
 async def _maybe_trigger_preop_outreach(app: FastAPI) -> None:
     now_m = time.monotonic()
     last = getattr(app.state, "last_preop_outreach_mono", 0.0)
@@ -3434,12 +3561,12 @@ async def send_to_patient(
         "Your Recovery Resources Are Ready - Archangel Health"
     )
     base_url = os.getenv("BASE_URL", "http://localhost:8000")
-    landing_url = (os.getenv("LANDING_URL") or "").strip().rstrip("/")
     dashboard_url = f"{base_url}/patient/{patient_id}/pre-op" if is_preop else f"{base_url}/patient/{patient_id}"
     clinic_code = (d.get("clinic_code") or "").strip()
     resource_code = (d.get("resource_code") or "").strip()
-    # Link must go to landing page so patient can enter codes; never use backend root (doctor dashboard)
-    recovery_plan_entry_url = f"{landing_url}/#recovery-plan" if landing_url else dashboard_url
+    # Always route patients through the code-entry flow (landing recovery form, or
+    # the self-contained /recovery page) — never a bare dashboard URL (PRD-1).
+    recovery_plan_entry_url = _patient_entry_url()
 
     results = {"sms": None, "email": None}
 
@@ -3509,7 +3636,7 @@ async def email_template_preview(
         first_name=first_name,
         clinic_code=clinic_code,
         resource_code=resource_code,
-        recovery_plan_entry_url=f"{base}/#recovery-plan",
+        recovery_plan_entry_url=_patient_entry_url(),
         use_local_preview_assets=True,
     )
 
@@ -3915,8 +4042,14 @@ async def process_patient(
         health_system_id=(_patient_store[bundle.patient_id] or {}).get("health_system_id") or health_system_id,
     )
     _persist_demo_patient_store()
+    _pe = _patient_store.get(bundle.patient_id) or {}
     background_tasks.add_task(
-        _send_sms, phone=bundle.phone_number, name=bundle.patient_name, dashboard_url=dashboard_url,
+        _send_sms,
+        phone=bundle.phone_number,
+        name=bundle.patient_name,
+        entry_url=_patient_entry_url(),
+        clinic_code=(_pe.get("clinic_code") or ""),
+        resource_code=(_pe.get("resource_code") or ""),
     )
     return ProcessResponse(
         patient_id=bundle.patient_id, pipeline_type=pipeline_type,
@@ -5283,9 +5416,15 @@ async def doctor_latest_intake(
 
 
 @app.post("/api/pre-op/notify-care-team")
-async def preop_notify_care_team(body: CareTeamNotificationRequest):
+async def preop_notify_care_team(
+    body: CareTeamNotificationRequest,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if body.patient_id not in _patient_store:
         raise HTTPException(status_code=404, detail="Patient not found")
+    # Patient-initiated escalation: require a patient session bound to this id (or
+    # scoped staff). Otherwise anyone could spam care-team escalations by id.
+    _assert_staff_can_access_patient(body.patient_id, staff)
     _team_store.log_event(
         patient_id=body.patient_id,
         event_type="care_team_notification",
@@ -5581,12 +5720,22 @@ async def internal_run_team_daily_jobs(authorization: Optional[str] = Header(Non
     return {"ok": True, "ran_at": _utcnow_iso()}
 
 
-async def _send_sms(phone: str, name: str, dashboard_url: str) -> None:
+async def _send_sms(
+    phone: str,
+    name: str,
+    entry_url: Optional[str] = None,
+    clinic_code: str = "",
+    resource_code: str = "",
+) -> None:
     first = name.split()[0]
-    body  = (
+    url = entry_url or _patient_entry_url()
+    codes = ""
+    if clinic_code or resource_code:
+        codes = f"Use Health System Code: {clinic_code or 'N/A'}, Resource Code: {resource_code or 'N/A'}. "
+    body = (
         f"Hi {first}, your post-surgery recovery resources from your care team are ready. "
-        f"View your personalized recovery plan here: {dashboard_url} "
-        f"(Best viewed on a computer)"
+        f"View your personalized recovery plan here: {url} "
+        f"{codes}(Best viewed on a computer)"
     )
     TwilioClient().send(to=phone, body=body)
 

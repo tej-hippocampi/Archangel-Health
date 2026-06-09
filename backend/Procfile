@@ -1,1 +1,5 @@
-web: uvicorn main:app --host 0.0.0.0 --port $PORT
+# --proxy-headers/--forwarded-allow-ips let the app trust the platform's TLS
+# terminator (Railway/Render) for X-Forwarded-Proto/For, so client IPs are correct
+# for rate limiting and (if FORCE_HTTPS_REDIRECT is enabled) the HTTPS redirect
+# does not loop. Railway builds with RAILPACK and uses this Procfile, not the Dockerfile.
+web: uvicorn main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'

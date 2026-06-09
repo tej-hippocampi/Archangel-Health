@@ -105,20 +105,27 @@ class SecurityHeadersMiddleware:
 
 
 # ─── Production secret guard ──────────────────────────────────────────────────
-# (name, default_placeholder, min_length). min_length 0 = only reject empty/default.
-_GUARDED_SECRETS = [
-    ("AUTH_SECRET", "change-me-in-production-elysium", 32),
-    ("INTERNAL_TOOL_SECRET", "change-me-internal-secret", 32),
-    ("ADMIN_PASSWORD", "change-me-strong-password", 12),
-]
-
-
 def production_secret_problems() -> List[str]:
+    """Report production-unsafe secrets. AUTH_SECRET is the crypto root (always
+    used to mint/verify tokens) so it must be present + strong. ADMIN_PASSWORD and
+    INTERNAL_TOOL_SECRET gate optional features that are *disabled* when unset, so
+    we only flag the genuinely dangerous case of shipping the known placeholder
+    value (or a too-short one) — not an intentional absence, which must not block
+    an otherwise-valid deploy."""
     problems: List[str] = []
-    for name, default, min_len in _GUARDED_SECRETS:
-        v = os.getenv(name, "")
-        if not v or v == default or (min_len and len(v) < min_len):
-            problems.append(name)
+
+    auth = os.getenv("AUTH_SECRET", "")
+    if not auth or auth == "change-me-in-production-elysium" or len(auth) < 32:
+        problems.append("AUTH_SECRET")
+
+    admin = os.getenv("ADMIN_PASSWORD", "")
+    if admin and (admin == "change-me-strong-password" or len(admin) < 12):
+        problems.append("ADMIN_PASSWORD")
+
+    internal = os.getenv("INTERNAL_TOOL_SECRET", "")
+    if internal and (internal == "change-me-internal-secret" or len(internal) < 32):
+        problems.append("INTERNAL_TOOL_SECRET")
+
     return problems
 
 

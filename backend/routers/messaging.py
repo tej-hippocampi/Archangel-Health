@@ -46,6 +46,14 @@ def _require_clinical_staff(staff: Optional[StaffContext]) -> StaffContext:
     return _req(staff)
 
 
+def _assert_patient_or_staff(patient_id: str, staff: Optional[StaffContext]) -> None:
+    """Patient-facing care-team-message routes: require a patient session bound to
+    this patient_id, OR scoped clinical staff. Closes the IDOR on these endpoints."""
+    from main import _assert_staff_can_access_patient as _assert  # noqa: PLC0415
+
+    _assert(patient_id, staff)
+
+
 def _care_team_sender_label(msg: Dict[str, Any]) -> str:
     name = (msg.get("sender_name") or "").strip()
     role = _provider_role_display(msg.get("sender_role"))
@@ -299,9 +307,14 @@ async def clinician_list_care_team_messages(
 
 
 @router.get("/api/patient/{patient_id}/care-team-messages")
-async def patient_list_care_team_messages(patient_id: str, request: Request):
+async def patient_list_care_team_messages(
+    patient_id: str,
+    request: Request,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
     if patient_id not in _patients(request):
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_patient_or_staff(patient_id, staff)
     ts = _ts(request)
     rows = ts.list_care_team_messages(patient_id)
     ts.mark_care_team_thread_read(patient_id, by="patient")
@@ -331,9 +344,11 @@ async def patient_reply_care_team_message(
     patient_id: str,
     body: CareTeamPatientReplyBody,
     request: Request,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
     if patient_id not in _patients(request):
         raise HTTPException(status_code=404, detail="Patient not found")
+    _assert_patient_or_staff(patient_id, staff)
     message = (body.message or "").strip()
     if not message:
         raise HTTPException(status_code=400, detail="Message is required.")

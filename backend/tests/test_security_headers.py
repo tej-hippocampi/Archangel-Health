@@ -111,6 +111,17 @@ def test_secret_guard_flags_defaults(monkeypatch):
         http_security.assert_production_secrets()
 
 
+def test_secret_guard_allows_unset_optional_secrets(monkeypatch):
+    # A strong AUTH_SECRET with admin/internal features simply not configured
+    # (unset) must NOT block a production boot — only the dangerous default does.
+    monkeypatch.setenv("ENV", "production")
+    monkeypatch.setenv("AUTH_SECRET", "a" * 40)
+    monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
+    monkeypatch.delenv("INTERNAL_TOOL_SECRET", raising=False)
+    assert http_security.production_secret_problems() == []
+    http_security.assert_production_secrets()  # no raise
+
+
 def test_secret_guard_passes_with_strong_values(monkeypatch):
     monkeypatch.setenv("ENV", "production")
     monkeypatch.setenv("AUTH_SECRET", "a" * 40)

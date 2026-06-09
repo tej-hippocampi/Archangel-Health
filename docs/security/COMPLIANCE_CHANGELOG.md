@@ -110,7 +110,7 @@ New/changed code: `backend/http_security.py` (new), `backend/ratelimit.py` (new)
 ### How it maps to compliance
 | Control | How this satisfies it |
 |---|---|
-| **§164.312(e)(1) Transmission Security** | HSTS + HTTPS redirect force encrypted transport in production. |
+| **§164.312(e)(1) Transmission Security** | HSTS (production) + the platform edge force encrypted transport; an opt-in app-level HTTPS redirect is available for operators who run with `--proxy-headers`. |
 | **§164.308(a)(1)(ii)(B) Risk Management** | Headers + CORS + rate limits are documented, testable mitigations of known web risks. |
 | **§164.312(a)(2)(i)/(d) Authentication** | Brute-force throttling protects credential/code/OTP entry points. |
 | **NPRM 2025 posture** | Secret guard + transport encryption align with the proposed mandatory-encryption direction. |
