@@ -41,6 +41,34 @@ def is_email_transport_configured() -> bool:
     return bool(h and u and p)
 
 
+def active_email_vendor() -> Optional[str]:
+    """Which transport an outgoing email would actually use right now."""
+    if _is_dev_mode():
+        return "dev"
+    if _normalize_sendgrid_api_key(os.getenv("SENDGRID_API_KEY")):
+        return "sendgrid"
+    h = (os.getenv("SMTP_HOST") or "").strip()
+    u = (os.getenv("SMTP_USER") or "").strip()
+    p = (os.getenv("SMTP_PASS") or "").strip()
+    if h and u and p:
+        return "smtp"
+    return None
+
+
+def email_phi_allowed() -> bool:
+    """True if PHI may be placed in an outgoing email body given the active
+    transport (PRD-4). SendGrid is not HIPAA-eligible unless a BAA is flagged; a
+    self-hosted SMTP relay is assumed covered; dev mode never leaves the host."""
+    vendor = active_email_vendor()
+    if vendor in ("dev", "smtp"):
+        return True
+    if vendor == "sendgrid":
+        from compliance.subprocessors import phi_allowed  # local: avoid import cost
+
+        return phi_allowed("sendgrid")
+    return False
+
+
 def _strip_html(html: str) -> str:
     """Best-effort HTML→text for the dev-mode console preview."""
     text = re.sub(r"<\s*br\s*/?>", "\n", html, flags=re.I)

@@ -13,6 +13,8 @@ from typing import Any, Dict, Optional
 
 import httpx
 
+from compliance.subprocessors import deidentify_for_vendor, phi_allowed
+
 
 class TavusClient:
     BASE_URL = "https://tavusapi.com/v2"
@@ -43,7 +45,17 @@ class TavusClient:
 
         from prompts.avatar import build_avatar_system_prompt
 
-        system_prompt = build_avatar_system_prompt(knowledge_base.get("ehr_summary", {}))
+        ehr_summary = knowledge_base.get("ehr_summary", {}) or {}
+        system_prompt = build_avatar_system_prompt(ehr_summary)
+        context = knowledge_base.get("voice_script", "")[:4000]
+
+        # PRD-4: Tavus receives the patient's clinical context to seed the avatar.
+        # When Tavus has no BAA on file (TAVUS_BAA_SIGNED), de-identify everything
+        # that leaves our infrastructure (names, dates, MRN/MBI, contact info).
+        if not phi_allowed("tavus"):
+            name = ehr_summary.get("patient_name") or ehr_summary.get("name")
+            system_prompt = deidentify_for_vendor(system_prompt, patient_name=name)
+            context = deidentify_for_vendor(context, patient_name=name)
 
         async with httpx.AsyncClient(timeout=45.0) as client:
             # ── Step A: Create persona ──────────────────────
@@ -55,9 +67,7 @@ class TavusClient:
                     "system_prompt": system_prompt,
                     "replica_id":   self.replica_id,
                     # Tavus context window — attach voice script + battlecard text
-                    "context": (
-                        knowledge_base.get("voice_script", "")[:4000]
-                    ),
+                    "context": context,
                 },
             )
             persona_resp.raise_for_status()

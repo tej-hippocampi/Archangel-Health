@@ -8,9 +8,11 @@ Docs: https://elevenlabs.io/docs/api-reference/text-to-speech
 import os
 import re
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import httpx
+
+from compliance.subprocessors import deidentify_for_vendor, phi_allowed
 
 
 class ElevenLabsClient:
@@ -27,17 +29,24 @@ class ElevenLabsClient:
         script: str,
         patient_id: str,
         voice_id: Optional[str] = None,
+        deid_terms: Optional[List[str]] = None,
     ) -> Optional[str]:
         """
         Converts voice script to .mp3 audio.
 
         Returns CDN URL of audio file, or None if ElevenLabs is not configured.
+
+        PRD-4: when ElevenLabs has no BAA on file (``ELEVENLABS_BAA_SIGNED``), the
+        script is de-identified before it leaves our infrastructure. Pass
+        ``deid_terms=[patient_name]`` so the patient's name is scrubbed too.
         """
         if not self.api_key:
             print("[ElevenLabs] ELEVENLABS_API_KEY not set — skipping synthesis.")
             return None
 
         clean = self._clean_for_tts(script)
+        if not phi_allowed("elevenlabs"):
+            clean = deidentify_for_vendor(clean, extra_terms=deid_terms)
         vid   = voice_id or self.voice_id
 
         try:

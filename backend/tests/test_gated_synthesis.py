@@ -37,7 +37,7 @@ def test_force_override_logs_event_with_actor(monkeypatch):
         return gate
 
     class _Eleven:
-        async def synthesize(self, script, audio_id):
+        async def synthesize(self, script, audio_id, deid_terms=None):
             return f"/audio/{audio_id}.mp3"
 
     monkeypatch.setattr(gated_synthesis, "audit_and_gate_script", _fake_gate)
@@ -82,7 +82,7 @@ def test_blocked_without_actor_still_ships_audio_for_review(monkeypatch):
         return gate
 
     class _Eleven:
-        async def synthesize(self, script, audio_id):
+        async def synthesize(self, script, audio_id, deid_terms=None):
             return f"/audio/{audio_id}.mp3"
 
     monkeypatch.setattr(gated_synthesis, "audit_and_gate_script", _fake_gate)

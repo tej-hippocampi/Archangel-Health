@@ -107,6 +107,7 @@ from http_security import (
 )
 from ratelimit import rate_limiter
 from email_utils import (
+    email_phi_allowed,
     is_email_transport_configured,
     send_html_email as _send_html_email_impl,
     send_html_email_with_reason as _send_html_email_with_reason_impl,
@@ -3550,6 +3551,9 @@ async def send_to_patient(
     d = _patient_store[patient_id]
     name = d.get("name", "Patient")
     first_name = name.split()[0]
+    # PRD-4: don't place the patient's name in an email body sent via a transport
+    # without a BAA (e.g. SendGrid). Codes/links are not PHI; the name is.
+    email_first_name = first_name if email_phi_allowed() else "there"
     phone = d.get("phone", "")
     email = d.get("email", "")
     is_preop = (d.get("pipeline_type") or "").lower() == "pre_op"
@@ -3591,7 +3595,7 @@ async def send_to_patient(
     if email:
         try:
             html_body = _render_recovery_email_html(
-                first_name=first_name,
+                first_name=email_first_name,
                 clinic_code=clinic_code,
                 resource_code=resource_code,
                 recovery_plan_entry_url=recovery_plan_entry_url,
@@ -4446,7 +4450,9 @@ async def digital_care_companion_chat(
 
         reply_text = first_text(response)
         print(f"[digital_care_companion_chat] Got response ({len(reply_text)} chars), synthesizing audio...")
-        audio_url = await ElevenLabsClient().synthesize(reply_text, f"{req.patient_id}_chat")  # gated-synth-exempt: live chat reply, not generated patient-education script
+        _pn = (patient_data.get("name") or "")  # PRD-4: scrub name if ElevenLabs has no BAA
+        _deid = ([_pn] + _pn.split()) if _pn else None
+        audio_url = await ElevenLabsClient().synthesize(reply_text, f"{req.patient_id}_chat", deid_terms=_deid)  # gated-synth-exempt: live chat reply, not generated patient-education script
 
         return ChatResponse(response=reply_text, patient_id=req.patient_id, audio_url=audio_url, escalation=None)
 
@@ -5670,6 +5676,19 @@ async def _postop_nightly_retier_loop() -> None:
 async def startup_team_scheduler():
     # Fail closed in production if secrets are still default/weak (PRD-2 §8).
     assert_production_secrets()
+    # PRD-4: warn loudly if PHI email would go through a non-BAA transport.
+    try:
+        from email_utils import active_email_vendor, email_phi_allowed
+
+        if active_email_vendor() == "sendgrid" and not email_phi_allowed():
+            _auth_logger.warning(
+                "[compliance] Email transport is SendGrid, which is NOT HIPAA-eligible "
+                "(no BAA). Patient names are stripped from email bodies; move PHI email "
+                "to a BAA-backed provider, or set SENDGRID_BAA_SIGNED=1 only if you truly "
+                "have one. See docs/security/SUBPROCESSORS.md."
+            )
+    except Exception:
+        pass
     if not _disable_public_demo_account():
         _ensure_demo_doctor()
     await _seed_demo_mode_data()

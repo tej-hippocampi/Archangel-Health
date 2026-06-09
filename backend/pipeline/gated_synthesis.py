@@ -50,7 +50,11 @@ async def synthesize_script(
     # final gate before any material reaches the patient.
     audio_url = None
     try:
-        audio_url = await ElevenLabsClient().synthesize(gate.script, audio_id)
+        # PRD-4: pass the patient's name parts so they're scrubbed if ElevenLabs
+        # has no BAA (the client de-identifies dates/contacts/ids automatically).
+        _pname = (structured_data or {}).get("patient_name") or (structured_data or {}).get("name") or ""
+        _deid_terms = ([_pname] + str(_pname).split()) if _pname else None
+        audio_url = await ElevenLabsClient().synthesize(gate.script, audio_id, deid_terms=_deid_terms)
     except Exception:
         audio_url = None
 

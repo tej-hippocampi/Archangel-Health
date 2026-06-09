@@ -145,6 +145,23 @@ async def admin_logout(authorization: Optional[str] = Header(None)):
     return {"ok": True}
 
 
+@router.get("/compliance/subprocessors")
+async def admin_subprocessors(authorization: Optional[str] = Header(None)):
+    """Subprocessor BAA register + live PHI-eligibility, for the security-review
+    packet (PRD-4)."""
+    _verify_token(authorization)
+    from compliance.subprocessors import registry_snapshot
+    from email_utils import active_email_vendor, email_phi_allowed
+
+    return {
+        "subprocessors": registry_snapshot(),
+        "email_transport": {
+            "active_vendor": active_email_vendor(),
+            "phi_allowed": email_phi_allowed(),
+        },
+    }
+
+
 @router.get("/demo-credentials")
 async def admin_demo_credentials(authorization: Optional[str] = Header(None)):
     """Read-only demo account reference for ops (passwords included)."""

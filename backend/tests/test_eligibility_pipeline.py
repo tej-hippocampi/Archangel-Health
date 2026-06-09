@@ -520,14 +520,14 @@ class _StubElevenLabs:
     """Stub that returns a deterministic audio URL — emulates production behaviour
     when ``ELEVENLABS_API_KEY`` is configured."""
 
-    async def synthesize(self, script, patient_id, voice_id=None):
+    async def synthesize(self, script, patient_id, voice_id=None, deid_terms=None):
         return f"/audio/{patient_id}.mp3"
 
 
 class _StubElevenLabsUnconfigured:
     """Stub that returns None — emulates dev behaviour when the key is missing."""
 
-    async def synthesize(self, script, patient_id, voice_id=None):
+    async def synthesize(self, script, patient_id, voice_id=None, deid_terms=None):
         return None
 
 
