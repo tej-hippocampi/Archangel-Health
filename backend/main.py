@@ -805,10 +805,14 @@ def _encrypt_patient_blob(blob: Dict[str, Any]) -> Dict[str, Any]:
     out = dict(blob)
     for f in _SNAPSHOT_PHI_STR_FIELDS:
         v = out.get(f)
-        if isinstance(v, str) and v:
+        # Skip already-encrypted values so re-encrypting stays idempotent
+        # (a second pass would otherwise double-encrypt and break decryption).
+        if isinstance(v, str) and v and not field_crypto.is_encrypted(v):
             out[f] = field_crypto.encrypt_field(v)
     for f in _SNAPSHOT_PHI_JSON_FIELDS:
         v = out.get(f)
+        # Already-encrypted JSON fields are tokens (str), so this dict/list check
+        # naturally skips them.
         if isinstance(v, (dict, list)) and v:
             out[f] = field_crypto.encrypt_value(v)
     return out

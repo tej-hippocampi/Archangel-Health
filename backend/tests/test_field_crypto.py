@@ -111,6 +111,19 @@ def test_snapshot_blob_encrypted_at_rest(key, tmp_path, monkeypatch):
     assert blob["structured_data"]["mrn"] == "AB12345"
 
 
+def test_encrypt_blob_is_idempotent(key):
+    # Re-encrypting an already-encrypted blob (e.g. running the migration twice)
+    # must not double-encrypt — a single decrypt still recovers the original.
+    import main
+    blob = {"name": "Jane Doe", "phone": "+13105550000",
+            "structured_data": {"mrn": "AB12345"}}
+    twice = main._encrypt_patient_blob(main._encrypt_patient_blob(blob))
+    dec = main._decrypt_patient_blob(twice)
+    assert dec["name"] == "Jane Doe"
+    assert dec["phone"] == "+13105550000"
+    assert dec["structured_data"]["mrn"] == "AB12345"
+
+
 def test_snapshot_plaintext_legacy_still_loads(key, tmp_path, monkeypatch):
     import main
     # A pre-encryption snapshot (plaintext fields) must still load.
