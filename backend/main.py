@@ -71,6 +71,7 @@ from routers.messaging import router as messaging_router
 from routers.telehealth import router as telehealth_router
 from eligibility import store as elig_store
 import demo_credentials
+import field_crypto
 from staff_context import (
     StaffContext,
     assert_staff_patient_scope,
@@ -794,6 +795,36 @@ def _demo_patient_store_snapshot_path() -> Optional[str]:
     return os.path.join(base_dir, "demo_patient_store.json")
 
 
+# PHI fields encrypted at rest in the persisted patient-store snapshot (PRD-6).
+# String fields are encrypted directly; dict fields are JSON-serialized first.
+_SNAPSHOT_PHI_STR_FIELDS = ("name", "phone", "email", "voice_script", "battlecard_html")
+_SNAPSHOT_PHI_JSON_FIELDS = ("structured_data", "resources")
+
+
+def _encrypt_patient_blob(blob: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(blob)
+    for f in _SNAPSHOT_PHI_STR_FIELDS:
+        v = out.get(f)
+        if isinstance(v, str) and v:
+            out[f] = field_crypto.encrypt_field(v)
+    for f in _SNAPSHOT_PHI_JSON_FIELDS:
+        v = out.get(f)
+        if isinstance(v, (dict, list)) and v:
+            out[f] = field_crypto.encrypt_value(v)
+    return out
+
+
+def _decrypt_patient_blob(blob: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(blob)
+    for f in _SNAPSHOT_PHI_STR_FIELDS:
+        if field_crypto.is_encrypted(out.get(f)):
+            out[f] = field_crypto.decrypt_field(out[f])
+    for f in _SNAPSHOT_PHI_JSON_FIELDS:
+        if field_crypto.is_encrypted(out.get(f)):
+            out[f] = field_crypto.decrypt_value(out[f])
+    return out
+
+
 def _load_demo_patient_store_snapshot() -> None:
     path = _demo_patient_store_snapshot_path()
     if not path or not os.path.isfile(path):
@@ -809,7 +840,10 @@ def _load_demo_patient_store_snapshot() -> None:
         return
     for pid, entry in data.items():
         if isinstance(entry, dict):
-            _patient_store[str(pid)] = entry
+            try:
+                _patient_store[str(pid)] = _decrypt_patient_blob(entry)
+            except ValueError as e:
+                print(f"[demo-persist] could not decrypt snapshot entry {pid}: {e}")
 
 
 def _persist_demo_patient_store() -> None:
@@ -819,7 +853,10 @@ def _persist_demo_patient_store() -> None:
     parent = os.path.dirname(path) or "."
     try:
         os.makedirs(parent, exist_ok=True)
-        payload = json.dumps(_patient_store, indent=2, default=str, ensure_ascii=False)
+        # Encrypt PHI fields at rest before writing the snapshot (PRD-6). No-op
+        # when no key is configured (dev) — fields are written as-is.
+        encrypted = {pid: _encrypt_patient_blob(blob) for pid, blob in _patient_store.items()}
+        payload = json.dumps(encrypted, indent=2, default=str, ensure_ascii=False)
         fd, tmp_path = tempfile.mkstemp(prefix=".demo_patient_store_", suffix=".tmp", dir=parent)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -5695,6 +5732,13 @@ async def startup_team_scheduler():
             )
     except Exception:
         pass
+    # PRD-6: warn if application-layer PHI field encryption isn't configured in prod.
+    if is_production() and not field_crypto.is_configured():
+        _auth_logger.warning(
+            "[compliance] DATA_ENCRYPTION_KEY not set — PHI field encryption at rest is "
+            "inactive (relying on volume encryption only). Set a base64 32-byte key to "
+            "enable AES-256-GCM field encryption. See docs/security/ENCRYPTION.md."
+        )
     if not _disable_public_demo_account():
         _ensure_demo_doctor()
     await _seed_demo_mode_data()

@@ -21,6 +21,7 @@ How to read the control column:
 | 2026-06 | **PRD-3 (phase 1) — Token revocation/logout + opt-in TOTP MFA** | No way to invalidate a token; no MFA anywhere | §164.312(a)(2)(i), §164.312(d); NPRM MFA | ✅ Shipped (lifetime-shortening + MFA UI deferred) |
 | 2026-06 | **PRD-4 — Subprocessor BAA gate + PHI de-identification** | PHI sent to vendors without a BAA (SendGrid/ElevenLabs/Tavus) | BAA rule (§164.502(e)), §164.514(b) Safe Harbor | ✅ Shipped (code gate; BAAs are a human action) |
 | 2026-06 | **PRD-5 — Tamper-evident ePHI access audit log** | No audit trail of who accessed which patient's data | §164.312(b) Audit Controls, §164.316(b)(2) 6-yr retention | ✅ Shipped |
+| 2026-06 | **PRD-6 — Encryption at rest for PHI** | PHI written to disk in plaintext | §164.312(a)(2)(iv); breach safe-harbor | ✅ Shipped (field encryption + volume-encryption inheritance) |
 
 Everything below is on branch `claude/cool-tesla-NJ9oh`. Remaining work is tracked
 in [`prd/`](./prd) (PRD-3 through PRD-8) and summarized at the end.
@@ -242,6 +243,34 @@ recording/examining ePHI access; §164.316(b)(2) requires 6-year retention.
 Migrate the eligibility in-memory audit into this store; redact remaining
 PHI-bearing `print()` calls into structured logging.
 
+## PRD-6 — Encryption at rest for PHI
+
+### The risk (before)
+PHI written to disk (the persisted patient-store snapshot) was plaintext, relying
+solely on the host volume's encryption.
+
+### What we changed
+- `backend/field_crypto.py`: AES-256-GCM authenticated field encryption with a
+  KMS-injected key, key **rotation** (versioned tokens + a decrypt key ring), and
+  plaintext passthrough so it can roll out incrementally. Tampering is detected by
+  the GCM tag.
+- The persisted patient-store snapshot now encrypts its PHI fields (name, phone,
+  email, voice script, battlecard, and the JSON structured_data / resources) at
+  rest; a startup warning fires in production if no key is configured.
+- `docs/security/ENCRYPTION.md` documents the layered model (TLS in transit +
+  volume encryption for the DB + field encryption for snapshots), key management,
+  and rotation; `scripts/encrypt_existing_phi.py` migrates an existing snapshot.
+
+### How it maps to compliance
+| Control | How this satisfies it |
+|---|---|
+| **§164.312(a)(2)(iv) Encryption at rest** | AES-256-GCM field encryption + inherited volume encryption (AES-256). |
+| **Breach safe-harbor** | NIST-standard encryption renders lost encrypted data non-reportable. |
+
+### Deferred follow-up
+Extend field encryption to selected free-text PHI columns in `team.db` (or adopt
+SQLCipher). Volume encryption covers the DB in the meantime — see ENCRYPTION.md.
+
 ## What this unlocks for a security review
 
 With PRD-1 + PRD-2 shipped, we can now answer "Yes, with evidence" to the
@@ -256,12 +285,12 @@ questionnaire items hospitals weight most heavily:
 - Is MFA supported for staff? → **Yes, available** (PRD-3; enforcement/UI in phase 2)
 - Is PHI access audited + tamper-evident, retained 6 years? → **Yes** (PRD-5)
 - Is PHI withheld from vendors without a BAA? → **Yes** (PRD-4)
+- Is PHI encrypted at rest? → **Yes** — volume encryption + AES-256-GCM field encryption (PRD-6)
 
 ## Still open (planned)
 
 These are scoped in [`prd/`](./prd) and not yet shipped:
 - **PRD-3 (phase 2)** — short-lived access tokens + refresh rotation, idle timeout, MFA enrollment UI + enforcement.
-- **PRD-6** — Encryption at rest for PHI.
 - **PRD-7** — Dependency vulnerability fixes + CI scanning.
 - **PRD-8** — Risk analysis, data-flow map, controls matrix, incident-response runbook.
 

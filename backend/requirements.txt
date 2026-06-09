@@ -39,3 +39,5 @@ passlib[bcrypt]==1.7.4
 email-validator>=2.0.0
 # MFA (TOTP) — PRD-3
 pyotp>=2.9.0
+# Field encryption at rest (AES-256-GCM) — PRD-6
+cryptography>=41.0.0
