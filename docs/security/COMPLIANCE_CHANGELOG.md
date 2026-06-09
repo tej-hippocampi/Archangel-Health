@@ -22,6 +22,7 @@ How to read the control column:
 | 2026-06 | **PRD-4 — Subprocessor BAA gate + PHI de-identification** | PHI sent to vendors without a BAA (SendGrid/ElevenLabs/Tavus) | BAA rule (§164.502(e)), §164.514(b) Safe Harbor | ✅ Shipped (code gate; BAAs are a human action) |
 | 2026-06 | **PRD-5 — Tamper-evident ePHI access audit log** | No audit trail of who accessed which patient's data | §164.312(b) Audit Controls, §164.316(b)(2) 6-yr retention | ✅ Shipped |
 | 2026-06 | **PRD-6 — Encryption at rest for PHI** | PHI written to disk in plaintext | §164.312(a)(2)(iv); breach safe-harbor | ✅ Shipped (field encryption + volume-encryption inheritance) |
+| 2026-06 | **PRD-7 — Dependency vuln fix + CI scanning** | Vulnerable `python-jose`; no automated scanning | §164.308(a)(1)(ii)(B); NPRM vuln-scan cadence | ✅ Shipped |
 
 Everything below is on branch `claude/cool-tesla-NJ9oh`. Remaining work is tracked
 in [`prd/`](./prd) (PRD-3 through PRD-8) and summarized at the end.
@@ -271,6 +272,35 @@ solely on the host volume's encryption.
 Extend field encryption to selected free-text PHI columns in `team.db` (or adopt
 SQLCipher). Volume encryption covers the DB in the meantime — see ENCRYPTION.md.
 
+## PRD-7 — Dependency vulnerability fix + CI scanning
+
+### The risk (before)
+The JWT library `python-jose` carried CVE-2024-33663 (algorithm confusion) and
+CVE-2024-33664 (DoS), and there was no automated scanning of dependencies or the
+repo for vulnerabilities/secrets.
+
+### What we changed
+- **Replaced `python-jose` with `PyJWT`** (>= 2.13.0, which also clears newer PyJWT
+  advisories) across all signing/verification (`auth.py`, `tenant_jwt.py`,
+  `patient_session.py`, `token_revocation.py`, `routers/admin.py`). HS256 only,
+  `algorithms=["HS256"]` pinned at every decode → no algorithm confusion.
+- **CI scanning** (`.github/workflows/security.yml`): `pip-audit` (dependency CVEs)
+  and `gitleaks` (secrets in repo + history), plus **Dependabot** weekly dependency
+  PRs. Both scanners ship non-blocking (report-only) until the initial backlog is
+  triaged, then flip to blocking. `docs/security/VULN_MANAGEMENT.md` documents
+  cadence + remediation SLAs. (CodeQL omitted — it needs a public repo or paid GHAS.)
+
+### How it maps to compliance
+| Control | How this satisfies it |
+|---|---|
+| **§164.308(a)(1)(ii)(B) Risk Management** | Continuous dependency + secret scanning with a documented remediation process. |
+| **NPRM 2025 (vuln scans ≥ 6-monthly)** | We scan on every change + weekly, far exceeding the cadence. |
+
+### Notes
+- `pip-audit` ships **non-blocking** to surface (not halt on) the existing dep
+  backlog; Dependabot clears it, then flip it to blocking.
+- Schedule an **annual third-party penetration test** to complete the NPRM picture.
+
 ## What this unlocks for a security review
 
 With PRD-1 + PRD-2 shipped, we can now answer "Yes, with evidence" to the
@@ -286,12 +316,12 @@ questionnaire items hospitals weight most heavily:
 - Is PHI access audited + tamper-evident, retained 6 years? → **Yes** (PRD-5)
 - Is PHI withheld from vendors without a BAA? → **Yes** (PRD-4)
 - Is PHI encrypted at rest? → **Yes** — volume encryption + AES-256-GCM field encryption (PRD-6)
+- Are dependencies/secrets scanned for vulnerabilities? → **Yes** — pip-audit + gitleaks + Dependabot (PRD-7)
 
 ## Still open (planned)
 
 These are scoped in [`prd/`](./prd) and not yet shipped:
 - **PRD-3 (phase 2)** — short-lived access tokens + refresh rotation, idle timeout, MFA enrollment UI + enforcement.
-- **PRD-7** — Dependency vulnerability fixes + CI scanning.
 - **PRD-8** — Risk analysis, data-flow map, controls matrix, incident-response runbook.
 
 > This changelog is updated as each PRD ships. Regulatory citations should be

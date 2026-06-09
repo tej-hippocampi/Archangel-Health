@@ -1,0 +1,58 @@
+name: Security
+
+# Dependency vulnerability + secret scanning (PRD-7). Runs on every PR/push to
+# main and weekly, so new CVEs in our dependencies surface on a defined cadence
+# (the 2025 HIPAA Security Rule NPRM proposes vuln scans at least every 6 months;
+# this far exceeds that).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    name: Dependency vulnerability scan (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pip-audit
+      - name: Audit installed dependencies
+        # Reports known vulnerabilities in our dependencies. Introduced as
+        # NON-BLOCKING so a pre-existing backlog doesn't halt the team — Dependabot
+        # PRs chip away at it. Once the backlog is triaged, REMOVE continue-on-error
+        # to make new CVEs fail the build. Use --ignore-vuln <id> to accept a
+        # specific, justified finding.
+        continue-on-error: true
+        run: pip-audit --progress-spinner off
+
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so committed-then-deleted secrets are caught
+      - name: Run gitleaks
+        # Non-blocking initially: the first scan over existing history can match
+        # placeholder values (e.g. .env.example) as false positives. Review the
+        # findings, allowlist real false positives in a .gitleaks.toml, then REMOVE
+        # continue-on-error so a genuinely committed secret fails the build.
+        continue-on-error: true
+        run: |
+          VERSION=8.18.4
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks detect --source . --no-banner --redact --verbose
