@@ -156,6 +156,12 @@ app = FastAPI(
     version="0.2.0",
 )
 
+# Audit middleware added FIRST so it is the innermost layer: it runs with the
+# patient-session ContextVar set and records ePHI access after the route (PRD-5).
+from audit.middleware import AuditMiddleware  # noqa: E402
+
+app.add_middleware(AuditMiddleware)
+
 # CORS restricted to an explicit origin allowlist (PRD-2). Wildcard origins with
 # credentials are invalid + unsafe; the landing app's origin must be allowlisted
 # in production via ALLOWED_ORIGINS.

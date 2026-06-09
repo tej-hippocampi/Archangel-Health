@@ -145,6 +145,32 @@ async def admin_logout(authorization: Optional[str] = Header(None)):
     return {"ok": True}
 
 
+@router.get("/audit/events")
+async def admin_audit_events(
+    authorization: Optional[str] = Header(None),
+    limit: int = 200,
+    patient_id: Optional[str] = None,
+    actor_id: Optional[str] = None,
+    since: Optional[str] = None,
+):
+    """Read the ePHI access audit trail (PRD-5; §164.312(b))."""
+    _verify_token(authorization)
+    from audit import audit_log
+
+    return {"events": audit_log.list_events(
+        limit=limit, patient_id=patient_id, actor_id=actor_id, since=since
+    )}
+
+
+@router.get("/audit/verify")
+async def admin_audit_verify(authorization: Optional[str] = Header(None)):
+    """Recompute the audit hash chain and report any tampering."""
+    _verify_token(authorization)
+    from audit import audit_log
+
+    return audit_log.verify()
+
+
 @router.get("/compliance/subprocessors")
 async def admin_subprocessors(authorization: Optional[str] = Header(None)):
     """Subprocessor BAA register + live PHI-eligibility, for the security-review

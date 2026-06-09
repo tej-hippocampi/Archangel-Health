@@ -19,6 +19,8 @@ How to read the control column:
 | 2026-06 | **PRD-1 — Patient PHI access control** | Anyone could read a patient's PHI / chat by guessing a URL | §164.312(a)(1), §164.312(d), §164.502(b) | ✅ Shipped |
 | 2026-06 | **PRD-2 — HTTP security hardening** | Open CORS, no security headers, no transport hardening, no brute-force throttling | §164.312(e)(1), §164.308(a)(1)(ii)(B); NPRM MFA/scan posture | ✅ Shipped |
 | 2026-06 | **PRD-3 (phase 1) — Token revocation/logout + opt-in TOTP MFA** | No way to invalidate a token; no MFA anywhere | §164.312(a)(2)(i), §164.312(d); NPRM MFA | ✅ Shipped (lifetime-shortening + MFA UI deferred) |
+| 2026-06 | **PRD-4 — Subprocessor BAA gate + PHI de-identification** | PHI sent to vendors without a BAA (SendGrid/ElevenLabs/Tavus) | BAA rule (§164.502(e)), §164.514(b) Safe Harbor | ✅ Shipped (code gate; BAAs are a human action) |
+| 2026-06 | **PRD-5 — Tamper-evident ePHI access audit log** | No audit trail of who accessed which patient's data | §164.312(b) Audit Controls, §164.316(b)(2) 6-yr retention | ✅ Shipped |
 
 Everything below is on branch `claude/cool-tesla-NJ9oh`. Remaining work is tracked
 in [`prd/`](./prd) (PRD-3 through PRD-8) and summarized at the end.
@@ -178,6 +180,68 @@ full MFA enroll → challenge → second-step → disable round trip.
 These are intentionally held back so we don't force logouts or block logins before
 the frontend (landing app + 257KB doctor portal) is wired for refresh + MFA entry.
 
+## PRD-4 — Subprocessor BAA gate + PHI de-identification
+
+### The risk (before)
+PHI flowed to third-party vendors with no check on whether a Business Associate
+Agreement was in place. The recovery email put the patient's name in the body via
+**SendGrid** (which is not HIPAA-eligible and Twilio will not sign a BAA for), and
+full clinical voice scripts / EHR summaries were sent to **ElevenLabs** and
+**Tavus**, whose BAA status is unconfirmed.
+
+### What we changed
+- `backend/compliance/subprocessors.py`: a single BAA registry with per-vendor env
+  overrides (`*_BAA_SIGNED`), `phi_allowed(vendor)` / `assert_phi_allowed(vendor)`,
+  and `deidentify_for_vendor()` (Safe-Harbor scrub of names, dates, email, phone,
+  SSN, MBI/MRN, long ids, ZIPs).
+- **ElevenLabs** and **Tavus** clients now de-identify their payloads automatically
+  whenever the vendor lacks a BAA. **Email** drops the patient name from the body
+  when the active transport isn't PHI-eligible (e.g. SendGrid); a startup warning
+  fires in that case.
+- `GET /admin/compliance/subprocessors` exposes the live register for the review
+  packet; `docs/security/SUBPROCESSORS.md` documents it and the human BAA actions.
+
+### How it maps to compliance
+| Control | How this satisfies it |
+|---|---|
+| **§164.502(e) BAA requirement** | No PHI leaves to a vendor without a BAA flag; the register is auditable. |
+| **§164.514(b) Safe Harbor de-identification** | Non-BAA vendors receive de-identified content only. |
+| **HECVAT AI section / SIG Nth-party** | We can show exactly what each subprocessor receives and its BAA status. |
+
+### Human actions (cannot be code) — see SUBPROCESSORS.md
+Execute BAAs (Anthropic first-party API, Twilio SMS, and confirm ElevenLabs/Tavus);
+move PHI email off SendGrid to a BAA-backed provider. Set `*_BAA_SIGNED=1` only
+after signing.
+
+## PRD-5 — Tamper-evident ePHI access audit log
+
+### The risk (before)
+The only structured audit log was in-memory, mutable, capped, and limited to the
+eligibility module — wiped on restart. Access to patient dashboards, discharge
+records, chat, and admin views was not recorded at all. §164.312(b) requires
+recording/examining ePHI access; §164.316(b)(2) requires 6-year retention.
+
+### What we changed
+- `backend/audit/audit_log.py`: an append-only, **hash-chained** audit store
+  (`row_hash = sha256(prev_hash + canonical(row))`) persisted in the team DB, with
+  `verify()` to detect any tampering.
+- `backend/audit/middleware.py`: a pure-ASGI middleware (innermost) that records one
+  minimum-necessary event for every request to an ePHI surface — actor, action,
+  resource path, patient id, outcome, IP, UA. **No request/response bodies are read**.
+- `GET /admin/audit/events` and `GET /admin/audit/verify` for review + integrity
+  checking. Full design in `AUDIT_LOGGING.md`.
+
+### How it maps to compliance
+| Control | How this satisfies it |
+|---|---|
+| **§164.312(b) Audit Controls** | Every ePHI access (success + denied) is recorded. |
+| **§164.316(b)(2) 6-year retention** | Append-only, never auto-deleted; WORM-volume guidance for prod. |
+| **Integrity / tamper-evidence** | Hash chain + `verify()` detect any alteration or deletion. |
+
+### Deferred follow-ups
+Migrate the eligibility in-memory audit into this store; redact remaining
+PHI-bearing `print()` calls into structured logging.
+
 ## What this unlocks for a security review
 
 With PRD-1 + PRD-2 shipped, we can now answer "Yes, with evidence" to the
@@ -190,13 +254,13 @@ questionnaire items hospitals weight most heavily:
 - Can the app start with default secrets in production? → **No, it refuses** (PRD-2)
 - Can sessions be revoked / is logout real? → **Yes** (PRD-3)
 - Is MFA supported for staff? → **Yes, available** (PRD-3; enforcement/UI in phase 2)
+- Is PHI access audited + tamper-evident, retained 6 years? → **Yes** (PRD-5)
+- Is PHI withheld from vendors without a BAA? → **Yes** (PRD-4)
 
 ## Still open (planned)
 
 These are scoped in [`prd/`](./prd) and not yet shipped:
 - **PRD-3 (phase 2)** — short-lived access tokens + refresh rotation, idle timeout, MFA enrollment UI + enforcement.
-- **PRD-4** — Subprocessor BAA gate + PHI de-identification (SendGrid/ElevenLabs/Tavus).
-- **PRD-5** — Tamper-evident, persistent audit logging (6-year retention).
 - **PRD-6** — Encryption at rest for PHI.
 - **PRD-7** — Dependency vulnerability fixes + CI scanning.
 - **PRD-8** — Risk analysis, data-flow map, controls matrix, incident-response runbook.
