@@ -23,6 +23,7 @@ How to read the control column:
 | 2026-06 | **PRD-5 — Tamper-evident ePHI access audit log** | No audit trail of who accessed which patient's data | §164.312(b) Audit Controls, §164.316(b)(2) 6-yr retention | ✅ Shipped |
 | 2026-06 | **PRD-6 — Encryption at rest for PHI** | PHI written to disk in plaintext | §164.312(a)(2)(iv); breach safe-harbor | ✅ Shipped (field encryption + volume-encryption inheritance) |
 | 2026-06 | **PRD-7 — Dependency vuln fix + CI scanning** | Vulnerable `python-jose`; no automated scanning | §164.308(a)(1)(ii)(B); NPRM vuln-scan cadence | ✅ Shipped |
+| 2026-06 | **PRD-8 — Security documentation package** | No risk analysis / data-flow map / reviewer packet | §164.308(a)(1); HECVAT/SIG | ✅ Shipped |
 
 Everything below is on branch `claude/cool-tesla-NJ9oh`. Remaining work is tracked
 in [`prd/`](./prd) (PRD-3 through PRD-8) and summarized at the end.
@@ -322,7 +323,7 @@ questionnaire items hospitals weight most heavily:
 
 These are scoped in [`prd/`](./prd) and not yet shipped:
 - **PRD-3 (phase 2)** — short-lived access tokens + refresh rotation, idle timeout, MFA enrollment UI + enforcement.
-- **PRD-8** — Risk analysis, data-flow map, controls matrix, incident-response runbook.
+_(All eight PRDs from the original plan are now shipped.)_
 
 > This changelog is updated as each PRD ships. Regulatory citations should be
 > confirmed against the primary eCFR/HHS text before use in a contract.
