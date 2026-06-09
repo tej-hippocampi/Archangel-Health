@@ -13,7 +13,7 @@ import sqlite3
 from datetime import datetime
 from typing import Optional
 
-from jose import JWTError, jwt
+import jwt
 
 AUTH_SECRET = os.getenv("AUTH_SECRET", "change-me-in-production-elysium")
 ALGORITHM = "HS256"
@@ -81,7 +81,7 @@ def revoke_token(token: str, *, secret: str = AUTH_SECRET) -> bool:
         payload = jwt.decode(
             token, secret, algorithms=[ALGORITHM], options={"verify_exp": False}
         )
-    except JWTError:
+    except jwt.PyJWTError:
         return False
     jti = payload.get("jti")
     if not jti:

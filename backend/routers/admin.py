@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from ratelimit import rate_limiter
 from demo_credentials import list_demo_credentials
 from tenant_constants import DEMO_HEALTH_SYSTEM_ID
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
@@ -70,7 +70,7 @@ def _verify_token(authorization: Optional[str]) -> None:
     token = authorization.removeprefix("Bearer ")
     try:
         payload = jwt.decode(token, _secret(), algorithms=[ALGORITHM])
-    except JWTError:
+    except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired admin token")
     if payload.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Not an admin token")

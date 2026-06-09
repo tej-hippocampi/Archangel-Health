@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 from http.cookies import SimpleCookie
 from typing import Any, Dict, Optional
 
-from jose import JWTError, jwt
+import jwt
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 AUTH_SECRET = os.getenv("AUTH_SECRET", "change-me-in-production-elysium")
@@ -118,7 +118,7 @@ def _encode(payload: Dict[str, Any]) -> str:
 def _decode(token: str) -> Optional[Dict[str, Any]]:
     try:
         return jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
-    except JWTError:
+    except jwt.PyJWTError:
         return None
 
 

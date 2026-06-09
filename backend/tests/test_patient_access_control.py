@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["TEAM_DB_PATH"] = os.path.join(tempfile.gettempdir(), f"pac_team_{uuid.uuid4().hex}.db")
 os.environ["ENFORCE_PATIENT_AUTH"] = "1"
 
-from jose import jwt  # noqa: E402
+import jwt  # noqa: E402
 
 import patient_session as ps_mod  # noqa: E402
 from main import app, DEMO_HEALTH_SYSTEM_ID  # noqa: E402

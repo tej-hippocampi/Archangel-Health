@@ -15,7 +15,7 @@ from typing import Optional, List, Tuple
 import pyotp
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 
@@ -94,7 +94,7 @@ def _create_token(sub: str) -> str:
 def _decode_token(token: str) -> Optional[str]:
     try:
         payload = jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
-    except JWTError:
+    except jwt.PyJWTError:
         return None
     if is_revoked(payload.get("jti")):
         return None
@@ -111,7 +111,7 @@ def create_mfa_pending_token(email: str) -> str:
 def decode_mfa_pending_token(token: str) -> Optional[str]:
     try:
         payload = jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
-    except JWTError:
+    except jwt.PyJWTError:
         return None
     if payload.get("typ") != "mfa_pending":
         return None

@@ -76,7 +76,7 @@ def test_admin_logout_revokes_token(client):
 
 
 def test_tokens_carry_jti(client):
-    from jose import jwt
+    import jwt
     _, data = _register_and_login(client)
     payload = jwt.decode(data["access_token"], auth_module.AUTH_SECRET,
                          algorithms=[auth_module.ALGORITHM])

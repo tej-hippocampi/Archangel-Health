@@ -34,7 +34,10 @@ python-multipart>=0.0.5
 python-dotenv==1.0.1
 
 # Auth (landing / Elysium Health)
-python-jose[cryptography]==3.3.0
+# PyJWT replaces python-jose, which carried CVE-2024-33663 (algorithm confusion)
+# and CVE-2024-33664 (DoS). HS256 only; algorithms are pinned at every decode.
+# >=2.13.0 also clears the newer PyJWT advisories (PYSEC-2026-175/177/179).
+PyJWT>=2.13.0
 passlib[bcrypt]==1.7.4
 email-validator>=2.0.0
 # MFA (TOTP) — PRD-3

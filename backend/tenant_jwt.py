@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
-from jose import JWTError, jwt
+import jwt
 
 from token_revocation import is_revoked
 
@@ -49,7 +49,7 @@ def create_tenant_staff_token(
 def decode_tenant_staff_token(token: str) -> Optional[Dict[str, Any]]:
     try:
         payload = jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
-    except JWTError:
+    except jwt.PyJWTError:
         return None
     if payload.get("typ") != "tenant_staff":
         return None
@@ -74,5 +74,5 @@ def decode_telehealth_join_token(token: str) -> Optional[Dict[str, Any]]:
         if payload.get("typ") != "telehealth_join":
             return None
         return payload
-    except JWTError:
+    except jwt.PyJWTError:
         return None
