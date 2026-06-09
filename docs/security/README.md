@@ -8,6 +8,23 @@ a ready-to-implement PRD under [`prd/`](./prd).
 > Status: planning / remediation in progress. Nothing here asserts that the
 > product is currently compliant — it is the roadmap to get there.
 
+## 📄 For health-system reviewers — start here
+
+**[SECURITY_OVERVIEW.md](./SECURITY_OVERVIEW.md)** is the vendor security packet: a
+fast-scannable controls matrix + plain answers for technical due diligence.
+
+Supporting documents:
+- [SECURITY_OVERVIEW.md](./SECURITY_OVERVIEW.md) — reviewer packet + HIPAA controls matrix
+- [RISK_ANALYSIS.md](./RISK_ANALYSIS.md) — §164.308(a)(1) risk analysis
+- [DATA_FLOW.md](./DATA_FLOW.md) — ePHI data-flow map
+- [ENCRYPTION.md](./ENCRYPTION.md) · [AUDIT_LOGGING.md](./AUDIT_LOGGING.md) · [SUBPROCESSORS.md](./SUBPROCESSORS.md) · [VULN_MANAGEMENT.md](./VULN_MANAGEMENT.md)
+- [INCIDENT_RESPONSE.md](./INCIDENT_RESPONSE.md) — breach-notification runbook
+- [COMPLIANCE_ROADMAP.md](./COMPLIANCE_ROADMAP.md) — SOC 2 / HITRUST plan
+- [COMPLIANCE_CHANGELOG.md](./COMPLIANCE_CHANGELOG.md) — what we shipped, by control
+- [DEPLOYMENT.md](./DEPLOYMENT.md) — production security configuration
+
+---
+
 ## How hospitals assess vendors (what we're optimizing for)
 
 A hospital security review is a checklist, typically some mix of:
