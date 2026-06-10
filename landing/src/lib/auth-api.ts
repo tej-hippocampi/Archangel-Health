@@ -105,6 +105,25 @@ export type PortalHandoffResponse = {
 };
 
 /**
+ * Error for a fetch that threw (DNS failure, connection refused, or — most
+ * common in production — a CORS preflight rejection when this site's origin is
+ * missing from the backend's ALLOWED_ORIGINS). The old copy blamed a stopped
+ * backend on port 8000, which is only the likely cause in local dev.
+ */
+function networkError(): Error {
+  if (viteEnv.DEV) {
+    return new Error("Cannot reach server. Make sure the backend is running (port 8000).");
+  }
+  const target = API_BASE || (typeof window !== "undefined" ? window.location.origin : "the backend");
+  const origin = typeof window !== "undefined" ? window.location.origin : "this site's origin";
+  return new Error(
+    `Cannot reach the backend API at ${target}. The server may be restarting, or it is not ` +
+      `accepting requests from ${origin} (CORS) — if this persists, verify the backend's ` +
+      `ALLOWED_ORIGINS includes ${origin}.`
+  );
+}
+
+/**
  * Build an actionable error from a failed response. A non-JSON body means the
  * request hit the static-site origin / a proxy instead of the backend API —
  * surface that instead of a generic "Sign in failed".
@@ -145,7 +164,7 @@ export async function tenantLogin(
       body: JSON.stringify({ email, password }),
     });
   } catch {
-    throw new Error("Cannot reach server. Make sure the backend is running (port 8000).");
+    throw networkError();
   }
   if (!res.ok) {
     throw new Error(await errorDetail(res, "Sign in failed"));
@@ -186,7 +205,7 @@ export async function login(email: string, password: string): Promise<AuthRespon
       body: JSON.stringify({ email, password }),
     });
   } catch (e) {
-    throw new Error('Cannot reach server. Make sure the backend is running (port 8000).');
+    throw networkError();
   }
   if (!res.ok) {
     throw new Error(await errorDetail(res, 'Sign in failed'));
@@ -207,7 +226,7 @@ export async function register(
       body: JSON.stringify({ email, password, name: name || undefined }),
     });
   } catch (e) {
-    throw new Error('Cannot reach server. Make sure the backend is running (port 8000).');
+    throw networkError();
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

@@ -70,6 +70,50 @@ def test_cors_blocks_unlisted_origin(client):
     assert r.headers.get("access-control-allow-origin") != "https://evil.example.com"
 
 
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://archangelhealth.ai",
+        "https://www.archangelhealth.ai",
+        "https://app.archangelhealth.ai",
+        "https://admin.archangelhealth.ai",
+    ],
+)
+def test_cors_allows_product_domains_without_env(client, origin):
+    """Regression: landing sign-in died with a network error because the
+    deployed landing origin was missing from ALLOWED_ORIGINS. The product's own
+    https domains must pass preflight even with no CORS env vars set."""
+    r = client.options(
+        "/api/tenant/archangel-triage-demo/auth/login",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert r.status_code == 200
+    assert r.headers.get("access-control-allow-origin") == origin
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://archangelhealth.ai",  # https only
+        "https://archangelhealth.ai.evil.com",  # suffix spoof
+        "https://evilarchangelhealth.ai",  # prefix spoof
+    ],
+)
+def test_cors_product_domain_regex_rejects_lookalikes(client, origin):
+    r = client.options(
+        "/api/tenant/archangel-triage-demo/auth/login",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert r.headers.get("access-control-allow-origin") != origin
+
+
 # ─── Rate limiting ───────────────────────────────────────────────────────────
 
 def test_by_codes_rate_limited(client, monkeypatch):

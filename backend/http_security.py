@@ -40,6 +40,21 @@ def allowed_hosts() -> List[str]:
     return [h.strip() for h in raw.split(",") if h.strip()]
 
 
+# The landing, doctor portal, and admin surfaces all live on archangelhealth.ai
+# (apex or subdomain, https only). Baked-in regex fallback so cross-origin
+# sign-in from the deployed landing keeps working even when ALLOWED_ORIGINS /
+# LANDING_URL drift on the host platform — without it, a missed env var blocks
+# every landing→backend call at preflight and sign-in dies with a network error.
+# Mirrors the PROD_BACKEND_ORIGIN fallback in landing/src/lib/auth-api.ts.
+DEFAULT_ALLOWED_ORIGIN_REGEX = r"^https://([a-z0-9-]+\.)?archangelhealth\.ai$"
+
+
+def allowed_origin_regex() -> str:
+    """Origin regex allowed alongside the explicit list. ``ALLOWED_ORIGIN_REGEX``
+    overrides; defaults to the product's own https domains."""
+    return os.getenv("ALLOWED_ORIGIN_REGEX", "").strip() or DEFAULT_ALLOWED_ORIGIN_REGEX
+
+
 SECURITY_HEADERS = {
     b"x-frame-options": b"DENY",
     b"x-content-type-options": b"nosniff",

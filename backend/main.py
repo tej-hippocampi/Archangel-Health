@@ -102,6 +102,7 @@ from patient_session import (
 from http_security import (
     SecurityHeadersMiddleware,
     allowed_hosts,
+    allowed_origin_regex,
     allowed_origins,
     assert_production_secrets,
     is_production,
@@ -165,10 +166,13 @@ app.add_middleware(AuditMiddleware)
 
 # CORS restricted to an explicit origin allowlist (PRD-2). Wildcard origins with
 # credentials are invalid + unsafe; the landing app's origin must be allowlisted
-# in production via ALLOWED_ORIGINS.
+# in production via ALLOWED_ORIGINS. The product's own https domains
+# (archangelhealth.ai + subdomains) are additionally allowed via regex so a
+# missing/stale ALLOWED_ORIGINS env var cannot break landing sign-in.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins(),
+    allow_origin_regex=allowed_origin_regex(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Patient-Session", "X-Admin-Token"],

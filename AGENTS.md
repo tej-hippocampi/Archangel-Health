@@ -31,6 +31,7 @@ Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`**
 - **No `python` binary**: Use `python3` (not `python`) to run commands.
 - **pip installs to user dir**: `pip install` installs to `~/.local/bin`. Ensure `$HOME/.local/bin` is on `PATH`, or use `python3 -m uvicorn` instead of `uvicorn` directly.
 - **In-memory data**: All patient data resets on server restart. The demo patient `maria_001` is re-seeded on every startup.
+- **CORS for the deployed landing**: the backend allowlists origins from `ALLOWED_ORIGINS` (or `BASE_URL`+`LANDING_URL`), plus a baked-in regex for `https://archangelhealth.ai` and its subdomains (`ALLOWED_ORIGIN_REGEX` to override — see `backend/http_security.py`). If sign-in from a new landing domain fails with a "Cannot reach the backend API" error, add that origin to `ALLOWED_ORIGINS` on the backend host (Railway).
 
 ### Claude Code healthcare plugins
 `.claude/settings.json` enables two Agent Skills from Anthropic's [`anthropics/healthcare`](https://github.com/anthropics/healthcare) marketplace for everyone working on this repo in Claude Code (you'll be prompted to trust/install them on first launch):
