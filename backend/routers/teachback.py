@@ -26,7 +26,6 @@ from routers.admin import _verify_token as _verify_admin_bearer
 from staff_context import get_staff_context_optional
 from triage.postop.apply import apply_postop_retier
 from triage.postop.locks import with_patient_lock
-from triage.postop.scoring.video_engagement import determine_video_flags
 from triage.preop_retier.apply import apply_preop_retier
 from triage.preop_retier.locks import with_episode_lock
 
@@ -76,17 +75,6 @@ def _verify_admin_access(authorization: Optional[str], x_admin_token: Optional[s
         raise HTTPException(status_code=401, detail="Admin token required")
 
 
-def _days_since_discharge(patient: dict) -> int:
-    raw = patient.get("discharge_at")
-    if not raw:
-        return 0
-    try:
-        ts = datetime.fromisoformat(str(raw).replace("Z", "+00:00")).replace(tzinfo=None)
-    except Exception:
-        return 0
-    return max((datetime.utcnow() - ts).days, 0)
-
-
 def _resource_for_track(patient: dict, track: str) -> dict:
     resources = patient.get("resources") or {}
     if track == "pre_op":
@@ -111,22 +99,6 @@ def _set_resource_battlecard(patient: dict, track: str, battlecard_html: str) ->
     cur["battlecard_html"] = battlecard_html
     resources[key] = cur
     patient["resources"] = resources
-
-
-def _is_track_unlocked(team_store, patient: dict, patient_id: str, track: str) -> bool:
-    if track == "pre_op":
-        events = team_store.get_events(patient_id) or []
-        return any(e.get("event_type") in {"preop_video_watched", "PREOP_VIDEO_PLAYED"} for e in events)
-
-    events = team_store.list_postop_video_events(patient_id)
-    flags = determine_video_flags(
-        events,
-        discharge_at_iso=patient.get("discharge_at"),
-        days_since_discharge=_days_since_discharge(patient),
-    )
-    if track == "post_op_diagnosis":
-        return bool(flags.get("diag_treat_video_viewed_by_d5"))
-    return bool(flags.get("red_flag_video_viewed_by_d5"))
 
 
 def _derive_final_status(items: list[dict]) -> str:
@@ -198,8 +170,6 @@ async def start_teachback(
         raise HTTPException(status_code=400, detail="Invalid track")
     team_store = request.app.state.team_store
     patient = _resolve_patient(request, patient_id)
-    if not _is_track_unlocked(team_store, patient, patient_id, track):
-        raise HTTPException(status_code=409, detail="Teach-back unlocks after track video completion")
 
     resource = _resource_for_track(patient, track)
     voice_script = str(resource.get("voice_script") or "")

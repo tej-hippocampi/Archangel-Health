@@ -40,17 +40,8 @@ def _seed_patient() -> str:
     return pid
 
 
-def test_preop_teachback_requires_video_unlock(client, monkeypatch):
+def test_preop_teachback_full_flow(client, monkeypatch):
     pid = _seed_patient()
-
-    r = client.post(f"/api/episodes/{pid}/teachback/pre_op/start", json={})
-    assert r.status_code == 409
-
-    app.state.team_store.log_event(
-        patient_id=pid,
-        event_type="preop_video_watched",
-        payload={"source": "test"},
-    )
 
     async def _fake_generate(**_kwargs):
         questions = [
@@ -148,14 +139,8 @@ def test_preop_teachback_requires_video_unlock(client, monkeypatch):
     assert "answer" not in str(payload).lower()
 
 
-def test_postop_diagnosis_teachback_unlocks_from_video_events(client, monkeypatch):
+def test_postop_diagnosis_teachback_starts_without_video_events(client, monkeypatch):
     pid = _seed_patient()
-    app.state.team_store.record_postop_video_event(
-        patient_id=pid,
-        video_kind="DIAGNOSIS_TREATMENT",
-        event_type="PLAYED",
-        session_id="s1",
-    )
 
     async def _fake_generate(**_kwargs):
         return (

@@ -1079,16 +1079,45 @@ function renderPreopTeachbackQuestion() {
   }
   qa.style.display = "grid";
   progress.textContent = `Question ${preopTeachback.index + 1} of ${preopTeachback.questions.length}`;
+  const progressFill = document.getElementById("preopTeachbackProgressFill");
+  if (progressFill) {
+    const pct = preopTeachback.questions.length
+      ? ((preopTeachback.index + 1) / preopTeachback.questions.length) * 100
+      : 0;
+    progressFill.style.width = `${pct}%`;
+  }
   question.textContent = q.question || "";
   answer.value = "";
   callout.style.display = "none";
   callout.textContent = "";
 }
 
+function showPreopTeachbackAdvisory() {
+  const intro = document.getElementById("preopTeachbackIntro");
+  const advisory = document.getElementById("preopTeachbackAdvisory");
+  const status = document.getElementById("preopTeachbackStatus");
+  if (intro) intro.style.display = "none";
+  if (advisory) advisory.style.display = "grid";
+  if (status) status.textContent = "";
+}
+
+function hidePreopTeachbackAdvisory() {
+  const intro = document.getElementById("preopTeachbackIntro");
+  const advisory = document.getElementById("preopTeachbackAdvisory");
+  const startBtn = document.getElementById("preopTeachbackStartBtn");
+  if (advisory) advisory.style.display = "none";
+  if (intro) intro.style.display = "";
+  if (startBtn) startBtn.disabled = false;
+}
+
 async function startPreopTeachback() {
   const status = document.getElementById("preopTeachbackStatus");
   const startBtn = document.getElementById("preopTeachbackStartBtn");
+  const intro = document.getElementById("preopTeachbackIntro");
+  const advisory = document.getElementById("preopTeachbackAdvisory");
   if (!status || !startBtn) return;
+  if (advisory) advisory.style.display = "none";
+  if (intro) intro.style.display = "none";
   startBtn.disabled = true;
   status.textContent = "Starting teach-back...";
   try {
@@ -1107,6 +1136,7 @@ async function startPreopTeachback() {
     renderPreopTeachbackQuestion();
   } catch (err) {
     status.textContent = err.message || "Teach-back is not available yet.";
+    if (intro) intro.style.display = "";
     startBtn.disabled = false;
   }
 }
@@ -1165,11 +1195,21 @@ async function submitPreopTeachbackAnswer(value) {
 
 function setupPreopTeachback() {
   const startBtn = document.getElementById("preopTeachbackStartBtn");
+  const continueBtn = document.getElementById("preopTeachbackContinueBtn");
+  const backBtn = document.getElementById("preopTeachbackBackBtn");
   const submitBtn = document.getElementById("preopTeachbackSubmitBtn");
   const unsureBtn = document.getElementById("preopTeachbackUnsureBtn");
   const answer = document.getElementById("preopTeachbackAnswer");
   if (!startBtn || !submitBtn || !unsureBtn || !answer) return;
-  startBtn.addEventListener("click", () => void startPreopTeachback());
+  startBtn.addEventListener("click", () => {
+    if (continueBtn) {
+      showPreopTeachbackAdvisory();
+    } else {
+      void startPreopTeachback();
+    }
+  });
+  if (continueBtn) continueBtn.addEventListener("click", () => void startPreopTeachback());
+  if (backBtn) backBtn.addEventListener("click", hidePreopTeachbackAdvisory);
   submitBtn.addEventListener("click", () => void submitPreopTeachbackAnswer((answer.value || "").trim()));
   unsureBtn.addEventListener("click", () => void submitPreopTeachbackAnswer("I'm not sure"));
 }

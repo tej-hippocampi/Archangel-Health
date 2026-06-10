@@ -472,18 +472,40 @@
           </div>
           <div class="teachback-panel" id="diagTeachbackPanel" style="margin-top:18px;">
             <div class="teachback-header">
-              <h3 class="resource-subtitle">🧠 Teach-Back Comprehension</h3>
-              <p class="teachback-sub">One question at a time. Use your own words or tap “I'm not sure”.</p>
+              <span class="teachback-icon" aria-hidden="true">🧠</span>
+              <div class="teachback-header-text">
+                <h3 class="teachback-title">Teach-Back Comprehension</h3>
+                <p class="teachback-sub">One question at a time, in your own words. Tap “I'm not sure” anytime.</p>
+              </div>
             </div>
-            <button type="button" class="preop-btn primary" id="diagTeachbackStartBtn">Start teach-back</button>
-            <p class="teachback-status" id="diagTeachbackStatus">Available after diagnosis/treatment video completion.</p>
-            <div class="teachback-qa" id="diagTeachbackQA" style="display:none;">
-              <p class="teachback-progress" id="diagTeachbackProgress"></p>
-              <p class="teachback-question" id="diagTeachbackQuestion"></p>
-              <textarea id="diagTeachbackAnswer" class="postop-textarea" rows="3" placeholder="Type your answer in your own words..."></textarea>
+            <div class="teachback-intro" id="diagTeachbackIntro">
+              <button type="button" class="teachback-btn primary" id="diagTeachbackStartBtn">Start teach-back</button>
+              <p class="teachback-hint">Takes about 2 minutes. There are no grades — it just helps us explain things better.</p>
+            </div>
+            <div class="teachback-advisory" id="diagTeachbackAdvisory" style="display:none;">
+              <div class="teachback-advisory-head">
+                <span class="teachback-advisory-icon" aria-hidden="true">💡</span>
+                <strong>Before you begin</strong>
+              </div>
+              <p class="teachback-advisory-text">You are advised to watch both videos on diagnosis and treatment and thoroughly review your battlecards before starting.</p>
               <div class="teachback-actions">
-                <button type="button" class="preop-btn primary" id="diagTeachbackSubmitBtn">Submit answer</button>
-                <button type="button" class="preop-btn" id="diagTeachbackUnsureBtn">I'm not sure</button>
+                <button type="button" class="teachback-btn primary" id="diagTeachbackContinueBtn">I understand — continue</button>
+                <button type="button" class="teachback-btn ghost" id="diagTeachbackBackBtn">Go back</button>
+              </div>
+            </div>
+            <p class="teachback-status" id="diagTeachbackStatus"></p>
+            <div class="teachback-qa" id="diagTeachbackQA" style="display:none;">
+              <div class="teachback-progress-row">
+                <p class="teachback-progress" id="diagTeachbackProgress"></p>
+                <div class="teachback-progress-track" aria-hidden="true">
+                  <div class="teachback-progress-fill" id="diagTeachbackProgressFill"></div>
+                </div>
+              </div>
+              <p class="teachback-question" id="diagTeachbackQuestion"></p>
+              <textarea id="diagTeachbackAnswer" class="teachback-textarea" rows="3" placeholder="Type your answer in your own words..."></textarea>
+              <div class="teachback-actions">
+                <button type="button" class="teachback-btn primary" id="diagTeachbackSubmitBtn">Submit answer</button>
+                <button type="button" class="teachback-btn ghost" id="diagTeachbackUnsureBtn">I'm not sure</button>
               </div>
               <div class="teachback-callout" id="diagTeachbackCallout" style="display:none;"></div>
             </div>
@@ -530,18 +552,40 @@
           </div>
           <div class="teachback-panel" id="treatTeachbackPanel" style="margin-top:18px;">
             <div class="teachback-header">
-              <h3 class="resource-subtitle">🧠 Teach-Back Comprehension</h3>
-              <p class="teachback-sub">One question at a time. Use your own words or tap “I'm not sure”.</p>
+              <span class="teachback-icon" aria-hidden="true">🧠</span>
+              <div class="teachback-header-text">
+                <h3 class="teachback-title">Teach-Back Comprehension</h3>
+                <p class="teachback-sub">One question at a time, in your own words. Tap “I'm not sure” anytime.</p>
+              </div>
             </div>
-            <button type="button" class="preop-btn primary" id="treatTeachbackStartBtn">Start teach-back</button>
-            <p class="teachback-status" id="treatTeachbackStatus">Available after red-flag video completion.</p>
-            <div class="teachback-qa" id="treatTeachbackQA" style="display:none;">
-              <p class="teachback-progress" id="treatTeachbackProgress"></p>
-              <p class="teachback-question" id="treatTeachbackQuestion"></p>
-              <textarea id="treatTeachbackAnswer" class="postop-textarea" rows="3" placeholder="Type your answer in your own words..."></textarea>
+            <div class="teachback-intro" id="treatTeachbackIntro">
+              <button type="button" class="teachback-btn primary" id="treatTeachbackStartBtn">Start teach-back</button>
+              <p class="teachback-hint">Takes about 2 minutes. There are no grades — it just helps us explain things better.</p>
+            </div>
+            <div class="teachback-advisory" id="treatTeachbackAdvisory" style="display:none;">
+              <div class="teachback-advisory-head">
+                <span class="teachback-advisory-icon" aria-hidden="true">💡</span>
+                <strong>Before you begin</strong>
+              </div>
+              <p class="teachback-advisory-text">You are advised to watch both videos on diagnosis and treatment and thoroughly review your battlecards before starting.</p>
               <div class="teachback-actions">
-                <button type="button" class="preop-btn primary" id="treatTeachbackSubmitBtn">Submit answer</button>
-                <button type="button" class="preop-btn" id="treatTeachbackUnsureBtn">I'm not sure</button>
+                <button type="button" class="teachback-btn primary" id="treatTeachbackContinueBtn">I understand — continue</button>
+                <button type="button" class="teachback-btn ghost" id="treatTeachbackBackBtn">Go back</button>
+              </div>
+            </div>
+            <p class="teachback-status" id="treatTeachbackStatus"></p>
+            <div class="teachback-qa" id="treatTeachbackQA" style="display:none;">
+              <div class="teachback-progress-row">
+                <p class="teachback-progress" id="treatTeachbackProgress"></p>
+                <div class="teachback-progress-track" aria-hidden="true">
+                  <div class="teachback-progress-fill" id="treatTeachbackProgressFill"></div>
+                </div>
+              </div>
+              <p class="teachback-question" id="treatTeachbackQuestion"></p>
+              <textarea id="treatTeachbackAnswer" class="teachback-textarea" rows="3" placeholder="Type your answer in your own words..."></textarea>
+              <div class="teachback-actions">
+                <button type="button" class="teachback-btn primary" id="treatTeachbackSubmitBtn">Submit answer</button>
+                <button type="button" class="teachback-btn ghost" id="treatTeachbackUnsureBtn">I'm not sure</button>
               </div>
               <div class="teachback-callout" id="treatTeachbackCallout" style="display:none;"></div>
               <div class="teachback-care-path" id="treatTeachbackCarePath" style="display:none;">

@@ -456,19 +456,41 @@
 
         <section class="preop-panel teachback-panel" id="preopTeachbackPanel">
           <div class="teachback-header">
-            <h3 class="resource-subtitle">🧠 Teach-Back Comprehension</h3>
-            <p class="teachback-sub">In your own words, explain key safety steps so we can confirm we explained things clearly.</p>
+            <span class="teachback-icon" aria-hidden="true">🧠</span>
+            <div class="teachback-header-text">
+              <h3 class="teachback-title">Teach-Back Comprehension</h3>
+              <p class="teachback-sub">In your own words, explain key safety steps so we can confirm we explained things clearly.</p>
+            </div>
           </div>
           <div class="teachback-body" id="preopTeachbackBody">
-            <button type="button" class="preop-btn primary" id="preopTeachbackStartBtn">Start teach-back</button>
-            <p class="teachback-status" id="preopTeachbackStatus">Available after pre-op video completion.</p>
-            <div class="teachback-qa" id="preopTeachbackQA" style="display:none;">
-              <p class="teachback-progress" id="preopTeachbackProgress"></p>
-              <p class="teachback-question" id="preopTeachbackQuestion"></p>
-              <textarea id="preopTeachbackAnswer" class="postop-textarea" rows="3" placeholder="Type your answer in your own words..."></textarea>
+            <div class="teachback-intro" id="preopTeachbackIntro">
+              <button type="button" class="teachback-btn primary" id="preopTeachbackStartBtn">Start teach-back</button>
+              <p class="teachback-hint">Takes about 2 minutes. There are no grades — it just helps us explain things better.</p>
+            </div>
+            <div class="teachback-advisory" id="preopTeachbackAdvisory" style="display:none;">
+              <div class="teachback-advisory-head">
+                <span class="teachback-advisory-icon" aria-hidden="true">💡</span>
+                <strong>Before you begin</strong>
+              </div>
+              <p class="teachback-advisory-text">You are advised to watch your pre-op video and thoroughly review your battlecard before starting.</p>
               <div class="teachback-actions">
-                <button type="button" class="preop-btn primary" id="preopTeachbackSubmitBtn">Submit answer</button>
-                <button type="button" class="preop-btn" id="preopTeachbackUnsureBtn">I'm not sure</button>
+                <button type="button" class="teachback-btn primary" id="preopTeachbackContinueBtn">I understand — continue</button>
+                <button type="button" class="teachback-btn ghost" id="preopTeachbackBackBtn">Go back</button>
+              </div>
+            </div>
+            <p class="teachback-status" id="preopTeachbackStatus"></p>
+            <div class="teachback-qa" id="preopTeachbackQA" style="display:none;">
+              <div class="teachback-progress-row">
+                <p class="teachback-progress" id="preopTeachbackProgress"></p>
+                <div class="teachback-progress-track" aria-hidden="true">
+                  <div class="teachback-progress-fill" id="preopTeachbackProgressFill"></div>
+                </div>
+              </div>
+              <p class="teachback-question" id="preopTeachbackQuestion"></p>
+              <textarea id="preopTeachbackAnswer" class="teachback-textarea" rows="3" placeholder="Type your answer in your own words..."></textarea>
+              <div class="teachback-actions">
+                <button type="button" class="teachback-btn primary" id="preopTeachbackSubmitBtn">Submit answer</button>
+                <button type="button" class="teachback-btn ghost" id="preopTeachbackUnsureBtn">I'm not sure</button>
               </div>
               <div class="teachback-callout" id="preopTeachbackCallout" style="display:none;"></div>
             </div>

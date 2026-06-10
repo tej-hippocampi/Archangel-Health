@@ -315,9 +315,14 @@
   function setupTeachbackPanel(prefix, track, battlecardContainerId) {
     const state = { sessionId: null, questions: [], index: 0 };
     const startBtn = document.getElementById(`${prefix}TeachbackStartBtn`);
+    const intro = document.getElementById(`${prefix}TeachbackIntro`);
+    const advisory = document.getElementById(`${prefix}TeachbackAdvisory`);
+    const continueBtn = document.getElementById(`${prefix}TeachbackContinueBtn`);
+    const backBtn = document.getElementById(`${prefix}TeachbackBackBtn`);
     const status = document.getElementById(`${prefix}TeachbackStatus`);
     const qa = document.getElementById(`${prefix}TeachbackQA`);
     const progress = document.getElementById(`${prefix}TeachbackProgress`);
+    const progressFill = document.getElementById(`${prefix}TeachbackProgressFill`);
     const question = document.getElementById(`${prefix}TeachbackQuestion`);
     const answer = document.getElementById(`${prefix}TeachbackAnswer`);
     const submitBtn = document.getElementById(`${prefix}TeachbackSubmitBtn`);
@@ -336,13 +341,31 @@
       }
       qa.style.display = "grid";
       progress.textContent = `Question ${state.index + 1} of ${state.questions.length}`;
+      if (progressFill) {
+        const pct = state.questions.length ? ((state.index + 1) / state.questions.length) * 100 : 0;
+        progressFill.style.width = `${pct}%`;
+      }
       question.textContent = q.question || "";
       answer.value = "";
       callout.style.display = "none";
       callout.textContent = "";
     }
 
+    function showAdvisory() {
+      if (intro) intro.style.display = "none";
+      if (advisory) advisory.style.display = "grid";
+      status.textContent = "";
+    }
+
+    function hideAdvisory() {
+      if (advisory) advisory.style.display = "none";
+      if (intro) intro.style.display = "";
+      startBtn.disabled = false;
+    }
+
     async function start() {
+      if (advisory) advisory.style.display = "none";
+      if (intro) intro.style.display = "none";
       startBtn.disabled = true;
       status.textContent = "Starting teach-back...";
       try {
@@ -360,6 +383,7 @@
         renderQuestion();
       } catch (e) {
         status.textContent = e.message || "Teach-back unavailable.";
+        if (intro) intro.style.display = "";
         startBtn.disabled = false;
       }
     }
@@ -407,7 +431,15 @@
       }
     }
 
-    startBtn.addEventListener("click", () => { void start(); });
+    startBtn.addEventListener("click", () => {
+      if (advisory && continueBtn) {
+        showAdvisory();
+      } else {
+        void start();
+      }
+    });
+    if (continueBtn) continueBtn.addEventListener("click", () => { void start(); });
+    if (backBtn) backBtn.addEventListener("click", hideAdvisory);
     submitBtn.addEventListener("click", () => { void submit((answer.value || "").trim()); });
     unsureBtn.addEventListener("click", () => { void submit("I'm not sure"); });
     if (careBtn) {
