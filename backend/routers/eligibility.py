@@ -615,6 +615,9 @@ async def override_field(
     verdicts[body.field] = body.to
     rec["verdicts"] = verdicts
     rec["overall_verdict"] = eval_mod.overall_verdict(verdicts)
+    rec["rationale"] = eval_mod.build_rationale(
+        rec.get("extracted_fields") or {}, rec["surgery_date"], overrides
+    )
     rec["updated_at"] = _utc_iso()
 
     store.append_audit(

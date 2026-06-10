@@ -48,7 +48,7 @@ PROMPT_REGISTRY: dict = {
         "file": "backend/prompts/avatar.py",
         "variable": "AVATAR_BEHAVIOR_TEMPLATE",
         "type": "avatar",
-        "version": "1.0.0",
+        "version": "1.1.0",
     },
     "diagnosis_voice": {
         "label": "Diagnosis — Voice Script",
@@ -160,7 +160,7 @@ PROMPT_REGISTRY: dict = {
         "file": "backend/prompts/avatar.py",
         "variable": "AVATAR_BEHAVIOR_TEMPLATE",
         "type": "system",
-        "version": "1.0.0",
+        "version": "1.1.0",
     },
     "grounding_judge": {
         "label": "Grounding Judge Audit Prompt",

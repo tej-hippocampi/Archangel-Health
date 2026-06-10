@@ -176,8 +176,10 @@ async def run_pipeline(
             verdicts = eval_mod.evaluate(extracted, surgery_date)
             verdicts = eval_mod.apply_overrides(verdicts, record.get("overrides") or {})
             overall = eval_mod.overall_verdict(verdicts)
+            rationale = eval_mod.build_rationale(extracted, surgery_date, record.get("overrides") or {})
             record["verdicts"] = verdicts
             record["overall_verdict"] = overall
+            record["rationale"] = rationale
             record["status"] = "DONE"
             record["stage"] = "DONE"
             record["finished_at"] = _utc_iso()
@@ -191,6 +193,7 @@ async def run_pipeline(
                     "verdicts": verdicts,
                     "overallVerdict": overall,
                     "extractedFields": extracted,
+                    "rationale": rationale,
                     "parseMeta": record["parse_meta"],
                     "durationMs": record["duration_ms"],
                 },
@@ -245,6 +248,7 @@ async def run_pipeline(
         verdicts = eval_mod.evaluate(result["extracted"], surgery_date)
         verdicts = eval_mod.apply_overrides(verdicts, record.get("overrides") or {})
         overall = eval_mod.overall_verdict(verdicts)
+        rationale = eval_mod.build_rationale(result["extracted"], surgery_date, record.get("overrides") or {})
 
         # OCR / LOW confidence nudge: if any PDF used OCR, cap confidence at LOW
         ocr_used = any(pm.get("ocr_used") for pm in record.get("parse_meta", []))
@@ -253,6 +257,7 @@ async def run_pipeline(
 
         record["verdicts"] = verdicts
         record["overall_verdict"] = overall
+        record["rationale"] = rationale
         record["status"] = "DONE"
         record["stage"] = "DONE"
         record["finished_at"] = _utc_iso()
@@ -270,6 +275,7 @@ async def run_pipeline(
                 "verdicts": verdicts,
                 "overallVerdict": overall,
                 "extractedFields": result["extracted"],
+                "rationale": rationale,
                 "parseMeta": record["parse_meta"],
                 "durationMs": record["duration_ms"],
             },

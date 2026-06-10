@@ -1168,6 +1168,29 @@
     .verdict-pill.fail { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
     .verdict-pill.unknown { background: #fef9c3; border-color: #fde047; color: #854d0e; }
 
+    .verdict-row .v-criterion {
+      font-size: 11px; color: #64748b; line-height: 1.4; margin-top: 4px;
+      padding-left: 8px; border-left: 2px solid #e2e8f0; font-style: italic;
+    }
+    .verdict-row .v-evidence-values {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;
+    }
+    .verdict-row .v-evidence-chip {
+      font-size: 11px; font-family: ui-monospace, monospace; color: #334155;
+      background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 1px 7px;
+    }
+    .verdict-row .v-action {
+      margin-top: 8px; padding: 7px 10px; border-radius: 8px;
+      background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+      font-size: 12px; line-height: 1.45;
+    }
+    .verdict-row .v-override-note {
+      margin-top: 8px; padding: 7px 10px; border-radius: 8px;
+      background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;
+      font-size: 12px; line-height: 1.45;
+    }
+    .verdict-pill.overridden { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
+
     .source-disclosure { margin-top: 8px; }
     .source-disclosure summary {
       cursor: pointer; font-size: 12px; color: #2563eb; font-weight: 600; user-select: none;
@@ -5216,8 +5239,49 @@
         not_umwa: "Not UMWA",
       };
 
+      // Server-computed rationale (criterion → evidence → reasoning → action,
+      // rubric pattern). Falls back to the legacy hardcoded copy when absent.
+      const rationale = Array.isArray(payload.rationale) && payload.rationale.length
+        ? payload.rationale
+        : null;
+
       const rowsContainer = byId("determineRows");
-      rowsContainer.innerHTML = Object.entries(verdicts).map(([key, v]) => {
+      const renderRationaleRow = (entry) => {
+        const v = entry.verdict;
+        const cls = v === "PASS" ? "pass" : v === "FAIL" ? "fail" : "unknown";
+        const overrideBtn = (v === "FAIL" || v === "UNKNOWN")
+          ? `<button class="btn" data-override="${esc(entry.key)}">Override</button>`
+          : "";
+        const evidence = entry.evidence || {};
+        const valueChips = Object.entries(evidence.values || {})
+          .map(([k, val]) => `<span class="v-evidence-chip">${esc(k)}: ${esc(String(val))}</span>`)
+          .join("");
+        const overrideNote = entry.override
+          ? `<div class="v-override-note">Overridden to ${esc(entry.override.to)} (was ${esc(entry.override.originalVerdict)})${entry.override.actor ? ` by ${esc(entry.override.actor)}` : ""} — “${esc(entry.override.reason || "")}”</div>`
+          : "";
+        const actionNote = (!entry.override && entry.recommendedAction)
+          ? `<div class="v-action">Recommended: ${esc(entry.recommendedAction)}</div>`
+          : "";
+        return `
+          <div class="verdict-row">
+            <div>
+              <div class="v-name">${esc(entry.label || entry.key)}</div>
+              <div class="v-explain">${esc(entry.reasoning || "")}</div>
+              <div class="v-criterion">TEAM requirement: ${esc(entry.criterion || "")}</div>
+              ${valueChips ? `<div class="v-evidence-values">${valueChips}</div>` : ""}
+              ${overrideNote}
+              ${actionNote}
+              <details class="source-disclosure">
+                <summary>Show source</summary>
+                <div class="source-excerpt">${esc(String(evidence.sourceExcerpt || "(not present in documents)").slice(0, 800))}</div>
+              </details>
+            </div>
+            <span class="verdict-pill ${entry.override ? "overridden" : cls}">${esc(v)}</span>
+            ${overrideBtn}
+          </div>
+        `;
+      };
+      const renderLegacyRow = ([key, v]) => {
         const cls = v === "PASS" ? "pass" : v === "FAIL" ? "fail" : "unknown";
         const explain = explanations[key]?.[v] || "";
         const excerpt = sources[key] || "(not present in documents)";
@@ -5238,7 +5302,10 @@
             ${overrideBtn}
           </div>
         `;
-      }).join("");
+      };
+      rowsContainer.innerHTML = rationale
+        ? rationale.map(renderRationaleRow).join("")
+        : Object.entries(verdicts).map(renderLegacyRow).join("");
 
       rowsContainer.querySelectorAll("[data-override]").forEach((btn) => {
         btn.addEventListener("click", () => openOverrideModal(btn.dataset.override));
@@ -5602,6 +5669,7 @@
             verdicts: res.verdicts,
             overallVerdict: res.overall_verdict,
             extractedFields: res.extracted_fields,
+            rationale: res.rationale,
           });
         } catch (e) { showToast(e.message || "Override failed.", "error"); }
       });

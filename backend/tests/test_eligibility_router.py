@@ -472,6 +472,36 @@ def test_override_persists_through_rerun(client, stub_pipeline):
     assert after["overrides"]["not_ma"]["reason"] == "phone-verified"
 
 
+def test_override_response_includes_rationale(client, stub_pipeline):
+    """The override endpoint returns the recomputed per-check rationale so the
+    review screen can re-render criterion/evidence/reasoning in place."""
+    r = client.post(
+        "/api/eligibility-draft-patient",
+        json={"name": "Bob", "scheduled_surgery_date": "2026-09-01"},
+    )
+    pid = r.json()["id"]
+    files = {"file": ("test.x12", _make_x12_271(), "application/octet-stream")}
+    up = client.post("/api/eligibility-documents", data={"patientId": pid}, files=files)
+    chk = client.post("/api/eligibility-checks", json={"patientId": pid, "documentIds": [up.json()["id"]]})
+    check_id = chk.json()["id"]
+    import asyncio
+    asyncio.run(asyncio.sleep(0.05))
+
+    o = client.post(
+        f"/api/eligibility-checks/{check_id}/override",
+        json={"field": "not_ma", "to": "PASS", "reason": "phone-verified with payer"},
+    )
+    assert o.status_code == 200
+    body = o.json()
+    rationale = {e["key"]: e for e in body["rationale"]}
+    assert len(rationale) == 6
+    ma = rationale["not_ma"]
+    assert ma["verdict"] == "PASS"
+    assert ma["override"]["reason"] == "phone-verified with payer"
+    assert ma["criterion"]
+    assert ma["reasoning"]
+
+
 # ─── Rate limiter ─────────────────────────────────────────────────────────
 def test_rate_limit_blocks_after_30_requests(client, stub_pipeline):
     r = client.post(
