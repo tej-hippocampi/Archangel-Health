@@ -59,9 +59,22 @@ SECURITY_HEADERS = {
     b"x-frame-options": b"DENY",
     b"x-content-type-options": b"nosniff",
     b"referrer-policy": b"strict-origin-when-cross-origin",
-    # microphone=self because the voice companion records the patient.
-    b"permissions-policy": b"geolocation=(), camera=(), microphone=(self)",
 }
+
+
+def build_permissions_policy() -> str:
+    """Camera/mic are needed by the voice companion (same-origin) and by the
+    embedded Daily telehealth iframe (cross-origin). Permissions-Policy on the
+    parent page must explicitly delegate to the Daily origin or the browser
+    denies getUserMedia inside the video call. Computed per-request so env
+    changes (and test monkeypatching) take effect without a reload."""
+    allow = ["self"]
+    daily = (os.getenv("DAILY_DOMAIN") or "").strip().rstrip("/")
+    if daily:
+        daily = daily.removeprefix("https://").removeprefix("http://")
+        allow.append(f'"https://{daily}"')
+    allow_str = " ".join(allow)
+    return f"geolocation=(), camera=({allow_str}), microphone=({allow_str})"
 
 
 def build_csp() -> str:
@@ -109,6 +122,8 @@ class SecurityHeadersMiddleware:
                 for name, value in SECURITY_HEADERS.items():
                     if name.decode() not in headers:
                         headers[name.decode()] = value.decode()
+                if "permissions-policy" not in headers:
+                    headers["permissions-policy"] = build_permissions_policy()
                 if is_production() and "strict-transport-security" not in headers:
                     headers["strict-transport-security"] = "max-age=63072000; includeSubDomains; preload"
                 csp_name = _csp_header_name().decode()

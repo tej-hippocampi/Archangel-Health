@@ -29,7 +29,24 @@ def test_core_security_headers_present(client, path):
     assert r.headers.get("x-frame-options") == "DENY"
     assert r.headers.get("x-content-type-options") == "nosniff"
     assert r.headers.get("referrer-policy") == "strict-origin-when-cross-origin"
-    assert "microphone=(self)" in r.headers.get("permissions-policy", "")
+    pp = r.headers.get("permissions-policy", "")
+    assert "geolocation=()" in pp
+    assert "microphone=(self" in pp
+    assert "camera=(self" in pp
+
+
+def test_permissions_policy_delegates_to_daily_domain(client, monkeypatch):
+    """Telehealth regression: camera=() denied getUserMedia inside the embedded
+    Daily iframe. With DAILY_DOMAIN set, camera/mic must delegate to that origin."""
+    monkeypatch.setenv("DAILY_DOMAIN", "yourteam.daily.co")
+    pp = client.get("/").headers.get("permissions-policy", "")
+    assert 'camera=(self "https://yourteam.daily.co")' in pp
+    assert 'microphone=(self "https://yourteam.daily.co")' in pp
+
+    monkeypatch.delenv("DAILY_DOMAIN", raising=False)
+    pp = client.get("/").headers.get("permissions-policy", "")
+    assert "camera=(self)" in pp
+    assert "microphone=(self)" in pp
 
 
 def test_csp_report_only_by_default(client):
