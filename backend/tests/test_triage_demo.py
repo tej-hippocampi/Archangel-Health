@@ -28,6 +28,7 @@ from tenant_constants import (  # noqa: E402
 )
 from tenant_jwt import create_tenant_staff_token  # noqa: E402
 from triage_demo_seed import (  # noqa: E402
+    effective_seed_strategy,
     ensure_triage_demo_staff,
     merge_triage_patients_into_store,
     seed_triage_demo_sqlite,
@@ -278,6 +279,56 @@ def test_triage_preserve_seed_is_idempotent():
     esc_after = len([e for e in ts.list_escalations() if e.get("patient_id") == sandra])
     assert proc_after == proc_before
     assert esc_after == esc_before
+
+
+def test_preserve_degrades_to_reset_when_seed_is_stale():
+    """Regression: on a persistent volume, strategy=preserve kept a months-old
+    seed alive and the demo roster drifted off-script (wrong days/tiers). A
+    seed older than DEMO_SEED_MAX_AGE_DAYS must re-anchor."""
+    ts: TeamStore = app.state.team_store
+    store = app.state.patient_store
+    ensure_triage_demo_staff(ts)
+    t0 = date(2026, 1, 1)
+    merge_triage_patients_into_store(
+        store, battlecard_fn=_build_demo_battlecard, team_store=ts, strategy="reset", today=t0
+    )
+    seed_triage_demo_sqlite(ts, store, strategy="reset", today=t0)
+
+    # Day after: still fresh → preserve.
+    assert effective_seed_strategy(ts, "preserve", today=t0 + timedelta(days=1)) == "preserve"
+    # Months later: stale → reset.
+    t_late = t0 + timedelta(days=90)
+    assert effective_seed_strategy(ts, "preserve", today=t_late) == "reset"
+
+    sandra = _sandra_id()
+    open_before = (ts.get_episode(sandra) or {}).get("open_date")
+    strategy = effective_seed_strategy(ts, "preserve", today=t_late)
+    merge_triage_patients_into_store(
+        store, battlecard_fn=_build_demo_battlecard, team_store=ts, strategy=strategy, today=t_late
+    )
+    seed_triage_demo_sqlite(ts, store, strategy=strategy, today=t_late)
+    open_after = (ts.get_episode(sandra) or {}).get("open_date")
+    assert open_after != open_before, "stale seed must re-anchor episode open dates"
+
+    # Explicit strategies pass through untouched.
+    assert effective_seed_strategy(ts, "reset", today=t_late) == "reset"
+
+
+def test_preserve_degrades_to_reset_when_blueprint_changes(monkeypatch):
+    ts: TeamStore = app.state.team_store
+    store = app.state.patient_store
+    ensure_triage_demo_staff(ts)
+    t0 = date(2026, 1, 1)
+    merge_triage_patients_into_store(
+        store, battlecard_fn=_build_demo_battlecard, team_store=ts, strategy="reset", today=t0
+    )
+    seed_triage_demo_sqlite(ts, store, strategy="reset", today=t0)
+
+    assert effective_seed_strategy(ts, "preserve", today=t0) == "preserve"
+    import triage_demo_seed as tds
+
+    monkeypatch.setattr(tds, "_blueprint_fingerprint", lambda: "different-blueprint")
+    assert effective_seed_strategy(ts, "preserve", today=t0) == "reset"
 
 
 def test_preop_retier_events_seeded_for_preop_demo():

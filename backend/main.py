@@ -84,6 +84,7 @@ from tenant_constants import (
     TRIAGEDM_CLINIC_CODE,
 )
 from triage_demo_seed import (
+    effective_seed_strategy,
     ensure_triage_demo_staff,
     merge_triage_patients_into_store,
     seed_triage_demo_sqlite,
@@ -1187,7 +1188,9 @@ def _ensure_triage_demo_tenant_seeded() -> None:
     an empty roster when ``DEMO_MODE`` was off.
     """
     ensure_triage_demo_staff(_team_store)
-    strategy = _demo_seed_strategy()
+    # Resolve preserve→reset once (stale anchor / blueprint change) so the
+    # in-memory merge and the SQLite seed agree on the episode timeline.
+    strategy = effective_seed_strategy(_team_store, _demo_seed_strategy())
     merge_triage_patients_into_store(
         _patient_store,
         battlecard_fn=_build_demo_battlecard,
@@ -2251,10 +2254,18 @@ async def _maybe_trigger_preop_outreach(app: FastAPI) -> None:
     if now_m - last < 900:
         return
     app.state.last_preop_outreach_mono = now_m
-    try:
-        await _run_preop_survey_outreach()
-    except Exception as e:
-        print(f"[preop-outreach] {e}")
+
+    async def _run() -> None:
+        try:
+            await _run_preop_survey_outreach()
+        except Exception as e:
+            print(f"[preop-outreach] {e}")
+
+    # Fire-and-forget: the outreach pass can hit email/SMS providers and loop
+    # the whole patient store — running it inline made the first roster load
+    # after a quiet period (i.e. right after sign-in) hang on it.
+    task = asyncio.create_task(_run())
+    app.state.preop_outreach_inline_task = task
 
 
 async def _run_preop_survey_outreach() -> None:

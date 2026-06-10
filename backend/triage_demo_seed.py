@@ -5,7 +5,10 @@ Idempotent: safe to call on every startup. Does not touch CDRSNAI1 patients.
 
 from __future__ import annotations
 
+import hashlib
 import html
+import json
+import os
 import uuid
 from datetime import date, datetime, time, timedelta, timezone as tz
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -889,6 +892,88 @@ def _maintain_sandra_reyes_timeline(team_store: Any) -> None:
     team_store.delete_daily_checkin_sends_from_episode_day(pid, min_day=18)
 
 
+# ─── Seed freshness (preserve vs reset) ──────────────────────────────────────
+# "preserve" must not keep a months-old seed alive: the blueprint anchors
+# episode days to the seed date, so on a persistent volume the demo patients
+# drift off-script (day counts cap out, phases/tiers stop matching the demo
+# narrative). A seed is only preserved while its blueprint fingerprint matches
+# and its anchor date is recent; otherwise preserve degrades to reset.
+
+def _max_seed_age_days() -> int:
+    """Days a preserved seed stays valid. ``DEMO_SEED_MAX_AGE_DAYS`` overrides;
+    0 disables the age check (old behavior)."""
+    raw = os.getenv("DEMO_SEED_MAX_AGE_DAYS", "7").strip()
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 7
+
+
+def _blueprint_fingerprint() -> str:
+    blob = json.dumps(triage_patient_blueprint(), sort_keys=True, default=str)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+
+def _seed_meta_conn(team_store: Any):
+    import sqlite3
+
+    conn = sqlite3.connect(team_store.db_path)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS triage_demo_seed_meta (key TEXT PRIMARY KEY, value TEXT)"
+    )
+    return conn
+
+
+def _read_seed_meta(team_store: Any) -> Dict[str, str]:
+    try:
+        with _seed_meta_conn(team_store) as conn:
+            rows = conn.execute("SELECT key, value FROM triage_demo_seed_meta").fetchall()
+            return {str(k): str(v) for k, v in rows}
+    except Exception:
+        return {}
+
+
+def _write_seed_meta(team_store: Any, *, today: date) -> None:
+    with _seed_meta_conn(team_store) as conn:
+        for k, v in (("fingerprint", _blueprint_fingerprint()), ("anchor_date", _iso(today))):
+            conn.execute(
+                "INSERT INTO triage_demo_seed_meta (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (k, v),
+            )
+
+
+def _seed_is_fresh(team_store: Any, today: date) -> bool:
+    rows = triage_patient_blueprint()
+    existing = [
+        e
+        for e in team_store.list_active_episodes()
+        if (e.get("clinic_code") or "").upper() == TRIAGEDM_CLINIC_CODE
+    ]
+    if len(existing) < len(rows):
+        return False
+    meta = _read_seed_meta(team_store)
+    if meta.get("fingerprint") != _blueprint_fingerprint():
+        return False
+    max_age = _max_seed_age_days()
+    if max_age:
+        try:
+            anchor = date.fromisoformat(meta.get("anchor_date") or "")
+        except ValueError:
+            return False
+        if (today - anchor).days > max_age:
+            return False
+    return True
+
+
+def effective_seed_strategy(team_store: Any, strategy: str, today: Optional[date] = None) -> str:
+    """Resolve the configured strategy against the stored seed's freshness so
+    the in-memory merge and the SQLite seed make the same preserve/reset call."""
+    if strategy != "preserve":
+        return strategy
+    return "preserve" if _seed_is_fresh(team_store, today or date.today()) else "reset"
+
+
 def seed_triage_demo_sqlite(
     team_store: Any,
     patient_store: Dict[str, Any],
@@ -901,16 +986,12 @@ def seed_triage_demo_sqlite(
     rows = triage_patient_blueprint()
     ids = [r["id"] for r in rows]
     if strategy == "preserve":
-        existing = [
-            e
-            for e in team_store.list_active_episodes()
-            if (e.get("clinic_code") or "").upper() == TRIAGEDM_CLINIC_CODE
-        ]
-        if len(existing) >= len(rows):
+        if _seed_is_fresh(team_store, today):
             _maintain_sandra_reyes_timeline(team_store)
             return
     if strategy == "reset" or strategy == "preserve":
         _clear_triage_sqlite(team_store, ids)
+    _write_seed_meta(team_store, today=today)
 
     for idx, row in enumerate(rows):
         pid = row["id"]
