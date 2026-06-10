@@ -21,6 +21,7 @@ from main import (  # noqa: E402
 from team_store import TeamStore  # noqa: E402
 from tenant_constants import (  # noqa: E402
     ARCH_TRIAGE_DEMO_HEALTH_SYSTEM_ID,
+    TRIAGE_DEMO_RN_PASSWORD,
     TRIAGE_DEMO_SURGEON_PASSWORD,
     TRIAGE_DEMO_SLUG,
     TRIAGE_DEMO_RN_EMAIL,
@@ -312,6 +313,62 @@ def test_preserve_degrades_to_reset_when_seed_is_stale():
 
     # Explicit strategies pass through untouched.
     assert effective_seed_strategy(ts, "reset", today=t_late) == "reset"
+
+
+def _rn_login(client: TestClient):
+    return client.post(
+        f"/api/tenant/{TRIAGE_DEMO_SLUG}/auth/login",
+        json={"email": TRIAGE_DEMO_RN_EMAIL, "password": TRIAGE_DEMO_RN_PASSWORD},
+    )
+
+
+def test_demo_login_reseeds_missing_patients():
+    """Regression: seeding only ran at startup, so a process that lost (or never
+    had) the in-memory demo patients served an empty roster until restart.
+    Demo-tenant login must self-heal the seed."""
+    store = app.state.patient_store
+    sandra = _sandra_id()
+    with TestClient(app) as c:  # context manager runs startup → seeds + wires refresh
+        store.pop(sandra, None)
+        r = _rn_login(c)
+        assert r.status_code == 200, r.text
+        assert sandra in store, "login must restore missing seeded demo patients"
+
+
+def test_demo_login_reanchors_stale_seed():
+    """A seed older than DEMO_SEED_MAX_AGE_DAYS must re-anchor on demo login,
+    not just on process restart."""
+    ts: TeamStore = app.state.team_store
+    store = app.state.patient_store
+    sandra = _sandra_id()
+    with TestClient(app) as c:
+        t0 = date.today() - timedelta(days=90)
+        merge_triage_patients_into_store(
+            store, battlecard_fn=_build_demo_battlecard, team_store=ts, strategy="reset", today=t0
+        )
+        seed_triage_demo_sqlite(ts, store, strategy="reset", today=t0)
+        open_before = (ts.get_episode(sandra) or {}).get("open_date")
+
+        r = _rn_login(c)
+        assert r.status_code == 200, r.text
+        open_after = (ts.get_episode(sandra) or {}).get("open_date")
+        assert open_after != open_before, "stale seed must re-anchor on login"
+        assert date.fromisoformat(open_after) > t0
+
+
+def test_demo_login_preserves_fresh_seed():
+    """The login-time check must be a no-op when the seed is fresh — no episode
+    churn on every sign-in."""
+    ts: TeamStore = app.state.team_store
+    sandra = _sandra_id()
+    with TestClient(app) as c:
+        open_before = (ts.get_episode(sandra) or {}).get("open_date")
+        esc_before = len([e for e in ts.list_escalations() if e.get("patient_id") == sandra])
+        r = _rn_login(c)
+        assert r.status_code == 200, r.text
+        assert (ts.get_episode(sandra) or {}).get("open_date") == open_before
+        esc_after = len([e for e in ts.list_escalations() if e.get("patient_id") == sandra])
+        assert esc_after == esc_before
 
 
 def test_preserve_degrades_to_reset_when_blueprint_changes(monkeypatch):

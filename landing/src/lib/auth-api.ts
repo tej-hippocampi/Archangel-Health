@@ -40,6 +40,22 @@ function resolveBackendOrigin(explicit: string | undefined, devFallback: string)
 /** Empty in dev (Vite proxies /api); VITE_API_URL or the prod backend otherwise. */
 export const API_BASE = resolveBackendOrigin(viteEnv.VITE_API_URL, "");
 
+/**
+ * Host the sign-in forms authenticate against, for display. Empty when calls
+ * are same-origin (dev proxy / served by the backend). Surfacing this matters:
+ * without VITE_API_URL a deployed/preview landing silently falls back to the
+ * production backend, and a user comparing it to a local backend sees
+ * "missing" demo data with no hint the two tabs hit different servers.
+ */
+export function signInServerHost(): string {
+  if (!API_BASE) return "";
+  try {
+    return new URL(API_BASE).host;
+  } catch {
+    return API_BASE;
+  }
+}
+
 /** Backend origin for doctor portal redirects (no trailing slash). */
 export function dashboardBaseUrl(): string {
   return resolveBackendOrigin(

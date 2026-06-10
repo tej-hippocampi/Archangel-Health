@@ -5,6 +5,7 @@ FastAPI backend: EHR → Pipeline → Dashboard → SMS
 
 import asyncio
 import os
+import threading
 import time
 import re
 from pathlib import Path
@@ -89,6 +90,7 @@ from triage_demo_seed import (
     merge_triage_patients_into_store,
     seed_triage_demo_sqlite,
     spinal_fusion_postop_demo_resources,
+    triage_demo_patient_ids,
 )
 from tenant_jwt import decode_tenant_staff_token
 from patient_session import (
@@ -1198,6 +1200,28 @@ def _ensure_triage_demo_tenant_seeded() -> None:
         strategy=strategy,
     )
     seed_triage_demo_sqlite(_team_store, _patient_store, strategy=strategy)
+
+
+_triage_demo_reseed_lock = threading.Lock()
+
+
+def _refresh_triage_demo_seed_if_needed() -> None:
+    """Self-heal the TRIAGEDM demo at sign-in time.
+
+    Seeding only runs at process startup, so a server that stays up past
+    ``DEMO_SEED_MAX_AGE_DAYS`` keeps serving a drifted demo timeline (and an
+    instance that lost in-memory demo patients serves an empty roster) until
+    someone restarts it. Called on demo-tenant staff login: a cheap freshness
+    probe on every login, full reseed only when patients are missing from the
+    in-memory store or the stored seed went stale.
+    """
+    if not _triage_demo_enabled():
+        return
+    with _triage_demo_reseed_lock:
+        missing = any(pid not in _patient_store for pid in triage_demo_patient_ids())
+        if not missing and effective_seed_strategy(_team_store, "preserve") == "preserve":
+            return
+        _ensure_triage_demo_tenant_seeded()
 
 
 def _frontend_cache_version() -> str:
@@ -5763,6 +5787,9 @@ async def startup_team_scheduler():
     await _seed_demo_mode_data()
     if _triage_demo_enabled():
         _ensure_triage_demo_tenant_seeded()
+    # Demo-tenant login re-checks seed freshness so a long-running process
+    # can't serve stale/missing demo data (see routers/tenant_portal.py).
+    app.state.refresh_triage_demo_seed = _refresh_triage_demo_seed_if_needed
     if _is_demo_mode():
         _persist_demo_patient_store()
     if _is_demo_mode() and _disable_scheduler_in_demo():

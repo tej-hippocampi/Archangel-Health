@@ -32,6 +32,9 @@ export default function TenantSignIn({ slug }: Props) {
       <form onSubmit={onSubmit} className="w-full max-w-md space-y-4 bg-slate-900/80 border border-slate-800 rounded-xl p-8">
         <h1 className="text-xl font-semibold text-center">Health system sign in</h1>
         <p className="text-slate-400 text-sm text-center">Workspace: {slug}</p>
+        {authApi.signInServerHost() ? (
+          <p className="text-slate-500 text-xs text-center">Server: {authApi.signInServerHost()}</p>
+        ) : null}
         {error ? <p className="text-red-400 text-sm text-center">{error}</p> : null}
         <input
           className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"

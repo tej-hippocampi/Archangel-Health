@@ -136,6 +136,9 @@ export function SignInDialog({ open, onOpenChange }: Props) {
               {step === "doctor" && "Sign in with your account to access the doctor dashboard."}
               {step === "patient" && "Enter the codes from your care team email."}
             </p>
+            {step === "doctor" && authApi.signInServerHost() && (
+              <p className="mt-1 text-xs text-[#6a6a70]">Server: {authApi.signInServerHost()}</p>
+            )}
           </div>
           <button
             type="button"

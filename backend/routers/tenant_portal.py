@@ -1,11 +1,15 @@
 """Tenant staff auth and director audit log."""
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 
+from tenant_constants import TRIAGE_DEMO_SLUG
 from tenant_jwt import create_tenant_staff_token, decode_tenant_staff_token
+
+logger = logging.getLogger("tenant_portal")
 
 router = APIRouter(prefix="/api/tenant", tags=["tenant"])
 
@@ -36,6 +40,16 @@ async def tenant_auth_login(slug: str, body: TenantLoginBody, request: Request):
     if not authd:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     m, hs = authd["member"], authd["health_system"]
+    if (hs.get("slug") or "").lower() == TRIAGE_DEMO_SLUG:
+        # Demo logins self-heal the seed: a process that has been up past the
+        # seed max-age (or lost its in-memory patients) would otherwise serve a
+        # stale/empty demo roster until restart. Never block sign-in on it.
+        refresh = getattr(request.app.state, "refresh_triage_demo_seed", None)
+        if refresh:
+            try:
+                refresh()
+            except Exception:
+                logger.exception("triage demo seed refresh failed during login")
     ts.append_audit_sign_in(
         health_system_id=hs["id"],
         user_email=m["email"],
