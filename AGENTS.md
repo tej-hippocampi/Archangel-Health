@@ -32,6 +32,13 @@ Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`**
 - **pip installs to user dir**: `pip install` installs to `~/.local/bin`. Ensure `$HOME/.local/bin` is on `PATH`, or use `python3 -m uvicorn` instead of `uvicorn` directly.
 - **In-memory data**: All patient data resets on server restart. The demo patient `maria_001` is re-seeded on every startup.
 
+### Claude Code healthcare plugins
+`.claude/settings.json` enables two Agent Skills from Anthropic's [`anthropics/healthcare`](https://github.com/anthropics/healthcare) marketplace for everyone working on this repo in Claude Code (you'll be prompted to trust/install them on first launch):
+- **`fhir-developer@healthcare`** — FHIR R4 reference (resource structures, LOINC/SNOMED/RxNorm coding, SMART-on-FHIR auth) for EHR interop work.
+- **`prior-auth-review@healthcare`** — Anthropic's demo payer-review skill; use its waypoint/rubric architecture as the reference pattern for TEAM eligibility review and clinical-necessity workflows.
+
+These are **dev-time references only** — they are not wired into the product runtime and must not be put in any PHI path (the server-side Skills API is not HIPAA-eligible). The marketplace also offers ICD-10, CMS Coverage, NPI Registry, and PubMed MCP connectors that can be enabled by adding entries to `enabledPlugins`.
+
 ### Key endpoints
 | Endpoint | Method | Description |
 |---|---|---|

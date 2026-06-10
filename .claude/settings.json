@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "healthcare": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/healthcare"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "fhir-developer@healthcare": true,
+    "prior-auth-review@healthcare": true
+  }
+}
