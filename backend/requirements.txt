@@ -1,37 +1,37 @@
 # CareGuide Backend — Python Dependencies
 
 # Web framework
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
+fastapi==0.136.3
+uvicorn[standard]==0.49.0
 
 # AI
-anthropic==0.34.0
+anthropic==0.109.0
 
 # HTTP client (ElevenLabs, Tavus)
-httpx==0.27.2
-aiofiles==24.1.0
+httpx==0.28.1
+aiofiles==25.1.0
 
 # Data validation
-pydantic==2.8.2
+pydantic==2.13.4
 
 # SMS
-twilio==9.2.3
+twilio==9.10.9
 
 # Email (SendGrid Web API)
-sendgrid>=6.11.0
+sendgrid>=6.12.5
 
 # PDF parsing
 PyPDF2==3.0.1
-pdfminer.six>=20221105
+pdfminer.six>=20260107
 pdf2image>=1.17.0
-pytesseract>=0.3.10
-Pillow>=10.0.0
+pytesseract>=0.3.13
+Pillow>=12.2.0
 
 # File uploads
-python-multipart>=0.0.5
+python-multipart>=0.0.32
 
 # Environment config
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # Auth (landing / Elysium Health)
 # PyJWT replaces python-jose, which carried CVE-2024-33663 (algorithm confusion)
@@ -39,8 +39,8 @@ python-dotenv==1.0.1
 # >=2.13.0 also clears the newer PyJWT advisories (PYSEC-2026-175/177/179).
 PyJWT>=2.13.0
 passlib[bcrypt]==1.7.4
-email-validator>=2.0.0
+email-validator>=2.3.0
 # MFA (TOTP) — PRD-3
 pyotp>=2.9.0
 # Field encryption at rest (AES-256-GCM) — PRD-6
-cryptography>=41.0.0
+cryptography>=48.0.1
