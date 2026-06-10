@@ -1,0 +1,48 @@
+HARTLAND REGIONAL HEALTH SYSTEM
+Comprehensive Patient Eligibility & Pre-Operative Summary
+Rosa M. Delgado
+
+PATIENT DEMOGRAPHICS
+Name: Rosa Maria Delgado
+DOB: 1956-07-03 (69 y/o)  Sex: F
+MRN: HRH-0050917
+MBI: 5RC8PA1DW06
+Address: 914 Larkspur Ave, Kettering, OH 45429
+Phone: (937) 555-0152
+
+SCHEDULED PROCEDURE
+Procedure: Laparoscopic sigmoid colectomy (major bowel procedure)
+CPT: 44204   MS-DRG (anticipated): 330
+Surgeon: Dr. Owen Ferris, MD — Colorectal Surgery
+Scheduled Surgery Date: 2026-07-30
+Facility: Hartland Regional Medical Center (IPPS)
+
+INSURANCE / ELIGIBILITY VERIFICATION (run 2026-06-07) — PARTIAL
+Payer: Original Medicare (Fee-for-Service) per patient-provided red-white-and-blue card.
+Medicare Part A (Hospital Insurance): ACTIVE — Effective 2021-07-01, no termination date on file.
+Medicare Part B (Medical Insurance): VERIFICATION PENDING — the payer portal response
+returned hospital (Part A) entitlement only; no Part B benefit segment was returned.
+Front office to re-run a full 270/271 eligibility inquiry prior to surgery.
+Part C / Medicare Advantage enrollment: NONE — patient confirms Original Medicare; no MA plan returned by portal.
+Medicare Secondary Payer (MSP) screening: no MSP records found; Medicare is the PRIMARY payer.
+Entitlement basis: Age (65+).
+UMWA Health Plan: none on file.
+
+PROBLEM LIST
+1. Recurrent sigmoid diverticulitis, third episode in 14 months (K57.32)
+2. GERD (K21.9)
+3. Osteoarthritis, bilateral hands (M19.042)
+
+MEDICATIONS
+- Omeprazole 20 mg PO daily
+- Multivitamin PO daily
+
+ALLERGIES: Codeine (nausea)
+
+PRE-OPERATIVE INSTRUCTIONS
+1. Clear liquid diet beginning 24 hours before surgery.
+2. Bowel preparation: split-dose polyethylene glycol per colorectal surgery handout.
+3. NPO except clears up to 2 hours before arrival.
+4. Arrive at the surgical pavilion at 06:15 on 2026-07-30.
+
+End of patient record — Delgado, Rosa M.

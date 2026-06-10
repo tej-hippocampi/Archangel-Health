@@ -1,0 +1,50 @@
+HARTLAND REGIONAL HEALTH SYSTEM
+Comprehensive Patient Eligibility & Pre-Operative Summary
+Margaret A. Okafor
+
+PATIENT DEMOGRAPHICS
+Name: Margaret Anne Okafor
+DOB: 1954-09-17 (71 y/o)  Sex: F
+MRN: HRH-0049821
+MBI: 4WH7QD2RT55
+Address: 1182 Birchwood Ln, Dayton, OH 45419
+Phone: (937) 555-0184
+
+SCHEDULED PROCEDURE
+Procedure: Total knee arthroplasty, right (lower extremity joint replacement)
+CPT: 27447   MS-DRG (anticipated): 470
+Surgeon: Dr. Priya Raman, MD — Orthopedic Surgery
+Scheduled Surgery Date: 2026-07-14
+Facility: Hartland Regional Medical Center (IPPS)
+
+INSURANCE / ELIGIBILITY VERIFICATION (run 2026-06-08)
+Payer: Original Medicare (Fee-for-Service)
+Medicare Part A (Hospital Insurance): ACTIVE — Effective 2019-10-01, no termination date on file
+Medicare Part B (Medical Insurance): ACTIVE — Effective 2019-10-01, no termination date on file
+Part C / Medicare Advantage enrollment: NONE — patient is NOT enrolled in any MA or MAPD plan
+Medicare Secondary Payer (MSP) screening: No MSP records found. Medicare is the PRIMARY payer.
+Entitlement basis: Age (65+). Entitlement code: A (aged).
+Supplemental coverage: Mutual of Omaha Medigap Plan G (secondary only)
+UMWA Health Plan: not applicable — no mine-industry coverage history.
+
+PROBLEM LIST
+1. Primary osteoarthritis, right knee (M17.11)
+2. Chronic kidney disease, stage 3a (N18.31) — eGFR 52, stable; followed by nephrology.
+   NOTE: CKD is a comorbid diagnosis only; Medicare entitlement is on the basis of age, NOT ESRD.
+3. Hypertension, well controlled (I10)
+4. Hyperlipidemia (E78.5)
+
+MEDICATIONS
+- Lisinopril 10 mg PO daily
+- Atorvastatin 20 mg PO nightly
+- Acetaminophen 650 mg PO TID PRN knee pain
+
+ALLERGIES: NKDA
+
+PRE-OPERATIVE INSTRUCTIONS
+1. Nothing to eat or drink after midnight before surgery.
+2. Hold lisinopril the morning of surgery.
+3. Chlorhexidine shower the night before and morning of surgery.
+4. Arrive at the surgical pavilion at 05:30 on 2026-07-14.
+
+End of patient record — Okafor, Margaret A.

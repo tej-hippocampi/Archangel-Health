@@ -1,0 +1,51 @@
+HARTLAND REGIONAL HEALTH SYSTEM
+Comprehensive Patient Eligibility & Pre-Operative Summary
+Samuel T. Whitfield
+
+PATIENT DEMOGRAPHICS
+Name: Samuel Theodore Whitfield
+DOB: 1967-11-08 (58 y/o)  Sex: M
+MRN: HRH-0052408
+MBI: 9XV5MH3JQ48
+Address: 2310 Fenwick Rd, Xenia, OH 45385
+Phone: (937) 555-0496
+
+SCHEDULED PROCEDURE
+Procedure: Open reduction internal fixation, left femoral neck fracture (hip/femur procedure)
+CPT: 27236   MS-DRG (anticipated): 480
+Surgeon: Dr. Priya Raman, MD — Orthopedic Surgery
+Scheduled Surgery Date: 2026-06-25
+Facility: Hartland Regional Medical Center (IPPS)
+
+INSURANCE / ELIGIBILITY VERIFICATION (run 2026-06-10)
+Payer: Original Medicare (Fee-for-Service)
+Medicare Part A (Hospital Insurance): ACTIVE — Effective 2023-05-01, no termination date on file
+Medicare Part B (Medical Insurance): ACTIVE — Effective 2023-05-01, no termination date on file
+Part C / Medicare Advantage enrollment: NONE — no MA or MAPD plan on file.
+Medicare Secondary Payer (MSP) screening: no other payer; Medicare is the PRIMARY payer.
+Entitlement basis: ESRD. Medicare entitlement code C — beneficiary is under 65 and
+entitled to Medicare on the basis of End-Stage Renal Disease. Beneficiary began a
+regular course of maintenance hemodialysis 2023-02-14; Medicare ESRD entitlement
+effective 2023-05-01.
+UMWA Health Plan: none on file.
+
+PROBLEM LIST
+1. Displaced fracture, left femoral neck (S72.012A) — mechanical fall at home 2026-06-08
+2. End-stage renal disease on chronic hemodialysis MWF (N18.6, Z99.2) — Davita Xenia unit
+3. Renal anemia (D63.1)
+4. Secondary hyperparathyroidism of renal origin (N25.81)
+
+MEDICATIONS
+- Sevelamer 800 mg PO TID with meals
+- Epoetin alfa per dialysis protocol
+- Amlodipine 5 mg PO daily
+
+ALLERGIES: NKDA
+
+PRE-OPERATIVE INSTRUCTIONS
+1. Hemodialysis session to be completed the day before surgery (2026-06-24); coordinate with Davita Xenia.
+2. NPO after midnight before surgery.
+3. Pre-op potassium to be drawn on call to OR.
+4. Arrive via inpatient transfer; patient currently admitted to 4 West.
+
+End of patient record — Whitfield, Samuel T.

@@ -1,0 +1,50 @@
+HARTLAND REGIONAL HEALTH SYSTEM
+Comprehensive Patient Eligibility & Pre-Operative Summary
+Harold J. Brennan
+
+PATIENT DEMOGRAPHICS
+Name: Harold James Brennan
+DOB: 1951-03-02 (75 y/o)  Sex: M
+MRN: HRH-0051173
+MBI: 7TN3KF8WP91
+Address: 408 Calloway Ct, Springfield, OH 45502
+Phone: (937) 555-0341
+
+SCHEDULED PROCEDURE
+Procedure: Coronary artery bypass graft x3 (CABG)
+CPT: 33533   MS-DRG (anticipated): 236
+Surgeon: Dr. Marcus Yee, MD — Cardiothoracic Surgery
+Scheduled Surgery Date: 2026-07-22
+Facility: Hartland Regional Medical Center (IPPS)
+
+INSURANCE / ELIGIBILITY VERIFICATION (run 2026-06-09)
+Payer of record (per patient intake form): "Medicare"
+Plan-level detail (payer portal): Humana Gold Plus HMO (MAPD)
+Part C contract ID: H1036, PBP 142 — enrolled effective 2024-01-01, enrollment ACTIVE through current month, no disenrollment on file.
+Medicare Part A (Hospital Insurance): entitled, effective 2016-03-01
+Medicare Part B (Medical Insurance): entitled, effective 2016-03-01
+NOTE: Although the intake form lists "Medicare," contract H1036 indicates active Medicare Advantage enrollment covering the surgery date. Claims route to Humana, not FFS Medicare.
+Medicare Secondary Payer (MSP) screening: no other primary payer; MA plan is responsible payer.
+Entitlement basis: Age (65+).
+UMWA Health Plan: none on file.
+
+PROBLEM LIST
+1. Three-vessel coronary artery disease (I25.10)
+2. Type 2 diabetes mellitus (E11.9), A1c 7.4
+3. Former smoker, quit 2019 (Z87.891)
+
+MEDICATIONS
+- Metoprolol succinate 50 mg PO daily
+- Aspirin 81 mg PO daily
+- Metformin 1000 mg PO BID
+- Atorvastatin 80 mg PO nightly
+
+ALLERGIES: Penicillin (rash)
+
+PRE-OPERATIVE INSTRUCTIONS
+1. NPO after midnight before surgery.
+2. Hold metformin 48 hours prior to surgery.
+3. Continue aspirin per cardiothoracic surgery protocol.
+4. Report to cardiac pre-op holding at 05:00 on 2026-07-22.
+
+End of patient record — Brennan, Harold J.

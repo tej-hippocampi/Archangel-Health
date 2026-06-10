@@ -1,0 +1,53 @@
+HARTLAND REGIONAL HEALTH SYSTEM
+Comprehensive Patient Eligibility & Pre-Operative Summary
+Diane R. Castillo
+
+PATIENT DEMOGRAPHICS
+Name: Diane Rosa Castillo
+DOB: 1959-01-26 (67 y/o)  Sex: F
+MRN: HRH-0047765
+MBI: 2EG4TE5MK72
+Address: 77 Quail Hollow Dr, Beavercreek, OH 45434
+Phone: (937) 555-0277
+Employment status: ACTIVE full-time, Wright Avionics Group (approx. 1,400 employees)
+
+SCHEDULED PROCEDURE
+Procedure: Posterior lumbar interbody spinal fusion, L4-L5
+CPT: 22630   MS-DRG (anticipated): 460
+Surgeon: Dr. Elena Voss, MD — Neurosurgery / Spine
+Scheduled Surgery Date: 2026-08-05
+Facility: Hartland Regional Medical Center (IPPS)
+
+INSURANCE / ELIGIBILITY VERIFICATION (run 2026-06-05)
+PRIMARY payer: Anthem Blue Cross Blue Shield PPO — employer group health plan
+through current employer Wright Avionics Group (employer size > 20 employees).
+Group #GA88231, Member ID WAV4410257.
+SECONDARY payer: Medicare.
+MSP determination: Working Aged (MSP type 12) — beneficiary is age 65+ and covered
+by an employer group health plan through active employment. The EGHP is primary;
+Medicare is SECONDARY for the surgery date.
+Medicare Part A (Hospital Insurance): ACTIVE — Effective 2024-02-01
+Medicare Part B (Medical Insurance): ACTIVE — Effective 2024-02-01
+Part C / Medicare Advantage enrollment: NONE — Original Medicare, no MA plan on file.
+Entitlement basis: Age (65+).
+UMWA Health Plan: none on file.
+
+PROBLEM LIST
+1. Lumbar spinal stenosis with neurogenic claudication, L4-L5 (M48.062)
+2. Degenerative spondylolisthesis, L4 on L5, grade 1 (M43.16)
+3. Osteopenia (M85.80)
+
+MEDICATIONS
+- Gabapentin 300 mg PO TID
+- Vitamin D3 2000 IU PO daily
+- Naproxen 500 mg PO BID PRN (to be held pre-op)
+
+ALLERGIES: Sulfa drugs (hives)
+
+PRE-OPERATIVE INSTRUCTIONS
+1. Discontinue naproxen and all NSAIDs 7 days before surgery.
+2. NPO after midnight before surgery.
+3. Bring both insurance cards (Anthem BCBS and Medicare) to registration.
+4. Arrive at the surgical pavilion at 06:00 on 2026-08-05.
+
+End of patient record — Castillo, Diane R.
