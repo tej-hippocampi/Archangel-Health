@@ -69,9 +69,25 @@ detail-view redesign:
 | X12 271 | 5 MB    | `ISA*` envelope prefix or `.x12/.271/.edi` ext |
 | PDF     | 25 MB   | `%PDF` magic bytes |
 | CSV     | 10 MB   | `.csv/.tsv` ext + delimiter sniffing |
+| FHIR JSON | 10 MB | JSON object with a `resourceType` key |
 | Other   | 25 MB   | fallback (any text-extractable format) |
 
 Password-protected PDFs are rejected at upload with HTTP 422.
+
+## FHIR / EHR integration
+
+Eligibility documents can also be pulled directly from an EHR's FHIR R4 server
+(SMART on FHIR Backend Services) instead of uploaded manually — feature-flagged
+via `FHIR_ENABLED`, off by default. Local sandbox:
+
+```bash
+docker compose -f docker-compose.fhir.yml up -d      # HAPI FHIR on localhost:8090
+cd backend && python3 scripts/seed_fhir_sandbox.py   # synthetic test patients
+```
+
+Endpoints: `GET /api/fhir/status`, `GET /api/fhir/patients`, `POST /api/fhir/import`.
+See `docs/FHIR_INTEGRATION.md` for the full runbook (Epic sandbox registration,
+real-site pilot checklist).
 
 ### Running tests
 

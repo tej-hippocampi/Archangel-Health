@@ -23,6 +23,7 @@ from eligibility import evaluate as eval_mod
 from eligibility import format_detect, store
 from eligibility.extract import extract_eligibility, extract_identity, extract_patient_segments
 from eligibility.parse_csv import CSVParseResult, format_for_llm as csv_format, parse_csv, split_by_mbi
+from eligibility.parse_fhir import InvalidFhirError, format_for_llm as fhir_format, parse_fhir_bundle
 from eligibility.parse_pdf import (
     PDFEncryptedError,
     PDFParseError,
@@ -129,12 +130,23 @@ def _parse_one(doc: Dict[str, Any]) -> Dict[str, Any]:
                 "parse_meta": meta,
                 "parse_error": None,
             }
+        if fmt == "FHIR_JSON":
+            fhir_res = parse_fhir_bundle(raw)
+            meta["coverages"] = len(fhir_res.coverages)
+            meta["has_patient"] = fhir_res.patient is not None
+            return {
+                "llm_text": fhir_format(fhir_res, doc.get("filename")),
+                "parse_meta": meta,
+                "parse_error": None,
+            }
         # OTHER — best-effort: utf-8 decode
         text = raw.decode("utf-8", errors="replace")
         meta["note"] = "Non-eligibility file; raw text attached as context."
         return {"llm_text": f"=== OTHER FILE ({doc.get('filename')}) ===\n{text[:20000]}", "parse_meta": meta, "parse_error": None}
     except InvalidX12Error as e:
         return {"llm_text": "", "parse_meta": meta, "parse_error": "INVALID_X12", "parse_error_message": str(e)}
+    except InvalidFhirError as e:
+        return {"llm_text": "", "parse_meta": meta, "parse_error": "INVALID_FHIR", "parse_error_message": str(e)}
     except Exception as e:  # noqa: BLE001
         log.exception("Parse failure for %s", doc.get("filename"))
         return {"llm_text": "", "parse_meta": meta, "parse_error": "PARSE_FAILED", "parse_error_message": str(e)}

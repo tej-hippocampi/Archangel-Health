@@ -25,6 +25,8 @@ Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`**
 
 **TEAM eligibility (Track A)** lives in `backend/eligibility/` (parsers, extractor, evaluator, pipeline) and `backend/routers/eligibility.py`. Requires `ANTHROPIC_API_KEY` for live extraction, and `tesseract` + `poppler` (`brew install tesseract poppler`) for OCR fallback on image-only PDFs. Uploaded documents land under `$UPLOAD_DIR/eligibility/<patientId>/` (default `/tmp/elysium-eligibility`). All check / override / finalize / batch endpoints write to the in-memory audit log; view via `GET /admin/audit/eligibility`.
 
+**FHIR / EHR integration** lives in `backend/integrations/fhir/` (SMART Backend Services auth + R4 client) and `backend/routers/fhir_import.py`, feature-flagged via `FHIR_ENABLED` (off by default). It pulls Patient/Coverage/DocumentReference from an EHR FHIR server and registers them as eligibility documents, so the existing parse → extract → evaluate pipeline runs unchanged. Local sandbox: `docker compose -f docker-compose.fhir.yml up -d` then `python3 backend/scripts/seed_fhir_sandbox.py`. Full runbook (Epic sandbox registration, pilot checklist): `docs/FHIR_INTEGRATION.md`.
+
 ### Gotchas
 - **Static file paths**: `frontend/index.html` uses `/static/` prefixed paths. FastAPI mounts the `frontend/` directory at `/static`. If the HTML is served at `/patient/{id}`, relative paths won't resolve — always use `/static/styles.css` and `/static/app.js`.
 - **Test suite is `backend/tests/` (pytest)** — covers the eligibility evaluator, parsers, and a 50-case validation fixture set. Run with `cd backend && python3 -m pytest tests/ -q`.

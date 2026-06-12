@@ -1,6 +1,6 @@
 """Detect eligibility document format from bytes + filename.
 
-Return one of: X12_271 | PDF | CSV | OTHER.
+Return one of: X12_271 | PDF | CSV | FHIR_JSON | OTHER.
 The PRD size limits are enforced by the upload endpoint, not here.
 """
 
@@ -9,13 +9,14 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-Format = Literal["X12_271", "PDF", "CSV", "OTHER"]
+Format = Literal["X12_271", "PDF", "CSV", "FHIR_JSON", "OTHER"]
 
 # PRD §4.2.2 max sizes (bytes)
 MAX_SIZE_BY_FORMAT: dict[str, int] = {
     "X12_271": 5 * 1024 * 1024,
     "PDF": 25 * 1024 * 1024,
     "CSV": 10 * 1024 * 1024,
+    "FHIR_JSON": 10 * 1024 * 1024,
     "OTHER": 25 * 1024 * 1024,
 }
 
@@ -51,7 +52,16 @@ def detect_format(filename: str, head_bytes: bytes) -> Format:
                 return "X12_271"
     except Exception:
         pass
-    # 3. CSV
+    # 3. FHIR JSON — produced by the FHIR import endpoint, or a manual upload
+    # of an EHR's FHIR export. Heuristic only (head is capped at 4KB, so a
+    # full json.loads is not possible here): JSON object + resourceType key.
+    try:
+        stripped = head_bytes.lstrip()
+        if stripped.startswith(b"{") and b'"resourceType"' in head_bytes:
+            return "FHIR_JSON"
+    except Exception:
+        pass
+    # 4. CSV
     if ext in CSV_EXTS:
         try:
             sample = head_bytes[:1024].decode("utf-8", errors="strict")

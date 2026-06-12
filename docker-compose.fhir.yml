@@ -1,0 +1,23 @@
+# Local HAPI FHIR R4 sandbox for FHIR-integration development. DEV ONLY —
+# no auth, synthetic data only, never expose beyond localhost.
+#
+#   docker compose -f docker-compose.fhir.yml up -d
+#   cd backend && python3 scripts/seed_fhir_sandbox.py     # load synthetic patients
+#
+# Then point the backend at it in backend/.env:
+#   FHIR_ENABLED=1
+#   FHIR_BASE_URL=http://localhost:8090/fhir
+#   FHIR_AUTH_MODE=none
+services:
+  hapi-fhir:
+    image: hapiproject/hapi:v7.2.0
+    ports:
+      - "127.0.0.1:8090:8080"
+    environment:
+      hapi.fhir.fhir_version: R4
+      hapi.fhir.allow_external_references: "true"
+    volumes:
+      - hapi_fhir_data:/data/hapi
+
+volumes:
+  hapi_fhir_data: {}
