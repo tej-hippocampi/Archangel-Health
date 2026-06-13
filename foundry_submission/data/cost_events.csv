@@ -1,0 +1,793 @@
+cost_event_id,episode_id,date,category,description,amount,is_readmission
+CE-0001-surg,EP-0001,2026-05-04,SURGERY,LEJR anchor procedure 27447,16192,false
+CE-0001-op,EP-0001,2026-05-11,OUTPATIENT,Follow-up visit + labs,393,false
+CE-0002-surg,EP-0002,2026-05-24,SURGERY,LEJR anchor procedure 27447,16504,false
+CE-0002-op,EP-0002,2026-05-31,OUTPATIENT,Follow-up visit + labs,356,false
+CE-0003-surg,EP-0003,2026-05-10,SURGERY,LEJR anchor procedure 27447,16596,false
+CE-0003-pac,EP-0003,2026-05-12,SNF,Post-acute SNF,9292,false
+CE-0003-op,EP-0003,2026-05-17,OUTPATIENT,Follow-up visit + labs,604,false
+CE-0004-surg,EP-0004,2026-04-25,SURGERY,LEJR anchor procedure 27447,16091,false
+CE-0004-op,EP-0004,2026-05-02,OUTPATIENT,Follow-up visit + labs,619,false
+CE-0005-surg,EP-0005,2026-04-25,SURGERY,LEJR anchor procedure 27447,15834,false
+CE-0005-op,EP-0005,2026-05-02,OUTPATIENT,Follow-up visit + labs,483,false
+CE-0006-surg,EP-0006,2026-05-10,SURGERY,LEJR anchor procedure 27447,16506,false
+CE-0006-op,EP-0006,2026-05-17,OUTPATIENT,Follow-up visit + labs,321,false
+CE-0007-surg,EP-0007,2026-04-26,SURGERY,LEJR anchor procedure 27447,15769,false
+CE-0007-op,EP-0007,2026-05-03,OUTPATIENT,Follow-up visit + labs,364,false
+CE-0008-surg,EP-0008,2026-04-19,SURGERY,LEJR anchor procedure 27447,15513,false
+CE-0008-op,EP-0008,2026-04-26,OUTPATIENT,Follow-up visit + labs,577,false
+CE-0009-hh,EP-0009,2026-05-21,HOME_HEALTH,Home-health skilled nursing visit,168.0,false
+CE-0009-surg,EP-0009,2026-05-10,SURGERY,LEJR anchor procedure 27447,16688,false
+CE-0009-op,EP-0009,2026-05-17,OUTPATIENT,Follow-up visit + labs,368,false
+CE-0010-surg,EP-0010,2026-05-11,SURGERY,LEJR anchor procedure 27447,16002,false
+CE-0010-op,EP-0010,2026-05-18,OUTPATIENT,Follow-up visit + labs,631,false
+CE-0011-surg,EP-0011,2026-04-05,SURGERY,LEJR anchor procedure 27447,16110,false
+CE-0011-op,EP-0011,2026-04-12,OUTPATIENT,Follow-up visit + labs,322,false
+CE-0012-surg,EP-0012,2026-05-13,SURGERY,LEJR anchor procedure 27447,15807,false
+CE-0012-pac,EP-0012,2026-05-15,HOME_HEALTH,Post-acute HOME_HEALTH,1932,false
+CE-0012-op,EP-0012,2026-05-20,OUTPATIENT,Follow-up visit + labs,286,false
+CE-0013-surg,EP-0013,2026-04-12,SURGERY,LEJR anchor procedure 27447,15523,false
+CE-0013-op,EP-0013,2026-04-19,OUTPATIENT,Follow-up visit + labs,227,false
+CE-0014-surg,EP-0014,2026-04-24,SURGERY,LEJR anchor procedure 27447,16151,false
+CE-0014-pac,EP-0014,2026-04-26,HOME_HEALTH,Post-acute HOME_HEALTH,1750,false
+CE-0014-op,EP-0014,2026-05-01,OUTPATIENT,Follow-up visit + labs,302,false
+CE-0015-surg,EP-0015,2026-05-12,SURGERY,LEJR anchor procedure 27447,16229,false
+CE-0015-pac,EP-0015,2026-05-14,SNF,Post-acute SNF,8129,false
+CE-0015-op,EP-0015,2026-05-19,OUTPATIENT,Follow-up visit + labs,291,false
+CE-0016-surg,EP-0016,2026-05-14,SURGERY,LEJR anchor procedure 27447,15500,false
+CE-0016-pac,EP-0016,2026-05-16,SNF,Post-acute SNF,7998,false
+CE-0016-op,EP-0016,2026-05-21,OUTPATIENT,Follow-up visit + labs,253,false
+CE-0017-surg,EP-0017,2026-05-26,SURGERY,LEJR anchor procedure 27447,16200,false
+CE-0017-op,EP-0017,2026-06-02,OUTPATIENT,Follow-up visit + labs,513,false
+CE-0017-readmit,EP-0017,2026-06-04,READMISSION,Unplanned 30-day inpatient readmission,14693,true
+CE-0017-ed,EP-0017,2026-06-04,ED_VISIT,Emergency department evaluation,2200,true
+CE-0018-surg,EP-0018,2026-04-20,SURGERY,LEJR anchor procedure 27447,16645,false
+CE-0018-op,EP-0018,2026-04-27,OUTPATIENT,Follow-up visit + labs,517,false
+CE-0019-surg,EP-0019,2026-04-25,SURGERY,LEJR anchor procedure 27447,15656,false
+CE-0019-op,EP-0019,2026-05-02,OUTPATIENT,Follow-up visit + labs,242,false
+CE-0020-surg,EP-0020,2026-04-21,SURGERY,LEJR anchor procedure 27447,15341,false
+CE-0020-pac,EP-0020,2026-04-23,SNF,Post-acute SNF,9653,false
+CE-0020-op,EP-0020,2026-04-28,OUTPATIENT,Follow-up visit + labs,441,false
+CE-0020-readmit,EP-0020,2026-05-02,READMISSION,Unplanned 30-day inpatient readmission,10192,true
+CE-0020-ed,EP-0020,2026-05-02,ED_VISIT,Emergency department evaluation,2449,true
+CE-0021-surg,EP-0021,2026-04-25,SURGERY,LEJR anchor procedure 27447,15380,false
+CE-0021-op,EP-0021,2026-05-02,OUTPATIENT,Follow-up visit + labs,495,false
+CE-0022-surg,EP-0022,2026-05-01,SURGERY,LEJR anchor procedure 27447,15763,false
+CE-0022-pac,EP-0022,2026-05-03,SNF,Post-acute SNF,9758,false
+CE-0022-op,EP-0022,2026-05-08,OUTPATIENT,Follow-up visit + labs,365,false
+CE-0022-readmit,EP-0022,2026-05-16,READMISSION,Unplanned 30-day inpatient readmission,11883,true
+CE-0022-ed,EP-0022,2026-05-16,ED_VISIT,Emergency department evaluation,2262,true
+CE-0023-surg,EP-0023,2026-04-27,SURGERY,LEJR anchor procedure 27447,15741,false
+CE-0023-op,EP-0023,2026-05-04,OUTPATIENT,Follow-up visit + labs,463,false
+CE-0024-surg,EP-0024,2026-04-05,SURGERY,LEJR anchor procedure 27447,16882,false
+CE-0024-op,EP-0024,2026-04-12,OUTPATIENT,Follow-up visit + labs,365,false
+CE-0025-surg,EP-0025,2026-05-06,SURGERY,LEJR anchor procedure 27447,16192,false
+CE-0025-op,EP-0025,2026-05-13,OUTPATIENT,Follow-up visit + labs,342,false
+CE-0026-surg,EP-0026,2026-05-08,SURGERY,LEJR anchor procedure 27447,15541,false
+CE-0026-op,EP-0026,2026-05-15,OUTPATIENT,Follow-up visit + labs,440,false
+CE-0027-surg,EP-0027,2026-04-20,SURGERY,LEJR anchor procedure 27447,16265,false
+CE-0027-op,EP-0027,2026-04-27,OUTPATIENT,Follow-up visit + labs,506,false
+CE-0028-surg,EP-0028,2026-05-19,SURGERY,LEJR anchor procedure 27447,16475,false
+CE-0028-op,EP-0028,2026-05-26,OUTPATIENT,Follow-up visit + labs,436,false
+CE-0029-surg,EP-0029,2026-04-15,SURGERY,LEJR anchor procedure 27447,15657,false
+CE-0029-op,EP-0029,2026-04-22,OUTPATIENT,Follow-up visit + labs,513,false
+CE-0030-surg,EP-0030,2026-04-23,SURGERY,LEJR anchor procedure 27447,16185,false
+CE-0030-pac,EP-0030,2026-04-25,SNF,Post-acute SNF,9126,false
+CE-0030-op,EP-0030,2026-04-30,OUTPATIENT,Follow-up visit + labs,246,false
+CE-0031-surg,EP-0031,2026-04-11,SURGERY,LEJR anchor procedure 27447,16395,false
+CE-0031-pac,EP-0031,2026-04-13,HOME_HEALTH,Post-acute HOME_HEALTH,2368,false
+CE-0031-op,EP-0031,2026-04-18,OUTPATIENT,Follow-up visit + labs,484,false
+CE-0032-surg,EP-0032,2026-05-10,SURGERY,LEJR anchor procedure 27447,16706,false
+CE-0032-pac,EP-0032,2026-05-12,SNF,Post-acute SNF,4022,false
+CE-0032-op,EP-0032,2026-05-17,OUTPATIENT,Follow-up visit + labs,290,false
+CE-0033-surg,EP-0033,2026-04-22,SURGERY,LEJR anchor procedure 27447,15872,false
+CE-0033-op,EP-0033,2026-04-29,OUTPATIENT,Follow-up visit + labs,479,false
+CE-0034-surg,EP-0034,2026-04-24,SURGERY,LEJR anchor procedure 27447,16398,false
+CE-0034-op,EP-0034,2026-05-01,OUTPATIENT,Follow-up visit + labs,186,false
+CE-0035-surg,EP-0035,2026-05-08,SURGERY,LEJR anchor procedure 27447,15893,false
+CE-0035-op,EP-0035,2026-05-15,OUTPATIENT,Follow-up visit + labs,521,false
+CE-0036-surg,EP-0036,2026-05-23,SURGERY,LEJR anchor procedure 27447,15576,false
+CE-0036-op,EP-0036,2026-05-30,OUTPATIENT,Follow-up visit + labs,599,false
+CE-0036-readmit,EP-0036,2026-06-04,READMISSION,Unplanned 30-day inpatient readmission,13083,true
+CE-0036-ed,EP-0036,2026-06-04,ED_VISIT,Emergency department evaluation,1502,true
+CE-0037-surg,EP-0037,2026-05-17,SURGERY,LEJR anchor procedure 27447,16578,false
+CE-0037-pac,EP-0037,2026-05-19,HOME_HEALTH,Post-acute HOME_HEALTH,903,false
+CE-0037-op,EP-0037,2026-05-24,OUTPATIENT,Follow-up visit + labs,328,false
+CE-0038-surg,EP-0038,2026-05-20,SURGERY,LEJR anchor procedure 27447,15804,false
+CE-0038-pac,EP-0038,2026-05-22,HOME_HEALTH,Post-acute HOME_HEALTH,1662,false
+CE-0038-op,EP-0038,2026-05-27,OUTPATIENT,Follow-up visit + labs,458,false
+CE-0039-surg,EP-0039,2026-05-07,SURGERY,LEJR anchor procedure 27447,16535,false
+CE-0039-op,EP-0039,2026-05-14,OUTPATIENT,Follow-up visit + labs,380,false
+CE-0040-surg,EP-0040,2026-04-10,SURGERY,LEJR anchor procedure 27447,16711,false
+CE-0040-pac,EP-0040,2026-04-12,HOME_HEALTH,Post-acute HOME_HEALTH,1784,false
+CE-0040-op,EP-0040,2026-04-17,OUTPATIENT,Follow-up visit + labs,373,false
+CE-0041-surg,EP-0041,2026-05-02,SURGERY,LEJR anchor procedure 27447,15919,false
+CE-0041-op,EP-0041,2026-05-09,OUTPATIENT,Follow-up visit + labs,603,false
+CE-0042-surg,EP-0042,2026-05-26,SURGERY,LEJR anchor procedure 27447,16547,false
+CE-0042-op,EP-0042,2026-06-02,OUTPATIENT,Follow-up visit + labs,264,false
+CE-0042-readmit,EP-0042,2026-06-02,READMISSION,Unplanned 30-day inpatient readmission,14065,true
+CE-0042-ed,EP-0042,2026-06-02,ED_VISIT,Emergency department evaluation,1242,true
+CE-0043-surg,EP-0043,2026-05-22,SURGERY,LEJR anchor procedure 27447,15339,false
+CE-0043-op,EP-0043,2026-05-29,OUTPATIENT,Follow-up visit + labs,506,false
+CE-0044-surg,EP-0044,2026-05-01,SURGERY,LEJR anchor procedure 27447,15527,false
+CE-0044-op,EP-0044,2026-05-08,OUTPATIENT,Follow-up visit + labs,607,false
+CE-0045-surg,EP-0045,2026-04-05,SURGERY,LEJR anchor procedure 27447,16627,false
+CE-0045-op,EP-0045,2026-04-12,OUTPATIENT,Follow-up visit + labs,261,false
+CE-0046-surg,EP-0046,2026-04-09,SURGERY,LEJR anchor procedure 27447,15720,false
+CE-0046-op,EP-0046,2026-04-16,OUTPATIENT,Follow-up visit + labs,451,false
+CE-0046-readmit,EP-0046,2026-04-19,READMISSION,Unplanned 30-day inpatient readmission,9207,true
+CE-0046-ed,EP-0046,2026-04-19,ED_VISIT,Emergency department evaluation,2126,true
+CE-0047-surg,EP-0047,2026-04-30,SURGERY,LEJR anchor procedure 27447,15973,false
+CE-0047-op,EP-0047,2026-05-07,OUTPATIENT,Follow-up visit + labs,380,false
+CE-0048-surg,EP-0048,2026-04-27,SURGERY,LEJR anchor procedure 27447,16585,false
+CE-0048-pac,EP-0048,2026-04-29,SNF,Post-acute SNF,3705,false
+CE-0048-op,EP-0048,2026-05-04,OUTPATIENT,Follow-up visit + labs,531,false
+CE-0049-surg,EP-0049,2026-04-20,SURGERY,LEJR anchor procedure 27447,15619,false
+CE-0049-pac,EP-0049,2026-04-22,HOME_HEALTH,Post-acute HOME_HEALTH,1793,false
+CE-0049-op,EP-0049,2026-04-27,OUTPATIENT,Follow-up visit + labs,577,false
+CE-0050-surg,EP-0050,2026-05-21,SURGERY,LEJR anchor procedure 27447,16033,false
+CE-0050-op,EP-0050,2026-05-28,OUTPATIENT,Follow-up visit + labs,386,false
+CE-0051-surg,EP-0051,2026-04-05,SURGERY,LEJR anchor procedure 27447,15416,false
+CE-0051-op,EP-0051,2026-04-12,OUTPATIENT,Follow-up visit + labs,189,false
+CE-0051-readmit,EP-0051,2026-04-11,READMISSION,Unplanned 30-day inpatient readmission,16555,true
+CE-0051-ed,EP-0051,2026-04-11,ED_VISIT,Emergency department evaluation,2356,true
+CE-0052-surg,EP-0052,2026-05-20,SURGERY,LEJR anchor procedure 27447,16087,false
+CE-0052-op,EP-0052,2026-05-27,OUTPATIENT,Follow-up visit + labs,483,false
+CE-0053-surg,EP-0053,2026-05-21,SURGERY,LEJR anchor procedure 27447,15870,false
+CE-0053-op,EP-0053,2026-05-28,OUTPATIENT,Follow-up visit + labs,449,false
+CE-0054-surg,EP-0054,2026-05-23,SURGERY,LEJR anchor procedure 27447,15961,false
+CE-0054-op,EP-0054,2026-05-30,OUTPATIENT,Follow-up visit + labs,458,false
+CE-0055-surg,EP-0055,2026-05-18,SURGERY,LEJR anchor procedure 27447,16100,false
+CE-0055-op,EP-0055,2026-05-25,OUTPATIENT,Follow-up visit + labs,466,false
+CE-0056-surg,EP-0056,2026-05-26,SURGERY,LEJR anchor procedure 27447,16726,false
+CE-0056-op,EP-0056,2026-06-02,OUTPATIENT,Follow-up visit + labs,266,false
+CE-0057-surg,EP-0057,2026-04-30,SURGERY,LEJR anchor procedure 27447,15415,false
+CE-0057-op,EP-0057,2026-05-07,OUTPATIENT,Follow-up visit + labs,346,false
+CE-0058-surg,EP-0058,2026-05-05,SURGERY,LEJR anchor procedure 27447,16169,false
+CE-0058-pac,EP-0058,2026-05-07,HOME_HEALTH,Post-acute HOME_HEALTH,949,false
+CE-0058-op,EP-0058,2026-05-12,OUTPATIENT,Follow-up visit + labs,203,false
+CE-0059-surg,EP-0059,2026-05-10,SURGERY,LEJR anchor procedure 27447,15761,false
+CE-0059-op,EP-0059,2026-05-17,OUTPATIENT,Follow-up visit + labs,624,false
+CE-0060-surg,EP-0060,2026-04-22,SURGERY,LEJR anchor procedure 27447,15530,false
+CE-0060-op,EP-0060,2026-04-29,OUTPATIENT,Follow-up visit + labs,421,false
+CE-0061-surg,EP-0061,2026-05-27,SURGERY,LEJR anchor procedure 27447,16138,false
+CE-0061-op,EP-0061,2026-06-03,OUTPATIENT,Follow-up visit + labs,384,false
+CE-0062-surg,EP-0062,2026-04-06,SURGERY,LEJR anchor procedure 27447,16841,false
+CE-0062-op,EP-0062,2026-04-13,OUTPATIENT,Follow-up visit + labs,359,false
+CE-0063-surg,EP-0063,2026-05-08,SURGERY,LEJR anchor procedure 27447,16206,false
+CE-0063-pac,EP-0063,2026-05-10,HOME_HEALTH,Post-acute HOME_HEALTH,1654,false
+CE-0063-op,EP-0063,2026-05-15,OUTPATIENT,Follow-up visit + labs,256,false
+CE-0064-surg,EP-0064,2026-04-26,SURGERY,LEJR anchor procedure 27447,16598,false
+CE-0064-op,EP-0064,2026-05-03,OUTPATIENT,Follow-up visit + labs,481,false
+CE-0065-surg,EP-0065,2026-04-24,SURGERY,LEJR anchor procedure 27447,16497,false
+CE-0065-op,EP-0065,2026-05-01,OUTPATIENT,Follow-up visit + labs,490,false
+CE-0065-readmit,EP-0065,2026-05-01,READMISSION,Unplanned 30-day inpatient readmission,17608,true
+CE-0065-ed,EP-0065,2026-05-01,ED_VISIT,Emergency department evaluation,2180,true
+CE-0066-surg,EP-0066,2026-04-25,SURGERY,LEJR anchor procedure 27447,16180,false
+CE-0066-op,EP-0066,2026-05-02,OUTPATIENT,Follow-up visit + labs,413,false
+CE-0067-surg,EP-0067,2026-05-12,SURGERY,LEJR anchor procedure 27447,16377,false
+CE-0067-op,EP-0067,2026-05-19,OUTPATIENT,Follow-up visit + labs,436,false
+CE-0068-surg,EP-0068,2026-04-28,SURGERY,LEJR anchor procedure 27447,15959,false
+CE-0068-op,EP-0068,2026-05-05,OUTPATIENT,Follow-up visit + labs,523,false
+CE-0069-surg,EP-0069,2026-05-09,SURGERY,LEJR anchor procedure 27447,16355,false
+CE-0069-op,EP-0069,2026-05-16,OUTPATIENT,Follow-up visit + labs,457,false
+CE-0070-surg,EP-0070,2026-05-26,SURGERY,LEJR anchor procedure 27447,16739,false
+CE-0070-op,EP-0070,2026-06-02,OUTPATIENT,Follow-up visit + labs,241,false
+CE-0071-surg,EP-0071,2026-05-09,SURGERY,LEJR anchor procedure 27447,15420,false
+CE-0071-op,EP-0071,2026-05-16,OUTPATIENT,Follow-up visit + labs,428,false
+CE-0072-surg,EP-0072,2026-04-20,SURGERY,LEJR anchor procedure 27447,15474,false
+CE-0072-pac,EP-0072,2026-04-22,HOME_HEALTH,Post-acute HOME_HEALTH,1676,false
+CE-0072-op,EP-0072,2026-04-27,OUTPATIENT,Follow-up visit + labs,389,false
+CE-0073-surg,EP-0073,2026-05-22,SURGERY,LEJR anchor procedure 27447,16911,false
+CE-0073-pac,EP-0073,2026-05-24,HOME_HEALTH,Post-acute HOME_HEALTH,1528,false
+CE-0073-op,EP-0073,2026-05-29,OUTPATIENT,Follow-up visit + labs,271,false
+CE-0074-surg,EP-0074,2026-04-17,SURGERY,LEJR anchor procedure 27447,16282,false
+CE-0074-op,EP-0074,2026-04-24,OUTPATIENT,Follow-up visit + labs,497,false
+CE-0074-readmit,EP-0074,2026-04-28,READMISSION,Unplanned 30-day inpatient readmission,14913,true
+CE-0074-ed,EP-0074,2026-04-28,ED_VISIT,Emergency department evaluation,2222,true
+CE-0075-surg,EP-0075,2026-05-29,SURGERY,LEJR anchor procedure 27447,16270,false
+CE-0075-op,EP-0075,2026-06-05,OUTPATIENT,Follow-up visit + labs,224,false
+CE-0075-readmit,EP-0075,2026-06-08,READMISSION,Unplanned 30-day inpatient readmission,15284,true
+CE-0075-ed,EP-0075,2026-06-08,ED_VISIT,Emergency department evaluation,1447,true
+CE-0076-surg,EP-0076,2026-04-27,SURGERY,LEJR anchor procedure 27447,16773,false
+CE-0076-pac,EP-0076,2026-04-29,SNF,Post-acute SNF,3250,false
+CE-0076-op,EP-0076,2026-05-04,OUTPATIENT,Follow-up visit + labs,274,false
+CE-0076-readmit,EP-0076,2026-05-08,READMISSION,Unplanned 30-day inpatient readmission,18295,true
+CE-0076-ed,EP-0076,2026-05-08,ED_VISIT,Emergency department evaluation,1644,true
+CE-0077-surg,EP-0077,2026-04-16,SURGERY,LEJR anchor procedure 27447,16710,false
+CE-0077-op,EP-0077,2026-04-23,OUTPATIENT,Follow-up visit + labs,462,false
+CE-0078-surg,EP-0078,2026-04-11,SURGERY,LEJR anchor procedure 27447,15777,false
+CE-0078-op,EP-0078,2026-04-18,OUTPATIENT,Follow-up visit + labs,270,false
+CE-0079-surg,EP-0079,2026-05-14,SURGERY,LEJR anchor procedure 27447,15981,false
+CE-0079-op,EP-0079,2026-05-21,OUTPATIENT,Follow-up visit + labs,506,false
+CE-0080-surg,EP-0080,2026-04-18,SURGERY,LEJR anchor procedure 27447,16524,false
+CE-0080-op,EP-0080,2026-04-25,OUTPATIENT,Follow-up visit + labs,379,false
+CE-0080-readmit,EP-0080,2026-04-28,READMISSION,Unplanned 30-day inpatient readmission,18244,true
+CE-0080-ed,EP-0080,2026-04-28,ED_VISIT,Emergency department evaluation,1462,true
+CE-0081-surg,EP-0081,2026-05-28,SURGERY,LEJR anchor procedure 27447,16744,false
+CE-0081-op,EP-0081,2026-06-04,OUTPATIENT,Follow-up visit + labs,365,false
+CE-0082-surg,EP-0082,2026-05-06,SURGERY,LEJR anchor procedure 27447,16761,false
+CE-0082-op,EP-0082,2026-05-13,OUTPATIENT,Follow-up visit + labs,445,false
+CE-0083-surg,EP-0083,2026-04-20,SURGERY,LEJR anchor procedure 27447,16128,false
+CE-0083-op,EP-0083,2026-04-27,OUTPATIENT,Follow-up visit + labs,231,false
+CE-0084-surg,EP-0084,2026-05-04,SURGERY,LEJR anchor procedure 27447,15578,false
+CE-0084-op,EP-0084,2026-05-11,OUTPATIENT,Follow-up visit + labs,371,false
+CE-0085-surg,EP-0085,2026-04-08,SURGERY,LEJR anchor procedure 27447,16915,false
+CE-0085-op,EP-0085,2026-04-15,OUTPATIENT,Follow-up visit + labs,204,false
+CE-0086-surg,EP-0086,2026-04-07,SURGERY,LEJR anchor procedure 27447,16099,false
+CE-0086-op,EP-0086,2026-04-14,OUTPATIENT,Follow-up visit + labs,208,false
+CE-0087-surg,EP-0087,2026-04-21,SURGERY,LEJR anchor procedure 27447,15829,false
+CE-0087-op,EP-0087,2026-04-28,OUTPATIENT,Follow-up visit + labs,315,false
+CE-0088-surg,EP-0088,2026-04-08,SURGERY,LEJR anchor procedure 27447,15723,false
+CE-0088-op,EP-0088,2026-04-15,OUTPATIENT,Follow-up visit + labs,572,false
+CE-0089-surg,EP-0089,2026-04-12,SURGERY,LEJR anchor procedure 27447,16778,false
+CE-0089-pac,EP-0089,2026-04-14,HOME_HEALTH,Post-acute HOME_HEALTH,1295,false
+CE-0089-op,EP-0089,2026-04-19,OUTPATIENT,Follow-up visit + labs,488,false
+CE-0089-readmit,EP-0089,2026-04-25,READMISSION,Unplanned 30-day inpatient readmission,18296,true
+CE-0089-ed,EP-0089,2026-04-25,ED_VISIT,Emergency department evaluation,1203,true
+CE-0090-surg,EP-0090,2026-05-13,SURGERY,LEJR anchor procedure 27447,15957,false
+CE-0090-pac,EP-0090,2026-05-15,SNF,Post-acute SNF,8298,false
+CE-0090-op,EP-0090,2026-05-20,OUTPATIENT,Follow-up visit + labs,398,false
+CE-0091-surg,EP-0091,2026-05-19,SURGERY,LEJR anchor procedure 27447,16299,false
+CE-0091-op,EP-0091,2026-05-26,OUTPATIENT,Follow-up visit + labs,295,false
+CE-0091-readmit,EP-0091,2026-05-26,READMISSION,Unplanned 30-day inpatient readmission,14466,true
+CE-0091-ed,EP-0091,2026-05-26,ED_VISIT,Emergency department evaluation,2005,true
+CE-0092-surg,EP-0092,2026-04-16,SURGERY,LEJR anchor procedure 27447,16108,false
+CE-0092-op,EP-0092,2026-04-23,OUTPATIENT,Follow-up visit + labs,367,false
+CE-0093-surg,EP-0093,2026-04-21,SURGERY,LEJR anchor procedure 27447,16295,false
+CE-0093-op,EP-0093,2026-04-28,OUTPATIENT,Follow-up visit + labs,476,false
+CE-0094-surg,EP-0094,2026-05-03,SURGERY,LEJR anchor procedure 27447,15617,false
+CE-0094-op,EP-0094,2026-05-10,OUTPATIENT,Follow-up visit + labs,259,false
+CE-0095-surg,EP-0095,2026-05-01,SURGERY,LEJR anchor procedure 27447,15857,false
+CE-0095-op,EP-0095,2026-05-08,OUTPATIENT,Follow-up visit + labs,508,false
+CE-0096-surg,EP-0096,2026-04-23,SURGERY,LEJR anchor procedure 27447,15827,false
+CE-0096-op,EP-0096,2026-04-30,OUTPATIENT,Follow-up visit + labs,254,false
+CE-0097-surg,EP-0097,2026-04-13,SURGERY,LEJR anchor procedure 27447,15488,false
+CE-0097-op,EP-0097,2026-04-20,OUTPATIENT,Follow-up visit + labs,502,false
+CE-0098-surg,EP-0098,2026-05-07,SURGERY,LEJR anchor procedure 27447,15655,false
+CE-0098-op,EP-0098,2026-05-14,OUTPATIENT,Follow-up visit + labs,383,false
+CE-0099-surg,EP-0099,2026-04-25,SURGERY,LEJR anchor procedure 27447,15436,false
+CE-0099-op,EP-0099,2026-05-02,OUTPATIENT,Follow-up visit + labs,601,false
+CE-0100-surg,EP-0100,2026-04-07,SURGERY,LEJR anchor procedure 27447,15653,false
+CE-0100-op,EP-0100,2026-04-14,OUTPATIENT,Follow-up visit + labs,475,false
+CE-0101-surg,EP-0101,2026-05-14,SURGERY,LEJR anchor procedure 27447,16934,false
+CE-0101-op,EP-0101,2026-05-21,OUTPATIENT,Follow-up visit + labs,303,false
+CE-0102-surg,EP-0102,2026-04-29,SURGERY,LEJR anchor procedure 27447,16115,false
+CE-0102-op,EP-0102,2026-05-06,OUTPATIENT,Follow-up visit + labs,182,false
+CE-0103-surg,EP-0103,2026-04-18,SURGERY,LEJR anchor procedure 27447,15837,false
+CE-0103-op,EP-0103,2026-04-25,OUTPATIENT,Follow-up visit + labs,398,false
+CE-0104-surg,EP-0104,2026-04-29,SURGERY,LEJR anchor procedure 27447,15677,false
+CE-0104-op,EP-0104,2026-05-06,OUTPATIENT,Follow-up visit + labs,197,false
+CE-0105-surg,EP-0105,2026-04-25,SURGERY,LEJR anchor procedure 27447,15412,false
+CE-0105-op,EP-0105,2026-05-02,OUTPATIENT,Follow-up visit + labs,561,false
+CE-0106-surg,EP-0106,2026-05-13,SURGERY,LEJR anchor procedure 27447,16631,false
+CE-0106-op,EP-0106,2026-05-20,OUTPATIENT,Follow-up visit + labs,518,false
+CE-0107-surg,EP-0107,2026-05-05,SURGERY,LEJR anchor procedure 27447,15554,false
+CE-0107-op,EP-0107,2026-05-12,OUTPATIENT,Follow-up visit + labs,612,false
+CE-0108-surg,EP-0108,2026-05-11,SURGERY,LEJR anchor procedure 27447,15370,false
+CE-0108-op,EP-0108,2026-05-18,OUTPATIENT,Follow-up visit + labs,541,false
+CE-0109-surg,EP-0109,2026-04-18,SURGERY,LEJR anchor procedure 27447,16455,false
+CE-0109-pac,EP-0109,2026-04-20,SNF,Post-acute SNF,9613,false
+CE-0109-op,EP-0109,2026-04-25,OUTPATIENT,Follow-up visit + labs,506,false
+CE-0110-surg,EP-0110,2026-04-16,SURGERY,LEJR anchor procedure 27447,16612,false
+CE-0110-op,EP-0110,2026-04-23,OUTPATIENT,Follow-up visit + labs,478,false
+CE-0111-surg,EP-0111,2026-05-05,SURGERY,LEJR anchor procedure 27447,16182,false
+CE-0111-op,EP-0111,2026-05-12,OUTPATIENT,Follow-up visit + labs,399,false
+CE-0112-surg,EP-0112,2026-04-05,SURGERY,LEJR anchor procedure 27447,15882,false
+CE-0112-pac,EP-0112,2026-04-07,SNF,Post-acute SNF,6569,false
+CE-0112-op,EP-0112,2026-04-12,OUTPATIENT,Follow-up visit + labs,354,false
+CE-0113-surg,EP-0113,2026-05-20,SURGERY,LEJR anchor procedure 27447,16916,false
+CE-0113-op,EP-0113,2026-05-27,OUTPATIENT,Follow-up visit + labs,487,false
+CE-0114-surg,EP-0114,2026-04-06,SURGERY,LEJR anchor procedure 27447,16258,false
+CE-0114-op,EP-0114,2026-04-13,OUTPATIENT,Follow-up visit + labs,636,false
+CE-0115-surg,EP-0115,2026-05-03,SURGERY,LEJR anchor procedure 27447,15846,false
+CE-0115-op,EP-0115,2026-05-10,OUTPATIENT,Follow-up visit + labs,293,false
+CE-0116-surg,EP-0116,2026-04-20,SURGERY,LEJR anchor procedure 27447,15915,false
+CE-0116-op,EP-0116,2026-04-27,OUTPATIENT,Follow-up visit + labs,532,false
+CE-0116-readmit,EP-0116,2026-04-28,READMISSION,Unplanned 30-day inpatient readmission,13149,true
+CE-0116-ed,EP-0116,2026-04-28,ED_VISIT,Emergency department evaluation,1486,true
+CE-0117-surg,EP-0117,2026-04-07,SURGERY,LEJR anchor procedure 27447,15836,false
+CE-0117-op,EP-0117,2026-04-14,OUTPATIENT,Follow-up visit + labs,246,false
+CE-0118-surg,EP-0118,2026-05-29,SURGERY,LEJR anchor procedure 27447,16857,false
+CE-0118-op,EP-0118,2026-06-05,OUTPATIENT,Follow-up visit + labs,298,false
+CE-0119-surg,EP-0119,2026-04-06,SURGERY,LEJR anchor procedure 27447,16653,false
+CE-0119-op,EP-0119,2026-04-13,OUTPATIENT,Follow-up visit + labs,207,false
+CE-0120-surg,EP-0120,2026-05-27,SURGERY,LEJR anchor procedure 27447,15410,false
+CE-0120-pac,EP-0120,2026-05-29,HOME_HEALTH,Post-acute HOME_HEALTH,1152,false
+CE-0120-op,EP-0120,2026-06-03,OUTPATIENT,Follow-up visit + labs,478,false
+CE-0121-surg,EP-0121,2026-04-21,SURGERY,LEJR anchor procedure 27447,15538,false
+CE-0121-pac,EP-0121,2026-04-23,SNF,Post-acute SNF,3390,false
+CE-0121-op,EP-0121,2026-04-28,OUTPATIENT,Follow-up visit + labs,647,false
+CE-0122-surg,EP-0122,2026-04-22,SURGERY,LEJR anchor procedure 27447,15372,false
+CE-0122-op,EP-0122,2026-04-29,OUTPATIENT,Follow-up visit + labs,191,false
+CE-0123-surg,EP-0123,2026-04-18,SURGERY,LEJR anchor procedure 27447,16204,false
+CE-0123-pac,EP-0123,2026-04-20,HOME_HEALTH,Post-acute HOME_HEALTH,1125,false
+CE-0123-op,EP-0123,2026-04-25,OUTPATIENT,Follow-up visit + labs,242,false
+CE-0124-surg,EP-0124,2026-04-08,SURGERY,LEJR anchor procedure 27447,16482,false
+CE-0124-op,EP-0124,2026-04-15,OUTPATIENT,Follow-up visit + labs,267,false
+CE-0125-surg,EP-0125,2026-05-07,SURGERY,LEJR anchor procedure 27447,15852,false
+CE-0125-op,EP-0125,2026-05-14,OUTPATIENT,Follow-up visit + labs,616,false
+CE-0126-surg,EP-0126,2026-05-02,SURGERY,LEJR anchor procedure 27447,16902,false
+CE-0126-op,EP-0126,2026-05-09,OUTPATIENT,Follow-up visit + labs,239,false
+CE-0127-surg,EP-0127,2026-05-01,SURGERY,LEJR anchor procedure 27447,16397,false
+CE-0127-op,EP-0127,2026-05-08,OUTPATIENT,Follow-up visit + labs,186,false
+CE-0128-surg,EP-0128,2026-04-20,SURGERY,LEJR anchor procedure 27447,15988,false
+CE-0128-op,EP-0128,2026-04-27,OUTPATIENT,Follow-up visit + labs,212,false
+CE-0129-surg,EP-0129,2026-05-23,SURGERY,LEJR anchor procedure 27447,15895,false
+CE-0129-op,EP-0129,2026-05-30,OUTPATIENT,Follow-up visit + labs,183,false
+CE-0130-surg,EP-0130,2026-05-27,SURGERY,LEJR anchor procedure 27447,16556,false
+CE-0130-op,EP-0130,2026-06-03,OUTPATIENT,Follow-up visit + labs,453,false
+CE-0131-surg,EP-0131,2026-05-24,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20395,false
+CE-0131-op,EP-0131,2026-05-31,OUTPATIENT,Follow-up visit + labs,220,false
+CE-0132-surg,EP-0132,2026-05-01,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19509,false
+CE-0132-op,EP-0132,2026-05-08,OUTPATIENT,Follow-up visit + labs,474,false
+CE-0132-readmit,EP-0132,2026-05-10,READMISSION,Unplanned 30-day inpatient readmission,10438,true
+CE-0132-ed,EP-0132,2026-05-10,ED_VISIT,Emergency department evaluation,2486,true
+CE-0133-surg,EP-0133,2026-04-23,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19902,false
+CE-0133-op,EP-0133,2026-04-30,OUTPATIENT,Follow-up visit + labs,533,false
+CE-0134-surg,EP-0134,2026-05-23,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19056,false
+CE-0134-op,EP-0134,2026-05-30,OUTPATIENT,Follow-up visit + labs,626,false
+CE-0135-surg,EP-0135,2026-05-08,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19850,false
+CE-0135-op,EP-0135,2026-05-15,OUTPATIENT,Follow-up visit + labs,437,false
+CE-0136-surg,EP-0136,2026-05-02,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20306,false
+CE-0136-pac,EP-0136,2026-05-04,SNF,Post-acute SNF,8942,false
+CE-0136-op,EP-0136,2026-05-09,OUTPATIENT,Follow-up visit + labs,370,false
+CE-0136-readmit,EP-0136,2026-05-08,READMISSION,Unplanned 30-day inpatient readmission,11371,true
+CE-0136-ed,EP-0136,2026-05-08,ED_VISIT,Emergency department evaluation,2464,true
+CE-0137-surg,EP-0137,2026-04-27,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19172,false
+CE-0137-op,EP-0137,2026-05-04,OUTPATIENT,Follow-up visit + labs,201,false
+CE-0137-readmit,EP-0137,2026-05-11,READMISSION,Unplanned 30-day inpatient readmission,14086,true
+CE-0137-ed,EP-0137,2026-05-11,ED_VISIT,Emergency department evaluation,1158,true
+CE-0138-surg,EP-0138,2026-05-24,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20652,false
+CE-0138-op,EP-0138,2026-05-31,OUTPATIENT,Follow-up visit + labs,615,false
+CE-0139-surg,EP-0139,2026-04-04,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19828,false
+CE-0139-pac,EP-0139,2026-04-06,SNF,Post-acute SNF,8101,false
+CE-0139-op,EP-0139,2026-04-11,OUTPATIENT,Follow-up visit + labs,584,false
+CE-0140-surg,EP-0140,2026-05-16,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20115,false
+CE-0140-op,EP-0140,2026-05-23,OUTPATIENT,Follow-up visit + labs,313,false
+CE-0141-surg,EP-0141,2026-05-09,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20627,false
+CE-0141-pac,EP-0141,2026-05-11,SNF,Post-acute SNF,6914,false
+CE-0141-op,EP-0141,2026-05-16,OUTPATIENT,Follow-up visit + labs,649,false
+CE-0142-surg,EP-0142,2026-05-29,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20176,false
+CE-0142-op,EP-0142,2026-06-05,OUTPATIENT,Follow-up visit + labs,636,false
+CE-0143-surg,EP-0143,2026-05-08,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19397,false
+CE-0143-op,EP-0143,2026-05-15,OUTPATIENT,Follow-up visit + labs,191,false
+CE-0144-surg,EP-0144,2026-04-27,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20245,false
+CE-0144-pac,EP-0144,2026-04-29,SNF,Post-acute SNF,9066,false
+CE-0144-op,EP-0144,2026-05-04,OUTPATIENT,Follow-up visit + labs,440,false
+CE-0145-surg,EP-0145,2026-04-13,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19193,false
+CE-0145-op,EP-0145,2026-04-20,OUTPATIENT,Follow-up visit + labs,462,false
+CE-0146-surg,EP-0146,2026-04-22,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19986,false
+CE-0146-op,EP-0146,2026-04-29,OUTPATIENT,Follow-up visit + labs,470,false
+CE-0147-surg,EP-0147,2026-05-07,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20327,false
+CE-0147-op,EP-0147,2026-05-14,OUTPATIENT,Follow-up visit + labs,514,false
+CE-0147-readmit,EP-0147,2026-05-15,READMISSION,Unplanned 30-day inpatient readmission,14087,true
+CE-0147-ed,EP-0147,2026-05-15,ED_VISIT,Emergency department evaluation,1456,true
+CE-0148-surg,EP-0148,2026-04-07,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19380,false
+CE-0148-op,EP-0148,2026-04-14,OUTPATIENT,Follow-up visit + labs,374,false
+CE-0149-surg,EP-0149,2026-04-26,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19053,false
+CE-0149-op,EP-0149,2026-05-03,OUTPATIENT,Follow-up visit + labs,511,false
+CE-0149-readmit,EP-0149,2026-05-05,READMISSION,Unplanned 30-day inpatient readmission,11600,true
+CE-0149-ed,EP-0149,2026-05-05,ED_VISIT,Emergency department evaluation,1353,true
+CE-0150-surg,EP-0150,2026-05-09,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20827,false
+CE-0150-op,EP-0150,2026-05-16,OUTPATIENT,Follow-up visit + labs,606,false
+CE-0151-surg,EP-0151,2026-06-01,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20683,false
+CE-0151-pac,EP-0151,2026-06-03,SNF,Post-acute SNF,5133,false
+CE-0151-op,EP-0151,2026-06-08,OUTPATIENT,Follow-up visit + labs,255,false
+CE-0151-readmit,EP-0151,2026-06-10,READMISSION,Unplanned 30-day inpatient readmission,16171,true
+CE-0151-ed,EP-0151,2026-06-10,ED_VISIT,Emergency department evaluation,2392,true
+CE-0152-surg,EP-0152,2026-05-10,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20618,false
+CE-0152-op,EP-0152,2026-05-17,OUTPATIENT,Follow-up visit + labs,613,false
+CE-0153-surg,EP-0153,2026-04-19,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,18927,false
+CE-0153-op,EP-0153,2026-04-26,OUTPATIENT,Follow-up visit + labs,560,false
+CE-0154-surg,EP-0154,2026-04-08,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20788,false
+CE-0154-pac,EP-0154,2026-04-10,SNF,Post-acute SNF,8059,false
+CE-0154-op,EP-0154,2026-04-15,OUTPATIENT,Follow-up visit + labs,292,false
+CE-0155-surg,EP-0155,2026-04-10,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19169,false
+CE-0155-pac,EP-0155,2026-04-12,SNF,Post-acute SNF,9050,false
+CE-0155-op,EP-0155,2026-04-17,OUTPATIENT,Follow-up visit + labs,648,false
+CE-0156-surg,EP-0156,2026-05-11,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19144,false
+CE-0156-pac,EP-0156,2026-05-13,SNF,Post-acute SNF,9403,false
+CE-0156-op,EP-0156,2026-05-18,OUTPATIENT,Follow-up visit + labs,263,false
+CE-0157-surg,EP-0157,2026-04-25,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19194,false
+CE-0157-op,EP-0157,2026-05-02,OUTPATIENT,Follow-up visit + labs,347,false
+CE-0158-surg,EP-0158,2026-05-04,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19091,false
+CE-0158-op,EP-0158,2026-05-11,OUTPATIENT,Follow-up visit + labs,260,false
+CE-0158-readmit,EP-0158,2026-05-17,READMISSION,Unplanned 30-day inpatient readmission,9645,true
+CE-0158-ed,EP-0158,2026-05-17,ED_VISIT,Emergency department evaluation,1987,true
+CE-0159-surg,EP-0159,2026-04-13,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20131,false
+CE-0159-op,EP-0159,2026-04-20,OUTPATIENT,Follow-up visit + labs,580,false
+CE-0160-surg,EP-0160,2026-04-25,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19672,false
+CE-0160-op,EP-0160,2026-05-02,OUTPATIENT,Follow-up visit + labs,353,false
+CE-0161-surg,EP-0161,2026-05-25,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19240,false
+CE-0161-op,EP-0161,2026-06-01,OUTPATIENT,Follow-up visit + labs,310,false
+CE-0162-surg,EP-0162,2026-05-15,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19576,false
+CE-0162-op,EP-0162,2026-05-22,OUTPATIENT,Follow-up visit + labs,615,false
+CE-0163-surg,EP-0163,2026-05-26,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19133,false
+CE-0163-pac,EP-0163,2026-05-28,SNF,Post-acute SNF,3890,false
+CE-0163-op,EP-0163,2026-06-02,OUTPATIENT,Follow-up visit + labs,282,false
+CE-0163-readmit,EP-0163,2026-06-08,READMISSION,Unplanned 30-day inpatient readmission,11790,true
+CE-0163-ed,EP-0163,2026-06-08,ED_VISIT,Emergency department evaluation,2245,true
+CE-0164-surg,EP-0164,2026-05-23,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20672,false
+CE-0164-op,EP-0164,2026-05-30,OUTPATIENT,Follow-up visit + labs,389,false
+CE-0165-surg,EP-0165,2026-04-17,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19548,false
+CE-0165-op,EP-0165,2026-04-24,OUTPATIENT,Follow-up visit + labs,553,false
+CE-0166-surg,EP-0166,2026-05-14,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19864,false
+CE-0166-op,EP-0166,2026-05-21,OUTPATIENT,Follow-up visit + labs,449,false
+CE-0167-surg,EP-0167,2026-04-25,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20278,false
+CE-0167-pac,EP-0167,2026-04-27,HOME_HEALTH,Post-acute HOME_HEALTH,1919,false
+CE-0167-op,EP-0167,2026-05-02,OUTPATIENT,Follow-up visit + labs,256,false
+CE-0168-surg,EP-0168,2026-05-24,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19495,false
+CE-0168-op,EP-0168,2026-05-31,OUTPATIENT,Follow-up visit + labs,534,false
+CE-0169-surg,EP-0169,2026-04-07,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,18985,false
+CE-0169-op,EP-0169,2026-04-14,OUTPATIENT,Follow-up visit + labs,630,false
+CE-0169-readmit,EP-0169,2026-04-20,READMISSION,Unplanned 30-day inpatient readmission,9571,true
+CE-0169-ed,EP-0169,2026-04-20,ED_VISIT,Emergency department evaluation,2363,true
+CE-0170-surg,EP-0170,2026-04-17,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19242,false
+CE-0170-pac,EP-0170,2026-04-19,HOME_HEALTH,Post-acute HOME_HEALTH,2305,false
+CE-0170-op,EP-0170,2026-04-24,OUTPATIENT,Follow-up visit + labs,476,false
+CE-0170-readmit,EP-0170,2026-04-24,READMISSION,Unplanned 30-day inpatient readmission,15359,true
+CE-0170-ed,EP-0170,2026-04-24,ED_VISIT,Emergency department evaluation,1295,true
+CE-0171-surg,EP-0171,2026-04-27,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19088,false
+CE-0171-pac,EP-0171,2026-04-29,SNF,Post-acute SNF,4707,false
+CE-0171-op,EP-0171,2026-05-04,OUTPATIENT,Follow-up visit + labs,485,false
+CE-0171-readmit,EP-0171,2026-05-12,READMISSION,Unplanned 30-day inpatient readmission,14130,true
+CE-0171-ed,EP-0171,2026-05-12,ED_VISIT,Emergency department evaluation,1450,true
+CE-0172-surg,EP-0172,2026-05-06,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20374,false
+CE-0172-op,EP-0172,2026-05-13,OUTPATIENT,Follow-up visit + labs,474,false
+CE-0173-surg,EP-0173,2026-05-01,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19333,false
+CE-0173-op,EP-0173,2026-05-08,OUTPATIENT,Follow-up visit + labs,228,false
+CE-0174-surg,EP-0174,2026-05-25,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19375,false
+CE-0174-pac,EP-0174,2026-05-27,HOME_HEALTH,Post-acute HOME_HEALTH,2191,false
+CE-0174-op,EP-0174,2026-06-01,OUTPATIENT,Follow-up visit + labs,252,false
+CE-0175-surg,EP-0175,2026-05-07,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20369,false
+CE-0175-pac,EP-0175,2026-05-09,HOME_HEALTH,Post-acute HOME_HEALTH,2007,false
+CE-0175-op,EP-0175,2026-05-14,OUTPATIENT,Follow-up visit + labs,563,false
+CE-0176-surg,EP-0176,2026-05-04,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20614,false
+CE-0176-pac,EP-0176,2026-05-06,SNF,Post-acute SNF,3292,false
+CE-0176-op,EP-0176,2026-05-11,OUTPATIENT,Follow-up visit + labs,627,false
+CE-0176-readmit,EP-0176,2026-05-17,READMISSION,Unplanned 30-day inpatient readmission,15760,true
+CE-0176-ed,EP-0176,2026-05-17,ED_VISIT,Emergency department evaluation,2159,true
+CE-0177-surg,EP-0177,2026-04-18,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19814,false
+CE-0177-pac,EP-0177,2026-04-20,SNF,Post-acute SNF,5578,false
+CE-0177-op,EP-0177,2026-04-25,OUTPATIENT,Follow-up visit + labs,549,false
+CE-0178-surg,EP-0178,2026-05-18,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,19233,false
+CE-0178-pac,EP-0178,2026-05-20,HOME_HEALTH,Post-acute HOME_HEALTH,1617,false
+CE-0178-op,EP-0178,2026-05-25,OUTPATIENT,Follow-up visit + labs,521,false
+CE-0179-surg,EP-0179,2026-04-22,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20623,false
+CE-0179-pac,EP-0179,2026-04-24,HOME_HEALTH,Post-acute HOME_HEALTH,1026,false
+CE-0179-op,EP-0179,2026-04-29,OUTPATIENT,Follow-up visit + labs,499,false
+CE-0180-surg,EP-0180,2026-04-17,SURGERY,HIP_FEMUR_FRACTURE anchor procedure 27236,20812,false
+CE-0180-op,EP-0180,2026-04-24,OUTPATIENT,Follow-up visit + labs,410,false
+CE-0181-surg,EP-0181,2026-05-24,SURGERY,SPINAL_FUSION anchor procedure 22612,25311,false
+CE-0181-op,EP-0181,2026-05-31,OUTPATIENT,Follow-up visit + labs,568,false
+CE-0182-surg,EP-0182,2026-05-27,SURGERY,SPINAL_FUSION anchor procedure 22612,23608,false
+CE-0182-op,EP-0182,2026-06-03,OUTPATIENT,Follow-up visit + labs,262,false
+CE-0183-surg,EP-0183,2026-05-23,SURGERY,SPINAL_FUSION anchor procedure 22612,25388,false
+CE-0183-op,EP-0183,2026-05-30,OUTPATIENT,Follow-up visit + labs,359,false
+CE-0184-surg,EP-0184,2026-04-15,SURGERY,SPINAL_FUSION anchor procedure 22612,25396,false
+CE-0184-op,EP-0184,2026-04-22,OUTPATIENT,Follow-up visit + labs,629,false
+CE-0185-surg,EP-0185,2026-05-19,SURGERY,SPINAL_FUSION anchor procedure 22612,24356,false
+CE-0185-pac,EP-0185,2026-05-21,SNF,Post-acute SNF,4329,false
+CE-0185-op,EP-0185,2026-05-26,OUTPATIENT,Follow-up visit + labs,277,false
+CE-0186-surg,EP-0186,2026-05-21,SURGERY,SPINAL_FUSION anchor procedure 22612,24995,false
+CE-0186-op,EP-0186,2026-05-28,OUTPATIENT,Follow-up visit + labs,180,false
+CE-0187-surg,EP-0187,2026-05-14,SURGERY,SPINAL_FUSION anchor procedure 22612,25358,false
+CE-0187-pac,EP-0187,2026-05-16,HOME_HEALTH,Post-acute HOME_HEALTH,1734,false
+CE-0187-op,EP-0187,2026-05-21,OUTPATIENT,Follow-up visit + labs,190,false
+CE-0188-surg,EP-0188,2026-05-20,SURGERY,SPINAL_FUSION anchor procedure 22612,23623,false
+CE-0188-op,EP-0188,2026-05-27,OUTPATIENT,Follow-up visit + labs,513,false
+CE-0189-surg,EP-0189,2026-04-05,SURGERY,SPINAL_FUSION anchor procedure 22612,25049,false
+CE-0189-op,EP-0189,2026-04-12,OUTPATIENT,Follow-up visit + labs,458,false
+CE-0190-surg,EP-0190,2026-05-21,SURGERY,SPINAL_FUSION anchor procedure 22612,25440,false
+CE-0190-op,EP-0190,2026-05-28,OUTPATIENT,Follow-up visit + labs,527,false
+CE-0191-surg,EP-0191,2026-04-22,SURGERY,SPINAL_FUSION anchor procedure 22612,25253,false
+CE-0191-op,EP-0191,2026-04-29,OUTPATIENT,Follow-up visit + labs,351,false
+CE-0192-surg,EP-0192,2026-04-30,SURGERY,SPINAL_FUSION anchor procedure 22612,23921,false
+CE-0192-op,EP-0192,2026-05-07,OUTPATIENT,Follow-up visit + labs,509,false
+CE-0193-surg,EP-0193,2026-04-16,SURGERY,SPINAL_FUSION anchor procedure 22612,24138,false
+CE-0193-pac,EP-0193,2026-04-18,HOME_HEALTH,Post-acute HOME_HEALTH,2108,false
+CE-0193-op,EP-0193,2026-04-23,OUTPATIENT,Follow-up visit + labs,204,false
+CE-0194-surg,EP-0194,2026-04-23,SURGERY,SPINAL_FUSION anchor procedure 22612,24310,false
+CE-0194-op,EP-0194,2026-04-30,OUTPATIENT,Follow-up visit + labs,261,false
+CE-0195-surg,EP-0195,2026-04-24,SURGERY,SPINAL_FUSION anchor procedure 22612,23885,false
+CE-0195-pac,EP-0195,2026-04-26,HOME_HEALTH,Post-acute HOME_HEALTH,1600,false
+CE-0195-op,EP-0195,2026-05-01,OUTPATIENT,Follow-up visit + labs,242,false
+CE-0196-surg,EP-0196,2026-05-22,SURGERY,SPINAL_FUSION anchor procedure 22612,24021,false
+CE-0196-op,EP-0196,2026-05-29,OUTPATIENT,Follow-up visit + labs,239,false
+CE-0197-surg,EP-0197,2026-04-16,SURGERY,SPINAL_FUSION anchor procedure 22612,24182,false
+CE-0197-op,EP-0197,2026-04-23,OUTPATIENT,Follow-up visit + labs,499,false
+CE-0198-surg,EP-0198,2026-05-06,SURGERY,SPINAL_FUSION anchor procedure 22612,24364,false
+CE-0198-op,EP-0198,2026-05-13,OUTPATIENT,Follow-up visit + labs,325,false
+CE-0199-surg,EP-0199,2026-04-25,SURGERY,SPINAL_FUSION anchor procedure 22612,25613,false
+CE-0199-pac,EP-0199,2026-04-27,SNF,Post-acute SNF,5721,false
+CE-0199-op,EP-0199,2026-05-02,OUTPATIENT,Follow-up visit + labs,481,false
+CE-0200-surg,EP-0200,2026-04-14,SURGERY,SPINAL_FUSION anchor procedure 22612,23951,false
+CE-0200-pac,EP-0200,2026-04-16,HOME_HEALTH,Post-acute HOME_HEALTH,2221,false
+CE-0200-op,EP-0200,2026-04-21,OUTPATIENT,Follow-up visit + labs,546,false
+CE-0201-surg,EP-0201,2026-05-11,SURGERY,SPINAL_FUSION anchor procedure 22612,23661,false
+CE-0201-op,EP-0201,2026-05-18,OUTPATIENT,Follow-up visit + labs,484,false
+CE-0201-readmit,EP-0201,2026-05-23,READMISSION,Unplanned 30-day inpatient readmission,17500,true
+CE-0201-ed,EP-0201,2026-05-23,ED_VISIT,Emergency department evaluation,1121,true
+CE-0202-surg,EP-0202,2026-04-29,SURGERY,SPINAL_FUSION anchor procedure 22612,25081,false
+CE-0202-op,EP-0202,2026-05-06,OUTPATIENT,Follow-up visit + labs,471,false
+CE-0203-surg,EP-0203,2026-05-18,SURGERY,SPINAL_FUSION anchor procedure 22612,25412,false
+CE-0203-op,EP-0203,2026-05-25,OUTPATIENT,Follow-up visit + labs,392,false
+CE-0203-readmit,EP-0203,2026-05-28,READMISSION,Unplanned 30-day inpatient readmission,12645,true
+CE-0203-ed,EP-0203,2026-05-28,ED_VISIT,Emergency department evaluation,1244,true
+CE-0204-surg,EP-0204,2026-04-30,SURGERY,SPINAL_FUSION anchor procedure 22612,25151,false
+CE-0204-op,EP-0204,2026-05-07,OUTPATIENT,Follow-up visit + labs,207,false
+CE-0205-surg,EP-0205,2026-05-26,SURGERY,SPINAL_FUSION anchor procedure 22612,25590,false
+CE-0205-pac,EP-0205,2026-05-28,SNF,Post-acute SNF,9430,false
+CE-0205-op,EP-0205,2026-06-02,OUTPATIENT,Follow-up visit + labs,518,false
+CE-0206-surg,EP-0206,2026-05-25,SURGERY,SPINAL_FUSION anchor procedure 22612,24619,false
+CE-0206-op,EP-0206,2026-06-01,OUTPATIENT,Follow-up visit + labs,568,false
+CE-0207-surg,EP-0207,2026-04-22,SURGERY,SPINAL_FUSION anchor procedure 22612,25726,false
+CE-0207-op,EP-0207,2026-04-29,OUTPATIENT,Follow-up visit + labs,298,false
+CE-0208-surg,EP-0208,2026-05-23,SURGERY,SPINAL_FUSION anchor procedure 22612,24789,false
+CE-0208-op,EP-0208,2026-05-30,OUTPATIENT,Follow-up visit + labs,289,false
+CE-0209-surg,EP-0209,2026-04-19,SURGERY,SPINAL_FUSION anchor procedure 22612,23828,false
+CE-0209-op,EP-0209,2026-04-26,OUTPATIENT,Follow-up visit + labs,588,false
+CE-0209-readmit,EP-0209,2026-04-27,READMISSION,Unplanned 30-day inpatient readmission,13870,true
+CE-0209-ed,EP-0209,2026-04-27,ED_VISIT,Emergency department evaluation,2411,true
+CE-0210-surg,EP-0210,2026-04-24,SURGERY,SPINAL_FUSION anchor procedure 22612,23495,false
+CE-0210-pac,EP-0210,2026-04-26,HOME_HEALTH,Post-acute HOME_HEALTH,1139,false
+CE-0210-op,EP-0210,2026-05-01,OUTPATIENT,Follow-up visit + labs,366,false
+CE-0211-surg,EP-0211,2026-05-11,SURGERY,SPINAL_FUSION anchor procedure 22612,24799,false
+CE-0211-op,EP-0211,2026-05-18,OUTPATIENT,Follow-up visit + labs,630,false
+CE-0212-surg,EP-0212,2026-05-23,SURGERY,SPINAL_FUSION anchor procedure 22612,23864,false
+CE-0212-pac,EP-0212,2026-05-25,HOME_HEALTH,Post-acute HOME_HEALTH,1924,false
+CE-0212-op,EP-0212,2026-05-30,OUTPATIENT,Follow-up visit + labs,358,false
+CE-0213-surg,EP-0213,2026-04-17,SURGERY,SPINAL_FUSION anchor procedure 22612,23482,false
+CE-0213-op,EP-0213,2026-04-24,OUTPATIENT,Follow-up visit + labs,407,false
+CE-0214-surg,EP-0214,2026-04-21,SURGERY,SPINAL_FUSION anchor procedure 22612,24343,false
+CE-0214-op,EP-0214,2026-04-28,OUTPATIENT,Follow-up visit + labs,472,false
+CE-0215-surg,EP-0215,2026-05-27,SURGERY,SPINAL_FUSION anchor procedure 22612,24829,false
+CE-0215-pac,EP-0215,2026-05-29,HOME_HEALTH,Post-acute HOME_HEALTH,1284,false
+CE-0215-op,EP-0215,2026-06-03,OUTPATIENT,Follow-up visit + labs,427,false
+CE-0215-readmit,EP-0215,2026-06-04,READMISSION,Unplanned 30-day inpatient readmission,14827,true
+CE-0215-ed,EP-0215,2026-06-04,ED_VISIT,Emergency department evaluation,2114,true
+CE-0216-surg,EP-0216,2026-05-22,SURGERY,SPINAL_FUSION anchor procedure 22612,24880,false
+CE-0216-op,EP-0216,2026-05-29,OUTPATIENT,Follow-up visit + labs,247,false
+CE-0217-surg,EP-0217,2026-04-20,SURGERY,SPINAL_FUSION anchor procedure 22612,23871,false
+CE-0217-op,EP-0217,2026-04-27,OUTPATIENT,Follow-up visit + labs,232,false
+CE-0218-surg,EP-0218,2026-05-28,SURGERY,SPINAL_FUSION anchor procedure 22612,25242,false
+CE-0218-pac,EP-0218,2026-05-30,SNF,Post-acute SNF,6512,false
+CE-0218-op,EP-0218,2026-06-04,OUTPATIENT,Follow-up visit + labs,212,false
+CE-0218-readmit,EP-0218,2026-06-10,READMISSION,Unplanned 30-day inpatient readmission,15744,true
+CE-0218-ed,EP-0218,2026-06-10,ED_VISIT,Emergency department evaluation,2081,true
+CE-0219-surg,EP-0219,2026-04-17,SURGERY,SPINAL_FUSION anchor procedure 22612,24382,false
+CE-0219-pac,EP-0219,2026-04-19,SNF,Post-acute SNF,5050,false
+CE-0219-op,EP-0219,2026-04-24,OUTPATIENT,Follow-up visit + labs,407,false
+CE-0220-surg,EP-0220,2026-04-27,SURGERY,SPINAL_FUSION anchor procedure 22612,23736,false
+CE-0220-op,EP-0220,2026-05-04,OUTPATIENT,Follow-up visit + labs,647,false
+CE-0221-surg,EP-0221,2026-05-01,SURGERY,SPINAL_FUSION anchor procedure 22612,24620,false
+CE-0221-pac,EP-0221,2026-05-03,SNF,Post-acute SNF,7204,false
+CE-0221-op,EP-0221,2026-05-08,OUTPATIENT,Follow-up visit + labs,450,false
+CE-0222-surg,EP-0222,2026-05-22,SURGERY,SPINAL_FUSION anchor procedure 22612,23635,false
+CE-0222-op,EP-0222,2026-05-29,OUTPATIENT,Follow-up visit + labs,186,false
+CE-0223-surg,EP-0223,2026-05-26,SURGERY,SPINAL_FUSION anchor procedure 22612,24886,false
+CE-0223-pac,EP-0223,2026-05-28,SNF,Post-acute SNF,5070,false
+CE-0223-op,EP-0223,2026-06-02,OUTPATIENT,Follow-up visit + labs,588,false
+CE-0224-surg,EP-0224,2026-04-19,SURGERY,SPINAL_FUSION anchor procedure 22612,25505,false
+CE-0224-op,EP-0224,2026-04-26,OUTPATIENT,Follow-up visit + labs,352,false
+CE-0225-surg,EP-0225,2026-04-06,SURGERY,SPINAL_FUSION anchor procedure 22612,24002,false
+CE-0225-op,EP-0225,2026-04-13,OUTPATIENT,Follow-up visit + labs,548,false
+CE-0226-surg,EP-0226,2026-04-11,SURGERY,CABG anchor procedure 33533,38396,false
+CE-0226-op,EP-0226,2026-04-18,OUTPATIENT,Follow-up visit + labs,546,false
+CE-0227-surg,EP-0227,2026-04-08,SURGERY,CABG anchor procedure 33533,36299,false
+CE-0227-op,EP-0227,2026-04-15,OUTPATIENT,Follow-up visit + labs,558,false
+CE-0228-surg,EP-0228,2026-04-17,SURGERY,CABG anchor procedure 33533,36083,false
+CE-0228-pac,EP-0228,2026-04-19,SNF,Post-acute SNF,8392,false
+CE-0228-op,EP-0228,2026-04-24,OUTPATIENT,Follow-up visit + labs,424,false
+CE-0228-readmit,EP-0228,2026-04-24,READMISSION,Unplanned 30-day inpatient readmission,10273,true
+CE-0228-ed,EP-0228,2026-04-24,ED_VISIT,Emergency department evaluation,2021,true
+CE-0229-surg,EP-0229,2026-04-23,SURGERY,CABG anchor procedure 33533,37507,false
+CE-0229-op,EP-0229,2026-04-30,OUTPATIENT,Follow-up visit + labs,356,false
+CE-0230-surg,EP-0230,2026-05-15,SURGERY,CABG anchor procedure 33533,38678,false
+CE-0230-op,EP-0230,2026-05-22,OUTPATIENT,Follow-up visit + labs,615,false
+CE-0230-readmit,EP-0230,2026-05-24,READMISSION,Unplanned 30-day inpatient readmission,15599,true
+CE-0230-ed,EP-0230,2026-05-24,ED_VISIT,Emergency department evaluation,1129,true
+CE-0231-surg,EP-0231,2026-04-11,SURGERY,CABG anchor procedure 33533,36787,false
+CE-0231-op,EP-0231,2026-04-18,OUTPATIENT,Follow-up visit + labs,285,false
+CE-0232-surg,EP-0232,2026-05-22,SURGERY,CABG anchor procedure 33533,36629,false
+CE-0232-op,EP-0232,2026-05-29,OUTPATIENT,Follow-up visit + labs,210,false
+CE-0233-surg,EP-0233,2026-05-14,SURGERY,CABG anchor procedure 33533,37253,false
+CE-0233-op,EP-0233,2026-05-21,OUTPATIENT,Follow-up visit + labs,607,false
+CE-0234-surg,EP-0234,2026-04-30,SURGERY,CABG anchor procedure 33533,36521,false
+CE-0234-op,EP-0234,2026-05-07,OUTPATIENT,Follow-up visit + labs,265,false
+CE-0235-surg,EP-0235,2026-05-26,SURGERY,CABG anchor procedure 33533,36456,false
+CE-0235-pac,EP-0235,2026-05-28,HOME_HEALTH,Post-acute HOME_HEALTH,1847,false
+CE-0235-op,EP-0235,2026-06-02,OUTPATIENT,Follow-up visit + labs,335,false
+CE-0236-surg,EP-0236,2026-05-13,SURGERY,CABG anchor procedure 33533,36633,false
+CE-0236-op,EP-0236,2026-05-20,OUTPATIENT,Follow-up visit + labs,488,false
+CE-0236-readmit,EP-0236,2026-05-26,READMISSION,Unplanned 30-day inpatient readmission,16271,true
+CE-0236-ed,EP-0236,2026-05-26,ED_VISIT,Emergency department evaluation,2206,true
+CE-0237-surg,EP-0237,2026-05-08,SURGERY,CABG anchor procedure 33533,38511,false
+CE-0237-pac,EP-0237,2026-05-10,HOME_HEALTH,Post-acute HOME_HEALTH,2198,false
+CE-0237-op,EP-0237,2026-05-15,OUTPATIENT,Follow-up visit + labs,209,false
+CE-0237-readmit,EP-0237,2026-05-19,READMISSION,Unplanned 30-day inpatient readmission,15405,true
+CE-0237-ed,EP-0237,2026-05-19,ED_VISIT,Emergency department evaluation,1847,true
+CE-0238-surg,EP-0238,2026-05-04,SURGERY,CABG anchor procedure 33533,38717,false
+CE-0238-op,EP-0238,2026-05-11,OUTPATIENT,Follow-up visit + labs,278,false
+CE-0239-surg,EP-0239,2026-05-07,SURGERY,CABG anchor procedure 33533,38480,false
+CE-0239-op,EP-0239,2026-05-14,OUTPATIENT,Follow-up visit + labs,294,false
+CE-0240-surg,EP-0240,2026-05-08,SURGERY,CABG anchor procedure 33533,35238,false
+CE-0240-op,EP-0240,2026-05-15,OUTPATIENT,Follow-up visit + labs,648,false
+CE-0240-readmit,EP-0240,2026-05-22,READMISSION,Unplanned 30-day inpatient readmission,15434,true
+CE-0240-ed,EP-0240,2026-05-22,ED_VISIT,Emergency department evaluation,2482,true
+CE-0241-surg,EP-0241,2026-05-09,SURGERY,CABG anchor procedure 33533,35365,false
+CE-0241-pac,EP-0241,2026-05-11,HOME_HEALTH,Post-acute HOME_HEALTH,2248,false
+CE-0241-op,EP-0241,2026-05-16,OUTPATIENT,Follow-up visit + labs,487,false
+CE-0242-surg,EP-0242,2026-05-04,SURGERY,CABG anchor procedure 33533,35195,false
+CE-0242-op,EP-0242,2026-05-11,OUTPATIENT,Follow-up visit + labs,494,false
+CE-0242-readmit,EP-0242,2026-05-17,READMISSION,Unplanned 30-day inpatient readmission,10866,true
+CE-0242-ed,EP-0242,2026-05-17,ED_VISIT,Emergency department evaluation,2446,true
+CE-0243-surg,EP-0243,2026-04-12,SURGERY,CABG anchor procedure 33533,36148,false
+CE-0243-pac,EP-0243,2026-04-14,SNF,Post-acute SNF,4697,false
+CE-0243-op,EP-0243,2026-04-19,OUTPATIENT,Follow-up visit + labs,366,false
+CE-0244-surg,EP-0244,2026-05-25,SURGERY,CABG anchor procedure 33533,35785,false
+CE-0244-op,EP-0244,2026-06-01,OUTPATIENT,Follow-up visit + labs,417,false
+CE-0244-readmit,EP-0244,2026-06-07,READMISSION,Unplanned 30-day inpatient readmission,11054,true
+CE-0244-ed,EP-0244,2026-06-07,ED_VISIT,Emergency department evaluation,1972,true
+CE-0245-surg,EP-0245,2026-05-27,SURGERY,CABG anchor procedure 33533,37671,false
+CE-0245-pac,EP-0245,2026-05-29,SNF,Post-acute SNF,5523,false
+CE-0245-op,EP-0245,2026-06-03,OUTPATIENT,Follow-up visit + labs,397,false
+CE-0246-surg,EP-0246,2026-04-13,SURGERY,CABG anchor procedure 33533,38282,false
+CE-0246-op,EP-0246,2026-04-20,OUTPATIENT,Follow-up visit + labs,449,false
+CE-0246-readmit,EP-0246,2026-04-25,READMISSION,Unplanned 30-day inpatient readmission,11629,true
+CE-0246-ed,EP-0246,2026-04-25,ED_VISIT,Emergency department evaluation,2278,true
+CE-0247-surg,EP-0247,2026-04-21,SURGERY,CABG anchor procedure 33533,37453,false
+CE-0247-pac,EP-0247,2026-04-23,HOME_HEALTH,Post-acute HOME_HEALTH,944,false
+CE-0247-op,EP-0247,2026-04-28,OUTPATIENT,Follow-up visit + labs,350,false
+CE-0248-surg,EP-0248,2026-05-27,SURGERY,CABG anchor procedure 33533,38733,false
+CE-0248-op,EP-0248,2026-06-03,OUTPATIENT,Follow-up visit + labs,612,false
+CE-0249-surg,EP-0249,2026-05-19,SURGERY,CABG anchor procedure 33533,36990,false
+CE-0249-pac,EP-0249,2026-05-21,HOME_HEALTH,Post-acute HOME_HEALTH,904,false
+CE-0249-op,EP-0249,2026-05-26,OUTPATIENT,Follow-up visit + labs,184,false
+CE-0250-surg,EP-0250,2026-04-11,SURGERY,CABG anchor procedure 33533,38367,false
+CE-0250-op,EP-0250,2026-04-18,OUTPATIENT,Follow-up visit + labs,486,false
+CE-0251-surg,EP-0251,2026-04-13,SURGERY,CABG anchor procedure 33533,36076,false
+CE-0251-op,EP-0251,2026-04-20,OUTPATIENT,Follow-up visit + labs,221,false
+CE-0252-surg,EP-0252,2026-04-29,SURGERY,CABG anchor procedure 33533,37193,false
+CE-0252-op,EP-0252,2026-05-06,OUTPATIENT,Follow-up visit + labs,184,false
+CE-0252-readmit,EP-0252,2026-05-06,READMISSION,Unplanned 30-day inpatient readmission,17462,true
+CE-0252-ed,EP-0252,2026-05-06,ED_VISIT,Emergency department evaluation,1831,true
+CE-0253-surg,EP-0253,2026-05-14,SURGERY,CABG anchor procedure 33533,37828,false
+CE-0253-op,EP-0253,2026-05-21,OUTPATIENT,Follow-up visit + labs,544,false
+CE-0254-surg,EP-0254,2026-04-24,SURGERY,CABG anchor procedure 33533,37091,false
+CE-0254-op,EP-0254,2026-05-01,OUTPATIENT,Follow-up visit + labs,569,false
+CE-0255-surg,EP-0255,2026-04-11,SURGERY,CABG anchor procedure 33533,36898,false
+CE-0255-op,EP-0255,2026-04-18,OUTPATIENT,Follow-up visit + labs,297,false
+CE-0256-surg,EP-0256,2026-04-09,SURGERY,CABG anchor procedure 33533,37189,false
+CE-0256-pac,EP-0256,2026-04-11,HOME_HEALTH,Post-acute HOME_HEALTH,1053,false
+CE-0256-op,EP-0256,2026-04-16,OUTPATIENT,Follow-up visit + labs,597,false
+CE-0257-surg,EP-0257,2026-04-30,SURGERY,CABG anchor procedure 33533,35837,false
+CE-0257-op,EP-0257,2026-05-07,OUTPATIENT,Follow-up visit + labs,317,false
+CE-0258-surg,EP-0258,2026-05-11,SURGERY,CABG anchor procedure 33533,37949,false
+CE-0258-pac,EP-0258,2026-05-13,HOME_HEALTH,Post-acute HOME_HEALTH,1861,false
+CE-0258-op,EP-0258,2026-05-18,OUTPATIENT,Follow-up visit + labs,488,false
+CE-0258-readmit,EP-0258,2026-05-24,READMISSION,Unplanned 30-day inpatient readmission,10407,true
+CE-0258-ed,EP-0258,2026-05-24,ED_VISIT,Emergency department evaluation,2372,true
+CE-0259-surg,EP-0259,2026-04-06,SURGERY,CABG anchor procedure 33533,37987,false
+CE-0259-op,EP-0259,2026-04-13,OUTPATIENT,Follow-up visit + labs,184,false
+CE-0260-surg,EP-0260,2026-05-15,SURGERY,CABG anchor procedure 33533,36456,false
+CE-0260-pac,EP-0260,2026-05-17,HOME_HEALTH,Post-acute HOME_HEALTH,2140,false
+CE-0260-op,EP-0260,2026-05-22,OUTPATIENT,Follow-up visit + labs,303,false
+CE-0261-surg,EP-0261,2026-04-30,SURGERY,MAJOR_BOWEL anchor procedure 44140,26422,false
+CE-0261-op,EP-0261,2026-05-07,OUTPATIENT,Follow-up visit + labs,645,false
+CE-0262-surg,EP-0262,2026-05-25,SURGERY,MAJOR_BOWEL anchor procedure 44140,28257,false
+CE-0262-op,EP-0262,2026-06-01,OUTPATIENT,Follow-up visit + labs,550,false
+CE-0262-readmit,EP-0262,2026-06-10,READMISSION,Unplanned 30-day inpatient readmission,12761,true
+CE-0262-ed,EP-0262,2026-06-10,ED_VISIT,Emergency department evaluation,1582,true
+CE-0263-surg,EP-0263,2026-05-31,SURGERY,MAJOR_BOWEL anchor procedure 44140,28145,false
+CE-0263-op,EP-0263,2026-06-07,OUTPATIENT,Follow-up visit + labs,647,false
+CE-0263-readmit,EP-0263,2026-06-15,READMISSION,Unplanned 30-day inpatient readmission,14020,true
+CE-0263-ed,EP-0263,2026-06-15,ED_VISIT,Emergency department evaluation,2257,true
+CE-0264-surg,EP-0264,2026-05-30,SURGERY,MAJOR_BOWEL anchor procedure 44140,27192,false
+CE-0264-pac,EP-0264,2026-06-01,SNF,Post-acute SNF,3442,false
+CE-0264-op,EP-0264,2026-06-06,OUTPATIENT,Follow-up visit + labs,185,false
+CE-0265-surg,EP-0265,2026-05-25,SURGERY,MAJOR_BOWEL anchor procedure 44140,28185,false
+CE-0265-pac,EP-0265,2026-05-27,SNF,Post-acute SNF,6903,false
+CE-0265-op,EP-0265,2026-06-01,OUTPATIENT,Follow-up visit + labs,349,false
+CE-0265-readmit,EP-0265,2026-06-01,READMISSION,Unplanned 30-day inpatient readmission,16451,true
+CE-0265-ed,EP-0265,2026-06-01,ED_VISIT,Emergency department evaluation,1430,true
+CE-0266-surg,EP-0266,2026-05-17,SURGERY,MAJOR_BOWEL anchor procedure 44140,28016,false
+CE-0266-op,EP-0266,2026-05-24,OUTPATIENT,Follow-up visit + labs,487,false
+CE-0267-surg,EP-0267,2026-04-24,SURGERY,MAJOR_BOWEL anchor procedure 44140,26535,false
+CE-0267-pac,EP-0267,2026-04-26,HOME_HEALTH,Post-acute HOME_HEALTH,1422,false
+CE-0267-op,EP-0267,2026-05-01,OUTPATIENT,Follow-up visit + labs,438,false
+CE-0268-surg,EP-0268,2026-05-21,SURGERY,MAJOR_BOWEL anchor procedure 44140,27836,false
+CE-0268-op,EP-0268,2026-05-28,OUTPATIENT,Follow-up visit + labs,324,false
+CE-0269-surg,EP-0269,2026-05-08,SURGERY,MAJOR_BOWEL anchor procedure 44140,28216,false
+CE-0269-op,EP-0269,2026-05-15,OUTPATIENT,Follow-up visit + labs,340,false
+CE-0270-surg,EP-0270,2026-04-20,SURGERY,MAJOR_BOWEL anchor procedure 44140,27935,false
+CE-0270-pac,EP-0270,2026-04-22,SNF,Post-acute SNF,8988,false
+CE-0270-op,EP-0270,2026-04-27,OUTPATIENT,Follow-up visit + labs,195,false
+CE-0271-surg,EP-0271,2026-05-14,SURGERY,MAJOR_BOWEL anchor procedure 44140,27833,false
+CE-0271-op,EP-0271,2026-05-21,OUTPATIENT,Follow-up visit + labs,569,false
+CE-0272-surg,EP-0272,2026-04-12,SURGERY,MAJOR_BOWEL anchor procedure 44140,27920,false
+CE-0272-pac,EP-0272,2026-04-14,SNF,Post-acute SNF,8914,false
+CE-0272-op,EP-0272,2026-04-19,OUTPATIENT,Follow-up visit + labs,207,false
+CE-0272-readmit,EP-0272,2026-04-20,READMISSION,Unplanned 30-day inpatient readmission,16930,true
+CE-0272-ed,EP-0272,2026-04-20,ED_VISIT,Emergency department evaluation,1310,true
+CE-0273-surg,EP-0273,2026-05-19,SURGERY,MAJOR_BOWEL anchor procedure 44140,26653,false
+CE-0273-pac,EP-0273,2026-05-21,SNF,Post-acute SNF,8332,false
+CE-0273-op,EP-0273,2026-05-26,OUTPATIENT,Follow-up visit + labs,484,false
+CE-0274-surg,EP-0274,2026-04-11,SURGERY,MAJOR_BOWEL anchor procedure 44140,27596,false
+CE-0274-op,EP-0274,2026-04-18,OUTPATIENT,Follow-up visit + labs,593,false
+CE-0275-surg,EP-0275,2026-04-21,SURGERY,MAJOR_BOWEL anchor procedure 44140,26565,false
+CE-0275-pac,EP-0275,2026-04-23,SNF,Post-acute SNF,5429,false
+CE-0275-op,EP-0275,2026-04-28,OUTPATIENT,Follow-up visit + labs,561,false
+CE-0275-readmit,EP-0275,2026-05-04,READMISSION,Unplanned 30-day inpatient readmission,17092,true
+CE-0275-ed,EP-0275,2026-05-04,ED_VISIT,Emergency department evaluation,1301,true
+CE-0276-surg,EP-0276,2026-05-12,SURGERY,MAJOR_BOWEL anchor procedure 44140,28286,false
+CE-0276-pac,EP-0276,2026-05-14,SNF,Post-acute SNF,3518,false
+CE-0276-op,EP-0276,2026-05-19,OUTPATIENT,Follow-up visit + labs,222,false
+CE-0277-surg,EP-0277,2026-05-23,SURGERY,MAJOR_BOWEL anchor procedure 44140,27642,false
+CE-0277-op,EP-0277,2026-05-30,OUTPATIENT,Follow-up visit + labs,313,false
+CE-0278-surg,EP-0278,2026-04-09,SURGERY,MAJOR_BOWEL anchor procedure 44140,26955,false
+CE-0278-pac,EP-0278,2026-04-11,SNF,Post-acute SNF,4819,false
+CE-0278-op,EP-0278,2026-04-16,OUTPATIENT,Follow-up visit + labs,209,false
+CE-0279-surg,EP-0279,2026-05-30,SURGERY,MAJOR_BOWEL anchor procedure 44140,25755,false
+CE-0279-op,EP-0279,2026-06-06,OUTPATIENT,Follow-up visit + labs,320,false
+CE-0280-surg,EP-0280,2026-04-19,SURGERY,MAJOR_BOWEL anchor procedure 44140,27750,false
+CE-0280-pac,EP-0280,2026-04-21,HOME_HEALTH,Post-acute HOME_HEALTH,2396,false
+CE-0280-op,EP-0280,2026-04-26,OUTPATIENT,Follow-up visit + labs,520,false
+CE-0281-surg,EP-0281,2026-05-05,SURGERY,MAJOR_BOWEL anchor procedure 44140,26083,false
+CE-0281-pac,EP-0281,2026-05-07,SNF,Post-acute SNF,5925,false
+CE-0281-op,EP-0281,2026-05-12,OUTPATIENT,Follow-up visit + labs,465,false
+CE-0282-surg,EP-0282,2026-05-21,SURGERY,MAJOR_BOWEL anchor procedure 44140,25717,false
+CE-0282-op,EP-0282,2026-05-28,OUTPATIENT,Follow-up visit + labs,424,false
+CE-0283-surg,EP-0283,2026-04-29,SURGERY,MAJOR_BOWEL anchor procedure 44140,27174,false
+CE-0283-pac,EP-0283,2026-05-01,SNF,Post-acute SNF,6309,false
+CE-0283-op,EP-0283,2026-05-06,OUTPATIENT,Follow-up visit + labs,306,false
+CE-0284-surg,EP-0284,2026-05-17,SURGERY,MAJOR_BOWEL anchor procedure 44140,27578,false
+CE-0284-op,EP-0284,2026-05-24,OUTPATIENT,Follow-up visit + labs,321,false
+CE-0285-surg,EP-0285,2026-04-27,SURGERY,MAJOR_BOWEL anchor procedure 44140,26049,false
+CE-0285-op,EP-0285,2026-05-04,OUTPATIENT,Follow-up visit + labs,452,false
+CE-0285-readmit,EP-0285,2026-05-08,READMISSION,Unplanned 30-day inpatient readmission,15051,true
+CE-0285-ed,EP-0285,2026-05-08,ED_VISIT,Emergency department evaluation,1503,true
+CE-0286-surg,EP-0286,2026-05-18,SURGERY,MAJOR_BOWEL anchor procedure 44140,27133,false
+CE-0286-pac,EP-0286,2026-05-20,SNF,Post-acute SNF,5401,false
+CE-0286-op,EP-0286,2026-05-25,OUTPATIENT,Follow-up visit + labs,223,false
+CE-0287-surg,EP-0287,2026-04-10,SURGERY,MAJOR_BOWEL anchor procedure 44140,28042,false
+CE-0287-op,EP-0287,2026-04-17,OUTPATIENT,Follow-up visit + labs,590,false
+CE-0287-readmit,EP-0287,2026-04-20,READMISSION,Unplanned 30-day inpatient readmission,10443,true
+CE-0287-ed,EP-0287,2026-04-20,ED_VISIT,Emergency department evaluation,2157,true
+CE-0288-surg,EP-0288,2026-05-09,SURGERY,MAJOR_BOWEL anchor procedure 44140,28278,false
+CE-0288-pac,EP-0288,2026-05-11,HOME_HEALTH,Post-acute HOME_HEALTH,1613,false
+CE-0288-op,EP-0288,2026-05-16,OUTPATIENT,Follow-up visit + labs,640,false
+CE-0289-surg,EP-0289,2026-05-21,SURGERY,MAJOR_BOWEL anchor procedure 44140,26831,false
+CE-0289-pac,EP-0289,2026-05-23,HOME_HEALTH,Post-acute HOME_HEALTH,1602,false
+CE-0289-op,EP-0289,2026-05-28,OUTPATIENT,Follow-up visit + labs,377,false
+CE-0290-surg,EP-0290,2026-05-07,SURGERY,MAJOR_BOWEL anchor procedure 44140,27040,false
+CE-0290-pac,EP-0290,2026-05-09,HOME_HEALTH,Post-acute HOME_HEALTH,1592,false
+CE-0290-op,EP-0290,2026-05-14,OUTPATIENT,Follow-up visit + labs,510,false
+CE-0290-readmit,EP-0290,2026-05-14,READMISSION,Unplanned 30-day inpatient readmission,12683,true
+CE-0290-ed,EP-0290,2026-05-14,ED_VISIT,Emergency department evaluation,1763,true
+CE-0291-surg,EP-0291,2026-04-10,SURGERY,MAJOR_BOWEL anchor procedure 44140,28320,false
+CE-0291-op,EP-0291,2026-04-17,OUTPATIENT,Follow-up visit + labs,492,false
+CE-0292-surg,EP-0292,2026-05-25,SURGERY,MAJOR_BOWEL anchor procedure 44140,26337,false
+CE-0292-op,EP-0292,2026-06-01,OUTPATIENT,Follow-up visit + labs,636,false
+CE-0293-surg,EP-0293,2026-04-30,SURGERY,MAJOR_BOWEL anchor procedure 44140,26615,false
+CE-0293-op,EP-0293,2026-05-07,OUTPATIENT,Follow-up visit + labs,446,false
+CE-0294-surg,EP-0294,2026-04-25,SURGERY,MAJOR_BOWEL anchor procedure 44140,27536,false
+CE-0294-op,EP-0294,2026-05-02,OUTPATIENT,Follow-up visit + labs,340,false
+CE-0295-surg,EP-0295,2026-04-15,SURGERY,MAJOR_BOWEL anchor procedure 44140,26049,false
+CE-0295-op,EP-0295,2026-04-22,OUTPATIENT,Follow-up visit + labs,466,false
+CE-0296-surg,EP-0296,2026-04-11,SURGERY,MAJOR_BOWEL anchor procedure 44140,28208,false
+CE-0296-pac,EP-0296,2026-04-13,HOME_HEALTH,Post-acute HOME_HEALTH,1149,false
+CE-0296-op,EP-0296,2026-04-18,OUTPATIENT,Follow-up visit + labs,316,false
+CE-0297-surg,EP-0297,2026-04-11,SURGERY,MAJOR_BOWEL anchor procedure 44140,25987,false
+CE-0297-op,EP-0297,2026-04-18,OUTPATIENT,Follow-up visit + labs,205,false
+CE-0298-surg,EP-0298,2026-04-05,SURGERY,MAJOR_BOWEL anchor procedure 44140,27007,false
+CE-0298-op,EP-0298,2026-04-12,OUTPATIENT,Follow-up visit + labs,452,false
+CE-0299-surg,EP-0299,2026-04-10,SURGERY,MAJOR_BOWEL anchor procedure 44140,26962,false
+CE-0299-pac,EP-0299,2026-04-12,HOME_HEALTH,Post-acute HOME_HEALTH,2345,false
+CE-0299-op,EP-0299,2026-04-17,OUTPATIENT,Follow-up visit + labs,193,false
+CE-0299-readmit,EP-0299,2026-04-16,READMISSION,Unplanned 30-day inpatient readmission,17099,true
+CE-0299-ed,EP-0299,2026-04-16,ED_VISIT,Emergency department evaluation,1380,true
+CE-0300-surg,EP-0300,2026-05-13,SURGERY,MAJOR_BOWEL anchor procedure 44140,25734,false
+CE-0300-pac,EP-0300,2026-05-15,HOME_HEALTH,Post-acute HOME_HEALTH,2187,false
+CE-0300-op,EP-0300,2026-05-20,OUTPATIENT,Follow-up visit + labs,372,false

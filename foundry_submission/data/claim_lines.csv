@@ -1,0 +1,2 @@
+claim_id,episode_id,intervention_id,hcpcs_gcode,pos,duration_min,type_of_bill,revenue_code,ride_alone_ok,patient_type
+CL-0009-th,EP-0009,IV-0009-call,G0667,10,25,13X,0780,true,ESTABLISHED

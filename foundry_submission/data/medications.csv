@@ -1,0 +1,770 @@
+episode_id,rxnorm_code,name,dose,route,frequency
+EP-0001,1191,Aspirin,81 mg,PO,daily
+EP-0001,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0001,855332,Warfarin,5 mg,PO,daily
+EP-0002,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0002,855332,Warfarin,5 mg,PO,daily
+EP-0003,855332,Warfarin,5 mg,PO,daily
+EP-0003,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0004,1191,Aspirin,81 mg,PO,daily
+EP-0004,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0004,855332,Warfarin,5 mg,PO,daily
+EP-0005,855332,Warfarin,5 mg,PO,daily
+EP-0005,1191,Aspirin,81 mg,PO,daily
+EP-0005,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0006,855332,Warfarin,5 mg,PO,daily
+EP-0006,1191,Aspirin,81 mg,PO,daily
+EP-0007,1191,Aspirin,81 mg,PO,daily
+EP-0007,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0007,855332,Warfarin,5 mg,PO,daily
+EP-0008,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0008,855332,Warfarin,5 mg,PO,daily
+EP-0009,855332,Warfarin,5 mg,PO,daily
+EP-0009,1191,Aspirin,81 mg,PO,daily
+EP-0009,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0010,855332,Warfarin,5 mg,PO,daily
+EP-0010,1191,Aspirin,81 mg,PO,daily
+EP-0011,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0011,855332,Warfarin,5 mg,PO,daily
+EP-0012,855332,Warfarin,5 mg,PO,daily
+EP-0012,1191,Aspirin,81 mg,PO,daily
+EP-0013,855332,Warfarin,5 mg,PO,daily
+EP-0013,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0014,1191,Aspirin,81 mg,PO,daily
+EP-0014,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0015,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0015,855332,Warfarin,5 mg,PO,daily
+EP-0015,1191,Aspirin,81 mg,PO,daily
+EP-0016,1191,Aspirin,81 mg,PO,daily
+EP-0016,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0016,855332,Warfarin,5 mg,PO,daily
+EP-0017,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0017,1191,Aspirin,81 mg,PO,daily
+EP-0017,855332,Warfarin,5 mg,PO,daily
+EP-0018,1191,Aspirin,81 mg,PO,daily
+EP-0018,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0018,855332,Warfarin,5 mg,PO,daily
+EP-0019,1191,Aspirin,81 mg,PO,daily
+EP-0019,855332,Warfarin,5 mg,PO,daily
+EP-0019,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0020,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0020,855332,Warfarin,5 mg,PO,daily
+EP-0021,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0021,855332,Warfarin,5 mg,PO,daily
+EP-0022,855332,Warfarin,5 mg,PO,daily
+EP-0022,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0023,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0023,855332,Warfarin,5 mg,PO,daily
+EP-0023,1191,Aspirin,81 mg,PO,daily
+EP-0024,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0024,855332,Warfarin,5 mg,PO,daily
+EP-0024,1191,Aspirin,81 mg,PO,daily
+EP-0025,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0025,1191,Aspirin,81 mg,PO,daily
+EP-0026,1191,Aspirin,81 mg,PO,daily
+EP-0026,855332,Warfarin,5 mg,PO,daily
+EP-0026,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0027,855332,Warfarin,5 mg,PO,daily
+EP-0027,1191,Aspirin,81 mg,PO,daily
+EP-0027,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0028,855332,Warfarin,5 mg,PO,daily
+EP-0028,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0028,1191,Aspirin,81 mg,PO,daily
+EP-0029,855332,Warfarin,5 mg,PO,daily
+EP-0029,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0029,1191,Aspirin,81 mg,PO,daily
+EP-0030,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0030,1191,Aspirin,81 mg,PO,daily
+EP-0030,855332,Warfarin,5 mg,PO,daily
+EP-0031,855332,Warfarin,5 mg,PO,daily
+EP-0031,1191,Aspirin,81 mg,PO,daily
+EP-0031,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0032,1191,Aspirin,81 mg,PO,daily
+EP-0032,855332,Warfarin,5 mg,PO,daily
+EP-0033,855332,Warfarin,5 mg,PO,daily
+EP-0033,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0034,855332,Warfarin,5 mg,PO,daily
+EP-0034,1191,Aspirin,81 mg,PO,daily
+EP-0034,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0035,1191,Aspirin,81 mg,PO,daily
+EP-0035,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0036,1191,Aspirin,81 mg,PO,daily
+EP-0036,855332,Warfarin,5 mg,PO,daily
+EP-0036,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0037,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0037,855332,Warfarin,5 mg,PO,daily
+EP-0038,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0038,855332,Warfarin,5 mg,PO,daily
+EP-0038,1191,Aspirin,81 mg,PO,daily
+EP-0039,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0039,1191,Aspirin,81 mg,PO,daily
+EP-0040,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0040,1191,Aspirin,81 mg,PO,daily
+EP-0040,855332,Warfarin,5 mg,PO,daily
+EP-0041,855332,Warfarin,5 mg,PO,daily
+EP-0041,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0042,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0042,1191,Aspirin,81 mg,PO,daily
+EP-0042,855332,Warfarin,5 mg,PO,daily
+EP-0043,855332,Warfarin,5 mg,PO,daily
+EP-0043,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0043,1191,Aspirin,81 mg,PO,daily
+EP-0044,1191,Aspirin,81 mg,PO,daily
+EP-0044,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0045,855332,Warfarin,5 mg,PO,daily
+EP-0045,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0046,1191,Aspirin,81 mg,PO,daily
+EP-0046,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0047,1191,Aspirin,81 mg,PO,daily
+EP-0047,855332,Warfarin,5 mg,PO,daily
+EP-0048,1191,Aspirin,81 mg,PO,daily
+EP-0048,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0048,855332,Warfarin,5 mg,PO,daily
+EP-0049,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0049,855332,Warfarin,5 mg,PO,daily
+EP-0050,855332,Warfarin,5 mg,PO,daily
+EP-0050,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0051,1191,Aspirin,81 mg,PO,daily
+EP-0051,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0051,855332,Warfarin,5 mg,PO,daily
+EP-0052,1191,Aspirin,81 mg,PO,daily
+EP-0052,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0052,855332,Warfarin,5 mg,PO,daily
+EP-0053,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0053,1191,Aspirin,81 mg,PO,daily
+EP-0053,855332,Warfarin,5 mg,PO,daily
+EP-0054,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0054,1191,Aspirin,81 mg,PO,daily
+EP-0054,855332,Warfarin,5 mg,PO,daily
+EP-0055,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0055,855332,Warfarin,5 mg,PO,daily
+EP-0056,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0056,855332,Warfarin,5 mg,PO,daily
+EP-0057,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0057,1191,Aspirin,81 mg,PO,daily
+EP-0057,855332,Warfarin,5 mg,PO,daily
+EP-0058,1191,Aspirin,81 mg,PO,daily
+EP-0058,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0058,855332,Warfarin,5 mg,PO,daily
+EP-0059,855332,Warfarin,5 mg,PO,daily
+EP-0059,1191,Aspirin,81 mg,PO,daily
+EP-0059,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0060,1191,Aspirin,81 mg,PO,daily
+EP-0060,855332,Warfarin,5 mg,PO,daily
+EP-0060,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0061,855332,Warfarin,5 mg,PO,daily
+EP-0061,1191,Aspirin,81 mg,PO,daily
+EP-0062,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0062,1191,Aspirin,81 mg,PO,daily
+EP-0062,855332,Warfarin,5 mg,PO,daily
+EP-0063,855332,Warfarin,5 mg,PO,daily
+EP-0063,1191,Aspirin,81 mg,PO,daily
+EP-0064,1191,Aspirin,81 mg,PO,daily
+EP-0064,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0064,855332,Warfarin,5 mg,PO,daily
+EP-0065,1191,Aspirin,81 mg,PO,daily
+EP-0065,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0065,855332,Warfarin,5 mg,PO,daily
+EP-0066,1191,Aspirin,81 mg,PO,daily
+EP-0066,855332,Warfarin,5 mg,PO,daily
+EP-0066,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0067,855332,Warfarin,5 mg,PO,daily
+EP-0067,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0068,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0068,1191,Aspirin,81 mg,PO,daily
+EP-0069,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0069,1191,Aspirin,81 mg,PO,daily
+EP-0070,855332,Warfarin,5 mg,PO,daily
+EP-0070,1191,Aspirin,81 mg,PO,daily
+EP-0071,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0071,1191,Aspirin,81 mg,PO,daily
+EP-0072,1191,Aspirin,81 mg,PO,daily
+EP-0072,855332,Warfarin,5 mg,PO,daily
+EP-0072,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0073,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0073,855332,Warfarin,5 mg,PO,daily
+EP-0074,855332,Warfarin,5 mg,PO,daily
+EP-0074,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0074,1191,Aspirin,81 mg,PO,daily
+EP-0075,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0075,855332,Warfarin,5 mg,PO,daily
+EP-0076,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0076,1191,Aspirin,81 mg,PO,daily
+EP-0076,855332,Warfarin,5 mg,PO,daily
+EP-0077,1191,Aspirin,81 mg,PO,daily
+EP-0077,855332,Warfarin,5 mg,PO,daily
+EP-0077,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0078,1191,Aspirin,81 mg,PO,daily
+EP-0078,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0078,855332,Warfarin,5 mg,PO,daily
+EP-0079,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0079,855332,Warfarin,5 mg,PO,daily
+EP-0080,1191,Aspirin,81 mg,PO,daily
+EP-0080,855332,Warfarin,5 mg,PO,daily
+EP-0080,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0081,855332,Warfarin,5 mg,PO,daily
+EP-0081,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0081,1191,Aspirin,81 mg,PO,daily
+EP-0082,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0082,855332,Warfarin,5 mg,PO,daily
+EP-0082,1191,Aspirin,81 mg,PO,daily
+EP-0083,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0083,855332,Warfarin,5 mg,PO,daily
+EP-0084,1191,Aspirin,81 mg,PO,daily
+EP-0084,855332,Warfarin,5 mg,PO,daily
+EP-0085,855332,Warfarin,5 mg,PO,daily
+EP-0085,1191,Aspirin,81 mg,PO,daily
+EP-0085,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0086,1191,Aspirin,81 mg,PO,daily
+EP-0086,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0086,855332,Warfarin,5 mg,PO,daily
+EP-0087,1191,Aspirin,81 mg,PO,daily
+EP-0087,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0087,855332,Warfarin,5 mg,PO,daily
+EP-0088,855332,Warfarin,5 mg,PO,daily
+EP-0088,1191,Aspirin,81 mg,PO,daily
+EP-0088,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0089,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0089,1191,Aspirin,81 mg,PO,daily
+EP-0089,855332,Warfarin,5 mg,PO,daily
+EP-0090,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0090,855332,Warfarin,5 mg,PO,daily
+EP-0091,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0091,1191,Aspirin,81 mg,PO,daily
+EP-0091,855332,Warfarin,5 mg,PO,daily
+EP-0092,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0092,855332,Warfarin,5 mg,PO,daily
+EP-0092,1191,Aspirin,81 mg,PO,daily
+EP-0093,1191,Aspirin,81 mg,PO,daily
+EP-0093,855332,Warfarin,5 mg,PO,daily
+EP-0093,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0094,1191,Aspirin,81 mg,PO,daily
+EP-0094,855332,Warfarin,5 mg,PO,daily
+EP-0094,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0095,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0095,855332,Warfarin,5 mg,PO,daily
+EP-0096,855332,Warfarin,5 mg,PO,daily
+EP-0096,1191,Aspirin,81 mg,PO,daily
+EP-0096,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0097,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0097,1191,Aspirin,81 mg,PO,daily
+EP-0097,855332,Warfarin,5 mg,PO,daily
+EP-0098,1191,Aspirin,81 mg,PO,daily
+EP-0098,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0099,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0099,855332,Warfarin,5 mg,PO,daily
+EP-0100,1191,Aspirin,81 mg,PO,daily
+EP-0100,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0101,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0101,855332,Warfarin,5 mg,PO,daily
+EP-0101,1191,Aspirin,81 mg,PO,daily
+EP-0102,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0102,1191,Aspirin,81 mg,PO,daily
+EP-0103,1191,Aspirin,81 mg,PO,daily
+EP-0103,855332,Warfarin,5 mg,PO,daily
+EP-0103,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0104,1191,Aspirin,81 mg,PO,daily
+EP-0104,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0105,855332,Warfarin,5 mg,PO,daily
+EP-0105,1191,Aspirin,81 mg,PO,daily
+EP-0105,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0106,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0106,1191,Aspirin,81 mg,PO,daily
+EP-0107,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0107,855332,Warfarin,5 mg,PO,daily
+EP-0107,1191,Aspirin,81 mg,PO,daily
+EP-0108,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0108,1191,Aspirin,81 mg,PO,daily
+EP-0108,855332,Warfarin,5 mg,PO,daily
+EP-0109,1191,Aspirin,81 mg,PO,daily
+EP-0109,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0109,855332,Warfarin,5 mg,PO,daily
+EP-0110,1191,Aspirin,81 mg,PO,daily
+EP-0110,855332,Warfarin,5 mg,PO,daily
+EP-0110,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0111,855332,Warfarin,5 mg,PO,daily
+EP-0111,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0112,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0112,855332,Warfarin,5 mg,PO,daily
+EP-0113,1191,Aspirin,81 mg,PO,daily
+EP-0113,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0113,855332,Warfarin,5 mg,PO,daily
+EP-0114,855332,Warfarin,5 mg,PO,daily
+EP-0114,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0114,1191,Aspirin,81 mg,PO,daily
+EP-0115,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0115,855332,Warfarin,5 mg,PO,daily
+EP-0115,1191,Aspirin,81 mg,PO,daily
+EP-0116,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0116,855332,Warfarin,5 mg,PO,daily
+EP-0116,1191,Aspirin,81 mg,PO,daily
+EP-0117,1191,Aspirin,81 mg,PO,daily
+EP-0117,855332,Warfarin,5 mg,PO,daily
+EP-0118,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0118,855332,Warfarin,5 mg,PO,daily
+EP-0118,1191,Aspirin,81 mg,PO,daily
+EP-0119,1191,Aspirin,81 mg,PO,daily
+EP-0119,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0119,855332,Warfarin,5 mg,PO,daily
+EP-0120,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0120,855332,Warfarin,5 mg,PO,daily
+EP-0121,855332,Warfarin,5 mg,PO,daily
+EP-0121,1191,Aspirin,81 mg,PO,daily
+EP-0122,855332,Warfarin,5 mg,PO,daily
+EP-0122,1191,Aspirin,81 mg,PO,daily
+EP-0122,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0123,855332,Warfarin,5 mg,PO,daily
+EP-0123,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0123,1191,Aspirin,81 mg,PO,daily
+EP-0124,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0124,1191,Aspirin,81 mg,PO,daily
+EP-0124,855332,Warfarin,5 mg,PO,daily
+EP-0125,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0125,855332,Warfarin,5 mg,PO,daily
+EP-0125,1191,Aspirin,81 mg,PO,daily
+EP-0126,1191,Aspirin,81 mg,PO,daily
+EP-0126,855332,Warfarin,5 mg,PO,daily
+EP-0126,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0127,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0127,1191,Aspirin,81 mg,PO,daily
+EP-0127,855332,Warfarin,5 mg,PO,daily
+EP-0128,855332,Warfarin,5 mg,PO,daily
+EP-0128,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0129,1191,Aspirin,81 mg,PO,daily
+EP-0129,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0130,1191,Aspirin,81 mg,PO,daily
+EP-0130,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0130,855332,Warfarin,5 mg,PO,daily
+EP-0131,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0131,11289,Enoxaparin,40 mg,SC,daily
+EP-0131,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0132,11289,Enoxaparin,40 mg,SC,daily
+EP-0132,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0132,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0133,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0133,11289,Enoxaparin,40 mg,SC,daily
+EP-0134,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0134,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0135,11289,Enoxaparin,40 mg,SC,daily
+EP-0135,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0136,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0136,11289,Enoxaparin,40 mg,SC,daily
+EP-0137,11289,Enoxaparin,40 mg,SC,daily
+EP-0137,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0137,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0138,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0138,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0139,11289,Enoxaparin,40 mg,SC,daily
+EP-0139,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0139,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0140,11289,Enoxaparin,40 mg,SC,daily
+EP-0140,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0141,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0141,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0141,11289,Enoxaparin,40 mg,SC,daily
+EP-0142,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0142,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0143,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0143,11289,Enoxaparin,40 mg,SC,daily
+EP-0144,11289,Enoxaparin,40 mg,SC,daily
+EP-0144,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0145,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0145,11289,Enoxaparin,40 mg,SC,daily
+EP-0145,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0146,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0146,11289,Enoxaparin,40 mg,SC,daily
+EP-0146,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0147,11289,Enoxaparin,40 mg,SC,daily
+EP-0147,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0148,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0148,11289,Enoxaparin,40 mg,SC,daily
+EP-0148,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0149,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0149,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0149,11289,Enoxaparin,40 mg,SC,daily
+EP-0150,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0150,11289,Enoxaparin,40 mg,SC,daily
+EP-0151,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0151,11289,Enoxaparin,40 mg,SC,daily
+EP-0152,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0152,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0153,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0153,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0154,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0154,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0155,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0155,11289,Enoxaparin,40 mg,SC,daily
+EP-0155,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0156,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0156,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0157,11289,Enoxaparin,40 mg,SC,daily
+EP-0157,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0157,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0158,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0158,11289,Enoxaparin,40 mg,SC,daily
+EP-0159,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0159,11289,Enoxaparin,40 mg,SC,daily
+EP-0159,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0160,11289,Enoxaparin,40 mg,SC,daily
+EP-0160,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0160,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0161,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0161,11289,Enoxaparin,40 mg,SC,daily
+EP-0161,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0162,11289,Enoxaparin,40 mg,SC,daily
+EP-0162,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0162,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0163,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0163,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0163,11289,Enoxaparin,40 mg,SC,daily
+EP-0164,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0164,11289,Enoxaparin,40 mg,SC,daily
+EP-0164,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0165,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0165,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0166,11289,Enoxaparin,40 mg,SC,daily
+EP-0166,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0167,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0167,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0168,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0168,11289,Enoxaparin,40 mg,SC,daily
+EP-0169,11289,Enoxaparin,40 mg,SC,daily
+EP-0169,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0169,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0170,11289,Enoxaparin,40 mg,SC,daily
+EP-0170,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0171,11289,Enoxaparin,40 mg,SC,daily
+EP-0171,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0171,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0172,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0172,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0173,11289,Enoxaparin,40 mg,SC,daily
+EP-0173,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0173,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0174,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0174,11289,Enoxaparin,40 mg,SC,daily
+EP-0174,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0175,11289,Enoxaparin,40 mg,SC,daily
+EP-0175,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0176,11289,Enoxaparin,40 mg,SC,daily
+EP-0176,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0176,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0177,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0177,11289,Enoxaparin,40 mg,SC,daily
+EP-0178,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0178,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0179,42463,Calcium-vitamin D,600 mg,PO,BID
+EP-0179,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0180,11289,Enoxaparin,40 mg,SC,daily
+EP-0180,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0181,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0181,6470,Gabapentin,300 mg,PO,TID
+EP-0182,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0182,6470,Gabapentin,300 mg,PO,TID
+EP-0182,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0183,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0183,6470,Gabapentin,300 mg,PO,TID
+EP-0184,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0184,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0185,6470,Gabapentin,300 mg,PO,TID
+EP-0185,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0186,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0186,6470,Gabapentin,300 mg,PO,TID
+EP-0187,6470,Gabapentin,300 mg,PO,TID
+EP-0187,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0188,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0188,6470,Gabapentin,300 mg,PO,TID
+EP-0188,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0189,6470,Gabapentin,300 mg,PO,TID
+EP-0189,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0190,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0190,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0191,6470,Gabapentin,300 mg,PO,TID
+EP-0191,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0192,6470,Gabapentin,300 mg,PO,TID
+EP-0192,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0192,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0193,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0193,6470,Gabapentin,300 mg,PO,TID
+EP-0193,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0194,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0194,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0195,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0195,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0196,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0196,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0197,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0197,6470,Gabapentin,300 mg,PO,TID
+EP-0197,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0198,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0198,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0199,6470,Gabapentin,300 mg,PO,TID
+EP-0199,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0199,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0200,6470,Gabapentin,300 mg,PO,TID
+EP-0200,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0200,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0201,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0201,6470,Gabapentin,300 mg,PO,TID
+EP-0202,6470,Gabapentin,300 mg,PO,TID
+EP-0202,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0202,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0203,6470,Gabapentin,300 mg,PO,TID
+EP-0203,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0203,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0204,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0204,6470,Gabapentin,300 mg,PO,TID
+EP-0204,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0205,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0205,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0206,6470,Gabapentin,300 mg,PO,TID
+EP-0206,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0206,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0207,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0207,6470,Gabapentin,300 mg,PO,TID
+EP-0208,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0208,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0208,6470,Gabapentin,300 mg,PO,TID
+EP-0209,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0209,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0210,6470,Gabapentin,300 mg,PO,TID
+EP-0210,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0211,6470,Gabapentin,300 mg,PO,TID
+EP-0211,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0212,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0212,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0212,6470,Gabapentin,300 mg,PO,TID
+EP-0213,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0213,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0214,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0214,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0215,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0215,6470,Gabapentin,300 mg,PO,TID
+EP-0216,6470,Gabapentin,300 mg,PO,TID
+EP-0216,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0216,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0217,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0217,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0217,6470,Gabapentin,300 mg,PO,TID
+EP-0218,6470,Gabapentin,300 mg,PO,TID
+EP-0218,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0218,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0219,6470,Gabapentin,300 mg,PO,TID
+EP-0219,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0220,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0220,6470,Gabapentin,300 mg,PO,TID
+EP-0221,6470,Gabapentin,300 mg,PO,TID
+EP-0221,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0221,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0222,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0222,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0223,6470,Gabapentin,300 mg,PO,TID
+EP-0223,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0224,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0224,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0224,6470,Gabapentin,300 mg,PO,TID
+EP-0225,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0225,6470,Gabapentin,300 mg,PO,TID
+EP-0225,8640,Cyclobenzaprine,10 mg,PO,TID PRN
+EP-0226,83367,Atorvastatin,40 mg,PO,daily
+EP-0226,29046,Metoprolol,25 mg,PO,BID
+EP-0226,1191,Aspirin,81 mg,PO,daily
+EP-0226,4603,Furosemide,20 mg,PO,daily
+EP-0227,83367,Atorvastatin,40 mg,PO,daily
+EP-0227,4603,Furosemide,20 mg,PO,daily
+EP-0228,1191,Aspirin,81 mg,PO,daily
+EP-0228,83367,Atorvastatin,40 mg,PO,daily
+EP-0229,29046,Metoprolol,25 mg,PO,BID
+EP-0229,4603,Furosemide,20 mg,PO,daily
+EP-0229,1191,Aspirin,81 mg,PO,daily
+EP-0229,83367,Atorvastatin,40 mg,PO,daily
+EP-0230,29046,Metoprolol,25 mg,PO,BID
+EP-0230,4603,Furosemide,20 mg,PO,daily
+EP-0230,83367,Atorvastatin,40 mg,PO,daily
+EP-0230,1191,Aspirin,81 mg,PO,daily
+EP-0231,1191,Aspirin,81 mg,PO,daily
+EP-0231,83367,Atorvastatin,40 mg,PO,daily
+EP-0232,4603,Furosemide,20 mg,PO,daily
+EP-0232,1191,Aspirin,81 mg,PO,daily
+EP-0233,29046,Metoprolol,25 mg,PO,BID
+EP-0233,4603,Furosemide,20 mg,PO,daily
+EP-0233,83367,Atorvastatin,40 mg,PO,daily
+EP-0234,1191,Aspirin,81 mg,PO,daily
+EP-0234,29046,Metoprolol,25 mg,PO,BID
+EP-0234,4603,Furosemide,20 mg,PO,daily
+EP-0235,4603,Furosemide,20 mg,PO,daily
+EP-0235,83367,Atorvastatin,40 mg,PO,daily
+EP-0236,83367,Atorvastatin,40 mg,PO,daily
+EP-0236,1191,Aspirin,81 mg,PO,daily
+EP-0236,4603,Furosemide,20 mg,PO,daily
+EP-0236,29046,Metoprolol,25 mg,PO,BID
+EP-0237,83367,Atorvastatin,40 mg,PO,daily
+EP-0237,4603,Furosemide,20 mg,PO,daily
+EP-0237,29046,Metoprolol,25 mg,PO,BID
+EP-0238,83367,Atorvastatin,40 mg,PO,daily
+EP-0238,1191,Aspirin,81 mg,PO,daily
+EP-0238,29046,Metoprolol,25 mg,PO,BID
+EP-0238,4603,Furosemide,20 mg,PO,daily
+EP-0239,1191,Aspirin,81 mg,PO,daily
+EP-0239,29046,Metoprolol,25 mg,PO,BID
+EP-0239,83367,Atorvastatin,40 mg,PO,daily
+EP-0240,4603,Furosemide,20 mg,PO,daily
+EP-0240,1191,Aspirin,81 mg,PO,daily
+EP-0240,29046,Metoprolol,25 mg,PO,BID
+EP-0240,83367,Atorvastatin,40 mg,PO,daily
+EP-0241,4603,Furosemide,20 mg,PO,daily
+EP-0241,29046,Metoprolol,25 mg,PO,BID
+EP-0241,83367,Atorvastatin,40 mg,PO,daily
+EP-0242,29046,Metoprolol,25 mg,PO,BID
+EP-0242,4603,Furosemide,20 mg,PO,daily
+EP-0242,1191,Aspirin,81 mg,PO,daily
+EP-0242,83367,Atorvastatin,40 mg,PO,daily
+EP-0243,4603,Furosemide,20 mg,PO,daily
+EP-0243,83367,Atorvastatin,40 mg,PO,daily
+EP-0243,29046,Metoprolol,25 mg,PO,BID
+EP-0243,1191,Aspirin,81 mg,PO,daily
+EP-0244,83367,Atorvastatin,40 mg,PO,daily
+EP-0244,29046,Metoprolol,25 mg,PO,BID
+EP-0245,4603,Furosemide,20 mg,PO,daily
+EP-0245,83367,Atorvastatin,40 mg,PO,daily
+EP-0245,1191,Aspirin,81 mg,PO,daily
+EP-0246,1191,Aspirin,81 mg,PO,daily
+EP-0246,83367,Atorvastatin,40 mg,PO,daily
+EP-0247,83367,Atorvastatin,40 mg,PO,daily
+EP-0247,29046,Metoprolol,25 mg,PO,BID
+EP-0247,4603,Furosemide,20 mg,PO,daily
+EP-0248,1191,Aspirin,81 mg,PO,daily
+EP-0248,83367,Atorvastatin,40 mg,PO,daily
+EP-0248,29046,Metoprolol,25 mg,PO,BID
+EP-0248,4603,Furosemide,20 mg,PO,daily
+EP-0249,83367,Atorvastatin,40 mg,PO,daily
+EP-0249,1191,Aspirin,81 mg,PO,daily
+EP-0249,4603,Furosemide,20 mg,PO,daily
+EP-0250,83367,Atorvastatin,40 mg,PO,daily
+EP-0250,1191,Aspirin,81 mg,PO,daily
+EP-0250,4603,Furosemide,20 mg,PO,daily
+EP-0250,29046,Metoprolol,25 mg,PO,BID
+EP-0251,29046,Metoprolol,25 mg,PO,BID
+EP-0251,83367,Atorvastatin,40 mg,PO,daily
+EP-0251,4603,Furosemide,20 mg,PO,daily
+EP-0252,1191,Aspirin,81 mg,PO,daily
+EP-0252,4603,Furosemide,20 mg,PO,daily
+EP-0252,83367,Atorvastatin,40 mg,PO,daily
+EP-0253,4603,Furosemide,20 mg,PO,daily
+EP-0253,1191,Aspirin,81 mg,PO,daily
+EP-0254,1191,Aspirin,81 mg,PO,daily
+EP-0254,83367,Atorvastatin,40 mg,PO,daily
+EP-0255,4603,Furosemide,20 mg,PO,daily
+EP-0255,83367,Atorvastatin,40 mg,PO,daily
+EP-0256,1191,Aspirin,81 mg,PO,daily
+EP-0256,83367,Atorvastatin,40 mg,PO,daily
+EP-0257,29046,Metoprolol,25 mg,PO,BID
+EP-0257,83367,Atorvastatin,40 mg,PO,daily
+EP-0258,1191,Aspirin,81 mg,PO,daily
+EP-0258,4603,Furosemide,20 mg,PO,daily
+EP-0258,83367,Atorvastatin,40 mg,PO,daily
+EP-0258,29046,Metoprolol,25 mg,PO,BID
+EP-0259,4603,Furosemide,20 mg,PO,daily
+EP-0259,83367,Atorvastatin,40 mg,PO,daily
+EP-0260,83367,Atorvastatin,40 mg,PO,daily
+EP-0260,1191,Aspirin,81 mg,PO,daily
+EP-0260,29046,Metoprolol,25 mg,PO,BID
+EP-0260,4603,Furosemide,20 mg,PO,daily
+EP-0261,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0261,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0262,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0262,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0263,11289,Enoxaparin,40 mg,SC,daily
+EP-0263,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0263,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0264,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0264,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0265,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0265,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0265,11289,Enoxaparin,40 mg,SC,daily
+EP-0266,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0266,11289,Enoxaparin,40 mg,SC,daily
+EP-0266,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0267,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0267,11289,Enoxaparin,40 mg,SC,daily
+EP-0268,11289,Enoxaparin,40 mg,SC,daily
+EP-0268,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0269,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0269,11289,Enoxaparin,40 mg,SC,daily
+EP-0270,11289,Enoxaparin,40 mg,SC,daily
+EP-0270,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0271,11289,Enoxaparin,40 mg,SC,daily
+EP-0271,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0271,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0272,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0272,11289,Enoxaparin,40 mg,SC,daily
+EP-0273,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0273,11289,Enoxaparin,40 mg,SC,daily
+EP-0274,11289,Enoxaparin,40 mg,SC,daily
+EP-0274,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0274,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0275,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0275,11289,Enoxaparin,40 mg,SC,daily
+EP-0276,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0276,11289,Enoxaparin,40 mg,SC,daily
+EP-0277,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0277,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0277,11289,Enoxaparin,40 mg,SC,daily
+EP-0278,11289,Enoxaparin,40 mg,SC,daily
+EP-0278,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0279,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0279,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0280,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0280,11289,Enoxaparin,40 mg,SC,daily
+EP-0281,11289,Enoxaparin,40 mg,SC,daily
+EP-0281,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0282,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0282,11289,Enoxaparin,40 mg,SC,daily
+EP-0283,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0283,11289,Enoxaparin,40 mg,SC,daily
+EP-0284,11289,Enoxaparin,40 mg,SC,daily
+EP-0284,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0285,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0285,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0285,11289,Enoxaparin,40 mg,SC,daily
+EP-0286,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0286,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0286,11289,Enoxaparin,40 mg,SC,daily
+EP-0287,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0287,11289,Enoxaparin,40 mg,SC,daily
+EP-0287,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0288,11289,Enoxaparin,40 mg,SC,daily
+EP-0288,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0288,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0289,11289,Enoxaparin,40 mg,SC,daily
+EP-0289,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0290,11289,Enoxaparin,40 mg,SC,daily
+EP-0290,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0290,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0291,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0291,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0291,11289,Enoxaparin,40 mg,SC,daily
+EP-0292,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0292,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0292,11289,Enoxaparin,40 mg,SC,daily
+EP-0293,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0293,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0294,11289,Enoxaparin,40 mg,SC,daily
+EP-0294,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0295,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0295,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0295,11289,Enoxaparin,40 mg,SC,daily
+EP-0296,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0296,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0297,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0297,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0297,11289,Enoxaparin,40 mg,SC,daily
+EP-0298,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0298,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0298,11289,Enoxaparin,40 mg,SC,daily
+EP-0299,11289,Enoxaparin,40 mg,SC,daily
+EP-0299,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0299,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0300,8123,Ondansetron,4 mg,PO,q8h PRN
+EP-0300,197696,Oxycodone-acetaminophen,5-325 mg,PO,q6h PRN
+EP-0300,11289,Enoxaparin,40 mg,SC,daily

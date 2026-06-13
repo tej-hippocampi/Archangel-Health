@@ -1,0 +1,601 @@
+assessment_id,episode_id,tier,score,reasons,phase,model_version,tuning_version,timestamp
+TA-0001-pre,EP-0001,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-04
+TA-0001-post,EP-0001,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-10
+TA-0002-pre,EP-0002,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-24
+TA-0002-post,EP-0002,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-03
+TA-0003-pre,EP-0003,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-10
+TA-0003-post,EP-0003,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-21
+TA-0004-pre,EP-0004,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0004-post,EP-0004,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-05
+TA-0005-pre,EP-0005,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0005-post,EP-0005,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-06
+TA-0006-pre,EP-0006,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-10
+TA-0006-post,EP-0006,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-20
+TA-0007-pre,EP-0007,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-26
+TA-0007-post,EP-0007,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-06
+TA-0008-pre,EP-0008,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-19
+TA-0008-post,EP-0008,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-29
+TA-0009-pre,EP-0009,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-10
+TA-0009-post,EP-0009,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-22
+TA-0010-pre,EP-0010,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-11
+TA-0010-post,EP-0010,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-21
+TA-0011-pre,EP-0011,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-05
+TA-0011-post,EP-0011,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-15
+TA-0012-pre,EP-0012,TIER_2,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-13
+TA-0012-post,EP-0012,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-23
+TA-0013-pre,EP-0013,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-12
+TA-0013-post,EP-0013,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-22
+TA-0014-pre,EP-0014,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-24
+TA-0014-post,EP-0014,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-04
+TA-0015-pre,EP-0015,TIER_2,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-12
+TA-0015-post,EP-0015,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-16
+TA-0016-pre,EP-0016,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-14
+TA-0016-post,EP-0016,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-24
+TA-0017-pre,EP-0017,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-26
+TA-0017-post,EP-0017,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-31
+TA-0018-pre,EP-0018,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-20
+TA-0018-post,EP-0018,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-30
+TA-0019-pre,EP-0019,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0019-post,EP-0019,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-05
+TA-0020-pre,EP-0020,TIER_2,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-21
+TA-0020-post,EP-0020,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-29
+TA-0021-pre,EP-0021,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0021-post,EP-0021,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-05
+TA-0022-pre,EP-0022,TIER_2,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-01
+TA-0022-post,EP-0022,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-13
+TA-0023-pre,EP-0023,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-27
+TA-0023-post,EP-0023,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-07
+TA-0024-pre,EP-0024,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-05
+TA-0024-post,EP-0024,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-15
+TA-0025-pre,EP-0025,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-06
+TA-0025-post,EP-0025,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-16
+TA-0026-pre,EP-0026,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-08
+TA-0026-post,EP-0026,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-18
+TA-0027-pre,EP-0027,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-20
+TA-0027-post,EP-0027,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-30
+TA-0028-pre,EP-0028,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-19
+TA-0028-post,EP-0028,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-29
+TA-0029-pre,EP-0029,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-15
+TA-0029-post,EP-0029,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-25
+TA-0030-pre,EP-0030,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-23
+TA-0030-post,EP-0030,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-04
+TA-0031-pre,EP-0031,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-11
+TA-0031-post,EP-0031,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-21
+TA-0032-pre,EP-0032,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-10
+TA-0032-post,EP-0032,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-18
+TA-0033-pre,EP-0033,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-22
+TA-0033-post,EP-0033,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-02
+TA-0034-pre,EP-0034,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-24
+TA-0034-post,EP-0034,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-05
+TA-0035-pre,EP-0035,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-08
+TA-0035-post,EP-0035,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-19
+TA-0036-pre,EP-0036,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-23
+TA-0036-post,EP-0036,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-01
+TA-0037-pre,EP-0037,TIER_2,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-17
+TA-0037-post,EP-0037,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-27
+TA-0038-pre,EP-0038,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-20
+TA-0038-post,EP-0038,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-30
+TA-0039-pre,EP-0039,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-07
+TA-0039-post,EP-0039,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-17
+TA-0040-pre,EP-0040,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-10
+TA-0040-post,EP-0040,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-20
+TA-0041-pre,EP-0041,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-02
+TA-0041-post,EP-0041,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-12
+TA-0042-pre,EP-0042,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-26
+TA-0042-post,EP-0042,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-31
+TA-0043-pre,EP-0043,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-22
+TA-0043-post,EP-0043,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-01
+TA-0044-pre,EP-0044,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-01
+TA-0044-post,EP-0044,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-11
+TA-0045-pre,EP-0045,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-05
+TA-0045-post,EP-0045,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-15
+TA-0046-pre,EP-0046,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-09
+TA-0046-post,EP-0046,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-18
+TA-0047-pre,EP-0047,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-30
+TA-0047-post,EP-0047,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-07
+TA-0048-pre,EP-0048,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-27
+TA-0048-post,EP-0048,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-07
+TA-0049-pre,EP-0049,TIER_2,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-20
+TA-0049-post,EP-0049,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-30
+TA-0050-pre,EP-0050,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-21
+TA-0050-post,EP-0050,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-31
+TA-0051-pre,EP-0051,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-05
+TA-0051-post,EP-0051,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-10
+TA-0052-pre,EP-0052,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-20
+TA-0052-post,EP-0052,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-30
+TA-0053-pre,EP-0053,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-21
+TA-0053-post,EP-0053,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-31
+TA-0054-pre,EP-0054,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-23
+TA-0054-post,EP-0054,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-02
+TA-0055-pre,EP-0055,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-18
+TA-0055-post,EP-0055,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-28
+TA-0056-pre,EP-0056,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-26
+TA-0056-post,EP-0056,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-06
+TA-0057-pre,EP-0057,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-30
+TA-0057-post,EP-0057,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-10
+TA-0058-pre,EP-0058,TIER_2,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-05
+TA-0058-post,EP-0058,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-15
+TA-0059-pre,EP-0059,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-10
+TA-0059-post,EP-0059,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-20
+TA-0060-pre,EP-0060,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-22
+TA-0060-post,EP-0060,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-02
+TA-0061-pre,EP-0061,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-27
+TA-0061-post,EP-0061,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-04
+TA-0062-pre,EP-0062,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-06
+TA-0062-post,EP-0062,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-18
+TA-0063-pre,EP-0063,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-08
+TA-0063-post,EP-0063,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-14
+TA-0064-pre,EP-0064,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-26
+TA-0064-post,EP-0064,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-06
+TA-0065-pre,EP-0065,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-24
+TA-0065-post,EP-0065,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-29
+TA-0066-pre,EP-0066,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0066-post,EP-0066,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-05
+TA-0067-pre,EP-0067,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-12
+TA-0067-post,EP-0067,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-22
+TA-0068-pre,EP-0068,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-28
+TA-0068-post,EP-0068,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-08
+TA-0069-pre,EP-0069,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-09
+TA-0069-post,EP-0069,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-19
+TA-0070-pre,EP-0070,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-26
+TA-0070-post,EP-0070,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-05
+TA-0071-pre,EP-0071,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-09
+TA-0071-post,EP-0071,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-19
+TA-0072-pre,EP-0072,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-20
+TA-0072-post,EP-0072,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-30
+TA-0073-pre,EP-0073,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-22
+TA-0073-post,EP-0073,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-01
+TA-0074-pre,EP-0074,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-17
+TA-0074-post,EP-0074,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-26
+TA-0075-pre,EP-0075,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-29
+TA-0075-post,EP-0075,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-06
+TA-0076-pre,EP-0076,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-27
+TA-0076-post,EP-0076,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-04
+TA-0077-pre,EP-0077,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-16
+TA-0077-post,EP-0077,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-26
+TA-0078-pre,EP-0078,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-11
+TA-0078-post,EP-0078,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-21
+TA-0079-pre,EP-0079,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-14
+TA-0079-post,EP-0079,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-24
+TA-0080-pre,EP-0080,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-18
+TA-0080-post,EP-0080,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-24
+TA-0081-pre,EP-0081,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-28
+TA-0081-post,EP-0081,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-07
+TA-0082-pre,EP-0082,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-06
+TA-0082-post,EP-0082,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-13
+TA-0083-pre,EP-0083,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-20
+TA-0083-post,EP-0083,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-30
+TA-0084-pre,EP-0084,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-04
+TA-0084-post,EP-0084,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-15
+TA-0085-pre,EP-0085,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-08
+TA-0085-post,EP-0085,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-18
+TA-0086-pre,EP-0086,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-07
+TA-0086-post,EP-0086,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-17
+TA-0087-pre,EP-0087,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-21
+TA-0087-post,EP-0087,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-01
+TA-0088-pre,EP-0088,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-08
+TA-0088-post,EP-0088,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-18
+TA-0089-pre,EP-0089,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-12
+TA-0089-post,EP-0089,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-23
+TA-0090-pre,EP-0090,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-13
+TA-0090-post,EP-0090,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-24
+TA-0091-pre,EP-0091,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-19
+TA-0091-post,EP-0091,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-23
+TA-0092-pre,EP-0092,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-16
+TA-0092-post,EP-0092,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-26
+TA-0093-pre,EP-0093,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-21
+TA-0093-post,EP-0093,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-01
+TA-0094-pre,EP-0094,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-03
+TA-0094-post,EP-0094,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-13
+TA-0095-pre,EP-0095,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-01
+TA-0095-post,EP-0095,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-11
+TA-0096-pre,EP-0096,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-23
+TA-0096-post,EP-0096,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-02
+TA-0097-pre,EP-0097,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-13
+TA-0097-post,EP-0097,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-23
+TA-0098-pre,EP-0098,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-07
+TA-0098-post,EP-0098,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-17
+TA-0099-pre,EP-0099,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0099-post,EP-0099,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-30
+TA-0100-pre,EP-0100,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-07
+TA-0100-post,EP-0100,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-17
+TA-0101-pre,EP-0101,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-14
+TA-0101-post,EP-0101,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-24
+TA-0102-pre,EP-0102,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-29
+TA-0102-post,EP-0102,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-07
+TA-0103-pre,EP-0103,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-18
+TA-0103-post,EP-0103,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-28
+TA-0104-pre,EP-0104,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-29
+TA-0104-post,EP-0104,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-09
+TA-0105-pre,EP-0105,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0105-post,EP-0105,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-05
+TA-0106-pre,EP-0106,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-13
+TA-0106-post,EP-0106,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-23
+TA-0107-pre,EP-0107,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-05
+TA-0107-post,EP-0107,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-15
+TA-0108-pre,EP-0108,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-11
+TA-0108-post,EP-0108,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-21
+TA-0109-pre,EP-0109,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-18
+TA-0109-post,EP-0109,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-28
+TA-0110-pre,EP-0110,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-16
+TA-0110-post,EP-0110,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-26
+TA-0111-pre,EP-0111,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-05
+TA-0111-post,EP-0111,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-15
+TA-0112-pre,EP-0112,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-05
+TA-0112-post,EP-0112,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-09
+TA-0113-pre,EP-0113,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-20
+TA-0113-post,EP-0113,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-30
+TA-0114-pre,EP-0114,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-06
+TA-0114-post,EP-0114,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-16
+TA-0115-pre,EP-0115,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-03
+TA-0115-post,EP-0115,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-11
+TA-0116-pre,EP-0116,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-20
+TA-0116-post,EP-0116,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-24
+TA-0117-pre,EP-0117,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-07
+TA-0117-post,EP-0117,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-17
+TA-0118-pre,EP-0118,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-29
+TA-0118-post,EP-0118,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-08
+TA-0119-pre,EP-0119,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-06
+TA-0119-post,EP-0119,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-16
+TA-0120-pre,EP-0120,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-27
+TA-0120-post,EP-0120,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-06
+TA-0121-pre,EP-0121,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-21
+TA-0121-post,EP-0121,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-01
+TA-0122-pre,EP-0122,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-22
+TA-0122-post,EP-0122,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-02
+TA-0123-pre,EP-0123,TIER_2,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-18
+TA-0123-post,EP-0123,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-28
+TA-0124-pre,EP-0124,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-08
+TA-0124-post,EP-0124,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-18
+TA-0125-pre,EP-0125,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-07
+TA-0125-post,EP-0125,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-13
+TA-0126-pre,EP-0126,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-02
+TA-0126-post,EP-0126,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-12
+TA-0127-pre,EP-0127,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-01
+TA-0127-post,EP-0127,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-08
+TA-0128-pre,EP-0128,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-20
+TA-0128-post,EP-0128,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-30
+TA-0129-pre,EP-0129,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-23
+TA-0129-post,EP-0129,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-02
+TA-0130-pre,EP-0130,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-27
+TA-0130-post,EP-0130,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-01
+TA-0131-pre,EP-0131,TIER_2,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-24
+TA-0131-post,EP-0131,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-03
+TA-0132-pre,EP-0132,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-01
+TA-0132-post,EP-0132,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-08
+TA-0133-pre,EP-0133,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-23
+TA-0133-post,EP-0133,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-04
+TA-0134-pre,EP-0134,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-23
+TA-0134-post,EP-0134,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-02
+TA-0135-pre,EP-0135,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-08
+TA-0135-post,EP-0135,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-18
+TA-0136-pre,EP-0136,TIER_2,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-02
+TA-0136-post,EP-0136,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-07
+TA-0137-pre,EP-0137,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-27
+TA-0137-post,EP-0137,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-09
+TA-0138-pre,EP-0138,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-24
+TA-0138-post,EP-0138,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-03
+TA-0139-pre,EP-0139,TIER_2,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-04
+TA-0139-post,EP-0139,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-12
+TA-0140-pre,EP-0140,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-16
+TA-0140-post,EP-0140,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-26
+TA-0141-pre,EP-0141,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-09
+TA-0141-post,EP-0141,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-19
+TA-0142-pre,EP-0142,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-29
+TA-0142-post,EP-0142,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-08
+TA-0143-pre,EP-0143,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-08
+TA-0143-post,EP-0143,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-20
+TA-0144-pre,EP-0144,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-27
+TA-0144-post,EP-0144,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-07
+TA-0145-pre,EP-0145,TIER_2,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-13
+TA-0145-post,EP-0145,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-23
+TA-0146-pre,EP-0146,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-22
+TA-0146-post,EP-0146,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-02
+TA-0147-pre,EP-0147,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-07
+TA-0147-post,EP-0147,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-12
+TA-0148-pre,EP-0148,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-07
+TA-0148-post,EP-0148,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-17
+TA-0149-pre,EP-0149,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-26
+TA-0149-post,EP-0149,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-03
+TA-0150-pre,EP-0150,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-09
+TA-0150-post,EP-0150,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-20
+TA-0151-pre,EP-0151,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-06-01
+TA-0151-post,EP-0151,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-07
+TA-0152-pre,EP-0152,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-10
+TA-0152-post,EP-0152,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-20
+TA-0153-pre,EP-0153,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-19
+TA-0153-post,EP-0153,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-29
+TA-0154-pre,EP-0154,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-08
+TA-0154-post,EP-0154,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-19
+TA-0155-pre,EP-0155,TIER_2,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-10
+TA-0155-post,EP-0155,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-20
+TA-0156-pre,EP-0156,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-11
+TA-0156-post,EP-0156,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-20
+TA-0157-pre,EP-0157,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0157-post,EP-0157,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-05
+TA-0158-pre,EP-0158,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-04
+TA-0158-post,EP-0158,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-16
+TA-0159-pre,EP-0159,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-13
+TA-0159-post,EP-0159,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-23
+TA-0160-pre,EP-0160,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0160-post,EP-0160,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-05
+TA-0161-pre,EP-0161,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-25
+TA-0161-post,EP-0161,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-04
+TA-0162-pre,EP-0162,TIER_2,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-15
+TA-0162-post,EP-0162,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-25
+TA-0163-pre,EP-0163,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-26
+TA-0163-post,EP-0163,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-05
+TA-0164-pre,EP-0164,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-23
+TA-0164-post,EP-0164,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-02
+TA-0165-pre,EP-0165,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-17
+TA-0165-post,EP-0165,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-27
+TA-0166-pre,EP-0166,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-14
+TA-0166-post,EP-0166,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-24
+TA-0167-pre,EP-0167,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0167-post,EP-0167,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-05
+TA-0168-pre,EP-0168,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-24
+TA-0168-post,EP-0168,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-03
+TA-0169-pre,EP-0169,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-07
+TA-0169-post,EP-0169,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-16
+TA-0170-pre,EP-0170,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-17
+TA-0170-post,EP-0170,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-21
+TA-0171-pre,EP-0171,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-27
+TA-0171-post,EP-0171,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-09
+TA-0172-pre,EP-0172,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-06
+TA-0172-post,EP-0172,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-16
+TA-0173-pre,EP-0173,TIER_2,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-01
+TA-0173-post,EP-0173,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-11
+TA-0174-pre,EP-0174,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-25
+TA-0174-post,EP-0174,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-04
+TA-0175-pre,EP-0175,TIER_2,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-07
+TA-0175-post,EP-0175,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-17
+TA-0176-pre,EP-0176,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-04
+TA-0176-post,EP-0176,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-16
+TA-0177-pre,EP-0177,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-18
+TA-0177-post,EP-0177,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-28
+TA-0178-pre,EP-0178,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-18
+TA-0178-post,EP-0178,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-28
+TA-0179-pre,EP-0179,TIER_2,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-22
+TA-0179-post,EP-0179,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-02
+TA-0180-pre,EP-0180,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-17
+TA-0180-post,EP-0180,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-27
+TA-0181-pre,EP-0181,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-24
+TA-0181-post,EP-0181,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-29
+TA-0182-pre,EP-0182,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-27
+TA-0182-post,EP-0182,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-03
+TA-0183-pre,EP-0183,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-23
+TA-0183-post,EP-0183,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-28
+TA-0184-pre,EP-0184,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-15
+TA-0184-post,EP-0184,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-25
+TA-0185-pre,EP-0185,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-19
+TA-0185-post,EP-0185,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-29
+TA-0186-pre,EP-0186,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-21
+TA-0186-post,EP-0186,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-31
+TA-0187-pre,EP-0187,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-14
+TA-0187-post,EP-0187,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-26
+TA-0188-pre,EP-0188,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-20
+TA-0188-post,EP-0188,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-30
+TA-0189-pre,EP-0189,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-05
+TA-0189-post,EP-0189,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-15
+TA-0190-pre,EP-0190,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-21
+TA-0190-post,EP-0190,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-31
+TA-0191-pre,EP-0191,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-22
+TA-0191-post,EP-0191,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-29
+TA-0192-pre,EP-0192,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-30
+TA-0192-post,EP-0192,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-10
+TA-0193-pre,EP-0193,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-16
+TA-0193-post,EP-0193,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-26
+TA-0194-pre,EP-0194,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-23
+TA-0194-post,EP-0194,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-03
+TA-0195-pre,EP-0195,TIER_2,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-24
+TA-0195-post,EP-0195,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-02
+TA-0196-pre,EP-0196,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-22
+TA-0196-post,EP-0196,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-01
+TA-0197-pre,EP-0197,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-16
+TA-0197-post,EP-0197,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-26
+TA-0198-pre,EP-0198,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-06
+TA-0198-post,EP-0198,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-16
+TA-0199-pre,EP-0199,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0199-post,EP-0199,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-30
+TA-0200-pre,EP-0200,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-14
+TA-0200-post,EP-0200,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-26
+TA-0201-pre,EP-0201,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-11
+TA-0201-post,EP-0201,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-21
+TA-0202-pre,EP-0202,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-29
+TA-0202-post,EP-0202,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-09
+TA-0203-pre,EP-0203,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-18
+TA-0203-post,EP-0203,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-27
+TA-0204-pre,EP-0204,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-30
+TA-0204-post,EP-0204,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-10
+TA-0205-pre,EP-0205,TIER_2,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-26
+TA-0205-post,EP-0205,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-05
+TA-0206-pre,EP-0206,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-25
+TA-0206-post,EP-0206,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-04
+TA-0207-pre,EP-0207,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-22
+TA-0207-post,EP-0207,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-02
+TA-0208-pre,EP-0208,TIER_2,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-23
+TA-0208-post,EP-0208,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-02
+TA-0209-pre,EP-0209,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-19
+TA-0209-post,EP-0209,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-25
+TA-0210-pre,EP-0210,TIER_2,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-24
+TA-0210-post,EP-0210,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-04
+TA-0211-pre,EP-0211,TIER_2,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-11
+TA-0211-post,EP-0211,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-21
+TA-0212-pre,EP-0212,TIER_2,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-23
+TA-0212-post,EP-0212,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-02
+TA-0213-pre,EP-0213,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-17
+TA-0213-post,EP-0213,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-27
+TA-0214-pre,EP-0214,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-21
+TA-0214-post,EP-0214,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-01
+TA-0215-pre,EP-0215,TIER_2,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-27
+TA-0215-post,EP-0215,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-02
+TA-0216-pre,EP-0216,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-22
+TA-0216-post,EP-0216,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-02
+TA-0217-pre,EP-0217,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-20
+TA-0217-post,EP-0217,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-30
+TA-0218-pre,EP-0218,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-28
+TA-0218-post,EP-0218,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-07
+TA-0219-pre,EP-0219,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-17
+TA-0219-post,EP-0219,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-21
+TA-0220-pre,EP-0220,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-27
+TA-0220-post,EP-0220,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-07
+TA-0221-pre,EP-0221,TIER_2,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-01
+TA-0221-post,EP-0221,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-11
+TA-0222-pre,EP-0222,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-22
+TA-0222-post,EP-0222,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-31
+TA-0223-pre,EP-0223,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-26
+TA-0223-post,EP-0223,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-05
+TA-0224-pre,EP-0224,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-19
+TA-0224-post,EP-0224,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-29
+TA-0225-pre,EP-0225,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-06
+TA-0225-post,EP-0225,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-13
+TA-0226-pre,EP-0226,TIER_2,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-11
+TA-0226-post,EP-0226,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-21
+TA-0227-pre,EP-0227,TIER_2,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-08
+TA-0227-post,EP-0227,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-18
+TA-0228-pre,EP-0228,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-17
+TA-0228-post,EP-0228,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-22
+TA-0229-pre,EP-0229,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-23
+TA-0229-post,EP-0229,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-03
+TA-0230-pre,EP-0230,TIER_2,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-15
+TA-0230-post,EP-0230,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-23
+TA-0231-pre,EP-0231,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-11
+TA-0231-post,EP-0231,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-21
+TA-0232-pre,EP-0232,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-22
+TA-0232-post,EP-0232,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-28
+TA-0233-pre,EP-0233,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-14
+TA-0233-post,EP-0233,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-24
+TA-0234-pre,EP-0234,TIER_1,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-30
+TA-0234-post,EP-0234,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-10
+TA-0235-pre,EP-0235,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-26
+TA-0235-post,EP-0235,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-05
+TA-0236-pre,EP-0236,TIER_2,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-13
+TA-0236-post,EP-0236,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-25
+TA-0237-pre,EP-0237,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-08
+TA-0237-post,EP-0237,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-15
+TA-0238-pre,EP-0238,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-04
+TA-0238-post,EP-0238,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-14
+TA-0239-pre,EP-0239,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-07
+TA-0239-post,EP-0239,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-12
+TA-0240-pre,EP-0240,TIER_2,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-08
+TA-0240-post,EP-0240,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-20
+TA-0241-pre,EP-0241,TIER_2,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-09
+TA-0241-post,EP-0241,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-17
+TA-0242-pre,EP-0242,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-04
+TA-0242-post,EP-0242,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-15
+TA-0243-pre,EP-0243,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-12
+TA-0243-post,EP-0243,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-21
+TA-0244-pre,EP-0244,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-25
+TA-0244-post,EP-0244,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-03
+TA-0245-pre,EP-0245,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-27
+TA-0245-post,EP-0245,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-06
+TA-0246-pre,EP-0246,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-13
+TA-0246-post,EP-0246,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-24
+TA-0247-pre,EP-0247,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-21
+TA-0247-post,EP-0247,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-01
+TA-0248-pre,EP-0248,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-27
+TA-0248-post,EP-0248,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-06
+TA-0249-pre,EP-0249,TIER_2,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-19
+TA-0249-post,EP-0249,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-29
+TA-0250-pre,EP-0250,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-11
+TA-0250-post,EP-0250,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-21
+TA-0251-pre,EP-0251,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-13
+TA-0251-post,EP-0251,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-23
+TA-0252-pre,EP-0252,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-29
+TA-0252-post,EP-0252,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-03
+TA-0253-pre,EP-0253,TIER_2,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-14
+TA-0253-post,EP-0253,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-24
+TA-0254-pre,EP-0254,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-24
+TA-0254-post,EP-0254,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-04
+TA-0255-pre,EP-0255,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-11
+TA-0255-post,EP-0255,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-21
+TA-0256-pre,EP-0256,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-09
+TA-0256-post,EP-0256,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-19
+TA-0257-pre,EP-0257,TIER_1,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-30
+TA-0257-post,EP-0257,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-10
+TA-0258-pre,EP-0258,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-11
+TA-0258-post,EP-0258,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-21
+TA-0259-pre,EP-0259,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-06
+TA-0259-post,EP-0259,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-16
+TA-0260-pre,EP-0260,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-15
+TA-0260-post,EP-0260,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-25
+TA-0261-pre,EP-0261,TIER_2,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-30
+TA-0261-post,EP-0261,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-12
+TA-0262-pre,EP-0262,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-25
+TA-0262-post,EP-0262,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-06
+TA-0263-pre,EP-0263,TIER_2,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-31
+TA-0263-post,EP-0263,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-12
+TA-0264-pre,EP-0264,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-30
+TA-0264-post,EP-0264,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-09
+TA-0265-pre,EP-0265,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-25
+TA-0265-post,EP-0265,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-30
+TA-0266-pre,EP-0266,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-17
+TA-0266-post,EP-0266,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-27
+TA-0267-pre,EP-0267,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-24
+TA-0267-post,EP-0267,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-03
+TA-0268-pre,EP-0268,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-21
+TA-0268-post,EP-0268,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-31
+TA-0269-pre,EP-0269,TIER_1,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-08
+TA-0269-post,EP-0269,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-18
+TA-0270-pre,EP-0270,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-20
+TA-0270-post,EP-0270,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-24
+TA-0271-pre,EP-0271,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-14
+TA-0271-post,EP-0271,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-24
+TA-0272-pre,EP-0272,TIER_2,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-12
+TA-0272-post,EP-0272,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-16
+TA-0273-pre,EP-0273,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-19
+TA-0273-post,EP-0273,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-29
+TA-0274-pre,EP-0274,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-11
+TA-0274-post,EP-0274,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-22
+TA-0275-pre,EP-0275,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-21
+TA-0275-post,EP-0275,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-01
+TA-0276-pre,EP-0276,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-12
+TA-0276-post,EP-0276,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-22
+TA-0277-pre,EP-0277,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-23
+TA-0277-post,EP-0277,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-02
+TA-0278-pre,EP-0278,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-09
+TA-0278-post,EP-0278,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-19
+TA-0279-pre,EP-0279,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-30
+TA-0279-post,EP-0279,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-09
+TA-0280-pre,EP-0280,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-19
+TA-0280-post,EP-0280,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-30
+TA-0281-pre,EP-0281,TIER_2,9,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-05
+TA-0281-post,EP-0281,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-15
+TA-0282-pre,EP-0282,TIER_1,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-21
+TA-0282-post,EP-0282,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-31
+TA-0283-pre,EP-0283,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-29
+TA-0283-post,EP-0283,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-09
+TA-0284-pre,EP-0284,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-17
+TA-0284-post,EP-0284,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-27
+TA-0285-pre,EP-0285,TIER_2,5,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-27
+TA-0285-post,EP-0285,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-07
+TA-0286-pre,EP-0286,TIER_2,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-18
+TA-0286-post,EP-0286,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-28
+TA-0287-pre,EP-0287,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-10
+TA-0287-post,EP-0287,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-19
+TA-0288-pre,EP-0288,TIER_2,4,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-09
+TA-0288-post,EP-0288,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-19
+TA-0289-pre,EP-0289,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-21
+TA-0289-post,EP-0289,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-25
+TA-0290-pre,EP-0290,TIER_2,8,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-07
+TA-0290-post,EP-0290,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-11
+TA-0291-pre,EP-0291,TIER_1,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-10
+TA-0291-post,EP-0291,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-20
+TA-0292-pre,EP-0292,TIER_1,7,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-25
+TA-0292-post,EP-0292,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-06-04
+TA-0293-pre,EP-0293,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-30
+TA-0293-post,EP-0293,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-10
+TA-0294-pre,EP-0294,TIER_1,6,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-25
+TA-0294-post,EP-0294,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-29
+TA-0295-pre,EP-0295,TIER_1,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-15
+TA-0295-post,EP-0295,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-25
+TA-0296-pre,EP-0296,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-11
+TA-0296-post,EP-0296,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-19
+TA-0297-pre,EP-0297,TIER_2,3,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-11
+TA-0297-post,EP-0297,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-21
+TA-0298-pre,EP-0298,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-05
+TA-0298-post,EP-0298,TIER_2,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-15
+TA-0299-pre,EP-0299,TIER_3,,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-04-10
+TA-0299-post,EP-0299,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-04-14
+TA-0300-pre,EP-0300,TIER_2,2,"[{""kind"": ""BASE"", ""code"": ""COMORBIDITY_BURDEN"", ""label"": ""Comorbidity load"", ""weight"": 2}]",preop,postop-retier@1.1.0,2,2026-05-13
+TA-0300-post,EP-0300,TIER_3,,"[{""kind"": ""HARD"", ""code"": ""NEW_RED_FLAG_SYMPTOM"", ""label"": ""New red-flag symptom"", ""weight"": 0}]",postop,postop-retier@1.1.0,2,2026-05-24

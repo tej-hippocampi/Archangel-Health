@@ -1,0 +1,6 @@
+member_id,name,role,health_system_id
+CT-RN-01,Carmen Ruiz,RN,hs_mercy_general
+CT-RN-02,Dion Park,RN,hs_mercy_general
+CT-SUR-01,Dr. Alan Whitfield,SURGEON,hs_mercy_general
+CT-MD-01,Dr. Priya Nair,MEDICAL_DIRECTOR,hs_mercy_general
+CT-VBC-01,Tej Patel,VBC_EXEC,hs_mercy_general

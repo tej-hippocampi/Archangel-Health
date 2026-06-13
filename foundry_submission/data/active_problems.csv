@@ -1,0 +1,907 @@
+episode_id,icd10,description,status
+EP-0001,I10,Essential hypertension,ACTIVE
+EP-0001,E66.9,"Obesity, unspecified",ACTIVE
+EP-0001,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0002,I10,Essential hypertension,ACTIVE
+EP-0002,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0002,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0003,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0003,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0004,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0004,E66.9,"Obesity, unspecified",ACTIVE
+EP-0004,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0004,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0005,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0005,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0005,I10,Essential hypertension,ACTIVE
+EP-0006,I10,Essential hypertension,ACTIVE
+EP-0006,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0006,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0007,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0007,E66.9,"Obesity, unspecified",ACTIVE
+EP-0007,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0008,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0008,I10,Essential hypertension,ACTIVE
+EP-0009,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0009,E66.9,"Obesity, unspecified",ACTIVE
+EP-0009,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0009,I10,Essential hypertension,ACTIVE
+EP-0010,I10,Essential hypertension,ACTIVE
+EP-0010,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0010,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0011,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0011,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0011,E66.9,"Obesity, unspecified",ACTIVE
+EP-0011,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0012,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0012,E66.9,"Obesity, unspecified",ACTIVE
+EP-0012,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0012,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0013,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0013,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0013,I10,Essential hypertension,ACTIVE
+EP-0013,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0014,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0014,I10,Essential hypertension,ACTIVE
+EP-0014,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0015,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0015,E66.9,"Obesity, unspecified",ACTIVE
+EP-0015,I10,Essential hypertension,ACTIVE
+EP-0015,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0016,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0016,I10,Essential hypertension,ACTIVE
+EP-0016,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0017,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0017,E66.9,"Obesity, unspecified",ACTIVE
+EP-0017,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0017,I10,Essential hypertension,ACTIVE
+EP-0018,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0018,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0019,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0019,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0019,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0020,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0020,I10,Essential hypertension,ACTIVE
+EP-0020,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0020,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0021,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0021,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0021,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0022,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0022,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0022,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0023,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0023,I10,Essential hypertension,ACTIVE
+EP-0024,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0024,E66.9,"Obesity, unspecified",ACTIVE
+EP-0024,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0024,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0025,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0025,E66.9,"Obesity, unspecified",ACTIVE
+EP-0026,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0026,E66.9,"Obesity, unspecified",ACTIVE
+EP-0026,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0026,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0027,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0027,I10,Essential hypertension,ACTIVE
+EP-0028,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0028,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0028,I10,Essential hypertension,ACTIVE
+EP-0028,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0029,E66.9,"Obesity, unspecified",ACTIVE
+EP-0029,I10,Essential hypertension,ACTIVE
+EP-0029,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0029,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0030,I10,Essential hypertension,ACTIVE
+EP-0030,E66.9,"Obesity, unspecified",ACTIVE
+EP-0030,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0031,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0031,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0031,E66.9,"Obesity, unspecified",ACTIVE
+EP-0032,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0032,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0033,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0033,I10,Essential hypertension,ACTIVE
+EP-0033,E66.9,"Obesity, unspecified",ACTIVE
+EP-0033,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0034,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0034,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0034,I10,Essential hypertension,ACTIVE
+EP-0035,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0035,I10,Essential hypertension,ACTIVE
+EP-0036,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0036,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0036,I10,Essential hypertension,ACTIVE
+EP-0036,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0037,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0037,I10,Essential hypertension,ACTIVE
+EP-0037,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0038,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0038,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0039,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0039,I10,Essential hypertension,ACTIVE
+EP-0040,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0040,E66.9,"Obesity, unspecified",ACTIVE
+EP-0040,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0041,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0041,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0041,I10,Essential hypertension,ACTIVE
+EP-0041,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0042,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0042,I10,Essential hypertension,ACTIVE
+EP-0043,I10,Essential hypertension,ACTIVE
+EP-0043,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0043,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0043,E66.9,"Obesity, unspecified",ACTIVE
+EP-0044,E66.9,"Obesity, unspecified",ACTIVE
+EP-0044,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0044,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0045,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0045,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0046,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0046,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0046,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0046,E66.9,"Obesity, unspecified",ACTIVE
+EP-0047,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0047,I10,Essential hypertension,ACTIVE
+EP-0048,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0048,I10,Essential hypertension,ACTIVE
+EP-0048,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0048,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0049,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0049,I10,Essential hypertension,ACTIVE
+EP-0050,I10,Essential hypertension,ACTIVE
+EP-0050,E66.9,"Obesity, unspecified",ACTIVE
+EP-0050,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0050,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0051,I10,Essential hypertension,ACTIVE
+EP-0051,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0051,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0051,E66.9,"Obesity, unspecified",ACTIVE
+EP-0052,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0052,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0052,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0052,E66.9,"Obesity, unspecified",ACTIVE
+EP-0053,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0053,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0054,E66.9,"Obesity, unspecified",ACTIVE
+EP-0054,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0054,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0055,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0055,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0055,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0055,I10,Essential hypertension,ACTIVE
+EP-0056,E66.9,"Obesity, unspecified",ACTIVE
+EP-0056,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0056,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0057,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0057,I10,Essential hypertension,ACTIVE
+EP-0057,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0058,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0058,E66.9,"Obesity, unspecified",ACTIVE
+EP-0059,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0059,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0060,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0060,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0060,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0060,E66.9,"Obesity, unspecified",ACTIVE
+EP-0061,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0061,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0061,E66.9,"Obesity, unspecified",ACTIVE
+EP-0062,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0062,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0063,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0063,E66.9,"Obesity, unspecified",ACTIVE
+EP-0063,I10,Essential hypertension,ACTIVE
+EP-0063,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0064,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0064,E66.9,"Obesity, unspecified",ACTIVE
+EP-0064,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0064,I10,Essential hypertension,ACTIVE
+EP-0065,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0065,I10,Essential hypertension,ACTIVE
+EP-0065,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0066,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0066,I10,Essential hypertension,ACTIVE
+EP-0066,E66.9,"Obesity, unspecified",ACTIVE
+EP-0066,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0067,E66.9,"Obesity, unspecified",ACTIVE
+EP-0067,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0067,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0068,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0068,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0069,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0069,E66.9,"Obesity, unspecified",ACTIVE
+EP-0069,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0069,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0070,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0070,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0070,E66.9,"Obesity, unspecified",ACTIVE
+EP-0070,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0071,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0071,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0072,I10,Essential hypertension,ACTIVE
+EP-0072,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0072,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0073,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0073,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0073,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0074,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0074,I10,Essential hypertension,ACTIVE
+EP-0074,E66.9,"Obesity, unspecified",ACTIVE
+EP-0074,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0075,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0075,E66.9,"Obesity, unspecified",ACTIVE
+EP-0075,I10,Essential hypertension,ACTIVE
+EP-0076,I10,Essential hypertension,ACTIVE
+EP-0076,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0076,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0076,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0077,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0077,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0078,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0078,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0078,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0079,I10,Essential hypertension,ACTIVE
+EP-0079,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0079,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0079,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0080,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0080,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0081,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0081,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0081,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0081,E66.9,"Obesity, unspecified",ACTIVE
+EP-0082,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0082,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0083,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0083,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0084,I10,Essential hypertension,ACTIVE
+EP-0084,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0084,E66.9,"Obesity, unspecified",ACTIVE
+EP-0084,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0085,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0085,I10,Essential hypertension,ACTIVE
+EP-0085,E66.9,"Obesity, unspecified",ACTIVE
+EP-0086,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0086,E66.9,"Obesity, unspecified",ACTIVE
+EP-0086,I10,Essential hypertension,ACTIVE
+EP-0087,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0087,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0087,E66.9,"Obesity, unspecified",ACTIVE
+EP-0088,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0088,I10,Essential hypertension,ACTIVE
+EP-0089,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0089,I10,Essential hypertension,ACTIVE
+EP-0090,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0090,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0090,E66.9,"Obesity, unspecified",ACTIVE
+EP-0090,I10,Essential hypertension,ACTIVE
+EP-0091,E66.9,"Obesity, unspecified",ACTIVE
+EP-0091,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0091,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0092,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0092,I10,Essential hypertension,ACTIVE
+EP-0092,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0093,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0093,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0094,I10,Essential hypertension,ACTIVE
+EP-0094,E66.9,"Obesity, unspecified",ACTIVE
+EP-0094,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0094,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0095,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0095,E66.9,"Obesity, unspecified",ACTIVE
+EP-0096,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0096,I10,Essential hypertension,ACTIVE
+EP-0096,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0097,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0097,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0098,E66.9,"Obesity, unspecified",ACTIVE
+EP-0098,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0098,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0098,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0099,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0099,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0100,I10,Essential hypertension,ACTIVE
+EP-0100,E66.9,"Obesity, unspecified",ACTIVE
+EP-0100,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0100,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0101,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0101,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0101,I10,Essential hypertension,ACTIVE
+EP-0101,E66.9,"Obesity, unspecified",ACTIVE
+EP-0102,I10,Essential hypertension,ACTIVE
+EP-0102,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0102,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0102,E66.9,"Obesity, unspecified",ACTIVE
+EP-0103,E66.9,"Obesity, unspecified",ACTIVE
+EP-0103,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0103,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0104,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0104,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0104,E66.9,"Obesity, unspecified",ACTIVE
+EP-0104,I10,Essential hypertension,ACTIVE
+EP-0105,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0105,I10,Essential hypertension,ACTIVE
+EP-0106,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0106,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0107,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0107,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0107,I10,Essential hypertension,ACTIVE
+EP-0107,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0108,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0108,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0109,E66.9,"Obesity, unspecified",ACTIVE
+EP-0109,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0109,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0109,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0110,I10,Essential hypertension,ACTIVE
+EP-0110,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0110,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0111,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0111,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0111,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0112,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0112,I10,Essential hypertension,ACTIVE
+EP-0112,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0112,E66.9,"Obesity, unspecified",ACTIVE
+EP-0113,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0113,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0113,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0114,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0114,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0114,E66.9,"Obesity, unspecified",ACTIVE
+EP-0114,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0115,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0115,E66.9,"Obesity, unspecified",ACTIVE
+EP-0115,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0116,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0116,I10,Essential hypertension,ACTIVE
+EP-0116,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0116,E66.9,"Obesity, unspecified",ACTIVE
+EP-0117,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0117,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0117,I10,Essential hypertension,ACTIVE
+EP-0118,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0118,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0119,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0119,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0120,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0120,E66.9,"Obesity, unspecified",ACTIVE
+EP-0120,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0121,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0121,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0122,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0122,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0122,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0123,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0123,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0124,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0124,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0125,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0125,I10,Essential hypertension,ACTIVE
+EP-0126,E66.9,"Obesity, unspecified",ACTIVE
+EP-0126,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0126,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0126,I10,Essential hypertension,ACTIVE
+EP-0127,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0127,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0127,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0127,E66.9,"Obesity, unspecified",ACTIVE
+EP-0128,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0128,E66.9,"Obesity, unspecified",ACTIVE
+EP-0129,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0129,E11.9,Type 2 diabetes mellitus without complications,ACTIVE
+EP-0129,E66.9,"Obesity, unspecified",ACTIVE
+EP-0129,I10,Essential hypertension,ACTIVE
+EP-0130,M16.11,"Unilateral primary osteoarthritis, right hip",ACTIVE
+EP-0130,E66.9,"Obesity, unspecified",ACTIVE
+EP-0130,M17.11,"Unilateral primary osteoarthritis, right knee",ACTIVE
+EP-0130,I10,Essential hypertension,ACTIVE
+EP-0131,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0131,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0132,I10,Essential hypertension,ACTIVE
+EP-0132,M81.0,Age-related osteoporosis,ACTIVE
+EP-0132,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0132,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0133,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0133,M81.0,Age-related osteoporosis,ACTIVE
+EP-0134,F03.90,Unspecified dementia,ACTIVE
+EP-0134,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0135,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0135,F03.90,Unspecified dementia,ACTIVE
+EP-0136,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0136,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0137,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0137,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0137,F03.90,Unspecified dementia,ACTIVE
+EP-0138,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0138,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0138,I10,Essential hypertension,ACTIVE
+EP-0139,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0139,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0139,F03.90,Unspecified dementia,ACTIVE
+EP-0140,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0140,I10,Essential hypertension,ACTIVE
+EP-0141,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0141,I10,Essential hypertension,ACTIVE
+EP-0142,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0142,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0143,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0143,M81.0,Age-related osteoporosis,ACTIVE
+EP-0143,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0144,F03.90,Unspecified dementia,ACTIVE
+EP-0144,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0144,I10,Essential hypertension,ACTIVE
+EP-0144,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0145,M81.0,Age-related osteoporosis,ACTIVE
+EP-0145,F03.90,Unspecified dementia,ACTIVE
+EP-0145,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0145,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0146,M81.0,Age-related osteoporosis,ACTIVE
+EP-0146,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0146,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0147,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0147,I10,Essential hypertension,ACTIVE
+EP-0147,F03.90,Unspecified dementia,ACTIVE
+EP-0147,M81.0,Age-related osteoporosis,ACTIVE
+EP-0148,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0148,M81.0,Age-related osteoporosis,ACTIVE
+EP-0149,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0149,F03.90,Unspecified dementia,ACTIVE
+EP-0150,F03.90,Unspecified dementia,ACTIVE
+EP-0150,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0151,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0151,I10,Essential hypertension,ACTIVE
+EP-0152,F03.90,Unspecified dementia,ACTIVE
+EP-0152,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0152,I10,Essential hypertension,ACTIVE
+EP-0153,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0153,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0153,F03.90,Unspecified dementia,ACTIVE
+EP-0154,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0154,F03.90,Unspecified dementia,ACTIVE
+EP-0154,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0154,M81.0,Age-related osteoporosis,ACTIVE
+EP-0155,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0155,I10,Essential hypertension,ACTIVE
+EP-0156,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0156,I10,Essential hypertension,ACTIVE
+EP-0157,F03.90,Unspecified dementia,ACTIVE
+EP-0157,M81.0,Age-related osteoporosis,ACTIVE
+EP-0157,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0157,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0158,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0158,M81.0,Age-related osteoporosis,ACTIVE
+EP-0159,I10,Essential hypertension,ACTIVE
+EP-0159,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0159,F03.90,Unspecified dementia,ACTIVE
+EP-0160,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0160,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0161,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0161,I10,Essential hypertension,ACTIVE
+EP-0161,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0162,I10,Essential hypertension,ACTIVE
+EP-0162,M81.0,Age-related osteoporosis,ACTIVE
+EP-0162,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0163,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0163,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0163,M81.0,Age-related osteoporosis,ACTIVE
+EP-0163,F03.90,Unspecified dementia,ACTIVE
+EP-0164,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0164,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0165,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0165,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0165,M81.0,Age-related osteoporosis,ACTIVE
+EP-0165,F03.90,Unspecified dementia,ACTIVE
+EP-0166,I10,Essential hypertension,ACTIVE
+EP-0166,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0166,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0167,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0167,F03.90,Unspecified dementia,ACTIVE
+EP-0167,M81.0,Age-related osteoporosis,ACTIVE
+EP-0168,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0168,M81.0,Age-related osteoporosis,ACTIVE
+EP-0169,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0169,M81.0,Age-related osteoporosis,ACTIVE
+EP-0170,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0170,I10,Essential hypertension,ACTIVE
+EP-0170,M81.0,Age-related osteoporosis,ACTIVE
+EP-0171,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0171,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0171,I10,Essential hypertension,ACTIVE
+EP-0172,I10,Essential hypertension,ACTIVE
+EP-0172,F03.90,Unspecified dementia,ACTIVE
+EP-0172,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0173,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0173,I10,Essential hypertension,ACTIVE
+EP-0173,M81.0,Age-related osteoporosis,ACTIVE
+EP-0174,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0174,F03.90,Unspecified dementia,ACTIVE
+EP-0174,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0174,M81.0,Age-related osteoporosis,ACTIVE
+EP-0175,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0175,M81.0,Age-related osteoporosis,ACTIVE
+EP-0176,F03.90,Unspecified dementia,ACTIVE
+EP-0176,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0176,I10,Essential hypertension,ACTIVE
+EP-0177,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0177,I10,Essential hypertension,ACTIVE
+EP-0177,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0177,M81.0,Age-related osteoporosis,ACTIVE
+EP-0178,M81.0,Age-related osteoporosis,ACTIVE
+EP-0178,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0178,F03.90,Unspecified dementia,ACTIVE
+EP-0179,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0179,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0179,M81.0,Age-related osteoporosis,ACTIVE
+EP-0179,F03.90,Unspecified dementia,ACTIVE
+EP-0180,S72.001A,Fracture of unspecified part of neck of right femur,ACTIVE
+EP-0180,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0181,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0181,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0181,I10,Essential hypertension,ACTIVE
+EP-0182,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0182,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0182,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0182,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0183,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0183,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0183,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0184,I10,Essential hypertension,ACTIVE
+EP-0184,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0184,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0185,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0185,I10,Essential hypertension,ACTIVE
+EP-0185,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0185,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0186,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0186,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0186,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0187,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0187,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0187,I10,Essential hypertension,ACTIVE
+EP-0188,I10,Essential hypertension,ACTIVE
+EP-0188,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0189,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0189,I10,Essential hypertension,ACTIVE
+EP-0189,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0189,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0190,I10,Essential hypertension,ACTIVE
+EP-0190,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0190,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0190,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0191,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0191,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0191,I10,Essential hypertension,ACTIVE
+EP-0191,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0192,I10,Essential hypertension,ACTIVE
+EP-0192,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0192,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0192,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0193,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0193,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0193,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0194,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0194,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0194,I10,Essential hypertension,ACTIVE
+EP-0195,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0195,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0195,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0196,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0196,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0197,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0197,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0198,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0198,I10,Essential hypertension,ACTIVE
+EP-0199,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0199,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0199,I10,Essential hypertension,ACTIVE
+EP-0199,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0200,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0200,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0200,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0200,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0201,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0201,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0202,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0202,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0202,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0202,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0203,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0203,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0204,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0204,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0204,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0204,I10,Essential hypertension,ACTIVE
+EP-0205,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0205,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0205,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0206,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0206,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0207,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0207,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0207,I10,Essential hypertension,ACTIVE
+EP-0207,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0208,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0208,I10,Essential hypertension,ACTIVE
+EP-0208,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0208,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0209,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0209,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0209,I10,Essential hypertension,ACTIVE
+EP-0210,I10,Essential hypertension,ACTIVE
+EP-0210,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0210,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0210,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0211,I10,Essential hypertension,ACTIVE
+EP-0211,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0211,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0211,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0212,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0212,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0213,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0213,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0214,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0214,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0214,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0215,I10,Essential hypertension,ACTIVE
+EP-0215,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0215,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0216,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0216,I10,Essential hypertension,ACTIVE
+EP-0216,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0217,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0217,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0217,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0217,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0218,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0218,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0219,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0219,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0219,I10,Essential hypertension,ACTIVE
+EP-0220,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0220,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0221,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0221,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0222,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0222,I10,Essential hypertension,ACTIVE
+EP-0222,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0222,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0223,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0223,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0223,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0224,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0224,M51.36,"Other intervertebral disc degeneration, lumbar",ACTIVE
+EP-0224,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0224,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0225,I10,Essential hypertension,ACTIVE
+EP-0225,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0225,F17.210,"Nicotine dependence, cigarettes",ACTIVE
+EP-0225,M48.06,"Spinal stenosis, lumbar region",ACTIVE
+EP-0226,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0226,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0226,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0227,J44.9,"COPD, unspecified",ACTIVE
+EP-0227,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0227,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0227,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0228,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0228,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0229,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0229,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0229,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0230,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0230,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0230,J44.9,"COPD, unspecified",ACTIVE
+EP-0230,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0231,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0231,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0232,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0232,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0233,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0233,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0233,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0234,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0234,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0234,J44.9,"COPD, unspecified",ACTIVE
+EP-0235,J44.9,"COPD, unspecified",ACTIVE
+EP-0235,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0235,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0236,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0236,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0236,J44.9,"COPD, unspecified",ACTIVE
+EP-0237,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0237,J44.9,"COPD, unspecified",ACTIVE
+EP-0237,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0238,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0238,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0238,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0238,J44.9,"COPD, unspecified",ACTIVE
+EP-0239,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0239,J44.9,"COPD, unspecified",ACTIVE
+EP-0239,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0240,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0240,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0241,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0241,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0241,J44.9,"COPD, unspecified",ACTIVE
+EP-0241,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0242,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0242,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0243,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0243,J44.9,"COPD, unspecified",ACTIVE
+EP-0244,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0244,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0244,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0244,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0245,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0245,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0245,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0246,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0246,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0247,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0247,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0248,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0248,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0248,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0248,J44.9,"COPD, unspecified",ACTIVE
+EP-0249,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0249,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0249,J44.9,"COPD, unspecified",ACTIVE
+EP-0250,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0250,J44.9,"COPD, unspecified",ACTIVE
+EP-0250,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0250,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0251,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0251,J44.9,"COPD, unspecified",ACTIVE
+EP-0251,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0252,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0252,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0253,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0253,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0253,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0253,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0254,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0254,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0254,J44.9,"COPD, unspecified",ACTIVE
+EP-0254,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0255,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0255,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0255,J44.9,"COPD, unspecified",ACTIVE
+EP-0255,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0256,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0256,J44.9,"COPD, unspecified",ACTIVE
+EP-0257,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0257,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0257,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0258,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0258,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0258,J44.9,"COPD, unspecified",ACTIVE
+EP-0259,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0259,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0259,J44.9,"COPD, unspecified",ACTIVE
+EP-0259,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0260,N18.3,"Chronic kidney disease, stage 3",ACTIVE
+EP-0260,I50.22,Chronic systolic congestive heart failure,ACTIVE
+EP-0260,I25.10,Atherosclerotic heart disease of native coronary artery,ACTIVE
+EP-0261,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0261,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0261,D64.9,"Anemia, unspecified",ACTIVE
+EP-0261,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0262,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0262,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0263,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0263,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0263,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0264,D64.9,"Anemia, unspecified",ACTIVE
+EP-0264,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0264,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0264,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0265,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0265,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0265,D64.9,"Anemia, unspecified",ACTIVE
+EP-0265,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0266,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0266,D64.9,"Anemia, unspecified",ACTIVE
+EP-0267,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0267,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0268,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0268,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0268,D64.9,"Anemia, unspecified",ACTIVE
+EP-0268,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0269,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0269,I10,Essential hypertension,ACTIVE
+EP-0269,D64.9,"Anemia, unspecified",ACTIVE
+EP-0270,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0270,D64.9,"Anemia, unspecified",ACTIVE
+EP-0270,I10,Essential hypertension,ACTIVE
+EP-0270,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0271,I10,Essential hypertension,ACTIVE
+EP-0271,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0272,D64.9,"Anemia, unspecified",ACTIVE
+EP-0272,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0272,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0272,I10,Essential hypertension,ACTIVE
+EP-0273,I10,Essential hypertension,ACTIVE
+EP-0273,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0274,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0274,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0275,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0275,I10,Essential hypertension,ACTIVE
+EP-0275,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0276,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0276,I10,Essential hypertension,ACTIVE
+EP-0277,D64.9,"Anemia, unspecified",ACTIVE
+EP-0277,I10,Essential hypertension,ACTIVE
+EP-0277,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0277,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0278,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0278,D64.9,"Anemia, unspecified",ACTIVE
+EP-0278,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0278,I10,Essential hypertension,ACTIVE
+EP-0279,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0279,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0280,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0280,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0280,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0280,D64.9,"Anemia, unspecified",ACTIVE
+EP-0281,D64.9,"Anemia, unspecified",ACTIVE
+EP-0281,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0282,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0282,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0283,D64.9,"Anemia, unspecified",ACTIVE
+EP-0283,I10,Essential hypertension,ACTIVE
+EP-0283,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0283,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0284,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0284,I10,Essential hypertension,ACTIVE
+EP-0284,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0285,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0285,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0286,D64.9,"Anemia, unspecified",ACTIVE
+EP-0286,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0286,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0286,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0287,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0287,I10,Essential hypertension,ACTIVE
+EP-0287,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0287,D64.9,"Anemia, unspecified",ACTIVE
+EP-0288,I10,Essential hypertension,ACTIVE
+EP-0288,D64.9,"Anemia, unspecified",ACTIVE
+EP-0288,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0289,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0289,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0289,I10,Essential hypertension,ACTIVE
+EP-0290,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0290,I10,Essential hypertension,ACTIVE
+EP-0291,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0291,D64.9,"Anemia, unspecified",ACTIVE
+EP-0291,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0291,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0292,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0292,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0293,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0293,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0293,I10,Essential hypertension,ACTIVE
+EP-0293,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0294,I10,Essential hypertension,ACTIVE
+EP-0294,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0294,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0295,I10,Essential hypertension,ACTIVE
+EP-0295,E11.9,Type 2 diabetes mellitus,ACTIVE
+EP-0295,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0296,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0296,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0297,D64.9,"Anemia, unspecified",ACTIVE
+EP-0297,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0298,D64.9,"Anemia, unspecified",ACTIVE
+EP-0298,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0298,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0298,I10,Essential hypertension,ACTIVE
+EP-0299,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0299,K57.92,"Diverticulitis of intestine, part unspecified",ACTIVE
+EP-0299,D64.9,"Anemia, unspecified",ACTIVE
+EP-0299,I10,Essential hypertension,ACTIVE
+EP-0300,C18.9,"Malignant neoplasm of colon, unspecified",ACTIVE
+EP-0300,E11.9,Type 2 diabetes mellitus,ACTIVE

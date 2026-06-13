@@ -1,0 +1,3 @@
+intervention_id,episode_id,channel,status,outcome,transcript_summary,owner,timestamp
+IV-0009-call,EP-0009,VOICE,completed,Patient confirmed worsening drainage; dispatched home health.,Spanish voice agent reached patient; red-flag confirmed.,RN-CARMEN,2026-05-21
+IV-0009-hh,EP-0009,HOME_HEALTH,completed,"Home-health RN assessed wound, started oral antibiotics, no ED transfer.",,RN-CARMEN,2026-05-21

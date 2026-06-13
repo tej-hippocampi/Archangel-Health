@@ -1,0 +1,115 @@
+flag_id,episode_id,code,label,kind,severity,status,evidence,generated_by
+RF-0001-05,EP-0001,OPENING_OR_GAPING,Opening Or Gaping,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0003-10,EP-0003,CALF_SWELLING_OR_PAIN,Calf Swelling Or Pain,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0005-10,EP-0005,OPENING_OR_GAPING,Opening Or Gaping,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0009-11,EP-0009,OPENING_OR_GAPING,Opening Or Gaping,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0015-03,EP-0015,INCREASED_PAIN_AT_INCISION,Increased Pain At Incision,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0017-04,EP-0017,SEVERE_OR_NEW_BLEEDING,Severe Or New Bleeding,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0020-07,EP-0020,OPENING_OR_GAPING,Opening Or Gaping,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0022-11,EP-0022,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0030-10,EP-0030,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0031-09,EP-0031,SEVERE_HEADACHE,Severe Headache,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0032-07,EP-0032,CONFUSION_MENTAL_CHANGE,Confusion Mental Change,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0034-10,EP-0034,SEVERE_OR_NEW_BLEEDING,Severe Or New Bleeding,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0035-10,EP-0035,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0036-08,EP-0036,NEW_REDNESS_SPREADING,New Redness Spreading,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0037-09,EP-0037,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0042-04,EP-0042,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0043-10,EP-0043,OPENING_OR_GAPING,Opening Or Gaping,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0046-08,EP-0046,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0047-06,EP-0047,NEW_DRAINAGE,New Drainage,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0051-04,EP-0051,INCREASED_PAIN_AT_INCISION,Increased Pain At Incision,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0056-10,EP-0056,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0061-07,EP-0061,NEW_REDNESS_SPREADING,New Redness Spreading,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0062-12,EP-0062,NEW_REDNESS_SPREADING,New Redness Spreading,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0063-05,EP-0063,OPENING_OR_GAPING,Opening Or Gaping,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0065-04,EP-0065,CONFUSION_MENTAL_CHANGE,Confusion Mental Change,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0074-08,EP-0074,INCREASED_PAIN_AT_INCISION,Increased Pain At Incision,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0075-07,EP-0075,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0076-06,EP-0076,NEW_DRAINAGE,New Drainage,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0080-05,EP-0080,CALF_SWELLING_OR_PAIN,Calf Swelling Or Pain,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0082-06,EP-0082,SEVERE_HEADACHE,Severe Headache,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0084-11,EP-0084,OPENING_OR_GAPING,Opening Or Gaping,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0089-10,EP-0089,NEW_DRAINAGE,New Drainage,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0090-10,EP-0090,CONFUSION_MENTAL_CHANGE,Confusion Mental Change,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0091-04,EP-0091,SEVERE_OR_NEW_BLEEDING,Severe Or New Bleeding,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0096-08,EP-0096,CHEST_PAIN,Chest Pain,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0099-04,EP-0099,FAINTING_OR_NEAR_FAINTING,Fainting Or Near Fainting,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0102-07,EP-0102,NEW_DRAINAGE,New Drainage,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0112-03,EP-0112,CONFUSION_MENTAL_CHANGE,Confusion Mental Change,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0115-07,EP-0115,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0116-03,EP-0116,SEVERE_OR_NEW_BLEEDING,Severe Or New Bleeding,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0125-05,EP-0125,SUDDEN_WEAKNESS_ONE_SIDE,Sudden Weakness One Side,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0127-07,EP-0127,SUDDEN_WEAKNESS_ONE_SIDE,Sudden Weakness One Side,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0130-04,EP-0130,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0132-07,EP-0132,INCREASED_PAIN_AT_INCISION,Increased Pain At Incision,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0133-10,EP-0133,CHEST_PAIN,Chest Pain,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0136-04,EP-0136,SEVERE_HEADACHE,Severe Headache,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0137-11,EP-0137,SUDDEN_WEAKNESS_ONE_SIDE,Sudden Weakness One Side,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0139-07,EP-0139,OPENING_OR_GAPING,Opening Or Gaping,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0143-11,EP-0143,CONFUSION_MENTAL_CHANGE,Confusion Mental Change,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0147-05,EP-0147,SEVERE_HEADACHE,Severe Headache,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0149-06,EP-0149,SUDDEN_WEAKNESS_ONE_SIDE,Sudden Weakness One Side,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0150-10,EP-0150,SEVERE_OR_NEW_BLEEDING,Severe Or New Bleeding,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0151-05,EP-0151,CONFUSION_MENTAL_CHANGE,Confusion Mental Change,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0154-10,EP-0154,SEVERE_OR_NEW_BLEEDING,Severe Or New Bleeding,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0156-08,EP-0156,OPENING_OR_GAPING,Opening Or Gaping,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0158-12,EP-0158,SEVERE_OR_NEW_BLEEDING,Severe Or New Bleeding,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0163-09,EP-0163,FAINTING_OR_NEAR_FAINTING,Fainting Or Near Fainting,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0166-09,EP-0166,SEVERE_OR_NEW_BLEEDING,Severe Or New Bleeding,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0169-08,EP-0169,INCREASED_PAIN_AT_INCISION,Increased Pain At Incision,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0170-03,EP-0170,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0171-12,EP-0171,NEW_DRAINAGE,New Drainage,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0176-11,EP-0176,CHEST_PAIN,Chest Pain,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0181-04,EP-0181,INCREASED_PAIN_AT_INCISION,Increased Pain At Incision,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0182-06,EP-0182,INCREASED_PAIN_AT_INCISION,Increased Pain At Incision,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0183-04,EP-0183,SUDDEN_TROUBLE_BREATHING,Sudden Trouble Breathing,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0187-11,EP-0187,CHEST_PAIN,Chest Pain,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0191-06,EP-0191,NEW_REDNESS_SPREADING,New Redness Spreading,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0195-07,EP-0195,NEW_DRAINAGE,New Drainage,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0199-04,EP-0199,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0200-11,EP-0200,INCREASED_PAIN_AT_INCISION,Increased Pain At Incision,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0201-09,EP-0201,CHEST_PAIN,Chest Pain,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0203-08,EP-0203,SEVERE_OR_NEW_BLEEDING,Severe Or New Bleeding,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0209-06,EP-0209,CONFUSION_MENTAL_CHANGE,Confusion Mental Change,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0215-05,EP-0215,NEW_REDNESS_SPREADING,New Redness Spreading,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0216-10,EP-0216,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0218-09,EP-0218,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0219-03,EP-0219,NEW_REDNESS_SPREADING,New Redness Spreading,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0222-08,EP-0222,OPENING_OR_GAPING,Opening Or Gaping,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0225-06,EP-0225,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0228-04,EP-0228,SUDDEN_TROUBLE_BREATHING,Sudden Trouble Breathing,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0230-07,EP-0230,SEVERE_HEADACHE,Severe Headache,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0232-05,EP-0232,SUDDEN_WEAKNESS_ONE_SIDE,Sudden Weakness One Side,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0235-09,EP-0235,CHEST_PAIN,Chest Pain,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0236-11,EP-0236,SUDDEN_TROUBLE_BREATHING,Sudden Trouble Breathing,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0237-06,EP-0237,SUDDEN_TROUBLE_BREATHING,Sudden Trouble Breathing,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0239-04,EP-0239,SUDDEN_TROUBLE_BREATHING,Sudden Trouble Breathing,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0240-11,EP-0240,SUDDEN_TROUBLE_BREATHING,Sudden Trouble Breathing,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0241-07,EP-0241,CONFUSION_MENTAL_CHANGE,Confusion Mental Change,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0242-10,EP-0242,CONFUSION_MENTAL_CHANGE,Confusion Mental Change,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0243-08,EP-0243,CALF_SWELLING_OR_PAIN,Calf Swelling Or Pain,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0244-08,EP-0244,SEVERE_OR_NEW_BLEEDING,Severe Or New Bleeding,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0246-10,EP-0246,SUDDEN_TROUBLE_BREATHING,Sudden Trouble Breathing,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0252-03,EP-0252,SEVERE_HEADACHE,Severe Headache,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0256-09,EP-0256,SUDDEN_TROUBLE_BREATHING,Sudden Trouble Breathing,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0258-09,EP-0258,CHEST_PAIN,Chest Pain,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0261-11,EP-0261,FAINTING_OR_NEAR_FAINTING,Fainting Or Near Fainting,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0262-11,EP-0262,SEVERE_OR_NEW_BLEEDING,Severe Or New Bleeding,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0263-11,EP-0263,INCREASED_PAIN_AT_INCISION,Increased Pain At Incision,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0265-04,EP-0265,NEW_DRAINAGE,New Drainage,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0267-08,EP-0267,NEW_DRAINAGE,New Drainage,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0270-03,EP-0270,OPENING_OR_GAPING,Opening Or Gaping,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0272-03,EP-0272,SUDDEN_WEAKNESS_ONE_SIDE,Sudden Weakness One Side,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0274-10,EP-0274,FAINTING_OR_NEAR_FAINTING,Fainting Or Near Fainting,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0275-09,EP-0275,NEW_REDNESS_SPREADING,New Redness Spreading,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0278-09,EP-0278,CONFUSION_MENTAL_CHANGE,Confusion Mental Change,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0280-10,EP-0280,BAD_SMELL,Bad Smell,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0285-09,EP-0285,SEVERE_HEADACHE,Severe Headache,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0287-08,EP-0287,NEW_REDNESS_SPREADING,New Redness Spreading,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0289-03,EP-0289,NEW_REDNESS_SPREADING,New Redness Spreading,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0290-03,EP-0290,NEW_DRAINAGE,New Drainage,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0294-03,EP-0294,NEW_REDNESS_SPREADING,New Redness Spreading,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0296-07,EP-0296,NEW_DRAINAGE,New Drainage,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0299-03,EP-0299,CONFUSION_MENTAL_CHANGE,Confusion Mental Change,HARD,HIGH,new,Symptoms worse today.,aip_logic_note_to_flag_run
+RF-0300-10,EP-0300,NEW_DRAINAGE,New Drainage,BASE,MODERATE,new,Symptoms worse today.,aip_logic_note_to_flag_run

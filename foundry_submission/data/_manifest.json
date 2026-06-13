@@ -1,0 +1,19 @@
+{
+  "patients.csv": 300,
+  "surgical_episodes.csv": 300,
+  "intake_notes.csv": 300,
+  "active_problems.csv": 906,
+  "medications.csv": 769,
+  "daily_checkins.csv": 8263,
+  "engagement_signals.csv": 1875,
+  "cost_events.csv": 792,
+  "tier_assessments.csv": 600,
+  "risk_flags.csv": 114,
+  "escalations.csv": 114,
+  "interventions.csv": 2,
+  "claim_lines.csv": 1,
+  "reconciliation_reports.csv": 222,
+  "risk_model_versions.csv": 2,
+  "care_team_members.csv": 5,
+  "_hero_episode_id": "EP-0009"
+}
