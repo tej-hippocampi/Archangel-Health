@@ -1,12 +1,12 @@
 # 03 — Master prompt for the Foundry AIP "AI FDE" agent
 
-> **How to use:** In Foundry, open AI FDE (AIP enabled; Global Branching enabled —
-> required for the Ontology edits and the Risk Model Lab). Upload the 16 CSVs from
-> `../data/` and the three instruction files (`00`, `01`, `02`) to a Foundry folder,
-> then paste the prompt below. AI FDE works in **modes** (data integration → ontology
-> editing → app building) and **skills**; this prompt drives it through them in order.
-> Run it on a branch named `risk-lab`. Build the **Phase-1** section only — Phase-2 is
-> scoped out on purpose (see the cut defense at the bottom).
+> **How to use:** Everything ships in `archangel_foundry_submission.zip`. Unzip it into
+> one Foundry folder so the layout in `INDEX.md` is preserved (`instructions/` and
+> `data/` siblings). In Foundry, open AI FDE (AIP enabled; Global Branching enabled —
+> required for the Ontology edits and the Risk Model Lab), point the session at that
+> folder, then paste the prompt below. AI FDE works in **modes** (data integration →
+> ontology editing → app building) and **skills**; this prompt drives it through them in
+> order. Run it on a branch named `risk-lab`. Build the **Phase-1** section only.
 
 ---
 
@@ -16,10 +16,14 @@ You are the AI FDE building **Archangel Episode OS**: a post-discharge accountab
 platform for CMS **TEAM** surgical episodes (LEJR, hip/femur fracture, spinal fusion,
 CABG, major bowel), ported onto the Foundry Ontology from an existing, validated
 FastAPI product. **Do not invent clinical logic** — port the supplied schemas and
-ladders exactly. I have uploaded 16 CSVs and three spec files (`00_RECONCILIATION…`,
-`01_BUILD_ORDER`, `02_PIPELINE_BUILDER_TRANSFORMS`). Treat `01_BUILD_ORDER` as
-authoritative for object/link/action/function/module shape and dependency order, and
-`00_RECONCILIATION…` for exact property names, enums, and the data dictionary. Work on
+ladders exactly. Your inputs are in this folder (unzipped from
+`archangel_foundry_submission.zip`); start by reading `INDEX.md` at the folder root —
+it lists every file, its path, its target object type, the join keys, and the enum
+dictionary. The 16 source CSVs are in `data/`; the specs are in `instructions/`. Treat
+`instructions/01_BUILD_ORDER.md` as authoritative for object/link/action/function/module
+shape and dependency order, and `instructions/00_RECONCILIATION_AND_DATA_DICTIONARY.md`
+for exact property names, enums, the file→object map (§B), and the hero acceptance test
+(§D). Use `instructions/02_PIPELINE_BUILDER_TRANSFORMS.md` when wiring ingestion. Work on
 branch `risk-lab`. Build **only the Phase-1 scope** below; stub nothing outside it.
 
 **Mode 1 — Data integration.** Create Pipeline Builder pipeline `archangel_ingest`
