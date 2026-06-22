@@ -218,7 +218,8 @@ function lineHitsObstacle(x, y) {
 
 /* ---- Spawning effects ---- */
 function spawnArrow(f, target) {
-  const charge = Math.min(f.charge, 1);
+  // Floor the charge so a quick tap still fires a respectable arrow.
+  const charge = Math.max(0.2, Math.min(f.charge, 1));
   const speed = (7.5 + charge * 6.5) * PACE;
   const dmg = f.arrowDamage * (0.6 + charge * 1.1);
   game.arrows.push({
@@ -245,27 +246,35 @@ function updatePlayer(f) {
   if (keys["s"] || keys["arrowdown"]) dy++;
   if (keys["a"] || keys["arrowleft"]) dx--;
   if (keys["d"] || keys["arrowright"]) dx++;
-  if (dx || dy) {
-    const m = Math.hypot(dx, dy);
-    f.x += (dx / m) * f.moveSpeed;
-    f.y += (dy / m) * f.moveSpeed;
-  }
-  f.aim = Math.atan2(mouse.y - f.y, mouse.x - f.x);
+  const aiming = keys[" "];
 
-  // Charged shooting
-  if (mouse.down && f.cooldown <= 0) { f.charging = true; f.charge = Math.min(1, f.charge + 0.02); }
-  else if (f.charging && !mouse.down) { spawnArrow(f); f.charging = false; f.charge = 0; }
-  if (!mouse.down) f.charge = Math.max(0, f.charge - 0.05);
-
-  // Melee
-  if (keys[" "] && f.meleeCd <= 0) { f.meleeTimer = 12; f.meleeCd = 34; doMelee(f); }
-  // Dash
-  if (keys["shift"] && f.dashCd <= 0 && (dx || dy)) {
-    const m = Math.hypot(dx, dy);
-    f.dashTimer = 8; f.dashCd = 50;
-    f.dashVx = (dx / m) * (f.dashDist / 8);
-    f.dashVy = (dy / m) * (f.dashDist / 8);
+  if (aiming) {
+    // Hold Space = plant your feet and draw the bow.
+    // Arrow keys orient the shot instead of moving you.
+    if (dx || dy) f.aim = Math.atan2(dy, dx);
+    if (f.cooldown <= 0) { f.charging = true; f.charge = Math.min(1, f.charge + 0.02); }
+  } else {
+    // Released Space = loose the arrow you were drawing.
+    if (f.charging) { spawnArrow(f); f.charging = false; f.charge = 0; }
+    f.charge = Math.max(0, f.charge - 0.06);
+    // Arrow keys move; you face the way you walk.
+    if (dx || dy) {
+      const m = Math.hypot(dx, dy);
+      f.x += (dx / m) * f.moveSpeed;
+      f.y += (dy / m) * f.moveSpeed;
+      f.aim = Math.atan2(dy, dx);
+    }
+    // Dash (Shift) while moving.
+    if (keys["shift"] && f.dashCd <= 0 && (dx || dy)) {
+      const m = Math.hypot(dx, dy);
+      f.dashTimer = 8; f.dashCd = 50;
+      f.dashVx = (dx / m) * (f.dashDist / 8);
+      f.dashVy = (dy / m) * (f.dashDist / 8);
+    }
   }
+
+  // Melee slash (F) — quick close-range hit, available any time.
+  if (keys["f"] && f.meleeCd <= 0) { f.meleeTimer = 12; f.meleeCd = 34; doMelee(f); }
 }
 
 function updateCPU(f, foe) {

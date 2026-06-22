@@ -22,11 +22,11 @@ python3 -m http.server 8000
 
 | Action | Control |
 | --- | --- |
-| Move | `W` `A` `S` `D` or arrow keys |
-| Aim | Mouse |
-| Shoot arrow | Left click (hold to **charge** for more damage & range) |
-| Melee slash | `Space` |
-| Dash / dodge | `Shift` |
+| Move | Arrow keys (or `W` `A` `S` `D`) |
+| Shoot arrow | `Space` — tap for a quick shot, or **hold to charge** then release to fire |
+| Aim the shot | Hold `Space` + arrow keys to orient (you stand still while drawing) |
+| Dash / dodge | `Shift` while moving |
+| Melee slash | `F` |
 
 Drain the CPU opponent's health bar to win.
 
