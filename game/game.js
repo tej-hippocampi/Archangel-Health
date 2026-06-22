@@ -35,6 +35,23 @@ const PACE = 0.68;
 // Radians per frame the aim rotates while you hold Space + an arrow.
 // Lower = slower, finer aiming control.
 const AIM_SPEED = 0.04;
+
+/* ---------- CPU difficulty presets ----------
+   Tunes how good the computer opponent is. "easy" is meant to be
+   comfortably beatable by a first-time player:
+     aimError  – how far (radians) its shots wander off target
+     aimEase   – how fast it swings its aim toward you (lower = sluggish)
+     fireChance– per-frame chance to loose an arrow once charged
+     moveScale – fraction of its full move speed it actually uses
+     dodgeChance – per-frame chance to dash away from danger
+     hpMul     – multiplier on its health (lower = dies faster)
+     reload    – multiplier on its time between shots (higher = slower) */
+const DIFFICULTY = {
+  easy:   { label: "Easy",   aimError: 0.45, aimEase: 0.05, fireChance: 0.014, moveScale: 0.55, dodgeChance: 0.0,   hpMul: 0.75, reload: 1.5 },
+  normal: { label: "Normal", aimError: 0.16, aimEase: 0.16, fireChance: 0.035, moveScale: 0.82, dodgeChance: 0.006, hpMul: 1.0,  reload: 1.0 },
+  hard:   { label: "Hard",   aimError: 0.04, aimEase: 0.30, fireChance: 0.060, moveScale: 0.95, dodgeChance: 0.014, hpMul: 1.0,  reload: 0.85 },
+};
+let selectedDifficulty = save.difficulty || "easy";
 function scaleStats(s) {
   return {
     moveSpeed: (1.6 + s.speed * 0.28) * PACE, // px/frame
@@ -122,6 +139,24 @@ function renderLevels() {
 }
 startBtn.addEventListener("click", () => { if (selectedLevel) startGame(); });
 
+/* ---------- Difficulty selector ---------- */
+const diffBtns = document.getElementById("difficultyBtns");
+function renderDifficulty() {
+  diffBtns.innerHTML = "";
+  for (const key of ["easy", "normal", "hard"]) {
+    const b = document.createElement("button");
+    b.textContent = DIFFICULTY[key].label;
+    b.className = selectedDifficulty === key ? "active" : "";
+    b.addEventListener("click", () => {
+      selectedDifficulty = key;
+      save.difficulty = key; saveSave(save);
+      renderDifficulty();
+    });
+    diffBtns.appendChild(b);
+  }
+}
+renderDifficulty();
+
 /* ============================================================
    GAMEPLAY
    ============================================================ */
@@ -173,8 +208,10 @@ function startGame() {
   if (cpuDef.id === selectedChar.id && cpuPool.length > 1) {
     cpuDef = cpuPool.find(c => c.id !== selectedChar.id) || cpuDef;
   }
+  const diff = DIFFICULTY[selectedDifficulty] || DIFFICULTY.easy;
   game = {
     level: selectedLevel,
+    diff,
     p1: makeFighter(selectedChar, 150, H / 2, false),
     p2: makeFighter(cpuDef, W - 150, H / 2, true),
     arrows: [],
@@ -183,8 +220,12 @@ function startGame() {
     over: false,
     intro: 90,
   };
+  // Apply difficulty handicaps to the CPU.
+  game.p2.maxHp = Math.round(game.p2.maxHp * diff.hpMul);
+  game.p2.hp = game.p2.maxHp;
+  game.p2.fireCooldown *= diff.reload;
   document.getElementById("hudP1").textContent = selectedChar.name;
-  document.getElementById("hudP2").textContent = cpuDef.name + " (CPU)";
+  document.getElementById("hudP2").textContent = `${cpuDef.name} (CPU · ${diff.label})`;
   document.getElementById("overlay").classList.add("hidden");
   document.getElementById("roundMsg").textContent = "Ready…";
   cancelAnimationFrame(rafId);
@@ -289,8 +330,21 @@ function updatePlayer(f) {
 
 function updateCPU(f, foe) {
   const ai = f.ai;
+  const D = game.diff;
   const d = dist(f.x, f.y, foe.x, foe.y);
-  f.aim = Math.atan2(foe.y - f.y, foe.x - f.x);
+
+  // --- Imperfect aim: wander an error around the true angle, and only
+  //     swing toward the target slowly. On Easy this misses a lot. ---
+  const trueAim = Math.atan2(foe.y - f.y, foe.x - f.x);
+  ai.errTimer = (ai.errTimer || 0) - 1;
+  if (ai.errTimer <= 0) {
+    ai.errTimer = 24 + Math.random() * 40;
+    ai.aimErr = (Math.random() * 2 - 1) * D.aimError;
+  }
+  let ad = (trueAim + ai.aimErr) - f.aim;
+  while (ad > Math.PI) ad -= Math.PI * 2;
+  while (ad < -Math.PI) ad += Math.PI * 2;
+  f.aim += ad * D.aimEase;
 
   ai.decision--;
   if (ai.decision <= 0) {
@@ -301,7 +355,7 @@ function updateCPU(f, foe) {
 
   // Move toward preferred range, strafe, keep inside arena
   let mx = 0, my = 0;
-  const toFoe = { x: Math.cos(f.aim), y: Math.sin(f.aim) };
+  const toFoe = { x: Math.cos(trueAim), y: Math.sin(trueAim) };
   if (d > ai.wantDist + 30) { mx += toFoe.x; my += toFoe.y; }
   else if (d < ai.wantDist - 30) { mx -= toFoe.x; my -= toFoe.y; }
   // strafe perpendicular
@@ -312,22 +366,23 @@ function updateCPU(f, foe) {
   my += (H / 2 - f.y) * 0.0008;
 
   const m = Math.hypot(mx, my) || 1;
-  f.x += (mx / m) * f.moveSpeed * 0.92;
-  f.y += (my / m) * f.moveSpeed * 0.92;
+  f.x += (mx / m) * f.moveSpeed * D.moveScale;
+  f.y += (my / m) * f.moveSpeed * D.moveScale;
 
-  // Shoot with charge when roughly facing & clear line
+  // Shoot with charge — only when actually pointing near the player.
   if (f.cooldown <= 0) {
     f.charging = true;
     f.charge = Math.min(1, f.charge + 0.03);
     const wantCharge = ai.wantDist > 250 ? 0.85 : 0.35;
-    if (f.charge >= wantCharge && Math.random() < 0.06) {
+    const facingFoe = Math.abs(ad) < 0.25;   // don't fire while still turning
+    if (facingFoe && f.charge >= wantCharge && Math.random() < D.fireChance) {
       spawnArrow(f); f.charging = false; f.charge = 0;
     }
   }
   // Melee if very close
   if (d < 60 && f.meleeCd <= 0) { f.meleeTimer = 12; f.meleeCd = 34; doMelee(f); }
   // Dodge occasionally
-  if (f.dashCd <= 0 && Math.random() < 0.012) {
+  if (D.dodgeChance > 0 && f.dashCd <= 0 && Math.random() < D.dodgeChance) {
     f.dashTimer = 8; f.dashCd = 50;
     f.dashVx = -toFoe.y * ai.strafeDir * (f.dashDist / 8);
     f.dashVy = toFoe.x * ai.strafeDir * (f.dashDist / 8);

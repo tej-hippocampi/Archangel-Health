@@ -103,6 +103,18 @@ h2{font-size:28px;margin-top:6px}
   background:#2a3247;margin-left:6px;vertical-align:middle;overflow:hidden}
 .stats .meter i{display:block;height:100%;background:var(--accent)}
 
+/* ---- Difficulty selector ---- */
+.difficulty{display:flex;align-items:center;gap:14px}
+.diff-label{font-size:13px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;font-weight:700}
+.seg{display:flex;background:var(--panel);border-radius:10px;padding:4px;gap:4px}
+.seg button{
+  background:transparent;border:none;color:var(--muted);
+  padding:8px 18px;border-radius:7px;font-size:14px;font-weight:700;
+  cursor:pointer;transition:background .15s,color .15s;font-family:inherit;
+}
+.seg button:hover{color:var(--text)}
+.seg button.active{background:var(--accent);color:#04121f}
+
 /* ---- How to ---- */
 .howto-card{background:var(--panel);border-radius:14px;padding:24px 28px;
   max-width:620px;line-height:1.7}

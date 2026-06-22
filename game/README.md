@@ -40,6 +40,10 @@ Drain the CPU opponent's health bar to win.
   unlocks persist between sessions.
 - Charged bow shots, melee slashes, dashes, particle effects, and a
   range-aware CPU opponent.
+- **Difficulty selector** (Easy / Normal / Hard) on the arena screen.
+  *Easy* is built to be comfortably beatable by a first-timer — the CPU
+  aims loosely, reacts slowly, shoots less, moves slower, and has less
+  health. Your choice is remembered between sessions.
 
 ## Project layout
 
