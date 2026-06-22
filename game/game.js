@@ -32,6 +32,9 @@ function isLevelUnlocked(l) {
    PACE is a single global throttle on how fast everything moves.
    Lower = slower, more deliberate combat. */
 const PACE = 0.68;
+// Radians per frame the aim rotates while you hold Space + an arrow.
+// Lower = slower, finer aiming control.
+const AIM_SPEED = 0.04;
 function scaleStats(s) {
   return {
     moveSpeed: (1.6 + s.speed * 0.28) * PACE, // px/frame
@@ -249,9 +252,16 @@ function updatePlayer(f) {
   const aiming = keys[" "];
 
   if (aiming) {
-    // Hold Space = plant your feet and draw the bow.
-    // Arrow keys orient the shot instead of moving you.
-    if (dx || dy) f.aim = Math.atan2(dy, dx);
+    // Hold Space = plant your feet and draw the bow. Arrow keys steer the
+    // aim *gradually*: it rotates toward the pressed direction at a fixed
+    // speed, so you can release partway and stop at any angle in between.
+    if (dx || dy) {
+      const target = Math.atan2(dy, dx);
+      let diff = target - f.aim;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      f.aim += Math.abs(diff) <= AIM_SPEED ? diff : Math.sign(diff) * AIM_SPEED;
+    }
     if (f.cooldown <= 0) { f.charging = true; f.charge = Math.min(1, f.charge + 0.02); }
   } else {
     // Released Space = loose the arrow you were drawing.

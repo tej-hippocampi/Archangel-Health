@@ -24,7 +24,7 @@ python3 -m http.server 8000
 | --- | --- |
 | Move | Arrow keys (or `W` `A` `S` `D`) |
 | Shoot arrow | `Space` — tap for a quick shot, or **hold to charge** then release to fire |
-| Aim the shot | Hold `Space` + arrow keys to orient (you stand still while drawing) |
+| Aim the shot | Hold `Space` + arrow keys to **gradually sweep** your aim; release to hold the angle (you stand still while drawing) |
 | Dash / dodge | `Shift` while moving |
 | Melee slash | `F` |
 
