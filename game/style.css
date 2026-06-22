@@ -1,0 +1,140 @@
+:root{
+  --bg:#0c1018;
+  --panel:#161d2b;
+  --panel2:#1e2740;
+  --accent:#4fc3ff;
+  --accent2:#ff5d73;
+  --gold:#ffce54;
+  --text:#e8edf6;
+  --muted:#8a96ad;
+  --lock:#3a4154;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:"Segoe UI",system-ui,sans-serif;
+  background:radial-gradient(circle at 50% -10%,#1a2336,#0c1018 60%);
+  color:var(--text);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+}
+#app{width:min(980px,100vw);height:min(660px,100vh);position:relative}
+
+/* ---- Screens ---- */
+.screen{
+  position:absolute;inset:0;
+  display:none;flex-direction:column;align-items:center;
+  padding:28px;gap:18px;
+  animation:fade .25s ease;
+}
+.screen.active{display:flex}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+h1,h2,h3{font-weight:800;letter-spacing:.5px}
+h2{font-size:28px;margin-top:6px}
+.logo{font-size:64px;line-height:.95;text-align:center;margin-top:40px}
+.logo span{display:block;color:var(--accent)}
+.tagline{color:var(--muted);font-size:16px}
+.footer-note{color:var(--lock);font-size:13px;position:absolute;bottom:20px}
+
+/* ---- Buttons ---- */
+.btn{
+  background:var(--panel2);color:var(--text);border:1px solid #2e3a59;
+  padding:12px 22px;border-radius:10px;font-size:15px;font-weight:600;
+  cursor:pointer;transition:transform .08s,background .15s,box-shadow .15s;
+}
+.btn:hover{background:#27324f;transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),#2f86c9);border:none;color:#04121f}
+.btn.primary:hover{box-shadow:0 6px 18px rgba(79,195,255,.35)}
+.btn.primary:disabled{background:#2a3247;color:#5d6680;cursor:not-allowed;box-shadow:none}
+.btn.back{position:absolute;top:24px;left:24px}
+.menu-buttons{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+
+/* ---- Grids (characters / levels) ---- */
+.grid{
+  display:grid;gap:14px;width:100%;max-width:780px;
+  grid-template-columns:repeat(4,1fr);
+}
+#levelGrid{grid-template-columns:repeat(3,1fr)}
+.card{
+  background:var(--panel);border:2px solid transparent;border-radius:14px;
+  padding:14px 10px;cursor:pointer;text-align:center;position:relative;
+  transition:transform .1s,border-color .15s;overflow:hidden;
+}
+.card:hover{transform:translateY(-3px)}
+.card.selected{border-color:var(--accent)}
+.card .avatar{
+  width:64px;height:64px;border-radius:50%;margin:0 auto 10px;
+  display:flex;align-items:center;justify-content:center;font-size:30px;
+  box-shadow:inset 0 0 0 3px rgba(255,255,255,.12);
+}
+.card .thumb{
+  width:100%;height:80px;border-radius:10px;margin-bottom:10px;
+}
+.card h4{font-size:15px}
+.card .role{font-size:12px;color:var(--muted);margin-top:2px}
+.card.locked{cursor:not-allowed;opacity:.85}
+.card.locked::after{
+  content:"🔒 LOCKED";position:absolute;inset:0;
+  background:rgba(8,11,18,.72);color:var(--gold);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:14px;letter-spacing:1px;
+}
+.card .unlock-hint{
+  font-size:11px;color:var(--lock);margin-top:6px;
+}
+
+/* ---- Selected panel ---- */
+.selected-panel{
+  display:flex;gap:20px;background:var(--panel);border-radius:14px;
+  padding:16px 20px;width:100%;max-width:780px;align-items:center;
+}
+.preview{width:90px;height:90px;border-radius:14px;flex:none;
+  display:flex;align-items:center;justify-content:center;font-size:44px;
+  background:var(--panel2)}
+.selected-info{flex:1;text-align:left}
+.selected-info h3{font-size:20px}
+.selected-info p{color:var(--muted);font-size:14px;margin:4px 0 8px}
+.stats{list-style:none;display:flex;gap:18px;flex-wrap:wrap}
+.stats li{font-size:12px;color:var(--muted)}
+.stats .meter{
+  display:inline-block;width:80px;height:7px;border-radius:4px;
+  background:#2a3247;margin-left:6px;vertical-align:middle;overflow:hidden}
+.stats .meter i{display:block;height:100%;background:var(--accent)}
+
+/* ---- How to ---- */
+.howto-card{background:var(--panel);border-radius:14px;padding:24px 28px;
+  max-width:620px;line-height:1.7}
+.howto-card ul{list-style:none;margin-bottom:14px}
+.howto-card li{margin:7px 0}
+.howto-card p{color:var(--muted)}
+kbd{background:#2a3247;border:1px solid #3a4768;border-bottom-width:3px;
+  border-radius:6px;padding:2px 8px;font-family:inherit;font-size:13px;font-weight:700}
+
+/* ---- Game / HUD ---- */
+#game{padding:0;justify-content:flex-start}
+#hud{width:100%;display:flex;align-items:flex-start;justify-content:space-between;
+  padding:14px 18px;gap:14px}
+.hud-side{flex:1;max-width:340px}
+.hud-side.right{text-align:right}
+.hud-name{font-weight:800;font-size:14px;letter-spacing:1px}
+.bar{height:16px;background:#2a3247;border-radius:8px;overflow:hidden;margin-top:4px;
+  border:1px solid #0008}
+.fill{height:100%;width:100%;transition:width .15s}
+.fill.blue{background:linear-gradient(90deg,#4fc3ff,#2f86c9)}
+.fill.red{background:linear-gradient(90deg,#ff5d73,#c9344b)}
+.right .bar{transform:scaleX(-1)}
+.charge{height:6px;background:#2a3247;border-radius:4px;overflow:hidden;margin-top:5px}
+#chargeBar{height:100%;width:0;background:var(--gold);transition:width .03s}
+.hud-center{flex:none;align-self:center;font-weight:800;color:var(--gold);min-width:120px;text-align:center}
+canvas{background:#10141f;display:block;border-radius:10px;margin:0 auto;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);max-width:100%;max-height:calc(100% - 70px)}
+
+/* ---- Overlay ---- */
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:16px;
+  background:rgba(8,11,18,.82);backdrop-filter:blur(3px);border-radius:10px}
+.overlay.hidden{display:none}
+.overlay h2{font-size:44px}
+.overlay p{color:var(--muted)}

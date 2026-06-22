@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arena Archers — Top-Down Fighting Game</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <!-- ===== Main Menu ===== -->
+  <section id="menu" class="screen active">
+    <h1 class="logo">ARENA<span>ARCHERS</span></h1>
+    <p class="tagline">Top-down arena combat. Bows, arrows, and blades.</p>
+    <div class="menu-buttons">
+      <button class="btn primary" data-goto="characters">Play</button>
+      <button class="btn" data-goto="howto">How to Play</button>
+    </div>
+    <p class="footer-note">A side project · single-player vs CPU</p>
+  </section>
+
+  <!-- ===== Character Select ===== -->
+  <section id="characters" class="screen">
+    <button class="btn back" data-goto="menu">‹ Back</button>
+    <h2>Choose Your Fighter</h2>
+    <div id="characterGrid" class="grid"></div>
+    <div class="selected-panel">
+      <div id="charPreview" class="preview"></div>
+      <div class="selected-info">
+        <h3 id="charName">—</h3>
+        <p id="charDesc">Select a fighter to see their stats.</p>
+        <ul id="charStats" class="stats"></ul>
+      </div>
+    </div>
+    <button id="toLevels" class="btn primary" disabled>Choose Level ›</button>
+  </section>
+
+  <!-- ===== Level Select ===== -->
+  <section id="levels" class="screen">
+    <button class="btn back" data-goto="characters">‹ Back</button>
+    <h2>Choose Your Arena</h2>
+    <div id="levelGrid" class="grid"></div>
+    <button id="startMatch" class="btn primary" disabled>Fight! ›</button>
+  </section>
+
+  <!-- ===== How To Play ===== -->
+  <section id="howto" class="screen">
+    <button class="btn back" data-goto="menu">‹ Back</button>
+    <h2>How to Play</h2>
+    <div class="howto-card">
+      <ul>
+        <li><b>Move</b> — <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or arrow keys</li>
+        <li><b>Aim</b> — point your mouse</li>
+        <li><b>Shoot arrow</b> — <kbd>Left Click</kbd> (hold to charge for more damage & range)</li>
+        <li><b>Melee slash</b> — <kbd>Space</kbd> (fast, short range)</li>
+        <li><b>Dash</b> — <kbd>Shift</kbd> (quick dodge, brief cooldown)</li>
+      </ul>
+      <p>Drain the enemy's health bar to win. Different fighters and arenas
+         change speed, damage, and the obstacles you fight around.</p>
+    </div>
+  </section>
+
+  <!-- ===== Game ===== -->
+  <section id="game" class="screen">
+    <div id="hud">
+      <div class="hud-side left">
+        <span class="hud-name" id="hudP1">YOU</span>
+        <div class="bar"><div id="hpP1" class="fill blue"></div></div>
+        <div class="charge"><div id="chargeBar"></div></div>
+      </div>
+      <div class="hud-center">
+        <span id="roundMsg"></span>
+      </div>
+      <div class="hud-side right">
+        <span class="hud-name" id="hudP2">CPU</span>
+        <div class="bar"><div id="hpP2" class="fill red"></div></div>
+      </div>
+    </div>
+    <canvas id="canvas" width="960" height="600"></canvas>
+    <div id="overlay" class="overlay hidden">
+      <h2 id="overlayTitle">Result</h2>
+      <p id="overlaySub"></p>
+      <div class="menu-buttons">
+        <button class="btn primary" id="rematch">Rematch</button>
+        <button class="btn" data-goto="levels">Change Arena</button>
+        <button class="btn" data-goto="characters">Change Fighter</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="data.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
