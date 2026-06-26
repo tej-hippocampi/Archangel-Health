@@ -464,6 +464,11 @@
         <button class="nav-item" data-tab="triage-logic">
           <span class="icon">🩺</span> Triage Logic
         </button>
+
+        <div class="nav-label">Asclepius</div>
+        <button class="nav-item" data-tab="asclepius">
+          <span class="icon">⚕️</span> Expert Eval Data
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -519,6 +524,103 @@
             </div>
             <div id="users-table-wrap">
               <div class="empty-table">Loading...</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Asclepius — Expert Evaluation Data -->
+      <div class="tab-page" id="tab-asclepius">
+        <div class="page-header">
+          <div>
+            <h2>Asclepius — Expert Evaluation Data</h2>
+            <p>Stored expert-evaluated AI answers &amp; export to labs (no PHI)</p>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="refresh-btn" id="asc-seed-btn">＋ Load sample data</button>
+            <button class="refresh-btn" id="asc-refresh-btn">↺ Refresh</button>
+          </div>
+        </div>
+        <div class="stats-body">
+
+          <div class="stat-cards" id="asc-stat-cards">
+            <div class="stat-card">
+              <div class="stat-label">Submissions</div>
+              <div class="stat-value" id="asc-stat-submissions">—</div>
+              <div class="stat-sub">Stored evaluations</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Training Records</div>
+              <div class="stat-value" id="asc-stat-records">—</div>
+              <div class="stat-sub">Packaged for export</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Grounded</div>
+              <div class="stat-value" id="asc-stat-grounded">—</div>
+              <div class="stat-sub">Guideline-cited (premium)</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Exports</div>
+              <div class="stat-value" id="asc-stat-exports">—</div>
+              <div class="stat-sub">Batches delivered</div>
+            </div>
+          </div>
+
+          <!-- Export panel -->
+          <div class="data-section">
+            <div class="data-section-header">
+              <h3>Export to lab</h3>
+              <span>Choose the buyer's format &amp; filters, then download JSONL</span>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; padding:16px;">
+              <label style="display:flex; flex-direction:column; gap:4px; font-size:0.8rem; color:#475569;">
+                Buyer format
+                <select id="asc-export-profile" style="padding:8px; min-width:240px;"></select>
+              </label>
+              <label style="display:flex; flex-direction:column; gap:4px; font-size:0.8rem; color:#475569;">
+                Record type
+                <select id="asc-export-type" style="padding:8px;">
+                  <option value="all">All types</option>
+                  <option value="preference">Preference pairs</option>
+                  <option value="ideal_answer">Ideal answers (SFT)</option>
+                  <option value="reasoning_trace">Reasoning traces</option>
+                </select>
+              </label>
+              <label style="display:flex; flex-direction:column; gap:4px; font-size:0.8rem; color:#475569;">
+                Specialty
+                <select id="asc-export-specialty" style="padding:8px;">
+                  <option value="all">All specialties</option>
+                </select>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; color:#475569; margin-bottom:8px;">
+                <input type="checkbox" id="asc-export-grounded"> Grounded only (premium)
+              </label>
+              <button class="refresh-btn" id="asc-export-btn" style="background:var(--primary,#2563eb); color:#fff;">⤓ Export &amp; download</button>
+            </div>
+            <div id="asc-export-status" style="padding:0 16px 12px; font-size:0.85rem; color:#475569;"></div>
+            <div id="asc-profile-desc" style="padding:0 16px 16px; font-size:0.8rem; color:#94a3b8;"></div>
+          </div>
+
+          <!-- Records table -->
+          <div class="data-section">
+            <div class="data-section-header">
+              <h3>Stored training records</h3>
+              <span id="asc-records-count">—</span>
+            </div>
+            <div id="asc-records-wrap">
+              <div class="empty-table">Loading…</div>
+            </div>
+          </div>
+
+          <!-- Export history -->
+          <div class="data-section">
+            <div class="data-section-header">
+              <h3>Export history</h3>
+              <span id="asc-exports-count">—</span>
+            </div>
+            <div id="asc-exports-wrap">
+              <div class="empty-table">No exports yet.</div>
             </div>
           </div>
 
@@ -1069,6 +1171,9 @@
       if (btn.dataset.tab === 'demo-credentials' && !demoCredsLoaded) {
         loadDemoCredentials();
       }
+      if (btn.dataset.tab === 'asclepius') {
+        loadAsclepius();
+      }
     });
   });
 
@@ -1095,6 +1200,173 @@
       body.innerHTML = '<div class="empty-table">Could not load demo credentials.</div>';
     }
   }
+
+  // ── Asclepius — Expert Evaluation Data ──────────────────────────────────
+  let ascProfiles = [];
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+  function truncate(s, n) {
+    s = String(s == null ? '' : s);
+    return s.length > n ? s.slice(0, n) + '…' : s;
+  }
+
+  async function loadAsclepius() {
+    await Promise.all([loadAscStats(), loadAscProfiles(), loadAscSpecialties(), loadAscRecords(), loadAscExports()]);
+  }
+
+  async function loadAscStats() {
+    try {
+      const res = await fetch('/admin/asclepius/stats', { headers: authHeaders() });
+      if (res.status === 401) { signout(); return; }
+      const d = await res.json();
+      document.getElementById('asc-stat-submissions').textContent = d.submissions ?? 0;
+      document.getElementById('asc-stat-records').textContent = d.records ?? 0;
+      document.getElementById('asc-stat-grounded').textContent = d.grounded_records ?? 0;
+      document.getElementById('asc-stat-exports').textContent = d.exports ?? 0;
+    } catch (e) { console.error('asc stats', e); }
+  }
+
+  async function loadAscProfiles() {
+    try {
+      const res = await fetch('/admin/asclepius/profiles', { headers: authHeaders() });
+      const d = await res.json();
+      ascProfiles = d.profiles || [];
+      const sel = document.getElementById('asc-export-profile');
+      sel.innerHTML = ascProfiles.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('');
+      renderProfileDesc();
+    } catch (e) { console.error('asc profiles', e); }
+  }
+
+  function renderProfileDesc() {
+    const name = document.getElementById('asc-export-profile').value;
+    const p = ascProfiles.find(x => x.name === name);
+    document.getElementById('asc-profile-desc').textContent = p ? p.description : '';
+  }
+
+  async function loadAscSpecialties() {
+    try {
+      const res = await fetch('/admin/asclepius/specialties', { headers: authHeaders() });
+      const d = await res.json();
+      const sel = document.getElementById('asc-export-specialty');
+      const cur = sel.value;
+      sel.innerHTML = '<option value="all">All specialties</option>' +
+        (d.specialties || []).map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      sel.value = cur || 'all';
+    } catch (e) { console.error('asc specialties', e); }
+  }
+
+  async function loadAscRecords() {
+    const wrap = document.getElementById('asc-records-wrap');
+    wrap.innerHTML = '<div class="empty-table">Loading…</div>';
+    try {
+      const type = document.getElementById('asc-export-type').value;
+      const specialty = document.getElementById('asc-export-specialty').value;
+      const grounded = document.getElementById('asc-export-grounded').checked;
+      const q = new URLSearchParams({ type, specialty, grounded }).toString();
+      const res = await fetch('/admin/asclepius/records?' + q, { headers: authHeaders() });
+      if (res.status === 401) { signout(); return; }
+      const d = await res.json();
+      document.getElementById('asc-records-count').textContent = (d.count ?? 0) + ' records';
+      const recs = d.records || [];
+      if (!recs.length) { wrap.innerHTML = '<div class="empty-table">No records. Click “Load sample data” to seed examples.</div>'; return; }
+      const rows = recs.map(r => {
+        const preview = r.type === 'preference' ? r.chosen
+          : r.type === 'ideal_answer' ? r.ideal_answer
+          : (r.steps ? r.steps.map(s => s.text).join(' › ') : '');
+        return `<tr>
+          <td><span style="font-weight:600;">${escapeHtml(r.type)}</span></td>
+          <td>${escapeHtml((r.context && r.context.specialty) || '')}</td>
+          <td>${escapeHtml((r.context && r.context.difficulty) || '')}</td>
+          <td>${r.grounded ? '✅' : '—'}</td>
+          <td>${escapeHtml(r.annotator_credential || '')}</td>
+          <td style="max-width:380px;">${escapeHtml(truncate(preview, 120))}</td>
+        </tr>`;
+      }).join('');
+      wrap.innerHTML = `<table>
+        <thead><tr><th>Type</th><th>Specialty</th><th>Difficulty</th><th>Grounded</th><th>Credential</th><th>Preview</th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+    } catch (e) {
+      console.error('asc records', e);
+      wrap.innerHTML = '<div class="empty-table">Could not load records.</div>';
+    }
+  }
+
+  async function loadAscExports() {
+    const wrap = document.getElementById('asc-exports-wrap');
+    try {
+      const res = await fetch('/admin/asclepius/exports', { headers: authHeaders() });
+      const d = await res.json();
+      const ex = d.exports || [];
+      document.getElementById('asc-exports-count').textContent = ex.length + ' batches';
+      if (!ex.length) { wrap.innerHTML = '<div class="empty-table">No exports yet.</div>'; return; }
+      wrap.innerHTML = `<table>
+        <thead><tr><th>Batch</th><th>Format</th><th>Records</th><th>When</th></tr></thead>
+        <tbody>${ex.map(e => `<tr>
+          <td>${escapeHtml(e.batch_id)}</td>
+          <td>${escapeHtml(e.profile_name)}</td>
+          <td>${e.record_count}</td>
+          <td>${escapeHtml(e.created_at)}</td>
+        </tr>`).join('')}</tbody></table>`;
+    } catch (e) { console.error('asc exports', e); }
+  }
+
+  function downloadText(filename, text) {
+    const blob = new Blob([text], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  }
+
+  async function doAscExport() {
+    const status = document.getElementById('asc-export-status');
+    const body = {
+      profile: document.getElementById('asc-export-profile').value,
+      type: document.getElementById('asc-export-type').value,
+      specialty: document.getElementById('asc-export-specialty').value,
+      grounded: document.getElementById('asc-export-grounded').checked,
+    };
+    status.textContent = 'Building export…';
+    try {
+      const res = await fetch('/admin/asclepius/export', {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify(body),
+      });
+      if (res.status === 401) { signout(); return; }
+      const d = await res.json();
+      if (!d.count) { status.textContent = 'No records matched those filters — nothing exported.'; return; }
+      // Primary deliverable: the JSONL in the lab's format.
+      downloadText(`${d.batch_id}.jsonl`, d.jsonl);
+      // Companion docs (datasheet / dictionary / quality report / manifest).
+      Object.entries(d.files || {}).forEach(([name, content]) => {
+        if (name !== 'records.jsonl') downloadText(`${d.batch_id}-${name}`, content);
+      });
+      status.textContent = `✅ Exported ${d.count} records as “${d.profile}” (batch ${d.batch_id}). JSONL + datasheet downloaded.`;
+      loadAscExports(); loadAscStats();
+    } catch (e) {
+      console.error('asc export', e);
+      status.textContent = 'Export failed — see console.';
+    }
+  }
+
+  document.getElementById('asc-refresh-btn').addEventListener('click', loadAsclepius);
+  document.getElementById('asc-export-btn').addEventListener('click', doAscExport);
+  document.getElementById('asc-export-profile').addEventListener('change', renderProfileDesc);
+  document.getElementById('asc-export-type').addEventListener('change', loadAscRecords);
+  document.getElementById('asc-export-specialty').addEventListener('change', loadAscRecords);
+  document.getElementById('asc-export-grounded').addEventListener('change', loadAscRecords);
+  document.getElementById('asc-seed-btn').addEventListener('click', async () => {
+    const status = document.getElementById('asc-export-status');
+    status.textContent = 'Loading sample data…';
+    try {
+      const res = await fetch('/admin/asclepius/seed', { method: 'POST', headers: authHeaders() });
+      if (res.status === 401) { signout(); return; }
+      const d = await res.json();
+      status.textContent = `Seeded ${d.submissions_seeded} sample submissions.`;
+      loadAsclepius();
+    } catch (e) { status.textContent = 'Seed failed — see console.'; console.error(e); }
+  });
 
   function copyText(text, btn) {
     navigator.clipboard.writeText(text).then(() => {

@@ -59,6 +59,7 @@ from integrations.tavus        import TavusClient
 from integrations.twilio_client import TwilioClient
 from routers.internal import _check_auth as _check_internal_auth, router as internal_router
 from routers.admin    import router as admin_router
+from routers.asclepius import router as asclepius_router
 from routers.onboarding import router as onboarding_router
 from routers.tenant_portal import router as tenant_portal_router
 from routers.eligibility import router as eligibility_router
@@ -5858,6 +5859,7 @@ async def _send_sms(
 # ─── Internal & Admin Tools ───────────────────────────────────
 app.include_router(internal_router)
 app.include_router(admin_router)
+app.include_router(asclepius_router)
 app.include_router(onboarding_router)
 app.include_router(tenant_portal_router)
 app.include_router(eligibility_router)
