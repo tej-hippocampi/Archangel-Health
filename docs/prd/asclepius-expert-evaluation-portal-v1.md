@@ -2,7 +2,7 @@
 
 **Working codename:** Asclepius (formerly "ExpertLoop")
 **Status:** MVP / v0.1 — first revenue product (no PHI)
-**Surfaced as:** a tab under **Population Analytics** in the doctor portal
+**Surfaced as:** its own **separate top-level tab** in the doctor portal, placed directly after the Population Analytics tab (not nested inside it)
 **Code location:** all new code lives in a dedicated `asclepius` folder (`backend/asclepius/` + `frontend/asclepius/`)
 **Last updated:** June 2026
 
@@ -14,7 +14,7 @@ This document is the original ExpertLoop PRD **rewritten to match Archangel Heal
 
 | Concern | Original PRD said | What we actually do here |
 | --- | --- | --- |
-| Frontend | Next.js + React + Tailwind | **Static vanilla HTML/JS/CSS**, served from `frontend/`. Asclepius is its own page at `frontend/asclepius/index.html`, reached via a sub-tab under Population Analytics in `frontend/doctor.html`. The React/Vite/Tailwind stack only exists in the separate marketing `landing/` app and is **not** used here. |
+| Frontend | Next.js + React + Tailwind | **Static vanilla HTML/JS/CSS**, served from `frontend/`. Asclepius is its own page at `frontend/asclepius/index.html`, reached via a **separate top-level nav tab** in `frontend/doctor.html`, positioned directly after the Population Analytics tab in the tab order. The React/Vite/Tailwind stack only exists in the separate marketing `landing/` app and is **not** used here. |
 | Backend | Next.js API routes / Supabase | **FastAPI (Python)**. New endpoints live in `backend/routers/asclepius.py`, mounted in `backend/main.py` exactly like the existing routers. |
 | Database | Supabase / Postgres / Prisma | **SQLite via raw `sqlite3`** following the `team_store.py` pattern. Asclepius gets its **own DB file** (`asclepius.db`, path via `ASCLEPIUS_DB_PATH`) owned by `backend/asclepius/store.py`. Do not add tables to `team.db`. |
 | Auth | Supabase Auth / magic link | **Standalone Asclepius auth** (own user table, own JWT) inside `backend/asclepius/auth.py`. Independent of the clinical RBAC (`auth_roles.py` / tenant JWT). Reuses existing libs already in `requirements.txt` (`PyJWT`, `passlib[bcrypt]`). |
@@ -253,7 +253,7 @@ When `verdict = both_inadequate`:
 
 ## 9. Tech Stack (this repo's actual stack — do not substitute)
 
-- **Frontend:** static HTML/JS/CSS in `frontend/asclepius/`, served from the existing `/static` mount (`app.mount("/static", StaticFiles(directory="../frontend"))` in `main.py`). Reached via a sub-tab under Population Analytics in `frontend/doctor.html` (see §11 Phase 1 for wiring). No build step, no React, no Tailwind.
+- **Frontend:** static HTML/JS/CSS in `frontend/asclepius/`, served from the existing `/static` mount (`app.mount("/static", StaticFiles(directory="../frontend"))` in `main.py`). Reached via its own **separate top-level nav tab** in `frontend/doctor.html`, placed directly after the Population Analytics tab (see §11 Phase 0 for wiring). No build step, no React, no Tailwind.
 - **Backend:** FastAPI router `backend/routers/asclepius.py`, registered in `backend/main.py` alongside the other routers. Business logic in the `backend/asclepius/` package.
 - **DB:** SQLite (`asclepius.db`, `ASCLEPIUS_DB_PATH`) via raw `sqlite3`, `AsclepiusStore` in `backend/asclepius/store.py` following the `team_store.py` pattern (`_conn()`, `_init_schema()` with `executescript`, `row_factory = sqlite3.Row`).
 - **LLM (optional features):** Anthropic Claude via `backend/ai/llm_client.py` `call_llm(role=...)`; add `asclepius_critic` and `asclepius_candidate_gen` to `MODEL_REGISTRY` in `backend/ai/model_config.py` (default `claude-sonnet-4-6`, overridable via `MODEL_ASCLEPIUS_CRITIC` etc.). Prompts in `backend/asclepius/prompts.py`. All calls go through the subprocessor BAA gate.
@@ -313,7 +313,13 @@ frontend/
 
 ## 11. Build Phases (build in order)
 
-**Phase 0 — Folder + wiring.** Create `backend/asclepius/` and `frontend/asclepius/`. Add `routers/asclepius.py`, register in `main.py`. Add a **"Expert Evaluation (Asclepius)" sub-tab under the Population Analytics tab** in `frontend/doctor.html`: add a `<button class="analytics-subtab-btn" data-analytics-tab="asclepius">` and an `#analytics-asclepius` sub-page wired in `setupAnalyticsSubtabs()` that embeds/links `frontend/asclepius/index.html` (e.g. an iframe or a "Open portal" launch). Add env vars to `.env.example`.
+**Phase 0 — Folder + wiring.** Create `backend/asclepius/` and `frontend/asclepius/`. Add `routers/asclepius.py`, register in `main.py`. Add a **separate top-level nav tab** in `frontend/doctor.html` — it is its own tab, **not** a sub-tab of Population Analytics — placed directly after the Population Analytics tab in the tab order:
+- In the main nav (`<nav class="tabs">`, alongside `data-tab="roster|escalation|compliance|analytics"`), add `<button class="tab-btn" data-tab="asclepius">Expert Evaluation</button>` **immediately after** the `analytics` button.
+- Add a matching `<section class="page" id="tab-asclepius">` that embeds/links `frontend/asclepius/index.html` (e.g. an iframe or an "Open portal" launch).
+- It is handled by the existing `setupTabs()` switcher; add a lazy-load guard (like `complianceTabLoaded`) if the portal should load on first open.
+- Add env vars to `.env.example`.
+
+> Note: it lives in `doctor.html` next to Population Analytics for placement only; it is a fully independent tab with its own page, its own data, and its own standalone auth — nothing about it nests inside or depends on Population Analytics.
 
 **Phase 1 — Skeleton:** standalone auth + roles; admin task upload (JSON); evaluator queue; evaluation screen with A/B + verdict + submit; store raw submission in `asclepius.db`. (No packaging yet.)
 
@@ -330,7 +336,7 @@ frontend/
 ---
 
 ## 12. Acceptance Criteria (Definition of Done)
-- The feature is reachable as a sub-tab under **Population Analytics**, and all its code lives in the `asclepius` folders.
+- The feature is reachable as its **own separate top-level tab** (placed directly after Population Analytics, not nested inside it), and all its code lives in the `asclepius` folders.
 - An evaluator completes a task (all four output types supported) in ≤~3 min.
 - Every submission auto-packages into schema-valid training record(s).
 - No record reaches `export_ready` without passing auto-validation **and** the QA gate.
@@ -345,7 +351,7 @@ frontend/
 
 ## 13. Assumptions & Open Questions
 - **Assumption:** prompts/candidate answers are synthetic or de-identified (no PHI). Enforce a PHI scan anyway.
-- **Resolved (per build decisions):** standalone Asclepius auth; separate `asclepius.db`; global internal tool (not tenant-scoped); separate page in the `asclepius` folder surfaced under Population Analytics.
+- **Resolved (per build decisions):** standalone Asclepius auth; separate `asclepius.db`; global internal tool (not tenant-scoped); separate page in the `asclepius` folder surfaced as its **own top-level tab** (placed directly after Population Analytics, not nested inside it).
 - **Open:** does the first buyer (a small AI medical lab) supply their own prompts + model outputs to grade, or do we generate candidates? Support both; **default to lab-supplied** for the first deal.
 - **Open:** double-check policy — start with automated validation + LLM critic + 15% human QA; tune with the buyer (`ASCLEPIUS_QA_SAMPLE_PCT`).
 - **Open:** final export schema — co-design the exact fields with the first buyer before scaling; their eval format defines "optimal." Keep `packaging.py` field-mapping in one place so it's easy to adjust.
