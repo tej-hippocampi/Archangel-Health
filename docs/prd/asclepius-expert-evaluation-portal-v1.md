@@ -106,11 +106,24 @@ Keyboard-friendly and fast; default to the lightest path (pick a side, optional 
 ### 4.2 Optional step-level reasoning (for reasoning-trace tasks)
 For tasks flagged `capture_reasoning: true`, the specialist adds an ordered list of reasoning steps; each step is free text and can be tagged. Produces process-reward-model data. Keep it optional and additive so it never slows the core flow.
 
+### 4.2a Grounding Mode (evidence-anchored premium tier)
+Every task/batch carries a `grounding_mode` (`optional` | `required`); see the data-optimization prompt §1.2 for full spec.
+- **`optional` (default):** citing the clinical guideline/source behind a judgment is additive and never blocks Submit — protects the ≤3-min lightest path.
+- **`required` (premium SKU):** the evaluator must attach at least one valid evidence anchor (to the rationale, and to each reasoning step on reasoning-trace tasks) before Submit is enabled. When this mode is active, the eval screen shows a disclaimer near the verdict: *"⏱️💲 Premium grounded task — it takes a bit more time, but grounded, guideline-cited data sells at a premium, so you earn more per task."* Premium-task counts/time are tracked separately in contributor stats for payout/credit.
+
 ### 4.3 Admin flow
-1. **Load a task batch** — upload JSON/CSV of tasks (`prompt`, `specialty`, `difficulty`, `candidate_answers[]`) **OR** generate two candidate answers from a prompt bank via the LLM (`call_llm(role="asclepius_candidate_gen")`). Buyers (labs) often supply their own prompts + model outputs to be graded — support direct upload of those (default path; see §13).
-2. **Assign / open queue** to evaluators (filter by specialty).
+1. **Load a task batch** — choose the origination mode (see §4.3a):
+   - **From internal prompt bank** (default, day one): upload JSON/CSV of tasks (`prompt`, `specialty`, `difficulty`, `candidate_answers[]`) **OR** generate two candidate answers via the LLM (`call_llm(role="asclepius_candidate_gen")`).
+   - **From a buyer request:** create a batch from a lab's request — grading their uploaded prompts and/or AI responses, or generating to their spec.
+   - Set `grounding_mode`, `capture_reasoning`, specialty/difficulty mix, and target export profile on the batch.
+2. **Assign / open queue** to evaluators (filter by specialty; default specialty = nephrology for the anchor practice).
 3. **Review QA queue** (records flagged by automated checks or sampled for double-check).
-4. **Export** an export-ready batch → JSONL + datasheet + quality report.
+4. **Export** an export-ready batch → JSONL + datasheet + quality report (tied back to the buyer request when applicable).
+
+### 4.3a Dataset origination & buyer-request optionality
+The GTM is **seed-then-expand** (see data-optimization prompt §2.5):
+- **Mode A — internal seed (default):** our **anchor nephrology private practice** annotates tasks from our internal prompt bank to produce the **first sellable dataset**, with zero buyer involvement required.
+- **Mode B — buyer-steered (optionality the lab unlocks):** once engaged, a lab can supply their own **prompts**, their own **AI responses** to be graded, and/or constraints (specialty, difficulty, `capture_reasoning`, `grounding_mode`, volume, export format). Modeled as a first-class **`buyer_request`** object (`draft → accepted → in_progress → delivered`); a batch can be created directly from a request, and every resulting record's provenance is stamped with `source` + request id. Buyer optionality is additive and never gates the seed flow.
 
 ---
 

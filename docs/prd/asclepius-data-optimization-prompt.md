@@ -30,9 +30,24 @@ Do **not** invent schemas. Buyers ingest these and reject anything that needs re
 
 ### 1.2 Guideline-grounded verification = the medical premium
 This is the single biggest differentiator and the reason a doctor-rate hour is worth it (research: Med-PRM, MedPRMBench, 2026 — every reasoning step verified against clinical guidelines/literature).
-- Add an **optional evidence anchor** to: the "why it's better" rationale, each error tag on the rejected answer, and **each reasoning step**. An evidence anchor = `{citation_text, source_type (guideline|primary_literature|expert_consensus|other), identifier (e.g., KDIGO 2024, PMID, DOI, guideline section)}`.
-- Keep it **optional and additive** so it never slows the lightest path — but make capturing it one keystroke (a "cite" affordance per field).
+- Add an evidence anchor to: the "why it's better" rationale, each error tag on the rejected answer, and **each reasoning step**. An evidence anchor = `{citation_text, source_type (guideline|primary_literature|expert_consensus|other), identifier (e.g., KDIGO 2024, PMID, DOI, guideline section)}`.
+- Make capturing it one keystroke (a "cite" affordance per field).
 - Records carrying evidence anchors get a `grounded: true` flag and are exportable as a **premium tier** the exporter can filter to. This is what we upsell to frontier labs.
+
+#### Grounding Mode — explicit toggle (REQUIRED feature)
+Grounding is **configurable per task or per batch** via a `grounding_mode` setting, set by the admin when loading/assigning a batch and overridable per task:
+- **`optional` (default):** evidence anchors are additive and never block submit. Protects the ≤3-min lightest path. Standard-tier data.
+- **`required` (premium SKU):** the evaluator **must** attach at least one valid evidence anchor to the rationale (and, on reasoning-trace tasks, to each step) before Submit is enabled. Produces the grounded premium tier end-to-end.
+
+When `grounding_mode = required` is selected (by admin on a batch, or shown to the evaluator when they open such a task), display this **disclaimer** prominently on the evaluation screen, near the verdict buttons:
+
+> **⏱️💲 Premium grounded task.** This task asks you to cite the clinical guideline or source behind your judgment. It takes a bit more time per task — but grounded, guideline-cited data sells at a premium, so **you earn more per task**. Your effort and citations are tracked and credited.
+
+Build details:
+- Store `grounding_mode` on the task and stamp the actual `grounded` result on every record.
+- The disclaimer copy lives in one place (a config constant) so it is easy to tune; show it only in `required` mode.
+- Track premium-task completion separately in contributor stats (counts + time) so payout/credit reflects the higher-value work.
+- Submit-gating in `required` mode must be clear (disabled Submit + inline "add a citation to continue" hint), never a silent failure.
 
 ### 1.3 Inter-annotator agreement, computed and surfaced
 Buyers ask for it; the industry threshold is **Cohen's κ > 0.7** (substantial agreement).
@@ -63,6 +78,28 @@ The first buyer's eval format *is* the spec. Do **not** hardcode field names int
 
 ---
 
+## 2.5 Dataset origination & buyer-request optionality (REQUIRED feature)
+
+The GTM is **seed-then-expand**: we produce an **initial dataset ourselves** to put in a lab's hands, build the relationship, then let the lab **steer subsequent batches** by supplying their own prompts and/or AI responses. The product must support both, and the hand-off between them must be frictionless.
+
+**Mode A — internal seed (default, day one).** Tasks come from our **internal prompt bank**, annotated by our **anchor nephrology private practice** first. Specialty defaults to nephrology; the prompt bank, candidate-answer generation (`call_llm(role="asclepius_candidate_gen")`), and assignment all work without any buyer involvement. This is how we create the first sellable dataset to send cold.
+
+**Mode B — buyer-supplied / buyer-steered (optionality the lab unlocks).** Once a lab is engaged, they can request specifics and we ingest them as first-class tasks:
+- **Buyer-supplied prompts** — the lab uploads their own clinical prompts to be graded.
+- **Buyer-supplied AI responses** — the lab uploads specific model outputs (their candidate A/B answers) they want a credentialed specialist to evaluate.
+- **Buyer-specified constraints** — specialty, difficulty mix, `capture_reasoning`, `grounding_mode` (e.g., "we want grounded reasoning traces in nephrology"), volume, and target export profile.
+
+**Build this as a "Buyer Request" object**, not an ad-hoc upload:
+- `backend/asclepius` models a `buyer` and a `buyer_request` (status: `draft → accepted → in_progress → delivered`). Each request carries its task source (`internal_prompt_bank` | `lab_supplied`), the uploaded prompts/responses (if any), the requested constraints above, and a link to the buyer export profile (§2).
+- Admin can spin up a batch **from a buyer request** in one step; tasks inherit the request's constraints (including `grounding_mode`).
+- A request with no uploaded content but with constraints = "generate to this spec from our bank" (still our prompts, their spec). A request with uploaded prompts/responses = grade exactly what they sent.
+- The exporter ties a delivered batch back to its `buyer_request` and stamps `source` + request id into every record's provenance, so a lab can see exactly which of their asks each record answers.
+- Keep the **default zero-friction**: if no buyer request exists, Mode A just works. Buyer optionality is additive — it never gates the seed flow.
+
+Surface this in the admin UI as: **"New batch → from internal bank"** or **"from buyer request"** (with sub-options: upload prompts, upload prompts + responses, or spec-only).
+
+---
+
 ## 3. Optimize the expert's time (value density)
 
 Premium data comes from deep reasoning, not speed (research: AfterQuery and reasoning-task buyers reward quality/depth). But our throughput depends on the ≤3-min flow. Reconcile both:
@@ -85,8 +122,10 @@ When implementing the PRD phases, additionally do all of the following:
 6. **Export (`export.py`):** buyer-profile field mapper + filters + per-line schema validation + `datasheet.md` / `data_dictionary.md` / `quality_report.md` generation + provenance log entry + manifest (`batch.json` with counts, hashes, profile, filters used).
 7. **Quality report must include:** total records by type, grounded %, Cohen's κ (aggregate + by specialty), QA pass rate, time-floor/too-fast flag count, dedup/contamination flag count, contributor breakdown (credential mix, hours, counts).
 8. **Buyer profiles directory:** `backend/asclepius/buyer_profiles/` with `default.json` and a documented template; first-buyer profile added when their format lands.
-9. **Keep PHI defense on** even though prompts are synthetic/de-identified: run the PHI scan, route any hit to QA, and gate any LLM call through the existing subprocessor BAA path.
-10. **Tests (`backend/tests/test_asclepius_*.py`):** golden-file tests that a known submission produces byte-stable canonical JSONL; a κ computation test; a contamination/dedup test; an export-schema-validation test; a "lightest path still ≤ N fields" guard.
+9. **Grounding Mode toggle (§1.2):** `grounding_mode` (`optional` | `required`) on task/batch; submit-gating + the earn-more disclaimer in `required` mode; premium-task tracking in contributor stats.
+10. **Buyer Request optionality (§2.5):** `buyer` + `buyer_request` objects; "new batch from internal bank | from buyer request" admin flow; ingest buyer-supplied prompts and/or AI responses; stamp `source` + request id into provenance; Mode A (internal nephrology seed) works with zero buyer involvement.
+11. **Keep PHI defense on** even though prompts are synthetic/de-identified: run the PHI scan, route any hit to QA, and gate any LLM call through the existing subprocessor BAA path.
+12. **Tests (`backend/tests/test_asclepius_*.py`):** golden-file tests that a known submission produces byte-stable canonical JSONL; a κ computation test; a contamination/dedup test; an export-schema-validation test; a `grounding_mode=required` submit-gating test; a buyer-request → batch provenance test; a "lightest path still ≤ N fields" guard.
 
 ---
 
@@ -104,7 +143,7 @@ A batch is buyer-ready when:
 
 ## 6. One-paragraph version (if you only read one thing)
 
-Build Asclepius so that the instant a credentialed specialist submits, we emit the **maximum** correctly-formatted training signal — `hh-rlhf` preference pairs, `{prompt, completion}` SFT, and **PRM800K-style per-step-labeled reasoning traces** — each optionally **grounded in a cited clinical guideline** (our medical premium), each carrying **expert credential + full provenance + license attestation**, each **deduped, contamination-checked, PHI-scanned**, with **Cohen's κ inter-annotator agreement** computed on a double-labeled subset and surfaced in a **Datasheets-for-Datasets-style datasheet + data dictionary + quality report**, exported through a **per-buyer configurable field-mapper** so the first lab — and later Mercor/Surge/frontier labs — ingest it with zero rework. Keep the evaluator's lightest path ≤3 minutes; make every premium capture one optional keystroke.
+Build Asclepius so that the instant a credentialed specialist submits, we emit the **maximum** correctly-formatted training signal — `hh-rlhf` preference pairs, `{prompt, completion}` SFT, and **PRM800K-style per-step-labeled reasoning traces** — each optionally **grounded in a cited clinical guideline** (our medical premium), each carrying **expert credential + full provenance + license attestation**, each **deduped, contamination-checked, PHI-scanned**, with **Cohen's κ inter-annotator agreement** computed on a double-labeled subset and surfaced in a **Datasheets-for-Datasets-style datasheet + data dictionary + quality report**, exported through a **per-buyer configurable field-mapper** so the first lab — and later Mercor/Surge/frontier labs — ingest it with zero rework. Support a **Grounding Mode toggle** (`optional` default vs `required` premium SKU, with an "earn-more" disclaimer to the doctor when required), and a **seed-then-expand** origination model: our anchor **nephrology private practice** produces the initial dataset from our internal bank with zero buyer involvement, while a first-class **buyer-request** object lets engaged labs steer later batches with their own prompts, their own AI responses, and constraints. Keep the evaluator's lightest path ≤3 minutes; make every premium capture one optional keystroke.
 
 ---
 
