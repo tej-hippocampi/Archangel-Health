@@ -10,6 +10,7 @@ from .preop import PREOP_VOICE_PROMPT, PREOP_BATTLECARD_PROMPT
 from .postop import POSTOP_VOICE_PROMPT, POSTOP_BATTLECARD_PROMPT
 from .avatar import AVATAR_BEHAVIOR_TEMPLATE
 from .eligibility import ELIGIBILITY_SYSTEM_PROMPT
+from .gold import GOLD_DRAFT_NOTE_SYSTEM, GOLD_DEID_SYSTEM
 from asclepius.prompts import (
     ASCLEPIUS_CRITIC_SYSTEM,
     ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
@@ -222,6 +223,22 @@ PROMPT_REGISTRY: dict = {
         ),
         "file": "backend/intake_section_chat.py",
         "variable": "INTAKE_SYSTEM_TEMPLATE",
+        "type": "system",
+        "version": "1.0.0",
+    },
+    "gold_draft_note": {
+        "label": "Gold Standard — Draft Clinical Note",
+        "content": GOLD_DRAFT_NOTE_SYSTEM,
+        "file": "backend/prompts/gold.py",
+        "variable": "GOLD_DRAFT_NOTE_SYSTEM",
+        "type": "system",
+        "version": "1.0.0",
+    },
+    "gold_deid": {
+        "label": "Gold Standard — PHI De-identification",
+        "content": GOLD_DEID_SYSTEM,
+        "file": "backend/prompts/gold.py",
+        "variable": "GOLD_DEID_SYSTEM",
         "type": "system",
         "version": "1.0.0",
     },

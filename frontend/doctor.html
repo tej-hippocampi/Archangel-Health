@@ -118,6 +118,18 @@
     .tab-btn:hover { color: #0f172a; }
     .tab-btn.active { color: var(--accent); border-left-color: var(--accent); background: #f8fbff; }
 
+    /* ── Data Training tab (Asclepius + Gold Standard launchers) ─────────── */
+    .dt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; max-width: 760px; }
+    .dt-card { text-align: left; display: flex; flex-direction: column; gap: 8px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; cursor: pointer; transition: box-shadow .15s, border-color .15s, transform .05s; font: inherit; }
+    .dt-card:hover:not(.dt-card-disabled) { border-color: var(--accent, #2563eb); box-shadow: 0 6px 20px rgba(37,99,235,.10); }
+    .dt-card:active:not(.dt-card-disabled) { transform: translateY(1px); }
+    .dt-card-icon { font-size: 28px; }
+    .dt-card-title { font-size: 18px; font-weight: 700; color: #0f172a; }
+    .dt-card-sub { font-size: 13px; color: #64748b; line-height: 1.5; }
+    .dt-card-cta { margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--accent, #2563eb); }
+    .dt-card-disabled { cursor: not-allowed; opacity: .6; background: #f8fafc; }
+    .dt-card-cta-muted { color: #94a3b8; }
+
     .sidebar-bottom { margin-top: auto; }
     .signout-link {
       font-size: 12px; font-weight: 600; color: var(--muted); text-decoration: none;
@@ -1527,6 +1539,7 @@
         <button class="tab-btn" data-tab="escalation">Intervention Log</button>
         <button class="tab-btn" data-tab="compliance">AI Security and Compliance</button>
         <button class="tab-btn" data-tab="analytics">Population Analytics</button>
+        <button class="tab-btn" data-tab="data-training">Data Training</button>
       </nav>
 
       <div class="sidebar-bottom">
@@ -1758,6 +1771,30 @@
                 </thead>
                 <tbody id="analyticsTableBody"></tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Data Training: launchers for the expert-data products (Asclepius live; Gold Standard placeholder) -->
+      <section class="page" id="tab-data-training">
+        <div style="padding: 24px 28px;">
+          <h1 class="page-title">Data Training</h1>
+          <p style="color:#64748b; margin:4px 0 24px; max-width:680px;">
+            Tools for turning clinical expertise into AI training data. Open a workspace below.
+          </p>
+          <div class="dt-grid">
+            <button type="button" class="dt-card" onclick="window.open('/asclepius','_blank','noopener')">
+              <div class="dt-card-icon">⚕️</div>
+              <div class="dt-card-title">Asclepius</div>
+              <div class="dt-card-sub">Evaluate, annotate, and edit AI prompts &amp; responses — pick the better answer, revise it, or write the ideal answer. Exported as frontier-lab-ready training data.</div>
+              <div class="dt-card-cta">Open Asclepius →</div>
+            </button>
+            <div class="dt-card dt-card-disabled" aria-disabled="true" title="Coming soon">
+              <div class="dt-card-icon">🥇</div>
+              <div class="dt-card-title">Gold Standard</div>
+              <div class="dt-card-sub">Capture and refine gold-standard clinical conversations and notes. Backend is in place; the interface is coming soon.</div>
+              <div class="dt-card-cta dt-card-cta-muted">Coming soon</div>
             </div>
           </div>
         </div>

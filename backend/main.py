@@ -5898,6 +5898,18 @@ app.include_router(messaging_router)
 app.include_router(telehealth_router)
 app.include_router(asclepius_router)
 
+# Gold Standard — conversation-capture training data (Data Training tab). Mounted
+# defensively: a missing optional dependency disables Gold rather than crashing
+# app boot (the UI box is a disabled placeholder for now; backend lives here).
+try:
+    from routers.gold import router as gold_router
+    app.include_router(gold_router)
+except Exception:  # pragma: no cover - defensive
+    import logging as _gold_log
+    _gold_log.getLogger("gold.boot").warning(
+        "Gold Standard router disabled (optional dependency missing)", exc_info=True
+    )
+
 
 @app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)
 async def prompt_lab_page():

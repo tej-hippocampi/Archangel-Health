@@ -15,6 +15,10 @@ MODEL_REGISTRY: dict[str, dict[str, Any]] = {
     "care_companion_chat": {"model": "claude-sonnet-4-6", "temperature": None, "max_tokens": 350},
     "avatar_chat": {"model": "claude-sonnet-4-6", "temperature": None, "max_tokens": 150},
     "grounding_judge": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1500},
+    # Gold Standard — conversation capture (Data Training tab). Draft-note +
+    # Safe-Harbor de-identification. Overridable via MODEL_GOLD_DRAFT_NOTE / MODEL_GOLD_DEID.
+    "gold_draft_note": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 2000},
+    "gold_deid": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 4000},
     # Asclepius — Expert Evaluation Portal (PRD §9). Overridable via
     # MODEL_ASCLEPIUS_CRITIC / MODEL_ASCLEPIUS_CANDIDATE_GEN.
     "asclepius_critic": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1500},

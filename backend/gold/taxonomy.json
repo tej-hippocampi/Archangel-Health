@@ -1,0 +1,64 @@
+{
+  "version": "1.1.0",
+  "severities": ["low", "medium", "high"],
+  "sections": ["subjective", "objective", "assessment", "plan", "billing", "other"],
+  "workflow_tasks": ["note_generation", "icd10_coding", "cpt_coding", "prior_auth", "referral", "patient_instructions"],
+  "difficulty_tags": [
+    "background_noise",
+    "translator_present",
+    "accent",
+    "non_english",
+    "surgical_jargon",
+    "renal_jargon",
+    "fast_speech",
+    "multiple_speakers"
+  ],
+  "types": [
+    {
+      "type": "medication_error",
+      "label": "Medication error",
+      "subtypes": [
+        "missed_med",
+        "added_med_not_discussed",
+        "wrong_dose",
+        "drug_discontinued_but_model_continued",
+        "wrong_frequency"
+      ]
+    },
+    {
+      "type": "hallucination",
+      "label": "Hallucination",
+      "subtypes": []
+    },
+    {
+      "type": "omission",
+      "label": "Omission",
+      "subtypes": []
+    },
+    {
+      "type": "wrong_laterality_or_site",
+      "label": "Wrong laterality / site",
+      "subtypes": []
+    },
+    {
+      "type": "diagnosis_error",
+      "label": "Diagnosis error",
+      "subtypes": []
+    },
+    {
+      "type": "billing_code_error",
+      "label": "Billing code error",
+      "subtypes": []
+    },
+    {
+      "type": "factual_value_error",
+      "label": "Factual value error",
+      "subtypes": []
+    },
+    {
+      "type": "other",
+      "label": "Other",
+      "subtypes": []
+    }
+  ]
+}
