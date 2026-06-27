@@ -1,0 +1,184 @@
+"""Packaging + canonical-format tests (opt §1.1, §4.12).
+
+Golden-file byte-stable JSONL for a known submission across all three canonical
+formats (hh-rlhf preference flat + chat, {prompt, completion} SFT, PRM800K
+reasoning trace), plus the grounded premium-tier flag.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from asclepius import profiles  # noqa: E402
+from asclepius.packaging import package_submission  # noqa: E402
+
+
+def _task(**kw):
+    base = {
+        "task_id": "t-neph-00231",
+        "specialty": "nephrology",
+        "difficulty": "hard",
+        "capture_reasoning": False,
+        "source": "lab_supplied",
+        "buyer_request_id": None,
+        "prompt": "72yo on HD, K+ 6.4 with peaked T-waves. Adjust dialysate and meds?",
+        "candidate_answers": [
+            {"id": "A", "text": "Lower dialysate K+ to 2.0, give calcium gluconate, then dialyze.", "generator_model": "model_x"},
+            {"id": "B", "text": "Set dialysate K+ to 1.0 immediately and start insulin-dextrose.", "generator_model": "model_y"},
+        ],
+    }
+    base.update(kw)
+    return base
+
+
+def _submission(payload, **kw):
+    base = {
+        "submission_id": "s-00231-7c2a",
+        "task_id": "t-neph-00231",
+        "verdict": payload.get("verdict"),
+        "chosen_id": payload.get("chosen_id"),
+        "rejected_id": payload.get("rejected_id"),
+        "confidence": payload.get("confidence", "high"),
+        "agreement_score": None,
+        "created_at": "2026-06-26T12:00:00",
+        "annotator": {
+            "id_hashed": "a91f0000deadbeef",
+            "credentials": "board_certified_nephrology",
+            "specialty": "nephrology",
+            "years_experience": 12,
+        },
+        "payload": payload,
+    }
+    base.update(kw)
+    return base
+
+
+def test_preference_flat_and_chat_variants():
+    payload = {
+        "verdict": "A_better",
+        "chosen_id": "A",
+        "rejected_id": "B",
+        "confidence": "high",
+        "chosen_revision": {"edited": False, "revised_text": None, "why_better_tags": ["safer", "better_dosing"], "why_better_notes": "B over-lowers dialysate K+, arrhythmia risk"},
+        "rejected_critique": {"error_tags": ["dosing_error", "unsafe_recommendation"], "severities": {"dosing_error": "high"}, "why_worse": "dialysate K+ 1.0 is too aggressive"},
+    }
+    recs = package_submission(_task(), _submission(payload))
+    pref = [r for r in recs if r["type"] == "preference"]
+    assert len(pref) == 1
+    p = pref[0]
+    # flat hh-rlhf
+    assert p["prompt"].startswith("72yo on HD")
+    assert "calcium gluconate" in p["chosen"]
+    assert "dialysate K+ to 1.0" in p["rejected"]
+    assert p["error_tags_on_rejected"] == ["dosing_error", "unsafe_recommendation"]
+    assert p["rationale"]
+    # chat hh-rlhf variant message arrays present
+    assert p["chosen_messages"][0]["role"] == "user"
+    assert p["chosen_messages"][1]["role"] == "assistant"
+    # provenance + attestation
+    assert p["annotator_credential"] == "board_certified_nephrology"
+    assert p["license"] and p["ip_cleared"] is True and p["contains_phi"] is False
+    assert p["source"] == "lab_supplied"
+
+    # chat profile maps chosen/rejected to message arrays
+    prof = dict(profiles.load_profile("default"))
+    prof["preference_variant"] = "chat"
+    mapped = profiles.map_record(prof, p)
+    assert isinstance(mapped["chosen"], list) and mapped["chosen"][0]["role"] == "user"
+    assert isinstance(mapped["rejected"], list)
+    assert profiles.validate_against_schema(mapped, profiles.schema_for(prof, "preference")) == []
+
+
+def test_revised_chosen_yields_sft_ideal_answer():
+    payload = {
+        "verdict": "B_better",
+        "chosen_id": "B",
+        "rejected_id": "A",
+        "confidence": "medium",
+        "chosen_revision": {"edited": True, "revised_text": "Confirm ECG, give calcium, then dialyze with K+ 2.0.", "why_better_tags": ["safer"], "why_better_notes": "corrected dialysate target"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "severities": {}, "why_worse": "too aggressive"},
+    }
+    recs = package_submission(_task(), _submission(payload))
+    sft = [r for r in recs if r["type"] == "ideal_answer"]
+    assert len(sft) == 1
+    s = sft[0]
+    # {prompt, completion} SFT alias (completion mirrors ideal_answer)
+    assert s["completion"] == s["ideal_answer"] == "Confirm ECG, give calcium, then dialyze with K+ 2.0."
+    assert s["messages"][1]["role"] == "assistant"
+
+
+def test_both_inadequate_emits_ideal_and_prm800k_trace():
+    payload = {
+        "verdict": "both_inadequate",
+        "confidence": "high",
+        "from_scratch": {
+            "ideal_answer": "Stabilize the membrane with calcium, shift K+, then dialyze.",
+            "approach_notes": "confirm ECG first",
+            "reasoning_steps": [
+                {"step": 1, "text": "Assess ECG for instability", "label": "good", "step_reward": 1.0},
+                {"step": 2, "text": "Give IV calcium for membrane stabilization", "label": "good"},
+                {"step": 3, "text": "Then dialyze", "label": "neutral", "step_reward": 0.5},
+            ],
+        },
+    }
+    recs = package_submission(_task(), _submission(payload))
+    types = sorted(r["type"] for r in recs)
+    assert types == ["ideal_answer", "reasoning_trace"]
+    trace = [r for r in recs if r["type"] == "reasoning_trace"][0]
+    # PRM800K-style: ordered steps, each independently labeled good|neutral|bad
+    assert [s["step"] for s in trace["steps"]] == [1, 2, 3]
+    assert [s["label"] for s in trace["steps"]] == ["good", "good", "neutral"]
+    assert trace["steps"][0]["step_reward"] == 1.0
+
+
+def test_grounded_flag_set_when_anchor_valid():
+    anchor = {"citation_text": "KDIGO 2024 hyperkalemia", "source_type": "guideline", "identifier": "KDIGO-2024-3.2"}
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "chosen_revision": {"edited": False, "why_better_notes": "safer dosing", "why_better_tags": ["safer"], "evidence_anchor": anchor},
+        "rejected_critique": {"error_tags": ["dosing_error"], "severities": {}, "why_worse": "too aggressive"},
+    }
+    recs = package_submission(_task(), _submission(payload))
+    p = [r for r in recs if r["type"] == "preference"][0]
+    assert p["grounded"] is True
+    assert p["evidence_anchor"]["identifier"] == "KDIGO-2024-3.2"
+
+    # ungrounded when no anchor
+    payload["chosen_revision"].pop("evidence_anchor")
+    recs2 = package_submission(_task(), _submission(payload))
+    assert [r for r in recs2 if r["type"] == "preference"][0]["grounded"] is False
+
+
+def test_canonical_jsonl_is_byte_stable():
+    """A known submission produces byte-identical canonical JSONL across runs
+    (opt §4.12 golden-file guarantee)."""
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "chosen_revision": {"edited": False, "why_better_notes": "B over-lowers K+", "why_better_tags": ["safer"]},
+        "rejected_critique": {"error_tags": ["dosing_error"], "severities": {}, "why_worse": "too aggressive"},
+    }
+    prof = profiles.load_profile("default")
+
+    def serialize():
+        recs = package_submission(_task(), _submission(payload))
+        lines = []
+        for r in recs:
+            mapped = profiles.map_record(prof, r)
+            if mapped is None:
+                continue
+            assert profiles.validate_against_schema(mapped, profiles.schema_for(prof, r["type"])) == []
+            lines.append(json.dumps(mapped, ensure_ascii=False, sort_keys=True))
+        return "\n".join(lines)
+
+    first = serialize()
+    second = serialize()
+    assert first == second  # deterministic, byte-stable
+    # sanity: the preference line round-trips and carries the premium provenance
+    obj = json.loads(first.splitlines()[0])
+    assert obj["type"] == "preference"
+    assert obj["annotator_credential"] == "board_certified_nephrology"
+    assert obj["taxonomy_version"] and obj["config_version"]

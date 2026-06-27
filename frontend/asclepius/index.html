@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asclepius — Expert Evaluation Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/asclepius/asclepius.css" />
+</head>
+<body class="asc-body">
+  <!-- App header -->
+  <header class="asc-header" id="ascHeader" hidden>
+    <div class="asc-header-inner">
+      <a class="asc-logo" href="/asclepius">
+        <span class="asc-logo-mark" aria-hidden="true">⚕</span>
+        <span class="asc-logo-text">Asclepius<span class="asc-logo-sub">Expert Evaluation Portal</span></span>
+      </a>
+      <nav class="asc-nav" id="ascNav" aria-label="Primary"></nav>
+      <div class="asc-header-right">
+        <div class="asc-user-badge" id="ascUserBadge"></div>
+        <button type="button" class="asc-btn asc-btn-ghost asc-btn-sm" id="ascLogoutBtn">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="asc-main" id="ascRoot" aria-live="polite">
+    <div class="asc-loading-screen">
+      <div class="loading-spinner"></div>
+      <p>Loading Asclepius…</p>
+    </div>
+  </main>
+
+  <!-- Toast region -->
+  <div class="asc-toast-region" id="ascToasts" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="/static/asclepius/asclepius.js" defer></script>
+</body>
+</html>

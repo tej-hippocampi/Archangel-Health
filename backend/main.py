@@ -70,6 +70,7 @@ from routers.teachback import router as teachback_router
 from routers.triage_explain import router as triage_explain_router
 from routers.messaging import router as messaging_router
 from routers.telehealth import router as telehealth_router
+from routers.asclepius import router as asclepius_router
 from eligibility import store as elig_store
 import demo_credentials
 import field_crypto
@@ -210,6 +211,19 @@ _patient_store: dict = {}
 app.state.patient_store = _patient_store
 _team_store = TeamStore()
 app.state.team_store = _team_store
+
+# ─── Asclepius — Expert Evaluation Portal (standalone, isolated) ──────────────
+# Own SQLite DB + own auth; never touches team.db or the clinical RBAC.
+try:
+    from asclepius.store import get_store as _get_asclepius_store
+    from asclepius.auth import seed_default_admin as _seed_asclepius_admin
+
+    _asclepius_store = _get_asclepius_store()
+    app.state.asclepius_store = _asclepius_store
+    _seed_asclepius_admin(_asclepius_store)
+except Exception:
+    _logging_boot = __import__("logging").getLogger("asclepius.boot")
+    _logging_boot.warning("Asclepius store init failed; portal disabled", exc_info=True)
 
 
 import logging as _logging
@@ -2371,6 +2385,19 @@ async def doctor_portal_app(request: Request):
     if "admin." in host:
         return RedirectResponse(url="/admin", status_code=301)
     html_path = os.path.join(os.path.dirname(__file__), "../frontend/doctor.html")
+    with open(html_path) as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/asclepius", response_class=HTMLResponse)
+async def asclepius_portal():
+    """Asclepius — Expert Evaluation Portal (standalone page, own auth).
+
+    The HTML shell is served unauthenticated by design (like /doctor); the page
+    JS gates on an Asclepius token and shows its own login. Reached as its own
+    top-level tab in the doctor portal (embedded via iframe) or directly. Static
+    assets load from /static/asclepius/. No PHI."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/index.html")
     with open(html_path) as f:
         return HTMLResponse(content=f.read())
 
@@ -5869,6 +5896,7 @@ app.include_router(teachback_router)
 app.include_router(triage_explain_router)
 app.include_router(messaging_router)
 app.include_router(telehealth_router)
+app.include_router(asclepius_router)
 
 
 @app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)

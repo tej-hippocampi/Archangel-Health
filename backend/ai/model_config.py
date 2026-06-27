@@ -15,6 +15,20 @@ MODEL_REGISTRY: dict[str, dict[str, Any]] = {
     "care_companion_chat": {"model": "claude-sonnet-4-6", "temperature": None, "max_tokens": 350},
     "avatar_chat": {"model": "claude-sonnet-4-6", "temperature": None, "max_tokens": 150},
     "grounding_judge": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1500},
+    # Asclepius — Expert Evaluation Portal (PRD §9). Overridable via
+    # MODEL_ASCLEPIUS_CRITIC / MODEL_ASCLEPIUS_CANDIDATE_GEN.
+    "asclepius_critic": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1500},
+    "asclepius_candidate_gen": {"model": "claude-sonnet-4-6", "temperature": 0.3, "max_tokens": 2000},
+    "asclepius_grounding": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1200},
+    # Asclepius Seedmaker auto-generation (nephrology PRD §11). "Current Claude
+    # model" is expressed via the registry + env override, never hardcoded in
+    # logic. Prompt synthesis + judging default to the strongest model
+    # (claude-opus-4-8) for highest-quality, high-value prompts; override via
+    # MODEL_ASCLEPIUS_PROMPT_GEN / _JUDGE (e.g. to claude-sonnet-4-6) if cost or
+    # availability requires it. Candidate generation intentionally stays on the
+    # current/non-max model so realistic, revisable errors are more likely (PRD §7.2).
+    "asclepius_prompt_gen": {"model": "claude-opus-4-8", "temperature": 0.7, "max_tokens": 2000},
+    "asclepius_prompt_judge": {"model": "claude-opus-4-8", "temperature": 0.0, "max_tokens": 800},
 }
 
 _LEGACY_ENV = {"intraop_extract": "INTRAOP_EXTRACTOR_MODEL"}

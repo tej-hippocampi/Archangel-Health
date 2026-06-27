@@ -10,6 +10,13 @@ from .preop import PREOP_VOICE_PROMPT, PREOP_BATTLECARD_PROMPT
 from .postop import POSTOP_VOICE_PROMPT, POSTOP_BATTLECARD_PROMPT
 from .avatar import AVATAR_BEHAVIOR_TEMPLATE
 from .eligibility import ELIGIBILITY_SYSTEM_PROMPT
+from asclepius.prompts import (
+    ASCLEPIUS_CRITIC_SYSTEM,
+    ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
+    ASCLEPIUS_GROUNDING_SYSTEM,
+    ASCLEPIUS_PROMPT_GEN_SYSTEM,
+    ASCLEPIUS_PROMPT_JUDGE_SYSTEM,
+)
 from .system import SEMANTIC_ESCALATION_PROMPT
 from pipeline.grounding_check import GROUNDING_JUDGE_PROMPT
 from pipeline.teachback_grade import TEACHBACK_JUDGE_PROMPT
@@ -215,6 +222,46 @@ PROMPT_REGISTRY: dict = {
         ),
         "file": "backend/intake_section_chat.py",
         "variable": "INTAKE_SYSTEM_TEMPLATE",
+        "type": "system",
+        "version": "1.0.0",
+    },
+    "asclepius_critic": {
+        "label": "Asclepius — Evaluation Consistency Critic",
+        "content": ASCLEPIUS_CRITIC_SYSTEM,
+        "file": "backend/asclepius/prompts.py",
+        "variable": "ASCLEPIUS_CRITIC_SYSTEM",
+        "type": "system",
+        "version": "1.0.0",
+    },
+    "asclepius_candidate_gen": {
+        "label": "Asclepius — Candidate Answer Generation",
+        "content": ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
+        "file": "backend/asclepius/prompts.py",
+        "variable": "ASCLEPIUS_CANDIDATE_GEN_SYSTEM",
+        "type": "system",
+        "version": "2.0.0",
+    },
+    "asclepius_prompt_gen": {
+        "label": "Asclepius Seedmaker — Prompt Generation (nephrology)",
+        "content": ASCLEPIUS_PROMPT_GEN_SYSTEM,
+        "file": "backend/asclepius/prompts.py",
+        "variable": "ASCLEPIUS_PROMPT_GEN_SYSTEM",
+        "type": "system",
+        "version": "1.0.0",
+    },
+    "asclepius_prompt_judge": {
+        "label": "Asclepius Seedmaker — Prompt / Error-Likelihood Judge",
+        "content": ASCLEPIUS_PROMPT_JUDGE_SYSTEM,
+        "file": "backend/asclepius/prompts.py",
+        "variable": "ASCLEPIUS_PROMPT_JUDGE_SYSTEM",
+        "type": "system",
+        "version": "1.0.0",
+    },
+    "asclepius_grounding": {
+        "label": "Asclepius — Evidence Grounding Check",
+        "content": ASCLEPIUS_GROUNDING_SYSTEM,
+        "file": "backend/asclepius/prompts.py",
+        "variable": "ASCLEPIUS_GROUNDING_SYSTEM",
         "type": "system",
         "version": "1.0.0",
     },

@@ -1,0 +1,56 @@
+{
+  "__doc__": [
+    "Buyer export profile template (opt §2). Copy this file to <buyer>.json and",
+    "edit. Reformatting for a new buyer is a CONFIG change, never a code change.",
+    "",
+    "Keys:",
+    "  name               : profile id (must match the filename without .json).",
+    "  description        : free text for the datasheet.",
+    "  preference_variant : 'flat' (prompt/chosen/rejected strings) or 'chat'",
+    "                       (chosen/rejected as hh-rlhf messages arrays).",
+    "  record_types       : which canonical record types to emit for this buyer.",
+    "  field_maps         : per-record-type {our_canonical_field: their_field}.",
+    "                       For 'preference' supply BOTH a 'flat' and a 'chat'",
+    "                       sub-map (the exporter picks one via preference_variant).",
+    "                       Canonical source fields available per type:",
+    "                         preference: type, prompt, chosen, rejected,",
+    "                           chosen_messages, rejected_messages, context,",
+    "                           rationale, evidence_anchor, why_better_tags,",
+    "                           error_tags_on_rejected, error_tag_anchors,",
+    "                           error_severities, confidence, grounded,",
+    "                           agreement_score, + all provenance fields.",
+    "                         ideal_answer: type, prompt, completion, ideal_answer,",
+    "                           messages, approach_notes, evidence_anchor, context,",
+    "                           confidence, grounded, + provenance.",
+    "                         reasoning_trace: type, prompt, steps, final_answer,",
+    "                           context, grounded, + provenance.",
+    "                       Provenance fields (every type): annotator_credential,",
+    "                         annotator_specialty, annotator_years_experience,",
+    "                         annotator_id_hashed, submission_id, task_id, source,",
+    "                         buyer_request_id, taxonomy_version, config_version,",
+    "                         license, ip_cleared, contains_phi, captured_at.",
+    "  schemas            : per-record-type JSON Schema (minimal subset: type,",
+    "                       required, properties, enum, items). EVERY emitted line",
+    "                       is validated against the target schema BEFORE writing;",
+    "                       one invalid line fails the whole batch loudly.",
+    "                       For 'preference' supply both 'flat' and 'chat' schemas."
+  ],
+  "name": "example_buyer",
+  "description": "Example buyer profile — rename and edit.",
+  "preference_variant": "flat",
+  "record_types": ["preference", "ideal_answer"],
+  "field_maps": {
+    "preference": {
+      "flat": {"prompt": "prompt", "chosen": "chosen", "rejected": "rejected", "annotator_credential": "expert", "license": "license", "ip_cleared": "ip_cleared", "contains_phi": "contains_phi", "type": "type"},
+      "chat": {"chosen_messages": "chosen", "rejected_messages": "rejected", "annotator_credential": "expert", "license": "license", "ip_cleared": "ip_cleared", "contains_phi": "contains_phi", "type": "type"}
+    },
+    "ideal_answer": {"prompt": "instruction", "completion": "response", "annotator_credential": "expert", "license": "license", "ip_cleared": "ip_cleared", "contains_phi": "contains_phi", "type": "type"}
+  },
+  "schemas": {
+    "preference": {
+      "flat": {"type": "object", "required": ["prompt", "chosen", "rejected"], "properties": {"prompt": {"type": "string"}, "chosen": {"type": "string"}, "rejected": {"type": "string"}}},
+      "chat": {"type": "object", "required": ["chosen", "rejected"], "properties": {"chosen": {"type": "array"}, "rejected": {"type": "array"}}}
+    },
+    "ideal_answer": {"type": "object", "required": ["instruction", "response"], "properties": {"instruction": {"type": "string"}, "response": {"type": "string"}}}
+  }
+}

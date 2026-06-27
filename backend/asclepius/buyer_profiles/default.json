@@ -1,0 +1,181 @@
+{
+  "name": "default",
+  "description": "Archangel canonical export profile. hh-rlhf preference pairs (flat variant by default), {prompt, completion} SFT, and PRM800K-style reasoning traces, with full credential + provenance + rights attestation on every record. Adding a new buyer is a copy of this file with their field names + schema.",
+  "preference_variant": "flat",
+  "record_types": ["preference", "ideal_answer", "reasoning_trace"],
+  "field_maps": {
+    "preference": {
+      "flat": {
+        "type": "type",
+        "prompt": "prompt",
+        "chosen": "chosen",
+        "rejected": "rejected",
+        "context": "context",
+        "rationale": "rationale",
+        "evidence_anchor": "evidence_anchor",
+        "why_better_tags": "why_better_tags",
+        "error_tags_on_rejected": "error_tags_on_rejected",
+        "error_tag_anchors": "error_tag_anchors",
+        "error_severities": "error_severities",
+        "confidence": "confidence",
+        "grounded": "grounded",
+        "agreement_score": "agreement_score",
+        "annotator_credential": "annotator_credential",
+        "annotator_specialty": "annotator_specialty",
+        "annotator_years_experience": "annotator_years_experience",
+        "annotator_id_hashed": "annotator_id_hashed",
+        "submission_id": "submission_id",
+        "task_id": "task_id",
+        "source": "source",
+        "buyer_request_id": "buyer_request_id",
+        "taxonomy_version": "taxonomy_version",
+        "config_version": "config_version",
+        "license": "license",
+        "ip_cleared": "ip_cleared",
+        "contains_phi": "contains_phi",
+        "captured_at": "captured_at"
+      },
+      "chat": {
+        "type": "type",
+        "prompt": "prompt",
+        "chosen_messages": "chosen",
+        "rejected_messages": "rejected",
+        "context": "context",
+        "rationale": "rationale",
+        "evidence_anchor": "evidence_anchor",
+        "why_better_tags": "why_better_tags",
+        "error_tags_on_rejected": "error_tags_on_rejected",
+        "error_tag_anchors": "error_tag_anchors",
+        "error_severities": "error_severities",
+        "confidence": "confidence",
+        "grounded": "grounded",
+        "agreement_score": "agreement_score",
+        "annotator_credential": "annotator_credential",
+        "annotator_specialty": "annotator_specialty",
+        "annotator_years_experience": "annotator_years_experience",
+        "annotator_id_hashed": "annotator_id_hashed",
+        "submission_id": "submission_id",
+        "task_id": "task_id",
+        "source": "source",
+        "buyer_request_id": "buyer_request_id",
+        "taxonomy_version": "taxonomy_version",
+        "config_version": "config_version",
+        "license": "license",
+        "ip_cleared": "ip_cleared",
+        "contains_phi": "contains_phi",
+        "captured_at": "captured_at"
+      }
+    },
+    "ideal_answer": {
+      "type": "type",
+      "prompt": "prompt",
+      "completion": "completion",
+      "ideal_answer": "ideal_answer",
+      "messages": "messages",
+      "approach_notes": "approach_notes",
+      "evidence_anchor": "evidence_anchor",
+      "context": "context",
+      "confidence": "confidence",
+      "grounded": "grounded",
+      "annotator_credential": "annotator_credential",
+      "annotator_specialty": "annotator_specialty",
+      "annotator_years_experience": "annotator_years_experience",
+      "annotator_id_hashed": "annotator_id_hashed",
+      "submission_id": "submission_id",
+      "task_id": "task_id",
+      "source": "source",
+      "buyer_request_id": "buyer_request_id",
+      "taxonomy_version": "taxonomy_version",
+      "config_version": "config_version",
+      "license": "license",
+      "ip_cleared": "ip_cleared",
+      "contains_phi": "contains_phi",
+      "captured_at": "captured_at"
+    },
+    "reasoning_trace": {
+      "type": "type",
+      "prompt": "prompt",
+      "steps": "steps",
+      "final_answer": "final_answer",
+      "context": "context",
+      "grounded": "grounded",
+      "annotator_credential": "annotator_credential",
+      "annotator_specialty": "annotator_specialty",
+      "annotator_years_experience": "annotator_years_experience",
+      "annotator_id_hashed": "annotator_id_hashed",
+      "submission_id": "submission_id",
+      "task_id": "task_id",
+      "source": "source",
+      "buyer_request_id": "buyer_request_id",
+      "taxonomy_version": "taxonomy_version",
+      "config_version": "config_version",
+      "license": "license",
+      "ip_cleared": "ip_cleared",
+      "contains_phi": "contains_phi",
+      "captured_at": "captured_at"
+    }
+  },
+  "schemas": {
+    "preference": {
+      "flat": {
+        "type": "object",
+        "required": ["type", "prompt", "chosen", "rejected", "annotator_credential", "license", "ip_cleared", "contains_phi"],
+        "properties": {
+          "type": {"enum": ["preference"]},
+          "prompt": {"type": "string"},
+          "chosen": {"type": "string"},
+          "rejected": {"type": "string"},
+          "rationale": {"type": "string"},
+          "grounded": {"type": "boolean"},
+          "ip_cleared": {"type": "boolean"},
+          "contains_phi": {"type": "boolean"},
+          "license": {"type": "string"},
+          "annotator_credential": {"type": "string"}
+        }
+      },
+      "chat": {
+        "type": "object",
+        "required": ["type", "chosen", "rejected", "annotator_credential", "license", "ip_cleared", "contains_phi"],
+        "properties": {
+          "type": {"enum": ["preference"]},
+          "chosen": {"type": "array"},
+          "rejected": {"type": "array"},
+          "grounded": {"type": "boolean"},
+          "ip_cleared": {"type": "boolean"},
+          "contains_phi": {"type": "boolean"},
+          "license": {"type": "string"},
+          "annotator_credential": {"type": "string"}
+        }
+      }
+    },
+    "ideal_answer": {
+      "type": "object",
+      "required": ["type", "prompt", "completion", "annotator_credential", "license", "ip_cleared", "contains_phi"],
+      "properties": {
+        "type": {"enum": ["ideal_answer"]},
+        "prompt": {"type": "string"},
+        "completion": {"type": "string"},
+        "ideal_answer": {"type": "string"},
+        "grounded": {"type": "boolean"},
+        "ip_cleared": {"type": "boolean"},
+        "contains_phi": {"type": "boolean"},
+        "license": {"type": "string"},
+        "annotator_credential": {"type": "string"}
+      }
+    },
+    "reasoning_trace": {
+      "type": "object",
+      "required": ["type", "prompt", "steps", "annotator_credential", "license", "ip_cleared", "contains_phi"],
+      "properties": {
+        "type": {"enum": ["reasoning_trace"]},
+        "prompt": {"type": "string"},
+        "steps": {"type": "array"},
+        "grounded": {"type": "boolean"},
+        "ip_cleared": {"type": "boolean"},
+        "contains_phi": {"type": "boolean"},
+        "license": {"type": "string"},
+        "annotator_credential": {"type": "string"}
+      }
+    }
+  }
+}
