@@ -5,10 +5,17 @@
         "source": "github",
         "repo": "anthropics/healthcare"
       }
+    },
+    "superpowers-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers-marketplace"
+      }
     }
   },
   "enabledPlugins": {
     "fhir-developer@healthcare": true,
-    "prior-auth-review@healthcare": true
+    "prior-auth-review@healthcare": true,
+    "superpowers@superpowers-marketplace": true
   }
 }
