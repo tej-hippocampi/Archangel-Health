@@ -372,6 +372,7 @@ def build_export(
     min_agreement: Optional[float] = None,
     buyer_request_id: Optional[str] = None,
     note: Optional[str] = None,
+    include_exported: bool = False,
 ) -> Dict[str, Any]:
     """Assemble + persist an export batch from export-ready records.
 
@@ -379,7 +380,11 @@ def build_export(
     profile schema (failing the whole batch on any invalid line), writes the
     JSONL + companions + manifest, marks the records ``exported``, and logs a
     provenance event. Raises ``ValueError`` when nothing matches the filters and
-    ``ExportValidationError`` when a mapped line fails its schema."""
+    ``ExportValidationError`` when a mapped line fails its schema.
+
+    ``include_exported`` re-includes already-shipped records so an admin can
+    re-package / re-download a fresh bundle of everything (records stay in the DB
+    permanently; export is non-destructive)."""
     prof = profiles.load_profile(profile)
     profile_name = prof.get("name") or profile
 
@@ -390,6 +395,14 @@ def build_export(
         since=since,
         until=until,
     )
+    if include_exported:
+        candidates = candidates + store.list_records(
+            status="exported",
+            rtype=record_type,
+            specialty=specialty,
+            since=since,
+            until=until,
+        )
     records = [
         r
         for r in candidates

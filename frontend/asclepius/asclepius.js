@@ -1603,15 +1603,19 @@
   }
 
   // ─── Admin: Exports ────────────────────────────────────────────────────────
-  // One-click "package everything that's ready" — POST a default-profile export
-  // with no filters, then immediately download the training-ready zip.
-  async function quickExportAll(btn, statusBox) {
+  // One-click export. Default packages the fresh (export_ready) backlog; when
+  // there's none left but records have already shipped, re-export everything so
+  // the bundle is always retrievable. Downloads the training-ready zip.
+  async function quickExportAll(btn, statusBox, includeExported) {
     const orig = btn.textContent;
     btn.setAttribute('disabled', '');
     btn.textContent = 'Packaging…';
     clear(statusBox);
     try {
-      const manifest = await api('/exports', { method: 'POST', body: { profile: 'default' } });
+      const manifest = await api('/exports', {
+        method: 'POST',
+        body: { profile: 'default', include_exported: !!includeExported },
+      });
       const n = manifest.record_count != null ? manifest.record_count : 0;
       statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
         'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' — downloading…'));
@@ -1620,7 +1624,7 @@
       refreshExportReadyCount();
     } catch (e) {
       const msg = e.status === 400
-        ? 'Nothing ready to export yet — complete and (if required) QA-approve an evaluation first.'
+        ? 'Nothing to export yet — complete an evaluation first.'
         : (e.status === 422 ? 'Schema validation failed: ' + e.message : (e.message || 'Export failed'));
       statusBox.appendChild(h('div', { class: 'asc-inline-error' }, msg));
     } finally {
@@ -1629,18 +1633,39 @@
     }
   }
 
+  // Reflect the live backlog and explain a 0 ("already exported" vs "no data").
   async function refreshExportReadyCount() {
-    const el = document.getElementById('ascExportReadyCount');
-    if (!el) return;
-    try {
-      const s = await api('/stats');
-      const n = s.exportable_records != null ? s.exportable_records : 0;
-      el.textContent = String(n);
-      const btn = document.getElementById('ascQuickExportBtn');
-      if (btn) {
-        if (n > 0) btn.removeAttribute('disabled'); else btn.setAttribute('disabled', '');
-      }
-    } catch (e) { /* leave as-is */ }
+    const countEl = document.getElementById('ascExportReadyCount');
+    const noteEl = document.getElementById('ascExportReadyNote');
+    const btn = document.getElementById('ascQuickExportBtn');
+    if (!countEl || !btn) return;
+    let s;
+    try { s = await api('/stats'); } catch (e) { return; }
+    const waiting = s.exportable_records || 0;
+    const exported = s.exported_records || 0;
+    const total = s.total_records || 0;
+    countEl.textContent = String(waiting);
+    btn.removeAttribute('disabled');
+    if (waiting > 0) {
+      btn.textContent = '⬇ Export all ready records';
+      btn.onclick = () => quickExportAll(btn, document.getElementById('ascQuickExportStatus'), false);
+      if (noteEl) clear(noteEl);
+    } else if (exported > 0) {
+      // Nothing fresh, but records exist and were already shipped — let them
+      // re-download. This is the usual reason the count reads 0.
+      btn.textContent = '⬇ Re-export all records (' + exported + ')';
+      btn.onclick = () => quickExportAll(btn, document.getElementById('ascQuickExportStatus'), true);
+      if (noteEl) { clear(noteEl); noteEl.appendChild(h('span', {},
+        'All ' + exported + ' record' + (exported === 1 ? '' : 's') + ' already exported — re-package to download again, or grab any prior bundle from the history below.')); }
+    } else {
+      // Genuinely empty: no records at all.
+      btn.textContent = '⬇ Export all ready records';
+      btn.setAttribute('disabled', '');
+      if (noteEl) { clear(noteEl); noteEl.appendChild(h('span', {},
+        total === 0
+          ? 'No completed evaluations yet. Once a clinician submits one, it appears here to export.'
+          : 'Nothing ready to export right now.')); }
+    }
   }
 
   function renderAdminExports(body) {
@@ -1648,10 +1673,9 @@
     const tax = state.taxonomy;
 
     // ── One-click export (the common path) ──────────────────────────────────
-    const quickStatus = h('div', { style: 'margin-top:12px' });
+    const quickStatus = h('div', { id: 'ascQuickExportStatus', style: 'margin-top:12px' });
     const quickBtn = h('button', {
       class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascQuickExportBtn', disabled: true,
-      onClick: () => quickExportAll(quickBtn, quickStatus),
     }, '⬇ Export all ready records');
     const quickCard = h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title' }, 'Ready to export'),
@@ -1662,6 +1686,7 @@
         h('div', { style: 'font-size:34px;font-weight:700;line-height:1', id: 'ascExportReadyCount' }, '…'),
         h('span', { class: 'asc-label-hint' }, 'record(s) waiting'),
         quickBtn),
+      h('div', { class: 'asc-label-hint', id: 'ascExportReadyNote', style: 'margin-top:10px' }),
       quickStatus);
     body.appendChild(quickCard);
     refreshExportReadyCount();

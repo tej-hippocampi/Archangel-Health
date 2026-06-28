@@ -216,6 +216,8 @@ class ExportRequest(BaseModel):
     min_agreement: Optional[float] = None
     buyer_request_id: Optional[str] = None
     note: Optional[str] = None
+    # Re-include already-shipped records so the bundle can be re-downloaded.
+    include_exported: bool = False
 
 
 # ─── Buyers & buyer requests (opt §2.5) ───────────────────────────────────────

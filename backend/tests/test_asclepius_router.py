@@ -279,7 +279,19 @@ def test_stats_reports_exportable_record_backlog():
     exp = client.post("/api/asclepius/exports", json={"profile": "default"}, headers=admin_h)
     assert exp.status_code == 200, exp.text
     assert exp.json()["record_count"] >= 1
-    assert client.get("/api/asclepius/stats", headers=admin_h).json()["exportable_records"] == 0
+    after = client.get("/api/asclepius/stats", headers=admin_h).json()
+    assert after["exportable_records"] == 0          # nothing fresh left
+    assert after["exported_records"] >= 1            # but it's shipped, not gone
+    assert after["total_records"] >= 1
+
+    # A plain re-export now finds nothing fresh (400), but include_exported lets
+    # the admin re-download the already-shipped bundle.
+    assert client.post("/api/asclepius/exports", json={"profile": "default"},
+                       headers=admin_h).status_code == 400
+    re = client.post("/api/asclepius/exports",
+                     json={"profile": "default", "include_exported": True}, headers=admin_h)
+    assert re.status_code == 200, re.text
+    assert re.json()["record_count"] >= 1
 
 
 def test_lightest_path_minimal_fields_reaches_export_ready():

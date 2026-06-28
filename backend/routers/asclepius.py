@@ -739,6 +739,7 @@ async def create_export(
             min_agreement=body.min_agreement,
             buyer_request_id=body.buyer_request_id,
             note=body.note,
+            include_exported=body.include_exported,
         )
     except asc_export.ExportValidationError as exc:
         # A mapped line failed the buyer profile schema — fail the batch loudly.
@@ -961,6 +962,10 @@ async def stats(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
         # Records packaged + QA-cleared but not yet shipped — the "ready to export"
         # backlog the admin can one-click package.
         "exportable_records": len(store.list_records(status="export_ready")),
+        # Already-shipped records (re-downloadable) and the grand total — lets the
+        # UI explain a 0 backlog: "already exported" vs "no records yet".
+        "exported_records": len(store.list_records(status="exported")),
+        "total_records": len(store.list_records()),
     }
 
 
