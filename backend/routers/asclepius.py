@@ -49,7 +49,7 @@ from asclepius.constants import (
     VERDICTS,
     WHY_BETTER_TAGS,
 )
-from asclepius.critic import generate_candidates
+from asclepius.critic import generate_candidates, generate_candidates_ex
 from asclepius.schemas import (
     BatchFromRequest,
     BuyerIn,
@@ -468,6 +468,78 @@ def _query_next(store: Any, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return task
 
 
+async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int) -> int:
+    """Turn ratified seed-corpus prompts into eval tasks by generating only the
+    two candidate answers (Sonnet ``asclepius_candidate_gen``). This deliberately
+    bypasses the Opus prompt-synthesis + judge + dedupe pipeline (``generate_tasks``)
+    so the queue fills reliably and fast: the prompts are already vetted, we just
+    need the A/B answers. Returns the number of tasks created."""
+    items = asc_corpus.load_corpus(specialty).get("items") or []
+    # Dedup against prompts ALREADY in the queue/DB only — NOT the corpus itself
+    # (generation._existing_prompt_hashes also hashes the seeds, which here are
+    # exactly what we want to use). Otherwise every seed reads as "already seen".
+    existing = {
+        asc_generation._prompt_hash(t.get("prompt"))  # noqa: SLF001
+        for t in store.list_tasks(specialty=specialty, limit=100000)
+    }
+    picks: List[Dict[str, Any]] = []
+    for it in items:
+        prompt = (it.get("prompt") or "").strip()
+        if not prompt or asc_generation._prompt_hash(prompt) in existing:  # noqa: SLF001
+            continue
+        picks.append(it)
+        if len(picks) >= batch:
+            break
+    if not picks:
+        return 0
+    # Generate the candidate pairs concurrently so first load is ~one LLM call.
+    gens = await asyncio.gather(
+        *[
+            generate_candidates_ex(
+                (it.get("prompt") or "").strip(),
+                specialty=specialty,
+                ai_failure_mode=it.get("ai_failure_mode"),
+            )
+            for it in picks
+        ],
+        return_exceptions=True,
+    )
+    created = 0
+    llm_failed = False
+    for it, gen in zip(picks, gens):
+        if isinstance(gen, Exception):
+            llm_failed = True
+            continue
+        cands = (gen or {}).get("candidates") or []
+        if len(cands) < 2:
+            llm_failed = True
+            continue
+        store.insert_task(
+            prompt=(it.get("prompt") or "").strip(),
+            specialty=specialty,
+            difficulty=it.get("difficulty") or "medium",
+            capture_reasoning=bool(it.get("capture_reasoning_recommended")),
+            source="internal_prompt_bank",
+            candidate_answers=cands,
+            grounding_mode=DEFAULT_GROUNDING_MODE,
+            generation={
+                "mode": "autofill_seed",
+                "seed_id": it.get("seed_id"),
+                "intended_flawed_id": gen.get("intended_flawed_id"),
+                "candidate_model": gen.get("model"),
+            },
+            created_by="system:autofill",
+        )
+        created += 1
+    if created == 0 and llm_failed:
+        log.warning(
+            "asclepius autofill: candidate generation produced no answers. Check that "
+            "ANTHROPIC_API_KEY is set and the 'asclepius_candidate_gen' model "
+            "(claude-sonnet-4-6, override MODEL_ASCLEPIUS_CANDIDATE_GEN) is reachable."
+        )
+    return created
+
+
 async def _autofill_queue(store: Any, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not _autofill_enabled():
         return None
@@ -485,21 +557,8 @@ async def _autofill_queue(store: Any, user: Dict[str, Any]) -> Optional[Dict[str
             return None
         _autofill_last_attempt[specialty] = time.monotonic()
         try:
-            result = await asc_generation.generate_tasks(
-                store,
-                specialty=specialty,
-                n=_autofill_batch(),
-                grounding_mode=DEFAULT_GROUNDING_MODE,
-                created_by="system:autofill",
-            )
-            log.info(
-                "asclepius autofill: generated %d task(s) for %s",
-                len((result or {}).get("created") or []),
-                specialty,
-            )
-        except asc_generation.GenerationDisabled:
-            log.warning("asclepius autofill skipped: no LLM configured (set ANTHROPIC_API_KEY)")
-            return None
+            created = await _seed_tasks_from_corpus(store, specialty, _autofill_batch())
+            log.info("asclepius autofill: created %d task(s) for %s", created, specialty)
         except asc_specialties.SpecialtyNotEnabled:
             return None
         except asc_corpus.CorpusError as exc:
