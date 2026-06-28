@@ -1603,9 +1603,69 @@
   }
 
   // ─── Admin: Exports ────────────────────────────────────────────────────────
+  // One-click "package everything that's ready" — POST a default-profile export
+  // with no filters, then immediately download the training-ready zip.
+  async function quickExportAll(btn, statusBox) {
+    const orig = btn.textContent;
+    btn.setAttribute('disabled', '');
+    btn.textContent = 'Packaging…';
+    clear(statusBox);
+    try {
+      const manifest = await api('/exports', { method: 'POST', body: { profile: 'default' } });
+      const n = manifest.record_count != null ? manifest.record_count : 0;
+      statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
+        'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' — downloading…'));
+      await downloadExport(manifest.export_id);
+      loadExportsHistory();
+      refreshExportReadyCount();
+    } catch (e) {
+      const msg = e.status === 400
+        ? 'Nothing ready to export yet — complete and (if required) QA-approve an evaluation first.'
+        : (e.status === 422 ? 'Schema validation failed: ' + e.message : (e.message || 'Export failed'));
+      statusBox.appendChild(h('div', { class: 'asc-inline-error' }, msg));
+    } finally {
+      btn.removeAttribute('disabled');
+      btn.textContent = orig;
+    }
+  }
+
+  async function refreshExportReadyCount() {
+    const el = document.getElementById('ascExportReadyCount');
+    if (!el) return;
+    try {
+      const s = await api('/stats');
+      const n = s.exportable_records != null ? s.exportable_records : 0;
+      el.textContent = String(n);
+      const btn = document.getElementById('ascQuickExportBtn');
+      if (btn) {
+        if (n > 0) btn.removeAttribute('disabled'); else btn.setAttribute('disabled', '');
+      }
+    } catch (e) { /* leave as-is */ }
+  }
+
   function renderAdminExports(body) {
     clear(body);
     const tax = state.taxonomy;
+
+    // ── One-click export (the common path) ──────────────────────────────────
+    const quickStatus = h('div', { style: 'margin-top:12px' });
+    const quickBtn = h('button', {
+      class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascQuickExportBtn', disabled: true,
+      onClick: () => quickExportAll(quickBtn, quickStatus),
+    }, '⬇ Export all ready records');
+    const quickCard = h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-card-title' }, 'Ready to export'),
+      h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
+        'Records that are completed and QA-cleared, packaged as a training-ready bundle ',
+        h('span', { class: 'asc-mono' }, '(records.jsonl'), ' + data dictionary, datasheet & quality report).'),
+      h('div', { style: 'display:flex;align-items:center;gap:16px;flex-wrap:wrap' },
+        h('div', { style: 'font-size:34px;font-weight:700;line-height:1', id: 'ascExportReadyCount' }, '…'),
+        h('span', { class: 'asc-label-hint' }, 'record(s) waiting'),
+        quickBtn),
+      quickStatus);
+    body.appendChild(quickCard);
+    refreshExportReadyCount();
+
     const profileSel = selectFrom(profileNames(), 'default');
     const specInput = h('input', { class: 'asc-input', placeholder: 'any' });
     const diffSel = selectFrom(['', 'easy', 'medium', 'hard'], '');
@@ -1619,8 +1679,8 @@
     const manifestBox = h('div', {});
 
     const builder = h('div', { class: 'asc-card' },
-      h('div', { class: 'asc-card-head' }, h('div', {}, h('div', { class: 'asc-card-title' }, 'Build export'),
-        h('div', { class: 'asc-card-sub' }, 'Map QA-approved records to a buyer profile and package a manifest.'))),
+      h('div', { class: 'asc-card-head' }, h('div', {}, h('div', { class: 'asc-card-title' }, 'Advanced export (filtered)'),
+        h('div', { class: 'asc-card-sub' }, 'Optional: narrow by specialty, difficulty, record type, date, grounding or agreement before packaging.'))),
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Profile'), profileSel),

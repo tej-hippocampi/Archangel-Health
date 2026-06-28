@@ -259,6 +259,29 @@ def test_full_lifecycle_submitted_to_exported():
     assert dl.headers["content-type"] == "application/zip"
 
 
+def test_stats_reports_exportable_record_backlog():
+    """The Exports tab's 'ready to export' count tracks export_ready records and
+    drops to 0 once they're packaged."""
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)
+
+    assert client.get("/api/asclepius/stats", headers=admin_h).json()["exportable_records"] == 0
+
+    sid = "s-" + uuid.uuid4().hex[:12]
+    client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 90,
+    }, headers=ev_h)
+    assert client.get("/api/asclepius/stats", headers=admin_h).json()["exportable_records"] >= 1
+
+    # One-click default export (no filters) packages the backlog and downloads.
+    exp = client.post("/api/asclepius/exports", json={"profile": "default"}, headers=admin_h)
+    assert exp.status_code == 200, exp.text
+    assert exp.json()["record_count"] >= 1
+    assert client.get("/api/asclepius/stats", headers=admin_h).json()["exportable_records"] == 0
+
+
 def test_lightest_path_minimal_fields_reaches_export_ready():
     """Pick a side + submit (no rationale, no tags, no anchors) still works and
     auto-packages — the ≤3-min lightest path is sacred (opt §3)."""

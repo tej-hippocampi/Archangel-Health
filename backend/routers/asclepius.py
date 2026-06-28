@@ -958,6 +958,9 @@ async def stats(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
         "export_count": len(store.list_exports(limit=1000)),
         "task_count": len(store.list_tasks(limit=100000)),
         "generation_jobs": len(store.list_generation_jobs(limit=10000)),
+        # Records packaged + QA-cleared but not yet shipped — the "ready to export"
+        # backlog the admin can one-click package.
+        "exportable_records": len(store.list_records(status="export_ready")),
     }
 
 
