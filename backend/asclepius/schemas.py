@@ -35,6 +35,12 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class SsoRequest(BaseModel):
+    """A doctor-portal ``tenant_staff`` JWT, exchanged for an Asclepius session."""
+
+    token: str
+
+
 class UserOut(BaseModel):
     id: str
     email: str

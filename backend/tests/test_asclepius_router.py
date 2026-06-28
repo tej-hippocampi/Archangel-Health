@@ -122,6 +122,37 @@ def test_clinical_jwt_is_rejected_by_asclepius_auth():
     assert "team.db" not in _store().db_path
 
 
+def test_sso_exchanges_doctor_session_for_asclepius_session():
+    """A clinician already signed into the doctor portal can trade that
+    tenant_staff token for an Asclepius session — no credential typing."""
+    from tests._role_auth import tenant_token
+    user = _seed(email="sso-clinician@hospital.org")
+    token = tenant_token("surgeon", email="sso-clinician@hospital.org")
+    r = client.post("/api/asclepius/auth/sso", json={"token": token})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["user"]["email"] == user["email"]
+    # The minted token is a real Asclepius session usable on protected routes.
+    me = client.get("/api/asclepius/auth/me", headers={"Authorization": f"Bearer {body['token']}"})
+    assert me.status_code == 200
+    assert me.json()["email"] == user["email"]
+
+
+def test_sso_requires_a_provisioned_evaluator_account():
+    """Access stays restricted: a valid doctor token with no matching Asclepius
+    account is refused (403) — we never auto-provision."""
+    from tests._role_auth import tenant_token
+    token = tenant_token("surgeon", email="unprovisioned@hospital.org")
+    r = client.post("/api/asclepius/auth/sso", json={"token": token})
+    assert r.status_code == 403
+
+
+def test_sso_rejects_a_bogus_doctor_token():
+    """A garbage / forged doctor token is rejected (401), not exchanged."""
+    r = client.post("/api/asclepius/auth/sso", json={"token": "not-a-real-jwt"})
+    assert r.status_code == 401
+
+
 # ─── Full lifecycle ───────────────────────────────────────────────────────────
 def test_full_lifecycle_submitted_to_exported():
     admin_h = A.headers_for(_admin())
