@@ -700,6 +700,23 @@ async def qa_queue(_qa: Dict[str, Any] = Depends(asc_auth.require_qa)):
     return {"submissions": _store().list_submissions(status="needs_qa")}
 
 
+@router.post("/qa/approve-all")
+async def qa_approve_all(reviewer: Dict[str, Any] = Depends(asc_auth.require_qa)):
+    """Approve every submission currently held in QA in one step, moving them all
+    to ``export_ready``. Lets a solo admin clear the QA backlog and export
+    immediately. Each approval is logged with the reviewer for the audit trail."""
+    store = _store()
+    pending = store.list_submissions(status="needs_qa")
+    approved = 0
+    for sub in pending:
+        asc_pipeline.apply_qa_decision(
+            store, sub, decision="approve", reviewer_id=reviewer["id"],
+            notes="bulk approve-all",
+        )
+        approved += 1
+    return {"approved": approved}
+
+
 @router.post("/qa/{submission_id}/decision")
 async def qa_decision(
     submission_id: str,
@@ -966,6 +983,9 @@ async def stats(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
         # UI explain a 0 backlog: "already exported" vs "no records yet".
         "exported_records": len(store.list_records(status="exported")),
         "total_records": len(store.list_records()),
+        # Submissions held in QA review (sampled / flagged). These are NOT yet in
+        # the export pool — the admin must approve them first.
+        "qa_pending": len(store.list_submissions(status="needs_qa")),
     }
 
 

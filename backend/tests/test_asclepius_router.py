@@ -294,6 +294,33 @@ def test_stats_reports_exportable_record_backlog():
     assert re.json()["record_count"] >= 1
 
 
+def test_qa_held_submission_can_be_bulk_approved_then_exported(monkeypatch):
+    """A submission sampled/flagged into QA isn't exportable until approved. The
+    one-click bulk approve clears the whole QA backlog to export_ready so the
+    admin can export immediately."""
+    monkeypatch.setenv("ASCLEPIUS_QA_SAMPLE_PCT", "100")  # force every submit into QA
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)
+
+    sid = "s-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 90,
+    }, headers=ev_h)
+    assert r.json()["status"] == "needs_qa"
+    st = client.get("/api/asclepius/stats", headers=admin_h).json()
+    assert st["qa_pending"] >= 1 and st["exportable_records"] == 0
+
+    appr = client.post("/api/asclepius/qa/approve-all", headers=admin_h)
+    assert appr.status_code == 200 and appr.json()["approved"] >= 1
+    st2 = client.get("/api/asclepius/stats", headers=admin_h).json()
+    assert st2["qa_pending"] == 0 and st2["exportable_records"] >= 1
+
+    exp = client.post("/api/asclepius/exports", json={"profile": "default"}, headers=admin_h)
+    assert exp.status_code == 200 and exp.json()["record_count"] >= 1
+
+
 def test_lightest_path_minimal_fields_reaches_export_ready():
     """Pick a side + submit (no rationale, no tags, no anchors) still works and
     auto-packages — the ≤3-min lightest path is sacred (opt §3)."""

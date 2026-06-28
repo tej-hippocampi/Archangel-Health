@@ -1633,38 +1633,68 @@
     }
   }
 
-  // Reflect the live backlog and explain a 0 ("already exported" vs "no data").
+  // Approve everything stuck in QA, then export — the "label -> export now" path.
+  async function approveAllAndExport(btn, statusBox) {
+    const orig = btn.textContent;
+    btn.setAttribute('disabled', '');
+    btn.textContent = 'Approving QA…';
+    clear(statusBox);
+    try {
+      const res = await api('/qa/approve-all', { method: 'POST' });
+      const k = res.approved != null ? res.approved : 0;
+      statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
+        'Approved ' + k + ' submission' + (k === 1 ? '' : 's') + ' from QA — exporting…'));
+      await quickExportAll(btn, statusBox, false);
+    } catch (e) {
+      statusBox.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Approve failed'));
+      btn.removeAttribute('disabled');
+      btn.textContent = orig;
+    }
+  }
+
+  // Reflect the live backlog and explain a 0 ("in QA" / "already exported" / "no data").
   async function refreshExportReadyCount() {
     const countEl = document.getElementById('ascExportReadyCount');
     const noteEl = document.getElementById('ascExportReadyNote');
     const btn = document.getElementById('ascQuickExportBtn');
+    const statusBox = () => document.getElementById('ascQuickExportStatus');
     if (!countEl || !btn) return;
     let s;
     try { s = await api('/stats'); } catch (e) { return; }
     const waiting = s.exportable_records || 0;
     const exported = s.exported_records || 0;
     const total = s.total_records || 0;
+    const qaPending = s.qa_pending || 0;
     countEl.textContent = String(waiting);
     btn.removeAttribute('disabled');
+    if (noteEl) clear(noteEl);
     if (waiting > 0) {
       btn.textContent = '⬇ Export all ready records';
-      btn.onclick = () => quickExportAll(btn, document.getElementById('ascQuickExportStatus'), false);
-      if (noteEl) clear(noteEl);
+      btn.onclick = () => quickExportAll(btn, statusBox(), false);
+      if (noteEl && qaPending > 0) noteEl.appendChild(h('span', {},
+        '(' + qaPending + ' more submission' + (qaPending === 1 ? ' is' : 's are') + ' in QA review — approve in the QA Queue tab to add them.)'));
+    } else if (qaPending > 0) {
+      // The usual reason a just-labeled submission isn't exportable: it was
+      // sampled/flagged into QA. Let the admin release + export in one click.
+      btn.textContent = '✓ Approve ' + qaPending + ' pending & export';
+      btn.onclick = () => approveAllAndExport(btn, statusBox());
+      if (noteEl) noteEl.appendChild(h('span', {},
+        qaPending + ' submission' + (qaPending === 1 ? '' : 's') + ' from your evaluators ' +
+        (qaPending === 1 ? 'is' : 'are') + ' held in QA review (quality sampling). Approve to make ' +
+        (qaPending === 1 ? 'it' : 'them') + ' exportable — or review individually in the QA Queue tab.'));
     } else if (exported > 0) {
-      // Nothing fresh, but records exist and were already shipped — let them
-      // re-download. This is the usual reason the count reads 0.
       btn.textContent = '⬇ Re-export all records (' + exported + ')';
-      btn.onclick = () => quickExportAll(btn, document.getElementById('ascQuickExportStatus'), true);
-      if (noteEl) { clear(noteEl); noteEl.appendChild(h('span', {},
-        'All ' + exported + ' record' + (exported === 1 ? '' : 's') + ' already exported — re-package to download again, or grab any prior bundle from the history below.')); }
+      btn.onclick = () => quickExportAll(btn, statusBox(), true);
+      if (noteEl) noteEl.appendChild(h('span', {},
+        'All ' + exported + ' record' + (exported === 1 ? '' : 's') + ' already exported — re-package to download again, or grab any prior bundle from the history below.'));
     } else {
-      // Genuinely empty: no records at all.
       btn.textContent = '⬇ Export all ready records';
       btn.setAttribute('disabled', '');
-      if (noteEl) { clear(noteEl); noteEl.appendChild(h('span', {},
+      btn.onclick = null;
+      if (noteEl) noteEl.appendChild(h('span', {},
         total === 0
           ? 'No completed evaluations yet. Once a clinician submits one, it appears here to export.'
-          : 'Nothing ready to export right now.')); }
+          : 'Nothing ready to export right now.'));
     }
   }
 
