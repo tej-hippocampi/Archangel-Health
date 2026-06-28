@@ -130,15 +130,17 @@ async def login(body: LoginRequest):
 async def sso(body: SsoRequest):
     """Exchange a valid doctor-portal session for an Asclepius session (SSO).
 
-    Lets a clinician who is already signed into the doctor portal enter the
-    evaluator portal without re-typing credentials. Access stays restricted: the
-    presented ``tenant_staff`` token must be valid/unrevoked AND map (by email) to
-    an existing, active Asclepius account. We do NOT auto-provision — an
-    authenticated doctor without an evaluator account still gets the login form,
-    so the standalone Asclepius auth plane remains the source of truth for who may
-    evaluate (PRD §3, §7.1)."""
+    A clinician already signed into the doctor portal enters the evaluator portal
+    automatically — no second login. The presented ``tenant_staff`` token is the
+    access barrier: it must be valid/unrevoked (only an authenticated, affiliated
+    clinician holds one). On first arrival we auto-provision an evaluator account
+    keyed to the doctor's email so access "just works"; on later visits we resume
+    that same account. The portal is never left unauthenticated — an anonymous
+    visitor with no doctor session still gets the login form (PRD §3, §7.1)."""
     # Local import keeps the asclepius package import-graph standalone; the SSO
     # bridge is the one deliberate touch-point into the clinical/tenant auth plane.
+    import secrets as _secrets
+
     from tenant_jwt import decode_tenant_staff_token
 
     payload = decode_tenant_staff_token(body.token)
@@ -147,16 +149,28 @@ async def sso(body: SsoRequest):
     email = (payload.get("sub") or "").strip().lower()
     if not email:
         raise HTTPException(status_code=401, detail="Doctor session is missing an identity")
+
     store = _store()
     user = store.get_user_by_email(email)
-    if not user or not user.get("active"):
-        raise HTTPException(
-            status_code=403,
-            detail="No evaluator account is provisioned for this clinician. "
-            "Contact your program administrator.",
+    provisioned = False
+    if not user:
+        # First SSO arrival for this affiliated clinician — provision an evaluator
+        # seat on the fly. The password is a throwaway random value: this account
+        # is reached via SSO, not a typed credential.
+        user = store.create_user(
+            email=email,
+            password=_secrets.token_urlsafe(32),
+            role="evaluator",
         )
+        provisioned = True
+    if not user.get("active"):
+        raise HTTPException(status_code=403, detail="This evaluator account is disabled.")
+
     store.log_event(
-        entity_type="user", entity_id=user["id"], event_type="sso_login", actor=user["id"]
+        entity_type="user",
+        entity_id=user["id"],
+        event_type="sso_provisioned" if provisioned else "sso_login",
+        actor=user["id"],
     )
     return {"token": asc_auth.create_token(user), "user": asc_auth.public_user(user)}
 

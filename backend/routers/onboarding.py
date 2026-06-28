@@ -320,6 +320,7 @@ async def add_team_member(body: AddMemberBody, request: Request):
         department=subj_dept,
         temporary_password=pwd,
         sign_in_url=sign_in,
+        invitee_email=str(body.email),
     )
     ok = await send_html_email(str(body.email), subj, html_body)
     if not ok:

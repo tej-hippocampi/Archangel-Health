@@ -138,17 +138,26 @@ def test_sso_exchanges_doctor_session_for_asclepius_session():
     assert me.json()["email"] == user["email"]
 
 
-def test_sso_requires_a_provisioned_evaluator_account():
-    """Access stays restricted: a valid doctor token with no matching Asclepius
-    account is refused (403) — we never auto-provision."""
+def test_sso_auto_provisions_an_evaluator_on_first_arrival():
+    """A valid doctor token with no Asclepius account yet is auto-provisioned an
+    evaluator seat and signed straight in (no second login barrier)."""
     from tests._role_auth import tenant_token
-    token = tenant_token("surgeon", email="unprovisioned@hospital.org")
+    assert _store().get_user_by_email("newdoc@hospital.org") is None
+    token = tenant_token("surgeon", email="newdoc@hospital.org")
     r = client.post("/api/asclepius/auth/sso", json={"token": token})
-    assert r.status_code == 403
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["email"] == "newdoc@hospital.org"
+    assert r.json()["user"]["role"] == "evaluator"
+    # The account now persists, so a second SSO resumes the same seat.
+    user = _store().get_user_by_email("newdoc@hospital.org")
+    assert user is not None
+    r2 = client.post("/api/asclepius/auth/sso", json={"token": token})
+    assert r2.status_code == 200
+    assert _store().get_user_by_email("newdoc@hospital.org")["id"] == user["id"]
 
 
-def test_sso_rejects_a_bogus_doctor_token():
-    """A garbage / forged doctor token is rejected (401), not exchanged."""
+def test_sso_still_refuses_an_anonymous_visitor():
+    """No valid doctor session -> no exchange (the portal is never left open)."""
     r = client.post("/api/asclepius/auth/sso", json={"token": "not-a-real-jwt"})
     assert r.status_code == 401
 

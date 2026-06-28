@@ -5,7 +5,7 @@ Visual spec: design_handoff_onboarding_flow/README.md → "Emails"
 
 Three emails, all sharing the dark cinematic-blue body shell:
   1. build_verification_email — 6-digit code mailed during step 2.
-  2. build_invite_email       — temporary password mailed when the director
+  2. build_invite_email       — standing access key mailed when the director
                                 adds a team member on step 4.
   3. build_complete_email     — welcome / credentials mailed on /finish.
 
@@ -220,11 +220,23 @@ def build_invite_email(
     department: str,
     temporary_password: str,
     sign_in_url: str,
+    invitee_email: str = "",
 ) -> str:
-    """Email 2 — invite for a newly added team member, with temp password."""
+    """Email 2 — invite for a newly added team member, with their access key.
+
+    ``temporary_password`` is the member's permanent credential (kept under the
+    legacy kwarg name for callers): it does not expire and is not force-rotated,
+    so this email is their standing access key. ``invitee_email`` is surfaced
+    alongside it so the recipient has the full email + password pair to sign in.
+    """
     safe_org = html.escape(org_name or "your health system")
     safe_dept = html.escape(department or "")
     org_dept_label = (safe_org + " " + safe_dept).strip()
+
+    cred_rows = []
+    if invitee_email:
+        cred_rows.append(("Email", invitee_email, True))
+    cred_rows.append(("Password (access key)", temporary_password, True))
 
     body = (
         _eyebrow("Invitation")
@@ -238,17 +250,14 @@ def build_invite_email(
             + _strong((org_name + " " + department).strip())
             + " workspace on Archangel Health."
         )
-        + _inset_card(
-            (
-                '<div style="font-family:' + _INTER + ';font-size:11px;font-weight:700;'
-                'letter-spacing:0.12em;text-transform:uppercase;color:rgba(230,234,242,0.55);'
-                'margin-bottom:8px;">Your temporary password</div>'
-                f'<div style="font-family:{_MONO};font-size:18px;font-weight:600;color:#67E8F9;'
-                f'letter-spacing:0.02em;word-break:break-all;">{html.escape(temporary_password)}</div>'
-            )
-        )
+        + _inset_card(_detail_rows(cred_rows))
         + _cta(sign_in_url, f"Sign in to {department} workspace →" if department else "Sign in to your workspace →")
-        + _p("Please change your password on first sign-in.", muted=True, small=True)
+        + _p(
+            "Keep this email — your password is your standing access key and stays "
+            "valid for future sign-ins.",
+            muted=True,
+            small=True,
+        )
     )
 
     subject_dept = (department or "").strip()
@@ -307,14 +316,15 @@ def build_complete_email(
                         f"{pod_total} of 4 — {composition}",
                         False,
                     ),
-                    ("Temporary password", temporary_password, True),
+                    ("Password (access key)", temporary_password, True),
                 ]
             )
         )
         + _cta(workspace_url, "Open your workspace →")
         + _p(
-            "Your team members have been sent their own credentials. Please change "
-            "your password after first sign-in.",
+            "Your team members have been sent their own credentials. Keep this "
+            "email — your password is your standing access key and stays valid for "
+            "future sign-ins.",
             muted=True,
             small=True,
         )

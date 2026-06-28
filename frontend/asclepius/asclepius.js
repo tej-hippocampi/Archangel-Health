@@ -78,7 +78,11 @@
     } catch (e) {
       throw { status: 0, detail: 'Network error — is the backend running?', message: 'Network error' };
     }
-    if (res.status === 401) {
+    // A 401 mid-session means the token expired -> bounce to login. But for
+    // foreground auth calls (login, /auth/me probe) a 401 is just "bad creds /
+    // stale token"; opts.noAuthHandler lets the caller handle it and show the
+    // real server message instead of a misleading "session expired".
+    if (res.status === 401 && !opts.noAuthHandler) {
       handleUnauthorized();
       throw { status: 401, detail: 'Session expired', message: 'Session expired' };
     }
@@ -167,22 +171,27 @@
 
   // ─── Auth / bootstrap ────────────────────────────────────────────────────--
   async function boot() {
-    if (!state.token) {
-      // Already signed into the doctor portal? Exchange that session for an
-      // Asclepius one (SSO) before falling back to the manual login form.
-      if (await trySsoLogin()) return;
-      renderLogin();
-      return;
+    // 1) Resume an existing Asclepius session if the stored token is still valid.
+    if (state.token) {
+      try {
+        // noAuthHandler: a stale/expired token must NOT short-circuit to the
+        // "session expired" screen — we want to fall through to SSO below.
+        state.user = await api('/auth/me', { noAuthHandler: true });
+        await loadTaxonomy();
+        renderHeader();
+        enterApp();
+        return;
+      } catch (e) {
+        // Stale token (or transient): drop it and try the seamless paths.
+        state.token = null;
+        try { localStorage.removeItem(TOKEN_KEY); } catch (_) { /* ignore */ }
+      }
     }
-    try {
-      state.user = await api('/auth/me');
-      await loadTaxonomy();
-      renderHeader();
-      enterApp();
-    } catch (e) {
-      // 401 already handled; otherwise surface login
-      if (e.status !== 401) renderLogin();
-    }
+    // 2) Already signed into the doctor portal? Exchange that session for an
+    //    Asclepius one (SSO) — no second login barrier.
+    if (await trySsoLogin()) return;
+    // 3) Otherwise, fall back to the manual login form.
+    renderLogin();
   }
 
   // Silent SSO: trade a doctor-portal token for an Asclepius session. Uses a raw
@@ -260,6 +269,9 @@
           const data = await api('/auth/login', {
             method: 'POST',
             body: { email: emailInput.value.trim(), password: pwInput.value },
+            // A bad password is a 401 we want to show inline ("Invalid email or
+            // password"), NOT swallow as a global "session expired" redirect.
+            noAuthHandler: true,
           });
           state.token = data.token;
           state.user = data.user;
