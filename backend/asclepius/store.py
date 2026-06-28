@@ -59,13 +59,27 @@ class AsclepiusStore:
         # default lives next to the package, i.e. backend/asclepius.db
         default_path = os.path.join(os.path.dirname(base_dir), "asclepius.db")
         self.db_path = db_path or os.getenv("ASCLEPIUS_DB_PATH") or default_path
+        # Create the parent dir so ASCLEPIUS_DB_PATH can point straight into a
+        # mounted persistent volume (e.g. /data/asclepius.db) on first boot.
+        parent = os.path.dirname(os.path.abspath(self.db_path))
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        # WAL = concurrent readers alongside a writer + writes that survive a
+        # process crash / redeploy mid-request, so the labeled-data product is
+        # never lost or corrupted. journal_mode persists on the file itself.
+        with self._conn() as conn:
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = NORMAL")
         self._init_schema()
 
     # ─── Connection ──────────────────────────────────────────────────────────
     def _conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+        # busy_timeout: wait (don't error) if another request holds the write
+        # lock — FastAPI serves requests from a threadpool against one file.
+        conn = sqlite3.connect(self.db_path, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA busy_timeout = 30000")
         return conn
 
     def _init_schema(self) -> None:
