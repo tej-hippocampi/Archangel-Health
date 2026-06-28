@@ -8,6 +8,9 @@
   const API_BASE = '/api/asclepius';
   const TOKEN_KEY = 'asclepius_token';
   const DRAFT_PREFIX = 'asclepius_draft_';
+  // Doctor-portal session token (same origin). If present, we silently exchange
+  // it for an Asclepius session so affiliated clinicians skip the login form.
+  const DOCTOR_TOKEN_KEY = 'archangel_doctor_auth_token';
 
   // ─── App state ─────────────────────────────────────────────────────────────
   const state = {
@@ -164,7 +167,13 @@
 
   // ─── Auth / bootstrap ────────────────────────────────────────────────────--
   async function boot() {
-    if (!state.token) { renderLogin(); return; }
+    if (!state.token) {
+      // Already signed into the doctor portal? Exchange that session for an
+      // Asclepius one (SSO) before falling back to the manual login form.
+      if (await trySsoLogin()) return;
+      renderLogin();
+      return;
+    }
     try {
       state.user = await api('/auth/me');
       await loadTaxonomy();
@@ -174,6 +183,40 @@
       // 401 already handled; otherwise surface login
       if (e.status !== 401) renderLogin();
     }
+  }
+
+  // Silent SSO: trade a doctor-portal token for an Asclepius session. Uses a raw
+  // fetch (not api()) so a rejected probe doesn't trip the 401 session handler —
+  // an unknown/expired doctor token just means "fall back to the login form".
+  async function trySsoLogin() {
+    let doctorToken = '';
+    try { doctorToken = localStorage.getItem(DOCTOR_TOKEN_KEY) || ''; } catch (e) { doctorToken = ''; }
+    if (!doctorToken) return false;
+    let res;
+    try {
+      res = await fetch(API_BASE + '/auth/sso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: doctorToken }),
+      });
+    } catch (e) {
+      return false; // network error — let renderLogin() show the form
+    }
+    if (!res.ok) return false; // 401 (bad token) / 403 (no evaluator account)
+    let data = null;
+    try { data = await res.json(); } catch (e) { return false; }
+    if (!data || !data.token) return false;
+    state.token = data.token;
+    state.user = data.user;
+    try { localStorage.setItem(TOKEN_KEY, data.token); } catch (e) { /* ignore quota */ }
+    try {
+      await loadTaxonomy();
+    } catch (e) {
+      return false;
+    }
+    renderHeader();
+    enterApp();
+    return true;
   }
 
   async function loadTaxonomy() {
