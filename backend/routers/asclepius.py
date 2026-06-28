@@ -11,10 +11,13 @@ Auth is the Asclepius-local JWT (NOT the clinical/tenant auth). Role gates:
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import json
 import logging
+import os
+import time
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -422,14 +425,99 @@ async def list_tasks(
     return {"tasks": tasks}
 
 
+# ─── Queue auto-fill ──────────────────────────────────────────────────────────
+# When an evaluator opens an empty queue, run the generation engine on demand so
+# prompts + candidate answers appear automatically — no admin step. Guarded so it
+# can't stampede the LLM: one in-flight generation at a time, plus a per-specialty
+# cooldown so repeated refreshes (or a configured-off LLM) don't burn budget.
+_AUTOFILL_LOCK = asyncio.Lock()
+_autofill_last_attempt: Dict[str, float] = {}
+
+
+def _autofill_enabled() -> bool:
+    return (os.getenv("ASCLEPIUS_AUTOFILL", "1").strip().lower() in ("1", "true", "yes", "on"))
+
+
+def _autofill_batch() -> int:
+    try:
+        return max(1, min(10, int(os.getenv("ASCLEPIUS_AUTOFILL_BATCH", "3"))))
+    except ValueError:
+        return 3
+
+
+def _autofill_cooldown_sec() -> float:
+    try:
+        return max(0.0, float(os.getenv("ASCLEPIUS_AUTOFILL_COOLDOWN_SEC", "30")))
+    except ValueError:
+        return 30.0
+
+
+def _autofill_specialty(user: Dict[str, Any]) -> str:
+    """The evaluator's specialty if it's enabled, else the v1 default (nephrology)."""
+    want = (user.get("specialty") or "").strip().lower()
+    if want and asc_specialties.is_enabled(want):
+        return want
+    return "nephrology"
+
+
+def _query_next(store: Any, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    task = store.next_task_for_evaluator(evaluator_id=user["id"], specialty=user.get("specialty"))
+    if not task and not user.get("specialty"):
+        # admins/QA (and SSO-provisioned clinicians) with no specialty see any queue
+        task = store.next_task_for_evaluator(evaluator_id=user["id"], specialty=None)
+    return task
+
+
+async def _autofill_queue(store: Any, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if not _autofill_enabled():
+        return None
+    specialty = _autofill_specialty(user)
+    cooldown = _autofill_cooldown_sec()
+    if time.monotonic() - _autofill_last_attempt.get(specialty, 0.0) < cooldown:
+        return None
+    async with _AUTOFILL_LOCK:
+        # Another request may have filled the queue (or just attempted) while we
+        # waited on the lock — re-check both before spending LLM budget.
+        task = _query_next(store, user)
+        if task:
+            return task
+        if time.monotonic() - _autofill_last_attempt.get(specialty, 0.0) < cooldown:
+            return None
+        _autofill_last_attempt[specialty] = time.monotonic()
+        try:
+            result = await asc_generation.generate_tasks(
+                store,
+                specialty=specialty,
+                n=_autofill_batch(),
+                grounding_mode=DEFAULT_GROUNDING_MODE,
+                created_by="system:autofill",
+            )
+            log.info(
+                "asclepius autofill: generated %d task(s) for %s",
+                len((result or {}).get("created") or []),
+                specialty,
+            )
+        except asc_generation.GenerationDisabled:
+            log.warning("asclepius autofill skipped: no LLM configured (set ANTHROPIC_API_KEY)")
+            return None
+        except asc_specialties.SpecialtyNotEnabled:
+            return None
+        except asc_corpus.CorpusError as exc:
+            log.warning("asclepius autofill: seed corpus error: %s", exc)
+            return None
+        except Exception:  # never let generation break the evaluator's queue request
+            log.exception("asclepius autofill failed")
+            return None
+    return _query_next(store, user)
+
+
 @router.get("/tasks/next")
 async def next_task(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     store = _store()
-    task = store.next_task_for_evaluator(evaluator_id=user["id"], specialty=user.get("specialty"))
+    task = _query_next(store, user)
     if not task:
-        # fall back to any-specialty queue for admins/QA who have no specialty set
-        if not user.get("specialty"):
-            task = store.next_task_for_evaluator(evaluator_id=user["id"], specialty=None)
+        # Empty queue -> auto-generate a fresh batch via the engine, then serve.
+        task = await _autofill_queue(store, user)
     return {"task": _blind_task(task) if task else None}
 
 

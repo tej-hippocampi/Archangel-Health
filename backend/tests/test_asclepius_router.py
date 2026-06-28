@@ -162,6 +162,52 @@ def test_sso_still_refuses_an_anonymous_visitor():
     assert r.status_code == 401
 
 
+def test_empty_queue_auto_generates_via_the_engine(monkeypatch):
+    """An evaluator opening an empty queue triggers on-demand generation, so a
+    task (prompt + candidates) appears automatically — no admin upload."""
+    from routers import asclepius as R
+    from asclepius import generation as gen
+
+    calls = {"n": 0}
+
+    async def _fake_generate_tasks(store, *, specialty, n, **kw):
+        calls["n"] += 1
+        t = store.insert_task(
+            prompt=f"Auto {specialty} prompt",
+            specialty=specialty,
+            source="internal_prompt_bank",
+            candidate_answers=[{"id": "A", "text": "a"}, {"id": "B", "text": "b"}],
+            created_by=kw.get("created_by"),
+        )
+        return {"job_id": "j1", "created": [t["task_id"]]}
+
+    monkeypatch.setattr(gen, "generate_tasks", _fake_generate_tasks)
+    R._autofill_last_attempt.clear()  # bypass cross-test cooldown
+
+    ev_h = A.headers_for(_seed())
+    r = client.get("/api/asclepius/tasks/next", headers=ev_h)
+    assert r.status_code == 200, r.text
+    task = r.json()["task"]
+    assert task is not None and task["prompt"].startswith("Auto")
+    assert calls["n"] == 1
+
+
+def test_empty_queue_no_llm_returns_empty_not_error(monkeypatch):
+    """With generation disabled (no LLM), an empty queue returns null gracefully."""
+    from routers import asclepius as R
+    from asclepius import generation as gen
+
+    async def _disabled(store, **kw):
+        raise gen.GenerationDisabled("no LLM")
+
+    monkeypatch.setattr(gen, "generate_tasks", _disabled)
+    R._autofill_last_attempt.clear()
+
+    r = client.get("/api/asclepius/tasks/next", headers=A.headers_for(_seed()))
+    assert r.status_code == 200
+    assert r.json()["task"] is None
+
+
 # ─── Full lifecycle ───────────────────────────────────────────────────────────
 def test_full_lifecycle_submitted_to_exported():
     admin_h = A.headers_for(_admin())
