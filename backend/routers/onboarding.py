@@ -501,11 +501,19 @@ def _provision_asclepius_user(
     attestations: Dict[str, Any],
 ) -> None:
     """Create/refresh the person's account in the Asclepius plane (asclepius.db)."""
+    from asclepius import specialties as asc_specialties
+
     creds = credentials or {}
     # The verified legal name on the credential record is the authoritative name
     # attached to sold data; fall back to the identity name from onboarding.
     full_name = (creds.get("fullLegalName") or full_name or "").strip() or None
-    primary_specialty = (creds.get("primarySpecialty") or specialty or "").strip() or None
+    # Asclepius tasks store canonical, lowercased specialties and the evaluator
+    # queue matches case-sensitively. Normalize so a clinician who typed
+    # "Nephrology" actually gets nephrology tasks; if the specialty isn't an
+    # enabled registry specialty, leave it null so they fall into the "any open
+    # task" queue rather than a permanently empty one (mirrors the SSO path).
+    raw_specialty = (creds.get("primarySpecialty") or specialty or "").strip().lower()
+    primary_specialty = raw_specialty if asc_specialties.is_enabled(raw_specialty) else None
     board_certs = creds.get("boardCertifications") or []
     board_cert = None
     if isinstance(board_certs, list) and board_certs:

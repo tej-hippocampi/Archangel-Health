@@ -174,7 +174,7 @@ export function Step1NameEmail({
 
   return (
     <OnboardingCard
-      eyebrow="Step 1 of 5"
+      eyebrow="Step 1"
       title="Let's get you set up."
       lede="A few minutes to bring your health system online. We'll start with you."
     >
@@ -269,7 +269,7 @@ export function Step2Verify({
 
   return (
     <OnboardingCard
-      eyebrow="Step 2 of 5"
+      eyebrow="Step 2"
       title="Verify your email."
       lede={
         sent ? (
@@ -376,7 +376,7 @@ export function Step3Org({
 
   return (
     <OnboardingCard
-      eyebrow="Step 3 of 5"
+      eyebrow="Step 4 of 6"
       title="Tell us about your health system."
       lede="This is the workspace your team will sign in to."
     >
@@ -523,7 +523,7 @@ export function Step4YourTeam({
   return (
     <OnboardingCard
       maxWidth={720}
-      eyebrow="Step 4 of 5"
+      eyebrow="Step 5 of 6"
       title="Your TEAM."
       lede="Your surgical pod is exactly 4 people: you (director / surgeon), 1 RN care coordinator, and 2 NP / PAs."
     >
@@ -840,7 +840,7 @@ export function Step5SignIn({
 
   return (
     <OnboardingCard
-      eyebrow="Step 5 of 5"
+      eyebrow="Step 6 of 6"
       title="Sign in to your workspace."
       lede={
         <>
@@ -1139,7 +1139,7 @@ export function Step3Product({
   return (
     <OnboardingCard
       maxWidth={760}
-      eyebrow="Step 3 of 3"
+      eyebrow="Step 3"
       title="Choose your product."
       lede="Two products, one account. Pick the one you're signing up for — you can always set up the other later."
     >

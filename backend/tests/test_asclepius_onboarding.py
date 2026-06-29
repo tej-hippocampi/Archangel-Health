@@ -116,6 +116,9 @@ def test_director_full_asclepius_flow_provisions_admin(client: TestClient):
     assert u and u["role"] == "admin"
     assert u["npi"] == "1234567890"
     assert u["full_name"] == "Dr. Tej Patel"
+    # Specialty is normalized to the canonical lowercase form so the (case-
+    # sensitive) evaluator task queue actually returns tasks.
+    assert u["specialty"] == "nephrology"
 
     # Onboarding is sealed.
     hs = client.app.state.team_store.get_health_system_by_id(hs_id)
@@ -178,6 +181,8 @@ def test_invited_member_flow_provisions_evaluator(client: TestClient):
     u = asc.get_user_by_email(member_email)
     assert u and u["role"] == "evaluator"
     assert u["npi"] == "9876543210"
+    # Normalized lowercase so the case-sensitive evaluator queue matches tasks.
+    assert u["specialty"] == "nephrology"
 
     # Single-use: the token is consumed after finishing.
     assert client.get(f"/api/onboarding/member/session?token={mtoken}").status_code in (404, 410)
