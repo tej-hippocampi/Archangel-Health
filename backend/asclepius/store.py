@@ -53,6 +53,66 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
+# ─── Credential vault sealing (Tier B at rest) ────────────────────────────────
+# The private credential vault (Tier B: name, NPI, license, education) is sealed
+# with Fernet when ``ASCLEPIUS_VAULT_KEY`` is set, so PHI-adjacent identifiers are
+# encrypted at rest. Without a key (dev) we store JSON plaintext but flag it, so a
+# deployment can tell whether the vault is actually encrypted.
+import logging as _logging
+
+_vault_log = _logging.getLogger("asclepius.vault")
+
+
+def _vault_key() -> Optional[str]:
+    raw = (os.getenv("ASCLEPIUS_VAULT_KEY") or "").strip()
+    return raw or None
+
+
+def seal_vault(data: Dict[str, Any]) -> tuple:
+    """Serialize + (optionally) encrypt a Tier B credential dict. Returns
+    ``(blob, encrypted_flag)``."""
+    plain = json.dumps(data or {}, ensure_ascii=False)
+    key = _vault_key()
+    if key:
+        try:
+            from cryptography.fernet import Fernet
+
+            token = Fernet(key.encode("utf-8")).encrypt(plain.encode("utf-8")).decode("utf-8")
+            return token, 1
+        except Exception:
+            _vault_log.warning(
+                "ASCLEPIUS_VAULT_KEY is set but Fernet sealing failed; storing the "
+                "credential vault unencrypted. Verify the key is a valid urlsafe-base64 "
+                "32-byte Fernet key.",
+                exc_info=True,
+            )
+    return plain, 0
+
+
+def open_vault(blob: Optional[str], encrypted: int) -> Dict[str, Any]:
+    """Inverse of :func:`seal_vault`. Returns ``{}`` (and logs) if an encrypted
+    blob cannot be opened (e.g. the key was rotated away)."""
+    if not blob:
+        return {}
+    if encrypted:
+        key = _vault_key()
+        if not key:
+            _vault_log.error("Encrypted credential vault present but ASCLEPIUS_VAULT_KEY is not set.")
+            return {}
+        try:
+            from cryptography.fernet import Fernet
+
+            plain = Fernet(key.encode("utf-8")).decrypt(blob.encode("utf-8")).decode("utf-8")
+            return json.loads(plain)
+        except Exception:
+            _vault_log.error("Failed to open the encrypted credential vault.", exc_info=True)
+            return {}
+    try:
+        return json.loads(blob)
+    except Exception:
+        return {}
+
+
 class AsclepiusStore:
     def __init__(self, db_path: Optional[str] = None):
         base_dir = os.path.dirname(__file__)
@@ -94,6 +154,7 @@ class AsclepiusStore:
                     specialty       TEXT,
                     board_cert      TEXT,
                     years_experience INTEGER,
+                    organization    TEXT,
                     id_hashed       TEXT,
                     active          INTEGER NOT NULL DEFAULT 1,
                     created_at      TEXT NOT NULL
@@ -245,6 +306,28 @@ class AsclepiusStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_genjobs_specialty ON generation_jobs(specialty);
                 CREATE INDEX IF NOT EXISTS idx_genjobs_created ON generation_jobs(created_at);
+
+                -- Contributor credential vault (Contributors view + tiered export).
+                -- Keyed by the same hashed annotator id that stamps every record, so
+                -- a dossier (Tier B) matches the exact shipped records (Tier A).
+                --   ship_json   = Tier A attributes (buyer-facing; safe to ship)
+                --   verify_blob = Tier B identifying credentials (the private vault;
+                --                 Fernet-sealed when ASCLEPIUS_VAULT_KEY is set)
+                CREATE TABLE IF NOT EXISTS contributor_credentials (
+                    id_hashed            TEXT PRIMARY KEY,
+                    user_id              TEXT,
+                    organization         TEXT,
+                    role_title           TEXT,
+                    blurb                TEXT,
+                    credentials_verified INTEGER NOT NULL DEFAULT 0,
+                    ship_json            TEXT NOT NULL DEFAULT '{}',
+                    verify_blob          TEXT,
+                    verify_enc           INTEGER NOT NULL DEFAULT 0,
+                    created_at           TEXT NOT NULL,
+                    updated_at           TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_cred_org ON contributor_credentials(organization);
+                CREATE INDEX IF NOT EXISTS idx_cred_user ON contributor_credentials(user_id);
                 """
             )
         self._migrate()
@@ -264,6 +347,10 @@ class AsclepiusStore:
             if "generation_json" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN generation_json TEXT")
 
+            user_cols = cols("users")
+            if "organization" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN organization TEXT")
+
             sub_cols = cols("submissions")
             if "grounded" not in sub_cols:
                 conn.execute("ALTER TABLE submissions ADD COLUMN grounded INTEGER NOT NULL DEFAULT 0")
@@ -282,6 +369,7 @@ class AsclepiusStore:
         specialty: Optional[str] = None,
         board_cert: Optional[str] = None,
         years_experience: Optional[int] = None,
+        organization: Optional[str] = None,
     ) -> Dict[str, Any]:
         email = email.lower().strip()
         uid = _new_id("u")
@@ -290,8 +378,8 @@ class AsclepiusStore:
             conn.execute(
                 """
                 INSERT INTO users (id, email, password_hash, role, specialty, board_cert,
-                                   years_experience, id_hashed, active, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                                   years_experience, organization, id_hashed, active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                 """,
                 (
                     uid,
@@ -301,6 +389,7 @@ class AsclepiusStore:
                     specialty,
                     board_cert,
                     years_experience,
+                    organization,
                     id_hashed,
                     _utcnow_iso(),
                 ),
@@ -995,6 +1084,183 @@ class AsclepiusStore:
                 "UPDATE buyer_requests SET status = ?, updated_at = ? WHERE request_id = ?",
                 (status, _utcnow_iso(), request_id),
             )
+
+    # ─── Contributor credentials + organizations (tiered export) ─────────────
+    def upsert_contributor_credentials(
+        self,
+        *,
+        id_hashed: str,
+        user_id: Optional[str] = None,
+        organization: Optional[str] = None,
+        role_title: Optional[str] = None,
+        blurb: Optional[str] = None,
+        credentials_verified: bool = False,
+        ship: Optional[Dict[str, Any]] = None,
+        verify: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Create/replace a contributor's credential profile. ``ship`` is the Tier
+        A (buyer-facing) attribute block; ``verify`` is the Tier B private vault
+        (sealed at rest)."""
+        now = _utcnow_iso()
+        verify_blob, verify_enc = seal_vault(verify or {})
+        existing = self.get_contributor_credentials(id_hashed)
+        created_at = existing["created_at"] if existing else now
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO contributor_credentials
+                  (id_hashed, user_id, organization, role_title, blurb,
+                   credentials_verified, ship_json, verify_blob, verify_enc,
+                   created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    id_hashed,
+                    user_id,
+                    organization,
+                    role_title,
+                    blurb,
+                    1 if credentials_verified else 0,
+                    json.dumps(ship or {}, ensure_ascii=False),
+                    verify_blob,
+                    verify_enc,
+                    created_at,
+                    now,
+                ),
+            )
+        return self.get_contributor_credentials(id_hashed, include_verify=True)  # type: ignore[return-value]
+
+    def get_contributor_credentials(
+        self, id_hashed: str, *, include_verify: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM contributor_credentials WHERE id_hashed = ?", (id_hashed,)
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["credentials_verified"] = bool(rec.get("credentials_verified"))
+        rec["ship"] = json.loads(rec.pop("ship_json", "{}") or "{}")
+        verify_blob = rec.pop("verify_blob", None)
+        verify_enc = rec.pop("verify_enc", 0)
+        rec["verify_encrypted"] = bool(verify_enc)
+        if include_verify:
+            rec["verify"] = open_vault(verify_blob, verify_enc)
+        return rec
+
+    def list_contributor_credentials(self) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id_hashed FROM contributor_credentials ORDER BY updated_at DESC"
+            ).fetchall()
+        return [self.get_contributor_credentials(r["id_hashed"]) for r in rows if r]  # type: ignore[misc]
+
+    def _record_counts_by_evaluator(self) -> Dict[str, int]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT s.evaluator_id AS eid, COUNT(*) AS n
+                FROM records r
+                JOIN submissions s ON s.submission_id = r.submission_id
+                GROUP BY s.evaluator_id
+                """
+            ).fetchall()
+        return {r["eid"]: int(r["n"]) for r in rows}
+
+    def contributor_directory(self) -> List[Dict[str, Any]]:
+        """One row per contributor (a user who has labeled OR has a credential
+        profile): internal display name, hashed id, organization, role, primary
+        specialty, # records labeled, verified status, and last-labeled time."""
+        rec_counts = self._record_counts_by_evaluator()
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT u.id, u.id_hashed, u.email, u.role, u.specialty,
+                       u.organization AS user_org,
+                       COUNT(DISTINCT s.submission_id) AS submission_count,
+                       MAX(s.created_at) AS last_labeled_at
+                FROM users u
+                LEFT JOIN submissions s ON s.evaluator_id = u.id
+                GROUP BY u.id
+                ORDER BY u.created_at ASC
+                """
+            ).fetchall()
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            cred = self.get_contributor_credentials(r["id_hashed"]) if r["id_hashed"] else None
+            submission_count = int(r["submission_count"] or 0)
+            has_cred = cred is not None
+            # Skip accounts that have neither labeled nor been credentialed (e.g.
+            # the bootstrap admin) — they are not "contributors".
+            if submission_count == 0 and not has_cred:
+                continue
+            ship = (cred or {}).get("ship") or {}
+            organization = (
+                (cred or {}).get("organization")
+                or r["user_org"]
+                or "Unaffiliated"
+            )
+            primary_specialty = ship.get("primary_specialty") or r["specialty"]
+            out.append(
+                {
+                    "user_id": r["id"],
+                    "id_hashed": r["id_hashed"],
+                    "display_name": r["email"],   # internal-only display label
+                    "email": r["email"],
+                    "role": r["role"],
+                    "organization": organization,
+                    "role_title": (cred or {}).get("role_title"),
+                    "primary_specialty": primary_specialty,
+                    "specialty": r["specialty"],
+                    "degree": ship.get("degree"),
+                    "credentials_verified": bool((cred or {}).get("credentials_verified")),
+                    "has_credentials": has_cred,
+                    "record_count": int(rec_counts.get(r["id"], 0)),
+                    "submission_count": submission_count,
+                    "last_labeled_at": r["last_labeled_at"],
+                }
+            )
+        return out
+
+    def get_contributor(self, id_hashed: str) -> Optional[Dict[str, Any]]:
+        for c in self.contributor_directory():
+            if c["id_hashed"] == id_hashed:
+                return c
+        return None
+
+    def organization_directory(self) -> List[Dict[str, Any]]:
+        """Aggregate the contributor directory by organization for the top-level
+        Contributors view (list by org, click in)."""
+        orgs: Dict[str, Dict[str, Any]] = {}
+        for c in self.contributor_directory():
+            org = c["organization"] or "Unaffiliated"
+            agg = orgs.setdefault(
+                org,
+                {
+                    "organization": org,
+                    "contributor_count": 0,
+                    "verified_count": 0,
+                    "record_count": 0,
+                    "submission_count": 0,
+                    "last_labeled_at": None,
+                },
+            )
+            agg["contributor_count"] += 1
+            agg["verified_count"] += 1 if c["credentials_verified"] else 0
+            agg["record_count"] += c["record_count"]
+            agg["submission_count"] += c["submission_count"]
+            ll = c.get("last_labeled_at")
+            if ll and (agg["last_labeled_at"] is None or ll > agg["last_labeled_at"]):
+                agg["last_labeled_at"] = ll
+        return sorted(orgs.values(), key=lambda o: o["organization"].lower())
+
+    def hashed_ids_for_organization(self, organization: str) -> List[str]:
+        return [
+            c["id_hashed"]
+            for c in self.contributor_directory()
+            if (c["organization"] or "Unaffiliated") == organization and c["id_hashed"]
+        ]
 
     # ─── Inter-annotator agreement observations (opt §1.3) ───────────────────
     def upsert_agreement(

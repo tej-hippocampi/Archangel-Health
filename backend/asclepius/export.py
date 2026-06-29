@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from asclepius import agreement as asc_agreement
+from asclepius import credentials as asc_credentials
 from asclepius import profiles
 from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
@@ -84,6 +85,7 @@ def _passes_filters(
     confidence_floor: Optional[str],
     min_agreement: Optional[float],
     buyer_request_id: Optional[str],
+    annotator_ids: Optional[set],
 ) -> bool:
     payload = rec.get("payload") or {}
     if difficulty and (payload.get("context") or {}).get("difficulty") != difficulty:
@@ -100,6 +102,11 @@ def _passes_filters(
         if score is None or score < min_agreement:
             return False
     if buyer_request_id and payload.get("buyer_request_id") != buyer_request_id:
+        return False
+    # Contributor / organization scoping: only records this annotator (or set of
+    # annotators in an org) labeled. Keyed on the hashed annotator id stamped onto
+    # every record at packaging time.
+    if annotator_ids is not None and payload.get("annotator_id_hashed") not in annotator_ids:
         return False
     return True
 
@@ -218,8 +225,35 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
   credentialed specialist's work. Generated prompts are never auto-marked grounded."""
 
 
+def _scope_section_md(scope: Optional[Dict[str, Any]]) -> str:
+    """An auto-generated aggregate credential line for contributor/organization-
+    scoped exports (spec §5), e.g. "All records labeled by an NPI-verified, board-
+    certified, fellowship-trained nephrologist (~17 yrs, active practice)." Derived
+    from Tier A only — never identifying."""
+    if not scope:
+        return ""
+    label = scope.get("label") or scope.get("type") or "scope"
+    blurb = (scope.get("blurb") or "").strip()
+    lines = [f"\n## Contributor scope\n- Scope: **{scope.get('type', 'contributor')}** — {label}"]
+    if scope.get("type") == "contributor" and blurb:
+        lines.append(f"- All records in this batch labeled by: {blurb}")
+    elif scope.get("type") == "organization":
+        n = scope.get("contributor_count")
+        lines.append(
+            f"- All records in this batch labeled by credentialed contributors at "
+            f"**{label}**" + (f" ({n} contributor(s))" if n else "") + "."
+        )
+    lines.append(
+        "- Identifying credentials are withheld from this batch by design and are "
+        "available only via a Further Credential Summary under NDA / non-circumvention, "
+        "matched by `annotator_id_hashed`."
+    )
+    return "\n".join(lines)
+
+
 def _datasheet_md(*, export_id: str, profile_name: str, counts: Dict[str, Any],
-                  records: List[Dict[str, Any]], contributors: List[Dict[str, Any]]) -> str:
+                  records: List[Dict[str, Any]], contributors: List[Dict[str, Any]],
+                  scope: Optional[Dict[str, Any]] = None) -> str:
     credentials = sorted({(r.get("payload") or {}).get("annotator_credential") or "unspecified" for r in records})
     specialties = sorted(counts["by_specialty"].keys())
     type_lines = "\n".join(f"- `{k}`: {v}" for k, v in sorted(counts["by_type"].items()))
@@ -241,6 +275,7 @@ examples, and PRM800K-style step-level reasoning traces for frontier-lab trainin
 - Total records: **{counts['total']}**
 {type_lines}
 - Specialties: {", ".join(specialties) or "n/a"}
+{_scope_section_md(scope)}
 {_synthetic_provenance_md(records)}
 
 ## Collection process
@@ -373,20 +408,36 @@ def build_export(
     buyer_request_id: Optional[str] = None,
     note: Optional[str] = None,
     include_exported: bool = False,
+    annotator_id_hashed: Optional[str] = None,
+    annotator_ids: Optional[List[str]] = None,
+    verify_values: Optional[List[str]] = None,
+    scope: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Assemble + persist an export batch from export-ready records.
 
     Maps every record through the buyer profile, validates each line against the
-    profile schema (failing the whole batch on any invalid line), writes the
-    JSONL + companions + manifest, marks the records ``exported``, and logs a
-    provenance event. Raises ``ValueError`` when nothing matches the filters and
-    ``ExportValidationError`` when a mapped line fails its schema.
+    profile schema (failing the whole batch on any invalid line), runs the Tier B
+    leak gate on every line, writes the JSONL + companions + manifest, marks the
+    records ``exported``, and logs a provenance event. Raises ``ValueError`` when
+    nothing matches the filters and ``ExportValidationError`` when a mapped line
+    fails its schema OR carries any Tier B (identifying) field.
+
+    ``annotator_id_hashed`` scopes the batch to one contributor's records;
+    ``annotator_ids`` scopes it to a set (e.g. every contributor in an
+    organization). ``verify_values`` enables a defense-in-depth value scan against
+    the relevant private-vault values.
 
     ``include_exported`` re-includes already-shipped records so an admin can
     re-package / re-download a fresh bundle of everything (records stay in the DB
     permanently; export is non-destructive)."""
     prof = profiles.load_profile(profile)
     profile_name = prof.get("name") or profile
+
+    annotator_id_set: Optional[set] = None
+    if annotator_id_hashed:
+        annotator_id_set = {annotator_id_hashed}
+    elif annotator_ids is not None:
+        annotator_id_set = set(annotator_ids)
 
     candidates = store.list_records(
         status="export_ready",
@@ -413,6 +464,7 @@ def build_export(
             confidence_floor=confidence_floor,
             min_agreement=min_agreement,
             buyer_request_id=buyer_request_id,
+            annotator_ids=annotator_id_set,
         )
     ]
     if not records:
@@ -440,6 +492,24 @@ def build_export(
                 raise ExportValidationError(
                     f"Record {rec.get('record_id')} ({rtype}) failed profile "
                     f"{profile_name!r} schema: {errs[0]}"
+                )
+        # THE CORE RULE (spec §4, §5): buyer-facing records carry credential
+        # ATTRIBUTES only. Reject the whole batch loudly if ANY Tier B
+        # (identifying / locating) field appears in ANY record.
+        leak = asc_credentials.find_tier_b_leak(mapped)
+        if leak is not None:
+            raise ExportValidationError(
+                f"Tier B leak: record {rec.get('record_id')} ({rtype}) contains the "
+                f"identifying field {leak!r}, which must never ship in an Export Data "
+                f"batch. Tier B credentials are released only via Further Credential "
+                f"Summary. Batch rejected."
+            )
+        if verify_values:
+            vleak = asc_credentials.find_tier_b_value_leak(mapped, verify_values)
+            if vleak is not None:
+                raise ExportValidationError(
+                    f"Tier B value leak: record {rec.get('record_id')} ({rtype}) "
+                    f"contains a private-vault value ({vleak!r}). Batch rejected."
                 )
         lines.append(json.dumps(mapped, ensure_ascii=False, sort_keys=True))
         emitted.append(rec)
@@ -475,7 +545,7 @@ def build_export(
     (out_dir / DATASHEET_NAME).write_text(
         _datasheet_md(
             export_id=export_id, profile_name=profile_name, counts=counts,
-            records=emitted, contributors=contributors,
+            records=emitted, contributors=contributors, scope=scope,
         ),
         encoding="utf-8",
     )
@@ -496,6 +566,8 @@ def build_export(
         "confidence_floor": confidence_floor,
         "min_agreement": min_agreement,
         "buyer_request_id": buyer_request_id,
+        "annotator_id_hashed": annotator_id_hashed,
+        "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
     }
     content_hashes = {JSONL_NAME: _sha256_text(jsonl_text)}
     for name in (DICTIONARY_NAME, DATASHEET_NAME, QUALITY_NAME):
@@ -517,6 +589,8 @@ def build_export(
         "kappa": kappa,
         "filters": filters,
         "note": note,
+        "scope": scope,
+        "tier_b_leak_gate": "passed",
         "files": _COMPANION_FILES,
         "content_hashes": content_hashes,
         "dir_path": str(out_dir),

@@ -19,6 +19,7 @@ import logging
 import os
 import time
 import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -27,6 +28,7 @@ from fastapi.responses import StreamingResponse
 from asclepius import agreement as asc_agreement
 from asclepius import auth as asc_auth
 from asclepius import corpus as asc_corpus
+from asclepius import credentials as asc_credentials
 from asclepius import export as asc_export
 from asclepius import generation as asc_generation
 from asclepius import pipeline as asc_pipeline
@@ -36,6 +38,8 @@ from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
     ASCLEPIUS_TAXONOMY_VERSION,
     BUYER_REQUEST_STATUSES,
+    CREDENTIAL_SUMMARY_LEGAL_DISCLAIMER,
+    CREDENTIAL_SUMMARY_WATERMARK,
     CONFIDENCE_LEVELS,
     DEFAULT_GROUNDING_MODE,
     ERROR_SEVERITIES,
@@ -50,17 +54,24 @@ from asclepius.constants import (
     WHY_BETTER_TAGS,
 )
 from asclepius.critic import generate_candidates, generate_candidates_ex
+from asclepius.constants import (
+    company_name as _company_name,
+    non_circumvention_notice as _non_circumvention_notice,
+)
 from asclepius.schemas import (
     BatchFromRequest,
     BuyerIn,
     BuyerRequestIn,
     BuyerRequestStatusUpdate,
     CandidateGenRequest,
+    ContributorCredentialsIn,
     CreateUserRequest,
+    CredentialSummaryRequest,
     ExportRequest,
     GenerationRequest,
     LoginRequest,
     QADecisionRequest,
+    ScopedExportRequest,
     SsoRequest,
     SubmissionIn,
     TaskUploadRequest,
@@ -789,6 +800,409 @@ async def download_export(
     data = asc_export.zip_export(export)
     headers = {"Content-Disposition": f'attachment; filename="{export_id}.zip"'}
     return StreamingResponse(io.BytesIO(data), media_type="application/zip", headers=headers)
+
+
+# ─── Contributors view + tiered export (admin) ────────────────────────────────
+# An admin-only view of every credentialed contributor, grouped by organization,
+# with a two-tier export: "Export Data" (Tier A, buyer-facing) and "Further
+# Credential Summary" (Tier B verification dossier, under NDA). The wall is
+# enforced at export by the Tier B leak gate in ``export.build_export``.
+
+
+def _credential_summaries_root():
+    root = asc_export.export_root() / "credential-summaries"
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    return root
+
+
+def _contributor_blurb(store: Any, id_hashed: str, contributor: Dict[str, Any],
+                       cred: Optional[Dict[str, Any]]) -> str:
+    if cred and (cred.get("blurb") or "").strip():
+        return cred["blurb"].strip()
+    ship = (cred or {}).get("ship") or {}
+    return asc_credentials.generalized_blurb(
+        ship, fallback_specialty=contributor.get("primary_specialty") or contributor.get("specialty")
+    )
+
+
+def _contributor_metrics(store: Any) -> List[Dict[str, Any]]:
+    """Per-contributor metrics: directory facts + the throughput/grounded numbers
+    from ``contributor_stats`` (keyed by user id)."""
+    stats_by_uid = {s.get("evaluator_id"): s for s in store.contributor_stats()}
+    rows: List[Dict[str, Any]] = []
+    for c in store.contributor_directory():
+        st = stats_by_uid.get(c["user_id"]) or {}
+        rows.append(
+            {
+                **c,
+                "avg_time_sec": st.get("avg_time_sec"),
+                "total_hours": st.get("total_hours"),
+                "premium_submissions": st.get("premium_submissions"),
+                "premium_hours": st.get("premium_hours"),
+                "grounded_submissions": st.get("grounded_submissions"),
+                "credential": st.get("credential"),
+            }
+        )
+    return rows
+
+
+def _organization_metrics(store: Any) -> List[Dict[str, Any]]:
+    contribs = _contributor_metrics(store)
+    orgs: Dict[str, Dict[str, Any]] = {}
+    for c in contribs:
+        org = c.get("organization") or "Unaffiliated"
+        agg = orgs.setdefault(
+            org,
+            {
+                "organization": org,
+                "contributor_count": 0,
+                "verified_count": 0,
+                "record_count": 0,
+                "submission_count": 0,
+                "grounded_submissions": 0,
+                "total_hours": 0.0,
+                "last_labeled_at": None,
+            },
+        )
+        agg["contributor_count"] += 1
+        agg["verified_count"] += 1 if c.get("credentials_verified") else 0
+        agg["record_count"] += c.get("record_count") or 0
+        agg["submission_count"] += c.get("submission_count") or 0
+        agg["grounded_submissions"] += c.get("grounded_submissions") or 0
+        agg["total_hours"] += c.get("total_hours") or 0.0
+        ll = c.get("last_labeled_at")
+        if ll and (agg["last_labeled_at"] is None or ll > agg["last_labeled_at"]):
+            agg["last_labeled_at"] = ll
+    for agg in orgs.values():
+        agg["total_hours"] = round(agg["total_hours"], 2)
+    return sorted(orgs.values(), key=lambda o: o["organization"].lower())
+
+
+@router.get("/organizations")
+async def list_organizations(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """All contributors grouped by organization (spec §3 — "listed by organization
+    name, then I click into it")."""
+    return {"organizations": _store().organization_directory()}
+
+
+@router.get("/contributors")
+async def list_contributors(
+    organization: Optional[str] = None,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Every contributor (optionally within one organization): internal display
+    name, hashed id, primary specialty, # records labeled, verified status."""
+    contributors = _store().contributor_directory()
+    if organization:
+        contributors = [c for c in contributors if (c["organization"] or "Unaffiliated") == organization]
+    return {"contributors": contributors, "organization": organization}
+
+
+@router.get("/contributors/{id_hashed}")
+async def get_contributor(
+    id_hashed: str,
+    include_verify: bool = False,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """A contributor's profile: the generalized blurb + a credential summary. Tier
+    B values are masked unless ``include_verify=true`` (admin edit path); the
+    audited release path is the Further Credential Summary dossier."""
+    store = _store()
+    contributor = store.get_contributor(id_hashed)
+    if not contributor:
+        raise HTTPException(status_code=404, detail="Contributor not found")
+    cred = store.get_contributor_credentials(id_hashed, include_verify=include_verify)
+    ship = (cred or {}).get("ship") or {}
+    verify = (cred or {}).get("verify") or {}
+    blurb = _contributor_blurb(store, id_hashed, contributor, cred)
+    credentials_block: Dict[str, Any] = {
+        "organization": (cred or {}).get("organization") or contributor.get("organization"),
+        "role_title": (cred or {}).get("role_title") or contributor.get("role_title"),
+        "credentials_verified": bool((cred or {}).get("credentials_verified") or contributor.get("credentials_verified")),
+        "ship": ship,
+        "verify_encrypted": bool((cred or {}).get("verify_encrypted")),
+        "verify_fields_on_file": sorted(verify.keys()) if include_verify else None,
+        "has_verify_vault": bool(verify) if include_verify else (cred is not None),
+    }
+    if include_verify:
+        credentials_block["verify"] = verify
+    return {
+        "contributor": contributor,
+        "blurb": blurb,
+        "credentials": credentials_block,
+        "buttons": ["export_data", "further_credential_summary"],
+    }
+
+
+@router.put("/contributors/{id_hashed}")
+async def upsert_contributor(
+    id_hashed: str,
+    body: ContributorCredentialsIn,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Create/update a contributor's credential profile (Tier A ship + Tier B
+    vault). The contributor (user) must already exist."""
+    store = _store()
+    contributor = store.get_contributor(id_hashed)
+    user = None
+    # Resolve the owning user id from the directory (id_hashed -> user).
+    for c in store.contributor_directory():
+        if c["id_hashed"] == id_hashed:
+            user = c
+            break
+    saved = store.upsert_contributor_credentials(
+        id_hashed=id_hashed,
+        user_id=(user or {}).get("user_id"),
+        organization=body.organization,
+        role_title=body.role_title,
+        blurb=body.blurb,
+        credentials_verified=body.credentials_verified,
+        ship=body.ship,
+        verify=body.verify,
+    )
+    store.log_event(
+        entity_type="contributor", entity_id=id_hashed,
+        event_type="credentials_updated", actor=admin["id"],
+        payload={"organization": body.organization, "verified": body.credentials_verified},
+    )
+    return {
+        "id_hashed": id_hashed,
+        "organization": saved.get("organization"),
+        "role_title": saved.get("role_title"),
+        "credentials_verified": saved.get("credentials_verified"),
+        "verify_encrypted": saved.get("verify_encrypted"),
+    }
+
+
+@router.post("/contributors/{id_hashed}/export")
+async def export_contributor_data(
+    id_hashed: str,
+    body: ScopedExportRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Button 1 — "Export Data": all export-ready records labeled by THIS
+    contributor, Tier A only. The Tier B leak gate guards the batch."""
+    store = _store()
+    contributor = store.get_contributor(id_hashed)
+    if not contributor:
+        raise HTTPException(status_code=404, detail="Contributor not found")
+    cred = store.get_contributor_credentials(id_hashed, include_verify=True)
+    verify_values = asc_credentials.collect_verify_values([(cred or {}).get("verify") or {}])
+    blurb = _contributor_blurb(store, id_hashed, contributor, cred)
+    scope = {
+        "type": "contributor",
+        "label": contributor.get("display_name") or id_hashed,
+        "id_hashed": id_hashed,
+        "blurb": blurb,
+    }
+    return _build_scoped_export(
+        store, admin, body, annotator_id_hashed=id_hashed,
+        verify_values=verify_values, scope=scope,
+    )
+
+
+@router.post("/organizations/{organization}/export")
+async def export_organization_data(
+    organization: str,
+    body: ScopedExportRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Export all Tier A data labeled by every contributor in an organization
+    (spec §3 — "within the organization name: export all the data that
+    organization labelled")."""
+    store = _store()
+    hashed_ids = store.hashed_ids_for_organization(organization)
+    if not hashed_ids:
+        raise HTTPException(status_code=404, detail="No contributors found for that organization")
+    verify_values: List[str] = []
+    for h in hashed_ids:
+        cred = store.get_contributor_credentials(h, include_verify=True)
+        if cred:
+            verify_values += asc_credentials.collect_verify_values([cred.get("verify") or {}])
+    scope = {
+        "type": "organization",
+        "label": organization,
+        "contributor_count": len(hashed_ids),
+    }
+    return _build_scoped_export(
+        store, admin, body, annotator_ids=hashed_ids,
+        verify_values=verify_values, scope=scope,
+    )
+
+
+def _build_scoped_export(
+    store: Any, admin: Dict[str, Any], body: ScopedExportRequest, *,
+    annotator_id_hashed: Optional[str] = None,
+    annotator_ids: Optional[List[str]] = None,
+    verify_values: Optional[List[str]] = None,
+    scope: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    try:
+        manifest = asc_export.build_export(
+            store,
+            created_by=admin["id"],
+            profile=body.profile,
+            note=body.note,
+            include_exported=body.include_exported,
+            annotator_id_hashed=annotator_id_hashed,
+            annotator_ids=annotator_ids,
+            verify_values=verify_values,
+            scope=scope,
+        )
+    except asc_export.ExportValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except asc_profiles.ProfileError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return manifest
+
+
+@router.post("/contributors/{id_hashed}/credential-summary")
+async def create_credential_summary(
+    id_hashed: str,
+    body: CredentialSummaryRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Button 2 — "Further Credential Summary": generate a verification dossier
+    (PDF + JSON) containing Tier B + Tier A + verification handles, watermarked
+    confidential, with the §9 notice prepended. Requires a click-through
+    acknowledgment and is logged for audit (spec §6)."""
+    if not body.acknowledged:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "acknowledgment_required",
+                "message": "You must acknowledge the Non-Circumvention & Confidentiality "
+                           "Notice before generating a credential verification summary.",
+            },
+        )
+    store = _store()
+    contributor = store.get_contributor(id_hashed)
+    if not contributor:
+        raise HTTPException(status_code=404, detail="Contributor not found")
+    cred = store.get_contributor_credentials(id_hashed, include_verify=True)
+    ship = (cred or {}).get("ship") or {}
+    verify = (cred or {}).get("verify") or {}
+    blurb = _contributor_blurb(store, id_hashed, contributor, cred)
+
+    summary_id = "cvs-" + uuid.uuid4().hex[:12]
+    generated_at = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    dossier = asc_credentials.build_dossier(
+        id_hashed=id_hashed,
+        organization=(cred or {}).get("organization") or contributor.get("organization"),
+        role_title=(cred or {}).get("role_title") or contributor.get("role_title"),
+        blurb=blurb,
+        ship=ship,
+        verify=verify,
+        recipient=body.recipient,
+        generated_by=admin.get("email"),
+        generated_at=generated_at,
+    )
+    dossier["summary_id"] = summary_id
+
+    out_dir = _credential_summaries_root() / summary_id
+    out_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    (out_dir / "summary.json").write_text(json.dumps(dossier, indent=2, ensure_ascii=False), encoding="utf-8")
+    (out_dir / "summary.pdf").write_bytes(asc_credentials.render_dossier_pdf(dossier))
+
+    # Audit: every generation is logged (timestamp, admin, intended recipient).
+    store.log_event(
+        entity_type="contributor", entity_id=id_hashed,
+        event_type="credential_summary_generated", actor=admin["id"],
+        payload={
+            "summary_id": summary_id, "recipient": body.recipient,
+            "generated_by": admin.get("email"), "generated_at": generated_at,
+            "dir_path": str(out_dir),
+        },
+    )
+    return {
+        "summary_id": summary_id,
+        "id_hashed": id_hashed,
+        "recipient": body.recipient,
+        "generated_at": generated_at,
+        "blurb": blurb,
+        "verification_handles": dossier.get("verification_handles"),
+        "watermark": CREDENTIAL_SUMMARY_WATERMARK,
+        "files": ["summary.json", "summary.pdf"],
+        "downloads": {
+            "json": f"/contributors/{id_hashed}/credential-summary/{summary_id}/download?format=json",
+            "pdf": f"/contributors/{id_hashed}/credential-summary/{summary_id}/download?format=pdf",
+        },
+    }
+
+
+@router.get("/contributors/{id_hashed}/credential-summaries")
+async def list_credential_summaries(
+    id_hashed: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """The audit trail of credential summaries generated for this contributor."""
+    events = _store().list_events(entity_type="contributor", entity_id=id_hashed, limit=500)
+    summaries = [
+        {
+            "summary_id": (e.get("payload") or {}).get("summary_id"),
+            "recipient": (e.get("payload") or {}).get("recipient"),
+            "generated_by": (e.get("payload") or {}).get("generated_by"),
+            "generated_at": (e.get("payload") or {}).get("generated_at") or e.get("occurred_at"),
+        }
+        for e in events
+        if e.get("event_type") == "credential_summary_generated"
+    ]
+    return {"summaries": summaries}
+
+
+@router.get("/contributors/{id_hashed}/credential-summary/{summary_id}/download")
+async def download_credential_summary(
+    id_hashed: str,
+    summary_id: str,
+    format: str = "pdf",
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    fmt = (format or "pdf").lower()
+    if fmt not in ("pdf", "json"):
+        raise HTTPException(status_code=400, detail="format must be 'pdf' or 'json'")
+    out_dir = _credential_summaries_root() / summary_id
+    fname = "summary.pdf" if fmt == "pdf" else "summary.json"
+    fpath = out_dir / fname
+    if not fpath.exists():
+        raise HTTPException(status_code=404, detail="Credential summary not found")
+    data = fpath.read_bytes()
+    media = "application/pdf" if fmt == "pdf" else "application/json"
+    download_name = f"credential-summary-{id_hashed}-{summary_id}.{fmt}"
+    headers = {"Content-Disposition": f'attachment; filename="{download_name}"'}
+    return StreamingResponse(io.BytesIO(data), media_type=media, headers=headers)
+
+
+# ─── Per-organization / per-contributor metrics (admin) ───────────────────────
+@router.get("/metrics/organizations")
+async def metrics_organizations(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    return {"organizations": _organization_metrics(_store())}
+
+
+@router.get("/metrics/contributors")
+async def metrics_contributors(
+    organization: Optional[str] = None,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    rows = _contributor_metrics(_store())
+    if organization:
+        rows = [r for r in rows if (r.get("organization") or "Unaffiliated") == organization]
+    return {"contributors": rows, "organization": organization}
+
+
+@router.get("/credential-policy")
+async def credential_policy(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """The tiering policy + the §9 notice text, for the UI (ack modal, tier hints)."""
+    from asclepius.constants import TIER_A_SHIP_FIELDS, TIER_B_VERIFY_FIELDS
+
+    return {
+        "company": _company_name(),
+        "tier_a_ship_fields": list(TIER_A_SHIP_FIELDS),
+        "tier_b_verify_fields": list(TIER_B_VERIFY_FIELDS),
+        "watermark": CREDENTIAL_SUMMARY_WATERMARK,
+        "non_circumvention_notice": _non_circumvention_notice(),
+        "legal_disclaimer": CREDENTIAL_SUMMARY_LEGAL_DISCLAIMER,
+    }
 
 
 # ─── Buyers & buyer requests (opt §2.5) ───────────────────────────────────────

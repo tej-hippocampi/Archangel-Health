@@ -225,3 +225,133 @@ def gen_max_attempts_per_task() -> int:
 
 def gen_fewshot_k() -> int:
     return max(1, _env_int("ASCLEPIUS_GEN_FEWSHOT_K", 6))
+
+
+# ─── Contributors view + tiered export (credential tiering) ──────────────────
+# The governing rule: records sent to buyers ("Export Data") carry credential
+# ATTRIBUTES only; anything that identifies or locates the physician lives in a
+# private vault and is released only via "Further Credential Summary" under NDA.
+# Enforced at export with a hard validation gate (see export.assert_no_tier_b_leak).
+
+# Roles a contributor can hold within an organization (display only; free-text
+# tolerated). Drives the "specific doctor, the specific NP, etc." breakdown.
+CONTRIBUTOR_ROLE_TITLES = (
+    "Physician (MD)",
+    "Physician (DO)",
+    "Physician (MBBS)",
+    "Nurse Practitioner",
+    "Physician Assistant",
+    "Registered Nurse",
+    "Pharmacist",
+    "Other",
+)
+
+# Practice-setting categories — the ONLY practice descriptor that ships. Never a
+# named institution (that is Tier B).
+PRACTICE_SETTING_TYPES = (
+    "academic",
+    "private_practice",
+    "hospital",
+    "dialysis_unit",
+    "other",
+)
+
+# Tier A — SHIP. Credential ATTRIBUTES included in buyer-facing "Export Data"
+# records. No value here can identify or locate the physician.
+TIER_A_SHIP_FIELDS = (
+    "hashed_annotator_id",
+    "degree",                    # MD / DO / MBBS
+    "board_certifications",      # board + specialty + subspecialty + active status
+    "primary_specialty",
+    "subspecialties",            # array (dialysis, transplant, CKD…)
+    "years_in_active_practice",
+    "active_practice",           # boolean
+    "practice_setting_type",     # category only — never a named institution
+    "languages",                 # array
+    "fellowship_trained",        # boolean
+    "fellowship_summary",        # generalized string (no named institution)
+    "credentials_verified",      # boolean ✓
+)
+
+# Tier B — VERIFY ONLY. The private vault. NEVER appears in a shipped record;
+# released only inside a "Further Credential Summary" dossier under NDA. The
+# field NAMES here are the forbidden set the export leak-gate scans for.
+TIER_B_VERIFY_FIELDS = (
+    "full_legal_name",
+    "npi",
+    "medical_license_number",
+    "license_state",
+    "medical_school",            # institution
+    "medical_school_year",
+    "residency",                 # institution
+    "residency_year",
+    "fellowship",                # institution (exact)
+    "fellowship_year",
+    "practice_name",
+    "practice_address",
+    "practice_contact",
+)
+
+# Extra identifying-token aliases the leak-gate also rejects (EXACT key match, so
+# they can never collide with legitimate shipped fields like `license` — the
+# rights string — or `annotator_credential`). A mis-mapped buyer profile cannot
+# smuggle PII under one of these key names.
+TIER_B_FORBIDDEN_ALIASES = (
+    "legal_name",
+    "physician_name",
+    "license_number",
+    "dob",
+    "date_of_birth",
+    "home_address",
+    "practice_phone",
+    "practice_email",
+    "ssn",
+)
+
+# The complete forbidden-key set scanned (exact, case-insensitive) on every
+# exported record line.
+TIER_B_FORBIDDEN_KEYS = tuple(sorted(set(TIER_B_VERIFY_FIELDS) | set(TIER_B_FORBIDDEN_ALIASES)))
+
+
+def company_name() -> str:
+    """The legal entity named in the credential-verification notice. Env-
+    overridable so the same notice text works across deployments."""
+    return (os.getenv("ASCLEPIUS_COMPANY_NAME") or "Archangel Health").strip()
+
+
+# Header watermark stamped on every Further Credential Summary page (spec §6).
+CREDENTIAL_SUMMARY_WATERMARK = (
+    "CONFIDENTIAL — credential verification, provided under NDA / non-circumvention."
+)
+
+
+def non_circumvention_notice() -> str:
+    """The §9 Non-Circumvention & Confidentiality Notice, auto-prepended to every
+    Further Credential Summary and surfaced as a click-through acknowledgment
+    before generation. ``[Company]`` is substituted with ``company_name()``."""
+    co = company_name()
+    return f"""CONFIDENTIAL — CREDENTIAL VERIFICATION
+
+This Credential Verification Summary (the "Summary") is provided by {co} solely to enable the recipient ("Recipient") to verify the qualifications of the credentialed contributor(s) associated with data licensed from or evaluated through {co}. By accessing this Summary, Recipient agrees to the following:
+
+1. Confidential use. The Summary and all information it contains (including names, NPI, license numbers, education history, and other credentials) are confidential and are provided solely for credential verification. Recipient will not copy, store beyond the verification period, distribute, or use the information for any other purpose.
+
+2. Non-circumvention / non-solicitation. For a period of twenty-four (24) months from receipt, Recipient and its affiliates shall not, directly or indirectly, contact, solicit, recruit, engage, contract with, employ, or attempt to source services from any contributor identified in this Summary, nor otherwise circumvent {co} to obtain such contributor's services, without {co}'s prior written consent.
+
+3. Services provided through {co}. Recipient acknowledges that all expert evaluation and data-labeling services are provided through {co}, and that the contributor relationship is engaged exclusively through {co} for the purposes contemplated herein.
+
+4. Remedies. Recipient acknowledges that a breach of this Notice would cause irreparable harm for which monetary damages may be inadequate, and that {co} shall be entitled to seek injunctive relief, in addition to any other available remedies, together with reasonable attorneys' fees.
+
+5. Term & survival. These obligations survive the completion of verification and any related transaction and remain in effect for the period stated above.
+
+This Notice supplements, and does not replace, any Master Services Agreement, NDA, or Data License Agreement between the parties. Where a signed agreement exists, the more protective terms control."""
+
+
+# Surfaced in-app and on the dossier: this template is not legal advice.
+CREDENTIAL_SUMMARY_LEGAL_DISCLAIMER = (
+    "The Non-Circumvention & Confidentiality Notice is a template for discussion, "
+    "not legal advice. Have a qualified attorney review and adapt it (governing law, "
+    "term length, definitions, enforceability by jurisdiction) before relying on it. "
+    "Ideally the same protections also appear in a signed NDA + Master Services "
+    "Agreement with each buyer and in your contributor agreement."
+)
