@@ -75,6 +75,12 @@ export function doctorSignInUrl(): string {
   return base ? `${base}/doctor/sign-in` : "";
 }
 
+/** Asclepius (data-training) portal — email/password sign-in lives here. */
+export function asclepiusPortalUrl(): string {
+  const base = dashboardBaseUrl();
+  return base ? `${base}/asclepius` : "/asclepius";
+}
+
 export type User = { email: string; name?: string | null; role?: string | null };
 
 export type AuthResponse = {

@@ -548,6 +548,410 @@ export function SelectField({
 }
 
 /* ─────────────────────────────────────────────────────────────
+   TextArea — multi-line sibling of TextField (same shell).
+   ───────────────────────────────────────────────────────────── */
+
+export function TextArea({
+  label,
+  value,
+  onChange,
+  placeholder,
+  optional,
+  hint,
+  rows = 3,
+}: {
+  label?: ReactNode;
+  value: string;
+  onChange?: (next: string) => void;
+  placeholder?: string;
+  optional?: boolean;
+  hint?: ReactNode;
+  rows?: number;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <div style={{ marginBottom: 20 }}>
+      {label && <FieldLabel optional={optional}>{label}</FieldLabel>}
+      <div
+        style={{
+          background: focused ? "rgba(15, 17, 24, 0.85)" : "rgba(15, 17, 24, 0.55)",
+          border: "1px solid " + (focused ? "rgba(103,232,249,0.45)" : "rgba(255,255,255,0.10)"),
+          borderRadius: 12,
+          padding: "2px 16px",
+          transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)",
+          boxShadow: focused ? "0 0 0 4px rgba(103,232,249,0.10)" : "none",
+        }}
+      >
+        <textarea
+          value={value}
+          onChange={(e) => onChange?.(e.target.value)}
+          placeholder={placeholder}
+          rows={rows}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={{
+            width: "100%",
+            background: "transparent",
+            border: "none",
+            outline: "none",
+            color: "#F5F5F7",
+            fontSize: 15,
+            lineHeight: 1.6,
+            padding: "12px 0",
+            fontFamily: "inherit",
+            resize: "vertical",
+            minHeight: 24 * rows,
+          }}
+        />
+      </div>
+      {hint && (
+        <div style={{ fontSize: 12, color: "rgba(245,245,247,0.45)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ChipMultiSelect — add-as-you-type tag input + suggested chips.
+   Caller owns the string[] value. Used for subspecialties, practice
+   settings, and languages.
+   ───────────────────────────────────────────────────────────── */
+
+export function ChipMultiSelect({
+  label,
+  value,
+  onChange,
+  placeholder,
+  suggestions = [],
+  optional,
+  hint,
+}: {
+  label?: ReactNode;
+  value: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+  suggestions?: string[];
+  optional?: boolean;
+  hint?: ReactNode;
+}) {
+  const [draft, setDraft] = useState("");
+  const [focused, setFocused] = useState(false);
+
+  const add = (raw: string) => {
+    const v = raw.trim();
+    if (!v) return;
+    if (value.some((x) => x.toLowerCase() === v.toLowerCase())) {
+      setDraft("");
+      return;
+    }
+    onChange([...value, v]);
+    setDraft("");
+  };
+  const remove = (v: string) => onChange(value.filter((x) => x !== v));
+
+  const openSuggestions = suggestions.filter(
+    (s) => !value.some((v) => v.toLowerCase() === s.toLowerCase()),
+  );
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      {label && <FieldLabel optional={optional}>{label}</FieldLabel>}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: 8,
+          background: focused ? "rgba(15, 17, 24, 0.85)" : "rgba(15, 17, 24, 0.55)",
+          border: "1px solid " + (focused ? "rgba(103,232,249,0.45)" : "rgba(255,255,255,0.10)"),
+          borderRadius: 12,
+          padding: "10px 12px",
+          transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)",
+          boxShadow: focused ? "0 0 0 4px rgba(103,232,249,0.10)" : "none",
+        }}
+      >
+        {value.map((v) => (
+          <span
+            key={v}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              height: 28,
+              padding: "0 6px 0 11px",
+              borderRadius: 9999,
+              background: "rgba(103,232,249,0.10)",
+              border: "1px solid rgba(103,232,249,0.32)",
+              color: "#67E8F9",
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            {v}
+            <button
+              type="button"
+              onClick={() => remove(v)}
+              aria-label={`Remove ${v}`}
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: "50%",
+                background: "rgba(103,232,249,0.18)",
+                border: "none",
+                color: "#67E8F9",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 14,
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            add(draft);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              add(draft);
+            } else if (e.key === "Backspace" && !draft && value.length) {
+              remove(value[value.length - 1]);
+            }
+          }}
+          placeholder={value.length === 0 ? placeholder : "Add another…"}
+          style={{
+            flex: "1 1 120px",
+            minWidth: 120,
+            background: "transparent",
+            border: "none",
+            outline: "none",
+            color: "#F5F5F7",
+            fontSize: 15,
+            padding: "5px 0",
+            fontFamily: "inherit",
+          }}
+        />
+      </div>
+      {openSuggestions.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 10 }}>
+          {openSuggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => add(s)}
+              style={{
+                height: 26,
+                padding: "0 11px",
+                borderRadius: 9999,
+                background: "transparent",
+                border: "1px dashed rgba(255,255,255,0.18)",
+                color: "rgba(245,245,247,0.6)",
+                fontSize: 12.5,
+                cursor: "pointer",
+              }}
+            >
+              + {s}
+            </button>
+          ))}
+        </div>
+      )}
+      {hint && (
+        <div style={{ fontSize: 12, color: "rgba(245,245,247,0.45)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   YesNoToggle — two-segment control for boolean questions.
+   ───────────────────────────────────────────────────────────── */
+
+export function YesNoToggle({
+  label,
+  value,
+  onChange,
+}: {
+  label?: ReactNode;
+  value: boolean | null;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      {label && <FieldLabel>{label}</FieldLabel>}
+      <div style={{ display: "flex", gap: 10 }}>
+        {[
+          { v: true, label: "Yes" },
+          { v: false, label: "No" },
+        ].map((opt) => {
+          const active = value === opt.v;
+          return (
+            <button
+              key={opt.label}
+              type="button"
+              onClick={() => onChange(opt.v)}
+              style={{
+                flex: 1,
+                padding: "13px 0",
+                borderRadius: 12,
+                background: active ? "rgba(103,232,249,0.12)" : "rgba(15,17,24,0.55)",
+                border: "1px solid " + (active ? "rgba(103,232,249,0.45)" : "rgba(255,255,255,0.10)"),
+                color: active ? "#67E8F9" : "rgba(245,245,247,0.7)",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 200ms cubic-bezier(0.16, 1, 0.3, 1)",
+                boxShadow: active ? "0 0 0 4px rgba(103,232,249,0.08)" : "none",
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ProductOption — large selectable card for Step 3 product choice.
+   ───────────────────────────────────────────────────────────── */
+
+export function ProductOption({
+  title,
+  tagline,
+  description,
+  badges,
+  icon,
+  selected,
+  onSelect,
+}: {
+  title: string;
+  tagline: string;
+  description: ReactNode;
+  badges?: string[];
+  icon: ReactNode;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  const lit = selected || hover;
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        textAlign: "left",
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+        padding: "24px 24px",
+        borderRadius: 16,
+        background: selected
+          ? "linear-gradient(135deg, rgba(38,99,235,0.16) 0%, rgba(103,232,249,0.07) 100%)"
+          : "rgba(15,17,24,0.55)",
+        border: "1px solid " + (lit ? "rgba(103,232,249,0.45)" : "rgba(255,255,255,0.10)"),
+        boxShadow: selected
+          ? "0 0 0 4px rgba(103,232,249,0.08), 0 12px 40px rgba(38,99,235,0.16)"
+          : hover
+            ? "0 8px 28px rgba(0,0,0,0.30)"
+            : "none",
+        cursor: "pointer",
+        transition: "all 240ms cubic-bezier(0.16, 1, 0.3, 1)",
+        transform: hover && !selected ? "translateY(-2px)" : "none",
+        height: "100%",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            background: "linear-gradient(135deg, #1A3C8F 0%, #2563EB 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 0 0 1px rgba(103,232,249,0.18), 0 8px 24px rgba(38,99,235,0.30)",
+            color: "#fff",
+          }}
+        >
+          {icon}
+        </div>
+        <span
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            border: "1.5px solid " + (selected ? "#67E8F9" : "rgba(255,255,255,0.25)"),
+            background: selected ? "#67E8F9" : "transparent",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {selected && (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#07070A" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </span>
+      </div>
+      <div>
+        <div
+          style={{
+            fontFamily: "'Fraunces', 'Iowan Old Style', 'Charter', Georgia, serif",
+            fontSize: 22,
+            fontWeight: 500,
+            letterSpacing: "-0.01em",
+            color: "#F5F5F7",
+          }}
+        >
+          {title}
+        </div>
+        <div style={{ fontSize: 12.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "#67E8F9", marginTop: 6 }}>
+          {tagline}
+        </div>
+      </div>
+      <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(245,245,247,0.62)" }}>{description}</div>
+      {badges && badges.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: "auto", paddingTop: 6 }}>
+          {badges.map((b) => (
+            <span
+              key={b}
+              style={{
+                height: 24,
+                padding: "0 10px",
+                borderRadius: 9999,
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                color: "rgba(245,245,247,0.7)",
+                fontSize: 11.5,
+                fontWeight: 500,
+                display: "inline-flex",
+                alignItems: "center",
+              }}
+            >
+              {b}
+            </span>
+          ))}
+        </div>
+      )}
+    </button>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
    PrimaryButton — idle → loading → success → reset lifecycle.
    The handler may return a Promise; resolving `false` keeps it Idle
    (used to signal a server error without entering Success).
@@ -855,6 +1259,31 @@ const ROLE_PALETTE: Record<string, { bg: string; border: string; fg: string }> =
     bg: "rgba(167,139,250,0.12)",
     border: "rgba(167,139,250,0.32)",
     fg: "#C4B5FD",
+  },
+  "Director of Data Training": {
+    bg: "rgba(103,232,249,0.10)",
+    border: "rgba(103,232,249,0.32)",
+    fg: "#67E8F9",
+  },
+  "Physician (MD/DO/MBBS)": {
+    bg: "rgba(38,99,235,0.14)",
+    border: "rgba(96,165,250,0.32)",
+    fg: "#93C5FD",
+  },
+  "Nurse Practitioner (NP)": {
+    bg: "rgba(45,212,191,0.10)",
+    border: "rgba(45,212,191,0.32)",
+    fg: "#5EEAD4",
+  },
+  "Physician Assistant (PA)": {
+    bg: "rgba(167,139,250,0.12)",
+    border: "rgba(167,139,250,0.32)",
+    fg: "#C4B5FD",
+  },
+  "Resident / Fellow": {
+    bg: "rgba(251,191,36,0.10)",
+    border: "rgba(251,191,36,0.32)",
+    fg: "#FCD34D",
   },
 };
 

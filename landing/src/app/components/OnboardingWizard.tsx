@@ -1,23 +1,26 @@
 /**
- * OnboardingWizard — Archangel Health "Director of TEAM Initiative"
- * health-system onboarding (5 steps + success).
+ * OnboardingWizard — Archangel Health onboarding.
  *
- * Visual spec: design_handoff_onboarding_flow/README.md (the redesigned flow).
- * Step → backend endpoint mapping:
- *   1  NameEmail   →  POST /api/onboarding/step1-identity
- *   2  Verify      →  POST /api/onboarding/request-otp + /verify-otp
- *   3  Org         →  POST /api/onboarding/step3-organization
- *   4  Your TEAM   →  POST /api/onboarding/add-team-member (per row)
- *                    + POST /api/onboarding/finish (on Continue)
- *   5  Sign-in     →  POST /api/tenant/{slug}/auth/login
- *   6  Success     →  redirect to dashboard with auth token
+ * Two products, one account. After identity (Step 1) + email verification
+ * (Step 2), the director picks a product (Step 3):
  *
- * The visual stepper has 5 nodes ("You", "Verify", "Health system",
- * "Your TEAM", "Sign in") and is hidden on step 6 (success).
+ *   Archangel (clinical TEAM platform) — unchanged 5-step flow:
+ *     identity → verify → product → health system → your TEAM → sign in → success
+ *     (backend: /step1-identity, /request-otp+/verify-otp, /select-product,
+ *      /step3-organization, /add-team-member + /finish, /tenant login)
  *
- * Each PrimaryButton handler returns a Promise<boolean>. The button stays
- * Idle (no fake success) when the handler resolves `false` — this is how
- * we surface server errors without misleading the user.
+ *   Asclepius (data-training product) — Steps 4–8:
+ *     identity → verify → product → institution → credentials → attestations
+ *       → team → success
+ *     (backend: /asclepius/{institution,credentials,attestations,add-member,finish})
+ *     Compliance/HIPAA gates do not apply to this plane — no PHI is collected.
+ *
+ * Invited clinicians (mode="member") open /onboard/m/<token> and run a short
+ * flow: credentials → attestations → workspace, inheriting org + specialty
+ * from their director (backend: /member/{session,credentials,attestations,finish}).
+ *
+ * Each PrimaryButton handler returns Promise<boolean>; resolving `false` keeps
+ * the button Idle so server errors don't fake-flash success.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -28,68 +31,79 @@ import * as authApi from "@/lib/auth-api";
 import OnboardingStyles from "./onboarding/OnboardingStyles";
 import { ChromeHeader, Stepper } from "./onboarding/primitives";
 import {
+  ASCLEPIUS_ROLE_LABELS,
   Step1NameEmail,
   Step2Verify,
   Step3Org,
+  Step3Product,
+  Step4Institution,
   Step4YourTeam,
+  Step5Credentials,
   Step5SignIn,
+  Step6Attestations,
   Step6Success,
+  Step7AsclepiusTeam,
+  Step8AsclepiusSuccess,
+  emptyAttestations,
+  emptyCredentials,
+  type AsclepiusMember,
+  type AsclepiusRole,
   type Member,
   type OnboardingData,
+  type Product,
   type RoleLabel,
 } from "./onboarding/steps";
 
-type Props = { token: string };
+type Mode = "director" | "member";
+type Props = { token: string; mode?: Mode };
 
-const STEPPER_LABELS = ["You", "Verify", "Health system", "Your TEAM", "Sign in"];
+type StepKey =
+  | "identity"
+  | "verify"
+  | "product"
+  | "org"
+  | "team"
+  | "signin"
+  | "success"
+  | "institution"
+  | "credentials"
+  | "attestations"
+  | "ascTeam"
+  | "ascSuccess";
 
-// Pass-4 role taxonomy: the director slot is auto-seeded as a `surgeon` on
-// /finish, so the wizard only invites RN coordinators and NP/PAs. Caps:
-// 1 RN coordinator + 2 NP/PAs + 1 director (surgeon) = 4 total.
+const STEP_LABELS: Partial<Record<StepKey, string>> = {
+  identity: "You",
+  verify: "Verify",
+  product: "Product",
+  org: "Health system",
+  team: "Your TEAM",
+  signin: "Sign in",
+  institution: "Institution",
+  credentials: "Credentials",
+  attestations: "Attestations",
+  ascTeam: "Team",
+};
+
+/** Ordered step list for the active flow (drives Back + the stepper). */
+function orderFor(mode: Mode, product: Product | ""): StepKey[] {
+  if (mode === "member") return ["credentials", "attestations", "ascSuccess"];
+  const head: StepKey[] = ["identity", "verify", "product"];
+  if (product === "asclepius") {
+    return [...head, "institution", "credentials", "attestations", "ascTeam", "ascSuccess"];
+  }
+  return [...head, "org", "team", "signin", "success"];
+}
+
 const ROLE_TO_API: Record<RoleLabel, "rn_coordinator" | "np_pa"> = {
   "RN Care Coordinator": "rn_coordinator",
   "NP / PA": "np_pa",
 };
 
-/** Map server-side role labels (incl. legacy "doctor"/"nurse" + new
- *  pass-4 tokens) onto the display labels the wizard uses. */
 function normalizeRoleLabel(raw: unknown): RoleLabel {
   const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  if (
-    s === "rn_coordinator" ||
-    s === "rn care coordinator" ||
-    s === "nurse" ||
-    s === "nurse / care coordinator" ||
-    s === "nurse/care coordinator"
-  ) {
-    return "RN Care Coordinator";
-  }
-  if (s === "np_pa" || s === "np / pa" || s === "np/pa" || s === "nppa") {
-    return "NP / PA";
-  }
+  if (s === "np_pa" || s === "np / pa" || s === "np/pa" || s === "nppa") return "NP / PA";
   return "RN Care Coordinator";
 }
-
-type SessionResponse = {
-  status?: "pending" | "complete";
-  step?: number;
-  slug?: string;
-  sign_in_url?: string;
-  director_first_name?: string;
-  director_last_name?: string;
-  director_email?: string;
-  health_system_name?: string;
-  surgery_department?: string;
-  phone?: string;
-  team_members?: Array<{
-    id?: number;
-    first_name?: string;
-    last_name?: string;
-    email?: string;
-    role?: string;
-    status?: string;
-  }>;
-};
 
 function api(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${API_BASE}${path}`, {
@@ -98,7 +112,6 @@ function api(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
-/** FastAPI errors come as `detail: string` (HTTPException) or `detail: array` (422). */
 function formatApiError(data: unknown): string {
   if (!data || typeof data !== "object") return "Request failed";
   const detail = (data as { detail?: unknown }).detail;
@@ -139,9 +152,8 @@ async function readResponseJson(r: Response): Promise<unknown> {
   }
 }
 
-export default function OnboardingWizard({ token }: Props) {
-  const [stepIndex, setStepIndex] = useState(0);
-  const [data, setDataState] = useState<OnboardingData>({
+function initialData(): OnboardingData {
+  return {
     firstName: "",
     lastName: "",
     email: "",
@@ -149,15 +161,25 @@ export default function OnboardingWizard({ token }: Props) {
     department: "",
     phone: "",
     members: [],
-  });
+    product: "",
+    specialty: "",
+    ascMembers: [],
+    credentials: emptyCredentials(),
+    attestations: emptyAttestations(),
+    roleLabel: "",
+    workspaceUrl: "",
+  };
+}
+
+export default function OnboardingWizard({ token, mode = "director" }: Props) {
+  const [step, setStep] = useState<StepKey>(mode === "member" ? "credentials" : "identity");
+  const [data, setDataState] = useState<OnboardingData>(initialData);
   const setData = useCallback((patch: Partial<OnboardingData>) => {
     setDataState((d) => ({ ...d, ...patch }));
   }, []);
 
   const [slug, setSlug] = useState("");
   const [authToken, setAuthToken] = useState("");
-
-  /** Per-step transient error surface; cleared whenever the user advances. */
   const [stepError, setStepError] = useState("");
   const [bootError, setBootError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -165,73 +187,148 @@ export default function OnboardingWizard({ token }: Props) {
   // ─────────────────────────────────────────
   // Session bootstrap — resume in-progress onboarding.
   // ─────────────────────────────────────────
+  const loadDirectorSession = useCallback(async () => {
+    const r = await api(`/api/onboarding/session?token=${encodeURIComponent(token)}`);
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setBootError(formatApiError(body) || `HTTP ${r.status}`);
+      return;
+    }
+    const d = body as Record<string, any>;
+    if (d.slug) setSlug(d.slug);
+    const product = (d.product as Product) || "";
+    const hydratedMembers: Member[] = (d.team_members ?? []).map((m: any, idx: number) => ({
+      id: typeof m.id === "number" && m.id > 0 ? m.id : Date.now() + idx,
+      firstName: (m.first_name ?? "").trim(),
+      lastName: (m.last_name ?? "").trim(),
+      email: (m.email ?? "").trim(),
+      role: normalizeRoleLabel(m.role),
+      status: m.status === "Active" ? "Active" : "Invited",
+    }));
+    const ascMembers: AsclepiusMember[] = (d.asclepius_members ?? []).map((m: any, idx: number) => {
+      const full = String(m.full_name ?? "").trim();
+      const [first, ...rest] = full.split(" ");
+      const role = String(m.clinical_role ?? "physician").toLowerCase();
+      return {
+        id: typeof m.id === "number" && m.id > 0 ? m.id : Date.now() + idx,
+        firstName: first ?? "",
+        lastName: rest.join(" "),
+        email: (m.email ?? "").trim(),
+        role: (role in ASCLEPIUS_ROLE_LABELS ? role : "physician") as AsclepiusRole,
+        status: m.status === "Active" ? "Active" : "Invited",
+      };
+    });
+
+    const firstName = (d.director_first_name ?? "").trim();
+    const lastName = (d.director_last_name ?? "").trim();
+    const fullLegal = `${firstName} ${lastName}`.trim();
+    const savedCreds = d.director_credentials && Object.keys(d.director_credentials).length > 0;
+    setDataState((prev) => ({
+      ...prev,
+      firstName,
+      lastName,
+      email: (d.director_email ?? "").trim(),
+      orgName: (d.health_system_name ?? "").trim(),
+      department: (d.surgery_department ?? "").trim(),
+      specialty: (d.specialty ?? "").trim(),
+      phone: (d.phone ?? "").trim(),
+      members: hydratedMembers,
+      product,
+      ascMembers,
+      credentials: savedCreds
+        ? { ...emptyCredentials(fullLegal), ...d.director_credentials }
+        : emptyCredentials(fullLegal),
+      attestations:
+        d.director_attestations && Object.keys(d.director_attestations).length > 0
+          ? { ...emptyAttestations(), ...d.director_attestations }
+          : emptyAttestations(),
+    }));
+
+    if (d.status === "complete") {
+      setStep(product === "asclepius" ? "ascSuccess" : "signin");
+      return;
+    }
+    // Resume to the right screen. `step` is the backend's highest completed
+    // step (0 identity, 1 verify-done, 2 verified, 3 org/institution saved).
+    // Below step 3 we always show product selection so a reload right after
+    // verification doesn't silently default to Archangel (product col defaults
+    // to 'archangel'). Credentials/attestations don't bump the counter, so for
+    // Asclepius we resume by inspecting what's already saved.
+    const stepNum = Number(d.step) || 0;
+    const savedAtts =
+      d.director_attestations && Object.keys(d.director_attestations).length > 0;
+    if (stepNum < 1) setStep("identity");
+    else if (stepNum < 2) setStep("verify");
+    else if (stepNum < 3) setStep("product");
+    else if (product === "asclepius") {
+      if (!savedCreds) setStep("credentials");
+      else if (!savedAtts) setStep("attestations");
+      else setStep("ascTeam");
+    } else setStep("team");
+  }, [token]);
+
+  const loadMemberSession = useCallback(async () => {
+    const r = await api(`/api/onboarding/member/session?token=${encodeURIComponent(token)}`);
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setBootError(formatApiError(body) || `HTTP ${r.status}`);
+      return;
+    }
+    const d = body as Record<string, any>;
+    const firstName = (d.first_name ?? "").trim();
+    const lastName = (d.last_name ?? "").trim();
+    const fullLegal = (d.full_name ?? `${firstName} ${lastName}`).trim();
+    const savedCreds = d.credentials && Object.keys(d.credentials).length > 0;
+    setDataState((prev) => ({
+      ...prev,
+      firstName,
+      lastName,
+      email: (d.email ?? "").trim(),
+      orgName: (d.org_name ?? "").trim(),
+      specialty: (d.specialty ?? "").trim(),
+      roleLabel: (d.role_label ?? "").trim(),
+      product: "asclepius",
+      credentials: savedCreds
+        ? { ...emptyCredentials(fullLegal), ...d.credentials }
+        : emptyCredentials(fullLegal),
+      attestations:
+        d.attestations && Object.keys(d.attestations).length > 0
+          ? { ...emptyAttestations(), ...d.attestations }
+          : emptyAttestations(),
+    }));
+    setStep("credentials");
+  }, [token]);
+
   const loadSession = useCallback(async () => {
     setLoading(true);
     setBootError("");
     try {
-      const r = await api(`/api/onboarding/session?token=${encodeURIComponent(token)}`);
-      const body = await readResponseJson(r);
-      if (!r.ok) {
-        setBootError(formatApiError(body) || `HTTP ${r.status}`);
-        return;
-      }
-      const d = body as SessionResponse;
-      if (d.slug) setSlug(d.slug);
-
-      // Hydrate the form state from previously-saved server values so a
-      // reload mid-flow (or returning via the magic link later) doesn't drop
-      // what the director already typed. Empty strings overwrite nothing
-      // because the initial state is also empty.
-      const hydratedMembers: Member[] = (d.team_members ?? []).map((m, idx) => ({
-        id: typeof m.id === "number" && m.id > 0 ? m.id : Date.now() + idx,
-        firstName: (m.first_name ?? "").trim(),
-        lastName: (m.last_name ?? "").trim(),
-        email: (m.email ?? "").trim(),
-        role: normalizeRoleLabel(m.role),
-        status: m.status === "Active" ? "Active" : "Invited",
-      }));
-      setDataState({
-        firstName: (d.director_first_name ?? "").trim(),
-        lastName: (d.director_last_name ?? "").trim(),
-        email: (d.director_email ?? "").trim(),
-        orgName: (d.health_system_name ?? "").trim(),
-        department: (d.surgery_department ?? "").trim(),
-        phone: (d.phone ?? "").trim(),
-        members: hydratedMembers,
-      });
-
-      if (d.status === "complete") {
-        // Onboarding already finished → drop the user at the in-wizard sign-in
-        // step (matches the design's "Step 5 of 5") so they can sign in with
-        // the temporary password we mailed them.
-        setStepIndex(4);
-        return;
-      }
-      // Backend's `step` is the highest completed step (0..3). The wizard's
-      // `stepIndex` is the screen to show (0..5). Resume on the next pending
-      // screen — which is just the same number.
-      setStepIndex(Math.min(4, Math.max(0, Number(d.step) || 0)));
+      if (mode === "member") await loadMemberSession();
+      else await loadDirectorSession();
     } catch (e: unknown) {
       setBootError(e instanceof Error ? e.message : "Could not load onboarding");
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [mode, loadDirectorSession, loadMemberSession]);
 
   useEffect(() => {
     void loadSession();
   }, [loadSession]);
 
+  const order = useMemo(() => orderFor(mode, data.product), [mode, data.product]);
+
   const goBack = useCallback(() => {
     setStepError("");
-    setStepIndex((i) => Math.max(0, i - 1));
-  }, []);
+    setStep((cur) => {
+      const idx = order.indexOf(cur);
+      return idx > 0 ? order[idx - 1] : cur;
+    });
+  }, [order]);
 
   // ─────────────────────────────────────────
-  // Per-step actions.
-  // Each returns Promise<boolean>: false = stay on Idle (button), true = advance.
+  // Shared steps (identity / verify / product).
   // ─────────────────────────────────────────
-
   const submitStep1 = useCallback(async () => {
     setStepError("");
     const r = await api("/api/onboarding/step1-identity", {
@@ -248,7 +345,7 @@ export default function OnboardingWizard({ token }: Props) {
       setStepError(formatApiError(body) || `HTTP ${r.status}`);
       return false;
     }
-    setStepIndex(1);
+    setStep("verify");
     return true;
   }, [token, data.firstName, data.lastName, data.email]);
 
@@ -278,12 +375,34 @@ export default function OnboardingWizard({ token }: Props) {
         setStepError(formatApiError(body) || "Invalid code");
         return false;
       }
-      setStepIndex(2);
+      setStep("product");
       return true;
     },
     [token],
   );
 
+  const selectProduct = useCallback(
+    async (product: Product) => {
+      setStepError("");
+      const r = await api("/api/onboarding/select-product", {
+        method: "POST",
+        body: JSON.stringify({ token, product }),
+      });
+      const body = await readResponseJson(r);
+      if (!r.ok) {
+        setStepError(formatApiError(body) || `HTTP ${r.status}`);
+        return false;
+      }
+      setData({ product });
+      setStep(product === "asclepius" ? "institution" : "org");
+      return true;
+    },
+    [token, setData],
+  );
+
+  // ─────────────────────────────────────────
+  // Archangel branch.
+  // ─────────────────────────────────────────
   const submitOrg = useCallback(async () => {
     setStepError("");
     const r = await api("/api/onboarding/step3-organization", {
@@ -302,7 +421,7 @@ export default function OnboardingWizard({ token }: Props) {
     }
     const d = body as { slug?: string };
     if (d.slug) setSlug(d.slug);
-    setStepIndex(3);
+    setStep("team");
     return true;
   }, [token, data.orgName, data.department, data.phone]);
 
@@ -331,8 +450,6 @@ export default function OnboardingWizard({ token }: Props) {
   );
 
   const removeMember = useCallback((id: number) => {
-    // Local-only — there's no backend `delete-team-member` (yet). The next
-    // navigation away from this step settles the team list as-displayed.
     setDataState((d) => ({ ...d, members: d.members.filter((m) => m.id !== id) }));
   }, []);
 
@@ -347,7 +464,7 @@ export default function OnboardingWizard({ token }: Props) {
       setStepError(formatApiError(body) || `HTTP ${r.status}`);
       return false;
     }
-    setStepIndex(4);
+    setStep("signin");
     return true;
   }, [token]);
 
@@ -370,7 +487,7 @@ export default function OnboardingWizard({ token }: Props) {
       }
       const d = body as { access_token?: string };
       if (d.access_token) setAuthToken(d.access_token);
-      setStepIndex(5);
+      setStep("success");
       return true;
     },
     [slug],
@@ -378,17 +495,173 @@ export default function OnboardingWizard({ token }: Props) {
 
   const openWorkspace = useCallback(() => {
     void authApi.redirectToDoctorPortal(authToken);
-    // Resolve true so the success state can flash before the browser navigates.
     return true;
   }, [authToken]);
 
+  // ─────────────────────────────────────────
+  // Asclepius branch (director).
+  // ─────────────────────────────────────────
+  const submitInstitution = useCallback(async () => {
+    setStepError("");
+    const r = await api("/api/onboarding/asclepius/institution", {
+      method: "POST",
+      body: JSON.stringify({
+        token,
+        org_name: data.orgName,
+        specialty: data.specialty,
+        phone: data.phone,
+      }),
+    });
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setStepError(formatApiError(body) || `HTTP ${r.status}`);
+      return false;
+    }
+    const d = body as { slug?: string };
+    if (d.slug) setSlug(d.slug);
+    if (!data.credentials.fullLegalName.trim()) {
+      setData({
+        credentials: { ...data.credentials, fullLegalName: `${data.firstName} ${data.lastName}`.trim() },
+      });
+    }
+    setStep("credentials");
+    return true;
+  }, [token, data.orgName, data.specialty, data.phone, data.credentials, data.firstName, data.lastName, setData]);
+
+  const saveCredentials = useCallback(
+    async (path: string) => {
+      setStepError("");
+      const r = await api(path, {
+        method: "POST",
+        body: JSON.stringify({ token, credentials: data.credentials }),
+      });
+      const body = await readResponseJson(r);
+      if (!r.ok) {
+        setStepError(formatApiError(body) || `HTTP ${r.status}`);
+        return false;
+      }
+      return true;
+    },
+    [token, data.credentials],
+  );
+
+  const submitCredentials = useCallback(async () => {
+    const ok = await saveCredentials("/api/onboarding/asclepius/credentials");
+    if (ok) setStep("attestations");
+    return ok;
+  }, [saveCredentials]);
+
+  const submitAttestations = useCallback(async () => {
+    setStepError("");
+    const r = await api("/api/onboarding/asclepius/attestations", {
+      method: "POST",
+      body: JSON.stringify({ token, attestations: data.attestations }),
+    });
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setStepError(formatApiError(body) || `HTTP ${r.status}`);
+      return false;
+    }
+    setStep("ascTeam");
+    return true;
+  }, [token, data.attestations]);
+
+  const addAscMember = useCallback(
+    async (m: Omit<AsclepiusMember, "id" | "status">) => {
+      setStepError("");
+      const r = await api("/api/onboarding/asclepius/add-member", {
+        method: "POST",
+        body: JSON.stringify({
+          token,
+          full_name: `${m.firstName} ${m.lastName}`.trim(),
+          email: m.email,
+          role: m.role,
+        }),
+      });
+      const body = await readResponseJson(r);
+      if (!r.ok) {
+        setStepError(formatApiError(body) || `HTTP ${r.status}`);
+        return false;
+      }
+      const newMember: AsclepiusMember = { ...m, id: Date.now(), status: "Invited" };
+      setDataState((d) => ({ ...d, ascMembers: [...d.ascMembers, newMember] }));
+      return true;
+    },
+    [token],
+  );
+
+  const removeAscMember = useCallback((id: number) => {
+    setDataState((d) => ({ ...d, ascMembers: d.ascMembers.filter((m) => m.id !== id) }));
+  }, []);
+
+  const finishAsclepius = useCallback(async () => {
+    setStepError("");
+    const r = await api("/api/onboarding/asclepius/finish", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setStepError(formatApiError(body) || `HTTP ${r.status}`);
+      return false;
+    }
+    const d = body as { workspace_url?: string };
+    setData({ workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl() });
+    setStep("ascSuccess");
+    return true;
+  }, [token, setData]);
+
+  // ─────────────────────────────────────────
+  // Asclepius branch (invited member).
+  // ─────────────────────────────────────────
+  const submitMemberCredentials = useCallback(async () => {
+    const ok = await saveCredentials("/api/onboarding/member/credentials");
+    if (ok) setStep("attestations");
+    return ok;
+  }, [saveCredentials]);
+
+  const submitMemberAttestations = useCallback(async () => {
+    setStepError("");
+    const r = await api("/api/onboarding/member/attestations", {
+      method: "POST",
+      body: JSON.stringify({ token, attestations: data.attestations }),
+    });
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setStepError(formatApiError(body) || `HTTP ${r.status}`);
+      return false;
+    }
+    const fr = await api("/api/onboarding/member/finish", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+    const fbody = await readResponseJson(fr);
+    if (!fr.ok) {
+      setStepError(formatApiError(fbody) || `HTTP ${fr.status}`);
+      return false;
+    }
+    const d = fbody as { workspace_url?: string };
+    setData({ workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl() });
+    setStep("ascSuccess");
+    return true;
+  }, [token, data.attestations, setData]);
+
+  const openAsclepiusWorkspace = useCallback(() => {
+    window.location.href = data.workspaceUrl || authApi.asclepiusPortalUrl();
+    return true;
+  }, [data.workspaceUrl]);
+
   const handleExit = useCallback(() => {
-    // "Save & exit" — your token stays valid; redirect home so progress isn't
-    // lost (the next visit picks up from /api/onboarding/session).
     window.location.href = "/";
   }, []);
 
-  const showStepper = stepIndex < 5;
+  // ─────────────────────────────────────────
+  // Stepper config.
+  // ─────────────────────────────────────────
+  const stepperKeys: StepKey[] = order.filter((k) => k !== "success" && k !== "ascSuccess");
+  const stepperLabels = stepperKeys.map((k) => STEP_LABELS[k] ?? k);
+  const stepperIndex = stepperKeys.indexOf(step);
+  const showStepper = stepperIndex >= 0;
 
   const content = useMemo(() => {
     if (loading) {
@@ -407,14 +680,17 @@ export default function OnboardingWizard({ token }: Props) {
       );
     }
 
-    switch (stepIndex) {
-      case 0:
+    switch (step) {
+      case "identity":
         return <Step1NameEmail data={data} setData={setData} onNext={submitStep1} error={stepError} />;
-      case 1:
+      case "verify":
         return <Step2Verify data={data} onSendCode={sendOtp} onVerify={verifyOtp} onBack={goBack} error={stepError} />;
-      case 2:
+      case "product":
+        return <Step3Product data={data} onSelect={selectProduct} onBack={goBack} error={stepError} />;
+      // Archangel
+      case "org":
         return <Step3Org data={data} setData={setData} onNext={submitOrg} onBack={goBack} error={stepError} />;
-      case 3:
+      case "team":
         return (
           <Step4YourTeam
             data={data}
@@ -425,21 +701,62 @@ export default function OnboardingWizard({ token }: Props) {
             error={stepError}
           />
         );
-      case 4:
+      case "signin":
         return <Step5SignIn data={data} slug={slug} onSignIn={signIn} onBack={goBack} error={stepError} />;
-      case 5:
-      default:
+      case "success":
         return <Step6Success data={data} onOpenWorkspace={openWorkspace} />;
+      // Asclepius
+      case "institution":
+        return <Step4Institution data={data} setData={setData} onNext={submitInstitution} onBack={goBack} error={stepError} />;
+      case "credentials":
+        return (
+          <Step5Credentials
+            data={data}
+            setData={setData}
+            onNext={mode === "member" ? submitMemberCredentials : submitCredentials}
+            onBack={goBack}
+            error={stepError}
+            eyebrow={mode === "member" ? "Step 1 of 2" : "Step 5 of 7"}
+            memberMode={mode === "member"}
+          />
+        );
+      case "attestations":
+        return (
+          <Step6Attestations
+            data={data}
+            setData={setData}
+            onNext={mode === "member" ? submitMemberAttestations : submitAttestations}
+            onBack={goBack}
+            error={stepError}
+            eyebrow={mode === "member" ? "Step 2 of 2" : "Step 6 of 7"}
+            finishLabel={mode === "member" ? "Sign & open my workspace" : "Sign & continue"}
+          />
+        );
+      case "ascTeam":
+        return (
+          <Step7AsclepiusTeam
+            data={data}
+            onAddMember={addAscMember}
+            onRemoveMember={removeAscMember}
+            onNext={finishAsclepius}
+            onBack={goBack}
+            error={stepError}
+          />
+        );
+      case "ascSuccess":
+      default:
+        return <Step8AsclepiusSuccess data={data} onOpenWorkspace={openAsclepiusWorkspace} memberMode={mode === "member"} />;
     }
   }, [
     loading,
     bootError,
-    stepIndex,
+    step,
     data,
     setData,
     submitStep1,
     sendOtp,
     verifyOtp,
+    selectProduct,
     submitOrg,
     addTeamMember,
     removeMember,
@@ -447,8 +764,18 @@ export default function OnboardingWizard({ token }: Props) {
     slug,
     signIn,
     openWorkspace,
+    submitInstitution,
+    submitCredentials,
+    submitMemberCredentials,
+    submitAttestations,
+    submitMemberAttestations,
+    addAscMember,
+    removeAscMember,
+    finishAsclepius,
+    openAsclepiusWorkspace,
     goBack,
     stepError,
+    mode,
   ]);
 
   return (
@@ -456,7 +783,9 @@ export default function OnboardingWizard({ token }: Props) {
       <OnboardingStyles />
       <ChromeHeader onExit={handleExit} />
       <main style={{ flex: 1, padding: "56px 24px 80px", position: "relative" }}>
-        {showStepper && !loading && !bootError && <Stepper steps={STEPPER_LABELS} currentIndex={stepIndex} />}
+        {showStepper && !loading && !bootError && (
+          <Stepper steps={stepperLabels} currentIndex={stepperIndex} />
+        )}
         {content}
       </main>
     </div>

@@ -96,6 +96,12 @@ class AsclepiusStore:
                     years_experience INTEGER,
                     id_hashed       TEXT,
                     active          INTEGER NOT NULL DEFAULT 1,
+                    full_name       TEXT,
+                    org_name        TEXT,
+                    clinical_role   TEXT,
+                    npi             TEXT,
+                    credentials_json TEXT,
+                    attestations_json TEXT,
                     created_at      TEXT NOT NULL
                 );
 
@@ -272,6 +278,19 @@ class AsclepiusStore:
             if "caught_flaw" not in sub_cols:
                 conn.execute("ALTER TABLE submissions ADD COLUMN caught_flaw INTEGER")
 
+            # Rich credential record provisioned by the Asclepius onboarding flow.
+            user_cols = cols("users")
+            for col, decl in (
+                ("full_name", "TEXT"),
+                ("org_name", "TEXT"),
+                ("clinical_role", "TEXT"),
+                ("npi", "TEXT"),
+                ("credentials_json", "TEXT"),
+                ("attestations_json", "TEXT"),
+            ):
+                if col not in user_cols:
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
+
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
         self,
@@ -303,6 +322,67 @@ class AsclepiusStore:
                     years_experience,
                     id_hashed,
                     _utcnow_iso(),
+                ),
+            )
+        return self.get_user_by_id(uid)  # type: ignore[return-value]
+
+    def provision_user(
+        self,
+        *,
+        email: str,
+        password: str,
+        role: str = "evaluator",
+        full_name: Optional[str] = None,
+        org_name: Optional[str] = None,
+        clinical_role: Optional[str] = None,
+        specialty: Optional[str] = None,
+        board_cert: Optional[str] = None,
+        npi: Optional[str] = None,
+        years_experience: Optional[int] = None,
+        credentials: Optional[Dict[str, Any]] = None,
+        attestations: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Idempotent upsert used by the Asclepius onboarding flow.
+
+        Creates the portal account (or updates it if the person re-onboards),
+        carrying the full credential + attestation record collected during
+        onboarding. ``password`` is the standing access key mailed to the user.
+        """
+        email = email.lower().strip()
+        creds_json = json.dumps(credentials or {})
+        atts_json = json.dumps(attestations or {})
+        existing = self.get_user_by_email(email)
+        with self._conn() as conn:
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE users SET
+                        password_hash = ?, role = ?, specialty = ?, board_cert = ?,
+                        years_experience = ?, active = 1, full_name = ?, org_name = ?,
+                        clinical_role = ?, npi = ?, credentials_json = ?, attestations_json = ?
+                    WHERE email = ?
+                    """,
+                    (
+                        hash_password(password), role, specialty, board_cert,
+                        years_experience, full_name, org_name, clinical_role, npi,
+                        creds_json, atts_json, email,
+                    ),
+                )
+                return self.get_user_by_email(email)  # type: ignore[return-value]
+            uid = _new_id("u")
+            id_hashed = hashlib.sha256(uid.encode("utf-8")).hexdigest()[:16]
+            conn.execute(
+                """
+                INSERT INTO users (id, email, password_hash, role, specialty, board_cert,
+                                   years_experience, id_hashed, active, full_name, org_name,
+                                   clinical_role, npi, credentials_json, attestations_json,
+                                   created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    uid, email, hash_password(password), role, specialty, board_cert,
+                    years_experience, id_hashed, full_name, org_name, clinical_role,
+                    npi, creds_json, atts_json, _utcnow_iso(),
                 ),
             )
         return self.get_user_by_id(uid)  # type: ignore[return-value]

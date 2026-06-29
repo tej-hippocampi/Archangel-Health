@@ -12,6 +12,8 @@ from ratelimit import rate_limiter
 
 from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import (
+    build_asclepius_complete_email,
+    build_asclepius_invite_email,
     build_complete_email,
     build_invite_email,
     build_verification_email,
@@ -31,6 +33,19 @@ _ROLE_LABELS = {
 
 _INVITABLE_ROLES = {"rn_coordinator", "np_pa"}
 
+# ─── Asclepius (data-training product) onboarding ────────────────────────────
+# Clinical-role labels for the people a Director of Data Training invites. These
+# describe the human, not the Asclepius RBAC role — every invited clinician is
+# provisioned as an Asclepius `evaluator`; the director is an `admin`.
+_ASCLEPIUS_MEMBER_ROLES = {
+    "physician": "Physician (MD/DO/MBBS)",
+    "np": "Nurse Practitioner (NP)",
+    "pa": "Physician Assistant (PA)",
+    "resident_fellow": "Resident / Fellow",
+}
+_ASCLEPIUS_DIRECTOR_ROLE_LABEL = "Director of Data Training"
+_ASCLEPIUS_TEAM_CAP = 10  # director + up to 10 invited clinicians
+
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 
 
@@ -38,8 +53,25 @@ def _ts(request: Request):
     return request.app.state.team_store
 
 
+def _asclepius_store(request: Request):
+    store = getattr(request.app.state, "asclepius_store", None)
+    if store is not None:
+        return store
+    from asclepius.store import get_store
+
+    return get_store()
+
+
 def _landing_base() -> str:
     return (os.getenv("LANDING_URL") or "http://localhost:5173").strip().rstrip("/")
+
+
+def _app_base() -> str:
+    return (os.getenv("BASE_URL") or "http://localhost:8000").strip().rstrip("/")
+
+
+def _asclepius_workspace_url() -> str:
+    return f"{_app_base()}/asclepius"
 
 
 def _email_configured() -> bool:
@@ -124,15 +156,41 @@ def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
         for m in ts.list_team_members(row["id"])
         if not bool(m.get("is_team_director") or 0)
     ]
-    return {
+    product = (row.get("product") or "archangel").strip().lower()
+    director_email = (row.get("director_email") or "").strip()
+    out = {
+        "product": product,
         "director_first_name": (row.get("director_first_name") or "").strip(),
         "director_last_name": (row.get("director_last_name") or "").strip(),
-        "director_email": (row.get("director_email") or "").strip(),
+        "director_email": director_email,
         "health_system_name": (row.get("name") or "").strip(),
         "surgery_department": (row.get("surgery_department") or "").strip(),
+        "specialty": (row.get("specialty") or "").strip(),
         "phone": (row.get("phone") or "").strip(),
         "team_members": members,
     }
+    if product == "asclepius":
+        people = ts.list_asclepius_people(row["id"])
+        out["asclepius_members"] = [
+            {
+                "id": p.get("id"),
+                "full_name": p.get("full_name") or "",
+                "email": p.get("email") or "",
+                "clinical_role": p.get("clinical_role") or "",
+                "role_label": _ASCLEPIUS_MEMBER_ROLES.get(
+                    (p.get("clinical_role") or "").strip().lower(),
+                    (p.get("clinical_role") or "").replace("_", " ").title(),
+                ),
+                "status": "Active" if p.get("onboarding_completed_at") else "Invited",
+            }
+            for p in people
+            if not p.get("is_director")
+        ]
+        director = next((p for p in people if p.get("is_director")), None)
+        if director:
+            out["director_credentials"] = director.get("credentials") or {}
+            out["director_attestations"] = director.get("attestations") or {}
+    return out
 
 
 @router.get("/session")
@@ -381,3 +439,405 @@ async def finish_onboarding(body: FinishBody, request: Request):
     )
     await send_html_email(email, subj, html_body, importance_headers=True)
     return {"ok": True, "sign_in_url": sign_in}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Asclepius (data-training product) onboarding — Steps 3–8.
+#
+# Shares the magic-link / OTP / step machinery above (Steps 1–2); branches here
+# once the director picks the Asclepius product. HIPAA/subprocessor gates do not
+# apply to this plane — no PHI is collected.
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class SelectProductBody(OnboardTokenBody):
+    product: str  # "archangel" | "asclepius"
+
+
+class AsclepiusInstitutionBody(OnboardTokenBody):
+    org_name: str
+    specialty: str
+    phone: str
+
+
+class AsclepiusCredentialsBody(OnboardTokenBody):
+    credentials: Dict[str, Any]
+
+
+class AsclepiusAttestationsBody(OnboardTokenBody):
+    attestations: Dict[str, Any]
+
+
+class AsclepiusAddMemberBody(OnboardTokenBody):
+    full_name: str
+    email: EmailStr
+    role: str  # physician | np | pa | resident_fellow
+
+
+class MemberCredentialsBody(OnboardTokenBody):
+    credentials: Dict[str, Any]
+
+
+class MemberAttestationsBody(OnboardTokenBody):
+    attestations: Dict[str, Any]
+
+
+def _require_asclepius(row: Dict[str, Any]) -> None:
+    if (row.get("product") or "archangel").strip().lower() != "asclepius":
+        raise HTTPException(status_code=409, detail="This workspace is not an Asclepius workspace.")
+
+
+def _provision_asclepius_user(
+    request: Request,
+    *,
+    email: str,
+    password: str,
+    role: str,
+    full_name: str,
+    org_name: str,
+    specialty: str,
+    clinical_role: str,
+    credentials: Dict[str, Any],
+    attestations: Dict[str, Any],
+) -> None:
+    """Create/refresh the person's account in the Asclepius plane (asclepius.db)."""
+    creds = credentials or {}
+    # The verified legal name on the credential record is the authoritative name
+    # attached to sold data; fall back to the identity name from onboarding.
+    full_name = (creds.get("fullLegalName") or full_name or "").strip() or None
+    primary_specialty = (creds.get("primarySpecialty") or specialty or "").strip() or None
+    board_certs = creds.get("boardCertifications") or []
+    board_cert = None
+    if isinstance(board_certs, list) and board_certs:
+        first = board_certs[0]
+        if isinstance(first, dict):
+            board_cert = " — ".join(
+                p for p in [first.get("board"), first.get("specialty")] if p
+            ) or None
+        elif isinstance(first, str):
+            board_cert = first
+    years = creds.get("yearsInActivePractice")
+    try:
+        years = int(years) if years not in (None, "") else None
+    except (TypeError, ValueError):
+        years = None
+    _asclepius_store(request).provision_user(
+        email=email,
+        password=password,
+        role=role,
+        full_name=full_name or None,
+        org_name=org_name or None,
+        clinical_role=clinical_role or None,
+        specialty=primary_specialty,
+        board_cert=board_cert,
+        npi=(creds.get("npi") or None),
+        years_experience=years,
+        credentials=creds,
+        attestations=attestations or {},
+    )
+
+
+@router.post("/select-product")
+async def select_product(body: SelectProductBody, request: Request):
+    ts = _ts(request)
+    row = _load_hs(request, body.token)
+    _reject_if_completed(row)
+    if not ts.onboarding_token_valid(row):
+        raise HTTPException(status_code=404, detail="This onboarding link has expired.")
+    row = ts.get_health_system_by_id(row["id"]) or row
+    if int(row.get("onboarding_step") or 0) < 2:
+        raise HTTPException(status_code=400, detail="Verify your email before continuing.")
+    product = (body.product or "").strip().lower()
+    if product not in ("archangel", "asclepius"):
+        raise HTTPException(status_code=400, detail="Choose Archangel or Asclepius.")
+    ts.set_health_system_product(row["id"], product)
+    return {"ok": True, "product": product}
+
+
+@router.post("/asclepius/institution")
+async def asclepius_institution(body: AsclepiusInstitutionBody, request: Request):
+    ts = _ts(request)
+    row = _load_hs(request, body.token)
+    _reject_if_completed(row)
+    if not ts.onboarding_token_valid(row):
+        raise HTTPException(status_code=404, detail="This onboarding link has expired.")
+    row = ts.get_health_system_by_id(row["id"]) or row
+    _require_asclepius(row)
+    if int(row.get("onboarding_step") or 0) < 2:
+        raise HTTPException(status_code=400, detail="Verify your email before continuing.")
+    ts.update_asclepius_institution(
+        row["id"],
+        name=body.org_name,
+        specialty=body.specialty,
+        phone=body.phone,
+    )
+    new_slug = ts.maybe_update_slug_from_name(row["id"], body.org_name)
+    # Seed the director as an Asclepius person so Steps 5–6 can save onto them.
+    director_email = (row.get("director_email") or "").strip()
+    director_name = " ".join(
+        p for p in [
+            (row.get("director_first_name") or "").strip(),
+            (row.get("director_last_name") or "").strip(),
+        ] if p
+    ).strip()
+    if director_email:
+        ts.upsert_asclepius_person(
+            row["id"],
+            email=director_email,
+            full_name=director_name,
+            clinical_role="director",
+            is_director=True,
+        )
+    return {"ok": True, "slug": new_slug, "step": 3}
+
+
+@router.post("/asclepius/credentials")
+async def asclepius_credentials(body: AsclepiusCredentialsBody, request: Request):
+    ts = _ts(request)
+    row = _load_hs(request, body.token)
+    _reject_if_completed(row)
+    if not ts.onboarding_token_valid(row):
+        raise HTTPException(status_code=404, detail="This onboarding link has expired.")
+    row = ts.get_health_system_by_id(row["id"]) or row
+    _require_asclepius(row)
+    director_email = (row.get("director_email") or "").strip()
+    if not director_email or not ts.get_asclepius_person(row["id"], director_email):
+        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+    ts.save_asclepius_credentials(row["id"], director_email, body.credentials)
+    return {"ok": True}
+
+
+@router.post("/asclepius/attestations")
+async def asclepius_attestations(body: AsclepiusAttestationsBody, request: Request):
+    ts = _ts(request)
+    row = _load_hs(request, body.token)
+    _reject_if_completed(row)
+    if not ts.onboarding_token_valid(row):
+        raise HTTPException(status_code=404, detail="This onboarding link has expired.")
+    row = ts.get_health_system_by_id(row["id"]) or row
+    _require_asclepius(row)
+    director_email = (row.get("director_email") or "").strip()
+    if not director_email or not ts.get_asclepius_person(row["id"], director_email):
+        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+    ts.save_asclepius_attestations(row["id"], director_email, body.attestations)
+    return {"ok": True}
+
+
+@router.post("/asclepius/add-member")
+async def asclepius_add_member(body: AsclepiusAddMemberBody, request: Request):
+    if not _email_configured():
+        raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
+    ts = _ts(request)
+    row = _load_hs(request, body.token)
+    _reject_if_completed(row)
+    if not ts.onboarding_token_valid(row):
+        raise HTTPException(status_code=404, detail="This onboarding link has expired.")
+    row = ts.get_health_system_by_id(row["id"]) or row
+    _require_asclepius(row)
+    if int(row.get("onboarding_step") or 0) < 3:
+        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+    role = (body.role or "").strip().lower()
+    if role not in _ASCLEPIUS_MEMBER_ROLES:
+        raise HTTPException(status_code=400, detail="Pick a valid role for this team member.")
+    member_email = str(body.email).lower().strip()
+    director_email = (row.get("director_email") or "").strip().lower()
+    if member_email == director_email:
+        raise HTTPException(status_code=409, detail="You're already on the team as the director.")
+    people = ts.list_asclepius_people(row["id"])
+    invited = [p for p in people if not p.get("is_director")]
+    already = next((p for p in invited if (p.get("email") or "").lower() == member_email), None)
+    if not already and len(invited) >= _ASCLEPIUS_TEAM_CAP:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Team is full (cap: {_ASCLEPIUS_TEAM_CAP} invited clinicians).",
+        )
+    full_name = body.full_name.strip()
+    ts.upsert_asclepius_person(
+        row["id"],
+        email=member_email,
+        full_name=full_name,
+        clinical_role=role,
+        is_director=False,
+    )
+    member_token = ts.issue_asclepius_member_token(row["id"], member_email)
+    onboarding_url = f"{_landing_base()}/onboard/m/{member_token}"
+    director_name = " ".join(
+        p for p in [
+            (row.get("director_first_name") or "").strip(),
+            (row.get("director_last_name") or "").strip(),
+        ] if p
+    ).strip()
+    html_body = build_asclepius_invite_email(
+        invitee_first_name=full_name.split(" ", 1)[0] if full_name else "",
+        director_full_name=director_name,
+        role_label=_ASCLEPIUS_MEMBER_ROLES[role],
+        org_name=(row.get("name") or "").strip(),
+        specialty=(row.get("specialty") or "").strip(),
+        onboarding_url=onboarding_url,
+        invitee_email=member_email,
+    )
+    subj = f"You're invited to label data with {(row.get('name') or 'your organization').strip()}"
+    ok = await send_html_email(member_email, subj, html_body)
+    if not ok:
+        raise HTTPException(status_code=503, detail="Failed to send invitation email.")
+    return {"ok": True}
+
+
+@router.post("/asclepius/finish")
+async def asclepius_finish(body: OnboardTokenBody, request: Request):
+    if not _email_configured():
+        raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
+    ts = _ts(request)
+    row = _load_hs(request, body.token)
+    _reject_if_completed(row)
+    if not ts.onboarding_token_valid(row):
+        raise HTTPException(status_code=404, detail="This onboarding link has expired.")
+    row = ts.get_health_system_by_id(row["id"]) or row
+    _require_asclepius(row)
+    director_email = (row.get("director_email") or "").strip()
+    director = ts.get_asclepius_person(row["id"], director_email) if director_email else None
+    if not director:
+        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+    if not director.get("credentials"):
+        raise HTTPException(status_code=400, detail="Add your credentials before finishing.")
+    if not director.get("attestations"):
+        raise HTTPException(status_code=400, detail="Sign the attestations before finishing.")
+
+    director_pwd = generate_secure_password()
+    org_name = (row.get("name") or "").strip()
+    specialty = (row.get("specialty") or "").strip()
+    _provision_asclepius_user(
+        request,
+        email=director_email,
+        password=director_pwd,
+        role="admin",
+        full_name=director.get("full_name") or "",
+        org_name=org_name,
+        specialty=specialty,
+        clinical_role="director",
+        credentials=director.get("credentials") or {},
+        attestations=director.get("attestations") or {},
+    )
+    ts.finalize_asclepius_person(
+        row["id"], director_email, password_hash=ts.hash_team_password(director_pwd)
+    )
+    ts.complete_asclepius_onboarding(row["id"])
+
+    invited = [p for p in ts.list_asclepius_people(row["id"]) if not p.get("is_director")]
+    workspace_url = _asclepius_workspace_url()
+    html_body = build_asclepius_complete_email(
+        email=director_email,
+        full_name=director.get("full_name") or "",
+        role_label=_ASCLEPIUS_DIRECTOR_ROLE_LABEL,
+        org_name=org_name,
+        specialty=specialty,
+        temporary_password=director_pwd,
+        workspace_url=workspace_url,
+        is_director=True,
+        team_count=len(invited),
+    )
+    await send_html_email(
+        director_email, "Your Asclepius workspace is ready", html_body, importance_headers=True
+    )
+    return {"ok": True, "workspace_url": workspace_url}
+
+
+# ─── Invited-member flow (link → credentials → attestations → workspace) ──────
+
+
+def _load_asclepius_member(request: Request, token: str):
+    ts = _ts(request)
+    person = ts.get_asclepius_person_by_member_token((token or "").strip())
+    if not person:
+        raise HTTPException(status_code=404, detail="Invalid or expired onboarding link.")
+    if person.get("onboarding_completed_at"):
+        raise HTTPException(status_code=410, detail="You've already completed onboarding.")
+    if not ts.asclepius_member_token_valid(person):
+        raise HTTPException(status_code=404, detail="This onboarding link has expired.")
+    hs = ts.get_health_system_by_id(person["health_system_id"])
+    if not hs:
+        raise HTTPException(status_code=404, detail="Workspace not found.")
+    return ts, person, hs
+
+
+@router.get("/member/session")
+async def member_session(token: str, request: Request):
+    ts, person, hs = _load_asclepius_member(request, token)
+    full = (person.get("full_name") or "").strip()
+    first, _, last = full.partition(" ")
+    role = (person.get("clinical_role") or "").strip().lower()
+    return {
+        "status": "pending",
+        "mode": "asclepius_member",
+        "email": person.get("email") or "",
+        "first_name": first,
+        "last_name": last,
+        "full_name": full,
+        "clinical_role": role,
+        "role_label": _ASCLEPIUS_MEMBER_ROLES.get(role, role.replace("_", " ").title()),
+        "org_name": (hs.get("name") or "").strip(),
+        "specialty": (hs.get("specialty") or "").strip(),
+        "credentials": person.get("credentials") or {},
+        "attestations": person.get("attestations") or {},
+    }
+
+
+@router.post("/member/credentials")
+async def member_credentials(body: MemberCredentialsBody, request: Request):
+    ts, person, hs = _load_asclepius_member(request, body.token)
+    ts.save_asclepius_credentials(hs["id"], person["email"], body.credentials)
+    return {"ok": True}
+
+
+@router.post("/member/attestations")
+async def member_attestations(body: MemberAttestationsBody, request: Request):
+    ts, person, hs = _load_asclepius_member(request, body.token)
+    ts.save_asclepius_attestations(hs["id"], person["email"], body.attestations)
+    return {"ok": True}
+
+
+@router.post("/member/finish")
+async def member_finish(body: OnboardTokenBody, request: Request):
+    if not _email_configured():
+        raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
+    ts, person, hs = _load_asclepius_member(request, body.token)
+    # Re-read the saved record (credentials/attestations live on the person row).
+    person = ts.get_asclepius_person(hs["id"], person["email"]) or person
+    if not person.get("credentials"):
+        raise HTTPException(status_code=400, detail="Add your credentials before finishing.")
+    if not person.get("attestations"):
+        raise HTTPException(status_code=400, detail="Sign the attestations before finishing.")
+    member_pwd = generate_secure_password()
+    org_name = (hs.get("name") or "").strip()
+    specialty = (hs.get("specialty") or "").strip()
+    role = (person.get("clinical_role") or "").strip().lower()
+    _provision_asclepius_user(
+        request,
+        email=person["email"],
+        password=member_pwd,
+        role="evaluator",
+        full_name=person.get("full_name") or "",
+        org_name=org_name,
+        specialty=specialty,
+        clinical_role=role,
+        credentials=person.get("credentials") or {},
+        attestations=person.get("attestations") or {},
+    )
+    ts.finalize_asclepius_person(
+        hs["id"], person["email"], password_hash=ts.hash_team_password(member_pwd)
+    )
+    workspace_url = _asclepius_workspace_url()
+    html_body = build_asclepius_complete_email(
+        email=person["email"],
+        full_name=person.get("full_name") or "",
+        role_label=_ASCLEPIUS_MEMBER_ROLES.get(role, role.replace("_", " ").title()),
+        org_name=org_name,
+        specialty=specialty,
+        temporary_password=member_pwd,
+        workspace_url=workspace_url,
+        is_director=False,
+    )
+    await send_html_email(
+        person["email"], "Your Asclepius workspace is ready", html_body, importance_headers=True
+    )
+    return {"ok": True, "workspace_url": workspace_url}

@@ -269,6 +269,117 @@ def build_invite_email(
     return _shell(subject=subject, body_html=body)
 
 
+# ─── Asclepius (data-training product) emails ────────────────────────────────
+
+
+def build_asclepius_invite_email(
+    *,
+    invitee_first_name: str,
+    director_full_name: str,
+    role_label: str,
+    org_name: str,
+    specialty: str,
+    onboarding_url: str,
+    invitee_email: str = "",
+) -> str:
+    """Asclepius member invite — links the clinician to *start* onboarding.
+
+    Unlike the clinical invite, no password is issued here: the member sets up
+    their own credentials + attestations first, and receives their standing
+    access key in the completion email once they finish.
+    """
+    safe_org = html.escape(org_name or "your organization")
+    safe_spec = html.escape(specialty or "")
+    org_spec_label = (safe_org + (" · " + safe_spec if safe_spec else "")).strip()
+
+    rows = []
+    if invitee_email:
+        rows.append(("Email", invitee_email, True))
+    rows.append(("Role", role_label, False))
+    rows.append(("Organization", org_name or "—", False))
+    if specialty:
+        rows.append(("Specialty", specialty, False))
+
+    body = (
+        _eyebrow("Invitation · Asclepius")
+        + _h1(f"You&rsquo;re invited to contribute to {org_spec_label}.")
+        + _p(
+            f"Hello {html.escape(invitee_first_name or 'there')}, "
+            + _strong(director_full_name or "your director")
+            + " has invited you to join "
+            + _strong((org_name or "your organization"))
+            + " on Asclepius — Archangel Health&rsquo;s expert data-training product, where "
+            "clinicians review and label AI answers in their specialty."
+        )
+        + _inset_card(_detail_rows(rows))
+        + _cta(onboarding_url, "Start your onboarding →")
+        + _p(
+            "You&rsquo;ll confirm your clinical credentials and sign a short set of "
+            "attestations, then get your workspace access key. This invite link "
+            "expires in 30 days.",
+            muted=True,
+            small=True,
+        )
+    )
+    subject = f"You're invited to label data with {(org_name or 'your organization').strip()}"
+    return _shell(subject=subject, body_html=body)
+
+
+def build_asclepius_complete_email(
+    *,
+    email: str,
+    full_name: str,
+    role_label: str,
+    org_name: str,
+    specialty: str,
+    temporary_password: str,
+    workspace_url: str,
+    is_director: bool,
+    team_count: int = 0,
+) -> str:
+    """Asclepius workspace-ready email — same visual format as the clinical
+    completion email, addressed to the data-training product.
+
+    ``temporary_password`` is the person&rsquo;s permanent, standing access key
+    (kwarg name kept for parity with the clinical builders)."""
+    safe_org = (org_name or "your organization").strip()
+    safe_spec = (specialty or "").strip()
+
+    rows = [
+        ("Email", email, True),
+        ("Role", role_label, False),
+        ("Organization", safe_org, False),
+        ("Specialty", safe_spec or "—", False),
+    ]
+    if is_director and team_count > 0:
+        rows.append(("Team", f"{team_count} {'person' if team_count == 1 else 'people'}", False))
+    rows.append(("Password (access key)", temporary_password, True))
+
+    intro = (
+        html.escape(safe_org)
+        + (" · " + html.escape(safe_spec) if safe_spec else "")
+        + " is live on Asclepius. You can now open your training console, pick up "
+        "evaluation tasks, and start contributing expert-labeled data."
+    )
+
+    body = (
+        _eyebrow("Onboarding complete · Asclepius")
+        + _h1("Your workspace is ready.")
+        + _p(intro)
+        + _inset_card(_detail_rows(rows))
+        + _cta(workspace_url, "Open your workspace →")
+        + _p(
+            "&#11088; "
+            + _strong("Star this email")
+            + " — everything you need to contribute data lives here. Your password is "
+            "your standing access key: it does not expire, and you&rsquo;ll use this "
+            "email + password every time you sign in to your workspace.",
+            small=True,
+        )
+    )
+    return _shell(subject="Your Asclepius workspace is ready", body_html=body)
+
+
 def build_complete_email(
     *,
     director_email: str,

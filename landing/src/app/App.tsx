@@ -725,6 +725,14 @@ export default function App() {
   }
 
   const path = typeof window !== "undefined" ? window.location.pathname : "/";
+  const memberOnboardMatch = path.match(/^\/onboard\/m\/([^/]+)\/?$/);
+  if (memberOnboardMatch) {
+    return (
+      <AuthProvider>
+        <OnboardingWizard token={decodeURIComponent(memberOnboardMatch[1])} mode="member" />
+      </AuthProvider>
+    );
+  }
   const onboardMatch = path.match(/^\/onboard\/([^/]+)\/?$/);
   if (onboardMatch) {
     return (

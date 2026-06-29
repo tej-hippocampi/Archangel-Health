@@ -391,8 +391,33 @@ class TeamStore:
                     director_first_name TEXT,
                     director_last_name TEXT,
                     onboarding_step INTEGER NOT NULL DEFAULT 0,
+                    product TEXT NOT NULL DEFAULT 'archangel',
+                    specialty TEXT,
                     last_generated_invite_url TEXT,
                     created_at TEXT NOT NULL
+                );
+
+                -- Asclepius (data-training product) onboarding people: the
+                -- Director of Data Training (is_director=1) and the clinicians they
+                -- invite. Holds the rich credential + attestation record and the
+                -- standing password that is also provisioned into the Asclepius
+                -- plane (asclepius.db). Not HIPAA-scoped — no PHI lives here.
+                CREATE TABLE IF NOT EXISTS asclepius_people (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    health_system_id TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    full_name TEXT,
+                    clinical_role TEXT,
+                    is_director INTEGER NOT NULL DEFAULT 0,
+                    member_token_hash TEXT,
+                    member_token_expires_at TEXT,
+                    credentials_json TEXT NOT NULL DEFAULT '{}',
+                    attestations_json TEXT NOT NULL DEFAULT '{}',
+                    password_hash TEXT,
+                    onboarding_completed_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(health_system_id, email)
                 );
 
                 CREATE TABLE IF NOT EXISTS otp_challenges (
@@ -622,6 +647,11 @@ class TeamStore:
             self._add_column_if_missing(
                 conn, "team_members", "is_team_director", "INTEGER NOT NULL DEFAULT 0"
             )
+            # Asclepius product split (data-training onboarding).
+            self._add_column_if_missing(
+                conn, "health_systems", "product", "TEXT NOT NULL DEFAULT 'archangel'"
+            )
+            self._add_column_if_missing(conn, "health_systems", "specialty", "TEXT")
             self._add_column_if_missing(conn, "intraop_forms", "draft_completed_by", "TEXT")
             self._add_column_if_missing(conn, "intraop_forms", "draft_completed_at", "TEXT")
             conn.execute(
@@ -1136,6 +1166,202 @@ class TeamStore:
                 except sqlite3.IntegrityError:
                     continue
         return base
+
+    # ─────────────────────────────────────────────────────────────
+    # Asclepius (data-training product) onboarding.
+    #
+    # Reuses the health_systems magic-link / OTP / step machinery above; the
+    # ``product`` column discriminates the flow. Director + invited clinicians
+    # live in ``asclepius_people`` (credentials + attestations + standing
+    # password). On finish each person is provisioned into the Asclepius plane.
+    # ─────────────────────────────────────────────────────────────
+
+    def set_health_system_product(self, hs_id: str, product: str) -> None:
+        prod = (product or "archangel").strip().lower()
+        if prod not in ("archangel", "asclepius"):
+            prod = "archangel"
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE health_systems SET product = ? WHERE id = ?", (prod, hs_id)
+            )
+
+    def update_asclepius_institution(
+        self,
+        hs_id: str,
+        *,
+        name: str,
+        specialty: str,
+        phone: str,
+    ) -> None:
+        """Step 4 (Asclepius): organization name, specialty (not surgery dept),
+        front-office phone. Advances the step counter to 3 (parity with the
+        Archangel org step) so downstream gates behave identically."""
+        code = self._generate_health_system_code()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE health_systems SET
+                    name = ?, specialty = ?, phone = ?,
+                    health_system_code = COALESCE(health_system_code, ?),
+                    onboarding_step = CASE WHEN onboarding_step < 3 THEN 3 ELSE onboarding_step END
+                WHERE id = ?
+                """,
+                (name.strip(), specialty.strip(), phone.strip(), code, hs_id),
+            )
+
+    def upsert_asclepius_person(
+        self,
+        hs_id: str,
+        *,
+        email: str,
+        full_name: str,
+        clinical_role: str,
+        is_director: bool = False,
+    ) -> Dict[str, Any]:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO asclepius_people (
+                    health_system_id, email, full_name, clinical_role, is_director,
+                    created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(health_system_id, email) DO UPDATE SET
+                    full_name = excluded.full_name,
+                    clinical_role = excluded.clinical_role,
+                    is_director = excluded.is_director,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    hs_id,
+                    email.lower().strip(),
+                    full_name.strip(),
+                    (clinical_role or "").strip().lower(),
+                    1 if is_director else 0,
+                    now,
+                    now,
+                ),
+            )
+        return self.get_asclepius_person(hs_id, email) or {}
+
+    def issue_asclepius_member_token(self, hs_id: str, email: str) -> str:
+        """Mint (or replace) the one-time onboarding token for an invited member.
+        Returns the raw token (shown once, mailed in the invite)."""
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = self._hash_onboarding_token(raw_token)
+        expires = (datetime.utcnow() + timedelta(days=30)).replace(microsecond=0).isoformat()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE asclepius_people
+                SET member_token_hash = ?, member_token_expires_at = ?, updated_at = ?
+                WHERE health_system_id = ? AND email = ?
+                """,
+                (token_hash, expires, _utcnow_iso(), hs_id, email.lower().strip()),
+            )
+        return raw_token
+
+    def get_asclepius_person(self, hs_id: str, email: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM asclepius_people WHERE health_system_id = ? AND email = ?",
+                (hs_id, email.lower().strip()),
+            ).fetchone()
+            return self._shape_asclepius_person(row) if row else None
+
+    def get_asclepius_person_by_member_token(self, raw_token: str) -> Optional[Dict[str, Any]]:
+        h = self._hash_onboarding_token((raw_token or "").strip())
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM asclepius_people WHERE member_token_hash = ?",
+                (h,),
+            ).fetchone()
+            return self._shape_asclepius_person(row) if row else None
+
+    @staticmethod
+    def asclepius_member_token_valid(person: Dict[str, Any]) -> bool:
+        if not person.get("member_token_hash"):
+            return False
+        exp = person.get("member_token_expires_at") or ""
+        try:
+            return datetime.fromisoformat(exp) >= datetime.utcnow()
+        except Exception:
+            return False
+
+    @staticmethod
+    def _shape_asclepius_person(row: Any) -> Dict[str, Any]:
+        d = dict(row)
+        d["is_director"] = bool(d.get("is_director") or 0)
+        for key in ("credentials_json", "attestations_json"):
+            try:
+                d[key.replace("_json", "")] = json.loads(d.get(key) or "{}")
+            except Exception:
+                d[key.replace("_json", "")] = {}
+        return d
+
+    def list_asclepius_people(self, hs_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM asclepius_people WHERE health_system_id = ? ORDER BY id ASC",
+                (hs_id,),
+            ).fetchall()
+            return [self._shape_asclepius_person(r) for r in rows]
+
+    def save_asclepius_credentials(
+        self, hs_id: str, email: str, credentials: Dict[str, Any]
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE asclepius_people SET credentials_json = ?, updated_at = ?
+                WHERE health_system_id = ? AND email = ?
+                """,
+                (json.dumps(credentials or {}), _utcnow_iso(), hs_id, email.lower().strip()),
+            )
+
+    def save_asclepius_attestations(
+        self, hs_id: str, email: str, attestations: Dict[str, Any]
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE asclepius_people SET attestations_json = ?, updated_at = ?
+                WHERE health_system_id = ? AND email = ?
+                """,
+                (json.dumps(attestations or {}), _utcnow_iso(), hs_id, email.lower().strip()),
+            )
+
+    def finalize_asclepius_person(
+        self, hs_id: str, email: str, *, password_hash: str
+    ) -> None:
+        """Stamp the person's standing password + completion; clears the
+        single-use member token so the link can't be replayed."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE asclepius_people SET
+                    password_hash = ?, onboarding_completed_at = ?,
+                    member_token_hash = NULL, member_token_expires_at = NULL,
+                    updated_at = ?
+                WHERE health_system_id = ? AND email = ?
+                """,
+                (password_hash, now, now, hs_id, email.lower().strip()),
+            )
+
+    def complete_asclepius_onboarding(self, hs_id: str) -> None:
+        """Mark the Asclepius workspace active once the director finishes."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE health_systems SET
+                    status = 'active', onboarding_completed_at = ?, onboarding_step = 99
+                WHERE id = ?
+                """,
+                (now, hs_id),
+            )
 
     def append_audit_sign_in(
         self,
