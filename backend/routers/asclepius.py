@@ -535,7 +535,8 @@ async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int) -> int
         log.warning(
             "asclepius autofill: candidate generation produced no answers. Check that "
             "ANTHROPIC_API_KEY is set and the 'asclepius_candidate_gen' model "
-            "(claude-sonnet-4-6, override MODEL_ASCLEPIUS_CANDIDATE_GEN) is reachable."
+            "(configured in ai/model_config.py, override via MODEL_ASCLEPIUS_CANDIDATE_GEN) "
+            "is reachable."
         )
     return created
 
