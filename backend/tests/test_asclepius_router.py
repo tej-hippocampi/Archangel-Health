@@ -25,6 +25,10 @@ from asclepius import profiles as asc_profiles  # noqa: E402
 client = TestClient(A.app)
 
 _ANCHOR = {"citation_text": "KDIGO 2024 hyperkalemia", "source_type": "guideline", "identifier": "KDIGO-2024-3.2"}
+# Eval Flow Upgrade §3: the new flow captures a blind independent answer before
+# A/B is revealed. A non-flagged submission without one routes to QA, so the
+# happy-path fixtures include one.
+_IDEAL = {"text": "Stabilize the myocardium with IV calcium, shift potassium intracellularly with insulin and dextrose plus a beta-agonist, then remove it with dialysis given the ESRD."}
 
 
 @pytest.fixture(autouse=True)
@@ -227,6 +231,8 @@ def test_full_lifecycle_submitted_to_exported():
     body = {
         "submission_id": sid, "task_id": tid, "verdict": "A_better",
         "chosen_id": "A", "rejected_id": "B", "confidence": "high", "time_spent_sec": 140,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": _IDEAL,
         "chosen_revision": {"edited": False, "why_better_notes": "B over-lowers K+", "why_better_tags": ["safer"]},
         "rejected_critique": {"error_tags": ["dosing_error"], "severities": {}, "why_worse": "too aggressive"},
     }
@@ -272,6 +278,7 @@ def test_stats_reports_exportable_record_backlog():
     client.post("/api/asclepius/submissions", json={
         "submission_id": sid, "task_id": tid, "verdict": "A_better",
         "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 90,
+        "independent_answer": _IDEAL,
     }, headers=ev_h)
     assert client.get("/api/asclepius/stats", headers=admin_h).json()["exportable_records"] >= 1
 
@@ -329,14 +336,73 @@ def test_lightest_path_minimal_fields_reaches_export_ready():
     tid = _upload_task(admin_h)
 
     sid = "s-" + uuid.uuid4().hex[:12]
+    # Lightest path under the new flow: the blind independent answer + verdict +
+    # side (no rationale, tags, or anchors).
     minimal = {"submission_id": sid, "task_id": tid, "verdict": "A_better",
-               "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120}
-    # The evaluator-entered content is just the verdict + which side -> tiny.
+               "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+               "independent_answer": _IDEAL}
+    # The structured A/B content is just the verdict + which side -> tiny.
     user_entered = [k for k in ("verdict", "chosen_id", "rejected_id") if minimal.get(k)]
     assert len(user_entered) <= 3
     r = client.post("/api/asclepius/submissions", json=minimal, headers=ev_h)
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "export_ready"
+
+
+# ─── Prompt validation gate (Eval Flow Upgrade §2) ────────────────────────────
+def test_flagged_prompt_produces_zero_records_and_flags_task():
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)
+
+    sid = "s-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid,
+        "prompt_review": {"reviewed": True, "verdict": "flagged", "note": "ambiguous potassium value"},
+    }, headers=ev_h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "prompt_flagged"
+    assert body["record_count"] == 0
+
+    # Idempotent: replaying the flag returns the same result, no double-capture.
+    r2 = client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid,
+        "prompt_review": {"reviewed": True, "verdict": "flagged", "note": "ambiguous potassium value"},
+    }, headers=ev_h)
+    assert r2.status_code == 200 and r2.json()["status"] == "prompt_flagged"
+
+    # Task is flagged (out of the queue) and surfaced to admin via the status filter.
+    flagged = client.get("/api/asclepius/tasks?status=prompt_flagged", headers=admin_h).json()["tasks"]
+    assert any(t["task_id"] == tid for t in flagged)
+
+    # The flagged task is no longer served to evaluators.
+    nxt = client.get("/api/asclepius/tasks/next", headers=A.headers_for(_seed())).json()["task"]
+    assert nxt is None or nxt["task_id"] != tid
+
+
+def test_valid_prompt_review_stamps_clinician_reviewed_on_records():
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)
+
+    sid = "s-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": _IDEAL,
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"},
+    }, headers=ev_h)
+    assert r.status_code == 200, r.text
+
+    sub = client.get(f"/api/asclepius/submissions/{sid}", headers=admin_h).json()
+    assert sub["records"]
+    for rec in sub["records"]:
+        assert rec["payload"]["prompt_clinician_reviewed"] is True
+    # The blind independent answer rode along as its own ideal_answer record.
+    assert any(rec["payload"].get("independent") for rec in sub["records"])
 
 
 # ─── Grounding Mode = required (opt §1.2) ─────────────────────────────────────
@@ -360,6 +426,7 @@ def test_grounding_required_gates_submit():
     # With a valid citation -> accepted + grounded.
     with_anchor = {"submission_id": "s-" + uuid.uuid4().hex[:12], "task_id": tid, "verdict": "A_better",
                    "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+                   "independent_answer": _IDEAL,
                    "chosen_revision": {"edited": False, "why_better_notes": "safer", "evidence_anchor": _ANCHOR}}
     r2 = client.post("/api/asclepius/submissions", json=with_anchor, headers=ev_h)
     assert r2.status_code == 200, r2.text
@@ -418,6 +485,7 @@ def _make_export_ready(admin_h, ev_h, *, grounded=False):
     sid = "s-" + uuid.uuid4().hex[:12]
     body = {"submission_id": sid, "task_id": tid, "verdict": "A_better",
             "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+            "independent_answer": _IDEAL,
             "chosen_revision": {"edited": False, "why_better_notes": "safer",
                                 **({"evidence_anchor": _ANCHOR} if grounded else {})},
             "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"}}

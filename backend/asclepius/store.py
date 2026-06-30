@@ -579,11 +579,16 @@ class AsclepiusStore:
         rec["generation"] = json.loads(rec.pop("generation_json", "null") or "null")
         return rec
 
-    def list_tasks(self, *, specialty: Optional[str] = None, limit: int = 500) -> List[Dict[str, Any]]:
+    def list_tasks(
+        self, *, specialty: Optional[str] = None, status: Optional[str] = None, limit: int = 500
+    ) -> List[Dict[str, Any]]:
         clauses, params = [], []
         if specialty:
             clauses.append("specialty = ?")
             params.append(specialty)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
         where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
         params.append(limit)
         with self._conn() as conn:

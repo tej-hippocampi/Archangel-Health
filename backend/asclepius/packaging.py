@@ -76,9 +76,20 @@ def _generation_provenance(task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return out
 
 
+def _prompt_clinician_reviewed(submission: Dict[str, Any]) -> bool:
+    """True when the clinician signed off the prompt as valid at eval time (Eval
+    Flow Upgrade §2). Carries onto every record so the datasheet can upgrade the
+    synthetic-prompt provenance from AI-drafted to clinician-reviewed."""
+    review = (submission.get("payload") or {}).get("prompt_review") or {}
+    return review.get("verdict") == "valid"
+
+
 def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, Any]:
     annotator = submission.get("annotator") or {}
     prov = {
+        # prompt provenance upgrade (Eval Flow Upgrade §2) — the prompt was
+        # reviewed and accepted as clinically valid by the credentialed evaluator.
+        "prompt_clinician_reviewed": _prompt_clinician_reviewed(submission),
         # credentialing (the premium signal)
         "annotator_credential": annotator.get("credentials"),
         "annotator_specialty": annotator.get("specialty"),
@@ -246,6 +257,30 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
                     **prov,
                 }
             )
+
+    # Blind independent answer (Eval Flow Upgrade §3): the doctor's full ideal
+    # answer, written BEFORE the A/B candidates were revealed. Emitted as an
+    # ADDITIONAL premium SFT record so one submission can yield preference +
+    # revised-ideal + independent-ideal (+ reasoning_trace). Flagged ``independent``
+    # so a buyer can isolate uncontaminated gold answers.
+    ia = payload.get("independent_answer") or {}
+    ia_text = (ia.get("text") or "").strip()
+    if ia_text:
+        records.append(
+            {
+                "type": "ideal_answer",
+                "prompt": prompt,
+                "ideal_answer": ia_text,
+                "completion": ia_text,  # SFT {prompt, completion} alias
+                "messages": _chat(prompt, ia_text),
+                "independent": True,  # written BEFORE seeing A/B (premium SFT)
+                "evidence_anchor": _anchor(ia.get("evidence_anchor")),
+                "context": _context(task),
+                "confidence": submission.get("confidence"),
+                "grounded": is_valid_anchor(ia.get("evidence_anchor")),
+                **prov,
+            }
+        )
 
     # Top-level reasoning steps (reasoning-trace tasks, PRD §4.2) attach to any
     # verdict path. For the both_inadequate path the from-scratch trace already

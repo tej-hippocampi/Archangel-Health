@@ -208,6 +208,14 @@ def validate_submission(
         if not (fs.get("ideal_answer") or "").strip():
             issues.append("missing_ideal_answer")
 
+    # 1b. blind independent answer present (Eval Flow Upgrade §3). The new flow
+    # captures the doctor's full ideal answer BEFORE revealing A/B; a non-flagged
+    # submission missing it is routed to QA — never hard-rejected ("no lost
+    # submissions"). Flagged prompts short-circuit before validation, so any
+    # submission reaching here is expected to carry one.
+    if not ((payload.get("independent_answer") or {}).get("text") or "").strip():
+        issues.append("missing_independent_answer")
+
     # 2. packaged records present + required fields non-empty
     if not records:
         issues.append("no_records_packaged")

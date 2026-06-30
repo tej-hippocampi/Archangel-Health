@@ -24,6 +24,15 @@ ROLES = ("evaluator", "admin", "qa_reviewer")
 # Primary verdict on the A/B comparison.
 VERDICTS = ("A_better", "B_better", "both_inadequate")
 
+# Stage-1 prompt-validation gate (Eval Flow Upgrade §2). The clinician signs off
+# on the prompt before any answer is revealed: ``valid`` upgrades provenance and
+# continues capture; ``flagged`` skips the task to admin review (0 records).
+PROMPT_REVIEW_VERDICTS = ("valid", "flagged")
+
+# Task-side status for a prompt a clinician flagged as invalid. Excluded from the
+# evaluator queue (not ``open``) and surfaced in the admin Tasks list for triage.
+PROMPT_FLAGGED_TASK_STATUS = "prompt_flagged"
+
 # Quick confidence buttons.
 CONFIDENCE_LEVELS = ("low", "medium", "high")
 
@@ -66,6 +75,9 @@ SUBMISSION_STATUSES = (
     "export_ready",
     "exported",
     "rejected",
+    # Stage-1 flag: prompt judged clinically invalid; captured for audit but never
+    # packaged (Eval Flow Upgrade §2). Terminal side-branch off the happy path.
+    "prompt_flagged",
 )
 
 # Packaged training-record types (PRD §6.3).

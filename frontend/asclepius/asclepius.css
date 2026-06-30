@@ -826,3 +826,44 @@
   border-radius: 8px; font-size: 12.5px; line-height: 1.55; color: var(--asc-text);
   white-space: pre-wrap;
 }
+
+/* ─── Gated capture flow (Eval Flow Upgrade) ─────────────────────────────── */
+.asc-stage-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin: 4px 2px 2px; flex-wrap: wrap;
+}
+.asc-stage-meta { display: flex; align-items: baseline; gap: 10px; }
+.asc-stage-step {
+  font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--asc-primary);
+}
+.asc-stage-label { font-size: 15px; font-weight: 600; color: var(--asc-text); }
+.asc-stage-right { display: flex; align-items: center; gap: 14px; }
+.asc-stage-dots { display: flex; gap: 6px; }
+.asc-stage-dot {
+  width: 22px; height: 5px; border-radius: 3px; background: var(--asc-line-strong);
+  transition: background .15s ease;
+}
+.asc-stage-dot.done { background: var(--asc-primary); }
+.asc-stage-dot.active { background: var(--asc-primary-dark); }
+
+.asc-gate { border-top: 3px solid var(--asc-primary); }
+.asc-gate-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.asc-gate-reveal { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+
+/* Anti-peeking placeholder — the real answer text is never in the DOM here. */
+.asc-blur-wrap { position: relative; }
+.asc-blur-stack { position: relative; }
+.asc-blur-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; filter: blur(7px); opacity: .55; user-select: none; pointer-events: none; }
+@media (max-width: 640px) { .asc-blur-cards { grid-template-columns: 1fr; } }
+.asc-blur-card {
+  height: 132px; border-radius: 10px; border: 1px solid var(--asc-line);
+  background: repeating-linear-gradient(
+    180deg, var(--gray-100, #f3f4f6) 0 14px, var(--gray-200, #e5e7eb) 14px 28px);
+}
+.asc-blur-overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 0 24px;
+}
+.asc-blur-lock { font-size: 26px; }
+.asc-blur-caption { font-size: 13px; font-weight: 600; color: var(--asc-muted); max-width: 420px; line-height: 1.5; }

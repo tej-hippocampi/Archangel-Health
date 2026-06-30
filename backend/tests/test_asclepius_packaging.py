@@ -57,6 +57,42 @@ def _submission(payload, **kw):
     return base
 
 
+def test_independent_answer_emits_blind_ideal_record():
+    """Eval Flow Upgrade §3: the blind independent answer becomes an additional
+    ``ideal_answer`` record tagged ``independent: true`` (premium uncontaminated
+    SFT), alongside the preference — one submission, multiple records."""
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "Give IV calcium to stabilize the membrane, shift potassium with insulin and dextrose, then dialyze."},
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"},
+    }
+    recs = package_submission(_task(), _submission(payload))
+    assert any(r["type"] == "preference" for r in recs)
+    blind = [r for r in recs if r["type"] == "ideal_answer" and r.get("independent")]
+    assert len(blind) == 1
+    b = blind[0]
+    assert b["ideal_answer"].startswith("Give IV calcium")
+    assert b["completion"] == b["ideal_answer"]
+    assert b["messages"][0]["role"] == "user" and b["messages"][1]["role"] == "assistant"
+    # Provenance upgrade rides every record, including the blind ideal.
+    assert b["prompt_clinician_reviewed"] is True
+    assert all(r.get("prompt_clinician_reviewed") is True for r in recs)
+
+
+def test_no_independent_answer_emits_no_blind_record():
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"},
+    }
+    recs = package_submission(_task(), _submission(payload))
+    assert not [r for r in recs if r["type"] == "ideal_answer" and r.get("independent")]
+    # Unreviewed prompt -> the flag is present but False on every record.
+    assert all(r.get("prompt_clinician_reviewed") is False for r in recs)
+
+
 def test_preference_flat_and_chat_variants():
     payload = {
         "verdict": "A_better",

@@ -169,11 +169,40 @@ class FromScratch(BaseModel):
     evidence_anchor: Optional[EvidenceAnchor] = None
 
 
+class PromptReview(BaseModel):
+    """Stage-1 clinician sign-off on the prompt itself (Eval Flow Upgrade §2).
+
+    A ``valid`` verdict upgrades provenance from AI-drafted to clinician-reviewed
+    and carries onto every shipped record. A ``flagged`` verdict short-circuits
+    capture: the task is flagged for admin review and 0 records are produced.
+    """
+
+    reviewed: bool = False
+    verdict: Optional[str] = None  # "valid" | "flagged"
+    note: Optional[str] = None
+    reviewed_at: Optional[str] = None
+
+
+class IndependentAnswer(BaseModel):
+    """Stage-2 blind ideal answer — the doctor's full answer written BEFORE the
+    A/B candidates are revealed (Eval Flow Upgrade §3). Uncontaminated gold SFT.
+    """
+
+    text: str = ""
+    evidence_anchor: Optional[EvidenceAnchor] = None
+    captured_at: Optional[str] = None
+
+
 class SubmissionIn(BaseModel):
     # Client-generated so submit is idempotent across mid-task refresh (PRD §10).
     submission_id: Optional[str] = None
     task_id: str
-    verdict: str
+    # Optional so a flagged-prompt submission (no A/B judgment) validates on the
+    # wire; the normal path still hard-checks ``verdict in VERDICTS`` in the router.
+    verdict: Optional[str] = None
+    # Stage-1/Stage-2 gated-capture fields (Eval Flow Upgrade §2, §3).
+    prompt_review: Optional[PromptReview] = None
+    independent_answer: Optional[IndependentAnswer] = None
     chosen_id: Optional[str] = None
     rejected_id: Optional[str] = None
     chosen_revision: Optional[ChosenRevision] = None

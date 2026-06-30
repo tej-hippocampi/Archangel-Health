@@ -48,6 +48,8 @@ from asclepius.constants import (
     GROUNDED_PREMIUM_DISCLAIMER,
     GROUNDING_MODES,
     PREFERENCE_VARIANTS,
+    PROMPT_FLAGGED_TASK_STATUS,
+    PROMPT_REVIEW_VERDICTS,
     REASONING_STEP_LABELS,
     TASK_SOURCES,
     VERDICTS,
@@ -89,7 +91,14 @@ def _store():
 
 
 def _blind_task(task: Dict[str, Any]) -> Dict[str, Any]:
-    """Strip server-only fields (generator_model) before sending to an evaluator."""
+    """Strip server-only fields (generator_model) before sending to an evaluator.
+
+    NOTE (Eval Flow Upgrade §1, v2 hardening): the staged flow withholds the
+    candidate ``text`` from the DOM during Stages 1–2 client-side. A stronger v2
+    would omit ``candidate_answers[].text`` from this payload until the
+    independent answer is committed, then serve it via a dedicated
+    ``GET /tasks/{id}/answers`` endpoint — closing the view-source peek. Shipped
+    v1 keeps the text here (DOM-withholding only)."""
     grounding_mode = task.get("grounding_mode") or DEFAULT_GROUNDING_MODE
     out = {
         "task_id": task["task_id"],
@@ -115,6 +124,7 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
         "taxonomy_version": ASCLEPIUS_TAXONOMY_VERSION,
         "config_version": ASCLEPIUS_CONFIG_VERSION,
         "verdicts": list(VERDICTS),
+        "prompt_review_verdicts": list(PROMPT_REVIEW_VERDICTS),
         "confidence_levels": list(CONFIDENCE_LEVELS),
         "why_better_tags": list(WHY_BETTER_TAGS),
         "error_tags": list(ERROR_TAXONOMY),
@@ -426,9 +436,10 @@ async def list_specialties(_user: Dict[str, Any] = Depends(asc_auth.get_current_
 @router.get("/tasks")
 async def list_tasks(
     specialty: Optional[str] = None,
+    status: Optional[str] = None,
     _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
-    tasks = _store().list_tasks(specialty=specialty)
+    tasks = _store().list_tasks(specialty=specialty, status=status)
     # admin view keeps generator_model; add submission counts for visibility
     store = _store()
     for t in tasks:
@@ -625,6 +636,47 @@ async def submit(
     task = store.get_task(body.task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+
+    # Stage-1 prompt validation gate (Eval Flow Upgrade §2): a clinician who
+    # flagged the prompt as invalid never judged answers. Capture the flag for
+    # audit + admin triage, mark the TASK flagged (out of the queue), and produce
+    # ZERO records. The doctor advances to the next task. Handled BEFORE verdict
+    # validation because a flagged submission carries no verdict.
+    review = body.prompt_review
+    if review and review.verdict == "flagged":
+        store.insert_submission(
+            submission_id=sid,
+            task_id=body.task_id,
+            evaluator_id=user["id"],
+            verdict=None,
+            chosen_id=None,
+            rejected_id=None,
+            confidence=body.confidence,
+            time_spent_sec=body.time_spent_sec,
+            payload=body.model_dump(),
+            annotator=store.annotator_block(user),
+            dedupe_hash=None,
+            grounded=False,
+            grounding_mode=task.get("grounding_mode") or "optional",
+            status=PROMPT_FLAGGED_TASK_STATUS,
+        )
+        store.mark_task_status(body.task_id, PROMPT_FLAGGED_TASK_STATUS)
+        store.log_event(
+            entity_type="task",
+            entity_id=body.task_id,
+            event_type="prompt_flagged",
+            actor=user["id"],
+            payload={"submission_id": sid, "note": review.note},
+        )
+        return {
+            "submission_id": sid,
+            "status": PROMPT_FLAGGED_TASK_STATUS,
+            "issues": [],
+            "record_count": 0,
+            "critic": None,
+            "agreement_score": None,
+        }
+
     if body.verdict not in VERDICTS:
         raise HTTPException(status_code=400, detail="Invalid verdict")
     if body.confidence not in CONFIDENCE_LEVELS:

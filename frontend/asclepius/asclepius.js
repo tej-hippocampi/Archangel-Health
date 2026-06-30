@@ -362,6 +362,11 @@
     return {
       submission_id: randomId(),
       task_id: task.task_id,
+      // Gated-capture stage machine (Eval Flow Upgrade §1): prompt_review ->
+      // independent_answer -> compare. Persisted so a refresh resumes the stage.
+      stage: 'prompt_review',
+      prompt_review: { reviewed: false, verdict: null, note: '', reviewed_at: null },
+      independent_answer: { text: '', evidence_anchor: emptyAnchor(), captured_at: null },
       verdict: null,
       chosen_id: null,
       rejected_id: null,
@@ -381,6 +386,10 @@
     if (!draft.chosen_revision.evidence_anchor) draft.chosen_revision.evidence_anchor = emptyAnchor();
     if (!draft.from_scratch.evidence_anchor) draft.from_scratch.evidence_anchor = emptyAnchor();
     if (!draft.rejected_critique.error_tag_anchors) draft.rejected_critique.error_tag_anchors = {};
+    if (!draft.prompt_review) draft.prompt_review = { reviewed: false, verdict: null, note: '', reviewed_at: null };
+    if (!draft.independent_answer) draft.independent_answer = { text: '', evidence_anchor: emptyAnchor(), captured_at: null };
+    if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
+    if (!draft.stage) draft.stage = 'prompt_review';
     state.draft = draft;
     startTimer(draft.elapsedSec || 0);
   }
@@ -446,7 +455,27 @@
     return { ok: reasons.length === 0, reasons };
   }
 
-  // ─── Workspace render ──────────────────────────────────────────────────────
+  // ─── Workspace render (3 gated stages) ─────────────────────────────────────
+  // Stage 1 prompt_review + Stage 2 independent_answer NEVER render the candidate
+  // answer text into the DOM (anti-peeking, Eval Flow Upgrade §1). Only the
+  // compare stage reveals A/B.
+  const STAGES = ['prompt_review', 'independent_answer', 'compare'];
+
+  function stageHeader(label) {
+    const d = state.draft;
+    const n = STAGES.indexOf(d.stage) + 1;
+    const dots = h('div', { class: 'asc-stage-dots' });
+    STAGES.forEach((s, i) => dots.appendChild(
+      h('span', { class: 'asc-stage-dot' + (i < n ? ' done' : '') + (i === n - 1 ? ' active' : '') })));
+    return h('div', { class: 'asc-stage-head' },
+      h('div', { class: 'asc-stage-meta' },
+        h('span', { class: 'asc-stage-step' }, 'Step ' + n + ' of 3'),
+        h('span', { class: 'asc-stage-label' }, label)),
+      h('div', { class: 'asc-stage-right' },
+        dots,
+        h('span', { class: 'asc-timer', id: 'ascTimer' }, formatTime(getElapsed()))));
+  }
+
   function renderTaskWorkspace() {
     const task = state.task;
     const d = state.draft;
@@ -475,43 +504,152 @@
         ));
     }
 
-    // Answers A / B
-    const answers = h('div', { class: 'asc-answers', id: 'ascAnswers' });
-    (task.candidate_answers || []).forEach((c) => answers.appendChild(renderAnswerCard(c)));
+    const wrap = h('div', { class: 'asc-wrap' }, promptCard, groundingBanner);
 
-    // Verdict buttons
+    if (d.stage === 'prompt_review') {
+      wrap.appendChild(stageHeader('Review the prompt'));
+      wrap.appendChild(renderPromptGate());
+      wrap.appendChild(blurredPlaceholder('The AI answers stay hidden until you confirm the prompt is clinically valid.'));
+      setRoot(wrap);
+    } else if (d.stage === 'independent_answer') {
+      wrap.appendChild(stageHeader('Write your answer'));
+      wrap.appendChild(renderIndependentAnswer());
+      wrap.appendChild(blurredPlaceholder('Write your ideal answer first — then reveal the AI answers to compare.'));
+      setRoot(wrap);
+    } else {
+      wrap.appendChild(stageHeader('Compare & grade'));
+      renderCompareStage(wrap);
+      setRoot(wrap);
+      refreshAnswerHighlight();
+      renderRationale();
+      updateSubmitState();
+    }
+  }
+
+  // A non-peekable stand-in for the answers/verdict during Stages 1–2. The real
+  // candidate text is deliberately NOT placed in the DOM here.
+  function blurredPlaceholder(caption) {
+    const fake = h('div', { class: 'asc-blur-cards' },
+      h('div', { class: 'asc-blur-card' }),
+      h('div', { class: 'asc-blur-card' }));
+    return h('div', { class: 'asc-card asc-card-pad asc-blur-wrap' },
+      h('div', { class: 'asc-blur-stack' },
+        fake,
+        h('div', { class: 'asc-blur-overlay' },
+          h('div', { class: 'asc-blur-lock' }, '🔒'),
+          h('div', { class: 'asc-blur-caption' }, caption))));
+  }
+
+  // Stage 3: the original compare + verdict + rationale + submit block.
+  function renderCompareStage(wrap) {
+    const answers = h('div', { class: 'asc-answers', id: 'ascAnswers' });
+    (state.task.candidate_answers || []).forEach((c) => answers.appendChild(renderAnswerCard(c)));
+
     const verdicts = h('div', { class: 'asc-verdicts', id: 'ascVerdicts' },
       verdictButton('A_better', 'A is better', '1'),
       verdictButton('B_better', 'B is better', '2'),
       verdictButton('both_inadequate', 'Both inadequate', '3', true),
     );
-
-    // Rationale container (rebuilt on verdict change)
     const rationale = h('div', { id: 'ascRationale' });
-
-    // Submit bar
     const submitBar = renderSubmitBar();
 
-    const wrap = h('div', { class: 'asc-wrap' },
-      promptCard,
-      groundingBanner,
-      h('div', { class: 'asc-card asc-card-pad' },
-        h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Compare the answers'),
-        answers,
-      ),
-      h('div', { class: 'asc-card asc-card-pad' },
-        h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Your verdict',
-          h('span', { class: 'asc-label-hint', style: 'font-weight:500;margin-left:6px' }, '(press 1 / 2 / 3)')),
-        verdicts,
-        rationale,
-      ),
-      h('div', { class: 'asc-card' }, submitBar),
-    );
-    setRoot(wrap);
+    wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Compare the answers'),
+      answers));
+    wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Your verdict',
+        h('span', { class: 'asc-label-hint', style: 'font-weight:500;margin-left:6px' }, '(press 1 / 2 / 3)')),
+      verdicts,
+      rationale));
+    wrap.appendChild(h('div', { class: 'asc-card' }, submitBar));
+  }
 
-    refreshAnswerHighlight();
-    renderRationale();
-    updateSubmitState();
+  // ─── Stage 1: prompt validation gate (Feature A) ───────────────────────────
+  function renderPromptGate() {
+    const d = state.draft;
+    const reasonBox = h('div', { id: 'ascFlagReason', hidden: true });
+    const reasonInput = h('input', { class: 'asc-input', placeholder: 'One line — why is this prompt invalid? (e.g. ambiguous, not clinically meaningful, unsafe premise)', value: d.prompt_review.note || '' });
+    reasonInput.addEventListener('input', () => { d.prompt_review.note = reasonInput.value; saveDraft(); });
+    const confirmFlag = h('button', { class: 'asc-btn asc-btn-danger', onClick: flagPrompt }, 'Confirm — flag & skip');
+    reasonBox.appendChild(h('div', { class: 'asc-field', style: 'margin-top:14px' },
+      h('label', { class: 'asc-label' }, 'Reason for flagging'),
+      reasonInput,
+      h('div', { style: 'margin-top:10px' }, confirmFlag)));
+
+    return h('div', { class: 'asc-card asc-card-pad asc-gate' },
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' }, 'Is this prompt clinically valid?'),
+      h('p', { class: 'asc-help', style: 'margin-bottom:16px' },
+        'Confirm the prompt is a real, answerable clinical question before you see any answer. Your sign-off upgrades the data; flagged prompts are sent to admin review and excluded.'),
+      h('div', { class: 'asc-gate-actions' },
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', onClick: validatePrompt }, 'Prompt is clinically valid ✓'),
+        h('button', { class: 'asc-btn asc-btn-ghost', onClick: () => {
+          reasonBox.hidden = false;
+          reasonInput.focus();
+        } }, 'Flag as invalid')),
+      reasonBox);
+  }
+
+  function validatePrompt() {
+    const d = state.draft;
+    d.prompt_review = { reviewed: true, verdict: 'valid', note: '', reviewed_at: new Date().toISOString() };
+    d.stage = 'independent_answer';
+    saveDraft();
+    renderTaskWorkspace();
+  }
+
+  async function flagPrompt() {
+    const d = state.draft;
+    d.prompt_review.reviewed = true;
+    d.prompt_review.verdict = 'flagged';
+    d.prompt_review.reviewed_at = new Date().toISOString();
+    saveDraft();
+    if (state.submitting) return;
+    state.submitting = true;
+    try {
+      await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
+      clearDraft(d.task_id);
+      stopTimer();
+      toast('Prompt flagged for review — loading the next task', 'success');
+      renderEvalView();
+    } catch (e) {
+      if (e.status !== 401) toast('Could not flag the prompt: ' + e.message, 'error');
+    } finally {
+      state.submitting = false;
+    }
+  }
+
+  // ─── Stage 2: blind independent answer (Feature B) ─────────────────────────
+  function renderIndependentAnswer() {
+    const ia = state.draft.independent_answer;
+    const ta = h('textarea', { class: 'asc-textarea', style: 'min-height:200px',
+      placeholder: 'Write your full ideal answer to this prompt…' }, ia.text || '');
+    const revealBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascRevealBtn', onClick: commitIndependentAnswerAndReveal }, 'Reveal AI answers →');
+    const hint = h('span', { class: 'asc-submit-hint', id: 'ascRevealHint' });
+    const syncReveal = () => {
+      const ok = (ia.text || '').trim().length > 0;
+      revealBtn.disabled = !ok;
+      hint.textContent = ok ? '' : 'write your answer to continue';
+    };
+    ta.addEventListener('input', () => { ia.text = ta.value; saveDraft(); syncReveal(); });
+
+    const card = h('div', { class: 'asc-card asc-card-pad asc-gate' },
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' }, 'Before you see the AI answers, write your ideal answer'),
+      h('p', { class: 'asc-help', style: 'margin-bottom:16px' },
+        'This is captured uncontaminated — your own gold answer, before the A/B answers can anchor your judgment.'),
+      h('div', { class: 'asc-field' }, ta),
+      renderAnchorBlock(ia.evidence_anchor, { label: 'citation for your answer', required: false }),
+      h('div', { class: 'asc-gate-reveal' }, hint, revealBtn));
+    setTimeout(syncReveal, 0);
+    return card;
+  }
+
+  function commitIndependentAnswerAndReveal() {
+    const d = state.draft;
+    if (!(d.independent_answer.text || '').trim()) return;
+    d.independent_answer.captured_at = new Date().toISOString();
+    d.stage = 'compare';
+    saveDraft();
+    renderTaskWorkspace();
   }
 
   function renderAnswerCard(c) {
@@ -994,6 +1132,18 @@
       confidence: d.confidence,
       time_spent_sec: time,
       reasoning_steps: [],
+      // Stage-1/Stage-2 gated-capture fields (Eval Flow Upgrade §2, §3).
+      prompt_review: {
+        reviewed: !!d.prompt_review.reviewed,
+        verdict: d.prompt_review.verdict,
+        note: (d.prompt_review.note || '').trim() || null,
+        reviewed_at: d.prompt_review.reviewed_at,
+      },
+      independent_answer: {
+        text: (d.independent_answer.text || '').trim(),
+        evidence_anchor: cleanAnchor(d.independent_answer.evidence_anchor),
+        captured_at: d.independent_answer.captured_at,
+      },
     };
     if (d.verdict === 'A_better' || d.verdict === 'B_better') {
       const original = chosenText();
@@ -1311,7 +1461,9 @@
         h('td', {}, (t.prompt || '').slice(0, 90) + ((t.prompt || '').length > 90 ? '…' : '')),
         h('td', {}, t.grounding_mode === 'required' ? h('span', { class: 'asc-badge asc-badge-amber' }, 'required') : 'optional'),
         h('td', {}, String(t.submission_count != null ? t.submission_count : 0)),
-        h('td', {}, t.status || '—')));
+        h('td', {}, t.status === 'prompt_flagged'
+          ? h('span', { class: 'asc-badge asc-badge-amber' }, '⚑ prompt flagged')
+          : (t.status || '—'))));
       card.appendChild(h('div', { class: 'asc-table-wrap' },
         h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
@@ -2104,6 +2256,8 @@
   // ─── Keyboard shortcuts (eval view) ────────────────────────────────────────
   document.addEventListener('keydown', (e) => {
     if (state.view !== 'eval' || !state.task || !state.draft) return;
+    // Verdict shortcuts only apply once the answers are revealed (Stage 3).
+    if (state.draft.stage !== 'compare') return;
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;

@@ -187,6 +187,17 @@ def _seed_corpus_ratified(records: List[Dict[str, Any]]) -> Optional[bool]:
     )
 
 
+def _prompts_clinician_reviewed(records: List[Dict[str, Any]]) -> bool:
+    """True when every record in the set carries ``prompt_clinician_reviewed`` —
+    i.e. the prompt was signed off as clinically valid at evaluation time (Eval
+    Flow Upgrade §2). False on an empty set so it never upgrades a no-op batch."""
+    if not records:
+        return False
+    return all(
+        bool((r.get("payload") or {}).get("prompt_clinician_reviewed")) for r in records
+    )
+
+
 def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
     """A buyer-facing note when any prompts were auto-generated (PRD §9.1)."""
     synthetic = _synthetic_records(records)
@@ -198,9 +209,20 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
         if ((r.get("payload") or {}).get("generation") or {}).get("seed_corpus_version")
     })
     ratified = _seed_corpus_ratified(records)
+    reviewed = _prompts_clinician_reviewed(synthetic)
     if ratified:
         ratify_line = (
             "- The seed corpus driving generation is **clinician-ratified**."
+        )
+    elif reviewed:
+        # Eval Flow Upgrade §2: even when the seed corpus is not batch-ratified, a
+        # credentialed specialist reviewed and accepted each prompt as clinically
+        # valid at evaluation time — a real provenance upgrade.
+        ratify_line = (
+            "- ✅ **Every prompt was clinician-reviewed at evaluation** "
+            "(`prompt_clinician_reviewed: true`): a credentialed specialist signed "
+            "off on the prompt as clinically valid before answering it. Prompts the "
+            "specialist judged invalid were flagged and excluded from this dataset."
         )
     else:
         ratify_line = (

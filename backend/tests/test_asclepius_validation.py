@@ -42,6 +42,8 @@ def _submission(payload):
 
 _GOOD_PAYLOAD = {
     "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+    "prompt_review": {"reviewed": True, "verdict": "valid", "reviewed_at": "2026-06-26T12:00:00"},
+    "independent_answer": {"text": "Stabilize the myocardium with IV calcium, shift potassium intracellularly with insulin and dextrose plus a beta-agonist, then remove it via dialysis given the ESRD."},
     "chosen_revision": {"edited": False, "why_better_notes": "safer", "why_better_tags": ["safer"]},
     "rejected_critique": {"error_tags": ["dosing_error"], "severities": {}, "why_worse": "too aggressive"},
 }
@@ -53,6 +55,30 @@ def test_clean_submission_validates():
     res = validate_submission(task, sub, recs)
     assert res["valid"] is True
     assert res["issues"] == []
+
+
+def test_missing_independent_answer_routes_to_qa_not_rejected():
+    """Eval Flow Upgrade §3: a non-flagged submission with no blind independent
+    answer is flagged for QA — never hard-rejected (no lost submissions)."""
+    payload = {k: v for k, v in _GOOD_PAYLOAD.items() if k != "independent_answer"}
+    task, sub = _task(), _submission(payload)
+    recs = package_submission(task, sub)
+    res = validate_submission(task, sub, recs)
+    assert res["valid"] is False
+    assert "missing_independent_answer" in res["issues"]
+    # The preference record is still packaged — the attempt is captured, not lost.
+    assert any(r["type"] == "preference" for r in recs)
+
+
+def test_independent_answer_packaged_as_blind_ideal_record():
+    """The blind independent answer becomes its own ``ideal_answer`` record tagged
+    ``independent: true`` (premium uncontaminated SFT)."""
+    task, sub = _task(), _submission(_GOOD_PAYLOAD)
+    recs = package_submission(task, sub)
+    blind = [r for r in recs if r["type"] == "ideal_answer" and r.get("independent")]
+    assert len(blind) == 1
+    assert blind[0]["ideal_answer"].startswith("Stabilize the myocardium")
+    assert blind[0]["prompt_clinician_reviewed"] is True
 
 
 def test_contamination_flags_public_benchmark_prompt():

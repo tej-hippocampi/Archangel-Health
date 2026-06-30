@@ -70,6 +70,8 @@ def _submit_export_ready(admin_h, ev_h, **task_kw):
     r = client.post("/api/asclepius/submissions", json={
         "submission_id": sid, "task_id": tid, "verdict": "A_better",
         "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 130,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "Stabilize with IV calcium, shift potassium with insulin and dextrose, then dialyze given the ESRD."},
         "chosen_revision": {"edited": False, "why_better_notes": "B over-lowers K+"},
         "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"},
     }, headers=ev_h)
@@ -132,6 +134,7 @@ def test_double_label_disagreement_routes_to_qa_then_approve():
     r1 = client.post("/api/asclepius/submissions", json={
         "submission_id": s1, "task_id": tid, "verdict": "A_better",
         "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 130,
+        "independent_answer": {"text": "Stabilize with IV calcium, shift potassium with insulin and dextrose, then dialyze given the ESRD."},
         "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
     }, headers=ev1)
     assert r1.status_code == 200
@@ -142,6 +145,7 @@ def test_double_label_disagreement_routes_to_qa_then_approve():
     r2 = client.post("/api/asclepius/submissions", json={
         "submission_id": s2, "task_id": tid, "verdict": "B_better",
         "chosen_id": "B", "rejected_id": "A", "time_spent_sec": 130,
+        "independent_answer": {"text": "Stabilize with IV calcium, shift potassium with insulin and dextrose, then dialyze given the ESRD."},
         "rejected_critique": {"error_tags": ["omission"], "why_worse": "y"},
     }, headers=ev2)
     assert r2.status_code == 200

@@ -101,6 +101,8 @@ def _submit_export_ready(admin_h, ev_h):
     r = client.post("/api/asclepius/submissions", json={
         "submission_id": sid, "task_id": tid, "verdict": "A_better",
         "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 130,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "Stabilize with IV calcium, shift potassium with insulin and dextrose, then dialyze given the ESRD."},
         "chosen_revision": {"edited": False, "why_better_notes": "B over-lowers K+"},
         "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"},
     }, headers=ev_h)
@@ -236,6 +238,7 @@ def test_onboarding_identifier_in_record_content_blocks_export():
     r = client.post("/api/asclepius/submissions", json={
         "submission_id": sid, "task_id": tid, "verdict": "A_better",
         "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 130,
+        "independent_answer": {"text": "Stabilize with IV calcium, shift potassium with insulin and dextrose, then dialyze given the ESRD."},
         # Real physician name slips into the rationale.
         "chosen_revision": {"edited": False, "why_better_notes": "Reviewed and confirmed by Gregory House."},
         "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"},
