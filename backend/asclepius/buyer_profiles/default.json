@@ -96,6 +96,7 @@
       "type": "type",
       "prompt": "prompt",
       "steps": "steps",
+      "step_pairs": "step_pairs",
       "final_answer": "final_answer",
       "context": "context",
       "grounded": "grounded",

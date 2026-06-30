@@ -106,6 +106,80 @@ def test_reasoning_steps_carry_critique():
     assert steps[1]["label"] == "bad" and steps[1]["step_reward"] == 0
 
 
+def test_corrected_step_emits_original_gold_reason_and_derived_label():
+    """Edit-to-Correct: a corrected step carries the AI's ``original_text`` (the
+    negative), the expert ``text`` (gold), the ``correction_reason``, and the
+    derived ``label`` (substantive reason → bad). An ``added`` step is the doctor's
+    own reasoning: label=good, original_text=None. ``step_pairs`` exposes ready-made
+    step-level preference pairs for every corrected step."""
+    payload = {
+        "verdict": "both_inadequate", "confidence": "high",
+        "independent_answer": {"text": "Give IV calcium, then insulin and dextrose, then dialyze."},
+        "from_scratch": {
+            "ideal_answer": "Give IV calcium, then insulin and dextrose, then dialyze.",
+            "approach_notes": "",
+            "reasoning_steps": [
+                # corrected (substantive) — original preserved, label derived to bad
+                {"step": 1, "text": "Give IV calcium to stabilize the myocardium",
+                 "original_text": "Give oral resin to lower potassium",
+                 "corrected": True, "confirmed": False, "added": False,
+                 "correction_reason": "factual_error", "label": "bad", "step_reward": 0},
+                # confirmed as-is — label good
+                {"step": 2, "text": "Shift K+ with insulin and dextrose",
+                 "original_text": "Shift K+ with insulin and dextrose",
+                 "corrected": False, "confirmed": True, "added": False,
+                 "label": "good", "step_reward": 1},
+                # authored (AI omitted) — added, no original
+                {"step": 3, "text": "Then dialyze given the ESRD",
+                 "original_text": None, "added": True, "label": "good", "step_reward": 1},
+            ],
+        },
+    }
+    recs = package_submission(_task(capture_reasoning=True), _submission(payload))
+    trace = [r for r in recs if r["type"] == "reasoning_trace"][0]
+    steps = trace["steps"]
+    # corrected step: original (negative) + gold + reason + derived label
+    assert steps[0]["original_text"] == "Give oral resin to lower potassium"
+    assert steps[0]["text"] == "Give IV calcium to stabilize the myocardium"
+    assert steps[0]["corrected"] is True
+    assert steps[0]["correction_reason"] == "factual_error"
+    assert steps[0]["label"] == "bad"
+    # confirmed step
+    assert steps[1]["confirmed"] is True and steps[1]["label"] == "good"
+    # added step: no original, label good
+    assert steps[2]["added"] is True
+    assert steps[2]["original_text"] is None
+    assert steps[2]["label"] == "good"
+    # step_pairs: one ready-made preference pair for the single corrected step
+    pairs = trace["step_pairs"]
+    assert len(pairs) == 1
+    assert pairs[0]["rejected"] == "Give oral resin to lower potassium"
+    assert pairs[0]["chosen"] == "Give IV calcium to stabilize the myocardium"
+    assert pairs[0]["reason"] == "factual_error"
+    assert pairs[0]["prompt_context"] == trace["prompt"]
+
+
+def test_minor_wording_edit_derives_neutral_label():
+    """A non-substantive edit (minor_wording) is neutral, not a hard error."""
+    payload = {
+        "verdict": "both_inadequate", "confidence": "high",
+        "independent_answer": {"text": "Give IV calcium, then dialyze."},
+        "from_scratch": {
+            "ideal_answer": "Give IV calcium, then dialyze.",
+            "reasoning_steps": [
+                {"step": 1, "text": "Administer IV calcium gluconate",
+                 "original_text": "give calcium", "corrected": True,
+                 "correction_reason": "minor_wording", "label": "neutral", "step_reward": 0},
+            ],
+        },
+    }
+    recs = package_submission(_task(capture_reasoning=True), _submission(payload))
+    trace = [r for r in recs if r["type"] == "reasoning_trace"][0]
+    assert trace["steps"][0]["label"] == "neutral"
+    # still a corrected step, so it yields a step pair
+    assert trace["step_pairs"][0]["reason"] == "minor_wording"
+
+
 def test_no_independent_answer_emits_no_blind_record():
     payload = {
         "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",

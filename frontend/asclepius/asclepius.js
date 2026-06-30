@@ -459,6 +459,19 @@
     }
     return { ok: reasons.length === 0, reasons };
   }
+  // Edit-to-Correct gating: on a capture_reasoning task every split step must be
+  // resolved (confirmed / corrected / added) before Submit enables, and every
+  // corrected step needs a reason. Silence ≠ endorsement.
+  function stepsReview() {
+    if (!state.task.capture_reasoning) return { ok: true, reasons: [] };
+    const reasons = [];
+    for (const s of activeSteps()) {
+      if (!(s.text || '').trim()) continue;
+      if (!(s.confirmed || s.corrected || s.added)) reasons.push('pending_step');
+      if (s.corrected && !(s.correction_reason || '').trim()) reasons.push('missing_correction_reason');
+    }
+    return { ok: reasons.length === 0, reasons };
+  }
 
   // ─── Workspace render (3 gated stages) ─────────────────────────────────────
   // Stage 1 prompt_review + Stage 2 independent_answer NEVER render the candidate
@@ -943,9 +956,27 @@
       ));
   }
 
-  // ─── Reasoning steps editor (tap-to-grade, Feature C) ──────────────────────
-  function newStep(text) {
-    return { step: 0, text: text || '', label: null, step_reward: null, critique: '', evidence_anchor: emptyAnchor() };
+  // ─── Reasoning steps editor (Edit-to-Correct, Reasoning Capture v2) ────────
+  // A split step starts `pending` (text === original_text). The doctor either
+  // confirms it as-is (label=good) or edits it to correct it (label derived from
+  // a one-tap reason). `original` is the AI's split step; pass null for an
+  // authored step the AI omitted (see newAuthoredStep).
+  function newStep(text, original) {
+    return {
+      step: 0,
+      text: text || '',
+      original_text: original !== undefined ? original : (text || ''),
+      corrected: false, confirmed: false, added: false,
+      correction_reason: null,
+      label: null, step_reward: null, critique: '', evidence_anchor: emptyAnchor(),
+    };
+  }
+  // A manually authored step (the doctor's own correct reasoning the AI omitted):
+  // no original_text, added=true, label=good — counts as resolved.
+  function newAuthoredStep() {
+    const s = newStep('', null);
+    s.added = true; s.label = 'good'; s.step_reward = 1;
+    return s;
   }
   // The chosen/refined answer text to split into steps (chosen path only).
   function chosenRefinedText() {
@@ -974,7 +1005,7 @@
       if (state.draft.stage === 'compare' && state.draft.chosen_id === startedChosen) {
         const steps = activeSteps();
         steps.length = 0;
-        (res.steps || []).forEach((t) => steps.push(newStep(t)));
+        (res.steps || []).forEach((t) => steps.push(newStep(t, t)));
         saveDraft();
       }
     } catch (e) { /* graceful: leave steps for manual entry */ }
@@ -988,7 +1019,7 @@
 
     const addBtn = h('button', {
       class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
-      onClick: () => { activeSteps().push(newStep('')); saveDraft(); renderStepsList(listId); updateSubmitState(); },
+      onClick: () => { activeSteps().push(newAuthoredStep()); saveDraft(); renderStepsList(listId); updateSubmitState(); },
     }, '+ Add step');
     const resplitBtn = canAutoSplit ? h('button', {
       class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
@@ -998,7 +1029,7 @@
     const card = h('div', { class: 'asc-subcard' },
       h('div', { class: 'asc-subcard-head' }, '↳ Reasoning steps ',
         h('span', { class: 'asc-label-hint', style: 'margin-left:6px' },
-          canAutoSplit ? 'tap good / neutral / bad on each step' : (required ? '(each step needs a citation)' : '(optional)'))),
+          canAutoSplit ? 'confirm each step, or edit it to correct it' : (required ? '(each step needs a citation)' : '(optional)'))),
       h('div', { class: 'asc-subcard-body' },
         h('div', { class: 'asc-steps', id: listId }),
         h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn, resplitBtn),
@@ -1015,60 +1046,124 @@
     return card;
   }
 
+  // Edit-to-Correct per-step UI. Each split step is confirmed as-is (one tap,
+  // label=good) or edited to correct it — on first divergence a required one-tap
+  // reason row appears and the label is auto-derived (minor_wording→neutral, else
+  // bad). The AI's original step is preserved + shown collapsed for reference.
   function renderStepsList(listId) {
     const list = document.getElementById(listId);
     if (!list) return;
     clear(list);
     const steps = activeSteps();
-    const labels = (state.taxonomy.reasoning_step_labels || ['good', 'neutral', 'bad']);
+    const reasons = (state.taxonomy.step_correction_reasons
+      || ['factual_error', 'outdated_guideline', 'incomplete', 'unsafe', 'wrong_order', 'minor_wording']);
     const required = (state.task.grounding_mode === 'required');
+
     steps.forEach((s, idx) => {
       s.step = idx + 1;
-      const ta = h('textarea', { class: 'asc-textarea', placeholder: 'Describe this reasoning step…' }, s.text || '');
-      ta.addEventListener('input', () => { s.text = ta.value; saveDraft(); });
+      const hasOriginal = s.original_text != null;
 
-      const labelBtns = h('div', { class: 'asc-step-labels' });
-      labels.forEach((lab) => {
-        labelBtns.appendChild(h('button', {
-          class: 'asc-step-label ' + lab + (s.label === lab ? ' active' : ''),
-          type: 'button',
+      const ta = h('textarea', { class: 'asc-textarea', placeholder: 'Describe this reasoning step…' }, s.text || '');
+
+      const statusPill = h('span', { class: 'asc-step-status' }, '');
+      const addedBadge = h('span', { class: 'asc-badge asc-badge-accent asc-step-added' }, 'added (AI omitted)');
+
+      // ✓ Correct as-is — explicit positive endorsement (silence ≠ endorsement).
+      const confirmBtn = h('button', {
+        class: 'asc-btn asc-btn-sm asc-step-confirm', type: 'button',
+        onClick: () => {
+          s.confirmed = true; s.corrected = false; s.correction_reason = null;
+          s.label = 'good'; s.step_reward = 1; s.critique = '';
+          saveDraft(); renderStepsList(listId); updateSubmitState();
+        },
+      }, '✓ Correct as-is');
+
+      // Reason chips (required on an edited step) — single-select, derive label.
+      const chipEls = {};
+      const reasonRow = h('div', { class: 'asc-step-reasons' });
+      reasons.forEach((r) => {
+        const chip = h('button', {
+          class: 'asc-chip asc-chip-sm', type: 'button',
           onClick: () => {
-            s.label = (s.label === lab) ? null : lab;
-            // PRM convention: good=1, neutral/bad=0 (a bad step earns no reward).
-            // A lab that wants ±1 (bad=-1) sets it via the buyer export profile;
-            // we keep the capture convention non-negative here.
-            s.step_reward = s.label === 'good' ? 1 : (s.label === 'neutral' || s.label === 'bad') ? 0 : null;
-            if (s.label === 'good' || s.label == null) s.critique = '';
-            saveDraft();
-            renderStepsList(listId);
+            s.correction_reason = r;
+            s.label = (r === 'minor_wording') ? 'neutral' : 'bad';
+            s.step_reward = s.label === 'good' ? 1 : 0;
+            saveDraft(); renderStepsList(listId); updateSubmitState();
           },
-        }, lab));
+        }, r.replace(/_/g, ' '));
+        chipEls[r] = chip;
+        reasonRow.appendChild(chip);
       });
+      const reasonWrap = h('div', { class: 'asc-step-correct' },
+        h('div', { class: 'asc-label asc-step-reason-hint' }, 'What was wrong with the AI step? (pick one)'),
+        reasonRow);
+
+      // Collapsed "original:" reference — the AI's split step we're correcting.
+      const originalBox = hasOriginal
+        ? h('details', { class: 'asc-step-original' },
+            h('summary', {}, 'original: ' + ((s.original_text || '').length > 80
+              ? (s.original_text || '').slice(0, 80) + '…' : (s.original_text || ''))),
+            h('div', { class: 'asc-step-original-full' }, s.original_text || ''))
+        : null;
+
+      // Optional one-line critique — kept available on a corrected step.
+      const ci = h('input', { class: 'asc-input', placeholder: "What's off with this step? (optional, one line)", value: s.critique || '' });
+      ci.addEventListener('input', () => { s.critique = ci.value; saveDraft(); });
+      const critiqueField = h('div', { class: 'asc-field', style: 'margin-top:8px' }, ci);
 
       const head = h('div', { class: 'asc-step-head' },
-        h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)),
         h('div', { style: 'display:flex;align-items:center;gap:8px' },
-          labelBtns,
+          h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)), statusPill, addedBadge),
+        h('div', { style: 'display:flex;align-items:center;gap:8px' },
+          confirmBtn,
           h('button', {
             class: 'asc-btn-link', type: 'button',
-            onClick: () => { steps.splice(idx + 1, 0, newStep('')); saveDraft(); renderStepsList(listId); updateSubmitState(); },
+            onClick: () => { steps.splice(idx + 1, 0, newAuthoredStep()); saveDraft(); renderStepsList(listId); updateSubmitState(); },
           }, '+ insert'),
           h('button', {
             class: 'asc-btn-link', type: 'button', style: 'color:var(--asc-danger)',
             onClick: () => { steps.splice(idx, 1); saveDraft(); renderStepsList(listId); updateSubmitState(); },
           }, 'Remove')));
 
-      // Critique field — surfaced only on a flagged (non-good) step.
-      let critique = null;
-      if (s.label && s.label !== 'good') {
-        const ci = h('input', { class: 'asc-input', placeholder: "What's off with this step? (one line)", value: s.critique || '' });
-        ci.addEventListener('input', () => { s.critique = ci.value; saveDraft(); });
-        critique = h('div', { class: 'asc-field', style: 'margin-top:8px' }, ci);
-      }
-
       const anchorBlock = renderAnchorBlock(s.evidence_anchor, { label: 'citation for this step', required });
 
-      list.appendChild(h('div', { class: 'asc-step' }, head, ta, critique, anchorBlock));
+      // Sync affordances to step state WITHOUT a full re-render, so typing in the
+      // textarea never steals focus mid-edit.
+      function syncStepUI() {
+        const corrected = !!s.corrected, added = !!s.added, confirmed = !!s.confirmed;
+        let text = 'pending', cls = 'pending';
+        if (added) { text = 'added'; cls = 'added'; }
+        else if (corrected) {
+          text = s.correction_reason ? ('corrected · ' + s.correction_reason.replace(/_/g, ' ')) : 'corrected — pick a reason';
+          cls = 'corrected';
+        } else if (confirmed) { text = 'confirmed ✓'; cls = 'confirmed'; }
+        statusPill.textContent = text;
+        statusPill.className = 'asc-step-status ' + cls;
+        addedBadge.hidden = !added;
+        confirmBtn.hidden = corrected || added;
+        confirmBtn.classList.toggle('active', confirmed);
+        reasonWrap.hidden = !corrected;
+        if (originalBox) originalBox.hidden = !corrected;
+        critiqueField.hidden = !corrected;
+        Object.keys(chipEls).forEach((r) => chipEls[r].classList.toggle('active', s.correction_reason === r));
+      }
+
+      ta.addEventListener('input', () => {
+        s.text = ta.value;
+        if (hasOriginal) {
+          if (ta.value.trim() !== (s.original_text || '').trim()) {
+            if (!s.corrected) { s.corrected = true; s.confirmed = false; }
+          } else {
+            // edited back to exactly the original AI step -> revert to pending
+            s.corrected = false; s.confirmed = false; s.correction_reason = null;
+            s.label = null; s.step_reward = null;
+          }
+        }
+        saveDraft(); syncStepUI(); updateSubmitState();
+      });
+
+      syncStepUI();
+      list.appendChild(h('div', { class: 'asc-step' }, head, ta, reasonWrap, originalBox, critiqueField, anchorBlock));
     });
     if (!steps.length) {
       list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually, or use “Re-split from answer”.'));
@@ -1196,11 +1291,17 @@
       ok = false; msg = 'write the ideal answer to continue';
     } else {
       const g = groundingSatisfied();
+      const sr = stepsReview();
       if (!g.ok) {
         ok = false;
         msg = g.reasons.indexOf('missing_step_anchor') !== -1
           ? 'add a citation to your rationale and each step to continue'
           : 'add a citation to continue';
+      } else if (!sr.ok) {
+        ok = false;
+        msg = sr.reasons.indexOf('missing_correction_reason') !== -1
+          ? 'pick what was wrong on the edited step'
+          : 'review each reasoning step (confirm or correct)';
       }
     }
     btn.disabled = !ok || state.submitting;
@@ -1244,6 +1345,11 @@
     return (steps || []).filter((s) => (s.text || '').trim()).map((s, i) => ({
       step: i + 1,
       text: s.text,
+      original_text: s.original_text != null ? s.original_text : null,
+      corrected: !!s.corrected,
+      confirmed: !!s.confirmed,
+      added: !!s.added,
+      correction_reason: s.correction_reason || null,
       label: s.label || null,
       step_reward: s.step_reward != null ? s.step_reward : null,
       critique: (s.critique || '').trim() || null,

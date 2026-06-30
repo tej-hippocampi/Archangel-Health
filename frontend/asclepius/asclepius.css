@@ -551,22 +551,41 @@
   margin-bottom: 8px;
 }
 .asc-step-num { font-size: 12px; font-weight: 800; color: var(--asc-muted); text-transform: uppercase; letter-spacing: .04em; }
-.asc-step-labels { display: flex; gap: 4px; }
-.asc-step-label {
+
+/* Edit-to-Correct per-step UI (Reasoning Capture v2) */
+.asc-step-status {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  padding: 2px 8px;
+  border-radius: 999px;
   border: 1px solid var(--asc-line-strong);
-  background: #fff;
-  border-radius: 6px;
-  padding: 3px 11px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  text-transform: capitalize;
   color: var(--gray-600, #4b5563);
+  background: #fff;
 }
-.asc-step-label.active.good { background: var(--asc-success); border-color: var(--asc-success); color: #fff; }
-.asc-step-label.active.neutral { background: var(--gray-400, #9ca3af); border-color: var(--gray-400, #9ca3af); color: #fff; }
-.asc-step-label.active.bad { background: var(--asc-danger); border-color: var(--asc-danger); color: #fff; }
+.asc-step-status.pending { color: var(--asc-muted); border-style: dashed; }
+.asc-step-status.confirmed { color: #fff; background: var(--asc-success); border-color: var(--asc-success); }
+.asc-step-status.corrected { color: #fff; background: var(--asc-danger); border-color: var(--asc-danger); }
+.asc-step-status.added { color: #fff; background: var(--asc-primary); border-color: var(--asc-primary); }
+.asc-step-confirm.active { background: var(--asc-success); border-color: var(--asc-success); color: #fff; }
+.asc-step-added { font-size: 11px; }
+.asc-step-correct { margin-top: 10px; }
+.asc-step-reason-hint { margin-bottom: 6px; }
+.asc-step-reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+.asc-chip-sm { padding: 3px 10px; font-size: 12px; }
+.asc-chip-sm.active { background: var(--asc-danger); border-color: var(--asc-danger); color: #fff; }
+.asc-step-original {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--gray-600, #4b5563);
+  background: var(--asc-bg-soft, #f8fafc);
+  border: 1px solid var(--asc-line);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.asc-step-original summary { cursor: pointer; font-weight: 600; }
+.asc-step-original-full { margin-top: 6px; white-space: pre-wrap; color: var(--asc-muted); }
 
 /* Confidence + submit bar */
 .asc-submit-bar {

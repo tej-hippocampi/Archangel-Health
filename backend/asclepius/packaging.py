@@ -119,15 +119,26 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, A
 
 def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """PRM800K-style ordered steps; each independently labeled + optionally
-    anchored (opt §1.1, §1.2)."""
+    anchored (opt §1.1, §1.2).
+
+    Edit-to-Correct (Reasoning Capture v2): each step carries BOTH the AI's split
+    step (``original_text`` — the negative) and the expert's confirmed/corrected
+    gold (``text``), so the record is a step-level preference/correction pair."""
     out = []
     for i, s in enumerate(steps or [], start=1):
         out.append(
             {
                 "step": s.get("step", i),
-                "text": s.get("text", ""),
+                "text": s.get("text", ""),  # confirmed/corrected gold
+                # The AI's split step before the edit (negative); None if authored.
+                "original_text": s.get("original_text"),
+                "corrected": bool(s.get("corrected")),
+                "confirmed": bool(s.get("confirmed")),
+                "added": bool(s.get("added")),
                 # PRM800K per-step label; fall back to legacy free-text tag.
                 "label": s.get("label") if s.get("label") is not None else s.get("tag"),
+                # Why the edited step was wrong (drives the derived label).
+                "correction_reason": s.get("correction_reason"),
                 "step_reward": s.get("step_reward"),
                 # One-line "what's off?" critique on graded steps (Eval Flow Upgrade §4).
                 "critique": s.get("critique"),
@@ -135,6 +146,24 @@ def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             }
         )
     return out
+
+
+def _step_pairs(steps: List[Dict[str, Any]], prompt: str) -> List[Dict[str, Any]]:
+    """Ready-made step-level preference pairs for every corrected step: the AI's
+    original step (rejected) vs the expert's gold (chosen) + the clinical reason.
+    Additive convenience over the per-step fields (those stay the source of truth)."""
+    pairs: List[Dict[str, Any]] = []
+    for s in steps or []:
+        if s.get("corrected") and (s.get("original_text") or "").strip():
+            pairs.append(
+                {
+                    "prompt_context": prompt,
+                    "rejected": s.get("original_text"),
+                    "chosen": s.get("text", ""),
+                    "reason": s.get("correction_reason"),
+                }
+            )
+    return pairs
 
 
 def _steps_grounded(steps: List[Dict[str, Any]]) -> bool:
@@ -253,6 +282,7 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
                     "type": "reasoning_trace",
                     "prompt": prompt,
                     "steps": steps,
+                    "step_pairs": _step_pairs(steps, prompt),
                     "final_answer": ideal,
                     "context": _context(task),
                     "grounded": _steps_grounded(steps),
@@ -300,6 +330,7 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
                 "type": "reasoning_trace",
                 "prompt": prompt,
                 "steps": top_steps,
+                "step_pairs": _step_pairs(top_steps, prompt),
                 "final_answer": final,
                 "context": _context(task),
                 "grounded": _steps_grounded(top_steps),

@@ -25,6 +25,7 @@ from asclepius.constants import (
     CONTAMINATION_SIGNATURES,
     ERROR_TAXONOMY,
     EVIDENCE_SOURCE_TYPES,
+    STEP_CORRECTION_REASONS,
     VERDICTS,
     WHY_BETTER_TAGS,
 )
@@ -215,6 +216,30 @@ def validate_submission(
     # submission reaching here is expected to carry one.
     if not ((payload.get("independent_answer") or {}).get("text") or "").strip():
         issues.append("missing_independent_answer")
+
+    # 1c. Edit-to-Correct gating (Reasoning Capture v2). Every captured reasoning
+    # step must be explicitly resolved — confirmed as-is, corrected (with a
+    # reason), or manually authored (added). A "pending" step is silence, and
+    # silence is NOT endorsement; route to QA rather than ship an unreviewed step.
+    # A corrected step without a valid reason can't derive a buyer-facing label,
+    # so it is flagged too. As always, issues route to needs_qa — never a hard
+    # reject ("no lost submissions").
+    for s in _reasoning_steps(payload, verdict):
+        if not (s.get("text") or "").strip():
+            continue
+        confirmed, corrected, added = (
+            bool(s.get("confirmed")),
+            bool(s.get("corrected")),
+            bool(s.get("added")),
+        )
+        if task.get("capture_reasoning") and not (confirmed or corrected or added):
+            issues.append("unreviewed_reasoning_step")
+        if corrected:
+            reason = (s.get("correction_reason") or "").strip()
+            if not reason:
+                issues.append("missing_correction_reason")
+            elif reason not in STEP_CORRECTION_REASONS:
+                issues.append("unknown_correction_reason")
 
     # 2. packaged records present + required fields non-empty
     if not records:

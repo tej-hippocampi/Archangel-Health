@@ -51,6 +51,7 @@ from asclepius.constants import (
     PROMPT_FLAGGED_TASK_STATUS,
     PROMPT_REVIEW_VERDICTS,
     REASONING_STEP_LABELS,
+    STEP_CORRECTION_REASONS,
     TASK_SOURCES,
     VERDICTS,
     WHY_BETTER_TAGS,
@@ -155,6 +156,7 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
         "grounding_disclaimer": GROUNDED_PREMIUM_DISCLAIMER,
         "evidence_source_types": list(EVIDENCE_SOURCE_TYPES),
         "reasoning_step_labels": list(REASONING_STEP_LABELS),
+        "step_correction_reasons": list(STEP_CORRECTION_REASONS),
         "preference_variants": list(PREFERENCE_VARIANTS),
         "export_profiles": asc_profiles.list_profiles(),
     }

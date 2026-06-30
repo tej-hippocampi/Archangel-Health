@@ -132,8 +132,23 @@ class GenerationRequest(BaseModel):
 # ─── Submission (raw, what the doctor produced) (PRD §6.2) ────────────────────
 class ReasoningStep(BaseModel):
     step: int
+    # The CONFIRMED-or-CORRECTED step the expert stands behind (the gold).
     text: str
-    # PRM800K-style per-step label (opt §1.1): good | neutral | bad.
+    # Edit-to-Correct (Reasoning Capture v2): the AI's split step BEFORE the
+    # doctor edited it — the negative half of a step-level preference pair. None
+    # when the step was authored from scratch (AI omitted it).
+    original_text: Optional[str] = None
+    # The doctor edited this step to correct it (text diverged from original).
+    corrected: bool = False
+    # The doctor explicitly endorsed the AI's step as-is (silence ≠ endorsement).
+    confirmed: bool = False
+    # Manually inserted — an authored step the AI omitted entirely.
+    added: bool = False
+    # Why the edited step was wrong — one of STEP_CORRECTION_REASONS. Drives the
+    # derived ``label`` (minor_wording → neutral, anything else → bad).
+    correction_reason: Optional[str] = None
+    # PRM800K-style per-step label (opt §1.1): good | neutral | bad. Now DERIVED
+    # from the confirm/correct action rather than hand-tapped.
     label: Optional[str] = None
     # Optional numeric reward accompanying the label.
     step_reward: Optional[float] = None

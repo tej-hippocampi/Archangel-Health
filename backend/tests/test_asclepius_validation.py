@@ -102,6 +102,65 @@ def test_step_critique_is_phi_scanned():
     assert "email" in res["phi_kinds"]
 
 
+def test_capture_reasoning_pending_step_routes_to_qa():
+    """Edit-to-Correct gating: a split step left ``pending`` (neither confirmed nor
+    corrected nor added) flags a capture_reasoning submission for QA — silence is
+    not endorsement, but we never hard-reject (no lost submissions)."""
+    payload = {
+        **_GOOD_PAYLOAD,
+        "reasoning_steps": [
+            {"step": 1, "text": "Give IV calcium", "original_text": "Give IV calcium",
+             "corrected": False, "confirmed": True, "added": False, "label": "good"},
+            # pending: text === original, never confirmed/corrected/added
+            {"step": 2, "text": "Then dialyze", "original_text": "Then dialyze",
+             "corrected": False, "confirmed": False, "added": False},
+        ],
+    }
+    task, sub = _task(capture_reasoning=True), _submission(payload)
+    recs = package_submission(task, sub)
+    res = validate_submission(task, sub, recs)
+    assert res["valid"] is False
+    assert "unreviewed_reasoning_step" in res["issues"]
+
+
+def test_corrected_step_missing_reason_routes_to_qa():
+    """A corrected step with no ``correction_reason`` can't derive a label — flagged
+    for QA (and the same gate rejects an unknown reason value)."""
+    payload = {
+        **_GOOD_PAYLOAD,
+        "reasoning_steps": [
+            {"step": 1, "text": "Give IV calcium gluconate", "original_text": "give calcium",
+             "corrected": True, "confirmed": False, "added": False, "correction_reason": None},
+        ],
+    }
+    task, sub = _task(capture_reasoning=True), _submission(payload)
+    recs = package_submission(task, sub)
+    res = validate_submission(task, sub, recs)
+    assert res["valid"] is False
+    assert "missing_correction_reason" in res["issues"]
+
+
+def test_all_steps_confirmed_or_corrected_validates():
+    """A capture_reasoning submission with every step resolved (confirmed, corrected
+    with a reason, or added) passes the Edit-to-Correct gate."""
+    payload = {
+        **_GOOD_PAYLOAD,
+        "reasoning_steps": [
+            {"step": 1, "text": "Give IV calcium", "original_text": "Give IV calcium",
+             "confirmed": True, "label": "good"},
+            {"step": 2, "text": "Shift K+ with insulin and dextrose", "original_text": "give resin",
+             "corrected": True, "correction_reason": "factual_error", "label": "bad"},
+            {"step": 3, "text": "Then dialyze given the ESRD", "original_text": None,
+             "added": True, "label": "good"},
+        ],
+    }
+    task, sub = _task(capture_reasoning=True), _submission(payload)
+    recs = package_submission(task, sub)
+    res = validate_submission(task, sub, recs)
+    assert res["valid"] is True
+    assert res["issues"] == []
+
+
 def test_contamination_flags_public_benchmark_prompt():
     assert contamination_hits("This is from MedQA dataset, which of the following is the most likely diagnosis?")
     task = _task(prompt="Which of the following is the most likely diagnosis for this MedQA item?")

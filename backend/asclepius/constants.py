@@ -12,7 +12,7 @@ import os
 from ai.model_config import APP_AI_CONFIG_VERSION
 
 # Bump when the error taxonomy or any controlled vocabulary below changes.
-ASCLEPIUS_TAXONOMY_VERSION = "2026-06-26.3"
+ASCLEPIUS_TAXONOMY_VERSION = "2026-06-30.1"
 
 # Config version stamped on every record (mirrors the model-config version so a
 # buyer can tie a record back to the exact pipeline that produced it — opt §1.4).
@@ -94,8 +94,30 @@ DIFFICULTIES = ("easy", "medium", "hard")
 EVIDENCE_SOURCE_TYPES = ("guideline", "primary_literature", "expert_consensus", "other")
 
 # PRM800K-style per-step labels (opt §1.1). Each reasoning step is independently
-# labeled; optional numeric ``step_reward`` may accompany the label.
+# labeled; optional numeric ``step_reward`` may accompany the label. Under the
+# Edit-to-Correct flow these are DERIVED from the confirm/correct action (see
+# ``label_for_correction_reason``) rather than hand-tapped, but the values stay
+# good|neutral|bad for buyer compatibility.
 REASONING_STEP_LABELS = ("good", "neutral", "bad")
+
+# Edit-to-Correct (Reasoning Capture v2). When the doctor edits a split step to
+# correct it, they pick exactly one of these reasons. The reason is auto-mapped
+# to a buyer-facing label: ``minor_wording`` is a non-substantive edit (neutral);
+# every other reason means the AI's original step was wrong (bad).
+STEP_CORRECTION_REASONS = (
+    "factual_error",
+    "outdated_guideline",
+    "incomplete",
+    "unsafe",
+    "wrong_order",
+    "minor_wording",
+)
+
+
+def label_for_correction_reason(reason):
+    """minor_wording is a non-substantive edit (neutral); any other reason means
+    the original step was wrong (bad). Used to derive the buyer-facing label."""
+    return "neutral" if reason == "minor_wording" else "bad"
 
 # Grounding Mode (opt §1.2). ``optional`` keeps the lightest path sacred;
 # ``required`` is the premium SKU that gates Submit on a valid citation.
