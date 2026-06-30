@@ -116,3 +116,67 @@ def decrypt_value(token: Any) -> Any:
     if not is_encrypted(token):
         return token
     return json.loads(decrypt_field(token))
+
+
+# ─── Binary-blob helpers (for raw bytes like uploaded audio) ──────────────────
+# Audio (and other binary PHI) is encrypted as a self-describing binary blob
+# rather than a base64 text token, to avoid ~33% size inflation on large files.
+# Layout: _BMAGIC | 1-byte version length | version (ascii) | 12-byte nonce | ct.
+# Plaintext/legacy bytes that don't start with the magic pass through unchanged,
+# so encryption can be rolled out incrementally (mirrors decrypt_field).
+_BMAGIC = b"FCRYPTB1"
+# magic + version-length byte + >=1 version byte + 12-byte nonce + >=1 ct byte
+_BMIN_LEN = len(_BMAGIC) + 1 + 1 + 12 + 1
+
+
+def is_encrypted_bytes(value: Any) -> bool:
+    return (
+        isinstance(value, (bytes, bytearray))
+        and len(value) >= _BMIN_LEN
+        and bytes(value[: len(_BMAGIC)]) == _BMAGIC
+    )
+
+
+def encrypt_bytes(data: Optional[bytes]) -> Optional[bytes]:
+    """Encrypt raw bytes to a binary blob. Returns the bytes unchanged when no
+    key is configured (dev fall-back; production is guarded at startup)."""
+    if data is None:
+        return None
+    if not isinstance(data, (bytes, bytearray)):
+        raise TypeError("encrypt_bytes expects bytes")
+    data = bytes(data)
+    ring, active = _ring()
+    key = ring.get(active)
+    if not key or len(key) != 32:
+        return data  # not configured -> passthrough
+    nonce = os.urandom(12)
+    ct = AESGCM(key).encrypt(nonce, data, None)
+    version = active.encode("ascii")
+    return _BMAGIC + bytes([len(version)]) + version + nonce + ct
+
+
+def decrypt_bytes(blob: Optional[bytes]) -> Optional[bytes]:
+    """Decrypt a binary blob produced by ``encrypt_bytes``. Non-blob (legacy
+    plaintext) bytes pass through unchanged. Raises ValueError if a blob is
+    present but cannot be decrypted (tampered, or its key version is missing)."""
+    if blob is None:
+        return None
+    if not is_encrypted_bytes(blob):
+        return blob
+    blob = bytes(blob)
+    try:
+        i = len(_BMAGIC)
+        vlen = blob[i]
+        i += 1
+        version = blob[i : i + vlen].decode("ascii")
+        i += vlen
+        nonce = blob[i : i + 12]
+        i += 12
+        ct = blob[i:]
+        ring, _active = _ring()
+        key = ring.get(version)
+        if not key:
+            raise ValueError(f"no key for version {version!r}")
+        return AESGCM(key).decrypt(nonce, ct, None)
+    except Exception as exc:
+        raise ValueError(f"decrypt_bytes failed: {exc}") from exc
