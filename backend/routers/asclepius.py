@@ -1162,6 +1162,17 @@ async def download_credential_summary(
     if fmt not in ("pdf", "json"):
         raise HTTPException(status_code=400, detail="format must be 'pdf' or 'json'")
     out_dir = _credential_summaries_root() / summary_id
+    meta_path = out_dir / "summary.json"
+    if not meta_path.exists():
+        raise HTTPException(status_code=404, detail="Credential summary not found")
+    # Validate the summary belongs to the contributor named in the path, so a
+    # mismatched URL can never serve another contributor's dossier.
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        meta = {}
+    if meta.get("hashed_annotator_id") != id_hashed:
+        raise HTTPException(status_code=404, detail="Credential summary not found")
     fname = "summary.pdf" if fmt == "pdf" else "summary.json"
     fpath = out_dir / fname
     if not fpath.exists():

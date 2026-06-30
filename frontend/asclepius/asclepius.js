@@ -21,8 +21,8 @@
     adminTab: 'tasks',     // tasks | buyers | exports | metrics
     // Org → contributor drill-down state, shared shape across Exports + Metrics.
     browse: {
-      export: { level: 'orgs', org: null, idHashed: null },
-      metrics: { level: 'orgs', org: null, contributor: null },
+      export: { level: 'orgs', org: null, idHashed: null, contributor: null },
+      metrics: { level: 'orgs', org: null, idHashed: null, contributor: null },
     },
     task: null,            // current blinded task
     draft: null,           // in-progress submission draft
@@ -2049,18 +2049,20 @@
           h('tbody', {}, rows)))));
     }
 
-    // Contributor stats
+    // Contributor stats. (contributor_stats() returns submissions / grounded /
+    // premium / total_hours — not count/approved.)
     const contrib = s.contributor_stats || [];
     if (contrib.length) {
       const rows = contrib.map((t) => h('tr', {},
         h('td', {}, t.email || t.evaluator_id || '—'),
         h('td', {}, t.specialty || '—'),
-        h('td', {}, String(t.count != null ? t.count : 0)),
-        h('td', {}, t.approved != null ? String(t.approved) : '—')));
+        h('td', {}, String(t.submissions != null ? t.submissions : 0)),
+        h('td', {}, String(t.grounded_submissions != null ? t.grounded_submissions : 0)),
+        h('td', {}, t.total_hours != null ? t.total_hours + 'h' : '—')));
       body.appendChild(h('div', { class: 'asc-card' },
         h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Contributors')),
         h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-          h('thead', {}, h('tr', {}, ['Contributor', 'Specialty', 'Submissions', 'Approved'].map((c) => h('th', {}, c)))),
+          h('thead', {}, h('tr', {}, ['Contributor', 'Specialty', 'Submissions', 'Grounded', 'Hours'].map((c) => h('th', {}, c)))),
           h('tbody', {}, rows)))));
     }
 

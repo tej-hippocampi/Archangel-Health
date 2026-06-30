@@ -287,9 +287,42 @@ def test_metrics_org_and_contributor_with_last_labeled():
     assert c["submission_count"] >= 1
 
 
+def test_credential_summary_download_rejects_mismatched_contributor():
+    admin_h = _admin_h()
+    u1 = _make_contributor()
+    u2 = _make_contributor()
+    res = client.post(
+        f"/api/asclepius/contributors/{u1['id_hashed']}/credential-summary",
+        json={"acknowledged": True}, headers=admin_h,
+    ).json()
+    sid = res["summary_id"]
+    # The summary belongs to u1; requesting it under u2's path must 404.
+    bad = client.get(
+        f"/api/asclepius/contributors/{u2['id_hashed']}/credential-summary/{sid}/download",
+        headers=admin_h, params={"format": "json"},
+    )
+    assert bad.status_code == 404
+
+
 # ─── Unit: blurb + leak scanner ───────────────────────────────────────────────
 def test_blurb_and_leak_unit():
     blurb = asc_credentials.generalized_blurb(_SHIP)
     assert "Board-certified" in blurb and "fellowship-trained" in blurb and "NPI-verified" in blurb
     assert asc_credentials.find_tier_b_leak({"prompt": "x", "license": "CC", "annotator_credential": "y"}) is None
     assert asc_credentials.find_tier_b_leak({"a": {"npi": "1"}}) == "npi"
+
+
+def test_value_scan_ignores_institutions_and_years_keeps_identifiers():
+    # The value scan must NOT false-positive on institution names / years that can
+    # legitimately appear in clinical text — only on locator/identifier values.
+    verify = {
+        "full_legal_name": "Jane A. Doe, MD", "npi": "1234567893",
+        "medical_license_number": "A-104872", "license_state": "CA",
+        "medical_school": "UCSF", "medical_school_year": "2004",
+        "residency": "Stanford", "fellowship": "UCLA",
+    }
+    vals = asc_credentials.collect_verify_values([verify])
+    legit = {"prompt": "Patient on dialysis since 2004 per the UCSF/Stanford protocol; UCLA criteria."}
+    assert asc_credentials.find_tier_b_value_leak(legit, vals) is None
+    assert asc_credentials.find_tier_b_value_leak({"r": "seen by Jane A. Doe, MD"}, vals) == "Jane A. Doe, MD"
+    assert asc_credentials.find_tier_b_value_leak({"r": "npi 1234567893"}, vals) == "1234567893"

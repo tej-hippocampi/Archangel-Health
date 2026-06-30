@@ -385,14 +385,16 @@ def _assemble_pdf(page_streams: List[str]) -> bytes:
         objects.append(obj)
         return len(objects)  # 1-based object number
 
-    font_num = add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    # WinAnsiEncoding (≈ cp1252) so accented Latin names (e.g. "José") render
+    # correctly rather than as the wrong StandardEncoding glyph.
+    font_num = add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
 
     # Reserve catalog (1) and pages (2) numbers by placing them first conceptually;
     # we build content + page objects, then pages tree, then catalog.
     page_obj_nums: List[int] = []
     content_nums: List[int] = []
     for stream in page_streams:
-        data = stream.encode("latin-1", "replace")
+        data = stream.encode("cp1252", "replace")
         content = b"<< /Length %d >>\nstream\n%s\nendstream" % (len(data), data)
         content_nums.append(add(content))
 
