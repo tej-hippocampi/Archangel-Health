@@ -778,3 +778,51 @@
   .asc-submit-bar { flex-direction: column; align-items: stretch; }
   .asc-submit-right { margin-left: 0; justify-content: space-between; }
 }
+
+/* ── Contributors browser (org → contributor drill-down) ─────────────────── */
+.asc-browse-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; margin: 8px 0;
+  border: 1px solid var(--asc-line); border-radius: 12px;
+  background: var(--asc-surface); cursor: pointer;
+  transition: border-color .12s, box-shadow .12s, background .12s;
+}
+.asc-browse-row:hover {
+  border-color: var(--asc-primary);
+  box-shadow: 0 1px 6px rgba(37, 99, 235, .10);
+  background: var(--asc-primary-light);
+}
+.asc-browse-main { flex: 1; min-width: 0; }
+.asc-browse-name { font-size: 15px; font-weight: 650; color: var(--asc-text); display: flex; align-items: center; }
+.asc-browse-meta { font-size: 12.5px; color: var(--asc-muted); margin-top: 3px; }
+.asc-browse-crumb { margin-bottom: 8px; }
+
+/* ── Contributor profile ─────────────────────────────────────────────────── */
+.asc-profile-head { display: flex; align-items: center; gap: 16px; }
+.asc-profile-avatar {
+  width: 52px; height: 52px; flex: 0 0 52px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; border-radius: 50%;
+  background: var(--asc-primary-light); border: 1px solid var(--asc-line);
+}
+.asc-profile-name { font-size: 19px; font-weight: 750; color: var(--asc-text); display: flex; align-items: center; }
+.asc-blurb {
+  margin: 16px 0 4px; padding: 14px 16px;
+  background: var(--gray-50, #f9fafb); border-left: 3px solid var(--asc-primary);
+  border-radius: 8px; font-size: 14.5px; line-height: 1.5; color: var(--asc-text);
+}
+.asc-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.asc-chip-row .asc-chip { cursor: default; }
+.asc-profile-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+
+/* "Further Credential Summary" — a distinct, weightier action. */
+.asc-btn-secondary { background: var(--asc-accent); color: #fff; }
+.asc-btn-secondary:hover:not(:disabled) { background: #6d28d9; }
+
+/* §9 non-circumvention notice in the acknowledgment modal. */
+.asc-notice-box {
+  margin-top: 12px; padding: 14px 16px; max-height: 280px; overflow: auto;
+  background: var(--gray-50, #f9fafb); border: 1px solid var(--asc-line);
+  border-radius: 8px; font-size: 12.5px; line-height: 1.55; color: var(--asc-text);
+  white-space: pre-wrap;
+}

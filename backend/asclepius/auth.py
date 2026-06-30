@@ -194,14 +194,145 @@ def seed_default_admin(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
     # A demo evaluator makes the eval screen usable immediately in local/demo.
     if os.getenv("ASCLEPIUS_SEED_DEMO_EVALUATOR", "1").strip().lower() in ("1", "true", "yes", "on"):
         try:
-            store.create_user(
+            demo = store.create_user(
                 email=(os.getenv("ASCLEPIUS_DEMO_EVALUATOR_EMAIL") or "evaluator@asclepius.local"),
                 password=(os.getenv("ASCLEPIUS_DEMO_EVALUATOR_PASSWORD") or "asclepius-eval-2026"),
                 role="evaluator",
                 specialty=(os.getenv("ASCLEPIUS_DEMO_EVALUATOR_SPECIALTY") or "nephrology"),
                 board_cert="board_certified_nephrology",
                 years_experience=12,
+                organization="Riverside Nephrology Associates",
             )
+            _seed_demo_contributors(store, demo)
         except Exception:
             log.warning("Asclepius: failed to seed demo evaluator", exc_info=True)
     return admin
+
+
+def _seed_demo_contributors(store: AsclepiusStore, demo_evaluator: Dict[str, Any]) -> None:
+    """Populate the Contributors view in dev/demo: credential profiles (Tier A
+    ship + Tier B vault) across two organizations so the org → contributor →
+    profile drill-down and the tiered export are demonstrable out of the box.
+    Never runs in production (only called from the dev branch above)."""
+    # The demo evaluator becomes a fully credentialed nephrologist.
+    store.upsert_contributor_credentials(
+        id_hashed=demo_evaluator["id_hashed"],
+        user_id=demo_evaluator["id"],
+        organization="Riverside Nephrology Associates",
+        role_title="Physician (MD)",
+        credentials_verified=True,
+        ship={
+            "degree": "MD",
+            "board_certifications": "ABIM — Internal Medicine; Nephrology (active)",
+            "primary_specialty": "nephrology",
+            "subspecialties": ["dialysis", "transplant", "CKD"],
+            "years_in_active_practice": 17,
+            "active_practice": True,
+            "practice_setting_type": "private_practice",
+            "languages": ["English", "Spanish"],
+            "fellowship_trained": True,
+            "fellowship_summary": "fellowship-trained in nephrology at a major US academic medical center",
+            "credentials_verified": True,
+        },
+        verify={
+            "full_legal_name": "Jane A. Doe, MD",
+            "npi": "1234567893",
+            "medical_license_number": "A-104872",
+            "license_state": "CA",
+            "medical_school": "University of California, San Francisco",
+            "medical_school_year": "2004",
+            "residency": "Stanford University Medical Center",
+            "residency_year": "2007",
+            "fellowship": "UCLA Medical Center — Nephrology",
+            "fellowship_year": "2009",
+            "practice_name": "Riverside Nephrology Associates",
+            "practice_address": "1200 Riverside Dr, Suite 300, Sacramento, CA 95814",
+            "practice_contact": "jdoe@riversidenephrology.example",
+        },
+    )
+
+    extra = [
+        {
+            "email": "npaul.np@asclepius.local",
+            "specialty": "nephrology",
+            "organization": "Riverside Nephrology Associates",
+            "role_title": "Nurse Practitioner",
+            "verified": True,
+            "ship": {
+                "degree": "DNP",
+                "board_certifications": "AANP — Adult-Gerontology Acute Care NP (active)",
+                "primary_specialty": "nephrology",
+                "subspecialties": ["dialysis", "CKD"],
+                "years_in_active_practice": 9,
+                "active_practice": True,
+                "practice_setting_type": "dialysis_unit",
+                "languages": ["English"],
+                "fellowship_trained": False,
+                "credentials_verified": True,
+            },
+            "verify": {
+                "full_legal_name": "Nadia Paul, DNP, AGACNP-BC",
+                "npi": "1982736450",
+                "medical_license_number": "NP-55821",
+                "license_state": "CA",
+                "medical_school": "Johns Hopkins School of Nursing",
+                "medical_school_year": "2015",
+                "practice_name": "Riverside Nephrology Associates",
+                "practice_address": "1200 Riverside Dr, Suite 300, Sacramento, CA 95814",
+            },
+        },
+        {
+            "email": "rkhan.do@asclepius.local",
+            "specialty": "nephrology",
+            "organization": "Lakeside Kidney Institute",
+            "role_title": "Physician (DO)",
+            "verified": True,
+            "ship": {
+                "degree": "DO",
+                "board_certifications": "AOBIM — Nephrology (active)",
+                "primary_specialty": "nephrology",
+                "subspecialties": ["transplant", "glomerular disease"],
+                "years_in_active_practice": 22,
+                "active_practice": True,
+                "practice_setting_type": "academic",
+                "languages": ["English", "Urdu"],
+                "fellowship_trained": True,
+                "fellowship_summary": "fellowship-trained in transplant nephrology at a major US academic medical center",
+                "credentials_verified": True,
+            },
+            "verify": {
+                "full_legal_name": "Rashid Khan, DO",
+                "npi": "1457893021",
+                "medical_license_number": "D-220194",
+                "license_state": "IL",
+                "medical_school": "Chicago College of Osteopathic Medicine",
+                "medical_school_year": "1999",
+                "residency": "Rush University Medical Center",
+                "residency_year": "2002",
+                "fellowship": "Northwestern Memorial Hospital — Transplant Nephrology",
+                "fellowship_year": "2004",
+                "practice_name": "Lakeside Kidney Institute",
+                "practice_address": "55 Lakeshore Ave, Chicago, IL 60611",
+            },
+        },
+    ]
+    for c in extra:
+        try:
+            u = store.create_user(
+                email=c["email"],
+                password=secrets.token_urlsafe(24),
+                role="evaluator",
+                specialty=c["specialty"],
+                organization=c["organization"],
+            )
+            store.upsert_contributor_credentials(
+                id_hashed=u["id_hashed"],
+                user_id=u["id"],
+                organization=c["organization"],
+                role_title=c["role_title"],
+                credentials_verified=c["verified"],
+                ship=c["ship"],
+                verify=c["verify"],
+            )
+        except Exception:
+            log.warning("Asclepius: failed to seed demo contributor %s", c["email"], exc_info=True)

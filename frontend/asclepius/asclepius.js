@@ -18,7 +18,12 @@
     user: null,
     taxonomy: null,
     view: 'eval',          // 'eval' | 'admin'
-    adminTab: 'tasks',     // tasks | buyers | qa | exports | metrics
+    adminTab: 'tasks',     // tasks | buyers | exports | metrics
+    // Org → contributor drill-down state, shared shape across Exports + Metrics.
+    browse: {
+      export: { level: 'orgs', org: null, idHashed: null, contributor: null },
+      metrics: { level: 'orgs', org: null, idHashed: null, contributor: null },
+    },
     task: null,            // current blinded task
     draft: null,           // in-progress submission draft
     timerStart: 0,
@@ -1034,10 +1039,11 @@
     const tabs = [
       ['tasks', 'Tasks'],
       ['buyers', 'Buyers & Requests'],
-      ['qa', 'QA Queue'],
       ['exports', 'Exports'],
       ['metrics', 'Metrics'],
     ];
+    // QA Queue was removed from the nav; bounce any stale selection.
+    if (state.adminTab === 'qa') state.adminTab = 'exports';
     const subnav = h('div', { class: 'asc-subnav' },
       tabs.map(([id, label]) => h('button', {
         class: 'asc-subnav-btn' + (state.adminTab === id ? ' active' : ''),
@@ -1049,7 +1055,6 @@
 
     if (state.adminTab === 'tasks') renderAdminTasks(body);
     else if (state.adminTab === 'buyers') renderAdminBuyers(body);
-    else if (state.adminTab === 'qa') renderAdminQA(body);
     else if (state.adminTab === 'exports') renderAdminExports(body);
     else if (state.adminTab === 'metrics') renderAdminMetrics(body);
   }
@@ -1506,101 +1511,8 @@
   }
 
   // ─── Admin: QA queue ───────────────────────────────────────────────────────
-  function renderAdminQA(body) {
-    clear(body);
-    const card = h('div', { class: 'asc-card', id: 'ascQAList' }, loadingCard('Loading QA queue…'));
-    body.appendChild(card);
-    loadQAQueue();
-  }
-
-  async function loadQAQueue() {
-    const card = document.getElementById('ascQAList');
-    if (!card) return;
-    clear(card);
-    card.appendChild(loadingCard('Loading QA queue…'));
-    try {
-      const data = await api('/qa/queue');
-      const subs = data.submissions || [];
-      clear(card);
-      card.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Needs QA (' + subs.length + ')')));
-      if (!subs.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('div', { class: 'asc-empty-icon' }, '🎉'), h('h3', {}, 'QA queue empty'), h('p', {}, 'No submissions awaiting review.'))); return; }
-      const rows = subs.map((s) => h('tr', { class: 'asc-row-clickable', onClick: () => openSubmissionDetail(s.submission_id) },
-        h('td', { class: 'asc-mono' }, (s.submission_id || '').slice(0, 10)),
-        h('td', {}, h('span', { class: 'asc-badge asc-badge-primary' }, s.specialty || '—')),
-        h('td', {}, s.verdict || '—'),
-        h('td', {}, s.confidence || '—'),
-        h('td', {}, s.grounded ? h('span', { class: 'asc-badge asc-badge-green' }, 'grounded') : '—'),
-        h('td', {}, (s.qa_reason || '').slice(0, 60) || '—')));
-      card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-        h('thead', {}, h('tr', {}, ['ID', 'Specialty', 'Verdict', 'Confidence', 'Grounded', 'Flags'].map((c) => h('th', {}, c)))),
-        h('tbody', {}, rows))));
-    } catch (e) {
-      clear(card);
-      card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
-    }
-  }
-
-  async function openSubmissionDetail(submissionId) {
-    let sub;
-    try { sub = await api('/submissions/' + submissionId); }
-    catch (e) { toast('Could not load submission: ' + e.message, 'error'); return; }
-
-    const overlay = h('div', { class: 'call-team-overlay is-open', onClick: (e) => { if (e.target === overlay) overlay.remove(); } });
-    const task = sub.task || {};
-    const payload = sub.payload || {};
-    const records = sub.records || [];
-
-    const notesInput = h('textarea', { class: 'asc-textarea', placeholder: 'QA notes (optional)…' });
-    const actionStatus = h('div', {});
-
-    const recordNodes = records.length
-      ? records.map((r) => h('div', { class: 'asc-record' },
-        h('div', { class: 'asc-record-type' }, r.type || 'record'),
-        h('dl', { class: 'asc-kv' },
-          r.chosen ? [h('dt', {}, 'chosen'), h('dd', {}, trunc(r.chosen, 400))] : null,
-          r.rejected ? [h('dt', {}, 'rejected'), h('dd', {}, trunc(r.rejected, 400))] : null,
-          r.ideal_answer ? [h('dt', {}, 'ideal'), h('dd', {}, trunc(r.ideal_answer, 400))] : null,
-          r.rationale ? [h('dt', {}, 'rationale'), h('dd', {}, trunc(r.rationale, 300))] : null,
-          r.steps && r.steps.length ? [h('dt', {}, 'steps'), h('dd', {}, r.steps.length + ' step(s)')] : null,
-        )))
-      : [h('p', { class: 'asc-help' }, 'No packaged records.')];
-
-    const popup = h('div', { class: 'call-team-popup', style: 'max-width:760px;max-height:88vh;overflow:auto;text-align:left', onClick: (e) => e.stopPropagation() },
-      h('div', { class: 'call-team-title' }, 'Submission ' + (sub.submission_id || '').slice(0, 12)),
-      h('div', { class: 'asc-meta-row' },
-        h('span', { class: 'asc-badge asc-badge-primary' }, task.specialty || '—'),
-        h('span', { class: 'asc-badge asc-badge-gray' }, sub.verdict || '—'),
-        h('span', { class: 'asc-badge asc-badge-gray' }, 'confidence: ' + (sub.confidence || '—')),
-        sub.grounded ? h('span', { class: 'asc-badge asc-badge-green' }, 'grounded') : null,
-        h('span', { class: 'asc-badge asc-badge-amber' }, 'status: ' + (sub.status || '—'))),
-      h('div', { class: 'asc-section-title' }, 'Prompt'),
-      h('div', { class: 'asc-prompt-text', style: 'font-size:14px' }, task.prompt || '—'),
-      sub.qa_reason ? [h('div', { class: 'asc-section-title' }, 'Auto-validation flags'), h('div', { class: 'asc-inline-error' }, sub.qa_reason)] : null,
-      payload.chosen_revision && payload.chosen_revision.why_better_notes ? [h('div', { class: 'asc-section-title' }, 'Why better'), h('p', { class: 'asc-help' }, payload.chosen_revision.why_better_notes)] : null,
-      payload.rejected_critique && payload.rejected_critique.why_worse ? [h('div', { class: 'asc-section-title' }, 'Why worse'), h('p', { class: 'asc-help' }, payload.rejected_critique.why_worse)] : null,
-      h('div', { class: 'asc-section-title' }, 'Packaged records (' + records.length + ')'),
-      ...recordNodes,
-      h('div', { class: 'asc-divider' }),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'QA decision notes'), notesInput),
-      actionStatus,
-      h('div', { style: 'display:flex;gap:10px' },
-        h('button', { class: 'asc-btn asc-btn-success', onClick: () => decide('approve') }, 'Approve'),
-        h('button', { class: 'asc-btn asc-btn-danger', onClick: () => decide('reject') }, 'Reject'),
-        h('button', { class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto', onClick: () => overlay.remove() }, 'Close')));
-
-    async function decide(decision) {
-      clear(actionStatus);
-      try {
-        const res = await api('/qa/' + submissionId + '/decision', { method: 'POST', body: { decision, notes: notesInput.value.trim() } });
-        toast('Submission ' + decision + 'd → ' + res.status, 'success');
-        overlay.remove();
-        loadQAQueue();
-      } catch (e) { actionStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
-    }
-
-    overlay.appendChild(popup);
-    document.body.appendChild(overlay);
-  }
+  // (QA Queue tab removed from the admin console. The QA pipeline still runs
+  // server-side; the Exports tab surfaces a one-click "approve pending & export".)
 
   // ─── Admin: Exports ────────────────────────────────────────────────────────
   // One-click export. Default packages the fresh (export_ready) backlog; when
@@ -1700,7 +1612,7 @@
 
   function renderAdminExports(body) {
     clear(body);
-    const tax = state.taxonomy;
+    state.browse.export = { level: 'orgs', org: null, idHashed: null, contributor: null };
 
     // ── One-click export (the common path) ──────────────────────────────────
     const quickStatus = h('div', { id: 'ascQuickExportStatus', style: 'margin-top:12px' });
@@ -1721,66 +1633,312 @@
     body.appendChild(quickCard);
     refreshExportReadyCount();
 
-    const profileSel = selectFrom(profileNames(), 'default');
-    const specInput = h('input', { class: 'asc-input', placeholder: 'any' });
-    const diffSel = selectFrom(['', 'easy', 'medium', 'hard'], '');
-    const recTypeSel = selectFrom(['', 'preference', 'ideal_answer', 'reasoning_trace'], '');
-    const groundedCb = h('input', { type: 'checkbox' });
-    const confSel = selectFrom(['', 'low', 'medium', 'high'], '');
-    const minAgree = h('input', { class: 'asc-input', type: 'number', step: '0.05', min: '0', max: '1', placeholder: '0.0–1.0' });
-    const since = h('input', { class: 'asc-input', type: 'date' });
-    const until = h('input', { class: 'asc-input', type: 'date' });
-    const note = h('input', { class: 'asc-input', placeholder: 'Export note (optional)' });
-    const manifestBox = h('div', {});
-
-    const builder = h('div', { class: 'asc-card' },
-      h('div', { class: 'asc-card-head' }, h('div', {}, h('div', { class: 'asc-card-title' }, 'Advanced export (filtered)'),
-        h('div', { class: 'asc-card-sub' }, 'Optional: narrow by specialty, difficulty, record type, date, grounding or agreement before packaging.'))),
-      h('div', { class: 'asc-card-pad' },
-        h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Profile'), profileSel),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), specInput),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Difficulty'), diffSel)),
-        h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Record type'), recTypeSel),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Confidence floor'), confSel),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Min agreement'), minAgree)),
-        h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Since'), since),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Until'), until),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-checkbox-row', style: 'margin-top:26px' }, groundedCb, 'Grounded only'))),
-        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Note'), note),
-        h('button', {
-          class: 'asc-btn asc-btn-primary', onClick: async () => {
-            clear(manifestBox);
-            const reqBody = {
-              profile: profileSel.value,
-              specialty: specInput.value.trim() || null,
-              difficulty: diffSel.value || null,
-              record_type: recTypeSel.value || null,
-              grounded_only: groundedCb.checked,
-              confidence_floor: confSel.value || null,
-              min_agreement: minAgree.value ? parseFloat(minAgree.value) : null,
-              since: since.value || null, until: until.value || null,
-              note: note.value.trim() || null,
-            };
-            try {
-              const manifest = await api('/exports', { method: 'POST', body: reqBody });
-              manifestBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Export created.'));
-              manifestBox.appendChild(h('pre', { class: 'asc-pre' }, JSON.stringify(manifest, null, 2)));
-              loadExportsHistory();
-            } catch (e) {
-              const label = e.status === 422 ? 'Schema validation failed (422): ' : '';
-              manifestBox.appendChild(h('div', { class: 'asc-inline-error' }, label + e.message));
-            }
-          },
-        }, 'Create export'),
-        manifestBox));
+    // ── Contributors (by organization → contributor → profile) ──────────────
+    const contribCard = h('div', { class: 'asc-card', id: 'ascContribBrowser' });
+    body.appendChild(contribCard);
+    renderOrgContribBrowser(contribCard, 'export');
 
     const historyCard = h('div', { class: 'asc-card', id: 'ascExportHistory' }, loadingCard('Loading export history…'));
-    body.appendChild(builder);
     body.appendChild(historyCard);
     loadExportsHistory();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Contributors browser — shared org → contributor drill-down used by both the
+  //  Exports tab (mode 'export': Export Data + Further Credential Summary) and
+  //  the Metrics tab (mode 'metrics': per-org / per-contributor metric tiles).
+  // ═══════════════════════════════════════════════════════════════════════════
+  function renderOrgContribBrowser(card, mode) {
+    const nav = state.browse[mode];
+    clear(card);
+    if (nav.level === 'orgs') return renderOrgList(card, mode);
+    if (nav.level === 'org') return renderOrgDetail(card, mode);
+    if (nav.level === 'contributor') return renderContributorDetail(card, mode);
+  }
+
+  function browseTitle(mode) {
+    return mode === 'export' ? 'Contributors — export by organization' : 'Metrics by organization & contributor';
+  }
+  function browseSub(mode) {
+    return mode === 'export'
+      ? 'Browse every contributor by organization. Export all the data an organization labelled, or open a contributor to export their data or generate a credential verification summary.'
+      : 'Drill from overall metrics into a single organization, then a single contributor — including when they last labelled.';
+  }
+
+  async function renderOrgList(card, mode) {
+    clear(card);
+    card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+      h('div', { class: 'asc-card-title' }, browseTitle(mode)),
+      h('div', { class: 'asc-card-sub' }, browseSub(mode)))));
+    const listBox = h('div', { class: 'asc-card-pad' }, loadingCard('Loading organizations…'));
+    card.appendChild(listBox);
+    let orgs;
+    try {
+      const path = mode === 'export' ? '/organizations' : '/metrics/organizations';
+      orgs = (await api(path)).organizations || [];
+    } catch (e) { clear(listBox); listBox.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); return; }
+    clear(listBox);
+    if (!orgs.length) { listBox.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No contributors yet.'))); return; }
+    const statusBox = h('div', { style: 'margin-bottom:10px' });
+    listBox.appendChild(statusBox);
+    orgs.forEach((o) => {
+      const open = () => { state.browse[mode] = { level: 'org', org: o.organization, idHashed: null, contributor: null }; renderOrgContribBrowser(card, mode); };
+      const meta = [
+        o.contributor_count + ' contributor' + (o.contributor_count === 1 ? '' : 's'),
+        o.record_count + ' record' + (o.record_count === 1 ? '' : 's') + ' labelled',
+        'last labelled ' + fmtDate(o.last_labeled_at),
+      ];
+      const right = mode === 'export'
+        ? h('button', {
+            class: 'asc-btn asc-btn-primary asc-btn-sm',
+            onClick: (ev) => { ev.stopPropagation(); exportOrg(o.organization, statusBox); },
+          }, '⬇ Export all org data')
+        : h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: open }, 'View →');
+      listBox.appendChild(h('div', { class: 'asc-browse-row', onClick: open },
+        h('div', { class: 'asc-browse-main' },
+          h('div', { class: 'asc-browse-name' }, '🏥 ' + o.organization),
+          h('div', { class: 'asc-browse-meta' }, meta.join(' · '))),
+        right));
+    });
+  }
+
+  async function renderOrgDetail(card, mode) {
+    const org = state.browse[mode].org;
+    clear(card);
+    const back = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm',
+      onClick: () => { state.browse[mode] = { level: 'orgs', org: null, idHashed: null, contributor: null }; renderOrgContribBrowser(card, mode); } }, '← All organizations');
+    const head = h('div', { class: 'asc-card-head' }, h('div', {},
+      h('div', { class: 'asc-browse-crumb' }, back),
+      h('div', { class: 'asc-card-title' }, '🏥 ' + org)));
+    if (mode === 'export') {
+      const statusBox = h('div', {});
+      head.appendChild(h('div', {},
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', onClick: () => exportOrg(org, statusBox) }, '⬇ Export all org data')));
+      card.appendChild(head);
+      card.appendChild(h('div', { class: 'asc-card-pad', style: 'padding-bottom:0' }, statusBox));
+    } else {
+      card.appendChild(head);
+    }
+
+    const listBox = h('div', { class: 'asc-card-pad' }, loadingCard('Loading contributors…'));
+    card.appendChild(listBox);
+    let contributors;
+    try {
+      const path = (mode === 'export' ? '/contributors' : '/metrics/contributors') + '?organization=' + encodeURIComponent(org);
+      contributors = (await api(path)).contributors || [];
+    } catch (e) { clear(listBox); listBox.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); return; }
+    clear(listBox);
+    if (mode === 'metrics') listBox.appendChild(orgMetricTiles(contributors, org));
+    if (!contributors.length) { listBox.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No contributors in this organization.'))); return; }
+    contributors.forEach((c) => {
+      const open = () => { state.browse[mode] = { level: 'contributor', org, idHashed: c.id_hashed, contributor: c }; renderOrgContribBrowser(card, mode); };
+      const role = c.role_title || (c.degree ? c.degree : (c.role || 'contributor'));
+      const meta = [
+        role,
+        c.primary_specialty || c.specialty || '—',
+        c.record_count + ' record' + (c.record_count === 1 ? '' : 's'),
+        'last labelled ' + fmtDate(c.last_labeled_at),
+      ];
+      listBox.appendChild(h('div', { class: 'asc-browse-row', onClick: open },
+        h('div', { class: 'asc-browse-main' },
+          h('div', { class: 'asc-browse-name' },
+            '👩‍⚕️ ' + (c.display_name || c.id_hashed),
+            c.credentials_verified ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:8px' }, 'verified ✓') : null),
+          h('div', { class: 'asc-browse-meta' }, meta.join(' · '))),
+        h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: open }, 'Open →')));
+    });
+  }
+
+  function orgMetricTiles(contributors, org) {
+    const sum = (k) => contributors.reduce((a, c) => a + (Number(c[k]) || 0), 0);
+    const last = contributors.reduce((a, c) => (c.last_labeled_at && (!a || c.last_labeled_at > a) ? c.last_labeled_at : a), null);
+    return h('div', { class: 'asc-stat-grid', style: 'margin-bottom:16px' },
+      stat(contributors.length, 'Contributors'),
+      stat(sum('submission_count'), 'Submissions'),
+      stat(sum('record_count'), 'Records labelled'),
+      stat(sum('grounded_submissions'), 'Grounded subs'),
+      stat(Math.round(sum('total_hours') * 10) / 10 + 'h', 'Total hours'),
+      stat(fmtDate(last), 'Last labelled'));
+  }
+
+  async function renderContributorDetail(card, mode) {
+    const { org, idHashed, contributor } = state.browse[mode];
+    clear(card);
+    const back = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm',
+      onClick: () => { state.browse[mode] = { level: 'org', org, idHashed: null, contributor: null }; renderOrgContribBrowser(card, mode); } }, '← ' + org);
+    card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+      h('div', { class: 'asc-browse-crumb' }, back))));
+    const pad = h('div', { class: 'asc-card-pad' }, loadingCard('Loading profile…'));
+    card.appendChild(pad);
+
+    if (mode === 'metrics') return renderContributorMetrics(pad, contributor);
+
+    // Export mode: fetch the full profile (blurb + 2 buttons).
+    let prof;
+    try { prof = await api('/contributors/' + encodeURIComponent(idHashed)); }
+    catch (e) { clear(pad); pad.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); return; }
+    clear(pad);
+    const cr = prof.credentials || {};
+    const c = prof.contributor || {};
+    pad.appendChild(h('div', { class: 'asc-profile-head' },
+      h('div', { class: 'asc-profile-avatar' }, '👩‍⚕️'),
+      h('div', {},
+        h('div', { class: 'asc-profile-name' }, c.display_name || idHashed,
+          cr.credentials_verified ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:10px' }, 'verified ✓') : null),
+        h('div', { class: 'asc-meta-row', style: 'margin-top:6px' },
+          h('span', { class: 'asc-badge asc-badge-primary' }, cr.role_title || '—'),
+          h('span', { class: 'asc-badge asc-badge-gray' }, (cr.ship && cr.ship.primary_specialty) || c.primary_specialty || '—'),
+          h('span', { class: 'asc-badge asc-badge-gray' }, 'id ' + (c.id_hashed || '').slice(0, 12)),
+          h('span', { class: 'asc-badge asc-badge-amber' }, (c.record_count || 0) + ' records')))));
+    pad.appendChild(h('div', { class: 'asc-blurb' }, prof.blurb || '—'));
+
+    // Tier A attribute chips (what ships).
+    const ship = cr.ship || {};
+    const chips = [];
+    if (ship.degree) chips.push(ship.degree);
+    if (ship.years_in_active_practice) chips.push('~' + ship.years_in_active_practice + ' yrs practice');
+    if (ship.practice_setting_type) chips.push(String(ship.practice_setting_type).replace(/_/g, ' '));
+    (ship.subspecialties || []).forEach((s) => chips.push(s));
+    (ship.languages || []).forEach((l) => chips.push(l));
+    if (chips.length) {
+      pad.appendChild(h('div', { class: 'asc-chip-row' }, chips.map((t) => h('span', { class: 'asc-chip' }, t))));
+    }
+
+    const statusBox = h('div', { style: 'margin-top:14px' });
+    pad.appendChild(h('div', { class: 'asc-profile-actions' },
+      h('button', { class: 'asc-btn asc-btn-primary',
+        onClick: (ev) => exportContributor(idHashed, statusBox, ev.target) }, '⬇ Export Data'),
+      h('button', { class: 'asc-btn asc-btn-secondary',
+        onClick: () => openCredentialSummaryModal(idHashed, c.display_name || idHashed) }, '🔒 Further Credential Summary')));
+    pad.appendChild(h('p', { class: 'asc-label-hint', style: 'margin-top:8px' },
+      'Export Data ships credential attributes only (no identifying info). Further Credential Summary releases the full verification dossier under NDA / non-circumvention.'));
+    pad.appendChild(statusBox);
+  }
+
+  function renderContributorMetrics(pad, c) {
+    clear(pad);
+    if (!c) { pad.appendChild(h('div', { class: 'asc-inline-error' }, 'No contributor selected.')); return; }
+    pad.appendChild(h('div', { class: 'asc-profile-head' },
+      h('div', { class: 'asc-profile-avatar' }, '👩‍⚕️'),
+      h('div', {},
+        h('div', { class: 'asc-profile-name' }, c.display_name || c.id_hashed,
+          c.credentials_verified ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:10px' }, 'verified ✓') : null),
+        h('div', { class: 'asc-meta-row', style: 'margin-top:6px' },
+          h('span', { class: 'asc-badge asc-badge-primary' }, c.role_title || c.role || '—'),
+          h('span', { class: 'asc-badge asc-badge-gray' }, c.primary_specialty || c.specialty || '—')))));
+    pad.appendChild(h('div', { class: 'asc-stat-grid', style: 'margin-top:14px' },
+      stat(c.submission_count || 0, 'Submissions'),
+      stat(c.record_count || 0, 'Records labelled'),
+      stat(c.grounded_submissions || 0, 'Grounded subs'),
+      stat((c.total_hours != null ? c.total_hours : 0) + 'h', 'Total hours'),
+      stat(c.premium_submissions || 0, 'Premium subs'),
+      stat(c.avg_time_sec != null ? formatTime(Math.round(c.avg_time_sec)) : '—', 'Avg time / task'),
+      stat(fmtDate(c.last_labeled_at), 'Last labelled')));
+  }
+
+  // ── Tiered-export actions ─────────────────────────────────────────────────
+  async function exportOrg(org, statusBox) {
+    clear(statusBox);
+    statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaging ' + org + '…'));
+    try {
+      const manifest = await api('/organizations/' + encodeURIComponent(org) + '/export', { method: 'POST', body: { profile: 'default' } });
+      clear(statusBox);
+      const n = manifest.record_count || 0;
+      statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' — downloading…'));
+      await downloadExport(manifest.export_id);
+      loadExportsHistory();
+      refreshExportReadyCount();
+    } catch (e) {
+      clear(statusBox);
+      const msg = e.status === 400 ? 'No export-ready records for this organization yet.'
+        : (e.status === 422 ? 'Export blocked: ' + e.message : (e.message || 'Export failed'));
+      statusBox.appendChild(h('div', { class: 'asc-inline-error' }, msg));
+    }
+  }
+
+  async function exportContributor(idHashed, statusBox, btn) {
+    clear(statusBox);
+    if (btn) { btn.setAttribute('disabled', ''); }
+    statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaging this contributor’s data…'));
+    try {
+      const manifest = await api('/contributors/' + encodeURIComponent(idHashed) + '/export', { method: 'POST', body: { profile: 'default' } });
+      clear(statusBox);
+      const n = manifest.record_count || 0;
+      statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' — downloading…'));
+      await downloadExport(manifest.export_id);
+      loadExportsHistory();
+      refreshExportReadyCount();
+    } catch (e) {
+      clear(statusBox);
+      const msg = e.status === 400 ? 'No export-ready records for this contributor yet.'
+        : (e.status === 422 ? 'Export blocked (Tier B leak gate): ' + e.message : (e.message || 'Export failed'));
+      statusBox.appendChild(h('div', { class: 'asc-inline-error' }, msg));
+    } finally {
+      if (btn) btn.removeAttribute('disabled');
+    }
+  }
+
+  // ── Further Credential Summary: §9 ack click-through → generate → download ──
+  async function openCredentialSummaryModal(idHashed, displayName) {
+    let policy = {};
+    try { policy = await api('/credential-policy'); } catch (e) { /* notice falls back below */ }
+    const overlay = h('div', { class: 'call-team-overlay is-open', onClick: (e) => { if (e.target === overlay) overlay.remove(); } });
+    const recipient = h('input', { class: 'asc-input', placeholder: 'Verification lab / recipient (optional)' });
+    const ack = h('input', { type: 'checkbox' });
+    const status = h('div', { style: 'margin-top:10px' });
+    const genBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Generate verification summary');
+
+    genBtn.onclick = async () => {
+      clear(status);
+      if (!ack.checked) { status.appendChild(h('div', { class: 'asc-inline-error' }, 'Please acknowledge the notice to continue.')); return; }
+      genBtn.setAttribute('disabled', ''); genBtn.textContent = 'Generating…';
+      try {
+        const res = await api('/contributors/' + encodeURIComponent(idHashed) + '/credential-summary',
+          { method: 'POST', body: { recipient: recipient.value.trim() || null, acknowledged: true } });
+        clear(status);
+        status.appendChild(h('div', { class: 'asc-inline-ok' }, 'Credential summary generated (' + (res.summary_id || '') + ').'));
+        const base = '/contributors/' + encodeURIComponent(idHashed) + '/credential-summary/' + encodeURIComponent(res.summary_id) + '/download';
+        status.appendChild(h('div', { style: 'display:flex;gap:10px;margin-top:10px' },
+          h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', onClick: () => downloadBlob(base + '?format=pdf', 'credential-summary-' + res.summary_id + '.pdf') }, '⬇ Download PDF'),
+          h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: () => downloadBlob(base + '?format=json', 'credential-summary-' + res.summary_id + '.json') }, '⬇ Download JSON')));
+      } catch (e) {
+        clear(status);
+        status.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Generation failed'));
+      } finally {
+        genBtn.removeAttribute('disabled'); genBtn.textContent = 'Generate verification summary';
+      }
+    };
+
+    const noticeText = policy.non_circumvention_notice
+      || 'CONFIDENTIAL — credential verification, provided under NDA / non-circumvention.';
+    const popup = h('div', { class: 'call-team-popup', style: 'max-width:720px;max-height:90vh;overflow:auto;text-align:left', onClick: (e) => e.stopPropagation() },
+      h('div', { class: 'call-team-title' }, '🔒 Further Credential Summary'),
+      h('p', { class: 'asc-help' }, 'Verification dossier for ', h('strong', {}, displayName),
+        ' — releases the private (Tier B) credentials under NDA. Watermarked confidential and logged for audit.'),
+      h('div', { class: 'asc-notice-box' }, noticeText),
+      policy.legal_disclaimer ? h('p', { class: 'asc-label-hint' }, policy.legal_disclaimer) : null,
+      h('div', { class: 'asc-field', style: 'margin-top:12px' }, h('label', { class: 'asc-label' }, 'Intended recipient'), recipient),
+      h('label', { class: 'asc-checkbox-row', style: 'margin-top:10px' }, ack,
+        ' I have read and agree to the Non-Circumvention & Confidentiality Notice above.'),
+      status,
+      h('div', { style: 'display:flex;gap:10px;margin-top:16px' },
+        genBtn,
+        h('button', { class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto', onClick: () => overlay.remove() }, 'Close')));
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+  }
+
+  async function downloadBlob(path, filename) {
+    try {
+      const res = await api(path, { raw: true });
+      if (!res.ok) { toast('Download failed (' + res.status + ')', 'error'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (e) { if (e.status !== 401) toast('Download failed: ' + (e.message || ''), 'error'); }
   }
 
   async function loadExportsHistory() {
@@ -1825,6 +1983,7 @@
   // ─── Admin: Metrics ────────────────────────────────────────────────────────
   async function renderAdminMetrics(body) {
     clear(body);
+    state.browse.metrics = { level: 'orgs', org: null, idHashed: null, contributor: null };
     body.appendChild(loadingCard('Loading metrics…'));
     let s;
     try { s = await api('/stats'); }
@@ -1890,20 +2049,27 @@
           h('tbody', {}, rows)))));
     }
 
-    // Contributor stats
+    // Contributor stats. (contributor_stats() returns submissions / grounded /
+    // premium / total_hours — not count/approved.)
     const contrib = s.contributor_stats || [];
     if (contrib.length) {
       const rows = contrib.map((t) => h('tr', {},
         h('td', {}, t.email || t.evaluator_id || '—'),
         h('td', {}, t.specialty || '—'),
-        h('td', {}, String(t.count != null ? t.count : 0)),
-        h('td', {}, t.approved != null ? String(t.approved) : '—')));
+        h('td', {}, String(t.submissions != null ? t.submissions : 0)),
+        h('td', {}, String(t.grounded_submissions != null ? t.grounded_submissions : 0)),
+        h('td', {}, t.total_hours != null ? t.total_hours + 'h' : '—')));
       body.appendChild(h('div', { class: 'asc-card' },
         h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Contributors')),
         h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-          h('thead', {}, h('tr', {}, ['Contributor', 'Specialty', 'Submissions', 'Approved'].map((c) => h('th', {}, c)))),
+          h('thead', {}, h('tr', {}, ['Contributor', 'Specialty', 'Submissions', 'Grounded', 'Hours'].map((c) => h('th', {}, c)))),
           h('tbody', {}, rows)))));
     }
+
+    // Per-organization → per-contributor metrics (same drill-down UI as Exports).
+    const browseCard = h('div', { class: 'asc-card', id: 'ascMetricsBrowser' });
+    body.appendChild(browseCard);
+    renderOrgContribBrowser(browseCard, 'metrics');
   }
 
   function stat(value, label, sub) {

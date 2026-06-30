@@ -256,3 +256,33 @@ class BatchFromRequest(BaseModel):
     # the internal prompt bank (still our prompts, their spec).
     count: int = 0
     prompts: List[TaskIn] = Field(default_factory=list)
+
+
+# ─── Contributors view + tiered export ────────────────────────────────────────
+class ContributorCredentialsIn(BaseModel):
+    """Admin upsert of a contributor's credential profile. ``ship`` is the Tier A
+    (buyer-facing) attribute block; ``verify`` is the Tier B private vault."""
+
+    organization: Optional[str] = None
+    role_title: Optional[str] = None
+    blurb: Optional[str] = None
+    credentials_verified: bool = False
+    ship: Dict[str, Any] = Field(default_factory=dict)
+    verify: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ScopedExportRequest(BaseModel):
+    """Export Data scoped to one contributor or one organization. Always Tier A
+    only; the buyer profile + Tier B leak gate enforce the wall."""
+
+    profile: str = "default"
+    note: Optional[str] = None
+    include_exported: bool = False
+
+
+class CredentialSummaryRequest(BaseModel):
+    """Generate a Further Credential Summary (verification dossier). ``acknowledged``
+    must be true — the §9 non-circumvention notice is a click-through gate."""
+
+    recipient: Optional[str] = None
+    acknowledged: bool = False
