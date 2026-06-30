@@ -483,7 +483,7 @@ def test_valid_prompt_review_stamps_clinician_reviewed_on_records():
 
 
 # ─── v2 anti-peeking: answers withheld until reveal (Eval Flow Upgrade §1) ────
-def test_answers_withheld_until_reveal(monkeypatch):
+def test_answers_withheld_until_independent_answer_committed(monkeypatch):
     monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "1")
     admin_h = A.headers_for(_admin())
     ev_h = A.headers_for(_seed())
@@ -495,11 +495,59 @@ def test_answers_withheld_until_reveal(monkeypatch):
     assert nxt["candidate_answers"] and all("text" not in c for c in nxt["candidate_answers"])
     assert all(c.get("id") for c in nxt["candidate_answers"])
 
-    # The reveal endpoint returns the texts, still blinded (no generator_model).
-    ans = client.get(f"/api/asclepius/tasks/{tid}/answers", headers=ev_h).json()["answers"]
+    # GATE: the answers cannot be fetched until an independent answer is committed.
+    blocked = client.get(f"/api/asclepius/tasks/{tid}/answers", headers=ev_h)
+    assert blocked.status_code == 403
+    assert blocked.json()["detail"]["error"] == "independent_answer_required"
+
+    # Revealing requires a non-empty independent answer.
+    empty = client.post(f"/api/asclepius/tasks/{tid}/reveal", json={"text": "   "}, headers=ev_h)
+    assert empty.status_code == 400
+
+    # Commit -> answers returned, still blinded (no generator_model).
+    rev = client.post(f"/api/asclepius/tasks/{tid}/reveal", json={"text": _IDEAL["text"]}, headers=ev_h)
+    assert rev.status_code == 200, rev.text
+    ans = rev.json()["answers"]
     assert {a["id"] for a in ans} == {"A", "B"}
     assert all((a.get("text") or "").strip() for a in ans)
     assert all("generator_model" not in a for a in ans)
+
+    # After committing, the GET re-fetch (refresh-resume) now succeeds for this evaluator.
+    assert client.get(f"/api/asclepius/tasks/{tid}/answers", headers=ev_h).status_code == 200
+    # ...but NOT for a different evaluator who never committed.
+    other = client.get(f"/api/asclepius/tasks/{tid}/answers", headers=A.headers_for(_seed()))
+    assert other.status_code == 403
+
+
+def test_committed_independent_answer_is_authoritative_at_packaging(monkeypatch):
+    """Defeats "commit garbage to unlock, then submit an AI-copied answer": the
+    PACKAGED independent answer is the one committed before reveal, not whatever
+    the post-reveal submission carries."""
+    monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "1")
+    admin_h = A.headers_for(_admin())
+    ev_user = _seed()
+    ev_h = A.headers_for(ev_user)
+    tid = _upload_task(admin_h)
+
+    committed = "My own pre-reveal plan: IV calcium, then insulin and dextrose, then dialysis."
+    client.post(f"/api/asclepius/tasks/{tid}/reveal", json={"text": committed}, headers=ev_h)
+
+    sid = "s-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+        # Client tries to pass off a DIFFERENT (post-reveal) independent answer.
+        "independent_answer": {"text": "Copied from the revealed AI answer A."},
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+    }, headers=ev_h)
+    assert r.status_code == 200, r.text
+
+    sub = client.get(f"/api/asclepius/submissions/{sid}", headers=admin_h).json()
+    blind = [rec for rec in sub["records"]
+             if rec["type"] == "ideal_answer" and rec["payload"].get("independent")]
+    assert len(blind) == 1
+    assert blind[0]["payload"]["ideal_answer"] == committed  # committed wins, not the client value
 
 
 def test_answers_inline_when_withholding_disabled(monkeypatch):
@@ -513,6 +561,7 @@ def test_answers_inline_when_withholding_disabled(monkeypatch):
 
 def test_task_answers_requires_auth():
     assert client.get("/api/asclepius/tasks/whatever/answers").status_code == 401
+    assert client.post("/api/asclepius/tasks/whatever/reveal", json={"text": "x"}).status_code == 401
 
 
 # ─── Tap-to-grade reasoning split (Eval Flow Upgrade §4) ──────────────────────

@@ -334,6 +334,20 @@ class AsclepiusStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_cred_org ON contributor_credentials(organization);
                 CREATE INDEX IF NOT EXISTS idx_cred_user ON contributor_credentials(user_id);
+
+                -- Independent-answer reveal gate (Eval Flow Upgrade §1, v2 anti-
+                -- peeking). One row per (task, evaluator) proving the evaluator
+                -- committed their blind independent answer BEFORE any candidate
+                -- answer text was revealed. The reveal endpoints refuse to return
+                -- answer text without this row, and the committed answer is the
+                -- authoritative one packaged — so it is provably pre-reveal.
+                CREATE TABLE IF NOT EXISTS independent_commits (
+                    task_id       TEXT NOT NULL,
+                    evaluator_id  TEXT NOT NULL,
+                    payload_json  TEXT NOT NULL DEFAULT '{}',
+                    created_at    TEXT NOT NULL,
+                    PRIMARY KEY (task_id, evaluator_id)
+                );
                 """
             )
         self._migrate()
@@ -664,6 +678,40 @@ class AsclepiusStore:
         count = self.submission_count_for_task(task_id)
         new_status = "done" if count >= int(task.get("max_labels") or 1) else "open"
         self.mark_task_status(task_id, new_status)
+
+    # ─── Independent-answer reveal gate (Eval Flow Upgrade §1) ──────────────────
+    def commit_independent_answer(
+        self, *, task_id: str, evaluator_id: str, payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Record (idempotently) that ``evaluator_id`` committed a blind independent
+        answer for ``task_id`` BEFORE the candidate answers were revealed. The FIRST
+        commit wins (``INSERT OR IGNORE``) — a later re-reveal never overwrites the
+        original pre-reveal answer or timestamp. ``captured_at`` is forced to server
+        time, never trusted from the client."""
+        now = _utcnow_iso()
+        payload = dict(payload or {})
+        payload["captured_at"] = now
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO independent_commits "
+                "(task_id, evaluator_id, payload_json, created_at) VALUES (?, ?, ?, ?)",
+                (task_id, evaluator_id, json.dumps(payload), now),
+            )
+        return self.get_independent_commit(task_id, evaluator_id)  # type: ignore[return-value]
+
+    def get_independent_commit(
+        self, task_id: str, evaluator_id: str
+    ) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM independent_commits WHERE task_id = ? AND evaluator_id = ?",
+                (task_id, evaluator_id),
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["payload"] = json.loads(rec.pop("payload_json", "{}") or "{}")
+        return rec
 
     # ─── Submissions ──────────────────────────────────────────────────────────
     def get_submission(self, submission_id: str) -> Optional[Dict[str, Any]]:

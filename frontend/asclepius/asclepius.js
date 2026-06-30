@@ -666,18 +666,32 @@
     return card;
   }
 
-  // Fetch the withheld candidate answer texts (v2 anti-peeking) and merge them
-  // into the in-memory task. No-op when the server already inlined the text
-  // (ASCLEPIUS_WITHHOLD_ANSWERS=0) or they're already loaded.
+  function mergeAnswers(answers) {
+    const byId = {};
+    (answers || []).forEach((a) => { byId[a.id] = a.text; });
+    (state.task.candidate_answers || []).forEach((c) => { if (byId[c.id] != null) c.text = byId[c.id]; });
+  }
+
+  // Commit the blind independent answer server-side and reveal the AI answers in
+  // one gated step (v2 anti-peeking). This is the ONLY way to obtain the answer
+  // text under withholding — the server records the independent answer as
+  // pre-reveal and treats it as authoritative at packaging.
+  async function revealAnswers() {
+    const ia = state.draft.independent_answer;
+    const res = await api('/tasks/' + state.draft.task_id + '/reveal', {
+      method: 'POST',
+      body: { text: (ia.text || '').trim(), evidence_anchor: cleanAnchor(ia.evidence_anchor) },
+    });
+    mergeAnswers(res.answers);
+  }
+
+  // Re-fetch the answer text when resuming into the compare stage (e.g. a refresh)
+  // and the withheld texts aren't loaded. Re-commits idempotently via reveal.
   async function loadWithheldAnswersIfNeeded() {
     const task = state.task;
     if (!task) return;
-    const missing = (task.candidate_answers || []).some((c) => c.text == null);
-    if (!missing) return;
-    const res = await api('/tasks/' + task.task_id + '/answers');
-    const byId = {};
-    (res.answers || []).forEach((a) => { byId[a.id] = a.text; });
-    (task.candidate_answers || []).forEach((c) => { if (byId[c.id] != null) c.text = byId[c.id]; });
+    if (!(task.candidate_answers || []).some((c) => c.text == null)) return;
+    await revealAnswers();
   }
 
   async function commitIndependentAnswerAndReveal() {
@@ -686,10 +700,10 @@
     const btn = document.getElementById('ascRevealBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Revealing…'; }
     try {
-      await loadWithheldAnswersIfNeeded();
+      await revealAnswers();
     } catch (e) {
       if (btn) { btn.disabled = false; btn.textContent = 'Reveal AI answers →'; }
-      if (e.status !== 401) toast('Could not load the AI answers: ' + e.message, 'error');
+      if (e.status !== 401) toast('Could not reveal the AI answers: ' + e.message, 'error');
       return;  // stay on Stage 2 rather than reveal blank answers
     }
     d.independent_answer.captured_at = new Date().toISOString();

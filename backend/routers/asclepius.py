@@ -71,6 +71,7 @@ from asclepius.schemas import (
     CredentialSummaryRequest,
     ExportRequest,
     GenerationRequest,
+    IndependentAnswer,
     LoginRequest,
     QADecisionRequest,
     ReasoningSplitRequest,
@@ -631,14 +632,62 @@ async def get_task(task_id: str, _user: Dict[str, Any] = Depends(asc_auth.get_cu
     return {"task": _blind_task(task)}
 
 
-@router.get("/tasks/{task_id}/answers")
-async def get_task_answers(task_id: str, _user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
-    """Reveal the candidate answer texts (Eval Flow Upgrade §1, v2 anti-peeking).
-    The evaluator calls this only after committing their independent answer; the
-    texts are still blinded (no generator_model)."""
-    task = _store().get_task(task_id)
+@router.post("/tasks/{task_id}/reveal")
+async def reveal_task_answers(
+    task_id: str, body: IndependentAnswer, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Commit the evaluator's blind independent answer and reveal the candidate
+    answers in one step (Eval Flow Upgrade §1, v2 anti-peeking). This is the ONLY
+    way to obtain the answer texts under withholding: a non-empty independent
+    answer must be recorded server-side FIRST, so the answer was provably written
+    before the AI answers were seen. The commit is the authoritative independent
+    answer used at packaging. Idempotent — the first commit's answer/timestamp win."""
+    store = _store()
+    task = store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "independent_answer_required",
+                "message": "Write your independent answer before revealing the AI answers.",
+            },
+        )
+    store.commit_independent_answer(
+        task_id=task_id,
+        evaluator_id=user["id"],
+        payload={
+            "text": text,
+            "evidence_anchor": body.evidence_anchor.model_dump() if body.evidence_anchor else None,
+        },
+    )
+    store.log_event(
+        entity_type="task", entity_id=task_id,
+        event_type="independent_answer_committed", actor=user["id"],
+    )
+    return {"answers": _task_answers(task), "committed": True}
+
+
+@router.get("/tasks/{task_id}/answers")
+async def get_task_answers(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+    """Re-fetch the revealed candidate answer texts (Eval Flow Upgrade §1, v2 anti-
+    peeking) — e.g. on a mid-task refresh resuming into the compare stage. GATED:
+    returns text only to an evaluator who has already committed an independent
+    answer (POST /tasks/{id}/reveal). Texts are still blinded (no generator_model)."""
+    store = _store()
+    task = store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if not store.get_independent_commit(task_id, user["id"]):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "independent_answer_required",
+                "message": "Commit your independent answer (POST /tasks/{id}/reveal) before revealing the AI answers.",
+            },
+        )
     return {"answers": _task_answers(task)}
 
 
@@ -738,6 +787,15 @@ async def submit(
         raise HTTPException(status_code=400, detail="Invalid confidence")
 
     payload = body.model_dump()
+
+    # The independent answer that ships is the one COMMITTED before reveal (Eval
+    # Flow Upgrade §1), not whatever the post-reveal client submits — so a client
+    # can't unlock the answers with a throwaway commit and then pass off an
+    # AI-influenced answer as the blind one. Falls back to the submitted value when
+    # no commit exists (withholding disabled, or a direct API client).
+    _commit = store.get_independent_commit(body.task_id, user["id"])
+    if _commit:
+        payload["independent_answer"] = _commit["payload"]
 
     # Grounding Mode = required (opt §1.2): hard-gate Submit until the rationale
     # (and, on reasoning tasks, every step) carries a valid evidence anchor. This
