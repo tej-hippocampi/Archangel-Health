@@ -11,6 +11,12 @@
   // Doctor-portal session token (same origin). If present, we silently exchange
   // it for an Asclepius session so affiliated clinicians skip the login form.
   const DOCTOR_TOKEN_KEY = 'archangel_doctor_auth_token';
+  // Set when the user explicitly signs out. Suppresses the silent doctor-portal
+  // SSO on the NEXT boot so a clinician who onboarded under one email (their
+  // standing workspace credentials) can actually reach the sign-in form to use
+  // that identity, instead of being re-exchanged straight back into the
+  // doctor-portal account. Cleared the moment they sign in (either path).
+  const SUPPRESS_SSO_KEY = 'asclepius_suppress_sso';
 
   // ─── App state ─────────────────────────────────────────────────────────────
   const state = {
@@ -193,8 +199,13 @@
       }
     }
     // 2) Already signed into the doctor portal? Exchange that session for an
-    //    Asclepius one (SSO) — no second login barrier.
-    if (await trySsoLogin()) return;
+    //    Asclepius one (SSO) — no second login barrier. Skipped right after an
+    //    explicit sign-out so the user can choose to sign in with their
+    //    onboarding (workspace) credentials instead of being pulled back into
+    //    the doctor-portal identity.
+    let suppressSso = false;
+    try { suppressSso = localStorage.getItem(SUPPRESS_SSO_KEY) === '1'; } catch (_) { suppressSso = false; }
+    if (!suppressSso && await trySsoLogin()) return;
     // 3) Otherwise, fall back to the manual login form.
     renderLogin();
   }
@@ -223,6 +234,7 @@
     state.token = data.token;
     state.user = data.user;
     try { localStorage.setItem(TOKEN_KEY, data.token); } catch (e) { /* ignore quota */ }
+    try { localStorage.removeItem(SUPPRESS_SSO_KEY); } catch (_) { /* ignore */ }
     try {
       await loadTaxonomy();
     } catch (e) {
@@ -251,6 +263,10 @@
     state.token = null;
     state.user = null;
     localStorage.removeItem(TOKEN_KEY);
+    // Suppress the silent doctor-portal SSO on the next boot so signing out
+    // actually lands on the sign-in form (otherwise an active doctor session
+    // would re-exchange straight back in, trapping the user on that identity).
+    try { localStorage.setItem(SUPPRESS_SSO_KEY, '1'); } catch (_) { /* ignore */ }
     stopTimer();
     renderHeader();
     renderLogin();
@@ -281,6 +297,8 @@
           state.token = data.token;
           state.user = data.user;
           localStorage.setItem(TOKEN_KEY, data.token);
+          // The user made an explicit identity choice — allow SSO again later.
+          try { localStorage.removeItem(SUPPRESS_SSO_KEY); } catch (_) { /* ignore */ }
           await loadTaxonomy();
           renderHeader();
           enterApp();
@@ -298,16 +316,31 @@
       submitBtn,
     );
 
+    const body = h('div', { class: 'asc-login-body' },
+      form,
+      h('p', { class: 'asc-login-hint' }, 'Board-certified clinician access only. Contact your program administrator for credentials.'),
+    );
+    // Escape hatch for clinicians who reach the portal from the doctor portal:
+    // only shown when a doctor session exists, so signing out (which suppresses
+    // the silent SSO) never traps an SSO-only user on a password form.
+    let hasDoctorToken = false;
+    try { hasDoctorToken = !!localStorage.getItem(DOCTOR_TOKEN_KEY); } catch (_) { hasDoctorToken = false; }
+    if (hasDoctorToken) {
+      body.appendChild(h('button', {
+        class: 'asc-btn-link', type: 'button', style: 'display:block;margin:14px auto 0',
+        onClick: async () => {
+          try { localStorage.removeItem(SUPPRESS_SSO_KEY); } catch (_) { /* ignore */ }
+          if (!(await trySsoLogin())) renderLogin('Could not resume your clinical session — sign in above.');
+        },
+      }, 'Continue with my clinical portal session'));
+    }
     const card = h('div', { class: 'asc-login-card' },
       h('div', { class: 'asc-login-head' },
         h('div', { class: 'asc-login-mark' }, '⚕'),
         h('h1', {}, 'Asclepius'),
         h('p', {}, 'Expert Evaluation Portal'),
       ),
-      h('div', { class: 'asc-login-body' },
-        form,
-        h('p', { class: 'asc-login-hint' }, 'Board-certified clinician access only. Contact your program administrator for credentials.'),
-      ),
+      body,
     );
     setRoot(h('div', { class: 'asc-login-wrap' }, card));
     setTimeout(() => emailInput.focus(), 30);
