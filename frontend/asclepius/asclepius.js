@@ -467,13 +467,16 @@
     const dots = h('div', { class: 'asc-stage-dots' });
     STAGES.forEach((s, i) => dots.appendChild(
       h('span', { class: 'asc-stage-dot' + (i < n ? ' done' : '') + (i === n - 1 ? ' active' : '') })));
+    // The compare stage's submit bar owns the live #ascTimer; avoid a duplicate
+    // id here (only the first match would update). Stages 1–2 host it instead.
+    const timer = d.stage === 'compare'
+      ? null
+      : h('span', { class: 'asc-timer', id: 'ascTimer' }, formatTime(getElapsed()));
     return h('div', { class: 'asc-stage-head' },
       h('div', { class: 'asc-stage-meta' },
         h('span', { class: 'asc-stage-step' }, 'Step ' + n + ' of 3'),
         h('span', { class: 'asc-stage-label' }, label)),
-      h('div', { class: 'asc-stage-right' },
-        dots,
-        h('span', { class: 'asc-timer', id: 'ascTimer' }, formatTime(getElapsed()))));
+      h('div', { class: 'asc-stage-right' }, dots, timer));
   }
 
   function renderTaskWorkspace() {

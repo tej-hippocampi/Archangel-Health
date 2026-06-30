@@ -20,6 +20,30 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from tests import _asclepius as A  # noqa: E402
 from asclepius import pipeline as asc_pipeline  # noqa: E402
 from asclepius import profiles as asc_profiles  # noqa: E402
+from asclepius.export import _synthetic_provenance_md  # noqa: E402
+
+
+def _synthetic_rec(*, reviewed: bool, ratified: bool = False):
+    """A packaged record from a synthetic (Seedmaker) prompt, as stored."""
+    return {"payload": {
+        "source": "internal_prompt_bank",
+        "prompt_clinician_reviewed": reviewed,
+        "generation": {"seed_corpus_version": "nephrology.v1", "seed_corpus_ratified": ratified},
+    }}
+
+
+def test_datasheet_upgrades_language_when_prompts_clinician_reviewed():
+    # Unratified corpus but every prompt clinician-reviewed at eval -> upgraded.
+    md = _synthetic_provenance_md([_synthetic_rec(reviewed=True), _synthetic_rec(reviewed=True)])
+    assert "clinician-reviewed at evaluation" in md
+    assert "prompt_clinician_reviewed: true" in md
+    assert "NOT yet clinician-ratified" not in md
+
+
+def test_datasheet_keeps_warning_when_not_reviewed():
+    md = _synthetic_provenance_md([_synthetic_rec(reviewed=True), _synthetic_rec(reviewed=False)])
+    assert "NOT yet clinician-ratified" in md
+    assert "clinician-reviewed at evaluation" not in md
 
 client = TestClient(A.app)
 
