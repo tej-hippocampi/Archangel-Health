@@ -31,6 +31,7 @@ from asclepius.constants import (
     ASCLEPIUS_TAXONOMY_VERSION,
     default_ip_cleared,
     default_license,
+    label_for_correction_reason,
 )
 from asclepius.validation import is_valid_anchor
 
@@ -126,6 +127,14 @@ def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     gold (``text``), so the record is a step-level preference/correction pair."""
     out = []
     for i, s in enumerate(steps or [], start=1):
+        reason = s.get("correction_reason")
+        # PRM800K per-step label; fall back to legacy free-text tag.
+        label = s.get("label") if s.get("label") is not None else s.get("tag")
+        # Authoritative: a corrected step's buyer-facing label is DERIVED from the
+        # clinical reason here, never trusted from the client — keeping label and
+        # reason consistent is what makes this data sellable.
+        if s.get("corrected") and reason:
+            label = label_for_correction_reason(reason)
         out.append(
             {
                 "step": s.get("step", i),
@@ -135,10 +144,9 @@ def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "corrected": bool(s.get("corrected")),
                 "confirmed": bool(s.get("confirmed")),
                 "added": bool(s.get("added")),
-                # PRM800K per-step label; fall back to legacy free-text tag.
-                "label": s.get("label") if s.get("label") is not None else s.get("tag"),
+                "label": label,
                 # Why the edited step was wrong (drives the derived label).
-                "correction_reason": s.get("correction_reason"),
+                "correction_reason": reason,
                 "step_reward": s.get("step_reward"),
                 # One-line "what's off?" critique on graded steps (Eval Flow Upgrade §4).
                 "critique": s.get("critique"),

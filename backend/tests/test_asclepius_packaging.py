@@ -180,6 +180,26 @@ def test_minor_wording_edit_derives_neutral_label():
     assert trace["step_pairs"][0]["reason"] == "minor_wording"
 
 
+def test_corrected_label_is_derived_server_side_not_trusted_from_client():
+    """Defense-in-depth: a corrected step's buyer-facing label is derived from the
+    clinical reason on the server, overriding any (stale/wrong) client label."""
+    payload = {
+        "verdict": "both_inadequate", "confidence": "high",
+        "independent_answer": {"text": "calcium then dialyze"},
+        "from_scratch": {
+            "ideal_answer": "calcium then dialyze",
+            "reasoning_steps": [
+                # client wrongly sent label=good on a step corrected for an UNSAFE reason
+                {"step": 1, "text": "Give IV calcium", "original_text": "give nothing",
+                 "corrected": True, "correction_reason": "unsafe", "label": "good", "step_reward": 1},
+            ],
+        },
+    }
+    recs = package_submission(_task(capture_reasoning=True), _submission(payload))
+    trace = [r for r in recs if r["type"] == "reasoning_trace"][0]
+    assert trace["steps"][0]["label"] == "bad"  # derived from reason, not the client
+
+
 def test_no_independent_answer_emits_no_blind_record():
     payload = {
         "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",

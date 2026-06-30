@@ -1069,11 +1069,16 @@
       const addedBadge = h('span', { class: 'asc-badge asc-badge-accent asc-step-added' }, 'added (AI omitted)');
 
       // ✓ Correct as-is — explicit positive endorsement (silence ≠ endorsement).
+      // Tapping an already-confirmed step toggles it back to pending.
       const confirmBtn = h('button', {
-        class: 'asc-btn asc-btn-sm asc-step-confirm', type: 'button',
+        class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm', type: 'button',
         onClick: () => {
-          s.confirmed = true; s.corrected = false; s.correction_reason = null;
-          s.label = 'good'; s.step_reward = 1; s.critique = '';
+          if (s.confirmed) {
+            s.confirmed = false; s.label = null; s.step_reward = null;
+          } else {
+            s.confirmed = true; s.corrected = false; s.correction_reason = null;
+            s.label = 'good'; s.step_reward = 1; s.critique = '';
+          }
           saveDraft(); renderStepsList(listId); updateSubmitState();
         },
       }, '✓ Correct as-is');
@@ -1313,6 +1318,8 @@
     saveDraft();
     const g = groundingSatisfied();
     if (!g.ok) { updateSubmitState(); return; }
+    const sr = stepsReview();
+    if (!sr.ok) { updateSubmitState(); return; }
     state.submitting = true;
     const btn = document.getElementById('ascSubmit');
     if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
