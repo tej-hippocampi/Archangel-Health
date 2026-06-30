@@ -462,8 +462,11 @@ class AsclepiusStore:
                     UPDATE users SET
                         password_hash = ?, role = ?, specialty = ?, board_cert = ?,
                         years_experience = ?, active = 1, full_name = ?, org_name = ?,
-                        organization = ?, clinical_role = ?, npi = ?, credentials_json = ?,
-                        attestations_json = ?
+                        -- Keep the canonical organization in sync with the
+                        -- health-system name, but never wipe a previously-set org
+                        -- if a re-onboard omits it (COALESCE keeps the old value).
+                        organization = COALESCE(?, organization), clinical_role = ?,
+                        npi = ?, credentials_json = ?, attestations_json = ?
                     WHERE email = ?
                     """,
                     (
