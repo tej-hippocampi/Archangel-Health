@@ -10,6 +10,8 @@ Usage:
 
     # 1) Verify a contributor's records exist and would export:
     python3 scripts/asclepius_contributor_admin.py inspect kp9808@gmail.com
+    #    ...and clear their QA-held records to export_ready in the same step:
+    python3 scripts/asclepius_contributor_admin.py inspect kp9808@gmail.com --approve-qa
 
     # 2) Move a stray account's work onto the canonical account (dry-run first):
     python3 scripts/asclepius_contributor_admin.py reattribute \
@@ -31,11 +33,26 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from asclepius import pipeline as asc_pipeline  # noqa: E402
 from asclepius.store import get_store  # noqa: E402
 
 
 def _print(obj) -> None:
     print(json.dumps(obj, indent=2, ensure_ascii=False, default=str))
+
+
+def _approve_qa(store, user) -> int:
+    """Promote this contributor's needs_qa submissions (and their records) to
+    export_ready via the same QA-approve path the portal uses (logged for audit).
+    Returns the number of submissions approved."""
+    pending = store.list_submissions(status="needs_qa", evaluator_id=user["id"], limit=100000)
+    for sub in pending:
+        asc_pipeline.apply_qa_decision(
+            store, sub, decision="approve",
+            reviewer_id="ops:asclepius_contributor_admin",
+            notes="contributor ops --approve-qa",
+        )
+    return len(pending)
 
 
 def _resolve(store, email: str):
@@ -50,6 +67,9 @@ def cmd_inspect(store, args) -> int:
     user = _resolve(store, args.email)
     if not user:
         return 1
+    if args.approve_qa:
+        n = _approve_qa(store, user)
+        print(f"Approved {n} needs_qa submission(s) for {args.email} → export_ready.\n")
     diag = store.contributor_record_diagnostics(user)
     _print(diag)
     if diag["records_total"] == 0:
@@ -100,6 +120,7 @@ def cmd_reattribute(store, args) -> int:
             f"\nDRY RUN — would move {n} record(s) and their submissions from "
             f"{source['email']} to {target['email']}"
             + ("" if args.keep_source_active else f", then deactivate {source['email']}")
+            + (", then approve the moved needs_qa records" if args.approve_qa else "")
             + ".\nRe-run with --apply to commit."
         )
         return 0
@@ -110,6 +131,9 @@ def cmd_reattribute(store, args) -> int:
     )
     print("\nAPPLIED:")
     _print(summary)
+    if args.approve_qa:
+        n = _approve_qa(store, store.get_user_by_email(target["email"]))
+        print(f"Approved {n} moved needs_qa submission(s) → export_ready.")
     # Re-resolve target (id_hashed unchanged) and show the post-state.
     print("After — target:")
     _print(store.contributor_record_diagnostics(store.get_user_by_email(target["email"])))
@@ -122,6 +146,8 @@ def main() -> int:
 
     p_ins = sub.add_parser("inspect", help="show a contributor's record/export status")
     p_ins.add_argument("email")
+    p_ins.add_argument("--approve-qa", action="store_true",
+                       help="first promote this contributor's needs_qa records to export_ready")
 
     p_re = sub.add_parser("reattribute", help="move one account's work onto another")
     p_re.add_argument("--from", dest="source", required=True, help="source account email")
@@ -129,6 +155,8 @@ def main() -> int:
     p_re.add_argument("--apply", action="store_true", help="commit (default: dry run)")
     p_re.add_argument("--keep-source-active", action="store_true",
                       help="do not deactivate the source account after moving")
+    p_re.add_argument("--approve-qa", action="store_true",
+                      help="after moving, promote the target's needs_qa records to export_ready (requires --apply)")
 
     args = parser.parse_args()
     store = get_store()

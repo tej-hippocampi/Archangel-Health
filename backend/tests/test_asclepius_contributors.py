@@ -422,6 +422,58 @@ def test_reattribute_moves_work_and_makes_target_exportable():
     assert gone.status_code == 400
 
 
+def _submit_to_qa(admin_h, ev_h):
+    """Submit one labelled task that lands in needs_qa (caller forces sampling)."""
+    body = {
+        "specialty": "nephrology", "difficulty": "hard", "max_labels": 1,
+        "prompt": f"Hyperkalemia case {A.uniq(8)}?",
+        "candidate_answers": [{"id": "A", "text": "Calcium then dialyze."},
+                              {"id": "B", "text": "Dialysate K+ 1.0."}],
+    }
+    tid = client.post("/api/asclepius/tasks", json={"tasks": [body]}, headers=admin_h).json()["created"][0]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": "s-" + uuid.uuid4().hex[:12], "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 130,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "Stabilize with IV calcium, shift K+ with insulin and dextrose, then dialyze."},
+        "chosen_revision": {"edited": False, "why_better_notes": "B over-lowers K+"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"},
+    }, headers=ev_h)
+    assert r.status_code == 200 and r.json()["status"] == "needs_qa", r.text
+
+
+def test_approve_qa_for_evaluator_promotes_only_that_contributor(monkeypatch):
+    """The ops --approve-qa path lifts a single contributor's needs_qa work to
+    export_ready (and leaves other contributors' QA backlog untouched)."""
+    from asclepius import pipeline as asc_pipeline
+
+    admin_h = _admin_h()
+    store = _store()
+    target = _make_contributor(org="Northridge Nephrology")
+    other = _make_contributor(org="Northridge Nephrology")
+
+    # Force both contributors' submissions into QA (deterministic, no sampling).
+    monkeypatch.setattr(asc_pipeline, "_should_sample", lambda: True)
+    _submit_to_qa(admin_h, A.headers_for(target))
+    _submit_to_qa(admin_h, A.headers_for(other))
+    assert store.contributor_record_diagnostics(target)["exportable_records"] == 0
+
+    # Approve just the target's QA-held submissions (mirrors the CLI flag).
+    pending = store.list_submissions(status="needs_qa", evaluator_id=target["id"])
+    for sub in pending:
+        asc_pipeline.apply_qa_decision(store, sub, decision="approve", reviewer_id="ops:test", notes="t")
+
+    assert store.contributor_record_diagnostics(target)["exportable_records"] >= 1
+    # The other contributor's QA backlog is untouched.
+    assert store.list_submissions(status="needs_qa", evaluator_id=other["id"])
+
+    exp = client.post(
+        f"/api/asclepius/contributors/{target['id_hashed']}/export",
+        json={"profile": "default"}, headers=admin_h,
+    )
+    assert exp.status_code == 200, exp.text
+
+
 # ─── Tier B leak gate (hard guardrail) ────────────────────────────────────────
 def test_tier_b_leak_gate_blocks_export(tmp_path, monkeypatch):
     # A misconfigured buyer profile that maps a record field to a Tier B key name
