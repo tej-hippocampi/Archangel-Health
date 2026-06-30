@@ -299,6 +299,11 @@ TIER_B_VERIFY_FIELDS = (
 TIER_B_FORBIDDEN_ALIASES = (
     "legal_name",
     "physician_name",
+    # Onboarding (Steps 3–8) writes these identifying fields onto the users table;
+    # they must never ride a shipped record (full_name identifies; org_name is the
+    # named practice/org — a locator, like practice_name).
+    "full_name",
+    "org_name",
     "license_number",
     "dob",
     "date_of_birth",

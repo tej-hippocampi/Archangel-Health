@@ -488,6 +488,13 @@ class AsclepiusStore:
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
             return dict(row) if row else None
 
+    def get_user_by_id_hashed(self, id_hashed: str) -> Optional[Dict[str, Any]]:
+        """Resolve the user (incl. onboarding-collected credential fields) from the
+        hashed annotator id that stamps every record."""
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM users WHERE id_hashed = ?", (id_hashed,)).fetchone()
+            return dict(row) if row else None
+
     def list_users(self) -> List[Dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(

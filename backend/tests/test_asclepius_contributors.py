@@ -92,7 +92,7 @@ def _make_contributor(org="Riverside Nephrology Associates", verify=True):
 def _submit_export_ready(admin_h, ev_h):
     body = {
         "specialty": "nephrology", "difficulty": "hard", "max_labels": 1,
-        "prompt": f"Hyperkalemia case {uuid.uuid4().hex[:8]}?",
+        "prompt": f"Hyperkalemia case {A.uniq(8)}?",
         "candidate_answers": [{"id": "A", "text": "Calcium then dialyze."},
                               {"id": "B", "text": "Dialysate K+ 1.0."}],
     }
@@ -177,6 +177,77 @@ def test_contributor_export_is_tier_a_only():
     datasheet = (out_dir / "datasheet.md").read_text()
     assert "Contributor scope" in datasheet
     assert "Board-certified" in datasheet
+
+
+def test_onboarding_tier_b_never_ships_in_export():
+    """Identifying credentials collected by the onboarding flow land on the users
+    table (full_name, npi, license). They must never appear in an Export Data
+    batch — the annotator block only carries Tier A attributes."""
+    admin_h = _admin_h()
+    store = _store()
+    user = store.provision_user(
+        email=f"onb-{A.uniq(6)}@hosp.example", password="pw-12345678", role="evaluator",
+        full_name="Gregory House", org_name="Princeton-Plainsboro Teaching Hospital",
+        clinical_role="Physician (MD)", specialty="nephrology",
+        board_cert="board_certified_nephrology", npi="9998887776", years_experience=20,
+        credentials={"medical_license_number": "XZ-99021"},
+    )
+    store.upsert_contributor_credentials(
+        id_hashed=user["id_hashed"], user_id=user["id"],
+        organization="Princeton-Plainsboro Teaching Hospital", role_title="Physician (MD)",
+        credentials_verified=True, ship={"primary_specialty": "nephrology", "degree": "MD"}, verify={},
+    )
+    _submit_export_ready(admin_h, A.headers_for(user))
+
+    manifest = client.post(
+        f"/api/asclepius/contributors/{user['id_hashed']}/export",
+        json={"profile": "default"}, headers=admin_h,
+    ).json()
+    assert manifest["record_count"] >= 1
+    jsonl = (Path(manifest["dir_path"]) / "records.jsonl").read_text()
+    for forbidden in ("Gregory House", "9998887776", "XZ-99021", "Princeton-Plainsboro",
+                      "full_name", "org_name", "npi"):
+        assert forbidden not in jsonl, forbidden
+
+
+def test_onboarding_identifier_in_record_content_blocks_export():
+    """Defense in depth: if a physician's real name (from onboarding) ever appears
+    in a record's free text, the scoped-export value scan blocks the batch."""
+    admin_h = _admin_h()
+    store = _store()
+    user = store.provision_user(
+        email=f"leak-{A.uniq(6)}@hosp.example", password="pw-12345678", role="evaluator",
+        full_name="Gregory House", specialty="nephrology",
+        board_cert="board_certified_nephrology", npi="9998887776", years_experience=20,
+    )
+    store.upsert_contributor_credentials(
+        id_hashed=user["id_hashed"], user_id=user["id"], organization="Org",
+        role_title="Physician (MD)", credentials_verified=True,
+        ship={"primary_specialty": "nephrology"}, verify={},
+    )
+    ev_h = A.headers_for(user)
+    tid = client.post("/api/asclepius/tasks", json={"tasks": [{
+        "specialty": "nephrology", "difficulty": "hard", "max_labels": 1,
+        "prompt": f"Hyperkalemia case {A.uniq(8)}?",
+        "candidate_answers": [{"id": "A", "text": "Calcium then dialyze."},
+                              {"id": "B", "text": "Dialysate K+ 1.0."}],
+    }]}, headers=admin_h).json()["created"][0]
+    sid = "s-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 130,
+        # Real physician name slips into the rationale.
+        "chosen_revision": {"edited": False, "why_better_notes": "Reviewed and confirmed by Gregory House."},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"},
+    }, headers=ev_h)
+    assert r.status_code == 200 and r.json()["status"] == "export_ready", r.text
+
+    blocked = client.post(
+        f"/api/asclepius/contributors/{user['id_hashed']}/export",
+        json={"profile": "default"}, headers=admin_h,
+    )
+    assert blocked.status_code == 422, blocked.text
+    assert "value leak" in blocked.text.lower()
 
 
 def test_org_export_covers_all_contributors():

@@ -414,7 +414,7 @@ def test_buyer_request_batch_stamps_provenance():
 
 # ─── Export schema validation + filters (opt §2) ──────────────────────────────
 def _make_export_ready(admin_h, ev_h, *, grounded=False):
-    tid = _upload_task(admin_h, prompt=f"Manage hyperkalemia case {uuid.uuid4().hex[:8]}?")
+    tid = _upload_task(admin_h, prompt=f"Manage hyperkalemia case {A.uniq(8)}?")
     sid = "s-" + uuid.uuid4().hex[:12]
     body = {"submission_id": sid, "task_id": tid, "verdict": "A_better",
             "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,

@@ -34,9 +34,20 @@ from main import app  # noqa: E402  (import after env is set)
 from asclepius import auth as asc_auth  # noqa: E402
 from asclepius import store as asc_store  # noqa: E402
 
-__all__ = ["app", "fresh_store", "make_user", "token_for", "headers_for", "TMP_DIR"]
+__all__ = ["app", "fresh_store", "make_user", "token_for", "headers_for", "TMP_DIR", "uniq"]
 
 TMP_DIR = _TMP
+
+# Alpha-only unique token for test fixtures. A bare ``uuid4().hex[:N]`` slice can
+# land on 7+ consecutive digits, which the PHI scanner's long-number rule
+# (``\b\d{7,}\b``) legitimately flags — intermittently routing an otherwise-clean
+# submission to QA and flaking any test that asserts ``export_ready``. Mapping the
+# digits to letters keeps uniqueness while guaranteeing no numeric run.
+_DIGIT_TO_ALPHA = str.maketrans("0123456789", "ghijklmnop")
+
+
+def uniq(n: int = 8) -> str:
+    return uuid.uuid4().hex[:n].translate(_DIGIT_TO_ALPHA)
 
 
 def fresh_store():

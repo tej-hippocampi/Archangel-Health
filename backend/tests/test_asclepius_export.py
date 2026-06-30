@@ -57,7 +57,7 @@ def _evaluator_h(specialty="nephrology"):
 def _task_body(**kw):
     base = {
         "specialty": "nephrology", "difficulty": "hard", "max_labels": 1,
-        "prompt": f"Hyperkalemia case {uuid.uuid4().hex[:8]}?",
+        "prompt": f"Hyperkalemia case {A.uniq(8)}?",
         "candidate_answers": [{"id": "A", "text": "Calcium then dialyze."}, {"id": "B", "text": "Dialysate K+ 1.0."}],
     }
     base.update(kw)

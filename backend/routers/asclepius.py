@@ -975,6 +975,34 @@ async def upsert_contributor(
     }
 
 
+def _identifying_values(store: Any, id_hashed: str) -> List[str]:
+    """All high-specificity identifying values for a contributor to scan exported
+    records against — from BOTH the Tier B vault AND the onboarding-collected
+    credential fields on the user row (full_name, npi, license). This guarantees a
+    physician's real name / NPI / license can never appear in an Export Data batch,
+    regardless of which store holds them."""
+    values: List[str] = []
+    cred = store.get_contributor_credentials(id_hashed, include_verify=True)
+    if cred:
+        values += asc_credentials.collect_verify_values([cred.get("verify") or {}])
+    user = store.get_user_by_id_hashed(id_hashed)
+    if user:
+        onboarding = {}
+        if user.get("full_name"):
+            onboarding["full_legal_name"] = user["full_name"]
+        if user.get("npi"):
+            onboarding["npi"] = user["npi"]
+        try:
+            ucreds = json.loads(user.get("credentials_json") or "{}")
+        except (TypeError, ValueError):
+            ucreds = {}
+        for k in ("medical_license_number", "license_number", "practice_address", "practice_contact"):
+            if ucreds.get(k):
+                onboarding[k if k != "license_number" else "medical_license_number"] = ucreds[k]
+        values += asc_credentials.collect_verify_values([onboarding])
+    return sorted(set(values))
+
+
 @router.post("/contributors/{id_hashed}/export")
 async def export_contributor_data(
     id_hashed: str,
@@ -988,7 +1016,7 @@ async def export_contributor_data(
     if not contributor:
         raise HTTPException(status_code=404, detail="Contributor not found")
     cred = store.get_contributor_credentials(id_hashed, include_verify=True)
-    verify_values = asc_credentials.collect_verify_values([(cred or {}).get("verify") or {}])
+    verify_values = _identifying_values(store, id_hashed)
     blurb = _contributor_blurb(store, id_hashed, contributor, cred)
     scope = {
         "type": "contributor",
@@ -1017,9 +1045,7 @@ async def export_organization_data(
         raise HTTPException(status_code=404, detail="No contributors found for that organization")
     verify_values: List[str] = []
     for h in hashed_ids:
-        cred = store.get_contributor_credentials(h, include_verify=True)
-        if cred:
-            verify_values += asc_credentials.collect_verify_values([cred.get("verify") or {}])
+        verify_values += _identifying_values(store, h)
     scope = {
         "type": "organization",
         "label": organization,
