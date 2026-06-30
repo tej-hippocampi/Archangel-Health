@@ -270,6 +270,104 @@ def test_org_export_covers_all_contributors():
     assert set(manifest["filters"]["annotator_ids"]) == {u1["id_hashed"], u2["id_hashed"]}
 
 
+def test_onboarding_org_name_populates_directory_organization():
+    """An onboarded contributor's health-system name (stored on the users.org_name
+    column by provision_user) must surface as their organization in the directory,
+    NOT collapse to "Unaffiliated" (bug: directory read only users.organization)."""
+    admin_h = _admin_h()
+    store = _store()
+    user = store.provision_user(
+        email=f"onb-{A.uniq(6)}@hosp.example", password="pw-12345678", role="evaluator",
+        full_name="Avery Smith", org_name="Northridge Nephrology",
+        clinical_role="Physician (MD)", specialty="nephrology",
+        board_cert="board_certified_nephrology", years_experience=12,
+    )
+    # New onboarding writes the canonical organization column directly.
+    assert user["organization"] == "Northridge Nephrology"
+    _submit_export_ready(admin_h, A.headers_for(user))
+
+    contributors = client.get(
+        "/api/asclepius/contributors", headers=admin_h,
+        params={"organization": "Northridge Nephrology"},
+    ).json()["contributors"]
+    assert [c["email"] for c in contributors] == [user["email"]]
+    assert contributors[0]["organization"] == "Northridge Nephrology"
+
+    orgs = client.get("/api/asclepius/organizations", headers=admin_h).json()["organizations"]
+    assert any(o["organization"] == "Northridge Nephrology" for o in orgs)
+    assert all(o["organization"] != "Unaffiliated" for o in orgs)
+
+
+def test_legacy_onboarded_user_with_only_org_name_resolves_via_coalesce():
+    """A user persisted before the fix (organization NULL, org_name set) still
+    resolves to their real org via the directory COALESCE — no migration needed."""
+    admin_h = _admin_h()
+    store = _store()
+    user = store.provision_user(
+        email=f"legacy-{A.uniq(6)}@hosp.example", password="pw-12345678", role="evaluator",
+        org_name="Lakeside Kidney Institute", specialty="nephrology",
+    )
+    # Simulate the legacy row shape: canonical column empty, only org_name set.
+    with store._conn() as conn:  # noqa: SLF001 — test reaching into the store
+        conn.execute("UPDATE users SET organization = NULL WHERE id = ?", (user["id"],))
+    _submit_export_ready(admin_h, A.headers_for(user))
+
+    contributors = client.get(
+        "/api/asclepius/contributors", headers=admin_h,
+        params={"organization": "Lakeside Kidney Institute"},
+    ).json()["contributors"]
+    assert [c["email"] for c in contributors] == [user["email"]]
+
+
+def test_contributor_export_is_rerunnable_after_records_exported():
+    """The per-contributor "Export Data" button packages the contributor's full
+    labelled corpus EVERY time — including after a prior export (or a prior
+    org-wide export) already marked those records ``exported``. Bug: scoped export
+    defaulted include_exported=False, so the 2nd run returned "no records"."""
+    admin_h = _admin_h()
+    user = _make_contributor()
+    _submit_export_ready(admin_h, A.headers_for(user))
+
+    first = client.post(
+        f"/api/asclepius/contributors/{user['id_hashed']}/export",
+        json={"profile": "default"}, headers=admin_h,
+    )
+    assert first.status_code == 200, first.text
+    n = first.json()["record_count"]
+    assert n >= 1
+
+    # Records are now status=exported. A second click must still package them.
+    second = client.post(
+        f"/api/asclepius/contributors/{user['id_hashed']}/export",
+        json={"profile": "default"}, headers=admin_h,
+    )
+    assert second.status_code == 200, second.text
+    assert second.json()["record_count"] == n
+
+
+def test_org_export_rerunnable_after_org_export():
+    """An org-wide export followed by a per-contributor export of a member in that
+    org still finds the member's records (regression for the cross-button
+    interaction that previously zeroed out per-contributor exports)."""
+    admin_h = _admin_h()
+    org = "Cascade Renal Group"
+    u1 = _make_contributor(org=org)
+    _submit_export_ready(admin_h, A.headers_for(u1))
+
+    org_exp = client.post(
+        f"/api/asclepius/organizations/{org}/export",
+        json={"profile": "default"}, headers=admin_h,
+    )
+    assert org_exp.status_code == 200, org_exp.text
+
+    contrib_exp = client.post(
+        f"/api/asclepius/contributors/{u1['id_hashed']}/export",
+        json={"profile": "default"}, headers=admin_h,
+    )
+    assert contrib_exp.status_code == 200, contrib_exp.text
+    assert contrib_exp.json()["record_count"] >= 1
+
+
 # ─── Tier B leak gate (hard guardrail) ────────────────────────────────────────
 def test_tier_b_leak_gate_blocks_export(tmp_path, monkeypatch):
     # A misconfigured buyer profile that maps a record field to a Tier B key name

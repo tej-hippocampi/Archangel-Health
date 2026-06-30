@@ -166,6 +166,43 @@ def test_sso_still_refuses_an_anonymous_visitor():
     assert r.status_code == 401
 
 
+def test_onboarding_email_is_the_identity_shown_in_the_portal():
+    """The email a clinician onboarded with is the one the eval portal shows at the
+    top — on manual sign-in AND when an already-signed-in doctor SSOs in under that
+    same email. SSO must RESUME the onboarded account (keeping its admin role +
+    organization), never mint a divergent duplicate."""
+    from tests._role_auth import tenant_token
+
+    store = _store()
+    onb_email = "Director.Onboarded@hospital.org"  # mixed case as a user might type it
+    store.provision_user(
+        email=onb_email, password="pw-12345678", role="admin",
+        full_name="Dana Director", org_name="Northridge Nephrology",
+        clinical_role="director", specialty="nephrology",
+    )
+
+    # 1) Manual sign-in shows the onboarding email (normalized), not anything else.
+    login = client.post(
+        "/api/asclepius/auth/login",
+        json={"email": onb_email, "password": "pw-12345678"},
+    )
+    assert login.status_code == 200, login.text
+    assert login.json()["user"]["email"] == onb_email.lower()
+
+    # 2) Auto-SSO from the doctor portal under the SAME email resumes the SAME
+    #    onboarded account — same id, still admin, email unchanged. No duplicate.
+    before = store.get_user_by_email(onb_email)
+    token = tenant_token("surgeon", email=onb_email)
+    sso = client.post("/api/asclepius/auth/sso", json={"token": token})
+    assert sso.status_code == 200, sso.text
+    assert sso.json()["user"]["email"] == onb_email.lower()
+    assert sso.json()["user"]["role"] == "admin"  # not downgraded to evaluator
+    after = store.get_user_by_email(onb_email)
+    assert after["id"] == before["id"]
+    # Exactly one account for this person (no SSO-minted divergent duplicate).
+    assert sum(1 for u in store.list_users() if u["email"] == onb_email.lower()) == 1
+
+
 def test_empty_queue_auto_generates_from_corpus(monkeypatch):
     """An evaluator opening an empty queue triggers on-demand seeding from the
     ratified corpus — only the A/B answers are LLM-generated — so a real task

@@ -333,7 +333,14 @@ class ScopedExportRequest(BaseModel):
 
     profile: str = "default"
     note: Optional[str] = None
-    include_exported: bool = False
+    # A scoped export means "package everything this contributor / organization
+    # has labelled" — a complete, re-runnable corpus delivery, not the bulk
+    # incremental shipping pipeline. So already-exported records are re-included
+    # by default; otherwise the button would return "no export-ready records" the
+    # moment any earlier export (incl. a prior org-wide "Export all org data")
+    # marked those records exported. Callers can still pass false to scope to
+    # only the not-yet-shipped delta.
+    include_exported: bool = True
 
 
 class CredentialSummaryRequest(BaseModel):

@@ -1079,7 +1079,9 @@
             s.confirmed = true; s.corrected = false; s.correction_reason = null;
             s.label = 'good'; s.step_reward = 1; s.critique = '';
           }
-          saveDraft(); renderStepsList(listId); updateSubmitState();
+          // In-place update only — a full re-render here resets the scroll
+          // position and bounces the page up between steps.
+          saveDraft(); syncStepUI(); updateSubmitState();
         },
       }, '✓ Correct as-is');
 
@@ -1093,7 +1095,8 @@
             s.correction_reason = r;
             s.label = (r === 'minor_wording') ? 'neutral' : 'bad';
             s.step_reward = s.label === 'good' ? 1 : 0;
-            saveDraft(); renderStepsList(listId); updateSubmitState();
+            // In-place update only — avoid the full re-render scroll jump.
+            saveDraft(); syncStepUI(); updateSubmitState();
           },
         }, r.replace(/_/g, ' '));
         chipEls[r] = chip;

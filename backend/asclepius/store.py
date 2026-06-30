@@ -462,12 +462,13 @@ class AsclepiusStore:
                     UPDATE users SET
                         password_hash = ?, role = ?, specialty = ?, board_cert = ?,
                         years_experience = ?, active = 1, full_name = ?, org_name = ?,
-                        clinical_role = ?, npi = ?, credentials_json = ?, attestations_json = ?
+                        organization = ?, clinical_role = ?, npi = ?, credentials_json = ?,
+                        attestations_json = ?
                     WHERE email = ?
                     """,
                     (
                         hash_password(password), role, specialty, board_cert,
-                        years_experience, full_name, org_name, clinical_role, npi,
+                        years_experience, full_name, org_name, org_name, clinical_role, npi,
                         creds_json, atts_json, email,
                     ),
                 )
@@ -477,14 +478,14 @@ class AsclepiusStore:
             conn.execute(
                 """
                 INSERT INTO users (id, email, password_hash, role, specialty, board_cert,
-                                   years_experience, id_hashed, active, full_name, org_name,
-                                   clinical_role, npi, credentials_json, attestations_json,
-                                   created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+                                   years_experience, organization, id_hashed, active, full_name,
+                                   org_name, clinical_role, npi, credentials_json,
+                                   attestations_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     uid, email, hash_password(password), role, specialty, board_cert,
-                    years_experience, id_hashed, full_name, org_name, clinical_role,
+                    years_experience, org_name, id_hashed, full_name, org_name, clinical_role,
                     npi, creds_json, atts_json, _utcnow_iso(),
                 ),
             )
@@ -1324,7 +1325,12 @@ class AsclepiusStore:
             rows = conn.execute(
                 """
                 SELECT u.id, u.id_hashed, u.email, u.role, u.specialty,
-                       u.organization AS user_org,
+                       -- The onboarding flow historically wrote the health-system
+                       -- name to org_name; the canonical column is organization.
+                       -- COALESCE both so existing onboarded users (organization
+                       -- NULL, org_name set) resolve to their real org, not
+                       -- "Unaffiliated".
+                       COALESCE(u.organization, u.org_name) AS user_org,
                        COUNT(DISTINCT s.submission_id) AS submission_count,
                        MAX(s.created_at) AS last_labeled_at
                 FROM users u
