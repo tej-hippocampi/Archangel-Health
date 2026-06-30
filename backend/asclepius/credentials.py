@@ -177,27 +177,49 @@ def find_tier_b_leak(mapped: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+# Only these high-specificity LOCATOR / identifier vault fields feed the value
+# scan. Institution / pedigree names (medical_school, residency, fellowship) and
+# short codes (license_state) are deliberately excluded: they can legitimately
+# appear in clinical text (e.g. "per the UCSF protocol"), so scanning them would
+# false-positive and block valid exports. Those fields can never reach a shipped
+# record anyway — they are withheld by the field-name leak gate.
+_VALUE_SCAN_FIELDS = (
+    "full_legal_name",
+    "npi",
+    "medical_license_number",
+    "practice_address",
+    "practice_contact",
+    "practice_phone",
+    "practice_email",
+)
+
+# Minimum value length to scan, so a coincidental short token never trips it.
+_VALUE_SCAN_MIN_LEN = 6
+
+
 def find_tier_b_value_leak(mapped: Dict[str, Any], verify_values: List[str]) -> Optional[str]:
-    """Defense in depth: return the first Tier B *value* (e.g. a legal name or NPI
-    from the vault) that appears verbatim in the serialized record, or None. Only
-    used when the relevant vault values are known (per-contributor / per-org
-    export)."""
+    """Defense in depth: return the first Tier B *value* (a legal name, NPI,
+    license number, or practice locator from the vault) that appears verbatim in
+    the serialized record, or None. Only used when the relevant vault values are
+    known (per-contributor / per-org export)."""
     if not verify_values:
         return None
     blob = json.dumps(mapped, ensure_ascii=False).lower()
     for val in verify_values:
         v = str(val or "").strip().lower()
-        if len(v) >= 4 and v in blob:
+        if len(v) >= _VALUE_SCAN_MIN_LEN and v in blob:
             return val
     return None
 
 
 def collect_verify_values(verify_blocks: List[Dict[str, Any]]) -> List[str]:
-    """Flatten the identifying values from one or more vault dicts into a flat
-    list of strings to scan exported records against."""
+    """Flatten the high-specificity identifying values from one or more vault
+    dicts into a flat list of strings to scan exported records against. Only the
+    locator/identifier fields in ``_VALUE_SCAN_FIELDS`` are included."""
     out: List[str] = []
     for vb in verify_blocks or []:
-        for v in (vb or {}).values():
+        for key in _VALUE_SCAN_FIELDS:
+            v = (vb or {}).get(key)
             if isinstance(v, (str, int)) and str(v).strip():
                 out.append(str(v).strip())
     return out
