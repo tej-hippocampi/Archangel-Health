@@ -24,6 +24,10 @@ MODEL_REGISTRY: dict[str, dict[str, Any]] = {
     "asclepius_critic": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1500},
     "asclepius_candidate_gen": {"model": "claude-sonnet-4-6", "temperature": 0.3, "max_tokens": 2000},
     "asclepius_grounding": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1200},
+    # Reasoning splitter (Eval Flow Upgrade §4): break the chosen answer into
+    # ordered steps for tap-to-grade. Deterministic (temp 0.0) — a structural
+    # split, not a judgment. Overridable via MODEL_ASCLEPIUS_REASONING_SPLIT.
+    "asclepius_reasoning_split": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1200},
     # Asclepius Seedmaker auto-generation (nephrology PRD §11). "Current Claude
     # model" is expressed via the registry + env override, never hardcoded in
     # logic. Prompt synthesis + judging default to the strongest model

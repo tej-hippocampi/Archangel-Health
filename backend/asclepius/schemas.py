@@ -140,6 +140,9 @@ class ReasoningStep(BaseModel):
     # Per-step evidence anchor (opt §1.2) — required for each step in
     # grounding_mode=required reasoning tasks.
     evidence_anchor: Optional[EvidenceAnchor] = None
+    # One-line "what's off?" critique on a non-good step (Eval Flow Upgrade §4) —
+    # the premium per-step error signal for PRM training.
+    critique: Optional[str] = None
     # Back-compat free-text tag (kept; ``label`` supersedes it for PRM data).
     tag: Optional[str] = None
 
@@ -211,6 +214,15 @@ class SubmissionIn(BaseModel):
     reasoning_steps: List[ReasoningStep] = Field(default_factory=list)
     confidence: str = "medium"
     time_spent_sec: int = 0
+
+
+class ReasoningSplitRequest(BaseModel):
+    """Split a chosen/ideal answer into ordered reasoning steps for tap-to-grade
+    (Eval Flow Upgrade §4). ``prompt``/``specialty`` give the splitter context."""
+
+    text: str
+    prompt: str = ""
+    specialty: str = "general"
 
 
 class SubmissionResult(BaseModel):

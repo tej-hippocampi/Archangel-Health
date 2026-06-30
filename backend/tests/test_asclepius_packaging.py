@@ -81,6 +81,31 @@ def test_independent_answer_emits_blind_ideal_record():
     assert all(r.get("prompt_clinician_reviewed") is True for r in recs)
 
 
+def test_reasoning_steps_carry_critique():
+    """Eval Flow Upgrade §4: a graded step's one-line critique rides the
+    reasoning_trace record alongside its label + reward."""
+    payload = {
+        "verdict": "both_inadequate", "confidence": "high",
+        "independent_answer": {"text": "Give IV calcium, then insulin and dextrose, then dialyze."},
+        "from_scratch": {
+            "ideal_answer": "Give IV calcium, then insulin and dextrose, then dialyze.",
+            "approach_notes": "",
+            "reasoning_steps": [
+                {"step": 1, "text": "Give IV calcium", "label": "good", "step_reward": 1, "critique": None},
+                {"step": 2, "text": "Start oral resin only", "label": "bad", "step_reward": 0,
+                 "critique": "too slow for K+ 6.4 with ECG changes"},
+            ],
+        },
+    }
+    recs = package_submission(_task(capture_reasoning=True), _submission(payload))
+    trace = [r for r in recs if r["type"] == "reasoning_trace"]
+    assert len(trace) == 1
+    steps = trace[0]["steps"]
+    assert steps[0]["critique"] is None
+    assert steps[1]["critique"] == "too slow for K+ 6.4 with ECG changes"
+    assert steps[1]["label"] == "bad" and steps[1]["step_reward"] == 0
+
+
 def test_no_independent_answer_emits_no_blind_record():
     payload = {
         "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",

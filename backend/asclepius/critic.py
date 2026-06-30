@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import re
 from typing import Any, Dict, List, Optional
 
@@ -20,6 +21,7 @@ from asclepius.prompts import (
     ASCLEPIUS_GROUNDING_SYSTEM,
     ASCLEPIUS_PROMPT_GEN_SYSTEM,
     ASCLEPIUS_PROMPT_JUDGE_SYSTEM,
+    ASCLEPIUS_REASONING_SPLIT_SYSTEM,
 )
 from asclepius.validation import is_valid_anchor
 
@@ -220,20 +222,82 @@ async def generate_candidates_ex(
     parsed = _extract_json(first_text(resp)) or {}
     cands = parsed.get("candidate_answers") or []
     model = (rec or {}).get("model")
-    out: List[Dict[str, str]] = []
+    flawed_src = parsed.get("intended_flawed_id")
+
+    # Tag each answer with whether the model marked IT as the intended-flawed one
+    # BEFORE we reassign A/B, so the marker follows the text, not the slot.
+    items: List[Dict[str, Any]] = []
     for i, c in enumerate(cands[:2]):
-        out.append(
-            {
-                "id": c.get("id") or ("A" if i == 0 else "B"),
-                "text": c.get("text", ""),
-                "generator_model": model or "asclepius_candidate_gen",
-            }
-        )
-    flawed = parsed.get("intended_flawed_id")
-    valid_ids = {c["id"] for c in out}
-    if flawed not in valid_ids:
-        flawed = None
+        src_id = c.get("id") or ("A" if i == 0 else "B")
+        items.append({"text": c.get("text", ""), "is_flawed": src_id == flawed_src})
+
+    # Randomize the A/B slot so the intended-flawed answer isn't position-biased
+    # (Eval Flow Upgrade §5) — the model is asked to randomize but we enforce it
+    # server-side regardless. The blinded evaluator only ever sees A/B + text.
+    random.shuffle(items)
+
+    out: List[Dict[str, str]] = []
+    flawed: Optional[str] = None
+    for i, it in enumerate(items):
+        new_id = "A" if i == 0 else "B"
+        out.append({"id": new_id, "text": it["text"], "generator_model": model or "asclepius_candidate_gen"})
+        if it["is_flawed"] and flawed_src is not None:
+            flawed = new_id
     return {"candidates": out, "model": model, "intended_flawed_id": flawed}
+
+
+_SENTENCE_SPLIT = re.compile(r"(?<=[.;])\s+")
+_LIST_MARKER = re.compile(r"^\s*(?:\d+[.)]|[-*•])\s*")
+
+
+def _heuristic_split(text: str) -> List[str]:
+    """Offline fallback splitter (no LLM): prefer explicit lines / numbered or
+    bulleted items; otherwise sentence-split a single block. Conservative — the
+    specialist edits/merges the result."""
+    raw = (text or "").strip()
+    if not raw:
+        return []
+    lines = [_LIST_MARKER.sub("", ln).strip() for ln in raw.splitlines()]
+    lines = [ln for ln in lines if ln]
+    if len(lines) >= 2:
+        return lines
+    parts = [p.strip() for p in _SENTENCE_SPLIT.split(raw) if p.strip()]
+    return parts if parts else [raw]
+
+
+async def run_reasoning_split(
+    text: str, *, prompt: str = "", specialty: str = "general"
+) -> Dict[str, Any]:
+    """Split a clinical answer into ordered reasoning steps for tap-to-grade
+    (Eval Flow Upgrade §4). Returns ``{steps, source, skipped, model?}``. Never
+    raises; degrades to a local heuristic split when no LLM is configured so the
+    feature still pre-populates offline (the doctor can always edit/add manually)."""
+    text = (text or "").strip()
+    if not text:
+        return {"steps": [], "source": "empty", "skipped": True}
+    try:
+        from ai.llm_client import call_llm, first_text
+    except Exception:  # pragma: no cover
+        return {"steps": _heuristic_split(text), "source": "heuristic", "skipped": True}
+
+    user = f"Specialty: {specialty}\n\nPROMPT:\n{prompt}\n\nANSWER:\n{text}"
+    try:
+        resp, rec = await call_llm(
+            role="asclepius_reasoning_split",
+            system=ASCLEPIUS_REASONING_SPLIT_SYSTEM,
+            messages=[{"role": "user", "content": user}],
+            prompt_id="asclepius_reasoning_split",
+            purpose="asclepius_reasoning_split",
+        )
+    except Exception as exc:
+        log.info("asclepius reasoning-split unavailable, using heuristic: %s", exc)
+        return {"steps": _heuristic_split(text), "source": "heuristic", "skipped": True}
+
+    parsed = _extract_json(first_text(resp)) or {}
+    steps = [str(s).strip() for s in (parsed.get("steps") or []) if str(s).strip()]
+    if not steps:
+        return {"steps": _heuristic_split(text), "source": "heuristic", "skipped": False}
+    return {"steps": steps, "source": "llm", "skipped": False, "model": (rec or {}).get("model")}
 
 
 async def generate_candidates(prompt: str, *, specialty: str = "general") -> List[Dict[str, str]]:

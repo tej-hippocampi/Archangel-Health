@@ -17,6 +17,7 @@ from asclepius.prompts import (
     ASCLEPIUS_GROUNDING_SYSTEM,
     ASCLEPIUS_PROMPT_GEN_SYSTEM,
     ASCLEPIUS_PROMPT_JUDGE_SYSTEM,
+    ASCLEPIUS_REASONING_SPLIT_SYSTEM,
 )
 from .system import SEMANTIC_ESCALATION_PROMPT
 from pipeline.grounding_check import GROUNDING_JUDGE_PROMPT
@@ -279,6 +280,14 @@ PROMPT_REGISTRY: dict = {
         "content": ASCLEPIUS_GROUNDING_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_GROUNDING_SYSTEM",
+        "type": "system",
+        "version": "1.0.0",
+    },
+    "asclepius_reasoning_split": {
+        "label": "Asclepius — Reasoning Step Splitter",
+        "content": ASCLEPIUS_REASONING_SPLIT_SYSTEM,
+        "file": "backend/asclepius/prompts.py",
+        "variable": "ASCLEPIUS_REASONING_SPLIT_SYSTEM",
         "type": "system",
         "version": "1.0.0",
     },

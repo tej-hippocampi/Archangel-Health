@@ -129,6 +129,8 @@ def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 # PRM800K per-step label; fall back to legacy free-text tag.
                 "label": s.get("label") if s.get("label") is not None else s.get("tag"),
                 "step_reward": s.get("step_reward"),
+                # One-line "what's off?" critique on graded steps (Eval Flow Upgrade §4).
+                "critique": s.get("critique"),
                 "evidence_anchor": _anchor(s.get("evidence_anchor")),
             }
         )

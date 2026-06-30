@@ -56,6 +56,25 @@ Return ONLY a single JSON object, no prose, with this exact shape:
 }
 Set "grounding_ok" to false if and only if at least one citation clearly fails to support its claim."""
 
+ASCLEPIUS_REASONING_SPLIT_SYSTEM = """You split a clinical answer into discrete, ordered reasoning steps so a \
+specialist can grade each step. Read the ANSWER (in the context of the PROMPT) and break it into the sequence of \
+distinct clinical decisions / inferences it makes — ONE clinical move per step (e.g. "stabilize the myocardium \
+with IV calcium", "shift potassium intracellularly with insulin + dextrose", "remove potassium via dialysis").
+
+Hard rules:
+- Split ONLY. Do NOT add, remove, correct, judge, or editorialize the clinical content. Preserve the answer's \
+  own reasoning and ordering; each step must be faithful to the source text.
+- Each step is a short, self-contained phrase or sentence naming a single clinical decision or inference.
+- Merge trivial connective text into the adjacent step; drop pure pleasantries. Aim for 2–8 steps for a typical \
+  answer (more only if the answer genuinely has more discrete moves).
+
+Return ONLY a single JSON object, no prose, with this exact shape:
+{
+  "steps": ["first clinical move", "second clinical move", "..."]
+}
+Every element of "steps" is a non-empty string. Return at least one step."""
+
+
 ASCLEPIUS_CANDIDATE_GEN_SYSTEM = """You are generating TWO distinct candidate answers to a medical prompt so \
 that a credentialed specialist can compare them. Make the two answers span a real quality gap so the \
 comparison and any revision are informative: one answer should be STRONG (clinically sound, current, safe) \

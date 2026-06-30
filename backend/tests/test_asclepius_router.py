@@ -405,6 +405,68 @@ def test_valid_prompt_review_stamps_clinician_reviewed_on_records():
     assert any(rec["payload"].get("independent") for rec in sub["records"])
 
 
+# ─── v2 anti-peeking: answers withheld until reveal (Eval Flow Upgrade §1) ────
+def test_answers_withheld_until_reveal(monkeypatch):
+    monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "1")
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)
+
+    nxt = client.get("/api/asclepius/tasks/next", headers=ev_h).json()["task"]
+    assert nxt["answers_withheld"] is True
+    # Text is not even on the wire during Stages 1-2; only the blinded ids are.
+    assert nxt["candidate_answers"] and all("text" not in c for c in nxt["candidate_answers"])
+    assert all(c.get("id") for c in nxt["candidate_answers"])
+
+    # The reveal endpoint returns the texts, still blinded (no generator_model).
+    ans = client.get(f"/api/asclepius/tasks/{tid}/answers", headers=ev_h).json()["answers"]
+    assert {a["id"] for a in ans} == {"A", "B"}
+    assert all((a.get("text") or "").strip() for a in ans)
+    assert all("generator_model" not in a for a in ans)
+
+
+def test_answers_inline_when_withholding_disabled(monkeypatch):
+    monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "0")
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(A.headers_for(_admin()))
+    nxt = client.get("/api/asclepius/tasks/next", headers=ev_h).json()["task"]
+    assert nxt["answers_withheld"] is False
+    assert all(c.get("text") is not None for c in nxt["candidate_answers"])
+
+
+def test_task_answers_requires_auth():
+    assert client.get("/api/asclepius/tasks/whatever/answers").status_code == 401
+
+
+# ─── Tap-to-grade reasoning split (Eval Flow Upgrade §4) ──────────────────────
+def test_reasoning_split_returns_ordered_steps():
+    ev_h = A.headers_for(_seed())
+    text = ("Give IV calcium to stabilize the myocardium.\n"
+            "Shift potassium intracellularly with insulin and dextrose.\n"
+            "Remove potassium from the body via dialysis.")
+    r = client.post("/api/asclepius/reasoning/split",
+                    json={"text": text, "prompt": "hyperkalemia in ESRD", "specialty": "nephrology"},
+                    headers=ev_h)
+    assert r.status_code == 200, r.text
+    steps = r.json()["steps"]
+    assert len(steps) >= 3
+    assert any("calcium" in s.lower() for s in steps)
+    # No LLM key in tests -> graceful heuristic fallback (never errors the doctor).
+    assert r.json()["source"] in ("llm", "heuristic")
+
+
+def test_reasoning_split_empty_text_returns_no_steps():
+    ev_h = A.headers_for(_seed())
+    r = client.post("/api/asclepius/reasoning/split", json={"text": "   "}, headers=ev_h)
+    assert r.status_code == 200
+    assert r.json()["steps"] == []
+
+
+def test_reasoning_split_requires_auth():
+    r = client.post("/api/asclepius/reasoning/split", json={"text": "x"})
+    assert r.status_code == 401
+
+
 # ─── Grounding Mode = required (opt §1.2) ─────────────────────────────────────
 def test_grounding_required_gates_submit():
     admin_h = A.headers_for(_admin())

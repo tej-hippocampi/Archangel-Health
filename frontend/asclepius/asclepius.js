@@ -326,6 +326,11 @@
       state.task = data.task;
       if (!state.task) { renderEvalEmpty(); return; }
       initDraftForTask(state.task);
+      // Resuming straight into the compare stage (e.g. mid-task refresh) needs the
+      // withheld answer texts loaded before they're rendered.
+      if (state.draft.stage === 'compare') {
+        try { await loadWithheldAnswersIfNeeded(); } catch (e) { /* compare shows a reload hint */ }
+      }
       renderTaskWorkspace();
     } catch (e) {
       if (e.status !== 401) {
@@ -646,9 +651,32 @@
     return card;
   }
 
-  function commitIndependentAnswerAndReveal() {
+  // Fetch the withheld candidate answer texts (v2 anti-peeking) and merge them
+  // into the in-memory task. No-op when the server already inlined the text
+  // (ASCLEPIUS_WITHHOLD_ANSWERS=0) or they're already loaded.
+  async function loadWithheldAnswersIfNeeded() {
+    const task = state.task;
+    if (!task) return;
+    const missing = (task.candidate_answers || []).some((c) => c.text == null);
+    if (!missing) return;
+    const res = await api('/tasks/' + task.task_id + '/answers');
+    const byId = {};
+    (res.answers || []).forEach((a) => { byId[a.id] = a.text; });
+    (task.candidate_answers || []).forEach((c) => { if (byId[c.id] != null) c.text = byId[c.id]; });
+  }
+
+  async function commitIndependentAnswerAndReveal() {
     const d = state.draft;
     if (!(d.independent_answer.text || '').trim()) return;
+    const btn = document.getElementById('ascRevealBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Revealing…'; }
+    try {
+      await loadWithheldAnswersIfNeeded();
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Reveal AI answers →'; }
+      if (e.status !== 401) toast('Could not load the AI answers: ' + e.message, 'error');
+      return;  // stay on Stage 2 rather than reveal blank answers
+    }
     d.independent_answer.captured_at = new Date().toISOString();
     d.stage = 'compare';
     saveDraft();
@@ -879,28 +907,70 @@
       ));
   }
 
-  // ─── Reasoning steps editor ────────────────────────────────────────────────
+  // ─── Reasoning steps editor (tap-to-grade, Feature C) ──────────────────────
+  function newStep(text) {
+    return { step: 0, text: text || '', label: null, step_reward: null, critique: '', evidence_anchor: emptyAnchor() };
+  }
+  // The chosen/refined answer text to split into steps (chosen path only).
+  function chosenRefinedText() {
+    const rev = state.draft.chosen_revision;
+    return (rev.revised_text != null ? rev.revised_text : chosenText()) || '';
+  }
+
+  // Auto-split the chosen answer into gradable steps. Force re-runs even when
+  // steps already exist (the "Re-split" affordance). Degrades gracefully — on
+  // failure the doctor just adds steps manually.
+  async function autoSplitChosen(listId, force) {
+    const text = chosenRefinedText().trim();
+    const steps = activeSteps();
+    if (!text || state.splitting) return;
+    if (!force && steps.length) return;
+    state.splitting = true;
+    const list = document.getElementById(listId);
+    if (list) { clear(list); list.appendChild(h('p', { class: 'asc-help' }, '✨ Splitting the chosen answer into steps…')); }
+    try {
+      const res = await api('/reasoning/split', {
+        method: 'POST',
+        body: { text, prompt: state.task.prompt, specialty: state.task.specialty },
+      });
+      steps.length = 0;
+      (res.steps || []).forEach((t) => steps.push(newStep(t)));
+      saveDraft();
+    } catch (e) { /* graceful: leave steps for manual entry */ }
+    finally { state.splitting = false; renderStepsList(listId); updateSubmitState(); }
+  }
+
   function renderStepsCard(forBoth) {
     const listId = 'ascStepsList';
     const required = (state.task.grounding_mode === 'required');
+    const canAutoSplit = !forBoth;  // chosen path (A/B verdict) only
+
+    const addBtn = h('button', {
+      class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
+      onClick: () => { activeSteps().push(newStep('')); saveDraft(); renderStepsList(listId); updateSubmitState(); },
+    }, '+ Add step');
+    const resplitBtn = canAutoSplit ? h('button', {
+      class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+      onClick: () => autoSplitChosen(listId, true),
+    }, '↻ Re-split from answer') : null;
+
     const card = h('div', { class: 'asc-subcard' },
       h('div', { class: 'asc-subcard-head' }, '↳ Reasoning steps ',
         h('span', { class: 'asc-label-hint', style: 'margin-left:6px' },
-          required ? '(each step needs a citation)' : '(optional)')),
+          canAutoSplit ? 'tap good / neutral / bad on each step' : (required ? '(each step needs a citation)' : '(optional)'))),
       h('div', { class: 'asc-subcard-body' },
         h('div', { class: 'asc-steps', id: listId }),
-        h('button', {
-          class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button', style: 'margin-top:12px',
-          onClick: () => {
-            const steps = activeSteps();
-            steps.push({ step: steps.length + 1, text: '', label: null, step_reward: null, evidence_anchor: emptyAnchor() });
-            saveDraft();
-            renderStepsList(listId);
-            updateSubmitState();
-          },
-        }, '+ Add step'),
+        h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn, resplitBtn),
       ));
-    setTimeout(() => renderStepsList(listId), 0);
+    setTimeout(() => {
+      renderStepsList(listId);
+      // Auto-split once per task when entering the chosen-path card with no steps.
+      if (canAutoSplit && activeSteps().length === 0
+          && state.splitAttemptedFor !== state.task.task_id && !state.splitting) {
+        state.splitAttemptedFor = state.task.task_id;
+        autoSplitChosen(listId, false);
+      }
+    }, 0);
     return card;
   }
 
@@ -923,7 +993,11 @@
           type: 'button',
           onClick: () => {
             s.label = (s.label === lab) ? null : lab;
-            s.step_reward = s.label === 'good' ? 1 : s.label === 'bad' ? -1 : s.label === 'neutral' ? 0 : null;
+            // PRM convention: good=1, neutral/bad=0 (a bad step earns no reward).
+            // A lab that wants ±1 (bad=-1) sets it via the buyer export profile;
+            // we keep the capture convention non-negative here.
+            s.step_reward = s.label === 'good' ? 1 : (s.label === 'neutral' || s.label === 'bad') ? 0 : null;
+            if (s.label === 'good' || s.label == null) s.critique = '';
             saveDraft();
             renderStepsList(listId);
           },
@@ -935,16 +1009,28 @@
         h('div', { style: 'display:flex;align-items:center;gap:8px' },
           labelBtns,
           h('button', {
+            class: 'asc-btn-link', type: 'button',
+            onClick: () => { steps.splice(idx + 1, 0, newStep('')); saveDraft(); renderStepsList(listId); updateSubmitState(); },
+          }, '+ insert'),
+          h('button', {
             class: 'asc-btn-link', type: 'button', style: 'color:var(--asc-danger)',
             onClick: () => { steps.splice(idx, 1); saveDraft(); renderStepsList(listId); updateSubmitState(); },
           }, 'Remove')));
 
+      // Critique field — surfaced only on a flagged (non-good) step.
+      let critique = null;
+      if (s.label && s.label !== 'good') {
+        const ci = h('input', { class: 'asc-input', placeholder: "What's off with this step? (one line)", value: s.critique || '' });
+        ci.addEventListener('input', () => { s.critique = ci.value; saveDraft(); });
+        critique = h('div', { class: 'asc-field', style: 'margin-top:8px' }, ci);
+      }
+
       const anchorBlock = renderAnchorBlock(s.evidence_anchor, { label: 'citation for this step', required });
 
-      list.appendChild(h('div', { class: 'asc-step' }, head, ta, anchorBlock));
+      list.appendChild(h('div', { class: 'asc-step' }, head, ta, critique, anchorBlock));
     });
     if (!steps.length) {
-      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet. Add ordered reasoning steps to capture a process trace.'));
+      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually, or use “Re-split from answer”.'));
     }
   }
 
@@ -1119,6 +1205,7 @@
       text: s.text,
       label: s.label || null,
       step_reward: s.step_reward != null ? s.step_reward : null,
+      critique: (s.critique || '').trim() || null,
       evidence_anchor: cleanAnchor(s.evidence_anchor),
     }));
   }

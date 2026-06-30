@@ -22,8 +22,12 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import random as _random  # noqa: E402
+
+import ai.llm_client as _llm  # noqa: E402
 from tests import _asclepius as A  # noqa: E402
 from asclepius import corpus as asc_corpus  # noqa: E402
+from asclepius import critic as asc_critic  # noqa: E402
 from asclepius import generation as asc_generation  # noqa: E402
 from asclepius import pipeline as asc_pipeline  # noqa: E402
 from routers import asclepius as asc_router  # noqa: E402
@@ -427,3 +431,32 @@ def test_buyer_request_spec_only_invokes_engine(monkeypatch):
     store = _store()
     for tid in body["created"]:
         assert store.get_task(tid)["buyer_request_id"] == req["request_id"]
+
+
+# ─── A/B position randomization (Eval Flow Upgrade §5) ────────────────────────
+def test_candidate_ab_position_is_randomized(monkeypatch):
+    """The model always marks "B" as the intended-flawed answer; the server must
+    randomize the A/B slot per task so the flawed answer isn't position-biased,
+    while keeping the flawed marker tied to its TEXT (never the slot)."""
+    payload = ('{"candidate_answers":[{"id":"A","text":"strong"},'
+               '{"id":"B","text":"weak"}],"intended_flawed_id":"B"}')
+
+    async def _call(**kw):
+        return ("RESP", {"model": "stub-cg"})
+
+    monkeypatch.setattr(_llm, "call_llm", _call)
+    monkeypatch.setattr(_llm, "first_text", lambda resp: payload)
+
+    _random.seed(12345)
+    flawed_slots = set()
+    for _ in range(50):
+        res = _run(asc_critic.generate_candidates_ex("prompt", specialty="nephrology"))
+        fid = res["intended_flawed_id"]
+        assert fid in ("A", "B")
+        # both distinct texts always present
+        assert {c["text"] for c in res["candidates"]} == {"strong", "weak"}
+        # the flawed marker follows the 'weak' TEXT regardless of slot
+        ftext = next(c["text"] for c in res["candidates"] if c["id"] == fid)
+        assert ftext == "weak"
+        flawed_slots.add(fid)
+    assert flawed_slots == {"A", "B"}  # position genuinely varies across tasks

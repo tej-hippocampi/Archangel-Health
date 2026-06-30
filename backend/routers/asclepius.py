@@ -55,7 +55,7 @@ from asclepius.constants import (
     VERDICTS,
     WHY_BETTER_TAGS,
 )
-from asclepius.critic import generate_candidates, generate_candidates_ex
+from asclepius.critic import generate_candidates, generate_candidates_ex, run_reasoning_split
 from asclepius.constants import (
     company_name as _company_name,
     non_circumvention_notice as _non_circumvention_notice,
@@ -73,6 +73,7 @@ from asclepius.schemas import (
     GenerationRequest,
     LoginRequest,
     QADecisionRequest,
+    ReasoningSplitRequest,
     ScopedExportRequest,
     SsoRequest,
     SubmissionIn,
@@ -90,16 +91,27 @@ def _store():
     return get_store()
 
 
-def _blind_task(task: Dict[str, Any]) -> Dict[str, Any]:
-    """Strip server-only fields (generator_model) before sending to an evaluator.
+def _withhold_answers() -> bool:
+    """v2 anti-peeking (Eval Flow Upgrade §1): when on (default), the candidate
+    answer TEXT is omitted from the blinded task payload so it isn't even on the
+    wire during Stages 1–2 — the evaluator fetches it via ``GET /tasks/{id}/answers``
+    only after committing their independent answer. Set ASCLEPIUS_WITHHOLD_ANSWERS=0
+    to fall back to v1 (text inline; DOM-withholding only)."""
+    return os.getenv("ASCLEPIUS_WITHHOLD_ANSWERS", "1").strip().lower() in ("1", "true", "yes", "on")
 
-    NOTE (Eval Flow Upgrade §1, v2 hardening): the staged flow withholds the
-    candidate ``text`` from the DOM during Stages 1–2 client-side. A stronger v2
-    would omit ``candidate_answers[].text`` from this payload until the
-    independent answer is committed, then serve it via a dedicated
-    ``GET /tasks/{id}/answers`` endpoint — closing the view-source peek. Shipped
-    v1 keeps the text here (DOM-withholding only)."""
+
+def _blind_task(task: Dict[str, Any]) -> Dict[str, Any]:
+    """Strip server-only fields (generator_model) before sending to an evaluator,
+    and — under v2 anti-peeking (default on) — withhold the candidate answer text
+    until the independent answer is committed (see :func:`_withhold_answers`)."""
     grounding_mode = task.get("grounding_mode") or DEFAULT_GROUNDING_MODE
+    withhold = _withhold_answers()
+    answers = []
+    for c in (task.get("candidate_answers") or []):
+        entry = {"id": c.get("id")}
+        if not withhold:
+            entry["text"] = c.get("text", "")
+        answers.append(entry)
     out = {
         "task_id": task["task_id"],
         "specialty": task.get("specialty"),
@@ -109,12 +121,20 @@ def _blind_task(task: Dict[str, Any]) -> Dict[str, Any]:
         # earn-more disclaimer surfaced near the verdict buttons only in required mode (opt §1.2)
         "grounding_disclaimer": GROUNDED_PREMIUM_DISCLAIMER if grounding_mode == "required" else None,
         "prompt": task.get("prompt"),
-        "candidate_answers": [
-            {"id": c.get("id"), "text": c.get("text", "")}
-            for c in (task.get("candidate_answers") or [])
-        ],
+        "candidate_answers": answers,
+        # Tells the client the texts must be fetched at reveal (Stage 2 -> 3).
+        "answers_withheld": withhold,
     }
     return out
+
+
+def _task_answers(task: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Candidate answer texts for the reveal step — still blinded (never leaks
+    generator_model)."""
+    return [
+        {"id": c.get("id"), "text": c.get("text", "")}
+        for c in (task.get("candidate_answers") or [])
+    ]
 
 
 # ─── Meta ─────────────────────────────────────────────────────────────────────
@@ -611,6 +631,17 @@ async def get_task(task_id: str, _user: Dict[str, Any] = Depends(asc_auth.get_cu
     return {"task": _blind_task(task)}
 
 
+@router.get("/tasks/{task_id}/answers")
+async def get_task_answers(task_id: str, _user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+    """Reveal the candidate answer texts (Eval Flow Upgrade §1, v2 anti-peeking).
+    The evaluator calls this only after committing their independent answer; the
+    texts are still blinded (no generator_model)."""
+    task = _store().get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"answers": _task_answers(task)}
+
+
 # ─── Submissions ──────────────────────────────────────────────────────────────
 @router.post("/submissions")
 async def submit(
@@ -732,6 +763,17 @@ async def submit(
     result = await asc_pipeline.process_submission(store, task, submission)
     store.refresh_task_status(body.task_id)
     return result
+
+
+@router.post("/reasoning/split")
+async def reasoning_split(
+    body: ReasoningSplitRequest, _user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Split a chosen/ideal answer into ordered reasoning steps for tap-to-grade
+    (Eval Flow Upgrade §4). Returns ``{steps: [str, ...], source}``. Degrades to a
+    local heuristic split when no LLM is configured (never errors the doctor)."""
+    res = await run_reasoning_split(body.text, prompt=body.prompt, specialty=body.specialty)
+    return {"steps": res.get("steps", []), "source": res.get("source")}
 
 
 @router.get("/submissions")
