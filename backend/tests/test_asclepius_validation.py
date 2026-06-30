@@ -81,6 +81,27 @@ def test_independent_answer_packaged_as_blind_ideal_record():
     assert blind[0]["prompt_clinician_reviewed"] is True
 
 
+def test_step_critique_is_phi_scanned():
+    """A PHI identifier in a step's free-text critique (Eval Flow Upgrade §4) is
+    caught by the defensive scan — not just the step body."""
+    payload = {
+        "verdict": "both_inadequate", "confidence": "high",
+        "independent_answer": {"text": "Give IV calcium to stabilize, then dialyze given the ESRD."},
+        "from_scratch": {
+            "ideal_answer": "Give IV calcium to stabilize, then dialyze given the ESRD.",
+            "reasoning_steps": [
+                {"step": 1, "text": "Give IV calcium", "label": "bad", "step_reward": 0,
+                 "critique": "per chart, contact jdoe@example.com"},
+            ],
+        },
+    }
+    task, sub = _task(capture_reasoning=True), _submission(payload)
+    recs = package_submission(task, sub)
+    res = validate_submission(task, sub, recs)
+    assert any(i.startswith("phi:") for i in res["issues"])
+    assert "email" in res["phi_kinds"]
+
+
 def test_contamination_flags_public_benchmark_prompt():
     assert contamination_hits("This is from MedQA dataset, which of the following is the most likely diagnosis?")
     task = _task(prompt="Which of the following is the most likely diagnosis for this MedQA item?")

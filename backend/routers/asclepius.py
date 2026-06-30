@@ -80,7 +80,7 @@ from asclepius.schemas import (
     TaskUploadRequest,
 )
 from asclepius.store import get_store
-from asclepius.validation import compute_dedupe_hash, grounding_status, is_grounded
+from asclepius.validation import compute_dedupe_hash, grounding_status, is_grounded, residual_identifiers
 
 log = logging.getLogger("asclepius.router")
 
@@ -675,6 +675,14 @@ async def submit(
     # validation because a flagged submission carries no verdict.
     review = body.prompt_review
     if review and review.verdict == "flagged":
+        # Defensive PHI scan on the flag reason — the flagged path skips
+        # validate_submission, but the PRD's "PHI scan on every submission"
+        # (§0/§13) still applies. Redact rather than persist a raw identifier.
+        note_phi = residual_identifiers(review.note) if review.note else []
+        safe_note = "[redacted — possible identifier detected]" if note_phi else review.note
+        flagged_payload = body.model_dump()
+        if note_phi:
+            (flagged_payload.get("prompt_review") or {})["note"] = safe_note
         store.insert_submission(
             submission_id=sid,
             task_id=body.task_id,
@@ -684,7 +692,7 @@ async def submit(
             rejected_id=None,
             confidence=body.confidence,
             time_spent_sec=body.time_spent_sec,
-            payload=body.model_dump(),
+            payload=flagged_payload,
             annotator=store.annotator_block(user),
             dedupe_hash=None,
             grounded=False,
@@ -692,12 +700,28 @@ async def submit(
             status=PROMPT_FLAGGED_TASK_STATUS,
         )
         store.mark_task_status(body.task_id, PROMPT_FLAGGED_TASK_STATUS)
+        # If a concurrent evaluator already graded this task (max_labels >= 2, or a
+        # race at max_labels=1), pull their not-yet-shipped records back to QA so a
+        # flagged prompt never silently exports. Route to needs_qa (a human can
+        # still decide), never reject — no lost work. Already-exported records
+        # cannot be unshipped.
+        for sib in store.submissions_for_task(body.task_id):
+            if sib["submission_id"] == sid:
+                continue
+            if sib.get("status") in ("submitted", "auto_validated", "qa_checked", "export_ready"):
+                store.update_submission(sib["submission_id"], status="needs_qa", qa_reason="prompt_flagged")
+                store.update_records_status_for_submission(sib["submission_id"], "needs_qa")
+                store.log_event(
+                    entity_type="submission", entity_id=sib["submission_id"],
+                    event_type="routed_to_qa", actor=user["id"],
+                    payload={"reason": "prompt_flagged", "task_id": body.task_id},
+                )
         store.log_event(
             entity_type="task",
             entity_id=body.task_id,
             event_type="prompt_flagged",
             actor=user["id"],
-            payload={"submission_id": sid, "note": review.note},
+            payload={"submission_id": sid, "note": safe_note, "phi_redacted": bool(note_phi)},
         )
         return {
             "submission_id": sid,
@@ -761,6 +785,23 @@ async def submit(
     )
 
     result = await asc_pipeline.process_submission(store, task, submission)
+
+    # If another clinician already flagged this prompt as invalid, a grading that
+    # races in afterward must not silently export (Eval Flow Upgrade §2). Route it
+    # to QA instead of auto-export — never lose the work, never ship a flagged
+    # prompt's records. Re-read the task so a flag committed during processing is
+    # seen. (refresh_task_status leaves the prompt_flagged task as-is.)
+    _cur = store.get_task(body.task_id) or {}
+    if _cur.get("status") == PROMPT_FLAGGED_TASK_STATUS and result.get("status") in ("auto_validated", "export_ready"):
+        store.update_submission(sid, status="needs_qa", qa_reason="prompt_flagged")
+        store.update_records_status_for_submission(sid, "needs_qa")
+        store.log_event(
+            entity_type="submission", entity_id=sid, event_type="routed_to_qa",
+            actor=user["id"], payload={"reason": "prompt_flagged", "task_id": body.task_id},
+        )
+        result["status"] = "needs_qa"
+        result["issues"] = sorted(set((result.get("issues") or []) + ["prompt_flagged"]))
+
     store.refresh_task_status(body.task_id)
     return result
 

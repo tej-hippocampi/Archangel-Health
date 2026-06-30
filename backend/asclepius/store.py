@@ -650,9 +650,16 @@ class AsclepiusStore:
             conn.execute("UPDATE tasks SET status = ? WHERE task_id = ?", (status, task_id))
 
     def refresh_task_status(self, task_id: str) -> None:
-        """Close a task once it has reached its label capacity."""
+        """Close a task once it has reached its label capacity.
+
+        A task a clinician flagged as having an invalid prompt (Eval Flow Upgrade
+        §2) is terminal — never reopen/close it back to a normal status, so it
+        stays out of the queue and visible in the admin flagged list even if a
+        concurrent normal submission also lands on it."""
         task = self.get_task(task_id)
         if not task:
+            return
+        if task.get("status") == "prompt_flagged":
             return
         count = self.submission_count_for_task(task_id)
         new_status = "done" if count >= int(task.get("max_labels") or 1) else "open"

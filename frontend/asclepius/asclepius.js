@@ -550,6 +550,21 @@
 
   // Stage 3: the original compare + verdict + rationale + submit block.
   function renderCompareStage(wrap) {
+    // Safety net: if the withheld answer texts failed to load (e.g. a network
+    // blip when resuming into compare via refresh), don't render blank answer
+    // cards — offer a reload instead of letting the doctor grade nothing.
+    if ((state.task.candidate_answers || []).some((c) => c.text == null)) {
+      wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'asc-inline-error' }, 'Could not load the AI answers.'),
+        h('button', {
+          class: 'asc-btn asc-btn-primary', style: 'margin-top:12px',
+          onClick: async () => {
+            try { await loadWithheldAnswersIfNeeded(); renderTaskWorkspace(); }
+            catch (e) { if (e.status !== 401) toast('Still could not load the answers: ' + e.message, 'error'); }
+          },
+        }, 'Reload answers')));
+      return;
+    }
     const answers = h('div', { class: 'asc-answers', id: 'ascAnswers' });
     (state.task.candidate_answers || []).forEach((c) => answers.appendChild(renderAnswerCard(c)));
 
@@ -710,8 +725,15 @@
     if (verdict === 'A_better') { d.chosen_id = 'A'; d.rejected_id = 'B'; }
     else if (verdict === 'B_better') { d.chosen_id = 'B'; d.rejected_id = 'A'; }
     else { d.chosen_id = null; d.rejected_id = null; }
-    // If the chosen side changed, reset the revised text so it pre-fills fresh.
-    if (d.chosen_id !== prevChosen) d.chosen_revision.revised_text = null;
+    // If the chosen side changed, reset the revised text so it pre-fills fresh,
+    // and DROP the chosen-path reasoning steps: they were split/graded against the
+    // previous answer and must never ship attached to the new one. Clearing the
+    // once-per-task split guard lets the new chosen answer auto-split fresh.
+    if (d.chosen_id !== prevChosen) {
+      d.chosen_revision.revised_text = null;
+      d.reasoning_steps = [];
+      state.splitAttemptedFor = null;
+    }
     saveDraft();
     // Update verdict button states
     const vc = document.getElementById('ascVerdicts');
@@ -922,9 +944,9 @@
   // failure the doctor just adds steps manually.
   async function autoSplitChosen(listId, force) {
     const text = chosenRefinedText().trim();
-    const steps = activeSteps();
+    const startedChosen = state.draft.chosen_id;
     if (!text || state.splitting) return;
-    if (!force && steps.length) return;
+    if (!force && activeSteps().length) return;
     state.splitting = true;
     const list = document.getElementById(listId);
     if (list) { clear(list); list.appendChild(h('p', { class: 'asc-help' }, '✨ Splitting the chosen answer into steps…')); }
@@ -933,9 +955,14 @@
         method: 'POST',
         body: { text, prompt: state.task.prompt, specialty: state.task.specialty },
       });
-      steps.length = 0;
-      (res.steps || []).forEach((t) => steps.push(newStep(t)));
-      saveDraft();
+      // Discard if the doctor changed verdict/side while the split was in flight,
+      // so results never land on a different answer. Write to the CURRENT array.
+      if (state.draft.stage === 'compare' && state.draft.chosen_id === startedChosen) {
+        const steps = activeSteps();
+        steps.length = 0;
+        (res.steps || []).forEach((t) => steps.push(newStep(t)));
+        saveDraft();
+      }
     } catch (e) { /* graceful: leave steps for manual entry */ }
     finally { state.splitting = false; renderStepsList(listId); updateSubmitState(); }
   }

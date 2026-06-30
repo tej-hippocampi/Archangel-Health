@@ -243,7 +243,9 @@ def validate_submission(
     for r in records:
         scan_targets.extend([r.get("chosen"), r.get("rejected"), r.get("ideal_answer"), r.get("rationale")])
         for step in r.get("steps") or []:
-            scan_targets.append(step.get("text"))
+            # Scan both the step text AND its free-text critique (Eval Flow Upgrade
+            # §4) — a critique can carry PHI just like the step body.
+            scan_targets.extend([step.get("text"), step.get("critique")])
     # A PHI scanner must always be available; a missing scanner is a validation
     # FAILURE, never a silent pass (BLOCKER 3).
     if not PHI_SCANNER:

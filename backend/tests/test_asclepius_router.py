@@ -381,6 +381,83 @@ def test_flagged_prompt_produces_zero_records_and_flags_task():
     assert nxt is None or nxt["task_id"] != tid
 
 
+def test_flagged_prompt_note_phi_is_redacted():
+    """The flag reason is doctor free-text and the flagged path skips
+    validate_submission — so PHI in the note is scanned + redacted at capture."""
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)
+    sid = "s-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid,
+        "prompt_review": {"reviewed": True, "verdict": "flagged",
+                          "note": "ambiguous; reach jdoe@example.com to clarify"},
+    }, headers=ev_h)
+    assert r.status_code == 200 and r.json()["status"] == "prompt_flagged"
+    sub = client.get(f"/api/asclepius/submissions/{sid}", headers=admin_h).json()
+    note = sub["payload"]["prompt_review"]["note"]
+    assert "jdoe@example.com" not in note
+    assert "redacted" in note.lower()
+
+
+def test_flag_pulls_back_already_graded_sibling():
+    """max_labels=2: one evaluator grades to export_ready, another flags the
+    prompt -> the graded sibling is pulled back to QA and the task stays flagged
+    (a flagged prompt never silently ships)."""
+    admin_h = A.headers_for(_admin())
+    e1 = A.headers_for(_seed())
+    e2 = A.headers_for(_seed())
+    tid = _upload_task(admin_h, max_labels=2)
+
+    s1 = "s-" + uuid.uuid4().hex[:12]
+    r1 = client.post("/api/asclepius/submissions", json={
+        "submission_id": s1, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+        "independent_answer": _IDEAL,
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+    }, headers=e1)
+    assert r1.json()["status"] == "export_ready"
+
+    s2 = "s-" + uuid.uuid4().hex[:12]
+    rf = client.post("/api/asclepius/submissions", json={
+        "submission_id": s2, "task_id": tid,
+        "prompt_review": {"reviewed": True, "verdict": "flagged", "note": "not answerable"},
+    }, headers=e2)
+    assert rf.json()["status"] == "prompt_flagged"
+
+    assert client.get(f"/api/asclepius/submissions/{s1}", headers=admin_h).json()["status"] == "needs_qa"
+    flagged = client.get("/api/asclepius/tasks?status=prompt_flagged", headers=admin_h).json()["tasks"]
+    assert any(t["task_id"] == tid for t in flagged)
+
+
+def test_grading_after_flag_is_routed_to_qa_not_exported():
+    """The reverse race: the prompt is flagged first, then a grading that was
+    already in progress lands -> routed to QA, not auto-exported; task stays flagged."""
+    admin_h = A.headers_for(_admin())
+    e1 = A.headers_for(_seed())
+    e2 = A.headers_for(_seed())
+    tid = _upload_task(admin_h, max_labels=2)
+
+    client.post("/api/asclepius/submissions", json={
+        "submission_id": "s-" + uuid.uuid4().hex[:12], "task_id": tid,
+        "prompt_review": {"reviewed": True, "verdict": "flagged", "note": "bad premise"},
+    }, headers=e1)
+
+    sg = "s-" + uuid.uuid4().hex[:12]
+    rg = client.post("/api/asclepius/submissions", json={
+        "submission_id": sg, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+        "independent_answer": _IDEAL,
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+    }, headers=e2)
+    assert rg.json()["status"] == "needs_qa"
+    assert "prompt_flagged" in rg.json()["issues"]
+    flagged = client.get("/api/asclepius/tasks?status=prompt_flagged", headers=admin_h).json()["tasks"]
+    assert any(t["task_id"] == tid for t in flagged)
+
+
 def test_valid_prompt_review_stamps_clinician_reviewed_on_records():
     admin_h = A.headers_for(_admin())
     ev_h = A.headers_for(_seed())
