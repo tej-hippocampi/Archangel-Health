@@ -1418,6 +1418,124 @@ class AsclepiusStore:
             if (c["organization"] or "Unaffiliated") == organization and c["id_hashed"]
         ]
 
+    # ─── Contributor record diagnostics & re-attribution (ops tooling) ────────
+    def contributor_record_diagnostics(self, user: Dict[str, Any]) -> Dict[str, Any]:
+        """Explain whether a per-contributor "Export Data" will work for ``user``:
+        submission counts by status, record counts by status, and — among the
+        records a scoped export can ship (status export_ready | exported) — how
+        many actually carry this user's hashed-annotator id (the export match
+        key) vs a mismatched/blank id. A non-zero ``annotator_mismatch`` is the
+        usual reason an export of a contributor with records still ships nothing."""
+        uid = user["id"]
+        idh = user.get("id_hashed")
+        with self._conn() as conn:
+            sub_by_status = {
+                r["status"]: int(r["n"])
+                for r in conn.execute(
+                    "SELECT status, COUNT(*) AS n FROM submissions WHERE evaluator_id = ? GROUP BY status",
+                    (uid,),
+                ).fetchall()
+            }
+            rec_by_status = {
+                r["status"]: int(r["n"])
+                for r in conn.execute(
+                    "SELECT r.status, COUNT(*) AS n FROM records r "
+                    "JOIN submissions s ON s.submission_id = r.submission_id "
+                    "WHERE s.evaluator_id = ? GROUP BY r.status",
+                    (uid,),
+                ).fetchall()
+            }
+            shippable_rows = conn.execute(
+                "SELECT r.payload_json FROM records r "
+                "JOIN submissions s ON s.submission_id = r.submission_id "
+                "WHERE s.evaluator_id = ? AND r.status IN ('export_ready', 'exported')",
+                (uid,),
+            ).fetchall()
+        annotator_match = annotator_mismatch = 0
+        for row in shippable_rows:
+            payload = json.loads(row["payload_json"] or "{}")
+            if payload.get("annotator_id_hashed") == idh:
+                annotator_match += 1
+            else:
+                annotator_mismatch += 1
+        return {
+            "user_id": uid,
+            "id_hashed": idh,
+            "email": user.get("email"),
+            "active": bool(user.get("active")),
+            "submissions_by_status": sub_by_status,
+            "records_by_status": rec_by_status,
+            "submissions_total": sum(sub_by_status.values()),
+            "records_total": sum(rec_by_status.values()),
+            # What the contributor "Export Data" button would actually emit
+            # (now that scoped exports include already-exported records):
+            "exportable_records": annotator_match,
+            "annotator_id_mismatch_records": annotator_mismatch,
+        }
+
+    def reattribute_contributor(
+        self, *, source_user: Dict[str, Any], target_user: Dict[str, Any],
+        deactivate_source: bool = True,
+    ) -> Dict[str, Any]:
+        """Move every submission, packaged record, and independent-answer commit
+        from ``source_user`` to ``target_user`` and rewrite the annotator
+        provenance (hashed id + credential attributes) on both the submissions and
+        the shipped records, so a contributor-scoped export of the target now
+        includes this work. Optionally deactivates the now-empty source account.
+
+        Atomic (single transaction). Returns a summary of what changed."""
+        source_id = source_user["id"]
+        target_id = target_user["id"]
+        if source_id == target_id:
+            raise ValueError("source and target are the same account")
+        block = self.annotator_block(target_user)
+        # The exact provenance fields packaging stamps onto every record.
+        prov_patch = {
+            "annotator_id_hashed": block.get("id_hashed"),
+            "annotator_credential": block.get("credentials"),
+            "annotator_specialty": block.get("specialty"),
+            "annotator_years_experience": block.get("years_experience"),
+        }
+        with self._conn() as conn:
+            submission_ids = [
+                r["submission_id"]
+                for r in conn.execute(
+                    "SELECT submission_id FROM submissions WHERE evaluator_id = ?", (source_id,)
+                ).fetchall()
+            ]
+            records_rewritten = 0
+            for sid in submission_ids:
+                for rec in conn.execute(
+                    "SELECT record_id, payload_json FROM records WHERE submission_id = ?", (sid,)
+                ).fetchall():
+                    payload = json.loads(rec["payload_json"] or "{}")
+                    payload.update(prov_patch)
+                    conn.execute(
+                        "UPDATE records SET payload_json = ? WHERE record_id = ?",
+                        (json.dumps(payload), rec["record_id"]),
+                    )
+                    records_rewritten += 1
+            conn.execute(
+                "UPDATE submissions SET evaluator_id = ?, annotator_json = ? WHERE evaluator_id = ?",
+                (target_id, json.dumps(block), source_id),
+            )
+            # PK is (task_id, evaluator_id); OR IGNORE skips a commit the target
+            # already has for the same task (the source row is simply left behind).
+            conn.execute(
+                "UPDATE OR IGNORE independent_commits SET evaluator_id = ? WHERE evaluator_id = ?",
+                (target_id, source_id),
+            )
+            if deactivate_source:
+                conn.execute("UPDATE users SET active = 0 WHERE id = ?", (source_id,))
+        return {
+            "source_email": source_user.get("email"),
+            "target_email": target_user.get("email"),
+            "submissions_moved": len(submission_ids),
+            "records_rewritten": records_rewritten,
+            "target_id_hashed": block.get("id_hashed"),
+            "source_deactivated": bool(deactivate_source),
+        }
+
     # ─── Inter-annotator agreement observations (opt §1.3) ───────────────────
     def upsert_agreement(
         self, *, task_id: str, specialty: Optional[str], sub_a: str, sub_b: str,

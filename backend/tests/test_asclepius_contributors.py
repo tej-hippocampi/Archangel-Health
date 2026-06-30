@@ -368,6 +368,60 @@ def test_org_export_rerunnable_after_org_export():
     assert contrib_exp.json()["record_count"] >= 1
 
 
+def test_contributor_diagnostics_reports_exportable_records():
+    admin_h = _admin_h()
+    user = _make_contributor()
+    _submit_export_ready(admin_h, A.headers_for(user))
+    diag = _store().contributor_record_diagnostics(user)
+    assert diag["records_total"] >= 1
+    assert diag["exportable_records"] == diag["records_total"]
+    assert diag["annotator_id_mismatch_records"] == 0
+
+
+def test_reattribute_moves_work_and_makes_target_exportable():
+    """Folding a stray account's labelled work into the canonical account moves
+    the submissions + records, rewrites the hashed-annotator provenance, and the
+    target's contributor export now ships those records (source is deactivated)."""
+    admin_h = _admin_h()
+    store = _store()
+    stray = _make_contributor(org="Northridge Nephrology")
+    canonical = _make_contributor(org="Northridge Nephrology")
+    _submit_export_ready(admin_h, A.headers_for(stray))
+
+    # Target has nothing of its own yet → its export is empty.
+    empty = client.post(
+        f"/api/asclepius/contributors/{canonical['id_hashed']}/export",
+        json={"profile": "default"}, headers=admin_h,
+    )
+    assert empty.status_code == 400
+
+    summary = store.reattribute_contributor(source_user=stray, target_user=canonical)
+    assert summary["submissions_moved"] >= 1
+    assert summary["records_rewritten"] >= 1
+    assert summary["source_deactivated"] is True
+
+    # The records now carry the TARGET's hashed-annotator id and export under it.
+    diag = store.contributor_record_diagnostics(canonical)
+    assert diag["exportable_records"] == summary["records_rewritten"]
+    assert diag["annotator_id_mismatch_records"] == 0
+    assert store.get_user_by_email(stray["email"])["active"] == 0
+
+    moved = client.post(
+        f"/api/asclepius/contributors/{canonical['id_hashed']}/export",
+        json={"profile": "default"}, headers=admin_h,
+    )
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["record_count"] == summary["records_rewritten"]
+    assert moved.json()["filters"]["annotator_id_hashed"] == canonical["id_hashed"]
+
+    # And nothing leaks back out under the old (now-empty) source account.
+    gone = client.post(
+        f"/api/asclepius/contributors/{stray['id_hashed']}/export",
+        json={"profile": "default"}, headers=admin_h,
+    )
+    assert gone.status_code == 400
+
+
 # ─── Tier B leak gate (hard guardrail) ────────────────────────────────────────
 def test_tier_b_leak_gate_blocks_export(tmp_path, monkeypatch):
     # A misconfigured buyer profile that maps a record field to a Tier B key name
