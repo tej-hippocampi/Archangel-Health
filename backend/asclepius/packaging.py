@@ -189,11 +189,13 @@ def _chat(prompt: str, completion: str) -> List[Dict[str, str]]:
 
 
 def _independent_kind(task: Dict[str, Any], ia: Dict[str, Any]) -> str:
-    """Stage-2 capture kind (Speed Optimization §1). The reveal endpoint stamps
-    ``kind`` from the task's ``independent_mode`` server-side; fall back to the
-    task mode (then the default) for direct API clients / legacy payloads."""
-    kind = ia.get("kind") or task.get("independent_mode") or "stance"
-    return kind if kind in ("stance", "full") else "stance"
+    """Stage-2 capture kind (Speed Optimization §1). The TASK's mode is
+    authoritative — a client-supplied ``kind`` can never upgrade a stance-mode
+    capture into a "premium blind ideal" record (that field is only consulted
+    for legacy task dicts that predate the ``independent_mode`` column)."""
+    from asclepius.constants import normalize_independent_mode
+
+    return normalize_independent_mode(task.get("independent_mode") or ia.get("kind"))
 
 
 def _assist_block(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:

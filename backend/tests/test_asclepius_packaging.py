@@ -427,3 +427,18 @@ def test_no_assist_block_when_not_prelabeled():
     }
     recs = package_submission(_task(), _submission(payload))
     assert [r for r in recs if r["type"] == "preference"][0]["assist"] is None
+
+
+def test_client_kind_cannot_upgrade_stance_to_blind_gold():
+    """Guardrail: the TASK's independent_mode is authoritative — a client-supplied
+    kind='full' on a stance-mode task must never mint an ``independent: true``
+    premium record from a (potentially post-reveal) answer."""
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "independent_answer": {"text": "Copied from revealed answer A.", "kind": "full"},
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+    }
+    recs = package_submission(_task(independent_mode="stance"), _submission(payload))
+    assert not any(r.get("independent") for r in recs)
+    assert [r for r in recs if r["type"] == "preference"][0]["stance"] == "Copied from revealed answer A."

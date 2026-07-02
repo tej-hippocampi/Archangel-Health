@@ -273,11 +273,16 @@ def validate_submission(
         issues.append("too_fast")
 
     # 3b. assist time-floor guard (Speed Optimization §2): confirming a
-    # pre-labeled task implausibly fast smells like rubber-stamping the model's
-    # suggestions — route to QA for a human look, never hard-reject.
-    if (payload.get("assist") or {}).get("prelabeled"):
-        if int(submission.get("time_spent_sec") or 0) < assist_time_floor_sec():
-            issues.append("assist_too_fast")
+    # model-assisted task implausibly fast smells like rubber-stamping the
+    # suggestions — route to QA for a human look, never hard-reject. "Assisted"
+    # is derived from the payload itself (a prelabel block OR any pre-graded
+    # step), not just the client's self-declared flag, so a pregrade-only
+    # bulk-confirm can't slip under the base floor.
+    assisted = bool((payload.get("assist") or {}).get("prelabeled")) or any(
+        s.get("suggested_label") for s in _reasoning_steps(payload, verdict)
+    )
+    if assisted and int(submission.get("time_spent_sec") or 0) < assist_time_floor_sec():
+        issues.append("assist_too_fast")
 
     # 4. defensive PHI scan over prompt + every emitted text field
     scan_targets: List[Optional[str]] = [task.get("prompt")]
@@ -285,13 +290,17 @@ def validate_submission(
         scan_targets.append(c.get("text"))
     for r in records:
         # ``stance`` (Speed Optimization §1) is free text the doctor typed/dictated
-        # pre-reveal — scan it like every other emitted text field.
+        # pre-reveal — scan it like every other emitted text field. The assist
+        # block's suggested rationale is also emitted text (client-supplied on the
+        # wire), so it gets the same treatment.
         scan_targets.extend([r.get("chosen"), r.get("rejected"), r.get("ideal_answer"),
-                             r.get("rationale"), r.get("stance")])
+                             r.get("rationale"), r.get("stance"),
+                             (r.get("assist") or {}).get("suggested_rationale")])
         for step in r.get("steps") or []:
-            # Scan both the step text AND its free-text critique (Eval Flow Upgrade
-            # §4) — a critique can carry PHI just like the step body.
-            scan_targets.extend([step.get("text"), step.get("critique")])
+            # Scan both the step text AND its free-text critiques (Eval Flow Upgrade
+            # §4 / Speed Optimization §2) — critiques can carry PHI like the body.
+            scan_targets.extend([step.get("text"), step.get("critique"),
+                                 step.get("suggested_critique")])
     # A PHI scanner must always be available; a missing scanner is a validation
     # FAILURE, never a silent pass (BLOCKER 3).
     if not PHI_SCANNER:

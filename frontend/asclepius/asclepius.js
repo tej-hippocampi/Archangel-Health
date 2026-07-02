@@ -36,8 +36,9 @@
     baseElapsed: 0,
     timerInterval: null,
     submitting: false,
-    assistLoading: false,  // /assist/prelabel fetch in flight
-    showFullText: false,   // compare view: full text vs highlighted diff
+    assistLoadingFor: null, // task_id of the /assist/prelabel fetch in flight
+    assistFailedFor: null,  // task_id whose assist fetch failed (retry next load)
+    showFullText: false,    // compare view: full text vs highlighted diff
   };
 
   // ─── Tiny DOM helper ───────────────────────────────────────────────────────
@@ -597,30 +598,47 @@
     const a = state.draft && state.draft.assist;
     return (a && a.fetched && !a.skipped && a.suggested_weaker) ? a : null;
   }
+  function persistDraft(d) {
+    try { localStorage.setItem(draftKey(d.task_id), JSON.stringify(d)); } catch (e) { /* ignore quota */ }
+  }
   async function loadAssist() {
     const d = state.draft;
     if (!d || d.stage !== 'compare') return;
-    if ((d.assist && d.assist.fetched) || state.assistLoading) { renderAssistUI(); return; }
-    state.assistLoading = true;
+    // Only a SUCCESSFUL response (including a server-side "skipped" degrade) is
+    // cached on the draft; a transient failure (network blip, restart, 5xx) is
+    // remembered in memory only, so the next page load retries instead of the
+    // feature staying silently dead for the rest of the task.
+    if ((d.assist && d.assist.fetched) || state.assistLoadingFor === d.task_id
+        || state.assistFailedFor === d.task_id) { renderAssistUI(); return; }
+    state.assistLoadingFor = d.task_id;
     try {
       const res = await api('/assist/prelabel', { method: 'POST', body: { task_id: d.task_id } });
       d.assist = Object.assign({ fetched: true }, res);
+      // The LLM call can take seconds — the doctor may already be on another
+      // task. Persist the result onto the draft it belongs to, and only touch
+      // the live UI when that task is still the one on screen.
+      persistDraft(d);
+      if (state.draft === d) renderAssistUI();
     } catch (e) {
-      // Graceful: no suggestions — the doctor labels manually (never an error).
-      d.assist = { fetched: true, skipped: true };
+      state.assistFailedFor = d.task_id;
     } finally {
-      state.assistLoading = false;
+      if (state.assistLoadingFor === d.task_id) state.assistLoadingFor = null;
     }
-    saveDraft();
-    renderAssistUI();
   }
-  // Surface freshly-arrived suggestions without stealing focus: update the
-  // verdict hint + answer highlighting in place; re-render the rationale cards
-  // only (they hold the suggested chips) when a verdict is already selected.
+  // Surface freshly-arrived suggestions: update the verdict hint, then the
+  // answer highlighting + rationale cards only when there is actually a
+  // suggestion to show — and never while the doctor is typing in the rationale
+  // (a rebuild would steal focus mid-keystroke; the chips appear on the next
+  // natural re-render instead).
   function renderAssistUI() {
     renderAssistHint();
+    if (!assistData()) return;
     renderAnswersInto(document.getElementById('ascAnswers'));
-    if (state.draft && state.draft.verdict) renderRationale();
+    const active = document.activeElement;
+    const rationale = document.getElementById('ascRationale');
+    const typing = active && rationale && rationale.contains(active)
+      && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT');
+    if (state.draft && state.draft.verdict && !typing) renderRationale();
   }
   function renderAssistHint() {
     const el = document.getElementById('ascAssistHint');
@@ -706,12 +724,29 @@
   }
 
   // ─── Sentence-level diff (Speed Optimization §3, dependency-free) ───────────
+  // Character-exact split: concatenating the result reproduces the input, so
+  // the rendered answer never differs from the real candidate text. A '.'
+  // between two digits is a decimal (e.g. "K+ 1.0"), NOT a boundary — otherwise
+  // dosing error-spans could never match inside a single sentence.
   function splitSentences(text) {
+    const t = text || '';
     const out = [];
-    const re = /[^.!?\n]+[.!?]*[\s\n]*/g;
-    let m;
-    while ((m = re.exec(text || '')) !== null) { if (m[0]) out.push(m[0]); }
-    return out.length ? out : (text ? [text] : []);
+    let cur = '';
+    for (let i = 0; i < t.length; i++) {
+      const ch = t[i];
+      cur += ch;
+      if (ch === '\n') { out.push(cur); cur = ''; continue; }
+      if (ch === '.' || ch === '!' || ch === '?') {
+        const prev = t[i - 1], next = t[i + 1];
+        const isDecimal = ch === '.' && prev >= '0' && prev <= '9' && next >= '0' && next <= '9';
+        if (!isDecimal && (next === undefined || next === ' ' || next === '\t' || next === '\n')) {
+          while (i + 1 < t.length && (t[i + 1] === ' ' || t[i + 1] === '\t')) cur += t[++i];
+          out.push(cur); cur = '';
+        }
+      }
+    }
+    if (cur) out.push(cur);
+    return out.length ? out : (t ? [t] : []);
   }
   function normSentence(s) {
     return (s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -740,29 +775,38 @@
     return { a: aShared, b: bShared, any };
   }
   function computeAnswerDiff() {
+    // Candidate texts are immutable for the life of a task — memoize the LCS
+    // so re-renders (toggle, assist arrival, verdict) don't repay the O(n*m) DP.
+    if (state._diffCacheTask === state.task.task_id) return state._diffCache;
     const cands = state.task.candidate_answers || [];
     const A = cands.find((c) => c.id === 'A'), B = cands.find((c) => c.id === 'B');
-    if (!A || !B || A.text == null || B.text == null) return null;
+    if (!A || !B || A.text == null || B.text == null) return null; // not cached: texts may still load
     const aS = splitSentences(A.text), bS = splitSentences(B.text);
     const flags = diffFlags(aS, bS);
-    if (!flags.any) return null; // fully divergent answers: dimming adds nothing
-    return { A: { sents: aS, shared: flags.a }, B: { sents: bS, shared: flags.b } };
+    // Fully divergent answers: dimming adds nothing (cache the null too).
+    const diff = flags.any ? { A: { sents: aS, shared: flags.a }, B: { sents: bS, shared: flags.b } } : null;
+    state._diffCacheTask = state.task.task_id;
+    state._diffCache = diff;
+    return diff;
   }
-  // Render one sentence, wrapping any model-suggested error span (Feature 2)
-  // occurring inside it in a highlight mark.
-  function sentenceNode(sentence, shared, errSpans) {
-    const cls = 'asc-diff-sent' + (shared ? ' asc-diff-shared' : ' asc-diff-changed');
-    const span = h('span', { class: cls });
-    let rest = sentence;
+  // Append text to a node, wrapping any model-suggested error span (Feature 2)
+  // occurring inside it in a highlight mark. Shared by the diff and plain views
+  // so error highlighting can never diverge between them.
+  function appendTextWithMarks(node, text, errSpans) {
+    let rest = text || '';
     for (const es of errSpans || []) {
       const idx = rest.indexOf(es);
       if (idx === -1) continue;
-      span.appendChild(document.createTextNode(rest.slice(0, idx)));
-      span.appendChild(h('mark', { class: 'asc-err-span', title: 'Model-flagged likely error region' }, es));
+      node.appendChild(document.createTextNode(rest.slice(0, idx)));
+      node.appendChild(h('mark', { class: 'asc-err-span', title: 'Model-flagged likely error region' }, es));
       rest = rest.slice(idx + es.length);
     }
-    span.appendChild(document.createTextNode(rest));
-    return span;
+    node.appendChild(document.createTextNode(rest));
+    return node;
+  }
+  function sentenceNode(sentence, shared, errSpans) {
+    const cls = 'asc-diff-sent' + (shared ? ' asc-diff-shared' : ' asc-diff-changed');
+    return appendTextWithMarks(h('span', { class: cls }), sentence, errSpans);
   }
   function renderAnswersInto(container) {
     if (!container) return;
@@ -979,22 +1023,6 @@
     renderTaskWorkspace();
   }
 
-  // Plain answer text with only the model-flagged error spans marked (used when
-  // sentence dimming adds nothing but the error highlight is still valuable).
-  function plainWithMarks(text, errSpans) {
-    const body = h('div', { class: 'asc-answer-body' });
-    let rest = text || '';
-    for (const es of errSpans || []) {
-      const idx = rest.indexOf(es);
-      if (idx === -1) continue;
-      body.appendChild(document.createTextNode(rest.slice(0, idx)));
-      body.appendChild(h('mark', { class: 'asc-err-span', title: 'Model-flagged likely error region' }, es));
-      rest = rest.slice(idx + es.length);
-    }
-    body.appendChild(document.createTextNode(rest));
-    return body;
-  }
-
   function renderAnswerCard(c, diff, assist) {
     // Error spans (from the prelabel suggestion) only ever highlight inside the
     // suggested-weaker answer — and never in full-text mode (nothing decorated).
@@ -1005,7 +1033,8 @@
       body = h('div', { class: 'asc-answer-body asc-answer-diff' });
       diff[c.id].sents.forEach((s, i) => body.appendChild(sentenceNode(s, diff[c.id].shared[i], errSpans)));
     } else if (errSpans.length) {
-      body = plainWithMarks(c.text || '', errSpans);
+      // No usable sentence diff, but the error highlight is still valuable.
+      body = appendTextWithMarks(h('div', { class: 'asc-answer-body' }), c.text || '', errSpans);
     } else {
       body = h('div', { class: 'asc-answer-body' }, c.text || '');
     }
@@ -1151,7 +1180,7 @@
       renderTagReasons(reasonContainer);
       renderSeverities(sevContainer);
       renderTagAnchors(anchorContainer);
-      renderTagSuggestions(suggestContainer, chips);
+      renderTagSuggestions(suggestContainer);
     }, 'err');
 
     const whyWorse = h('input', { class: 'asc-input', placeholder: 'One line on the key problem (optional)…', value: crit.why_worse || '' });
@@ -1173,7 +1202,7 @@
           discloseToggle('+ cite specific errors', anchorContainer)),
         anchorContainer,
       ));
-    renderTagSuggestions(suggestContainer, chips);
+    renderTagSuggestions(suggestContainer);
     renderTagReasons(reasonContainer);
     renderSeverities(sevContainer);
     renderTagAnchors(anchorContainer, true);
@@ -1184,7 +1213,9 @@
   // rendered as visually-distinct "Suggested — tap to accept" chips. NOTHING is
   // applied without an explicit tap; accepted values land in the normal editable
   // fields. Suggestions only show on the model's suggested-weaker side.
-  function renderTagSuggestions(container, chipsEl) {
+  // Accepting mutates the draft and re-renders the rationale from state (the
+  // renderers own the DOM — no hand-syncing of chip rows or inputs).
+  function renderTagSuggestions(container) {
     if (!container) return;
     clear(container);
     const a = assistData();
@@ -1205,14 +1236,7 @@
           onClick: () => {
             toggleInArray(crit.error_tags, tag, true);
             saveDraft();
-            // sync the real chip row + dependent sections without a full re-render
-            if (chipsEl) Array.from(chipsEl.children).forEach((c) => {
-              if (c.textContent === tag.replace(/_/g, ' ')) c.classList.add('active');
-            });
-            renderTagReasons(document.getElementById('ascTagReasons'));
-            renderSeverities(document.getElementById('ascSeverities'));
-            renderTagAnchors(document.getElementById('ascTagAnchors'));
-            renderTagSuggestions(container, chipsEl);
+            renderRationale();
           },
         }, '+ ' + tag.replace(/_/g, ' ')));
       });
@@ -1224,41 +1248,38 @@
         h('button', {
           class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
           onClick: () => {
-            state.draft.rejected_critique.why_worse = a.suggested_rationale;
+            crit.why_worse = a.suggested_rationale;
             saveDraft();
-            const input = container.parentElement && container.parentElement.querySelector('.asc-input');
-            if (input) input.value = a.suggested_rationale;
-            renderTagSuggestions(container, chipsEl);
+            renderRationale();
           },
         }, 'Use as “why it’s worse”')));
     }
     container.appendChild(box);
   }
 
-  // Structured-first capture (Speed Optimization §6): one-tap reason chips per
-  // selected error tag (controlled vocabulary), persisted as error_tag_reasons.
-  function renderTagReasons(container) {
+  // Shared per-error-tag single-select pill rows (used by severities AND the
+  // structured reason chips): one row per selected tag, tap toggles the value
+  // in ``dict``, re-rendering only its own container.
+  function renderPerTagPills(container, opts) {
     if (!container) return;
     clear(container);
     const crit = state.draft.rejected_critique;
-    if (!crit.error_tags.length) return;
-    const reasons = (state.taxonomy.error_tag_reasons
-      || ['dose_too_high', 'contraindicated', 'outdated_threshold', 'misreads_labs', 'wrong_order', 'unsafe']);
+    if (!crit.error_tags.length || !(opts.options || []).length) return;
     const wrap = h('div', { class: 'asc-field' },
-      h('label', { class: 'asc-label' }, 'Why, per error ', h('span', { class: 'asc-label-hint' }, '(one tap — optional)')));
+      h('label', { class: 'asc-label' }, opts.label + ' ', h('span', { class: 'asc-label-hint' }, opts.hint)));
     crit.error_tags.forEach((tag) => {
-      const pills = h('div', { class: 'asc-sev-pills asc-reason-pills' });
-      reasons.forEach((r) => {
+      const pills = h('div', { class: 'asc-sev-pills' + (opts.pillsClass ? ' ' + opts.pillsClass : '') });
+      opts.options.forEach((val) => {
         pills.appendChild(h('button', {
-          class: 'asc-sev-pill' + (crit.error_tag_reasons[tag] === r ? ' active' : ''),
+          class: 'asc-sev-pill' + (opts.dict[tag] === val ? ' active' : ''),
           type: 'button',
           onClick: () => {
-            if (crit.error_tag_reasons[tag] === r) delete crit.error_tag_reasons[tag];
-            else crit.error_tag_reasons[tag] = r;
+            if (opts.dict[tag] === val) delete opts.dict[tag];
+            else opts.dict[tag] = val;
             saveDraft();
-            renderTagReasons(container);
+            renderPerTagPills(container, opts);
           },
-        }, r.replace(/_/g, ' ')));
+        }, val.replace(/_/g, ' ')));
       });
       wrap.appendChild(h('div', { class: 'asc-sev-row' },
         h('span', { class: 'asc-sev-name' }, tag.replace(/_/g, ' ')), pills));
@@ -1266,31 +1287,26 @@
     container.appendChild(wrap);
   }
 
-  function renderSeverities(container) {
-    clear(container);
-    const crit = state.draft.rejected_critique;
-    if (!crit.error_tags.length) return;
-    const sevs = (state.taxonomy.error_severities || ['low', 'medium', 'high']);
-    const wrap = h('div', { class: 'asc-field' },
-      h('label', { class: 'asc-label' }, 'Severity per error ', h('span', { class: 'asc-label-hint' }, '(optional)')));
-    crit.error_tags.forEach((tag) => {
-      const pills = h('div', { class: 'asc-sev-pills' });
-      sevs.forEach((sev) => {
-        pills.appendChild(h('button', {
-          class: 'asc-sev-pill' + (crit.severities[tag] === sev ? ' active' : ''),
-          type: 'button',
-          onClick: (e) => {
-            if (crit.severities[tag] === sev) delete crit.severities[tag];
-            else crit.severities[tag] = sev;
-            saveDraft();
-            renderSeverities(container);
-          },
-        }, sev));
-      });
-      wrap.appendChild(h('div', { class: 'asc-sev-row' },
-        h('span', { class: 'asc-sev-name' }, tag.replace(/_/g, ' ')), pills));
+  // Structured-first capture (Speed Optimization §6): one-tap reason chips per
+  // selected error tag. The vocabulary comes from the server taxonomy only —
+  // a local copy would drift from what validation accepts.
+  function renderTagReasons(container) {
+    renderPerTagPills(container, {
+      label: 'Why, per error',
+      hint: '(one tap — optional)',
+      options: state.taxonomy.error_tag_reasons || [],
+      dict: state.draft.rejected_critique.error_tag_reasons,
+      pillsClass: 'asc-reason-pills',
     });
-    container.appendChild(wrap);
+  }
+
+  function renderSeverities(container) {
+    renderPerTagPills(container, {
+      label: 'Severity per error',
+      hint: '(optional)',
+      options: (state.taxonomy.error_severities || ['low', 'medium', 'high']),
+      dict: state.draft.rejected_critique.severities,
+    });
   }
 
   function renderTagAnchors(container, keepHidden) {
@@ -1359,6 +1375,19 @@
     s.added = true; s.label = 'good'; s.step_reward = 1;
     return s;
   }
+  // The single definition of what "confirmed good" / "back to pending" means
+  // for a step — used by the per-step button (expanded + collapsed) AND the
+  // bulk "Confirm all correct" action, so every confirm path emits an
+  // identical record shape.
+  function setStepConfirmed(s, on) {
+    if (on) {
+      s.confirmed = true; s.corrected = false; s.correction_reason = null;
+      s.label = 'good'; s.step_reward = 1; s.critique = '';
+    } else {
+      s.confirmed = false; s.label = null; s.step_reward = null;
+    }
+  }
+
   // The chosen/refined answer text to split into steps (chosen path only).
   function chosenRefinedText() {
     const rev = state.draft.chosen_revision;
@@ -1463,12 +1492,7 @@
         h('button', {
           class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
           onClick: () => {
-            steps.forEach((s) => {
-              if (isCollapsed(s) && !s.confirmed) {
-                s.confirmed = true; s.corrected = false; s.correction_reason = null;
-                s.label = 'good'; s.step_reward = 1; s.critique = '';
-              }
-            });
+            steps.forEach((s) => { if (isCollapsed(s) && !s.confirmed) setStepConfirmed(s, true); });
             saveDraft(); renderStepsList(listId); updateSubmitState();
           },
         }, '✓ Confirm all correct')));
@@ -1493,11 +1517,7 @@
                 class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm' + (s.confirmed ? ' active' : ''),
                 type: 'button',
                 onClick: () => {
-                  if (s.confirmed) { s.confirmed = false; s.label = null; s.step_reward = null; }
-                  else {
-                    s.confirmed = true; s.corrected = false; s.correction_reason = null;
-                    s.label = 'good'; s.step_reward = 1; s.critique = '';
-                  }
+                  setStepConfirmed(s, !s.confirmed);
                   saveDraft(); renderStepsList(listId); updateSubmitState();
                 },
               }, s.confirmed ? '✓ Confirmed' : '✓ Correct as-is'),
@@ -1519,12 +1539,7 @@
       const confirmBtn = h('button', {
         class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm', type: 'button',
         onClick: () => {
-          if (s.confirmed) {
-            s.confirmed = false; s.label = null; s.step_reward = null;
-          } else {
-            s.confirmed = true; s.corrected = false; s.correction_reason = null;
-            s.label = 'good'; s.step_reward = 1; s.critique = '';
-          }
+          setStepConfirmed(s, !s.confirmed);
           // In-place update only — a full re-render here resets the scroll
           // position and bounces the page up between steps.
           saveDraft(); syncStepUI(); updateSubmitState();

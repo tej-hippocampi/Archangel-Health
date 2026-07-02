@@ -44,6 +44,12 @@ CONFIDENCE_LEVELS = ("low", "medium", "high")
 INDEPENDENT_MODES = ("stance", "full")
 DEFAULT_INDEPENDENT_MODE = "stance"
 
+
+def normalize_independent_mode(value):
+    """Coerce any input to a known independent mode (single source of truth —
+    store, packaging, and router all normalize through here)."""
+    return value if value in INDEPENDENT_MODES else DEFAULT_INDEPENDENT_MODE
+
 # Where the task (prompt + candidate answers) originated.
 TASK_SOURCES = ("lab_supplied", "internal_prompt_bank")
 

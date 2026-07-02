@@ -905,3 +905,31 @@ def test_transcribe_requires_auth():
     r = client.post("/api/asclepius/transcribe",
                     files={"file": ("d.webm", b"x", "audio/webm")})
     assert r.status_code == 401
+
+
+def test_prelabel_gate_is_unconditional_even_with_withholding_off(monkeypatch):
+    """The prelabel suggestion describes the answers, so the independent-commit
+    gate applies even in v1 mode (ASCLEPIUS_WITHHOLD_ANSWERS=0)."""
+    monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "0")
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(A.headers_for(_admin()))
+    blocked = client.post("/api/asclepius/assist/prelabel", json={"task_id": tid}, headers=ev_h)
+    assert blocked.status_code == 403
+    assert blocked.json()["detail"]["error"] == "independent_answer_required"
+
+
+def test_buyer_request_independent_mode_constraint_applies_to_batch():
+    """A premium/eval buyer request with independent_mode='full' produces
+    full-mode tasks without repeating the field on every prompt row."""
+    admin_h = A.headers_for(_admin())
+    buyer = client.post("/api/asclepius/buyers", json={"name": "Lab Z"}, headers=admin_h).json()
+    req = client.post("/api/asclepius/buyer-requests", json={
+        "buyer_id": buyer["buyer_id"], "source": "lab_supplied",
+        "independent_mode": "full",
+        "prompts": [_task_body()],
+    }, headers=admin_h).json()
+    batch = client.post(f"/api/asclepius/buyer-requests/{req['request_id']}/batch",
+                        json={}, headers=admin_h)
+    assert batch.status_code == 200, batch.text
+    tid = batch.json()["created"][0]
+    assert _store().get_task(tid)["independent_mode"] == "full"

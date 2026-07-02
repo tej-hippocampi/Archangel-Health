@@ -311,3 +311,37 @@ def test_stance_text_is_phi_scanned():
     res = validate_submission(task, sub, recs)
     assert any(i.startswith("phi:") for i in res["issues"])
     assert "email" in res["phi_kinds"]
+
+
+def test_pregrade_only_bulk_confirm_still_hits_assist_floor(monkeypatch):
+    """The assist floor is derived from the payload (pre-graded steps), not just
+    the client's self-declared assist block — a pregrade-only bulk-confirm can't
+    slip under the base floor by omitting the block."""
+    monkeypatch.setenv("ASCLEPIUS_ASSIST_TIME_FLOOR_SEC", "60")
+    payload = {
+        **_GOOD_PAYLOAD,
+        "reasoning_steps": [
+            {"step": 1, "text": "Give IV calcium", "original_text": "Give IV calcium",
+             "confirmed": True, "label": "good", "suggested_label": "good"},
+        ],
+    }
+    task = _task(capture_reasoning=True)
+    sub = _submission(payload)
+    sub["time_spent_sec"] = 30
+    res = validate_submission(task, sub, package_submission(task, sub))
+    assert "assist_too_fast" in res["issues"]
+
+
+def test_assist_suggested_rationale_is_phi_scanned():
+    """Client-supplied assist text ships on records — the defensive PHI scan
+    covers it like every other emitted field."""
+    payload = {
+        **_GOOD_PAYLOAD,
+        "assist": {"prelabeled": True, "suggested_verdict": "A_better",
+                   "suggested_error_tags": [],
+                   "suggested_rationale": "per chart contact jdoe@example.com"},
+    }
+    task, sub = _task(), _submission(payload)
+    recs = package_submission(task, sub)
+    res = validate_submission(task, sub, recs)
+    assert "email" in res["phi_kinds"]

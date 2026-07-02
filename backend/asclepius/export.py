@@ -132,6 +132,9 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `error_tags_on_rejected` | error taxonomy tags applied to the rejected answer |
 | `error_tag_anchors` | optional `{{error_tag: evidence_anchor}}` |
 | `error_severities` | optional per-tag severity (low/medium/high) |
+| `error_tag_reasons` | optional structured `{{error_tag: reason}}` from a controlled vocabulary (dose_too_high, contraindicated, …) |
+| `stance` | the evaluator's pre-reveal quick take (anchoring guard) — context signal, NOT a gold completion; null on full-blind-answer tasks |
+| `assist` | model-assist provenance `{{prelabeled, suggested_verdict, suggested_error_tags, suggested_rationale, suggested_step_labels, confidence}}` — suggestions shown to the annotator, stored next to the human finals for override-rate analysis; null when unassisted |
 | `confidence` | annotator confidence: low/medium/high |
 | `grounded` | true when the rationale carries a valid evidence anchor (premium tier) |
 | `agreement_score` | inter-annotator agreement (null if single-labeled) |
@@ -142,13 +145,15 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `prompt` | the clinical question / case |
 | `completion` | specialist ideal/revised answer (alias of `ideal_answer`; instruction/response on some profiles) |
 | `approach_notes` | how the specialist reasoned / why it is correct |
+| `independent` | true when written blind, BEFORE the A/B answers were revealed (uncontaminated premium SFT) |
+| `stance` | pre-reveal quick take (see preference) — never present together with `independent` |
 | `evidence_anchor` | optional grounding citation |
 
 ## type = "reasoning_trace" (PRM800K process reward model)
 | field | meaning |
 | --- | --- |
 | `prompt` | the clinical question / case |
-| `steps` | ordered `[{{step, text, label, step_reward, evidence_anchor}}]`; label ∈ good/neutral/bad |
+| `steps` | ordered `[{{step, text, label, suggested_label, step_reward, evidence_anchor}}]`; `label` ∈ good/neutral/bad is the HUMAN action; `suggested_label` is the model pre-grade shown to the annotator (null when unassisted) |
 | `final_answer` | the resulting answer |
 
 ## Provenance & rights (every record)

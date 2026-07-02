@@ -99,10 +99,11 @@ class TaskIn(BaseModel):
     max_labels: int = 1
     # Grounding Mode (opt §1.2): "optional" (default) | "required" (premium SKU).
     grounding_mode: str = "optional"
-    # Stage-2 capture mode (Speed Optimization, Feature 1): "stance" (default,
-    # quick pre-reveal take) | "full" (long-form blind ideal answer — premium/
-    # eval batches).
-    independent_mode: str = "stance"
+    # Stage-2 capture mode (Speed Optimization, Feature 1): "stance" (quick
+    # pre-reveal take) | "full" (long-form blind ideal answer — premium/eval
+    # batches). None → inherited from the batch/buyer-request constraint, else
+    # the global default (stance) at insert time.
+    independent_mode: Optional[str] = None
     # Links the task back to the buyer request that spawned it (opt §2.5).
     buyer_request_id: Optional[str] = None
 
@@ -128,6 +129,7 @@ class GenerationRequest(BaseModel):
     difficulty_mix: Optional[Dict[str, float]] = None
     capture_reasoning: bool = False
     grounding_mode: str = "optional"
+    independent_mode: str = "stance"
     max_labels: int = 1
     # Stamp generated tasks back to the buyer request that asked for them.
     buyer_request_id: Optional[str] = None
@@ -329,6 +331,8 @@ class BuyerRequestIn(BaseModel):
     difficulty: Optional[str] = None
     capture_reasoning: bool = False
     grounding_mode: str = "optional"
+    # Premium/eval buyers can request the full blind ideal answer (Speed Opt §1).
+    independent_mode: str = "stance"
     volume: Optional[int] = None
     max_labels: int = 1
     # Buyer-supplied prompts and/or A/B AI responses to grade (Mode B).

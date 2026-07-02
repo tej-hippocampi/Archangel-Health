@@ -290,7 +290,7 @@ async def upload_tasks(
             candidate_answers=[c.model_dump() for c in t.candidate_answers],
             max_labels=t.max_labels,
             grounding_mode=t.grounding_mode,
-            independent_mode=t.independent_mode,
+            independent_mode=t.independent_mode or DEFAULT_INDEPENDENT_MODE,
             buyer_request_id=t.buyer_request_id,
             created_by=admin["id"],
         )
@@ -430,6 +430,8 @@ async def generate_specialty_tasks(
     store = _store()
     if body.grounding_mode not in GROUNDING_MODES:
         raise HTTPException(status_code=400, detail="Invalid grounding_mode")
+    if body.independent_mode not in INDEPENDENT_MODES:
+        raise HTTPException(status_code=400, detail="Invalid independent_mode")
     try:
         result = await asc_generation.generate_tasks(
             store,
@@ -438,6 +440,7 @@ async def generate_specialty_tasks(
             difficulty_mix=body.difficulty_mix,
             capture_reasoning=body.capture_reasoning,
             grounding_mode=body.grounding_mode,
+            independent_mode=body.independent_mode,
             max_labels=body.max_labels,
             buyer_request_id=body.buyer_request_id,
             created_by=admin["id"],
@@ -695,13 +698,11 @@ async def reveal_task_answers(
     return {"answers": _task_answers(task), "committed": True}
 
 
-@router.get("/tasks/{task_id}/answers")
-async def get_task_answers(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
-    """Re-fetch the revealed candidate answer texts (Eval Flow Upgrade §1, v2 anti-
-    peeking) — e.g. on a mid-task refresh resuming into the compare stage. GATED:
-    returns text only to an evaluator who has already committed an independent
-    answer (POST /tasks/{id}/reveal). Texts are still blinded (no generator_model)."""
-    store = _store()
+def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
+    """The v2 anti-peeking gate, shared by every endpoint that describes the
+    candidate answers (answer re-fetch, prelabel suggestions): the evaluator
+    must have committed their blind independent capture first. One policy, one
+    place — a hardening change here covers every answer-describing surface."""
     task = store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -713,6 +714,16 @@ async def get_task_answers(task_id: str, user: Dict[str, Any] = Depends(asc_auth
                 "message": "Commit your independent answer (POST /tasks/{id}/reveal) before revealing the AI answers.",
             },
         )
+    return task
+
+
+@router.get("/tasks/{task_id}/answers")
+async def get_task_answers(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+    """Re-fetch the revealed candidate answer texts (Eval Flow Upgrade §1, v2 anti-
+    peeking) — e.g. on a mid-task refresh resuming into the compare stage. GATED:
+    returns text only to an evaluator who has already committed an independent
+    answer (POST /tasks/{id}/reveal). Texts are still blinded (no generator_model)."""
+    task = _require_independent_commit(_store(), task_id, user)
     return {"answers": _task_answers(task)}
 
 
@@ -938,18 +949,9 @@ async def assist_prelabel(
         works.
     """
     store = _store()
-    task = store.get_task(body.task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    if _withhold_answers() and not store.get_independent_commit(body.task_id, user["id"]):
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "independent_answer_required",
-                "message": "Commit your independent answer (POST /tasks/{id}/reveal) "
-                           "before requesting pre-label assistance.",
-            },
-        )
+    # Unconditional (even with withholding off): the suggestion names the weaker
+    # answer + error spans, so it must never exist before the blind commit.
+    task = _require_independent_commit(store, body.task_id, user)
     res = await run_prelabel(task)
     if res.get("skipped"):
         return {"skipped": True, "reason": res.get("error") or "assist_unavailable"}
@@ -1594,11 +1596,14 @@ async def create_buyer_request(
         raise HTTPException(status_code=400, detail="Invalid source")
     if body.grounding_mode not in GROUNDING_MODES:
         raise HTTPException(status_code=400, detail="Invalid grounding_mode")
+    if body.independent_mode not in INDEPENDENT_MODES:
+        raise HTTPException(status_code=400, detail="Invalid independent_mode")
     constraints = {
         "specialty": body.specialty,
         "difficulty": body.difficulty,
         "capture_reasoning": body.capture_reasoning,
         "grounding_mode": body.grounding_mode,
+        "independent_mode": body.independent_mode,
         "volume": body.volume,
         "max_labels": body.max_labels,
     }
@@ -1665,6 +1670,7 @@ async def batch_from_request(
     c = req.get("constraints") or {}
     source = req.get("source") or "internal_prompt_bank"
     grounding_mode = c.get("grounding_mode") or "optional"
+    independent_mode = c.get("independent_mode") or DEFAULT_INDEPENDENT_MODE
     capture_reasoning = bool(c.get("capture_reasoning"))
     difficulty = c.get("difficulty") or "medium"
     specialty = c.get("specialty") or "nephrology"
@@ -1687,7 +1693,7 @@ async def batch_from_request(
             candidate_answers=t.get("candidate_answers") or [],
             max_labels=int(t.get("max_labels") or max_labels),
             grounding_mode=t.get("grounding_mode") or grounding_mode,
-            independent_mode=t.get("independent_mode") or DEFAULT_INDEPENDENT_MODE,
+            independent_mode=t.get("independent_mode") or independent_mode,
             buyer_request_id=request_id,
             created_by=admin["id"],
         )
@@ -1705,6 +1711,7 @@ async def batch_from_request(
                 n=body.count,
                 capture_reasoning=capture_reasoning,
                 grounding_mode=grounding_mode,
+                independent_mode=independent_mode,
                 max_labels=max_labels,
                 buyer_request_id=request_id,
                 created_by=admin["id"],

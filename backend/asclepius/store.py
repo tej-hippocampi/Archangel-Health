@@ -370,6 +370,13 @@ class AsclepiusStore:
             if "independent_mode" not in task_cols:
                 # Speed Optimization §1: Stage-2 quick-stance vs full blind answer.
                 conn.execute("ALTER TABLE tasks ADD COLUMN independent_mode TEXT NOT NULL DEFAULT 'stance'")
+                # Behavior-preserving backfill: every task created BEFORE this
+                # feature ran under always-full semantics (any committed
+                # independent answer shipped as the blind ideal record), and
+                # in-flight reveal commits carry no ``kind``. Keeping those rows
+                # 'full' honors what evaluators already wrote; only tasks created
+                # from now on default to the quick stance.
+                conn.execute("UPDATE tasks SET independent_mode = 'full'")
 
             user_cols = cols("users")
             if "organization" not in user_cols:
@@ -558,9 +565,11 @@ class AsclepiusStore:
         task_id: Optional[str] = None,
         created_by: Optional[str] = None,
     ) -> Dict[str, Any]:
+        from asclepius.constants import normalize_independent_mode
+
         tid = task_id or _new_id("t")
         gm = grounding_mode if grounding_mode in ("optional", "required") else "optional"
-        im = independent_mode if independent_mode in ("stance", "full") else "stance"
+        im = normalize_independent_mode(independent_mode)
         with self._conn() as conn:
             conn.execute(
                 """
