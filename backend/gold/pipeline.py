@@ -68,7 +68,16 @@ async def _draft_note(transcript: str, *, visit_id: str) -> Dict[str, Any]:
     codes = parsed.get("suggested_codes") or []
     if not isinstance(codes, list):
         codes = []
-    return {"note_text": note_text, "suggested_codes": codes}
+    # Expose the pre-sectioned SOAP draft (B8.1) so the review UI renders one
+    # card per section without re-splitting a string. Only the four canonical
+    # sections, each a plain string.
+    sections: Dict[str, str] = {}
+    if isinstance(note, dict):
+        for key in ("subjective", "objective", "assessment", "plan"):
+            val = note.get(key)
+            if isinstance(val, str) and val.strip():
+                sections[key] = val.strip()
+    return {"note_text": note_text, "suggested_codes": codes, "sections": sections}
 
 
 def _join_sections(note: Dict[str, Any]) -> str:
@@ -109,9 +118,11 @@ async def run_draft_pipeline(visit_id: str, audio_path: str, mime_type: str) -> 
 
         _emit(visit_id, "status", stage="DRAFTING", message="Generating draft note…")
         draft = await _draft_note(transcript.text, visit_id=visit_id)
+        sections = draft.get("sections") or {}
         store.update_visit(
             visit_id,
             ai_draft_note=draft["note_text"],
+            ai_draft_sections=(json.dumps(sections) if sections else None),
             suggested_codes=draft["suggested_codes"],
             status=store.ST_NEEDS_REVIEW,
         )

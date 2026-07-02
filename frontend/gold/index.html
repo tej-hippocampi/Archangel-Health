@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gold Standard — Clinical Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/gold/gold.css" />
+</head>
+<body class="gs-body">
+  <header class="gs-header" id="gsHeader" hidden>
+    <div class="gs-header-inner">
+      <a class="gs-logo" href="/gold">
+        <span class="gs-logo-mark" aria-hidden="true">🥇</span>
+        <span class="gs-logo-text">Gold Standard<span class="gs-logo-sub">Clinical Review</span></span>
+      </a>
+      <nav class="gs-nav" id="gsNav" aria-label="Primary"></nav>
+      <div class="gs-header-right">
+        <div class="gs-user-badge" id="gsUserBadge"></div>
+        <a class="gs-btn gs-btn-ghost gs-btn-sm" href="/doctor/app">← Portal</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="gs-main" id="gsRoot" aria-live="polite">
+    <div class="gs-loading-screen">
+      <div class="gs-spinner"></div>
+      <p>Loading Gold Standard…</p>
+    </div>
+  </main>
+
+  <div class="gs-toast-region" id="gsToasts" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="/static/gold/gold.js" defer></script>
+</body>
+</html>

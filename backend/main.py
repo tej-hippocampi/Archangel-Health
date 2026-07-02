@@ -2402,6 +2402,22 @@ async def asclepius_portal():
         return HTMLResponse(content=f.read())
 
 
+@app.get("/gold", response_class=HTMLResponse)
+async def gold_portal():
+    """Gold Standard — clinical conversation review portal (Data Training tab).
+
+    The HTML shell is served unauthenticated by design (like /doctor and
+    /asclepius); the page JS reuses the doctor-portal JWT and gates on it. Static
+    assets load from /static/gold/. Reached from the doctor portal's Data
+    Training tab. Clinical text shown to the reviewing surgeon is their own
+    visit's; de-id runs server-side after submit."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/gold/index.html")
+    if not os.path.exists(html_path):
+        raise HTTPException(status_code=404, detail="Gold Standard page not deployed")
+    with open(html_path) as f:
+        return HTMLResponse(content=f.read())
+
+
 @app.get("/doctor")
 async def doctor_portal_legacy_path(request: Request):
     """Bookmarks to /doctor land on sign-in; dashboard is /doctor/app."""

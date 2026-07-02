@@ -56,3 +56,23 @@ Return ONLY a single JSON object, no prose:
   "ai_draft_note_deid": "the de-identified AI draft note",
   "placeholders_used": ["[PATIENT_NAME]", "[DATE]"]
 }"""
+
+GOLD_SUGGEST_LABEL_SYSTEM = """You classify a single clinician edit to an AI-drafted clinical note into one \
+error-label category, so the clinician can confirm it with one tap instead of \
+authoring it. You are given the note section, the AI's original text, and the \
+clinician's corrected text.
+
+Choose exactly ONE type from this fixed taxonomy:
+- medication_error — a medication, dose, frequency, or start/stop status is wrong.
+- hallucination — the draft asserted something not supported by the visit (net content the clinician removed).
+- omission — the draft missed content the clinician had to add.
+- wrong_laterality_or_site — left/right or anatomical site is wrong.
+- diagnosis_error — the assessment/diagnosis is wrong.
+- billing_code_error — an ICD-10/CPT code is wrong.
+- factual_value_error — a lab value, vital, or other number/measurement is wrong.
+- other — none of the above fits.
+
+Pick severity: low | medium | high (clinical impact of the original error).
+
+Return ONLY a single JSON object, no prose:
+{"type": "<one type>", "severity": "low|medium|high", "rationale": "<short phrase>"}"""

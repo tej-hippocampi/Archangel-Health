@@ -435,6 +435,11 @@
           <span class="icon">🏥</span> Health Systems
         </button>
 
+        <div class="nav-label">Data Training</div>
+        <button class="nav-item" data-tab="gold-standard">
+          <span class="icon">🥇</span> Gold Standard
+        </button>
+
         <div class="nav-label">Tools</div>
         <button class="nav-item" data-tab="prompt-lab">
           <span class="icon">⚗️</span> Prompt Lab
@@ -562,6 +567,26 @@
               <h3>All health systems</h3>
             </div>
             <div id="hs-table-wrap"><div class="empty-table">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gold Standard (Data Training) Tab -->
+      <div class="tab-page" id="tab-gold-standard">
+        <div class="page-header">
+          <div>
+            <h2>Gold Standard <span class="badge" style="background:#fffbeb;color:#b7791f;border:1px solid #fcd34d;">Data Training</span></h2>
+            <p>Clinical conversation records captured through the Gold Standard product, across all tenants. Metadata only — no PHI is shown here.</p>
+          </div>
+          <button class="refresh-btn" type="button" id="gold-refresh-btn">↺ Refresh</button>
+        </div>
+        <div class="stats-body">
+          <div id="gold-stats-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;"></div>
+          <div class="data-section">
+            <div class="data-section-header">
+              <h3>Records</h3>
+            </div>
+            <div id="gold-table-wrap"><div class="empty-table">Loading…</div></div>
           </div>
         </div>
       </div>
@@ -1069,8 +1094,76 @@
       if (btn.dataset.tab === 'demo-credentials' && !demoCredsLoaded) {
         loadDemoCredentials();
       }
+      if (btn.dataset.tab === 'gold-standard') {
+        loadGoldStandard();
+      }
     });
   });
+
+  // ── Gold Standard (Data Training) ─────────────────────────────
+  const GOLD_STATUS_BADGE = {
+    NEEDS_REVIEW: '#eff6ff|#2563eb', DRAFTING: '#f1f5f9|#64748b',
+    DEIDENTIFYING: '#fef3c7|#b45309', NEEDS_QA: '#fef3c7|#b45309',
+    EXPORT_READY: '#f0fdf4|#15803d', EXPORTED: '#f0fdf4|#15803d',
+    CAPTURING: '#f1f5f9|#64748b', CONSENT_DECLINED: '#f1f5f9|#94a3b8', ERROR: '#fee2e2|#b91c1c',
+  };
+  function goldBadge(status, label) {
+    const c = (GOLD_STATUS_BADGE[status] || '#f1f5f9|#64748b').split('|');
+    return `<span class="badge" style="background:${c[0]};color:${c[1]};">${esc(label || status)}</span>`;
+  }
+  async function loadGoldStandard() {
+    const statsRow = document.getElementById('gold-stats-row');
+    const wrap = document.getElementById('gold-table-wrap');
+    wrap.innerHTML = '<div class="empty-table">Loading…</div>';
+    try {
+      const res = await fetch('/admin/gold/records', { headers: authHeaders() });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data.available === false) {
+        statsRow.innerHTML = '';
+        wrap.innerHTML = '<div class="empty-table">The Gold Standard product is not enabled on this deployment.</div>';
+        return;
+      }
+      const q = data.queues || {}, tot = data.totals || {};
+      const tiles = [
+        ['Captured', tot.captured || 0], ['Needs review', q.needs_review || 0],
+        ['Needs QA', q.needs_qa || 0], ['Export-ready', q.export_ready || 0],
+        ['Exported', tot.exported || 0], ['Declined', tot.declined || 0],
+      ];
+      statsRow.innerHTML = tiles.map(t => `
+        <div class="data-section" style="padding:14px 16px;">
+          <div style="font-size:1.6rem;font-weight:800;">${esc(t[1])}</div>
+          <div style="font-size:0.75rem;color:var(--gray-500);font-weight:600;">${esc(t[0])}</div>
+        </div>`).join('');
+      const rows = data.records || [];
+      if (!rows.length) { wrap.innerHTML = '<div class="empty-table">No Gold Standard records yet.</div>'; return; }
+      wrap.innerHTML = `
+        <table>
+          <thead><tr>
+            <th>Record ID</th><th>Source</th><th>Tenant</th><th>Specialty</th><th>Status</th>
+            <th>Labels</th><th>Review&nbsp;s</th><th>QA</th><th>Exported</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td style="font-family:monospace;font-size:0.78rem;">${esc(r.record_id)}</td>
+                <td><span class="badge" style="background:#fffbeb;color:#b7791f;border:1px solid #fcd34d;">Gold Standard</span></td>
+                <td>${esc(r.tenant_slug || '—')}</td>
+                <td>${esc(r.specialty || '—')}</td>
+                <td>${goldBadge(r.status, r.status_label)}</td>
+                <td>${esc(r.error_label_count ?? 0)}</td>
+                <td>${esc(r.clinician_review_seconds ?? '—')}</td>
+                <td>${r.verified_by_operator ? '✓' : '—'}</td>
+                <td>${r.exported_at ? esc((r.exported_at || '').slice(0,10)) : '—'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+    } catch (e) {
+      statsRow.innerHTML = '';
+      wrap.innerHTML = '<div class="empty-table">Could not load Gold Standard records.</div>';
+    }
+  }
+  document.getElementById('gold-refresh-btn')?.addEventListener('click', loadGoldStandard);
 
   document.getElementById('demo-creds-refresh-btn').addEventListener('click', () => {
     demoCredsLoaded = false;

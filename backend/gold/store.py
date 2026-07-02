@@ -46,6 +46,7 @@ _ENCRYPTED_FIELDS = (
     "transcript",
     "transcript_turns",
     "ai_draft_note",
+    "ai_draft_sections",
     "gold_note",
     "signature_image",
     "patient_name",
@@ -63,6 +64,7 @@ _EXTRA_COLUMNS = {
     "tasks_json": "TEXT",
     "split": "TEXT",
     "deid_method_detail": "TEXT",
+    "ai_draft_sections_enc": "TEXT",
 }
 
 

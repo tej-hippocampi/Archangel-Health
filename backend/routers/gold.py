@@ -41,6 +41,7 @@ import field_crypto
 from audit import audit_log
 from auth_roles import require_roles
 from compliance import subprocessors
+from compliance.subprocessors import SubprocessorPHIError
 from gold import config as gold_config
 from gold import export as gold_export
 from gold import pipeline as gold_pipeline
@@ -186,6 +187,7 @@ def _public_visit(visit: Dict[str, Any]) -> Dict[str, Any]:
         "transcript_turns": _safe_json(visit.get("transcript_turns")),
         "transcript_deid": visit.get("transcript_deid") or "",
         "ai_draft_note": visit.get("ai_draft_note") or "",
+        "ai_draft_sections": _safe_json(visit.get("ai_draft_sections")) or {},
         "suggested_codes": visit.get("suggested_codes") or [],
         "gold_note": visit.get("gold_note") or "",
         "gold_note_deid": visit.get("gold_note_deid") or "",
@@ -612,6 +614,151 @@ async def _run_deid(visit_id: str) -> None:
     except Exception as exc:  # pragma: no cover - defensive
         log.exception("gold de-id failed for %s", visit_id)
         store.update_visit(visit_id, status=store.ST_ERROR, pipeline_error=f"de-id failed: {exc}")
+
+
+# ─── Edit → error-label suggestion (B4 §8.2) ──────────────────────────────────
+def _extract_json_obj(raw: str) -> Optional[Dict[str, Any]]:
+    if not raw:
+        return None
+    s = raw.strip()
+    if s.startswith("```"):
+        import re as _re
+
+        s = _re.sub(r"^```[a-zA-Z]*\n?", "", s).rstrip("`").strip()
+    start, end = s.find("{"), s.rfind("}")
+    if start == -1 or end == -1:
+        return None
+    try:
+        return json.loads(s[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+
+
+class SuggestLabelRequest(BaseModel):
+    section: Optional[str] = None
+    original_text: str = ""
+    corrected_text: str = ""
+
+
+@router.post("/visits/{visit_id}/suggest-labels")
+async def suggest_labels(
+    visit_id: str,
+    body: SuggestLabelRequest,
+    request: Request,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    """LLM categorizes a single clinician edit into one error-label ``{type,
+    severity}`` so the Review UI can pre-fill it for one-tap confirm. Always
+    degrades to ``method="skipped"`` (never an error) so the client heuristic can
+    take over — the label is never authoritative, only a suggestion."""
+    staff = _require_staff(staff)
+    require_roles(staff, REVIEW_ROLES)
+    _assert_visit_access(store.get_visit(visit_id), staff)
+
+    orig = (body.original_text or "").strip()
+    corrected = (body.corrected_text or "").strip()
+    valid_types = gold_config.taxonomy_types()
+    valid_sev = gold_config.taxonomy_severities()
+
+    def _skip(reason: str) -> Dict[str, Any]:
+        return {"method": "skipped", "reason": reason, "type": None, "severity": "medium"}
+
+    if not orig and not corrected:
+        return _skip("empty_edit")
+
+    try:
+        from ai.llm_client import call_llm, first_text
+        from prompts.gold import GOLD_SUGGEST_LABEL_SYSTEM
+    except Exception:
+        return _skip("llm_unavailable")
+
+    user = json.dumps({
+        "section": body.section or "",
+        "original_text": orig,
+        "corrected_text": corrected,
+    })
+    try:
+        resp, _rec = await call_llm(
+            role="gold_suggest_label",
+            system=GOLD_SUGGEST_LABEL_SYSTEM,
+            messages=[{"role": "user", "content": user}],
+            prompt_id="gold_suggest_label",
+            patient_id=visit_id,
+            purpose="gold_suggest_label",
+        )
+        parsed = _extract_json_obj(first_text(resp)) or {}
+    except Exception as exc:  # pragma: no cover - network/key dependent
+        log.info("gold suggest-labels degraded for %s: %r", visit_id, exc)
+        return _skip("llm_error")
+
+    lbl_type = parsed.get("type")
+    severity = parsed.get("severity") or "medium"
+    if lbl_type not in valid_types:
+        return _skip("out_of_taxonomy")
+    if severity not in valid_sev:
+        severity = "medium"
+    return {
+        "method": "llm",
+        "type": lbl_type,
+        "severity": severity,
+        "section": body.section or None,
+        "rationale": (parsed.get("rationale") or "")[:200],
+    }
+
+
+# ─── Voice dictation transcribe (B4 §8.3) ─────────────────────────────────────
+@router.post("/transcribe")
+async def transcribe_snippet(
+    request: Request,
+    file: UploadFile = File(...),
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    """Provider-abstracted STT for a short voice-dictation snippet (reuses the
+    ``integrations/stt`` provider behind ``STT_PROVIDER``). Returns plain text for
+    the client to insert into an editable field. Degrades gracefully — a missing
+    provider/key or a BAA block yields ``{text:"", ...}`` rather than an error, so
+    the doctor can always fall back to typing (or the Wispr desktop app)."""
+    staff = _require_staff(staff)
+    require_roles(staff, CAPTURE_ROLES)
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="Audio file is empty")
+    if len(contents) > MAX_AUDIO_BYTES:
+        raise HTTPException(status_code=413, detail="Audio exceeds 200 MB limit")
+
+    mime = file.content_type or "audio/webm"
+    import tempfile
+
+    from integrations.stt import get_stt_provider
+
+    suffix = ".webm"
+    if "ogg" in mime:
+        suffix = ".ogg"
+    elif "mp4" in mime or "m4a" in mime:
+        suffix = ".m4a"
+    elif "wav" in mime:
+        suffix = ".wav"
+
+    fd, tmp_path = tempfile.mkstemp(suffix=suffix, prefix="gold_dictate_")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(contents)
+        try:
+            provider = get_stt_provider()
+            transcript = await provider.transcribe(audio_path=tmp_path, mime_type=mime)
+            return {"text": transcript.text or "", "provider": transcript.provider, "is_stub": transcript.is_stub}
+        except SubprocessorPHIError:
+            _audit(staff, request, "gold_transcribe_blocked", outcome="blocked")
+            return {"text": "", "provider": "blocked", "error": "stt_no_baa"}
+        except Exception as exc:  # pragma: no cover - provider dependent
+            log.info("gold transcribe degraded: %r", exc)
+            return {"text": "", "provider": "unavailable", "error": "stt_error"}
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
 
 
 # ─── Operator QA approve ──────────────────────────────────────────────────────

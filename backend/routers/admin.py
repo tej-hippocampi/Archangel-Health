@@ -252,6 +252,93 @@ async def admin_stats(
     }
 
 
+# ─── Gold Standard (Data Training) — cross-tenant admin view ──────────────────
+# Surfaces conversation-capture training records so the admin can see, at a
+# glance, which data originated from the Gold Standard product. PHI-safe: only
+# whitelisted metadata is returned here (never transcript / note / label text) —
+# the de-identified corpus itself is delivered through the operator export flow.
+_GOLD_STATUS_LABELS = {
+    "CAPTURING": "Capturing",
+    "CONSENT_DECLINED": "Consent declined",
+    "DRAFTING": "Drafting",
+    "NEEDS_REVIEW": "Needs surgeon review",
+    "DEIDENTIFYING": "De-identifying",
+    "NEEDS_QA": "Needs operator QA",
+    "EXPORT_READY": "Export-ready",
+    "EXPORTED": "Exported",
+    "ERROR": "Error",
+}
+
+
+def _gold_admin_item(v: dict) -> dict:
+    """PHI-safe projection of a gold visit for the admin table (no clinical text)."""
+    from gold import schema as gold_schema
+
+    return {
+        "source": "gold_standard",
+        "record_id": gold_schema.record_id_for(v.get("tenant_slug") or "", v.get("record_num") or 0),
+        "tenant_slug": v.get("tenant_slug") or "",
+        "status": v.get("status"),
+        "status_label": _GOLD_STATUS_LABELS.get(v.get("status") or "", v.get("status")),
+        "specialty": v.get("specialty"),
+        "encounter_type": v.get("encounter_type"),
+        "audio_duration_sec": v.get("audio_duration_sec"),
+        "difficulty_tags": v.get("difficulty_tags") or [],
+        "languages": v.get("languages") or [],
+        "error_label_count": len(v.get("error_labels") or []),
+        "clinician_review_seconds": v.get("clinician_review_seconds"),
+        "submitted_by_role": v.get("submitted_by_role"),
+        "verified_by_operator": bool(v.get("verified_by_operator")),
+        "deid_method": v.get("deid_method"),
+        "created_at": v.get("created_at"),
+        "updated_at": v.get("updated_at"),
+        "exported_at": v.get("exported_at"),
+        "export_destination": v.get("export_destination"),
+    }
+
+
+@router.get("/gold/records")
+async def admin_gold_records(
+    authorization: Optional[str] = Header(None),
+    status: Optional[str] = None,
+    limit: int = 500,
+):
+    """Cross-tenant Gold Standard records + status rollup for the admin
+    Data Training view. Degrades to an empty dataset if the optional Gold
+    package is not installed."""
+    _verify_token(authorization)
+    try:
+        from gold import store as gold_store
+    except Exception:
+        return {"source": "gold_standard", "available": False, "records": [], "totals": {}, "queues": {}}
+
+    visits = gold_store.list_visits(tenant_id=None, tenant_scoped=False, status=status, limit=limit)
+    counts = gold_store.status_counts(None, tenant_scoped=False)
+    declined = gold_store.declined_count(None, tenant_scoped=False)
+
+    exported = counts.get("EXPORTED", 0)
+    export_ready = counts.get("EXPORT_READY", 0)
+    needs_qa = counts.get("NEEDS_QA", 0)
+    needs_review = counts.get("NEEDS_REVIEW", 0)
+    return {
+        "source": "gold_standard",
+        "available": True,
+        "records": [_gold_admin_item(v) for v in visits],
+        "queues": {
+            "needs_review": needs_review,
+            "needs_qa": needs_qa,
+            "export_ready": export_ready,
+            "exported": exported,
+        },
+        "totals": {
+            "captured": sum(counts.values()),
+            "exported": exported,
+            "declined": declined,
+        },
+        "status_counts": counts,
+    }
+
+
 def _read_json(path: Path, fallback: dict) -> dict:
     if path.exists():
         try:

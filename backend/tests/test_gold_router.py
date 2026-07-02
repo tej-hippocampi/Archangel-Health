@@ -384,3 +384,100 @@ def test_audit_chain_intact_after_gold_ops(_sync_bg):
     surgeon = _h("surgeon", email="audit@hs.com", is_team_director=True)
     _drive_to_needs_review(surgeon)
     assert audit_log.verify()["ok"] is True
+
+
+# ─── §8 additions: sectioned draft, suggest-labels, transcribe ────────────────
+def test_ai_draft_sections_exposed(_sync_bg):
+    """_public_visit round-trips the (encrypted) sectioned draft as a dict."""
+    import json as _json
+
+    from gold import store
+
+    surgeon = _h("surgeon", email="sections@hs.com")
+    vid = _drive_to_needs_review(surgeon)
+    store.update_visit(vid, ai_draft_sections=_json.dumps({"subjective": "Pt reports mild redness", "plan": "Start cephalexin"}))
+    r = client.get(f"/api/gold/visits/{vid}", headers=surgeon)
+    assert r.status_code == 200, r.text
+    secs = r.json()["ai_draft_sections"]
+    assert secs.get("subjective") == "Pt reports mild redness"
+    assert secs.get("plan") == "Start cephalexin"
+
+
+def test_suggest_labels_degrades_to_skipped(_sync_bg, monkeypatch):
+    """With the LLM unavailable, suggest-labels never errors — it returns a
+    skipped result so the client heuristic takes over."""
+    import ai.llm_client as _llm
+
+    async def _boom(*a, **k):
+        raise RuntimeError("no key")
+
+    monkeypatch.setattr(_llm, "call_llm", _boom)
+
+    surgeon = _h("surgeon", email="suggest@hs.com")
+    vid = _drive_to_needs_review(surgeon)
+    r = client.post(
+        f"/api/gold/visits/{vid}/suggest-labels",
+        json={"section": "plan", "original_text": "continue oxycodone", "corrected_text": "stop oxycodone, start Tylenol"},
+        headers=surgeon,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["method"] == "skipped"
+
+
+def test_suggest_labels_requires_review_role(_sync_bg):
+    """rn_coordinator can capture but is not a REVIEW role — cannot suggest labels."""
+    surgeon = _h("surgeon", email="owner@hs.com")
+    vid = _drive_to_needs_review(surgeon)
+    rn = _h("rn_coordinator", email="rn@hs.com")
+    r = client.post(
+        f"/api/gold/visits/{vid}/suggest-labels",
+        json={"section": "plan", "original_text": "a", "corrected_text": "b"},
+        headers=rn,
+    )
+    assert r.status_code == 403, r.text
+
+
+def test_transcribe_stub_returns_text():
+    """Voice dictation transcribe returns text via the offline stub provider."""
+    surgeon = _h("surgeon", email="dictate@hs.com")
+    files = {"file": ("dictation.webm", b"\x00fake" * 32, "audio/webm")}
+    r = client.post("/api/gold/transcribe", files=files, headers=surgeon)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["provider"] == "stub"
+    assert body["text"].strip()
+
+
+def test_transcribe_requires_auth():
+    files = {"file": ("dictation.webm", b"\x00fake" * 32, "audio/webm")}
+    assert client.post("/api/gold/transcribe", files=files).status_code == 401
+
+
+# ─── Admin cross-tenant Gold Standard view ────────────────────────────────────
+def test_admin_gold_records_view(_sync_bg):
+    """The admin Data Training view lists gold records cross-tenant, PHI-safe,
+    with the source clearly marked — and never leaks clinical text."""
+    from routers.admin import _create_token
+
+    surgeon = _h("surgeon", email="adminview@hs.com")
+    vid = _drive_to_needs_review(surgeon)
+
+    admin_h = {"Authorization": f"Bearer {_create_token()}"}
+    r = client.get("/admin/gold/records", headers=admin_h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["available"] is True
+    assert body["source"] == "gold_standard"
+    rec = next((x for x in body["records"] if x["record_id"] and vid), None)
+    assert rec is not None
+    assert rec["source"] == "gold_standard"
+    # PHI-safe: no clinical text fields are present in the admin projection.
+    for leaky in ("transcript", "gold_note", "ai_draft_note", "error_labels", "patient_name"):
+        assert leaky not in rec
+
+
+def test_admin_gold_records_requires_admin(_sync_bg):
+    assert client.get("/admin/gold/records").status_code == 401
+    # A tenant surgeon token is not an admin token.
+    surgeon = _h("surgeon", email="notadmin@hs.com")
+    assert client.get("/admin/gold/records", headers=surgeon).status_code == 401

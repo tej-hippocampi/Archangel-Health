@@ -1539,6 +1539,7 @@
         <button class="tab-btn" data-tab="escalation">Intervention Log</button>
         <button class="tab-btn" data-tab="compliance">AI Security and Compliance</button>
         <button class="tab-btn" data-tab="analytics">Population Analytics</button>
+        <button class="tab-btn" data-tab="data-training">Data Training</button>
       </nav>
 
       <div class="sidebar-bottom">
@@ -1547,6 +1548,28 @@
     </aside>
 
     <main class="main">
+      <!-- Data Training: launchers for the expert-data products.
+           NOTE: Asclepius V1/V2 launcher cards are being added separately by the
+           Asclepius workstream and will merge into this .dt-grid. This block
+           owns only the Gold Standard card. -->
+      <section class="page" id="tab-data-training">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Data Training</h1>
+            <p class="page-sub">Contribute expert clinical data. Pick a product to open its workspace.</p>
+          </div>
+        </div>
+        <div class="dt-grid">
+          <button type="button" class="dt-card"
+            onclick="location.href='/gold?auth='+encodeURIComponent(localStorage.getItem('archangel_doctor_auth_token')||'')">
+            <div class="dt-card-icon">🥇</div>
+            <div class="dt-card-title">Gold Standard</div>
+            <div class="dt-card-sub">Record a visit, then review the AI's draft note and fix it. Every correction becomes clinician-verified, de-identified gold training data. ~90 seconds per record.</div>
+            <div class="dt-card-cta">Open Gold Standard →</div>
+          </button>
+        </div>
+      </section>
+
       <!-- Patient Roster -->
       <section class="page active" id="tab-roster">
         <div class="page-head">
