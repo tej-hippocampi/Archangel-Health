@@ -43,6 +43,7 @@
     assistLoadingFor: null, // task_id of the /assist/prelabel fetch in flight
     assistFailedFor: null,  // task_id whose assist fetch failed (retry next load)
     showFullText: false,    // compare view: full text vs highlighted diff
+    portalChosen: false,    // has the evaluator picked V1/V2 on the home page yet
   };
 
   // ─── Tiny DOM helper ───────────────────────────────────────────────────────
@@ -357,6 +358,10 @@
   //  EVALUATOR WORKSPACE
   // ═══════════════════════════════════════════════════════════════════════════
   async function renderEvalView() {
+    // Home page: the evaluator picks their experience (V1 classic / V2 assisted)
+    // before any labeling. Shown on entry until a choice is made this session
+    // (and again whenever they tap "Change experience").
+    if (!state.portalChosen) { renderVersionHome(); return; }
     const wrap = h('div', { class: 'asc-wrap' });
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Loading next evaluation…')));
@@ -564,42 +569,75 @@
       h('div', { class: 'asc-stage-right' }, dots, timer));
   }
 
-  // Contributor version switch (Asclepius V2). Interactive only during Stage 1
-  // (prompt review) — the choice pins to the task once the AI answers are about
-  // to be revealed, so a mid-task switch can never yield a half-classic /
-  // half-assisted record. Past Stage 1 it shows the locked version + a hint that
-  // switching applies to the next task.
+  // ─── Home page: choose your evaluation experience (V1 / V2) ─────────────────
   const VERSION_OPTS = [
-    { v: 'v2', label: 'V2 · Assisted', sub: 'Quick stance, model assist, diff view' },
-    { v: 'v1', label: 'V1 · Classic', sub: 'Full ideal answer, no assist' },
+    {
+      v: 'v2', label: 'V2 · Assisted', tag: 'Recommended', icon: '✨',
+      blurb: 'The faster flow — under 10 minutes per task.',
+      bullets: [
+        'A 30-second quick take before you see the answers',
+        'Model-suggested labels you verify (never auto-applied)',
+        'Side-by-side answer diff — read only what differs',
+        'Voice dictation on every field',
+      ],
+    },
+    {
+      v: 'v1', label: 'V1 · Classic', tag: null, icon: '📝',
+      blurb: 'The original flow — write your full ideal answer.',
+      bullets: [
+        'Write your complete ideal answer before reveal',
+        'No AI suggestions — your judgment only',
+        'Full-text answer comparison',
+      ],
+    },
   ];
-  function renderVersionBar() {
-    const d = state.draft;
-    const locked = d && d.stage !== 'prompt_review';
-    const active = draftVersion();
-    const seg = h('div', { class: 'asc-ver-seg' + (locked ? ' locked' : '') });
+  function chooseVersion(v) {
+    setPortalVersion(v);
+    state.portalChosen = true;
+    renderEvalView();
+  }
+  function renderVersionHome() {
+    stopTimer();
+    const last = getPortalVersion();
+    const cards = h('div', { class: 'asc-ver-cards' });
     VERSION_OPTS.forEach((o) => {
-      seg.appendChild(h('button', {
-        class: 'asc-ver-btn' + (active === o.v ? ' active' : ''),
-        type: 'button',
-        disabled: locked && active !== o.v,
-        title: o.sub,
-        onClick: locked ? undefined : () => {
-          if (getPortalVersion() === o.v && d.portal_version === o.v) return;
-          setPortalVersion(o.v);
-          d.portal_version = o.v;
-          // Switching flow resets any stance/answer already typed at Stage 1
-          // is unaffected; nothing to clear here (Stage 2 hasn't run).
-          saveDraft();
-          renderTaskWorkspace();
-        },
-      }, h('span', { class: 'asc-ver-label' }, o.label)));
+      const card = h('div', {
+        class: 'asc-ver-card' + (last === o.v ? ' last-used' : ''),
+        role: 'button', tabindex: '0',
+        onClick: () => chooseVersion(o.v),
+        onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseVersion(o.v); } },
+      },
+        h('div', { class: 'asc-ver-card-head' },
+          h('span', { class: 'asc-ver-card-icon' }, o.icon),
+          h('div', {},
+            h('div', { class: 'asc-ver-card-title' }, o.label,
+              o.tag ? h('span', { class: 'asc-ver-card-tag' }, o.tag) : null,
+              last === o.v ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null),
+            h('div', { class: 'asc-ver-card-blurb' }, o.blurb))),
+        h('ul', { class: 'asc-ver-card-list' }, o.bullets.map((b) => h('li', {}, b))),
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
+          'Start with ' + o.label.split(' ')[0] + ' →'));
+      cards.appendChild(card);
     });
-    const hint = locked
-      ? h('span', { class: 'asc-ver-hint' }, 'Locked for this task · switching applies to your next task')
-      : h('span', { class: 'asc-ver-hint' }, 'Choose your evaluation experience');
-    return h('div', { class: 'asc-ver-bar' },
-      h('span', { class: 'asc-ver-caption' }, 'Experience'), seg, hint);
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-ver-home' },
+        h('h1', { class: 'asc-ver-home-title' }, 'Choose your evaluation experience'),
+        h('p', { class: 'asc-ver-home-sub' },
+          'Both capture the same clinical judgment and produce the same training data — pick how you want to work. You can switch anytime.'),
+        cards)));
+  }
+
+  // Small read-only indicator inside the workspace: which experience this task
+  // is being graded under, with a one-tap route back to the home chooser.
+  function renderExperienceBadge() {
+    const v = draftVersion();
+    const label = v === 'v2' ? 'V2 · Assisted' : 'V1 · Classic';
+    return h('div', { class: 'asc-exp-badge' },
+      h('span', { class: 'asc-exp-badge-label' }, (v === 'v2' ? '✨ ' : '📝 ') + label),
+      h('button', {
+        class: 'asc-btn-link', type: 'button',
+        onClick: () => { state.portalChosen = false; renderEvalView(); },
+      }, 'Change experience'));
   }
 
   function renderTaskWorkspace() {
@@ -630,7 +668,7 @@
         ));
     }
 
-    const wrap = h('div', { class: 'asc-wrap' }, renderVersionBar(), promptCard, groundingBanner);
+    const wrap = h('div', { class: 'asc-wrap' }, renderExperienceBadge(), promptCard, groundingBanner);
 
     if (d.stage === 'prompt_review') {
       wrap.appendChild(stageHeader('Review the prompt'));

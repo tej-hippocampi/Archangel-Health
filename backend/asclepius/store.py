@@ -372,11 +372,14 @@ class AsclepiusStore:
                 # Speed Optimization §1: ``independent_mode`` is the ADMIN's
                 # per-task intent — 'stance' (quick take, the default) or 'full'
                 # (long-form blind ideal, premium/eval batches). Pre-existing
-                # rows default to 'stance'; the classic full-blind behavior is
-                # NOT tied to this column but to the contributor's portal version
-                # (V1 always captures a full answer — see normalize_portal_version
-                # + _independent_kind), so no behavior-preserving backfill is
-                # needed and pre-existing tasks correctly read as stance in V2.
+                # rows default to 'stance' BY DESIGN: the product requirement is
+                # that legacy tasks read as stance in V2. This is not a silent
+                # data loss — a premium blind ideal answer is still produced
+                # whenever the contributor selects the V1 (classic) experience
+                # (``_independent_kind`` forces 'full' for v1) OR the admin marks
+                # the task ``independent_mode='full'`` (honored in V2). Only the
+                # DEFAULT capture on an unmarked task in the DEFAULT (v2)
+                # experience is the quick stance.
                 conn.execute("ALTER TABLE tasks ADD COLUMN independent_mode TEXT NOT NULL DEFAULT 'stance'")
 
             sub_cols = cols("submissions")

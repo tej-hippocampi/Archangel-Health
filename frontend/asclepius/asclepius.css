@@ -1012,32 +1012,54 @@
 .asc-reason-pills { flex-wrap: wrap; }
 .asc-reason-pills .asc-sev-pill.active { background: var(--asc-primary); border-color: var(--asc-primary); }
 
-/* ─── V1/V2 experience toggle (Asclepius V2) ──────────────── */
-.asc-ver-bar {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  margin-bottom: 14px;
-  padding: 8px 12px;
+/* ─── Home page: choose V1 / V2 experience (Asclepius V2) ──── */
+.asc-ver-home { max-width: 900px; margin: 32px auto 0; }
+.asc-ver-home-title { font-size: 26px; font-weight: 700; text-align: center; margin: 0 0 8px; }
+.asc-ver-home-sub {
+  text-align: center; color: var(--asc-muted); font-size: 14px;
+  max-width: 620px; margin: 0 auto 28px;
+}
+.asc-ver-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 720px) { .asc-ver-cards { grid-template-columns: 1fr; } }
+.asc-ver-card {
   background: var(--asc-surface);
-  border: 1px solid var(--asc-line);
-  border-radius: 10px;
-  box-shadow: var(--shadow-sm);
+  border: 1.5px solid var(--asc-line);
+  border-radius: 14px;
+  padding: 22px;
+  cursor: pointer;
+  display: flex; flex-direction: column; gap: 14px;
+  transition: border-color .15s, box-shadow .15s, transform .12s;
 }
-.asc-ver-caption {
-  font-size: 11px; font-weight: 600; letter-spacing: .04em;
-  text-transform: uppercase; color: var(--asc-muted);
+.asc-ver-card:hover, .asc-ver-card:focus-visible {
+  border-color: var(--asc-primary);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, .12);
+  transform: translateY(-2px);
+  outline: none;
 }
-.asc-ver-seg { display: inline-flex; background: var(--asc-bg); border-radius: 8px; padding: 3px; gap: 2px; }
-.asc-ver-btn {
-  border: 0; background: transparent; cursor: pointer;
-  padding: 6px 14px; border-radius: 6px;
-  font-size: 13px; font-weight: 600; color: var(--asc-muted);
-  transition: background .15s, color .15s, box-shadow .15s;
+.asc-ver-card.last-used { border-color: var(--asc-primary-light); }
+.asc-ver-card-head { display: flex; align-items: flex-start; gap: 12px; }
+.asc-ver-card-icon { font-size: 26px; line-height: 1; }
+.asc-ver-card-title {
+  font-size: 17px; font-weight: 700;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
-.asc-ver-btn:hover:not(:disabled) { color: var(--asc-text); }
-.asc-ver-btn.active {
-  background: var(--asc-surface); color: var(--asc-primary);
-  box-shadow: var(--shadow-sm);
+.asc-ver-card-tag {
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: #fff; background: var(--asc-primary);
+  padding: 2px 7px; border-radius: 999px;
 }
-.asc-ver-seg.locked .asc-ver-btn { cursor: default; }
-.asc-ver-btn:disabled { opacity: .45; }
-.asc-ver-hint { font-size: 12px; color: var(--asc-muted); }
+.asc-ver-card-last {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--asc-primary); background: var(--asc-primary-light);
+  padding: 2px 7px; border-radius: 999px;
+}
+.asc-ver-card-blurb { font-size: 13px; color: var(--asc-muted); margin-top: 3px; }
+.asc-ver-card-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.asc-ver-card-list li { font-size: 13.5px; color: var(--asc-text); }
+
+/* Small in-workspace experience indicator + change link. */
+.asc-exp-badge {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 12px; padding: 6px 4px;
+}
+.asc-exp-badge-label { font-size: 13px; font-weight: 600; color: var(--asc-text); }
