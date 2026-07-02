@@ -2651,6 +2651,46 @@
     body.appendChild(quickCard);
     refreshExportReadyCount();
 
+    // ── Export by product version (Asclepius V2 cohort filter) ──────────────
+    const cohortStatus = h('div', { style: 'margin-top:12px' });
+    const cohortSel = selectFrom(['both', 'v2', 'v1'], 'both');
+    const cohortInclExported = h('input', { type: 'checkbox' });
+    const cohortBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '⬇ Export cohort');
+    cohortBtn.addEventListener('click', async () => {
+      const sel = cohortSel.value;
+      const orig = cohortBtn.textContent;
+      cohortBtn.setAttribute('disabled', ''); cohortBtn.textContent = 'Packaging…';
+      clear(cohortStatus);
+      try {
+        const body2 = { profile: 'default', include_exported: cohortInclExported.checked };
+        if (sel !== 'both') body2.portal_version = sel;
+        const manifest = await api('/exports', { method: 'POST', body: body2 });
+        const n = manifest.record_count != null ? manifest.record_count : 0;
+        const bpv = (manifest.counts || {}).by_portal_version || {};
+        const mix = Object.keys(bpv).map((k) => k + ':' + bpv[k]).join(' · ') || '—';
+        cohortStatus.appendChild(h('div', { class: 'asc-inline-ok' },
+          'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' (' + mix + ') — downloading…'));
+        await downloadExport(manifest.export_id);
+        loadExportsHistory();
+        refreshExportReadyCount();
+      } catch (e) {
+        const msg = e.status === 400
+          ? 'No records match that version/filter yet.'
+          : (e.status === 422 ? 'Schema validation failed: ' + e.message : (e.message || 'Export failed'));
+        cohortStatus.appendChild(h('div', { class: 'asc-inline-error' }, msg));
+      } finally { cohortBtn.removeAttribute('disabled'); cohortBtn.textContent = orig; }
+    });
+    body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-card-title' }, 'Export by product version'),
+      h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
+        'Package a single cohort — V2 (assisted), V1 (classic), or both. Every record is also stamped with its source version.'),
+      h('div', { class: 'asc-form-row', style: 'align-items:flex-end' },
+        h('div', { class: 'asc-field', style: 'margin-bottom:0' },
+          h('label', { class: 'asc-label' }, 'Product version'), cohortSel),
+        h('label', { class: 'asc-checkbox-row', style: 'margin-bottom:0' }, cohortInclExported, 'Re-include already-exported'),
+        cohortBtn),
+      cohortStatus));
+
     // ── Contributors (by organization → contributor → profile) ──────────────
     const contribCard = h('div', { class: 'asc-card', id: 'ascContribBrowser' });
     body.appendChild(contribCard);
@@ -2970,14 +3010,25 @@
       clear(card);
       card.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Export history (' + exports.length + ')')));
       if (!exports.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No exports yet.'))); return; }
+      const versionCell = (x) => {
+        const m = x.manifest || {};
+        const filt = (m.filters || {}).portal_version;
+        if (filt) return (filt === 'v2' ? '✨ V2 only' : '📝 V1 only');
+        const bpv = (m.counts || {}).by_portal_version || {};
+        const keys = Object.keys(bpv);
+        if (!keys.length) return '—';
+        if (keys.length === 1) return (keys[0] === 'v2' ? '✨ V2' : '📝 V1');
+        return keys.sort().map((k) => k + ' ' + bpv[k]).join(' · '); // mixed
+      };
       const rows = exports.map((x) => h('tr', {},
         h('td', { class: 'asc-mono' }, (x.export_id || '').slice(0, 12)),
         h('td', {}, x.profile || '—'),
+        h('td', {}, versionCell(x)),
         h('td', {}, String(x.record_count != null ? x.record_count : (x.count != null ? x.count : '—'))),
         h('td', {}, fmtDate(x.created_at)),
         h('td', {}, h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: () => downloadExport(x.export_id) }, '⬇ Download'))));
       card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-        h('thead', {}, h('tr', {}, ['ID', 'Profile', 'Records', 'Created', ''].map((c) => h('th', {}, c)))),
+        h('thead', {}, h('tr', {}, ['ID', 'Profile', 'Version', 'Records', 'Created', ''].map((c) => h('th', {}, c)))),
         h('tbody', {}, rows))));
     } catch (e) {
       clear(card);
@@ -3027,6 +3078,19 @@
 
     body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Overview'), tiles));
+
+    // Data by product version (Asclepius V2): how many submissions came from the
+    // V1 (classic) vs V2 (assisted) evaluator flow.
+    const pvc = s.portal_version_counts || {};
+    const v1n = pvc.v1 || 0, v2n = pvc.v2 || 0, pvTotal = v1n + v2n;
+    const pct = (n) => pvTotal ? Math.round((100 * n) / pvTotal) + '%' : '0%';
+    body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Data by product version'),
+      h('div', { class: 'asc-stat-grid' },
+        stat(v2n, '✨ V2 · Assisted', pct(v2n) + ' of labeled data'),
+        stat(v1n, '📝 V1 · Classic', pct(v1n) + ' of labeled data')),
+      h('p', { class: 'asc-help', style: 'margin-top:10px' },
+        'Both flows capture the same judgment and produce the same record types; every record is stamped with its source version.')));
 
     // Status counts
     const statusRows = Object.keys(sc).map((k) => h('tr', {}, h('td', {}, k.replace(/_/g, ' ')), h('td', {}, String(sc[k]))));

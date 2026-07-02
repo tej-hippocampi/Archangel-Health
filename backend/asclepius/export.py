@@ -69,11 +69,21 @@ def _sha256_text(text: str) -> str:
 def _counts(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     by_type: Dict[str, int] = {}
     by_specialty: Dict[str, int] = {}
+    by_portal_version: Dict[str, int] = {}
     for r in records:
         by_type[r["type"]] = by_type.get(r["type"], 0) + 1
         sp = r.get("specialty") or "unknown"
         by_specialty[sp] = by_specialty.get(sp, 0) + 1
-    return {"by_type": by_type, "by_specialty": by_specialty, "total": len(records)}
+        # V1 (classic) vs V2 (assisted) breakdown (Asclepius V2). Legacy records
+        # with no stamp are counted as v1 (they predate the assisted flow).
+        pv = (r.get("payload") or {}).get("portal_version") or "v1"
+        by_portal_version[pv] = by_portal_version.get(pv, 0) + 1
+    return {
+        "by_type": by_type,
+        "by_specialty": by_specialty,
+        "by_portal_version": by_portal_version,
+        "total": len(records),
+    }
 
 
 # ─── Filtering (opt §2) ───────────────────────────────────────────────────────
@@ -86,9 +96,14 @@ def _passes_filters(
     min_agreement: Optional[float],
     buyer_request_id: Optional[str],
     annotator_ids: Optional[set],
+    portal_version: Optional[str] = None,
 ) -> bool:
     payload = rec.get("payload") or {}
     if difficulty and (payload.get("context") or {}).get("difficulty") != difficulty:
+        return False
+    # V1/V2 cohort filter (Asclepius V2): ship or analyze one product version at
+    # a time. Unstamped legacy records count as v1.
+    if portal_version and (payload.get("portal_version") or "v1") != portal_version:
         return False
     if grounded_only and not bool(payload.get("grounded")):
         return False
@@ -315,6 +330,7 @@ examples, and PRM800K-style step-level reasoning traces for frontier-lab trainin
 - Total records: **{counts['total']}**
 {type_lines}
 - Specialties: {", ".join(specialties) or "n/a"}
+- By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 = classic flow, V2 = assisted flow)
 {_scope_section_md(scope)}
 {_synthetic_provenance_md(records)}
 
@@ -366,6 +382,10 @@ def _quality_report_md(*, export_id: str, profile_name: str, records: List[Dict[
         c = (r.get("payload") or {}).get("confidence") or "n/a"
         conf[c] = conf.get(c, 0) + 1
     type_lines = "\n".join(f"- `{k}`: {v}" for k, v in sorted(counts["by_type"].items()))
+    portal_lines = "\n".join(
+        f"- {k} ({'classic' if k == 'v1' else 'assisted'}): {v}"
+        for k, v in sorted(counts.get("by_portal_version", {}).items())
+    ) or "- n/a"
     conf_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(conf.items()))
     qa = stats.get("qa_pass_rate") or {}
     kappa = stats.get("kappa") or {}
@@ -386,6 +406,9 @@ Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
 ## Totals by record type
 - Total records: **{counts['total']}**
 {type_lines}
+
+## By product version (V1 classic / V2 assisted)
+{portal_lines}
 
 ## Grounded (evidence-anchored) premium tier
 - Grounded records: **{grounded}/{counts['total']}** (**{grounded_pct}%**)
@@ -447,6 +470,7 @@ def build_export(
     confidence_floor: Optional[str] = None,
     min_agreement: Optional[float] = None,
     buyer_request_id: Optional[str] = None,
+    portal_version: Optional[str] = None,
     note: Optional[str] = None,
     include_exported: bool = False,
     annotator_id_hashed: Optional[str] = None,
@@ -506,6 +530,7 @@ def build_export(
             min_agreement=min_agreement,
             buyer_request_id=buyer_request_id,
             annotator_ids=annotator_id_set,
+            portal_version=portal_version,
         )
     ]
     if not records:
@@ -607,6 +632,7 @@ def build_export(
         "confidence_floor": confidence_floor,
         "min_agreement": min_agreement,
         "buyer_request_id": buyer_request_id,
+        "portal_version": portal_version,
         "annotator_id_hashed": annotator_id_hashed,
         "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
     }

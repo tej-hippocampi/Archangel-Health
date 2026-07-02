@@ -1018,3 +1018,47 @@ def test_stats_reports_portal_version_counts(monkeypatch):
     stats = client.get("/api/asclepius/stats", headers=admin_h).json()
     assert stats["portal_version_counts"].get("v1") == 1
     assert stats["portal_version_counts"].get("v2") == 1
+
+
+def test_export_filters_by_portal_version_and_reports_breakdown():
+    """Admin can export a single V1/V2 cohort, and the manifest reports the
+    per-version breakdown (Asclepius V2 admin surfacing)."""
+    admin_h = A.headers_for(_admin())
+
+    def _ready(pv):
+        ev_h = A.headers_for(_seed())
+        tid = _upload_task(admin_h, prompt=f"Cohort case {A.uniq(8)}?")
+        client.post("/api/asclepius/submissions", json={
+            "submission_id": "s-" + uuid.uuid4().hex[:12], "task_id": tid, "verdict": "A_better",
+            "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+            "independent_answer": _IDEAL, "portal_version": pv,
+            "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+            "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+        }, headers=ev_h)
+
+    _ready("v1")
+    _ready("v2")
+    _ready("v2")
+
+    # V2-only cohort export.
+    r = client.post("/api/asclepius/exports",
+                    json={"profile": "default", "portal_version": "v2"}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    man = r.json()
+    bpv = man["counts"]["by_portal_version"]
+    assert set(bpv) == {"v2"} and bpv["v2"] >= 2  # only v2 records shipped
+    assert man["filters"]["portal_version"] == "v2"
+
+    # Both-cohort export reports the split.
+    r2 = client.post("/api/asclepius/exports",
+                     json={"profile": "default", "include_exported": True}, headers=admin_h)
+    assert r2.status_code == 200, r2.text
+    both = r2.json()["counts"]["by_portal_version"]
+    assert both.get("v1", 0) >= 1 and both.get("v2", 0) >= 2
+
+
+def test_export_invalid_portal_version_rejected():
+    admin_h = A.headers_for(_admin())
+    r = client.post("/api/asclepius/exports",
+                    json={"profile": "default", "portal_version": "v3"}, headers=admin_h)
+    assert r.status_code == 400

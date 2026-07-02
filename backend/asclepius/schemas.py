@@ -316,6 +316,8 @@ class ExportRequest(BaseModel):
     # Minimum inter-annotator agreement score (0..1) on the record.
     min_agreement: Optional[float] = None
     buyer_request_id: Optional[str] = None
+    # V1/V2 cohort filter (Asclepius V2): "v1" | "v2" | None (both).
+    portal_version: Optional[str] = None
     note: Optional[str] = None
     # Re-include already-shipped records so the bundle can be re-downloaded.
     include_exported: bool = False

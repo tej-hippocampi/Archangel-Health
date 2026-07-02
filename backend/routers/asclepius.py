@@ -1102,6 +1102,8 @@ async def create_export(
     body: ExportRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
 ):
     store = _store()
+    if body.portal_version is not None and body.portal_version not in PORTAL_VERSIONS:
+        raise HTTPException(status_code=400, detail="Invalid portal_version")
     try:
         manifest = asc_export.build_export(
             store,
@@ -1116,6 +1118,7 @@ async def create_export(
             confidence_floor=body.confidence_floor,
             min_agreement=body.min_agreement,
             buyer_request_id=body.buyer_request_id,
+            portal_version=body.portal_version,
             note=body.note,
             include_exported=body.include_exported,
         )
