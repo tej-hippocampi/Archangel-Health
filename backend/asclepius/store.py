@@ -176,6 +176,7 @@ class AsclepiusStore:
                     candidate_answers_json TEXT NOT NULL DEFAULT '[]',
                     max_labels      INTEGER NOT NULL DEFAULT 1,
                     grounding_mode  TEXT NOT NULL DEFAULT 'optional',
+                    independent_mode TEXT NOT NULL DEFAULT 'stance',
                     buyer_request_id TEXT,
                     generation_json TEXT,
                     status          TEXT NOT NULL DEFAULT 'open',
@@ -366,6 +367,9 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE tasks ADD COLUMN buyer_request_id TEXT")
             if "generation_json" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN generation_json TEXT")
+            if "independent_mode" not in task_cols:
+                # Speed Optimization §1: Stage-2 quick-stance vs full blind answer.
+                conn.execute("ALTER TABLE tasks ADD COLUMN independent_mode TEXT NOT NULL DEFAULT 'stance'")
 
             user_cols = cols("users")
             if "organization" not in user_cols:
@@ -548,6 +552,7 @@ class AsclepiusStore:
         candidate_answers: Optional[List[Dict[str, Any]]] = None,
         max_labels: int = 1,
         grounding_mode: str = "optional",
+        independent_mode: str = "stance",
         buyer_request_id: Optional[str] = None,
         generation: Optional[Dict[str, Any]] = None,
         task_id: Optional[str] = None,
@@ -555,14 +560,15 @@ class AsclepiusStore:
     ) -> Dict[str, Any]:
         tid = task_id or _new_id("t")
         gm = grounding_mode if grounding_mode in ("optional", "required") else "optional"
+        im = independent_mode if independent_mode in ("stance", "full") else "stance"
         with self._conn() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO tasks
                   (task_id, specialty, difficulty, capture_reasoning, source, prompt,
-                   candidate_answers_json, max_labels, grounding_mode, buyer_request_id,
-                   generation_json, status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   candidate_answers_json, max_labels, grounding_mode, independent_mode,
+                   buyer_request_id, generation_json, status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -574,6 +580,7 @@ class AsclepiusStore:
                     json.dumps(candidate_answers or []),
                     max(1, int(max_labels or 1)),
                     gm,
+                    im,
                     buyer_request_id,
                     json.dumps(generation) if generation else None,
                     created_by,

@@ -71,9 +71,10 @@ def test_missing_independent_answer_routes_to_qa_not_rejected():
 
 
 def test_independent_answer_packaged_as_blind_ideal_record():
-    """The blind independent answer becomes its own ``ideal_answer`` record tagged
-    ``independent: true`` (premium uncontaminated SFT)."""
-    task, sub = _task(), _submission(_GOOD_PAYLOAD)
+    """In ``full`` independent mode the blind independent answer becomes its own
+    ``ideal_answer`` record tagged ``independent: true`` (premium uncontaminated
+    SFT)."""
+    task, sub = _task(independent_mode="full"), _submission(_GOOD_PAYLOAD)
     recs = package_submission(task, sub)
     blind = [r for r in recs if r["type"] == "ideal_answer" and r.get("independent")]
     assert len(blind) == 1
@@ -239,3 +240,74 @@ def test_missing_rights_attestation_detected():
     recs[0].pop("license")
     res = validate_submission(task, sub, recs)
     assert "missing_license" in res["issues"]
+
+
+def test_assist_prelabeled_too_fast_confirm_routes_to_qa(monkeypatch):
+    """Speed Optimization §2 time-floor guard: a pre-labeled task confirmed
+    implausibly fast smells like rubber-stamping — needs_qa, never a hard
+    reject."""
+    monkeypatch.setenv("ASCLEPIUS_ASSIST_TIME_FLOOR_SEC", "60")
+    payload = {
+        **_GOOD_PAYLOAD,
+        "assist": {"prelabeled": True, "suggested_verdict": "A_better",
+                   "suggested_error_tags": ["dosing_error"], "confidence": 0.9},
+    }
+    task = _task()
+    sub = _submission(payload)
+    sub["time_spent_sec"] = 30  # above the base 20s floor, below the assist floor
+    recs = package_submission(task, sub)
+    res = validate_submission(task, sub, recs)
+    assert res["valid"] is False
+    assert "assist_too_fast" in res["issues"]
+    assert "too_fast" not in res["issues"]
+    # A deliberate confirm above the assist floor passes.
+    sub2 = _submission(payload)
+    sub2["time_spent_sec"] = 120
+    res2 = validate_submission(task, sub2, package_submission(task, sub2))
+    assert "assist_too_fast" not in res2["issues"]
+
+
+def test_unknown_error_tag_reason_routes_to_qa():
+    """Feature 6: per-tag reasons come from a controlled vocabulary; an
+    off-vocabulary value flags the submission for QA."""
+    payload = {
+        **_GOOD_PAYLOAD,
+        "rejected_critique": {
+            **_GOOD_PAYLOAD["rejected_critique"],
+            "error_tag_reasons": {"dosing_error": "not_a_real_reason"},
+        },
+    }
+    task, sub = _task(), _submission(payload)
+    recs = package_submission(task, sub)
+    res = validate_submission(task, sub, recs)
+    assert res["valid"] is False
+    assert "unknown_error_tag_reason" in res["issues"]
+
+
+def test_known_error_tag_reason_validates():
+    payload = {
+        **_GOOD_PAYLOAD,
+        "rejected_critique": {
+            **_GOOD_PAYLOAD["rejected_critique"],
+            "error_tag_reasons": {"dosing_error": "dose_too_high"},
+        },
+    }
+    task, sub = _task(), _submission(payload)
+    recs = package_submission(task, sub)
+    res = validate_submission(task, sub, recs)
+    assert res["valid"] is True
+    pref = [r for r in recs if r["type"] == "preference"][0]
+    assert pref["error_tag_reasons"] == {"dosing_error": "dose_too_high"}
+
+
+def test_stance_text_is_phi_scanned():
+    """The pre-reveal stance is free text — the defensive PHI scan covers it."""
+    payload = {
+        **_GOOD_PAYLOAD,
+        "independent_answer": {"text": "as I told jdoe@example.com, dialyze early", "kind": "stance"},
+    }
+    task, sub = _task(), _submission(payload)
+    recs = package_submission(task, sub)
+    res = validate_submission(task, sub, recs)
+    assert any(i.startswith("phi:") for i in res["issues"])
+    assert "email" in res["phi_kinds"]

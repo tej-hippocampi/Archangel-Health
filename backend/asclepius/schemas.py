@@ -99,6 +99,10 @@ class TaskIn(BaseModel):
     max_labels: int = 1
     # Grounding Mode (opt §1.2): "optional" (default) | "required" (premium SKU).
     grounding_mode: str = "optional"
+    # Stage-2 capture mode (Speed Optimization, Feature 1): "stance" (default,
+    # quick pre-reveal take) | "full" (long-form blind ideal answer — premium/
+    # eval batches).
+    independent_mode: str = "stance"
     # Links the task back to the buyer request that spawned it (opt §2.5).
     buyer_request_id: Optional[str] = None
 
@@ -158,6 +162,13 @@ class ReasoningStep(BaseModel):
     # One-line "what's off?" critique on a non-good step (Eval Flow Upgrade §4) —
     # the premium per-step error signal for PRM training.
     critique: Optional[str] = None
+    # Model-suggested label from /reasoning/pregrade (Speed Optimization §2),
+    # stored ALONGSIDE the human ``label`` so override rate is monitorable.
+    # Never a substitute for the explicit confirm/correct action.
+    suggested_label: Optional[str] = None
+    # The pre-grader's one-line critique suggestion accompanying a suggested-bad
+    # step (shown as a hint; the human's ``critique`` stays the final signal).
+    suggested_critique: Optional[str] = None
     # Back-compat free-text tag (kept; ``label`` supersedes it for PRM data).
     tag: Optional[str] = None
 
@@ -177,6 +188,10 @@ class RejectedCritique(BaseModel):
     why_worse: Optional[str] = None
     # Optional evidence anchor per error tag (opt §1.2): {error_tag: anchor}.
     error_tag_anchors: Dict[str, EvidenceAnchor] = Field(default_factory=dict)
+    # Structured-first capture (Speed Optimization §6): one-tap reason per
+    # selected error tag ({tag: reason}, reason from ERROR_TAG_REASONS) so the
+    # diagnostic "why" is captured without typing.
+    error_tag_reasons: Dict[str, str] = Field(default_factory=dict)
 
 
 class FromScratch(BaseModel):
@@ -202,11 +217,18 @@ class PromptReview(BaseModel):
 
 
 class IndependentAnswer(BaseModel):
-    """Stage-2 blind ideal answer — the doctor's full answer written BEFORE the
-    A/B candidates are revealed (Eval Flow Upgrade §3). Uncontaminated gold SFT.
+    """Stage-2 blind capture — written BEFORE the A/B candidates are revealed
+    (Eval Flow Upgrade §3). ``kind`` (Speed Optimization §1) distinguishes the
+    default quick ``stance`` (anti-anchoring signal; the gold SFT answer comes
+    from the refined chosen answer) from a ``full`` blind ideal answer
+    (uncontaminated premium SFT). The server stamps ``kind`` from the task's
+    ``independent_mode`` at reveal — it is never trusted from the client.
     """
 
     text: str = ""
+    # "stance" | "full". None on the wire → resolved from the task's
+    # ``independent_mode`` at packaging (the reveal commit stamps it anyway).
+    kind: Optional[str] = None
     evidence_anchor: Optional[EvidenceAnchor] = None
     captured_at: Optional[str] = None
 
@@ -229,6 +251,19 @@ class SubmissionIn(BaseModel):
     reasoning_steps: List[ReasoningStep] = Field(default_factory=list)
     confidence: str = "medium"
     time_spent_sec: int = 0
+    # Model-assisted pre-labeling audit block (Speed Optimization §2):
+    # {prelabeled, suggested_verdict, suggested_error_tags, suggested_rationale,
+    #  suggested_step_labels}. Stored alongside the human finals so override
+    # rate is monitorable and rubber-stamping is catchable. Suggestions are
+    # NEVER applied server-side — this is provenance only.
+    assist: Optional[Dict[str, Any]] = None
+
+
+class PrelabelRequest(BaseModel):
+    """Ask the critic for a pre-label suggestion on a task (Speed Optimization
+    §2). Gated behind the independent-answer commit (anti-peeking)."""
+
+    task_id: str
 
 
 class ReasoningSplitRequest(BaseModel):

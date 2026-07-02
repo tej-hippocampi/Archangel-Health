@@ -19,8 +19,10 @@ from asclepius.prompts import (
     ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
     ASCLEPIUS_CRITIC_SYSTEM,
     ASCLEPIUS_GROUNDING_SYSTEM,
+    ASCLEPIUS_PRELABEL_SYSTEM,
     ASCLEPIUS_PROMPT_GEN_SYSTEM,
     ASCLEPIUS_PROMPT_JUDGE_SYSTEM,
+    ASCLEPIUS_REASONING_PREGRADE_SYSTEM,
     ASCLEPIUS_REASONING_SPLIT_SYSTEM,
 )
 from asclepius.validation import is_valid_anchor
@@ -297,6 +299,129 @@ async def run_reasoning_split(
     steps = [str(s).strip() for s in (parsed.get("steps") or []) if str(s).strip()]
     if not steps:
         return {"steps": _heuristic_split(text), "source": "heuristic", "skipped": False}
+    return {"steps": steps, "source": "llm", "skipped": False, "model": (rec or {}).get("model")}
+
+
+async def run_prelabel(task: Dict[str, Any]) -> Dict[str, Any]:
+    """Model-assisted pre-label of a blinded A/B task (Speed Optimization §2):
+    suggested weaker answer + error tags + a draft rationale + verbatim error
+    spans, with a calibrated confidence. VERIFY-not-author: the caller shows
+    these as tap-to-accept hints only — nothing is ever applied server-side.
+
+    Returns ``{skipped, suggested_weaker, suggested_error_tags,
+    suggested_rationale, error_spans, confidence, model?}``. Never raises;
+    degrades to ``skipped=True`` with no API key (like the other critic fns).
+    ``generator_model`` is never read or returned — the suggestion stays blind."""
+    from asclepius.constants import ERROR_TAXONOMY
+
+    empty = {"skipped": True, "suggested_weaker": None, "suggested_error_tags": [],
+             "suggested_rationale": None, "error_spans": [], "confidence": None}
+    cands = task.get("candidate_answers") or []
+    texts = {str(c.get("id")): (c.get("text") or "") for c in cands}
+    if not (texts.get("A") or "").strip() or not (texts.get("B") or "").strip():
+        return {**empty, "error": "missing_candidates"}
+    try:
+        from ai.llm_client import call_llm, first_text
+    except Exception as exc:  # pragma: no cover
+        return {**empty, "error": f"import:{exc}"}
+
+    user = (
+        f"Specialty: {task.get('specialty', 'general')}\n\n"
+        f"ALLOWED ERROR TAGS: {', '.join(ERROR_TAXONOMY)}\n\n"
+        f"PROMPT:\n{task.get('prompt', '')}\n\n"
+        f"ANSWER A:\n{texts.get('A', '')}\n\n"
+        f"ANSWER B:\n{texts.get('B', '')}"
+    )
+    try:
+        resp, rec = await call_llm(
+            role="asclepius_prelabel",
+            system=ASCLEPIUS_PRELABEL_SYSTEM,
+            messages=[{"role": "user", "content": user}],
+            prompt_id="asclepius_prelabel",
+            purpose="asclepius_prelabel_suggestion",
+        )
+    except Exception as exc:
+        log.info("asclepius prelabel skipped (no LLM): %s", exc)
+        return {**empty, "error": str(exc)}
+
+    parsed = _extract_json(first_text(resp)) or {}
+    weaker = parsed.get("suggested_weaker")
+    if weaker not in ("A", "B"):
+        return {**empty, "error": "unparseable_prelabel_response"}
+    try:
+        confidence = max(0.0, min(1.0, float(parsed.get("confidence"))))
+    except (TypeError, ValueError):
+        confidence = 0.0  # unstated confidence is treated as low (hidden)
+    tags = [t for t in (parsed.get("suggested_error_tags") or []) if t in ERROR_TAXONOMY]
+    weaker_text = texts.get(weaker, "")
+    # Only keep spans that actually occur verbatim in the weaker answer, so the
+    # UI can highlight them (and a hallucinated span can't mislead the doctor).
+    spans = [
+        str(s) for s in (parsed.get("error_spans") or [])
+        if str(s).strip() and str(s) in weaker_text
+    ][:3]
+    return {
+        "skipped": False,
+        "suggested_weaker": weaker,
+        "suggested_error_tags": tags,
+        "suggested_rationale": (parsed.get("suggested_rationale") or "").strip() or None,
+        "error_spans": spans,
+        "confidence": confidence,
+        "model": (rec or {}).get("model"),
+    }
+
+
+async def run_reasoning_pregrade(
+    text: str, *, prompt: str = "", specialty: str = "general"
+) -> Dict[str, Any]:
+    """Split a clinical answer into ordered steps WITH a suggested per-step label
+    (Speed Optimization §2). Returns ``{steps, source, skipped, model?}`` where
+    each step is ``{text, suggested_label, suggested_critique}``. Never raises;
+    degrades to the heuristic splitter with ``suggested_label=None`` offline so
+    the doctor can always grade manually (labels stay null — silence is not a
+    suggestion)."""
+    text = (text or "").strip()
+    if not text:
+        return {"steps": [], "source": "empty", "skipped": True}
+
+    def _plain(steps: List[str], source: str, skipped: bool) -> Dict[str, Any]:
+        return {
+            "steps": [{"text": s, "suggested_label": None, "suggested_critique": None} for s in steps],
+            "source": source,
+            "skipped": skipped,
+        }
+
+    try:
+        from ai.llm_client import call_llm, first_text
+    except Exception:  # pragma: no cover
+        return _plain(_heuristic_split(text), "heuristic", True)
+
+    user = f"Specialty: {specialty}\n\nPROMPT:\n{prompt}\n\nANSWER:\n{text}"
+    try:
+        resp, rec = await call_llm(
+            role="asclepius_reasoning_pregrade",
+            system=ASCLEPIUS_REASONING_PREGRADE_SYSTEM,
+            messages=[{"role": "user", "content": user}],
+            prompt_id="asclepius_reasoning_pregrade",
+            purpose="asclepius_reasoning_pregrade",
+        )
+    except Exception as exc:
+        log.info("asclepius reasoning-pregrade unavailable, using heuristic: %s", exc)
+        return _plain(_heuristic_split(text), "heuristic", True)
+
+    parsed = _extract_json(first_text(resp)) or {}
+    steps: List[Dict[str, Any]] = []
+    for s in parsed.get("steps") or []:
+        if isinstance(s, dict):
+            stext = str(s.get("text") or "").strip()
+            label = s.get("label") if s.get("label") in ("good", "bad") else None
+            critique = (str(s.get("critique") or "").strip() or None) if label == "bad" else None
+        else:
+            stext, label, critique = str(s).strip(), None, None
+        if stext:
+            steps.append({"text": stext, "suggested_label": label, "suggested_critique": critique})
+    if not steps:
+        return _plain(_heuristic_split(text), "heuristic", False)
     return {"steps": steps, "source": "llm", "skipped": False, "model": (rec or {}).get("model")}
 
 

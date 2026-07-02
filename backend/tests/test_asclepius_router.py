@@ -498,7 +498,8 @@ def test_grading_after_flag_is_routed_to_qa_not_exported():
 def test_valid_prompt_review_stamps_clinician_reviewed_on_records():
     admin_h = A.headers_for(_admin())
     ev_h = A.headers_for(_seed())
-    tid = _upload_task(admin_h)
+    # full independent mode: the blind capture ships as its own ideal record.
+    tid = _upload_task(admin_h, independent_mode="full")
 
     sid = "s-" + uuid.uuid4().hex[:12]
     r = client.post("/api/asclepius/submissions", json={
@@ -564,7 +565,8 @@ def test_committed_independent_answer_is_authoritative_at_packaging(monkeypatch)
     admin_h = A.headers_for(_admin())
     ev_user = _seed()
     ev_h = A.headers_for(ev_user)
-    tid = _upload_task(admin_h)
+    # full independent mode so the committed answer ships as the blind ideal record.
+    tid = _upload_task(admin_h, independent_mode="full")
 
     committed = "My own pre-reveal plan: IV calcium, then insulin and dextrose, then dialysis."
     client.post(f"/api/asclepius/tasks/{tid}/reveal", json={"text": committed}, headers=ev_h)
@@ -754,3 +756,152 @@ def test_export_no_matching_records_is_400():
     admin_h = A.headers_for(_admin())
     r = client.post("/api/asclepius/exports", json={"profile": "default"}, headers=admin_h)
     assert r.status_code == 400
+
+
+# ─── Speed Optimization: quick stance, pre-labeling, pregrade, transcribe ─────
+def test_blind_task_exposes_independent_mode_default_stance():
+    ev_h = A.headers_for(_seed())
+    _upload_task(A.headers_for(_admin()))
+    nxt = client.get("/api/asclepius/tasks/next", headers=ev_h).json()["task"]
+    assert nxt["independent_mode"] == "stance"
+
+
+def test_stance_ships_on_preference_not_as_gold_ideal(monkeypatch):
+    """Feature 1: on a stance-mode task the pre-reveal quick take rides the
+    preference record as ``stance`` (anchoring guard) and is NOT emitted as an
+    independent ideal_answer record; the reveal gate still requires it."""
+    monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "1")
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)  # default independent_mode = stance
+
+    # Reveal still gates on a non-empty capture.
+    assert client.post(f"/api/asclepius/tasks/{tid}/reveal", json={"text": " "}, headers=ev_h).status_code == 400
+    stance = "continue reduced-dose metformin; recheck eGFR in three months; watch for lactic acidosis"
+    rev = client.post(f"/api/asclepius/tasks/{tid}/reveal", json={"text": stance}, headers=ev_h)
+    assert rev.status_code == 200, rev.text
+
+    sid = "s-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": stance},
+        "chosen_revision": {"edited": True, "revised_text": "Give calcium gluconate, insulin-dextrose, then dialyze with K+ 2.0.", "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"},
+    }, headers=ev_h)
+    assert r.status_code == 200, r.text
+
+    sub = client.get(f"/api/asclepius/submissions/{sid}", headers=admin_h).json()
+    prefs = [rec for rec in sub["records"] if rec["type"] == "preference"]
+    assert len(prefs) == 1
+    assert prefs[0]["payload"]["stance"] == stance
+    # No independent blind-ideal record in stance mode…
+    assert not any(rec["payload"].get("independent") for rec in sub["records"])
+    # …and the gold ideal_answer is the refined CHOSEN answer (unchanged logic).
+    ideals = [rec for rec in sub["records"] if rec["type"] == "ideal_answer"]
+    assert len(ideals) == 1
+    assert ideals[0]["payload"]["ideal_answer"].startswith("Give calcium gluconate")
+
+
+def test_prelabel_gated_behind_independent_commit(monkeypatch):
+    """Anti-peeking: the prelabel suggestion describes the A/B answers, so it is
+    unreachable until the evaluator commits their independent capture."""
+    monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "1")
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(A.headers_for(_admin()))
+    blocked = client.post("/api/asclepius/assist/prelabel", json={"task_id": tid}, headers=ev_h)
+    assert blocked.status_code == 403
+    assert blocked.json()["detail"]["error"] == "independent_answer_required"
+
+    client.post(f"/api/asclepius/tasks/{tid}/reveal", json={"text": "my quick take"}, headers=ev_h)
+    r = client.post("/api/asclepius/assist/prelabel", json={"task_id": tid}, headers=ev_h)
+    assert r.status_code == 200, r.text
+    # No LLM key in tests -> graceful degrade to skipped (manual labeling works).
+    assert r.json()["skipped"] is True
+
+
+def test_prelabel_returns_suggestion_and_never_applies_it(monkeypatch):
+    import routers.asclepius as asc_router
+
+    monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "1")
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)
+    client.post(f"/api/asclepius/tasks/{tid}/reveal", json={"text": "quick take"}, headers=ev_h)
+
+    async def _fake_prelabel(task):
+        return {
+            "skipped": False, "suggested_weaker": "B",
+            "suggested_error_tags": ["dosing_error"],
+            "suggested_rationale": "Dialysate K+ 1.0 is unsafely aggressive here.",
+            "error_spans": ["dialysate K+ to 1.0"], "confidence": 0.9,
+        }
+
+    monkeypatch.setattr(asc_router, "run_prelabel", _fake_prelabel)
+    r = client.post("/api/asclepius/assist/prelabel", json={"task_id": tid}, headers=ev_h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["skipped"] is False
+    assert body["suggested_weaker"] == "B"
+    assert body["suggested_error_tags"] == ["dosing_error"]
+    assert body["confidence"] == 0.9
+
+    # The suggestion is NEVER server-applied: no submission/verdict exists and
+    # the task is untouched in the queue.
+    assert _store().submissions_for_task(tid) == []
+    assert _store().get_task(tid)["status"] == "open"
+
+
+def test_prelabel_hides_low_confidence_suggestions(monkeypatch):
+    import routers.asclepius as asc_router
+
+    monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "1")
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(A.headers_for(_admin()))
+    client.post(f"/api/asclepius/tasks/{tid}/reveal", json={"text": "quick take"}, headers=ev_h)
+
+    async def _uncertain_prelabel(task):
+        return {"skipped": False, "suggested_weaker": "A", "suggested_error_tags": [],
+                "suggested_rationale": None, "error_spans": [], "confidence": 0.4}
+
+    monkeypatch.setattr(asc_router, "run_prelabel", _uncertain_prelabel)
+    r = client.post("/api/asclepius/assist/prelabel", json={"task_id": tid}, headers=ev_h)
+    assert r.status_code == 200
+    assert r.json() == {"skipped": True, "reason": "low_confidence"}
+
+
+def test_reasoning_pregrade_degrades_to_unlabeled_heuristic():
+    """Offline the pregrade endpoint still splits (heuristic) but suggests NO
+    labels — silence is not a suggestion; the doctor grades manually."""
+    ev_h = A.headers_for(_seed())
+    text = "Give IV calcium gluconate.\nStart insulin with dextrose.\nArrange urgent dialysis."
+    r = client.post("/api/asclepius/reasoning/pregrade",
+                    json={"text": text, "prompt": "hyperkalemia", "specialty": "nephrology"},
+                    headers=ev_h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert len(body["steps"]) == 3
+    assert all(s["suggested_label"] is None for s in body["steps"])
+    assert body["source"] in ("llm", "heuristic")
+
+
+def test_reasoning_pregrade_requires_auth():
+    assert client.post("/api/asclepius/reasoning/pregrade", json={"text": "x"}).status_code == 401
+
+
+def test_transcribe_degrades_to_503_without_provider(monkeypatch):
+    monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    ev_h = A.headers_for(_seed())
+    r = client.post("/api/asclepius/transcribe",
+                    files={"file": ("dictation.webm", b"\x1aE\xdf\xa3fakeaudio", "audio/webm")},
+                    headers=ev_h)
+    assert r.status_code == 503
+    assert r.json()["detail"]["error"] == "stt_unavailable"
+
+
+def test_transcribe_requires_auth():
+    r = client.post("/api/asclepius/transcribe",
+                    files={"file": ("d.webm", b"x", "audio/webm")})
+    assert r.status_code == 401

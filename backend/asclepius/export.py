@@ -273,6 +273,18 @@ def _scope_section_md(scope: Optional[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _stance_semantics_md(records: List[Dict[str, Any]]) -> str:
+    """Datasheet copy for quick-stance captures (Speed Optimization §1) — only
+    emitted when the batch actually carries stance-mode records."""
+    if not any((r.get("payload") or {}).get("stance") for r in records):
+        return ""
+    return (
+        "\nIndependent stance captured pre-reveal (anchoring guard); the gold "
+        "answer is the specialist-refined chosen answer. A record's `stance` "
+        "field is the evaluator's blind quick take, not a gold completion."
+    )
+
+
 def _datasheet_md(*, export_id: str, profile_name: str, counts: Dict[str, Any],
                   records: List[Dict[str, Any]], contributors: List[Dict[str, Any]],
                   scope: Optional[Dict[str, Any]] = None) -> str:
@@ -305,6 +317,7 @@ Answers were evaluated in the Asclepius portal. Each submission was
 auto-packaged, schema-validated (completeness, time-floor, PHI scan, dedupe,
 contamination), double-checked by an LLM consistency critic, and gated through
 human QA (sampled + all flagged) before becoming export-ready.
+{_stance_semantics_md(records)}
 
 ## Annotator credentials (aggregate)
 {chr(10).join("- " + c for c in credentials)}

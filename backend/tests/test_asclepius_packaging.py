@@ -58,17 +58,18 @@ def _submission(payload, **kw):
 
 
 def test_independent_answer_emits_blind_ideal_record():
-    """Eval Flow Upgrade §3: the blind independent answer becomes an additional
-    ``ideal_answer`` record tagged ``independent: true`` (premium uncontaminated
-    SFT), alongside the preference — one submission, multiple records."""
+    """Eval Flow Upgrade §3: in ``full`` independent mode the blind independent
+    answer becomes an additional ``ideal_answer`` record tagged
+    ``independent: true`` (premium uncontaminated SFT), alongside the preference
+    — one submission, multiple records."""
     payload = {
         "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
         "prompt_review": {"reviewed": True, "verdict": "valid"},
-        "independent_answer": {"text": "Give IV calcium to stabilize the membrane, shift potassium with insulin and dextrose, then dialyze."},
+        "independent_answer": {"text": "Give IV calcium to stabilize the membrane, shift potassium with insulin and dextrose, then dialyze.", "kind": "full"},
         "chosen_revision": {"edited": False, "why_better_notes": "safer"},
         "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"},
     }
-    recs = package_submission(_task(), _submission(payload))
+    recs = package_submission(_task(independent_mode="full"), _submission(payload))
     assert any(r["type"] == "preference" for r in recs)
     blind = [r for r in recs if r["type"] == "ideal_answer" and r.get("independent")]
     assert len(blind) == 1
@@ -337,3 +338,92 @@ def test_canonical_jsonl_is_byte_stable():
     assert obj["type"] == "preference"
     assert obj["annotator_credential"] == "board_certified_nephrology"
     assert obj["taxonomy_version"] and obj["config_version"]
+
+
+# ─── Speed Optimization §1/§2/§6: stance, assist provenance, tag reasons ──────
+def test_stance_kind_ships_as_context_field_not_gold():
+    """Feature 1: a stance-mode capture rides the preference record as ``stance``
+    (anchoring guard); NO independent ideal record is emitted, and the gold
+    ideal_answer stays the specialist-refined chosen answer."""
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "independent_answer": {"text": "keep calcium first; dialyze early", "kind": "stance"},
+        "chosen_revision": {"edited": True, "revised_text": "Give calcium gluconate, then dialyze with K+ 2.0 and recheck.", "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "too aggressive"},
+    }
+    recs = package_submission(_task(), _submission(payload))
+    pref = [r for r in recs if r["type"] == "preference"][0]
+    assert pref["stance"] == "keep calcium first; dialyze early"
+    assert not any(r.get("independent") for r in recs)
+    ideals = [r for r in recs if r["type"] == "ideal_answer"]
+    assert len(ideals) == 1  # the refined-chosen gold, not the stance
+    assert ideals[0]["ideal_answer"].startswith("Give calcium gluconate")
+    assert ideals[0].get("independent") is None
+
+
+def test_stance_default_resolves_from_task_mode():
+    """A payload without ``kind`` falls back to the task's independent_mode
+    (default stance) — direct API clients get the same semantics."""
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "independent_answer": {"text": "quick take"},
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+    }
+    recs = package_submission(_task(), _submission(payload))  # no independent_mode on task
+    assert [r for r in recs if r["type"] == "preference"][0]["stance"] == "quick take"
+    assert not any(r.get("independent") for r in recs)
+
+
+def test_assist_suggestions_and_tag_reasons_carried_next_to_finals():
+    """Feature 2 + 6: the sanitized ``assist`` block (suggested_*) and the
+    structured ``error_tag_reasons`` ship on the preference record alongside the
+    human finals; per-step suggested_label ships next to the human label."""
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "independent_answer": {"text": "quick take", "kind": "stance"},
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {
+            "error_tags": ["dosing_error"], "why_worse": "too aggressive",
+            "error_tag_reasons": {"dosing_error": "dose_too_high", "hallucination": "unsafe"},
+        },
+        "assist": {
+            "prelabeled": True, "suggested_verdict": "A_better",
+            "suggested_error_tags": ["dosing_error"],
+            "suggested_rationale": "K+ 1.0 dialysate is unsafe.",
+            "suggested_step_labels": ["good", "bad"],
+            "confidence": 0.85,
+            "smuggled_field": "should never ship",
+        },
+        "reasoning_steps": [
+            {"step": 1, "text": "Give IV calcium", "original_text": "Give IV calcium",
+             "confirmed": True, "label": "good", "suggested_label": "good"},
+            {"step": 2, "text": "Dialyze with K+ 2.0", "original_text": "Dialyze with K+ 1.0",
+             "corrected": True, "correction_reason": "unsafe", "label": "bad",
+             "suggested_label": "bad"},
+        ],
+    }
+    recs = package_submission(_task(capture_reasoning=True), _submission(payload))
+    pref = [r for r in recs if r["type"] == "preference"][0]
+    # Only the reason for a SELECTED tag ships.
+    assert pref["error_tag_reasons"] == {"dosing_error": "dose_too_high"}
+    assert pref["assist"]["prelabeled"] is True
+    assert pref["assist"]["suggested_verdict"] == "A_better"
+    assert pref["assist"]["suggested_error_tags"] == ["dosing_error"]
+    assert pref["assist"]["suggested_step_labels"] == ["good", "bad"]
+    assert "smuggled_field" not in pref["assist"]
+    # Per-step: suggestion + human label both present (override-rate monitoring).
+    trace = [r for r in recs if r["type"] == "reasoning_trace"][0]
+    assert trace["steps"][0]["suggested_label"] == "good" and trace["steps"][0]["label"] == "good"
+    assert trace["steps"][1]["suggested_label"] == "bad" and trace["steps"][1]["label"] == "bad"
+
+
+def test_no_assist_block_when_not_prelabeled():
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "independent_answer": {"text": "quick take"},
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+    }
+    recs = package_submission(_task(), _submission(payload))
+    assert [r for r in recs if r["type"] == "preference"][0]["assist"] is None

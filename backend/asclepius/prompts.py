@@ -75,6 +75,63 @@ Return ONLY a single JSON object, no prose, with this exact shape:
 Every element of "steps" is a non-empty string. Return at least one step."""
 
 
+ASCLEPIUS_PRELABEL_SYSTEM = """You are pre-labeling a blinded A/B comparison of two AI-generated answers to a \
+medical prompt so a credentialed specialist can VERIFY rather than author the mechanical scaffolding. The \
+specialist always makes the final call — your output is only a suggestion shown as a hint, never auto-applied.
+
+Read the PROMPT and the two answers, then produce:
+- suggested_weaker: which answer ("A" or "B") is clinically weaker (the one a specialist would likely reject).
+- suggested_error_tags: the error tags that apply to the weaker answer, chosen ONLY from the ALLOWED ERROR TAGS \
+list in the user message.
+- suggested_rationale: one or two sentences a specialist could accept/edit as the "why it's worse" note — \
+concrete and clinical (name the drug/dose/threshold), not generic.
+- error_spans: up to 3 short VERBATIM substrings copied exactly from the weaker answer's text that contain the \
+likely error(s), so the UI can highlight them. Each span must appear character-for-character in that answer.
+- confidence: 0..1 — your calibrated confidence in suggested_weaker. Be conservative: use < 0.6 whenever the \
+answers are genuinely close or the flaw is debatable (low-confidence suggestions are hidden from the specialist).
+
+Return ONLY a single JSON object, no prose, with this exact shape:
+{
+  "suggested_weaker": "A",
+  "suggested_error_tags": ["dosing_error"],
+  "suggested_rationale": "one or two sentences",
+  "error_spans": ["verbatim substring from the weaker answer"],
+  "confidence": 0.8
+}"""
+
+
+ASCLEPIUS_REASONING_PREGRADE_SYSTEM = """You split a clinical answer into discrete, ordered reasoning steps AND \
+pre-grade each step so a specialist can spend their time only on the flagged ones. The specialist explicitly \
+confirms or corrects every step — your labels are suggestions, never final.
+
+Splitting rules (identical to the plain splitter):
+- Split ONLY. Do NOT add, remove, or correct clinical content. Preserve the answer's own reasoning and ordering; \
+  each step must be faithful to the source text.
+- Each step is a short, self-contained phrase or sentence naming a single clinical decision or inference.
+- Merge trivial connective text into the adjacent step; drop pure pleasantries. Aim for 2–8 steps.
+
+Grading rules:
+- label each step "good" (clinically sound, current, safe) or "bad" (contains a factual error, outdated \
+  guideline, unsafe recommendation, wrong ordering, or a material omission).
+- For a "bad" step, add a one-line "critique" naming what's off. Omit critique on good steps.
+- Be conservative: when unsure whether a step is wrong, label it "bad" so the specialist looks at it (a false \
+  flag costs seconds; a missed flag costs data quality).
+
+Return ONLY a single JSON object, no prose, with this exact shape:
+{
+  "steps": [
+    {"text": "first clinical move", "label": "good"},
+    {"text": "second clinical move", "label": "bad", "critique": "one line on what's off"}
+  ]
+}"""
+
+
+ASCLEPIUS_STT_CLEANUP_SYSTEM = """You clean up a raw speech-to-text transcript of a clinician dictating a short \
+clinical note. Fix casing, punctuation, and obvious mis-transcriptions of clinical terms (drug names, units, \
+lab values) using context; expand dictated punctuation ("period", "new line") when clearly intended. Do NOT \
+add, remove, or reinterpret clinical content, and do NOT append commentary. Return ONLY the cleaned text."""
+
+
 ASCLEPIUS_CANDIDATE_GEN_SYSTEM = """You are generating TWO distinct candidate answers to a medical prompt so \
 that a credentialed specialist can compare them. Make the two answers span a real quality gap so the \
 comparison and any revision are informative: one answer should be STRONG (clinically sound, current, safe) \

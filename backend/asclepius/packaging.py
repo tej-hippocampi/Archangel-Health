@@ -145,6 +145,9 @@ def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "confirmed": bool(s.get("confirmed")),
                 "added": bool(s.get("added")),
                 "label": label,
+                # The pre-grader's suggestion (Speed Optimization §2), carried
+                # ALONGSIDE the human label so override rate is monitorable.
+                "suggested_label": s.get("suggested_label"),
                 # Why the edited step was wrong (drives the derived label).
                 "correction_reason": reason,
                 "step_reward": s.get("step_reward"),
@@ -185,12 +188,47 @@ def _chat(prompt: str, completion: str) -> List[Dict[str, str]]:
     ]
 
 
+def _independent_kind(task: Dict[str, Any], ia: Dict[str, Any]) -> str:
+    """Stage-2 capture kind (Speed Optimization §1). The reveal endpoint stamps
+    ``kind`` from the task's ``independent_mode`` server-side; fall back to the
+    task mode (then the default) for direct API clients / legacy payloads."""
+    kind = ia.get("kind") or task.get("independent_mode") or "stance"
+    return kind if kind in ("stance", "full") else "stance"
+
+
+def _assist_block(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Sanitized model-assist provenance (Speed Optimization §2): the machine
+    SUGGESTIONS stored next to the human finals so override rate is monitorable.
+    Only known keys are carried — a client can't smuggle arbitrary fields onto a
+    shipped record through the assist block."""
+    assist = payload.get("assist")
+    if not assist or not isinstance(assist, dict) or not assist.get("prelabeled"):
+        return None
+    return {
+        "prelabeled": True,
+        "suggested_verdict": assist.get("suggested_verdict"),
+        "suggested_error_tags": list(assist.get("suggested_error_tags") or []),
+        "suggested_rationale": assist.get("suggested_rationale"),
+        "suggested_step_labels": list(assist.get("suggested_step_labels") or []),
+        "confidence": assist.get("confidence"),
+    }
+
+
 def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List[Dict[str, Any]]:
     payload = submission.get("payload") or {}
     verdict = submission.get("verdict") or payload.get("verdict")
     prompt = task.get("prompt", "")
     prov = _provenance(task, submission)
     records: List[Dict[str, Any]] = []
+
+    # Stage-2 independent capture (Eval Flow Upgrade §3 / Speed Optimization §1).
+    ia = payload.get("independent_answer") or {}
+    ia_text = (ia.get("text") or "").strip()
+    ia_kind = _independent_kind(task, ia)
+    # In stance mode the pre-reveal capture is a lightweight anchoring-guard
+    # signal attached to the primary record — NOT a gold ideal answer.
+    stance_text = ia_text if (ia_text and ia_kind == "stance") else None
+    assist = _assist_block(payload)
 
     if verdict in ("A_better", "B_better"):
         chosen_id = submission.get("chosen_id") or payload.get("chosen_id")
@@ -220,6 +258,14 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
             is_valid_anchor(anc) for anc in tag_anchors_raw.values()
         )
 
+        # Structured per-tag reasons (Speed Optimization §6): only reasons for
+        # tags actually selected ship (a deselected tag's stale reason is dropped).
+        tag_reasons = {
+            tag: reason
+            for tag, reason in (critique.get("error_tag_reasons") or {}).items()
+            if tag in error_tags and (reason or "").strip()
+        }
+
         preference = {
             "type": "preference",
             # flat hh-rlhf variant
@@ -236,6 +282,12 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
             "error_tags_on_rejected": error_tags,
             "error_tag_anchors": error_tag_anchors,
             "error_severities": dict(critique.get("severities") or {}),
+            "error_tag_reasons": tag_reasons,
+            # Pre-reveal quick stance (Speed Optimization §1): context/anchoring
+            # signal only — the gold ideal_answer stays the refined chosen answer.
+            "stance": stance_text,
+            # Model-assist provenance (suggested_* next to the human finals).
+            "assist": assist,
             "confidence": submission.get("confidence"),
             "grounded": grounded,
             "agreement_score": submission.get("agreement_score"),
@@ -278,6 +330,9 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
                 "approach_notes": approach,
                 "evidence_anchor": rationale_anchor,
                 "context": _context(task),
+                # Pre-reveal quick stance rides the primary record (Speed Opt §1).
+                "stance": stance_text,
+                "assist": assist,
                 "confidence": submission.get("confidence"),
                 "grounded": grounded,
                 **prov,
@@ -298,14 +353,14 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
                 }
             )
 
-    # Blind independent answer (Eval Flow Upgrade §3): the doctor's full ideal
+    # Blind independent answer (Eval Flow Upgrade §3): the doctor's FULL ideal
     # answer, written BEFORE the A/B candidates were revealed. Emitted as an
     # ADDITIONAL premium SFT record so one submission can yield preference +
     # revised-ideal + independent-ideal (+ reasoning_trace). Flagged ``independent``
-    # so a buyer can isolate uncontaminated gold answers.
-    ia = payload.get("independent_answer") or {}
-    ia_text = (ia.get("text") or "").strip()
-    if ia_text:
+    # so a buyer can isolate uncontaminated gold answers. Only ``kind == "full"``
+    # captures qualify (Speed Optimization §1) — a quick stance is an anchoring
+    # guard, not a gold answer, and ships as the ``stance`` field above instead.
+    if ia_text and ia_kind == "full":
         records.append(
             {
                 "type": "ideal_answer",

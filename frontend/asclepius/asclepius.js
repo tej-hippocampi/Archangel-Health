@@ -36,6 +36,8 @@
     baseElapsed: 0,
     timerInterval: null,
     submitting: false,
+    assistLoading: false,  // /assist/prelabel fetch in flight
+    showFullText: false,   // compare view: full text vs highlighted diff
   };
 
   // ─── Tiny DOM helper ───────────────────────────────────────────────────────
@@ -409,10 +411,13 @@
       chosen_id: null,
       rejected_id: null,
       chosen_revision: { edited: false, revised_text: null, why_better_tags: [], why_better_notes: '', evidence_anchor: emptyAnchor() },
-      rejected_critique: { error_tags: [], severities: {}, why_worse: '', error_tag_anchors: {} },
+      rejected_critique: { error_tags: [], severities: {}, why_worse: '', error_tag_anchors: {}, error_tag_reasons: {} },
       from_scratch: { ideal_answer: '', approach_notes: '', reasoning_steps: [], evidence_anchor: emptyAnchor() },
       reasoning_steps: [],
       confidence: 'medium',
+      // Model-assist suggestions (Speed Optimization §2), cached on the draft so a
+      // refresh never re-bills the LLM. {fetched, skipped, suggested_weaker, ...}
+      assist: null,
       elapsedSec: 0,
     };
   }
@@ -424,6 +429,8 @@
     if (!draft.chosen_revision.evidence_anchor) draft.chosen_revision.evidence_anchor = emptyAnchor();
     if (!draft.from_scratch.evidence_anchor) draft.from_scratch.evidence_anchor = emptyAnchor();
     if (!draft.rejected_critique.error_tag_anchors) draft.rejected_critique.error_tag_anchors = {};
+    if (!draft.rejected_critique.error_tag_reasons) draft.rejected_critique.error_tag_reasons = {};
+    if (draft.assist === undefined) draft.assist = null;
     if (!draft.prompt_review) draft.prompt_review = { reviewed: false, verdict: null, note: '', reviewed_at: null };
     if (!draft.independent_answer) draft.independent_answer = { text: '', evidence_anchor: emptyAnchor(), captured_at: null };
     if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
@@ -577,7 +584,53 @@
       refreshAnswerHighlight();
       renderRationale();
       updateSubmitState();
+      loadAssist(); // fire-and-forget: suggestions appear when ready (Speed Opt §2)
     }
+  }
+
+  // ─── Model-assisted pre-labeling (Speed Optimization §2) ────────────────────
+  // Fetch the prelabel suggestion once per task (cached on the draft so a
+  // refresh never re-bills the LLM). Suggestions are hints only: no verdict is
+  // ever auto-selected, nothing is applied without an explicit tap, and the
+  // server already hides low-confidence calls.
+  function assistData() {
+    const a = state.draft && state.draft.assist;
+    return (a && a.fetched && !a.skipped && a.suggested_weaker) ? a : null;
+  }
+  async function loadAssist() {
+    const d = state.draft;
+    if (!d || d.stage !== 'compare') return;
+    if ((d.assist && d.assist.fetched) || state.assistLoading) { renderAssistUI(); return; }
+    state.assistLoading = true;
+    try {
+      const res = await api('/assist/prelabel', { method: 'POST', body: { task_id: d.task_id } });
+      d.assist = Object.assign({ fetched: true }, res);
+    } catch (e) {
+      // Graceful: no suggestions — the doctor labels manually (never an error).
+      d.assist = { fetched: true, skipped: true };
+    } finally {
+      state.assistLoading = false;
+    }
+    saveDraft();
+    renderAssistUI();
+  }
+  // Surface freshly-arrived suggestions without stealing focus: update the
+  // verdict hint + answer highlighting in place; re-render the rationale cards
+  // only (they hold the suggested chips) when a verdict is already selected.
+  function renderAssistUI() {
+    renderAssistHint();
+    renderAnswersInto(document.getElementById('ascAnswers'));
+    if (state.draft && state.draft.verdict) renderRationale();
+  }
+  function renderAssistHint() {
+    const el = document.getElementById('ascAssistHint');
+    if (!el) return;
+    clear(el);
+    const a = assistData();
+    if (!a) return;
+    el.appendChild(h('span', { class: 'asc-assist-chip' }, '✨'));
+    el.appendChild(h('span', {},
+      'Model thinks ', h('strong', {}, a.suggested_weaker), ' is weaker — tap a verdict to decide.'));
   }
 
   // A non-peekable stand-in for the answers/verdict during Stages 1–2. The real
@@ -612,25 +665,114 @@
       return;
     }
     const answers = h('div', { class: 'asc-answers', id: 'ascAnswers' });
-    (state.task.candidate_answers || []).forEach((c) => answers.appendChild(renderAnswerCard(c)));
+    renderAnswersInto(answers);
+
+    // Diff view (Speed Optimization §3): differences emphasized, shared text
+    // dimmed — with an always-available full-text toggle (nothing is hidden).
+    const diffToggle = h('button', {
+      class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button', id: 'ascDiffToggle',
+      onClick: () => {
+        state.showFullText = !state.showFullText;
+        renderAnswersInto(document.getElementById('ascAnswers'));
+        const b = document.getElementById('ascDiffToggle');
+        if (b) b.textContent = state.showFullText ? '◧ Highlight differences' : '≡ Show full text';
+      },
+    }, state.showFullText ? '◧ Highlight differences' : '≡ Show full text');
 
     const verdicts = h('div', { class: 'asc-verdicts', id: 'ascVerdicts' },
       verdictButton('A_better', 'A is better', '1'),
       verdictButton('B_better', 'B is better', '2'),
       verdictButton('both_inadequate', 'Both inadequate', '3', true),
     );
+    const assistHint = h('div', { class: 'asc-assist-hint', id: 'ascAssistHint' });
     const rationale = h('div', { id: 'ascRationale' });
     const submitBar = renderSubmitBar();
 
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
-      h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Compare the answers'),
+      h('div', { class: 'asc-compare-head' },
+        h('div', { class: 'asc-card-title' }, 'Compare the answers'),
+        diffToggle),
+      h('p', { class: 'asc-help', style: 'margin:2px 0 14px' },
+        'Shared text is dimmed; passages where the answers diverge are highlighted.'),
       answers));
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Your verdict',
         h('span', { class: 'asc-label-hint', style: 'font-weight:500;margin-left:6px' }, '(press 1 / 2 / 3)')),
       verdicts,
+      assistHint,
       rationale));
     wrap.appendChild(h('div', { class: 'asc-card' }, submitBar));
+    setTimeout(renderAssistHint, 0);
+  }
+
+  // ─── Sentence-level diff (Speed Optimization §3, dependency-free) ───────────
+  function splitSentences(text) {
+    const out = [];
+    const re = /[^.!?\n]+[.!?]*[\s\n]*/g;
+    let m;
+    while ((m = re.exec(text || '')) !== null) { if (m[0]) out.push(m[0]); }
+    return out.length ? out : (text ? [text] : []);
+  }
+  function normSentence(s) {
+    return (s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  // LCS over normalized sentences → per-sentence shared/divergent flags.
+  function diffFlags(aSents, bSents) {
+    const aN = aSents.map(normSentence), bN = bSents.map(normSentence);
+    const n = aN.length, m = bN.length;
+    if (n * m > 40000) { // pathological size: skip dimming rather than lock the UI
+      return { a: aSents.map(() => false), b: bSents.map(() => false), any: false };
+    }
+    const dp = [];
+    for (let i = 0; i <= n; i++) dp.push(new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i][j] = (aN[i] && aN[i] === bN[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const aShared = new Array(n).fill(false), bShared = new Array(m).fill(false);
+    let i = 0, j = 0, any = false;
+    while (i < n && j < m) {
+      if (aN[i] && aN[i] === bN[j]) { aShared[i] = bShared[j] = true; any = true; i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) i++;
+      else j++;
+    }
+    return { a: aShared, b: bShared, any };
+  }
+  function computeAnswerDiff() {
+    const cands = state.task.candidate_answers || [];
+    const A = cands.find((c) => c.id === 'A'), B = cands.find((c) => c.id === 'B');
+    if (!A || !B || A.text == null || B.text == null) return null;
+    const aS = splitSentences(A.text), bS = splitSentences(B.text);
+    const flags = diffFlags(aS, bS);
+    if (!flags.any) return null; // fully divergent answers: dimming adds nothing
+    return { A: { sents: aS, shared: flags.a }, B: { sents: bS, shared: flags.b } };
+  }
+  // Render one sentence, wrapping any model-suggested error span (Feature 2)
+  // occurring inside it in a highlight mark.
+  function sentenceNode(sentence, shared, errSpans) {
+    const cls = 'asc-diff-sent' + (shared ? ' asc-diff-shared' : ' asc-diff-changed');
+    const span = h('span', { class: cls });
+    let rest = sentence;
+    for (const es of errSpans || []) {
+      const idx = rest.indexOf(es);
+      if (idx === -1) continue;
+      span.appendChild(document.createTextNode(rest.slice(0, idx)));
+      span.appendChild(h('mark', { class: 'asc-err-span', title: 'Model-flagged likely error region' }, es));
+      rest = rest.slice(idx + es.length);
+    }
+    span.appendChild(document.createTextNode(rest));
+    return span;
+  }
+  function renderAnswersInto(container) {
+    if (!container) return;
+    clear(container);
+    const diff = state.showFullText ? null : computeAnswerDiff();
+    const a = assistData();
+    (state.task.candidate_answers || []).forEach((c) => {
+      container.appendChild(renderAnswerCard(c, diff, a));
+    });
+    refreshAnswerHighlight();
   }
 
   // ─── Stage 1: prompt validation gate (Feature A) ───────────────────────────
@@ -687,25 +829,104 @@
     }
   }
 
-  // ─── Stage 2: blind independent answer (Feature B) ─────────────────────────
+  // ─── Voice dictation mic (Speed Optimization §4) ────────────────────────────
+  // Reusable mic button: tap → MediaRecorder capture → POST /transcribe → the
+  // transcript is APPENDED to the field (still editable). Fields stay plain
+  // textareas (no keystroke interception), so the Wispr Flow desktop app keeps
+  // working everywhere; this in-app mic is a secondary convenience that degrades
+  // to typing when no STT provider is configured. Returns null when the browser
+  // has no recording support (the field simply has no mic).
+  function micButton(getVal, setVal) {
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder)) return null;
+    let recorder = null, chunks = [], stream = null;
+    const btn = h('button', {
+      class: 'asc-mic-btn', type: 'button',
+      title: 'Dictate into this field (tap to start/stop)',
+      'aria-label': 'Dictate into this field',
+    }, '🎤');
+    btn.addEventListener('click', async () => {
+      if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) { toast('Microphone unavailable — check browser permissions.', 'error'); return; }
+      chunks = [];
+      try {
+        recorder = new MediaRecorder(stream);
+      } catch (e) {
+        stream.getTracks().forEach((t) => t.stop());
+        toast('Recording is not supported in this browser.', 'error');
+        return;
+      }
+      recorder.addEventListener('dataavailable', (e) => { if (e.data && e.data.size) chunks.push(e.data); });
+      recorder.addEventListener('stop', async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        btn.classList.remove('recording');
+        btn.textContent = '…'; btn.disabled = true;
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        const fd = new FormData();
+        fd.append('file', blob, 'dictation.webm');
+        try {
+          const res = await api('/transcribe', { method: 'POST', body: fd, isForm: true });
+          const text = (res.text || '').trim();
+          if (text) {
+            const cur = (getVal() || '').trim();
+            setVal(cur ? cur + ' ' + text : text);
+          }
+        } catch (e) {
+          if (e.status === 503) toast('Dictation is not configured — type instead (or use the Wispr Flow app).', 'info');
+          else if (e.status !== 401) toast('Transcription failed: ' + e.message, 'error');
+        } finally {
+          btn.textContent = '🎤'; btn.disabled = false;
+        }
+      });
+      recorder.start();
+      btn.classList.add('recording');
+      btn.textContent = '■';
+    });
+    return btn;
+  }
+
+  // Wrap a textarea/input with its mic in one row. setVal pushes the transcript
+  // through the field's own input handler so the draft stays in sync.
+  function withMic(field) {
+    const mic = micButton(
+      () => field.value,
+      (v) => { field.value = v; field.dispatchEvent(new Event('input', { bubbles: true })); },
+    );
+    if (!mic) return field;
+    return h('div', { class: 'asc-mic-row' }, field, mic);
+  }
+
+  // ─── Stage 2: blind independent capture (Feature B / Speed Optimization §1) ─
+  // Default is the quick STANCE (30–45s take — the anti-anchoring guard; the
+  // gold SFT answer comes from the refined chosen answer). Tasks with
+  // independent_mode = "full" keep the original long-form blind ideal answer.
   function renderIndependentAnswer() {
     const ia = state.draft.independent_answer;
-    const ta = h('textarea', { class: 'asc-textarea', style: 'min-height:200px',
-      placeholder: 'Write your full ideal answer to this prompt…' }, ia.text || '');
+    const fullMode = (state.task.independent_mode || 'stance') === 'full';
+    const ta = fullMode
+      ? h('textarea', { class: 'asc-textarea', style: 'min-height:200px',
+          placeholder: 'Write your full ideal answer to this prompt…' }, ia.text || '')
+      : h('textarea', { class: 'asc-textarea', style: 'min-height:90px',
+          placeholder: 'Your quick take — key points you\'d expect (bullets are fine). e.g. continue reduced-dose metformin · recheck eGFR 3 mo · watch for lactic acidosis.' }, ia.text || '');
     const revealBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascRevealBtn', onClick: commitIndependentAnswerAndReveal }, 'Reveal AI answers →');
     const hint = h('span', { class: 'asc-submit-hint', id: 'ascRevealHint' });
     const syncReveal = () => {
       const ok = (ia.text || '').trim().length > 0;
       revealBtn.disabled = !ok;
-      hint.textContent = ok ? '' : 'write your answer to continue';
+      hint.textContent = ok ? '' : (fullMode ? 'write your answer to continue' : 'jot your quick take to continue');
     };
     ta.addEventListener('input', () => { ia.text = ta.value; saveDraft(); syncReveal(); });
 
     const card = h('div', { class: 'asc-card asc-card-pad asc-gate' },
-      h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' }, 'Before you see the AI answers, write your ideal answer'),
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' },
+        fullMode ? 'Before you see the AI answers, write your ideal answer'
+                 : 'Before you see the answers — your quick take'),
       h('p', { class: 'asc-help', style: 'margin-bottom:16px' },
-        'This is captured uncontaminated — your own gold answer, before the A/B answers can anchor your judgment.'),
-      h('div', { class: 'asc-field' }, ta),
+        fullMode
+          ? 'This is captured uncontaminated — your own gold answer, before the A/B answers can anchor your judgment.'
+          : 'A few key points, captured before the A/B answers can anchor your judgment. 30–45 seconds is plenty — your refined chosen answer later is the gold answer.'),
+      h('div', { class: 'asc-field' }, withMic(ta)),
       renderAnchorBlock(ia.evidence_anchor, { label: 'citation for your answer', required: false }),
       h('div', { class: 'asc-gate-reveal' }, hint, revealBtn));
     setTimeout(syncReveal, 0);
@@ -758,14 +979,43 @@
     renderTaskWorkspace();
   }
 
-  function renderAnswerCard(c) {
+  // Plain answer text with only the model-flagged error spans marked (used when
+  // sentence dimming adds nothing but the error highlight is still valuable).
+  function plainWithMarks(text, errSpans) {
+    const body = h('div', { class: 'asc-answer-body' });
+    let rest = text || '';
+    for (const es of errSpans || []) {
+      const idx = rest.indexOf(es);
+      if (idx === -1) continue;
+      body.appendChild(document.createTextNode(rest.slice(0, idx)));
+      body.appendChild(h('mark', { class: 'asc-err-span', title: 'Model-flagged likely error region' }, es));
+      rest = rest.slice(idx + es.length);
+    }
+    body.appendChild(document.createTextNode(rest));
+    return body;
+  }
+
+  function renderAnswerCard(c, diff, assist) {
+    // Error spans (from the prelabel suggestion) only ever highlight inside the
+    // suggested-weaker answer — and never in full-text mode (nothing decorated).
+    const errSpans = (!state.showFullText && assist && assist.suggested_weaker === c.id)
+      ? (assist.error_spans || []) : [];
+    let body;
+    if (diff && diff[c.id]) {
+      body = h('div', { class: 'asc-answer-body asc-answer-diff' });
+      diff[c.id].sents.forEach((s, i) => body.appendChild(sentenceNode(s, diff[c.id].shared[i], errSpans)));
+    } else if (errSpans.length) {
+      body = plainWithMarks(c.text || '', errSpans);
+    } else {
+      body = h('div', { class: 'asc-answer-body' }, c.text || '');
+    }
     return h('div', { class: 'asc-answer', dataset: { id: c.id } },
       h('div', { class: 'asc-answer-head' },
         h('div', { class: 'asc-answer-tag' },
           h('span', { class: 'asc-answer-letter', dataset: { letter: c.id } }, c.id),
           'Answer ' + c.id),
       ),
-      h('div', { class: 'asc-answer-body' }, c.text || ''));
+      body);
   }
 
   function verdictButton(verdict, label, key, isBoth) {
@@ -856,6 +1106,7 @@
 
     const notes = h('textarea', { class: 'asc-textarea', placeholder: 'One line on why this answer is better (optional)…' }, rev.why_better_notes || '');
     notes.addEventListener('input', () => { rev.why_better_notes = notes.value; saveDraft(); });
+    const notesField = withMic(notes);
 
     const whyTags = (state.taxonomy.why_better_tags || []);
     const chips = renderChips(whyTags, rev.why_better_tags, (tag, on) => {
@@ -872,7 +1123,7 @@
           ta),
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Why it\'s better'),
-          notes),
+          notesField),
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Why-better tags ', h('span', { class: 'asc-label-hint' }, '(optional)')),
           chips),
@@ -889,14 +1140,18 @@
     const errorTags = (state.taxonomy.error_tags || []);
 
     const sevContainer = h('div', { id: 'ascSeverities' });
+    const reasonContainer = h('div', { id: 'ascTagReasons' });
     const anchorContainer = h('div', { id: 'ascTagAnchors' });
+    const suggestContainer = h('div', { id: 'ascTagSuggest' });
 
     const chips = renderChips(errorTags, crit.error_tags, (tag, on) => {
       toggleInArray(crit.error_tags, tag, on);
-      if (!on) { delete crit.severities[tag]; delete crit.error_tag_anchors[tag]; }
+      if (!on) { delete crit.severities[tag]; delete crit.error_tag_anchors[tag]; delete crit.error_tag_reasons[tag]; }
       saveDraft();
+      renderTagReasons(reasonContainer);
       renderSeverities(sevContainer);
       renderTagAnchors(anchorContainer);
+      renderTagSuggestions(suggestContainer, chips);
     }, 'err');
 
     const whyWorse = h('input', { class: 'asc-input', placeholder: 'One line on the key problem (optional)…', value: crit.why_worse || '' });
@@ -905,20 +1160,110 @@
     const card = h('div', { class: 'asc-subcard' },
       h('div', { class: 'asc-subcard-head rejected' }, '✕ Rejected answer (' + d.rejected_id + ') — what went wrong'),
       h('div', { class: 'asc-subcard-body' },
+        suggestContainer,
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Error tags ', h('span', { class: 'asc-label-hint' }, '(select all that apply)')),
           chips),
+        reasonContainer,
         sevContainer,
         h('div', { class: 'asc-field' },
-          h('label', { class: 'asc-label' }, 'Why it\'s worse'),
-          whyWorse),
+          h('label', { class: 'asc-label' }, 'Why it\'s worse ', h('span', { class: 'asc-label-hint' }, '(optional nuance)')),
+          withMic(whyWorse)),
         h('div', { class: 'asc-disclosure' },
           discloseToggle('+ cite specific errors', anchorContainer)),
         anchorContainer,
       ));
+    renderTagSuggestions(suggestContainer, chips);
+    renderTagReasons(reasonContainer);
     renderSeverities(sevContainer);
     renderTagAnchors(anchorContainer, true);
     return card;
+  }
+
+  // Model-suggested error tags + draft rationale (Speed Optimization §2):
+  // rendered as visually-distinct "Suggested — tap to accept" chips. NOTHING is
+  // applied without an explicit tap; accepted values land in the normal editable
+  // fields. Suggestions only show on the model's suggested-weaker side.
+  function renderTagSuggestions(container, chipsEl) {
+    if (!container) return;
+    clear(container);
+    const a = assistData();
+    const d = state.draft;
+    if (!a || d.rejected_id !== a.suggested_weaker) return;
+    const crit = d.rejected_critique;
+    const pendingTags = (a.suggested_error_tags || []).filter((t) => crit.error_tags.indexOf(t) === -1);
+    const rationalePending = (a.suggested_rationale || '').trim() && !(crit.why_worse || '').trim();
+    if (!pendingTags.length && !rationalePending) return;
+
+    const box = h('div', { class: 'asc-suggest-box' },
+      h('div', { class: 'asc-suggest-label' }, '✨ Suggested — tap to accept'));
+    if (pendingTags.length) {
+      const row = h('div', { class: 'asc-chips' });
+      pendingTags.forEach((tag) => {
+        row.appendChild(h('button', {
+          class: 'asc-chip asc-chip-suggest', type: 'button',
+          onClick: () => {
+            toggleInArray(crit.error_tags, tag, true);
+            saveDraft();
+            // sync the real chip row + dependent sections without a full re-render
+            if (chipsEl) Array.from(chipsEl.children).forEach((c) => {
+              if (c.textContent === tag.replace(/_/g, ' ')) c.classList.add('active');
+            });
+            renderTagReasons(document.getElementById('ascTagReasons'));
+            renderSeverities(document.getElementById('ascSeverities'));
+            renderTagAnchors(document.getElementById('ascTagAnchors'));
+            renderTagSuggestions(container, chipsEl);
+          },
+        }, '+ ' + tag.replace(/_/g, ' ')));
+      });
+      box.appendChild(row);
+    }
+    if (rationalePending) {
+      box.appendChild(h('div', { class: 'asc-suggest-rationale' },
+        h('span', { class: 'asc-suggest-text' }, '“' + a.suggested_rationale + '”'),
+        h('button', {
+          class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
+          onClick: () => {
+            state.draft.rejected_critique.why_worse = a.suggested_rationale;
+            saveDraft();
+            const input = container.parentElement && container.parentElement.querySelector('.asc-input');
+            if (input) input.value = a.suggested_rationale;
+            renderTagSuggestions(container, chipsEl);
+          },
+        }, 'Use as “why it’s worse”')));
+    }
+    container.appendChild(box);
+  }
+
+  // Structured-first capture (Speed Optimization §6): one-tap reason chips per
+  // selected error tag (controlled vocabulary), persisted as error_tag_reasons.
+  function renderTagReasons(container) {
+    if (!container) return;
+    clear(container);
+    const crit = state.draft.rejected_critique;
+    if (!crit.error_tags.length) return;
+    const reasons = (state.taxonomy.error_tag_reasons
+      || ['dose_too_high', 'contraindicated', 'outdated_threshold', 'misreads_labs', 'wrong_order', 'unsafe']);
+    const wrap = h('div', { class: 'asc-field' },
+      h('label', { class: 'asc-label' }, 'Why, per error ', h('span', { class: 'asc-label-hint' }, '(one tap — optional)')));
+    crit.error_tags.forEach((tag) => {
+      const pills = h('div', { class: 'asc-sev-pills asc-reason-pills' });
+      reasons.forEach((r) => {
+        pills.appendChild(h('button', {
+          class: 'asc-sev-pill' + (crit.error_tag_reasons[tag] === r ? ' active' : ''),
+          type: 'button',
+          onClick: () => {
+            if (crit.error_tag_reasons[tag] === r) delete crit.error_tag_reasons[tag];
+            else crit.error_tag_reasons[tag] = r;
+            saveDraft();
+            renderTagReasons(container);
+          },
+        }, r.replace(/_/g, ' ')));
+      });
+      wrap.appendChild(h('div', { class: 'asc-sev-row' },
+        h('span', { class: 'asc-sev-name' }, tag.replace(/_/g, ' ')), pills));
+    });
+    container.appendChild(wrap);
   }
 
   function renderSeverities(container) {
@@ -994,7 +1339,7 @@
   // confirms it as-is (label=good) or edits it to correct it (label derived from
   // a one-tap reason). `original` is the AI's split step; pass null for an
   // authored step the AI omitted (see newAuthoredStep).
-  function newStep(text, original) {
+  function newStep(text, original, suggested) {
     return {
       step: 0,
       text: text || '',
@@ -1002,6 +1347,9 @@
       corrected: false, confirmed: false, added: false,
       correction_reason: null,
       label: null, step_reward: null, critique: '', evidence_anchor: emptyAnchor(),
+      // Pre-grade suggestion (Speed Optimization §2) — a hint, never the label.
+      suggested_label: (suggested && suggested.suggested_label) || null,
+      suggested_critique: (suggested && suggested.suggested_critique) || null,
     };
   }
   // A manually authored step (the doctor's own correct reasoning the AI omitted):
@@ -1017,9 +1365,12 @@
     return (rev.revised_text != null ? rev.revised_text : chosenText()) || '';
   }
 
-  // Auto-split the chosen answer into gradable steps. Force re-runs even when
-  // steps already exist (the "Re-split" affordance). Degrades gracefully — on
-  // failure the doctor just adds steps manually.
+  // Auto-split the chosen answer into gradable steps — pre-graded when the LLM
+  // is available (Speed Optimization §2): each step arrives with a suggested
+  // good/bad label so the doctor spends time only on the flagged ones. Force
+  // re-runs even when steps already exist (the "Re-split" affordance). Degrades
+  // gracefully — offline the steps arrive unlabeled and the doctor grades
+  // manually; on failure the doctor just adds steps.
   async function autoSplitChosen(listId, force) {
     const text = chosenRefinedText().trim();
     const startedChosen = state.draft.chosen_id;
@@ -1029,7 +1380,7 @@
     const list = document.getElementById(listId);
     if (list) { clear(list); list.appendChild(h('p', { class: 'asc-help' }, '✨ Splitting the chosen answer into steps…')); }
     try {
-      const res = await api('/reasoning/split', {
+      const res = await api('/reasoning/pregrade', {
         method: 'POST',
         body: { text, prompt: state.task.prompt, specialty: state.task.specialty },
       });
@@ -1038,7 +1389,10 @@
       if (state.draft.stage === 'compare' && state.draft.chosen_id === startedChosen) {
         const steps = activeSteps();
         steps.length = 0;
-        (res.steps || []).forEach((t) => steps.push(newStep(t, t)));
+        (res.steps || []).forEach((s) => {
+          const t = (s && typeof s === 'object') ? (s.text || '') : String(s || '');
+          if (t) steps.push(newStep(t, t, (s && typeof s === 'object') ? s : null));
+        });
         saveDraft();
       }
     } catch (e) { /* graceful: leave steps for manual entry */ }
@@ -1092,9 +1446,68 @@
       || ['factual_error', 'outdated_guideline', 'incomplete', 'unsafe', 'wrong_order', 'minor_wording']);
     const required = (state.task.grounding_mode === 'required');
 
+    // Pre-graded flow (Speed Optimization §2): suggested-good steps render
+    // collapsed with per-step confirm + one deliberate "Confirm all correct"
+    // action; flagged steps render expanded for review/edit-to-correct. Every
+    // step still requires an explicit confirm/correct — silence ≠ endorsement.
+    const isCollapsed = (s) => (
+      s.suggested_label === 'good' && !s._exp && !s.corrected && !s.added
+      && (s.text || '').trim() === (s.original_text || '').trim()
+    );
+    const pendingGood = steps.filter((s) => isCollapsed(s) && !s.confirmed);
+    if (pendingGood.length) {
+      list.appendChild(h('div', { class: 'asc-step-bulkbar' },
+        h('span', { class: 'asc-step-bulk-label' },
+          '✨ ' + pendingGood.length + ' step' + (pendingGood.length === 1 ? ' looks' : 's look')
+          + ' correct to the model — read them, then confirm in one tap.'),
+        h('button', {
+          class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
+          onClick: () => {
+            steps.forEach((s) => {
+              if (isCollapsed(s) && !s.confirmed) {
+                s.confirmed = true; s.corrected = false; s.correction_reason = null;
+                s.label = 'good'; s.step_reward = 1; s.critique = '';
+              }
+            });
+            saveDraft(); renderStepsList(listId); updateSubmitState();
+          },
+        }, '✓ Confirm all correct')));
+    }
+
     steps.forEach((s, idx) => {
       s.step = idx + 1;
       const hasOriginal = s.original_text != null;
+
+      // Collapsed compact row for a model-passed step (expand to edit/correct).
+      if (isCollapsed(s)) {
+        const pill = h('span', { class: 'asc-step-status ' + (s.confirmed ? 'confirmed' : 'pending') },
+          s.confirmed ? 'confirmed ✓' : 'pending');
+        list.appendChild(h('div', { class: 'asc-step asc-step-collapsed' + (s.confirmed ? ' is-confirmed' : '') },
+          h('div', { class: 'asc-step-head' },
+            h('div', { style: 'display:flex;align-items:center;gap:8px;min-width:0' },
+              h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)),
+              h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, '✨ looks correct'),
+              pill),
+            h('div', { style: 'display:flex;align-items:center;gap:8px' },
+              h('button', {
+                class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm' + (s.confirmed ? ' active' : ''),
+                type: 'button',
+                onClick: () => {
+                  if (s.confirmed) { s.confirmed = false; s.label = null; s.step_reward = null; }
+                  else {
+                    s.confirmed = true; s.corrected = false; s.correction_reason = null;
+                    s.label = 'good'; s.step_reward = 1; s.critique = '';
+                  }
+                  saveDraft(); renderStepsList(listId); updateSubmitState();
+                },
+              }, s.confirmed ? '✓ Confirmed' : '✓ Correct as-is'),
+              h('button', {
+                class: 'asc-btn-link', type: 'button',
+                onClick: () => { s._exp = true; renderStepsList(listId); },
+              }, 'Edit'))),
+          h('div', { class: 'asc-step-collapsed-text' }, s.text || '')));
+        return;
+      }
 
       const ta = h('textarea', { class: 'asc-textarea', placeholder: 'Describe this reasoning step…' }, s.text || '');
 
@@ -1150,11 +1563,19 @@
       // Optional one-line critique — kept available on a corrected step.
       const ci = h('input', { class: 'asc-input', placeholder: "What's off with this step? (optional, one line)", value: s.critique || '' });
       ci.addEventListener('input', () => { s.critique = ci.value; saveDraft(); });
-      const critiqueField = h('div', { class: 'asc-field', style: 'margin-top:8px' }, ci);
+      const critiqueField = h('div', { class: 'asc-field', style: 'margin-top:8px' }, withMic(ci));
+
+      // Model pre-grade flag (Speed Optimization §2) — a review hint, never a label.
+      const flaggedBadge = (s.suggested_label === 'bad')
+        ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, '⚑ model flags this')
+        : null;
+      const suggestHint = (s.suggested_label === 'bad' && s.suggested_critique)
+        ? h('div', { class: 'asc-step-suggest-hint' }, '✨ Model: ' + s.suggested_critique)
+        : null;
 
       const head = h('div', { class: 'asc-step-head' },
         h('div', { style: 'display:flex;align-items:center;gap:8px' },
-          h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)), statusPill, addedBadge),
+          h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)), statusPill, addedBadge, flaggedBadge),
         h('div', { style: 'display:flex;align-items:center;gap:8px' },
           confirmBtn,
           h('button', {
@@ -1204,7 +1625,7 @@
       });
 
       syncStepUI();
-      list.appendChild(h('div', { class: 'asc-step' }, head, ta, reasonWrap, originalBox, critiqueField, anchorBlock));
+      list.appendChild(h('div', { class: 'asc-step' }, head, suggestHint, ta, reasonWrap, originalBox, critiqueField, anchorBlock));
     });
     if (!steps.length) {
       list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually, or use “Re-split from answer”.'));
@@ -1396,6 +1817,10 @@
       label: s.label || null,
       step_reward: s.step_reward != null ? s.step_reward : null,
       critique: (s.critique || '').trim() || null,
+      // Pre-grade provenance (Speed Optimization §2): the suggestion ships next
+      // to the human label so override rate is monitorable.
+      suggested_label: s.suggested_label || null,
+      suggested_critique: (s.suggested_critique || '').trim() || null,
       evidence_anchor: cleanAnchor(s.evidence_anchor),
     }));
   }
@@ -1425,6 +1850,20 @@
         captured_at: d.independent_answer.captured_at,
       },
     };
+    // Model-assist audit block (Speed Optimization §2): the suggestions that
+    // were SHOWN, stored next to the human finals so override rate is
+    // monitorable server-side. Absent when no suggestion was displayed.
+    const a = assistData();
+    if (a) {
+      payload.assist = {
+        prelabeled: true,
+        suggested_verdict: a.suggested_weaker === 'A' ? 'B_better' : 'A_better',
+        suggested_error_tags: (a.suggested_error_tags || []).slice(),
+        suggested_rationale: a.suggested_rationale || null,
+        suggested_step_labels: activeSteps().map((s) => s.suggested_label || null),
+        confidence: a.confidence != null ? a.confidence : null,
+      };
+    }
     if (d.verdict === 'A_better' || d.verdict === 'B_better') {
       const original = chosenText();
       const revised = d.chosen_revision.revised_text != null ? d.chosen_revision.revised_text : original;
@@ -1441,11 +1880,17 @@
         const a = cleanAnchor(d.rejected_critique.error_tag_anchors[tag]);
         if (a) tagAnchors[tag] = a;
       });
+      const tagReasons = {};
+      Object.keys(d.rejected_critique.error_tag_reasons || {}).forEach((tag) => {
+        if (d.rejected_critique.error_tags.indexOf(tag) === -1) return;
+        if (d.rejected_critique.error_tag_reasons[tag]) tagReasons[tag] = d.rejected_critique.error_tag_reasons[tag];
+      });
       payload.rejected_critique = {
         error_tags: d.rejected_critique.error_tags.slice(),
         severities: Object.assign({}, d.rejected_critique.severities),
         why_worse: d.rejected_critique.why_worse || '',
         error_tag_anchors: tagAnchors,
+        error_tag_reasons: tagReasons,
       };
       payload.reasoning_steps = cleanSteps(d.reasoning_steps);
       payload.from_scratch = null;

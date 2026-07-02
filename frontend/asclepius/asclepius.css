@@ -886,3 +886,128 @@
 }
 .asc-blur-lock { font-size: 26px; }
 .asc-blur-caption { font-size: 13px; font-weight: 600; color: var(--asc-muted); max-width: 420px; line-height: 1.5; }
+
+/* ═══════════════════════════════════════════════════════════
+   Speed Optimization (18 → <10 min) additions
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Voice dictation mic (Feature 4) ─────────────────────── */
+.asc-mic-row { display: flex; align-items: flex-start; gap: 8px; }
+.asc-mic-row > .asc-textarea, .asc-mic-row > .asc-input { flex: 1; min-width: 0; }
+.asc-mic-btn {
+  flex: 0 0 auto;
+  width: 36px; height: 36px;
+  border: 1px solid var(--asc-line-strong);
+  border-radius: 50%;
+  background: var(--asc-surface);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: border-color .15s, background .15s;
+}
+.asc-mic-btn:hover { border-color: var(--asc-primary); }
+.asc-mic-btn:disabled { opacity: .6; cursor: default; }
+.asc-mic-btn.recording {
+  background: var(--asc-danger);
+  border-color: var(--asc-danger);
+  color: #fff;
+  animation: ascMicPulse 1.2s ease-in-out infinite;
+}
+@keyframes ascMicPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .35); }
+  50% { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0); }
+}
+
+/* ─── Compare diff view (Feature 3) ───────────────────────── */
+.asc-compare-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.asc-answer-diff .asc-diff-sent { transition: opacity .15s; }
+.asc-answer-diff .asc-diff-shared { opacity: .42; }
+.asc-answer-diff .asc-diff-changed {
+  background: rgba(37, 99, 235, .09);
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.asc-err-span {
+  background: rgba(245, 158, 11, .32);
+  border-bottom: 2px solid var(--asc-warning);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* ─── Model-assist hints & suggestions (Feature 2) ────────── */
+.asc-assist-hint {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--asc-muted);
+  min-height: 0;
+}
+.asc-assist-hint:empty { margin-top: 0; }
+.asc-assist-hint strong { color: var(--asc-text); }
+.asc-assist-chip { font-size: 13px; }
+.asc-suggest-box {
+  border: 1px dashed var(--asc-line-strong);
+  border-radius: 9px;
+  background: #fafbff;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.asc-suggest-label {
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em;
+  color: var(--asc-muted);
+  margin-bottom: 8px;
+}
+.asc-chip-suggest {
+  border-style: dashed !important;
+  background: #fff !important;
+  color: var(--asc-text) !important;
+}
+.asc-chip-suggest:hover { border-color: var(--asc-danger) !important; color: var(--asc-danger) !important; }
+.asc-suggest-rationale {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 8px;
+}
+.asc-suggest-text { font-size: 13px; color: var(--asc-muted); font-style: italic; flex: 1; min-width: 200px; }
+
+/* ─── Pre-graded reasoning steps (Feature 2) ──────────────── */
+.asc-step-bulkbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  border: 1px dashed var(--asc-line-strong);
+  border-radius: 9px;
+  background: #fafbff;
+  padding: 9px 12px;
+  margin-bottom: 10px;
+}
+.asc-step-bulk-label { font-size: 12.5px; color: var(--asc-muted); }
+.asc-step-suggest {
+  font-size: 11px; font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.asc-step-suggest.good { background: rgba(16, 185, 129, .1); color: #047857; }
+.asc-step-suggest.bad { background: rgba(245, 158, 11, .16); color: #92400e; }
+.asc-step-suggest-hint {
+  font-size: 12.5px;
+  color: #92400e;
+  background: rgba(245, 158, 11, .08);
+  border-left: 3px solid var(--asc-warning);
+  border-radius: 0 6px 6px 0;
+  padding: 6px 10px;
+  margin: 6px 0;
+}
+.asc-step-collapsed { padding-top: 8px; padding-bottom: 8px; }
+.asc-step-collapsed-text {
+  font-size: 13px;
+  color: var(--asc-muted);
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.asc-step-collapsed.is-confirmed .asc-step-collapsed-text { color: var(--asc-text); }
+
+/* ─── Per-error reason chips (Feature 6) ──────────────────── */
+.asc-reason-pills { flex-wrap: wrap; }
+.asc-reason-pills .asc-sev-pill.active { background: var(--asc-primary); border-color: var(--asc-primary); }
