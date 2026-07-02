@@ -166,6 +166,7 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `source` | `lab_supplied` vs `internal_prompt_bank` |
 | `buyer_request_id` | the buyer request the record answers (opt §2.5) |
 | `taxonomy_version` / `config_version` | versioning |
+| `portal_version` | evaluator product flow that produced the record: `v1` (classic) or `v2` (assisted). Stage-1 prompt review + record types are identical across both; V2 adds quick-stance capture, model-assist provenance, and structured reasons |
 | `license` / `ip_cleared` / `contains_phi` | rights attestation (opt §1.4) |
 | `captured_at` | submission capture timestamp |
 """

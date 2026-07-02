@@ -8,6 +8,10 @@
   const API_BASE = '/api/asclepius';
   const TOKEN_KEY = 'asclepius_token';
   const DRAFT_PREFIX = 'asclepius_draft_';
+  // Contributor's chosen evaluator experience (Asclepius V2): 'v1' classic |
+  // 'v2' assisted. Persisted per browser; the default for every new task.
+  const PORTAL_VERSION_KEY = 'asclepius_portal_version';
+  const DEFAULT_PORTAL_VERSION = 'v2';
   // Doctor-portal session token (same origin). If present, we silently exchange
   // it for an Asclepius session so affiliated clinicians skip the login form.
   const DOCTOR_TOKEN_KEY = 'archangel_doctor_auth_token';
@@ -406,6 +410,9 @@
       // Gated-capture stage machine (Eval Flow Upgrade §1): prompt_review ->
       // independent_answer -> compare. Persisted so a refresh resumes the stage.
       stage: 'prompt_review',
+      // Evaluator experience this task is graded under (Asclepius V2). Mirrors
+      // the live selection during Stage 1, then pins when Stage 2 begins.
+      portal_version: getPortalVersion(),
       prompt_review: { reviewed: false, verdict: null, note: '', reviewed_at: null },
       independent_answer: { text: '', evidence_anchor: emptyAnchor(), captured_at: null },
       verdict: null,
@@ -432,6 +439,7 @@
     if (!draft.rejected_critique.error_tag_anchors) draft.rejected_critique.error_tag_anchors = {};
     if (!draft.rejected_critique.error_tag_reasons) draft.rejected_critique.error_tag_reasons = {};
     if (draft.assist === undefined) draft.assist = null;
+    if (!draft.portal_version) draft.portal_version = getPortalVersion();
     if (!draft.prompt_review) draft.prompt_review = { reviewed: false, verdict: null, note: '', reviewed_at: null };
     if (!draft.independent_answer) draft.independent_answer = { text: '', evidence_anchor: emptyAnchor(), captured_at: null };
     if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
@@ -468,6 +476,24 @@
   function clearDraft(taskId) {
     try { localStorage.removeItem(draftKey(taskId)); } catch (e) { /* ignore */ }
   }
+
+  // ─── Portal version (V1 classic vs V2 assisted) ────────────────────────────
+  function getPortalVersion() {
+    let v = null;
+    try { v = localStorage.getItem(PORTAL_VERSION_KEY); } catch (e) { v = null; }
+    return v === 'v1' || v === 'v2' ? v : DEFAULT_PORTAL_VERSION;
+  }
+  function setPortalVersion(v) {
+    v = v === 'v1' ? 'v1' : 'v2';
+    try { localStorage.setItem(PORTAL_VERSION_KEY, v); } catch (e) { /* ignore quota */ }
+  }
+  // The version a task is graded under: pinned onto the draft when the doctor
+  // leaves Stage 1 (so a switch mid-task can't produce a half-assisted record);
+  // until then it mirrors the live selection.
+  function draftVersion() {
+    return (state.draft && state.draft.portal_version) || getPortalVersion();
+  }
+  function isV2() { return draftVersion() === 'v2'; }
 
   // ─── Grounding (mirror of backend validation.grounding_status) ──────────────
   function isValidAnchor(a) {
@@ -538,6 +564,44 @@
       h('div', { class: 'asc-stage-right' }, dots, timer));
   }
 
+  // Contributor version switch (Asclepius V2). Interactive only during Stage 1
+  // (prompt review) — the choice pins to the task once the AI answers are about
+  // to be revealed, so a mid-task switch can never yield a half-classic /
+  // half-assisted record. Past Stage 1 it shows the locked version + a hint that
+  // switching applies to the next task.
+  const VERSION_OPTS = [
+    { v: 'v2', label: 'V2 · Assisted', sub: 'Quick stance, model assist, diff view' },
+    { v: 'v1', label: 'V1 · Classic', sub: 'Full ideal answer, no assist' },
+  ];
+  function renderVersionBar() {
+    const d = state.draft;
+    const locked = d && d.stage !== 'prompt_review';
+    const active = draftVersion();
+    const seg = h('div', { class: 'asc-ver-seg' + (locked ? ' locked' : '') });
+    VERSION_OPTS.forEach((o) => {
+      seg.appendChild(h('button', {
+        class: 'asc-ver-btn' + (active === o.v ? ' active' : ''),
+        type: 'button',
+        disabled: locked && active !== o.v,
+        title: o.sub,
+        onClick: locked ? undefined : () => {
+          if (getPortalVersion() === o.v && d.portal_version === o.v) return;
+          setPortalVersion(o.v);
+          d.portal_version = o.v;
+          // Switching flow resets any stance/answer already typed at Stage 1
+          // is unaffected; nothing to clear here (Stage 2 hasn't run).
+          saveDraft();
+          renderTaskWorkspace();
+        },
+      }, h('span', { class: 'asc-ver-label' }, o.label)));
+    });
+    const hint = locked
+      ? h('span', { class: 'asc-ver-hint' }, 'Locked for this task · switching applies to your next task')
+      : h('span', { class: 'asc-ver-hint' }, 'Choose your evaluation experience');
+    return h('div', { class: 'asc-ver-bar' },
+      h('span', { class: 'asc-ver-caption' }, 'Experience'), seg, hint);
+  }
+
   function renderTaskWorkspace() {
     const task = state.task;
     const d = state.draft;
@@ -566,7 +630,7 @@
         ));
     }
 
-    const wrap = h('div', { class: 'asc-wrap' }, promptCard, groundingBanner);
+    const wrap = h('div', { class: 'asc-wrap' }, renderVersionBar(), promptCard, groundingBanner);
 
     if (d.stage === 'prompt_review') {
       wrap.appendChild(stageHeader('Review the prompt'));
@@ -604,6 +668,7 @@
   async function loadAssist() {
     const d = state.draft;
     if (!d || d.stage !== 'compare') return;
+    if (!isV2()) return;  // model assist is a V2-only feature
     // Only a SUCCESSFUL response (including a server-side "skipped" degrade) is
     // cached on the draft; a transient failure (network blip, restart, 5xx) is
     // remembered in memory only, so the next page load retries instead of the
@@ -631,6 +696,7 @@
   // (a rebuild would steal focus mid-keystroke; the chips appear on the next
   // natural re-render instead).
   function renderAssistUI() {
+    if (!isV2()) return;
     renderAssistHint();
     if (!assistData()) return;
     renderAnswersInto(document.getElementById('ascAnswers'));
@@ -685,9 +751,10 @@
     const answers = h('div', { class: 'asc-answers', id: 'ascAnswers' });
     renderAnswersInto(answers);
 
-    // Diff view (Speed Optimization §3): differences emphasized, shared text
-    // dimmed — with an always-available full-text toggle (nothing is hidden).
-    const diffToggle = h('button', {
+    // Diff view (Speed Optimization §3) — V2 only. V1 (classic) shows the full
+    // answer text with no diff toggle, exactly as the original product did.
+    const v2 = isV2();
+    const diffToggle = v2 ? h('button', {
       class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button', id: 'ascDiffToggle',
       onClick: () => {
         state.showFullText = !state.showFullText;
@@ -695,14 +762,15 @@
         const b = document.getElementById('ascDiffToggle');
         if (b) b.textContent = state.showFullText ? '◧ Highlight differences' : '≡ Show full text';
       },
-    }, state.showFullText ? '◧ Highlight differences' : '≡ Show full text');
+    }, state.showFullText ? '◧ Highlight differences' : '≡ Show full text') : null;
 
     const verdicts = h('div', { class: 'asc-verdicts', id: 'ascVerdicts' },
       verdictButton('A_better', 'A is better', '1'),
       verdictButton('B_better', 'B is better', '2'),
       verdictButton('both_inadequate', 'Both inadequate', '3', true),
     );
-    const assistHint = h('div', { class: 'asc-assist-hint', id: 'ascAssistHint' });
+    // Assist hint container exists only in V2.
+    const assistHint = v2 ? h('div', { class: 'asc-assist-hint', id: 'ascAssistHint' }) : null;
     const rationale = h('div', { id: 'ascRationale' });
     const submitBar = renderSubmitBar();
 
@@ -710,8 +778,8 @@
       h('div', { class: 'asc-compare-head' },
         h('div', { class: 'asc-card-title' }, 'Compare the answers'),
         diffToggle),
-      h('p', { class: 'asc-help', style: 'margin:2px 0 14px' },
-        'Shared text is dimmed; passages where the answers diverge are highlighted.'),
+      v2 ? h('p', { class: 'asc-help', style: 'margin:2px 0 14px' },
+        'Shared text is dimmed; passages where the answers diverge are highlighted.') : null,
       answers));
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Your verdict',
@@ -720,7 +788,7 @@
       assistHint,
       rationale));
     wrap.appendChild(h('div', { class: 'asc-card' }, submitBar));
-    setTimeout(renderAssistHint, 0);
+    if (v2) setTimeout(renderAssistHint, 0);
   }
 
   // ─── Sentence-level diff (Speed Optimization §3, dependency-free) ───────────
@@ -811,7 +879,8 @@
   function renderAnswersInto(container) {
     if (!container) return;
     clear(container);
-    const diff = state.showFullText ? null : computeAnswerDiff();
+    // V1 (classic) renders plain full text — no diff, no error-span marks.
+    const diff = (!isV2() || state.showFullText) ? null : computeAnswerDiff();
     const a = assistData();
     (state.task.candidate_answers || []).forEach((c) => {
       container.appendChild(renderAnswerCard(c, diff, a));
@@ -931,8 +1000,10 @@
   }
 
   // Wrap a textarea/input with its mic in one row. setVal pushes the transcript
-  // through the field's own input handler so the draft stays in sync.
+  // through the field's own input handler so the draft stays in sync. Dictation
+  // is a V2 feature — in V1 the field is returned unchanged (plain textarea).
   function withMic(field) {
+    if (!isV2()) return field;
     const mic = micButton(
       () => field.value,
       (v) => { field.value = v; field.dispatchEvent(new Event('input', { bubbles: true })); },
@@ -947,7 +1018,9 @@
   // independent_mode = "full" keep the original long-form blind ideal answer.
   function renderIndependentAnswer() {
     const ia = state.draft.independent_answer;
-    const fullMode = (state.task.independent_mode || 'stance') === 'full';
+    // V1 (classic) always captures the full blind ideal answer. V2 uses the
+    // quick stance unless the admin marked the task premium/eval (full).
+    const fullMode = !isV2() || (state.task.independent_mode || 'stance') === 'full';
     const ta = fullMode
       ? h('textarea', { class: 'asc-textarea', style: 'min-height:200px',
           placeholder: 'Write your full ideal answer to this prompt…' }, ia.text || '')
@@ -991,7 +1064,13 @@
     const ia = state.draft.independent_answer;
     const res = await api('/tasks/' + state.draft.task_id + '/reveal', {
       method: 'POST',
-      body: { text: (ia.text || '').trim(), evidence_anchor: cleanAnchor(ia.evidence_anchor) },
+      body: {
+        text: (ia.text || '').trim(),
+        evidence_anchor: cleanAnchor(ia.evidence_anchor),
+        // Pins the flow server-side: V1 commits a full blind ideal answer,
+        // V2 a stance (unless the task is premium/eval full-mode).
+        portal_version: draftVersion(),
+      },
     });
     mergeAnswers(res.answers);
   }
@@ -1289,8 +1368,10 @@
 
   // Structured-first capture (Speed Optimization §6): one-tap reason chips per
   // selected error tag. The vocabulary comes from the server taxonomy only —
-  // a local copy would drift from what validation accepts.
+  // a local copy would drift from what validation accepts. V2-only; V1 keeps
+  // the classic free-text "why it's worse" as the sole reason input.
   function renderTagReasons(container) {
+    if (!isV2()) { if (container) clear(container); return; }
     renderPerTagPills(container, {
       label: 'Why, per error',
       hint: '(one tap — optional)',
@@ -1409,7 +1490,8 @@
     const list = document.getElementById(listId);
     if (list) { clear(list); list.appendChild(h('p', { class: 'asc-help' }, '✨ Splitting the chosen answer into steps…')); }
     try {
-      const res = await api('/reasoning/pregrade', {
+      // V2 pre-grades each step (suggested good/bad); V1 (classic) just splits.
+      const res = await api(isV2() ? '/reasoning/pregrade' : '/reasoning/split', {
         method: 'POST',
         body: { text, prompt: state.task.prompt, specialty: state.task.specialty },
       });
@@ -1419,6 +1501,8 @@
         const steps = activeSteps();
         steps.length = 0;
         (res.steps || []).forEach((s) => {
+          // /reasoning/split returns strings; /reasoning/pregrade returns
+          // {text, suggested_label, suggested_critique}.
           const t = (s && typeof s === 'object') ? (s.text || '') : String(s || '');
           if (t) steps.push(newStep(t, t, (s && typeof s === 'object') ? s : null));
         });
@@ -1864,6 +1948,10 @@
         evidence_anchor: cleanAnchor(d.independent_answer.evidence_anchor),
         captured_at: d.independent_answer.captured_at,
       },
+      // Which evaluator flow produced this submission (Asclepius V2). The server
+      // treats the reveal-commit's version as authoritative; this is the value
+      // for the flagged-prompt path (no commit) and direct submits.
+      portal_version: draftVersion(),
     };
     // Model-assist audit block (Speed Optimization §2): the suggestions that
     // were SHOWN, stored next to the human finals so override rate is

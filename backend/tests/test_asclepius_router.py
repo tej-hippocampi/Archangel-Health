@@ -933,3 +933,88 @@ def test_buyer_request_independent_mode_constraint_applies_to_batch():
     assert batch.status_code == 200, batch.text
     tid = batch.json()["created"][0]
     assert _store().get_task(tid)["independent_mode"] == "full"
+
+
+# ─── Asclepius V2: portal version end-to-end ──────────────────────────────────
+def test_taxonomy_exposes_portal_versions():
+    r = client.get("/api/asclepius/taxonomy", headers=A.headers_for(_seed()))
+    assert r.json()["portal_versions"] == ["v1", "v2"]
+
+
+def test_v1_reveal_stamps_full_kind_on_stance_task(monkeypatch):
+    """A V1 evaluator on a stance-default task: the reveal commit is stamped
+    kind='full', portal_version='v1', and the submission ships the classic blind
+    ideal record tagged portal_version='v1'."""
+    monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "1")
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)  # stance default
+
+    rev = client.post(f"/api/asclepius/tasks/{tid}/reveal",
+                      json={"text": "full ideal answer", "portal_version": "v1"}, headers=ev_h)
+    assert rev.status_code == 200, rev.text
+
+    sid = "s-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "ignored — commit wins"},
+        "portal_version": "v1",
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+    }, headers=ev_h)
+    assert r.status_code == 200, r.text
+    sub = client.get(f"/api/asclepius/submissions/{sid}", headers=admin_h).json()
+    assert sub["portal_version"] == "v1"
+    blind = [rec for rec in sub["records"] if rec["type"] == "ideal_answer" and rec["payload"].get("independent")]
+    assert len(blind) == 1  # classic full blind ideal even though task is stance-default
+    assert blind[0]["payload"]["ideal_answer"] == "full ideal answer"
+    assert all(rec["payload"]["portal_version"] == "v1" for rec in sub["records"])
+
+
+def test_v2_reveal_stance_on_stance_task(monkeypatch):
+    monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "1")
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)
+
+    client.post(f"/api/asclepius/tasks/{tid}/reveal",
+                json={"text": "quick stance", "portal_version": "v2"}, headers=ev_h)
+    sid = "s-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "quick stance"},
+        "portal_version": "v2",
+        "chosen_revision": {"edited": True, "revised_text": "refined gold", "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+    }, headers=ev_h)
+    assert r.status_code == 200, r.text
+    sub = client.get(f"/api/asclepius/submissions/{sid}", headers=admin_h).json()
+    assert sub["portal_version"] == "v2"
+    assert not any(rec["payload"].get("independent") for rec in sub["records"])
+    pref = [rec for rec in sub["records"] if rec["type"] == "preference"][0]
+    assert pref["payload"]["stance"] == "quick stance"
+
+
+def test_stats_reports_portal_version_counts(monkeypatch):
+    monkeypatch.setenv("ASCLEPIUS_WITHHOLD_ANSWERS", "1")
+    admin_h = A.headers_for(_admin())
+    for pv in ("v1", "v2"):
+        ev_h = A.headers_for(_seed())
+        tid = _upload_task(admin_h)
+        client.post(f"/api/asclepius/tasks/{tid}/reveal",
+                    json={"text": "answer", "portal_version": pv}, headers=ev_h)
+        client.post("/api/asclepius/submissions", json={
+            "submission_id": "s-" + uuid.uuid4().hex[:12], "task_id": tid, "verdict": "A_better",
+            "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 120,
+            "prompt_review": {"reviewed": True, "verdict": "valid"},
+            "independent_answer": {"text": "answer"}, "portal_version": pv,
+            "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+            "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+        }, headers=ev_h)
+    stats = client.get("/api/asclepius/stats", headers=admin_h).json()
+    assert stats["portal_version_counts"].get("v1") == 1
+    assert stats["portal_version_counts"].get("v2") == 1

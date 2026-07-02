@@ -231,6 +231,10 @@ class IndependentAnswer(BaseModel):
     # "stance" | "full". None on the wire → resolved from the task's
     # ``independent_mode`` at packaging (the reveal commit stamps it anyway).
     kind: Optional[str] = None
+    # Which portal flow captured this (Asclepius V2 launch): "v1" classic |
+    # "v2" assisted. Sent at reveal so the server can stamp the capture kind
+    # (V1 always writes the full blind answer, even on stance-default tasks).
+    portal_version: Optional[str] = None
     evidence_anchor: Optional[EvidenceAnchor] = None
     captured_at: Optional[str] = None
 
@@ -253,6 +257,10 @@ class SubmissionIn(BaseModel):
     reasoning_steps: List[ReasoningStep] = Field(default_factory=list)
     confidence: str = "medium"
     time_spent_sec: int = 0
+    # Which portal flow produced this submission ("v1" classic | "v2"
+    # assisted) — stamped onto the submission row + every record so admin and
+    # buyers can tell V1 data from V2 data.
+    portal_version: Optional[str] = None
     # Model-assisted pre-labeling audit block (Speed Optimization §2):
     # {prelabeled, suggested_verdict, suggested_error_tags, suggested_rationale,
     #  suggested_step_labels}. Stored alongside the human finals so override

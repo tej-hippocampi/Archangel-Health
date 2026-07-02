@@ -50,6 +50,20 @@ def normalize_independent_mode(value):
     store, packaging, and router all normalize through here)."""
     return value if value in INDEPENDENT_MODES else DEFAULT_INDEPENDENT_MODE
 
+
+# Evaluator portal versions (Asclepius V2 launch). Contributors choose per
+# session: ``v1`` is the classic flow (full blind ideal answer, no model
+# assist, no diff view); ``v2`` is the speed-optimized flow (quick stance,
+# pre-labeling, diff, dictation, structured reasons). Stage-1 prompt review
+# and the packaged record types are identical in both. The version is stamped
+# onto every submission + record so buyers/admin can segment by provenance.
+PORTAL_VERSIONS = ("v1", "v2")
+DEFAULT_PORTAL_VERSION = "v2"
+
+
+def normalize_portal_version(value):
+    return value if value in PORTAL_VERSIONS else DEFAULT_PORTAL_VERSION
+
 # Where the task (prompt + candidate answers) originated.
 TASK_SOURCES = ("lab_supplied", "internal_prompt_bank")
 

@@ -442,3 +442,48 @@ def test_client_kind_cannot_upgrade_stance_to_blind_gold():
     recs = package_submission(_task(independent_mode="stance"), _submission(payload))
     assert not any(r.get("independent") for r in recs)
     assert [r for r in recs if r["type"] == "preference"][0]["stance"] == "Copied from revealed answer A."
+
+
+# ─── Asclepius V2: portal version drives capture kind + rides every record ────
+def test_v1_portal_always_captures_full_blind_ideal_on_stance_task():
+    """V1 (classic) captures a full blind ideal answer even on a stance-default
+    task, and every record is stamped portal_version='v1'."""
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "portal_version": "v1",
+        "independent_answer": {"text": "My full ideal answer written before reveal.", "kind": "full", "portal_version": "v1"},
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+    }
+    recs = package_submission(_task(independent_mode="stance"), _submission(payload))
+    blind = [r for r in recs if r["type"] == "ideal_answer" and r.get("independent")]
+    assert len(blind) == 1  # classic full blind ideal, despite stance-default task
+    assert all(r["portal_version"] == "v1" for r in recs)
+
+
+def test_v2_portal_stance_task_no_blind_ideal_and_stamped_v2():
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "portal_version": "v2",
+        "independent_answer": {"text": "quick take", "kind": "stance", "portal_version": "v2"},
+        "chosen_revision": {"edited": True, "revised_text": "Refined chosen answer.", "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+    }
+    recs = package_submission(_task(independent_mode="stance"), _submission(payload))
+    assert not any(r.get("independent") for r in recs)
+    assert [r for r in recs if r["type"] == "preference"][0]["stance"] == "quick take"
+    assert all(r["portal_version"] == "v2" for r in recs)
+
+
+def test_submission_row_portal_version_overrides_payload():
+    """The submission row's stamped version is authoritative over the payload."""
+    payload = {
+        "verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "confidence": "high",
+        "portal_version": "v2",  # stale/spoofed in payload
+        "independent_answer": {"text": "full answer", "kind": "full"},
+        "chosen_revision": {"edited": False, "why_better_notes": "safer"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": "x"},
+    }
+    sub = _submission(payload, portal_version="v1")  # row says v1
+    recs = package_submission(_task(independent_mode="full"), sub)
+    assert all(r["portal_version"] == "v1" for r in recs)

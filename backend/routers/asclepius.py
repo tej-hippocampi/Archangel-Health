@@ -50,6 +50,7 @@ from asclepius.constants import (
     GROUNDED_PREMIUM_DISCLAIMER,
     GROUNDING_MODES,
     INDEPENDENT_MODES,
+    PORTAL_VERSIONS,
     PREFERENCE_VARIANTS,
     PROMPT_FLAGGED_TASK_STATUS,
     PROMPT_REVIEW_VERDICTS,
@@ -59,6 +60,8 @@ from asclepius.constants import (
     VERDICTS,
     WHY_BETTER_TAGS,
     assist_min_confidence,
+    normalize_independent_mode,
+    normalize_portal_version,
 )
 from asclepius import stt as asc_stt
 from asclepius.critic import (
@@ -173,6 +176,7 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
         "step_correction_reasons": list(STEP_CORRECTION_REASONS),
         "error_tag_reasons": list(ERROR_TAG_REASONS),
         "independent_modes": list(INDEPENDENT_MODES),
+        "portal_versions": list(PORTAL_VERSIONS),
         "preference_variants": list(PREFERENCE_VARIANTS),
         "export_profiles": asc_profiles.list_profiles(),
     }
@@ -679,15 +683,20 @@ async def reveal_task_answers(
                 "message": "Write your independent answer before revealing the AI answers.",
             },
         )
+    # The contributor's portal version drives the capture kind: V1 (classic)
+    # ALWAYS commits a full blind ideal answer; V2 respects the task's mode
+    # (stance default, 'full' for premium/eval). ``kind`` is stamped
+    # server-side, never trusted from the client — a quick stance can't be
+    # passed off as a full blind ideal answer (Speed Optimization §1).
+    pv = normalize_portal_version(body.portal_version)
+    kind = "full" if pv == "v1" else normalize_independent_mode(task.get("independent_mode"))
     store.commit_independent_answer(
         task_id=task_id,
         evaluator_id=user["id"],
         payload={
             "text": text,
-            # ``kind`` is stamped from the TASK's mode, never trusted from the
-            # client — a quick stance can't be passed off as a full blind ideal
-            # answer (Speed Optimization §1).
-            "kind": task.get("independent_mode") or DEFAULT_INDEPENDENT_MODE,
+            "kind": kind,
+            "portal_version": pv,
             "evidence_anchor": body.evidence_anchor.model_dump() if body.evidence_anchor else None,
         },
     )
@@ -765,7 +774,9 @@ async def submit(
         # (§0/§13) still applies. Redact rather than persist a raw identifier.
         note_phi = residual_identifiers(review.note) if review.note else []
         safe_note = "[redacted — possible identifier detected]" if note_phi else review.note
+        flag_pv = normalize_portal_version(body.portal_version)
         flagged_payload = body.model_dump()
+        flagged_payload["portal_version"] = flag_pv
         if note_phi:
             (flagged_payload.get("prompt_review") or {})["note"] = safe_note
         store.insert_submission(
@@ -782,6 +793,7 @@ async def submit(
             dedupe_hash=None,
             grounded=False,
             grounding_mode=task.get("grounding_mode") or "optional",
+            portal_version=flag_pv,
             status=PROMPT_FLAGGED_TASK_STATUS,
         )
         store.mark_task_status(body.task_id, PROMPT_FLAGGED_TASK_STATUS)
@@ -833,6 +845,16 @@ async def submit(
     if _commit:
         payload["independent_answer"] = _commit["payload"]
 
+    # Portal version (Asclepius V2): the reveal commit's stamped version is
+    # authoritative (it drove the capture kind); fall back to the client's
+    # declared version when no commit exists (v1 with withholding off, or a
+    # direct API client). Stamped onto the row + payload so packaging carries it
+    # onto every record.
+    portal_version = normalize_portal_version(
+        (_commit or {}).get("payload", {}).get("portal_version") or body.portal_version
+    )
+    payload["portal_version"] = portal_version
+
     # Grounding Mode = required (opt §1.2): hard-gate Submit until the rationale
     # (and, on reasoning tasks, every step) carries a valid evidence anchor. This
     # mirrors the frontend submit-gating and is a non-silent 400.
@@ -868,6 +890,7 @@ async def submit(
         dedupe_hash=dedupe_hash,
         grounded=grounded,
         grounding_mode=grounding_mode,
+        portal_version=portal_version,
         status="submitted",
     )
     store.log_event(
@@ -1750,6 +1773,8 @@ async def stats(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
     )
     return {
         "status_counts": store.status_counts(),
+        # V1 (classic) vs V2 (assisted) provenance breakdown (Asclepius V2).
+        "portal_version_counts": store.portal_version_counts(),
         "qa_pass_rate": store.qa_pass_rate(),
         "average_agreement": store.average_agreement(),
         "kappa": asc_agreement.aggregate_kappa(store.list_agreement_observations()),

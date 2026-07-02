@@ -87,7 +87,12 @@ def _prompt_clinician_reviewed(submission: Dict[str, Any]) -> bool:
 
 def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, Any]:
     annotator = submission.get("annotator") or {}
+    payload = submission.get("payload") or {}
     prov = {
+        # Which evaluator flow produced this record (Asclepius V2): "v1" classic
+        # | "v2" assisted — carried onto every record so admin/buyers segment by
+        # product version.
+        "portal_version": _portal_version(submission, payload),
         # prompt provenance upgrade (Eval Flow Upgrade §2) — the prompt was
         # reviewed and accepted as clinically valid by the credentialed evaluator.
         "prompt_clinician_reviewed": _prompt_clinician_reviewed(submission),
@@ -188,13 +193,29 @@ def _chat(prompt: str, completion: str) -> List[Dict[str, str]]:
     ]
 
 
-def _independent_kind(task: Dict[str, Any], ia: Dict[str, Any]) -> str:
-    """Stage-2 capture kind (Speed Optimization §1). The TASK's mode is
-    authoritative — a client-supplied ``kind`` can never upgrade a stance-mode
-    capture into a "premium blind ideal" record (that field is only consulted
-    for legacy task dicts that predate the ``independent_mode`` column)."""
-    from asclepius.constants import normalize_independent_mode
+def _portal_version(submission: Dict[str, Any], payload: Dict[str, Any]) -> str:
+    """Which evaluator flow produced this submission — the authoritative source
+    is the submission row (stamped server-side); fall back to the payload for
+    pure packaging unit tests, then the default."""
+    from asclepius.constants import normalize_portal_version
 
+    ia = payload.get("independent_answer") or {}
+    return normalize_portal_version(
+        submission.get("portal_version") or payload.get("portal_version") or ia.get("portal_version")
+    )
+
+
+def _independent_kind(task: Dict[str, Any], ia: Dict[str, Any], portal_version: str) -> str:
+    """Stage-2 capture kind. V1 (classic flow) ALWAYS captures a full blind
+    ideal answer, regardless of the task's mode. V2 respects the admin's
+    per-task ``independent_mode`` (stance default; 'full' for premium/eval).
+    The TASK is authoritative — a client-supplied ``kind`` can never upgrade a
+    stance capture into a premium blind-gold record (it's only consulted for
+    legacy task dicts predating the ``independent_mode`` column)."""
+    from asclepius.constants import normalize_independent_mode, normalize_portal_version
+
+    if normalize_portal_version(portal_version) == "v1":
+        return "full"
     return normalize_independent_mode(task.get("independent_mode") or ia.get("kind"))
 
 
@@ -226,7 +247,8 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
     # Stage-2 independent capture (Eval Flow Upgrade §3 / Speed Optimization §1).
     ia = payload.get("independent_answer") or {}
     ia_text = (ia.get("text") or "").strip()
-    ia_kind = _independent_kind(task, ia)
+    portal_version = _portal_version(submission, payload)
+    ia_kind = _independent_kind(task, ia, portal_version)
     # In stance mode the pre-reveal capture is a lightweight anchoring-guard
     # signal attached to the primary record — NOT a gold ideal answer.
     stance_text = ia_text if (ia_text and ia_kind == "stance") else None

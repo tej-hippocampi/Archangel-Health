@@ -31,6 +31,7 @@
     "                         annotator_specialty, annotator_years_experience,",
     "                         annotator_id_hashed, submission_id, task_id, source,",
     "                         buyer_request_id, taxonomy_version, config_version,",
+    "                         portal_version (v1 classic | v2 assisted),",
     "                         license, ip_cleared, contains_phi, captured_at.",
     "  schemas            : per-record-type JSON Schema (minimal subset: type,",
     "                       required, properties, enum, items). EVERY emitted line",
