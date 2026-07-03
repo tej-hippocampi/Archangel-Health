@@ -21,7 +21,13 @@ _TMP = tempfile.mkdtemp(prefix="asclepius_test_")
 os.environ.setdefault("ASCLEPIUS_DB_PATH", os.path.join(_TMP, "asclepius.db"))
 os.environ.setdefault("ASCLEPIUS_EXPORT_DIR", os.path.join(_TMP, "exports"))
 os.environ.setdefault("ASCLEPIUS_AUTH_SECRET", "asclepius-test-secret-0123456789-abcdefXYZ")
-os.environ.setdefault("ASCLEPIUS_QA_SAMPLE_PCT", "0")
+# QA sampling MUST be off for a deterministic suite: many tests assert a clean
+# submission reaches ``export_ready``, and random sampling would route ~15% of
+# them to ``needs_qa`` (a flake). Hard-assign (not setdefault) so a non-zero
+# value in the CI runner's environment can never re-enable it. The sampling
+# path itself is exercised explicitly where needed via
+# ``monkeypatch.setattr(pipeline, "_should_sample", lambda: True)``.
+os.environ["ASCLEPIUS_QA_SAMPLE_PCT"] = "0"
 os.environ.setdefault("ASCLEPIUS_TIME_FLOOR_SEC", "20")
 os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
 # Seedmaker generation: deterministic thresholds + small bounds for fast tests.
