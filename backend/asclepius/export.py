@@ -69,11 +69,21 @@ def _sha256_text(text: str) -> str:
 def _counts(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     by_type: Dict[str, int] = {}
     by_specialty: Dict[str, int] = {}
+    by_portal_version: Dict[str, int] = {}
     for r in records:
         by_type[r["type"]] = by_type.get(r["type"], 0) + 1
         sp = r.get("specialty") or "unknown"
         by_specialty[sp] = by_specialty.get(sp, 0) + 1
-    return {"by_type": by_type, "by_specialty": by_specialty, "total": len(records)}
+        # V1 (classic) vs V2 (assisted) breakdown (Asclepius V2). Legacy records
+        # with no stamp are counted as v1 (they predate the assisted flow).
+        pv = (r.get("payload") or {}).get("portal_version") or "v1"
+        by_portal_version[pv] = by_portal_version.get(pv, 0) + 1
+    return {
+        "by_type": by_type,
+        "by_specialty": by_specialty,
+        "by_portal_version": by_portal_version,
+        "total": len(records),
+    }
 
 
 # ─── Filtering (opt §2) ───────────────────────────────────────────────────────
@@ -86,9 +96,14 @@ def _passes_filters(
     min_agreement: Optional[float],
     buyer_request_id: Optional[str],
     annotator_ids: Optional[set],
+    portal_version: Optional[str] = None,
 ) -> bool:
     payload = rec.get("payload") or {}
     if difficulty and (payload.get("context") or {}).get("difficulty") != difficulty:
+        return False
+    # V1/V2 cohort filter (Asclepius V2): ship or analyze one product version at
+    # a time. Unstamped legacy records count as v1.
+    if portal_version and (payload.get("portal_version") or "v1") != portal_version:
         return False
     if grounded_only and not bool(payload.get("grounded")):
         return False
@@ -132,6 +147,9 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `error_tags_on_rejected` | error taxonomy tags applied to the rejected answer |
 | `error_tag_anchors` | optional `{{error_tag: evidence_anchor}}` |
 | `error_severities` | optional per-tag severity (low/medium/high) |
+| `error_tag_reasons` | optional structured `{{error_tag: reason}}` from a controlled vocabulary (dose_too_high, contraindicated, …) |
+| `stance` | the evaluator's pre-reveal quick take (anchoring guard) — context signal, NOT a gold completion; null on full-blind-answer tasks |
+| `assist` | model-assist provenance `{{prelabeled, suggested_verdict, suggested_error_tags, suggested_rationale, suggested_step_labels, confidence}}` — suggestions shown to the annotator, stored next to the human finals for override-rate analysis; null when unassisted |
 | `confidence` | annotator confidence: low/medium/high |
 | `grounded` | true when the rationale carries a valid evidence anchor (premium tier) |
 | `agreement_score` | inter-annotator agreement (null if single-labeled) |
@@ -142,13 +160,15 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `prompt` | the clinical question / case |
 | `completion` | specialist ideal/revised answer (alias of `ideal_answer`; instruction/response on some profiles) |
 | `approach_notes` | how the specialist reasoned / why it is correct |
+| `independent` | true when written blind, BEFORE the A/B answers were revealed (uncontaminated premium SFT) |
+| `stance` | pre-reveal quick take (see preference) — never present together with `independent` |
 | `evidence_anchor` | optional grounding citation |
 
 ## type = "reasoning_trace" (PRM800K process reward model)
 | field | meaning |
 | --- | --- |
 | `prompt` | the clinical question / case |
-| `steps` | ordered `[{{step, text, label, step_reward, evidence_anchor}}]`; label ∈ good/neutral/bad |
+| `steps` | ordered `[{{step, text, label, suggested_label, step_reward, evidence_anchor}}]`; `label` ∈ good/neutral/bad is the HUMAN action; `suggested_label` is the model pre-grade shown to the annotator (null when unassisted) |
 | `final_answer` | the resulting answer |
 
 ## Provenance & rights (every record)
@@ -161,6 +181,7 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `source` | `lab_supplied` vs `internal_prompt_bank` |
 | `buyer_request_id` | the buyer request the record answers (opt §2.5) |
 | `taxonomy_version` / `config_version` | versioning |
+| `portal_version` | evaluator product flow that produced the record: `v1` (classic) or `v2` (assisted). Stage-1 prompt review + record types are identical across both; V2 adds quick-stance capture, model-assist provenance, and structured reasons |
 | `license` / `ip_cleared` / `contains_phi` | rights attestation (opt §1.4) |
 | `captured_at` | submission capture timestamp |
 """
@@ -273,6 +294,18 @@ def _scope_section_md(scope: Optional[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _stance_semantics_md(records: List[Dict[str, Any]]) -> str:
+    """Datasheet copy for quick-stance captures (Speed Optimization §1) — only
+    emitted when the batch actually carries stance-mode records."""
+    if not any((r.get("payload") or {}).get("stance") for r in records):
+        return ""
+    return (
+        "\nIndependent stance captured pre-reveal (anchoring guard); the gold "
+        "answer is the specialist-refined chosen answer. A record's `stance` "
+        "field is the evaluator's blind quick take, not a gold completion."
+    )
+
+
 def _datasheet_md(*, export_id: str, profile_name: str, counts: Dict[str, Any],
                   records: List[Dict[str, Any]], contributors: List[Dict[str, Any]],
                   scope: Optional[Dict[str, Any]] = None) -> str:
@@ -297,6 +330,7 @@ examples, and PRM800K-style step-level reasoning traces for frontier-lab trainin
 - Total records: **{counts['total']}**
 {type_lines}
 - Specialties: {", ".join(specialties) or "n/a"}
+- By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 = classic flow, V2 = assisted flow)
 {_scope_section_md(scope)}
 {_synthetic_provenance_md(records)}
 
@@ -305,6 +339,7 @@ Answers were evaluated in the Asclepius portal. Each submission was
 auto-packaged, schema-validated (completeness, time-floor, PHI scan, dedupe,
 contamination), double-checked by an LLM consistency critic, and gated through
 human QA (sampled + all flagged) before becoming export-ready.
+{_stance_semantics_md(records)}
 
 ## Annotator credentials (aggregate)
 {chr(10).join("- " + c for c in credentials)}
@@ -347,6 +382,10 @@ def _quality_report_md(*, export_id: str, profile_name: str, records: List[Dict[
         c = (r.get("payload") or {}).get("confidence") or "n/a"
         conf[c] = conf.get(c, 0) + 1
     type_lines = "\n".join(f"- `{k}`: {v}" for k, v in sorted(counts["by_type"].items()))
+    portal_lines = "\n".join(
+        f"- {k} ({'classic' if k == 'v1' else 'assisted'}): {v}"
+        for k, v in sorted(counts.get("by_portal_version", {}).items())
+    ) or "- n/a"
     conf_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(conf.items()))
     qa = stats.get("qa_pass_rate") or {}
     kappa = stats.get("kappa") or {}
@@ -367,6 +406,9 @@ Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
 ## Totals by record type
 - Total records: **{counts['total']}**
 {type_lines}
+
+## By product version (V1 classic / V2 assisted)
+{portal_lines}
 
 ## Grounded (evidence-anchored) premium tier
 - Grounded records: **{grounded}/{counts['total']}** (**{grounded_pct}%**)
@@ -428,6 +470,7 @@ def build_export(
     confidence_floor: Optional[str] = None,
     min_agreement: Optional[float] = None,
     buyer_request_id: Optional[str] = None,
+    portal_version: Optional[str] = None,
     note: Optional[str] = None,
     include_exported: bool = False,
     annotator_id_hashed: Optional[str] = None,
@@ -487,6 +530,7 @@ def build_export(
             min_agreement=min_agreement,
             buyer_request_id=buyer_request_id,
             annotator_ids=annotator_id_set,
+            portal_version=portal_version,
         )
     ]
     if not records:
@@ -588,6 +632,7 @@ def build_export(
         "confidence_floor": confidence_floor,
         "min_agreement": min_agreement,
         "buyer_request_id": buyer_request_id,
+        "portal_version": portal_version,
         "annotator_id_hashed": annotator_id_hashed,
         "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
     }

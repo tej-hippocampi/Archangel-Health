@@ -23,11 +23,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from asclepius.constants import (
     CONTAMINATION_SIGNATURES,
+    ERROR_TAG_REASONS,
     ERROR_TAXONOMY,
     EVIDENCE_SOURCE_TYPES,
     STEP_CORRECTION_REASONS,
     VERDICTS,
     WHY_BETTER_TAGS,
+    assist_time_floor_sec,
 )
 
 # ─── PHI / direct-identifier scanner (BLOCKER 3) ──────────────────────────────
@@ -200,6 +202,15 @@ def validate_submission(
         bad_tags = [t for t in (critique.get("error_tags") or []) if t not in ERROR_TAXONOMY]
         if bad_tags:
             issues.append("unknown_error_tag")
+        # Structured per-tag reasons (Speed Optimization §6) come from a
+        # controlled vocabulary; an off-vocabulary value routes to QA (never a
+        # hard reject) so the tap-to-capture signal stays clean for buyers.
+        bad_reasons = [
+            r for r in (critique.get("error_tag_reasons") or {}).values()
+            if (r or "").strip() and r not in ERROR_TAG_REASONS
+        ]
+        if bad_reasons:
+            issues.append("unknown_error_tag_reason")
         revision = payload.get("chosen_revision") or {}
         bad_why = [t for t in (revision.get("why_better_tags") or []) if t not in WHY_BETTER_TAGS]
         if bad_why:
@@ -261,16 +272,35 @@ def validate_submission(
     if int(submission.get("time_spent_sec") or 0) < time_floor_sec():
         issues.append("too_fast")
 
+    # 3b. assist time-floor guard (Speed Optimization §2): confirming a
+    # model-assisted task implausibly fast smells like rubber-stamping the
+    # suggestions — route to QA for a human look, never hard-reject. "Assisted"
+    # is derived from the payload itself (a prelabel block OR any pre-graded
+    # step), not just the client's self-declared flag, so a pregrade-only
+    # bulk-confirm can't slip under the base floor.
+    assisted = bool((payload.get("assist") or {}).get("prelabeled")) or any(
+        s.get("suggested_label") for s in _reasoning_steps(payload, verdict)
+    )
+    if assisted and int(submission.get("time_spent_sec") or 0) < assist_time_floor_sec():
+        issues.append("assist_too_fast")
+
     # 4. defensive PHI scan over prompt + every emitted text field
     scan_targets: List[Optional[str]] = [task.get("prompt")]
     for c in task.get("candidate_answers", []) or []:
         scan_targets.append(c.get("text"))
     for r in records:
-        scan_targets.extend([r.get("chosen"), r.get("rejected"), r.get("ideal_answer"), r.get("rationale")])
+        # ``stance`` (Speed Optimization §1) is free text the doctor typed/dictated
+        # pre-reveal — scan it like every other emitted text field. The assist
+        # block's suggested rationale is also emitted text (client-supplied on the
+        # wire), so it gets the same treatment.
+        scan_targets.extend([r.get("chosen"), r.get("rejected"), r.get("ideal_answer"),
+                             r.get("rationale"), r.get("stance"),
+                             (r.get("assist") or {}).get("suggested_rationale")])
         for step in r.get("steps") or []:
-            # Scan both the step text AND its free-text critique (Eval Flow Upgrade
-            # §4) — a critique can carry PHI just like the step body.
-            scan_targets.extend([step.get("text"), step.get("critique")])
+            # Scan both the step text AND its free-text critiques (Eval Flow Upgrade
+            # §4 / Speed Optimization §2) — critiques can carry PHI like the body.
+            scan_targets.extend([step.get("text"), step.get("critique"),
+                                 step.get("suggested_critique")])
     # A PHI scanner must always be available; a missing scanner is a validation
     # FAILURE, never a silent pass (BLOCKER 3).
     if not PHI_SCANNER:

@@ -8,6 +8,10 @@
   const API_BASE = '/api/asclepius';
   const TOKEN_KEY = 'asclepius_token';
   const DRAFT_PREFIX = 'asclepius_draft_';
+  // Contributor's chosen evaluator experience (Asclepius V2): 'v1' classic |
+  // 'v2' assisted. Persisted per browser; the default for every new task.
+  const PORTAL_VERSION_KEY = 'asclepius_portal_version';
+  const DEFAULT_PORTAL_VERSION = 'v2';
   // Doctor-portal session token (same origin). If present, we silently exchange
   // it for an Asclepius session so affiliated clinicians skip the login form.
   const DOCTOR_TOKEN_KEY = 'archangel_doctor_auth_token';
@@ -36,6 +40,10 @@
     baseElapsed: 0,
     timerInterval: null,
     submitting: false,
+    assistLoadingFor: null, // task_id of the /assist/prelabel fetch in flight
+    assistFailedFor: null,  // task_id whose assist fetch failed (retry next load)
+    showFullText: false,    // compare view: full text vs highlighted diff
+    portalChosen: false,    // has the evaluator picked V1/V2 on the home page yet
   };
 
   // ─── Tiny DOM helper ───────────────────────────────────────────────────────
@@ -350,6 +358,10 @@
   //  EVALUATOR WORKSPACE
   // ═══════════════════════════════════════════════════════════════════════════
   async function renderEvalView() {
+    // Home page: the evaluator picks their experience (V1 classic / V2 assisted)
+    // before any labeling. Shown on entry until a choice is made this session
+    // (and again whenever they tap "Change experience").
+    if (!state.portalChosen) { renderVersionHome(); return; }
     const wrap = h('div', { class: 'asc-wrap' });
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Loading next evaluation…')));
@@ -403,16 +415,22 @@
       // Gated-capture stage machine (Eval Flow Upgrade §1): prompt_review ->
       // independent_answer -> compare. Persisted so a refresh resumes the stage.
       stage: 'prompt_review',
+      // Evaluator experience this task is graded under (Asclepius V2). Mirrors
+      // the live selection during Stage 1, then pins when Stage 2 begins.
+      portal_version: getPortalVersion(),
       prompt_review: { reviewed: false, verdict: null, note: '', reviewed_at: null },
       independent_answer: { text: '', evidence_anchor: emptyAnchor(), captured_at: null },
       verdict: null,
       chosen_id: null,
       rejected_id: null,
       chosen_revision: { edited: false, revised_text: null, why_better_tags: [], why_better_notes: '', evidence_anchor: emptyAnchor() },
-      rejected_critique: { error_tags: [], severities: {}, why_worse: '', error_tag_anchors: {} },
+      rejected_critique: { error_tags: [], severities: {}, why_worse: '', error_tag_anchors: {}, error_tag_reasons: {} },
       from_scratch: { ideal_answer: '', approach_notes: '', reasoning_steps: [], evidence_anchor: emptyAnchor() },
       reasoning_steps: [],
       confidence: 'medium',
+      // Model-assist suggestions (Speed Optimization §2), cached on the draft so a
+      // refresh never re-bills the LLM. {fetched, skipped, suggested_weaker, ...}
+      assist: null,
       elapsedSec: 0,
     };
   }
@@ -424,6 +442,9 @@
     if (!draft.chosen_revision.evidence_anchor) draft.chosen_revision.evidence_anchor = emptyAnchor();
     if (!draft.from_scratch.evidence_anchor) draft.from_scratch.evidence_anchor = emptyAnchor();
     if (!draft.rejected_critique.error_tag_anchors) draft.rejected_critique.error_tag_anchors = {};
+    if (!draft.rejected_critique.error_tag_reasons) draft.rejected_critique.error_tag_reasons = {};
+    if (draft.assist === undefined) draft.assist = null;
+    if (!draft.portal_version) draft.portal_version = getPortalVersion();
     if (!draft.prompt_review) draft.prompt_review = { reviewed: false, verdict: null, note: '', reviewed_at: null };
     if (!draft.independent_answer) draft.independent_answer = { text: '', evidence_anchor: emptyAnchor(), captured_at: null };
     if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
@@ -460,6 +481,24 @@
   function clearDraft(taskId) {
     try { localStorage.removeItem(draftKey(taskId)); } catch (e) { /* ignore */ }
   }
+
+  // ─── Portal version (V1 classic vs V2 assisted) ────────────────────────────
+  function getPortalVersion() {
+    let v = null;
+    try { v = localStorage.getItem(PORTAL_VERSION_KEY); } catch (e) { v = null; }
+    return v === 'v1' || v === 'v2' ? v : DEFAULT_PORTAL_VERSION;
+  }
+  function setPortalVersion(v) {
+    v = v === 'v1' ? 'v1' : 'v2';
+    try { localStorage.setItem(PORTAL_VERSION_KEY, v); } catch (e) { /* ignore quota */ }
+  }
+  // The version a task is graded under: pinned onto the draft when the doctor
+  // leaves Stage 1 (so a switch mid-task can't produce a half-assisted record);
+  // until then it mirrors the live selection.
+  function draftVersion() {
+    return (state.draft && state.draft.portal_version) || getPortalVersion();
+  }
+  function isV2() { return draftVersion() === 'v2'; }
 
   // ─── Grounding (mirror of backend validation.grounding_status) ──────────────
   function isValidAnchor(a) {
@@ -530,6 +569,77 @@
       h('div', { class: 'asc-stage-right' }, dots, timer));
   }
 
+  // ─── Home page: choose your evaluation experience (V1 / V2) ─────────────────
+  const VERSION_OPTS = [
+    {
+      v: 'v2', label: 'V2 · Assisted', tag: 'Recommended', icon: '✨',
+      blurb: 'The faster flow — under 10 minutes per task.',
+      bullets: [
+        'A 30-second quick take before you see the answers',
+        'Model-suggested labels you verify (never auto-applied)',
+        'Side-by-side answer diff — read only what differs',
+        'Voice dictation on every field',
+      ],
+    },
+    {
+      v: 'v1', label: 'V1 · Classic', tag: null, icon: '📝',
+      blurb: 'The original flow — write your full ideal answer.',
+      bullets: [
+        'Write your complete ideal answer before reveal',
+        'No AI suggestions — your judgment only',
+        'Full-text answer comparison',
+      ],
+    },
+  ];
+  function chooseVersion(v) {
+    setPortalVersion(v);
+    state.portalChosen = true;
+    renderEvalView();
+  }
+  function renderVersionHome() {
+    stopTimer();
+    const last = getPortalVersion();
+    const cards = h('div', { class: 'asc-ver-cards' });
+    VERSION_OPTS.forEach((o) => {
+      const card = h('div', {
+        class: 'asc-ver-card' + (last === o.v ? ' last-used' : ''),
+        role: 'button', tabindex: '0',
+        onClick: () => chooseVersion(o.v),
+        onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseVersion(o.v); } },
+      },
+        h('div', { class: 'asc-ver-card-head' },
+          h('span', { class: 'asc-ver-card-icon' }, o.icon),
+          h('div', {},
+            h('div', { class: 'asc-ver-card-title' }, o.label,
+              o.tag ? h('span', { class: 'asc-ver-card-tag' }, o.tag) : null,
+              last === o.v ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null),
+            h('div', { class: 'asc-ver-card-blurb' }, o.blurb))),
+        h('ul', { class: 'asc-ver-card-list' }, o.bullets.map((b) => h('li', {}, b))),
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
+          'Start with ' + o.label.split(' ')[0] + ' →'));
+      cards.appendChild(card);
+    });
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-ver-home' },
+        h('h1', { class: 'asc-ver-home-title' }, 'Choose your evaluation experience'),
+        h('p', { class: 'asc-ver-home-sub' },
+          'Both capture the same clinical judgment and produce the same training data — pick how you want to work. You can switch anytime.'),
+        cards)));
+  }
+
+  // Small read-only indicator inside the workspace: which experience this task
+  // is being graded under, with a one-tap route back to the home chooser.
+  function renderExperienceBadge() {
+    const v = draftVersion();
+    const label = v === 'v2' ? 'V2 · Assisted' : 'V1 · Classic';
+    return h('div', { class: 'asc-exp-badge' },
+      h('span', { class: 'asc-exp-badge-label' }, (v === 'v2' ? '✨ ' : '📝 ') + label),
+      h('button', {
+        class: 'asc-btn-link', type: 'button',
+        onClick: () => { state.portalChosen = false; renderEvalView(); },
+      }, 'Change experience'));
+  }
+
   function renderTaskWorkspace() {
     const task = state.task;
     const d = state.draft;
@@ -558,7 +668,7 @@
         ));
     }
 
-    const wrap = h('div', { class: 'asc-wrap' }, promptCard, groundingBanner);
+    const wrap = h('div', { class: 'asc-wrap' }, renderExperienceBadge(), promptCard, groundingBanner);
 
     if (d.stage === 'prompt_review') {
       wrap.appendChild(stageHeader('Review the prompt'));
@@ -577,7 +687,72 @@
       refreshAnswerHighlight();
       renderRationale();
       updateSubmitState();
+      loadAssist(); // fire-and-forget: suggestions appear when ready (Speed Opt §2)
     }
+  }
+
+  // ─── Model-assisted pre-labeling (Speed Optimization §2) ────────────────────
+  // Fetch the prelabel suggestion once per task (cached on the draft so a
+  // refresh never re-bills the LLM). Suggestions are hints only: no verdict is
+  // ever auto-selected, nothing is applied without an explicit tap, and the
+  // server already hides low-confidence calls.
+  function assistData() {
+    const a = state.draft && state.draft.assist;
+    return (a && a.fetched && !a.skipped && a.suggested_weaker) ? a : null;
+  }
+  function persistDraft(d) {
+    try { localStorage.setItem(draftKey(d.task_id), JSON.stringify(d)); } catch (e) { /* ignore quota */ }
+  }
+  async function loadAssist() {
+    const d = state.draft;
+    if (!d || d.stage !== 'compare') return;
+    if (!isV2()) return;  // model assist is a V2-only feature
+    // Only a SUCCESSFUL response (including a server-side "skipped" degrade) is
+    // cached on the draft; a transient failure (network blip, restart, 5xx) is
+    // remembered in memory only, so the next page load retries instead of the
+    // feature staying silently dead for the rest of the task.
+    if ((d.assist && d.assist.fetched) || state.assistLoadingFor === d.task_id
+        || state.assistFailedFor === d.task_id) { renderAssistUI(); return; }
+    state.assistLoadingFor = d.task_id;
+    try {
+      const res = await api('/assist/prelabel', { method: 'POST', body: { task_id: d.task_id } });
+      d.assist = Object.assign({ fetched: true }, res);
+      // The LLM call can take seconds — the doctor may already be on another
+      // task. Persist the result onto the draft it belongs to, and only touch
+      // the live UI when that task is still the one on screen.
+      persistDraft(d);
+      if (state.draft === d) renderAssistUI();
+    } catch (e) {
+      state.assistFailedFor = d.task_id;
+    } finally {
+      if (state.assistLoadingFor === d.task_id) state.assistLoadingFor = null;
+    }
+  }
+  // Surface freshly-arrived suggestions: update the verdict hint, then the
+  // answer highlighting + rationale cards only when there is actually a
+  // suggestion to show — and never while the doctor is typing in the rationale
+  // (a rebuild would steal focus mid-keystroke; the chips appear on the next
+  // natural re-render instead).
+  function renderAssistUI() {
+    if (!isV2()) return;
+    renderAssistHint();
+    if (!assistData()) return;
+    renderAnswersInto(document.getElementById('ascAnswers'));
+    const active = document.activeElement;
+    const rationale = document.getElementById('ascRationale');
+    const typing = active && rationale && rationale.contains(active)
+      && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT');
+    if (state.draft && state.draft.verdict && !typing) renderRationale();
+  }
+  function renderAssistHint() {
+    const el = document.getElementById('ascAssistHint');
+    if (!el) return;
+    clear(el);
+    const a = assistData();
+    if (!a) return;
+    el.appendChild(h('span', { class: 'asc-assist-chip' }, '✨'));
+    el.appendChild(h('span', {},
+      'Model thinks ', h('strong', {}, a.suggested_weaker), ' is weaker — tap a verdict to decide.'));
   }
 
   // A non-peekable stand-in for the answers/verdict during Stages 1–2. The real
@@ -612,25 +787,143 @@
       return;
     }
     const answers = h('div', { class: 'asc-answers', id: 'ascAnswers' });
-    (state.task.candidate_answers || []).forEach((c) => answers.appendChild(renderAnswerCard(c)));
+    renderAnswersInto(answers);
+
+    // Diff view (Speed Optimization §3) — V2 only. V1 (classic) shows the full
+    // answer text with no diff toggle, exactly as the original product did.
+    const v2 = isV2();
+    const diffToggle = v2 ? h('button', {
+      class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button', id: 'ascDiffToggle',
+      onClick: () => {
+        state.showFullText = !state.showFullText;
+        renderAnswersInto(document.getElementById('ascAnswers'));
+        const b = document.getElementById('ascDiffToggle');
+        if (b) b.textContent = state.showFullText ? '◧ Highlight differences' : '≡ Show full text';
+      },
+    }, state.showFullText ? '◧ Highlight differences' : '≡ Show full text') : null;
 
     const verdicts = h('div', { class: 'asc-verdicts', id: 'ascVerdicts' },
       verdictButton('A_better', 'A is better', '1'),
       verdictButton('B_better', 'B is better', '2'),
       verdictButton('both_inadequate', 'Both inadequate', '3', true),
     );
+    // Assist hint container exists only in V2.
+    const assistHint = v2 ? h('div', { class: 'asc-assist-hint', id: 'ascAssistHint' }) : null;
     const rationale = h('div', { id: 'ascRationale' });
     const submitBar = renderSubmitBar();
 
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
-      h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Compare the answers'),
+      h('div', { class: 'asc-compare-head' },
+        h('div', { class: 'asc-card-title' }, 'Compare the answers'),
+        diffToggle),
+      v2 ? h('p', { class: 'asc-help', style: 'margin:2px 0 14px' },
+        'Shared text is dimmed; passages where the answers diverge are highlighted.') : null,
       answers));
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Your verdict',
         h('span', { class: 'asc-label-hint', style: 'font-weight:500;margin-left:6px' }, '(press 1 / 2 / 3)')),
       verdicts,
+      assistHint,
       rationale));
     wrap.appendChild(h('div', { class: 'asc-card' }, submitBar));
+    if (v2) setTimeout(renderAssistHint, 0);
+  }
+
+  // ─── Sentence-level diff (Speed Optimization §3, dependency-free) ───────────
+  // Character-exact split: concatenating the result reproduces the input, so
+  // the rendered answer never differs from the real candidate text. A '.'
+  // between two digits is a decimal (e.g. "K+ 1.0"), NOT a boundary — otherwise
+  // dosing error-spans could never match inside a single sentence.
+  function splitSentences(text) {
+    const t = text || '';
+    const out = [];
+    let cur = '';
+    for (let i = 0; i < t.length; i++) {
+      const ch = t[i];
+      cur += ch;
+      if (ch === '\n') { out.push(cur); cur = ''; continue; }
+      if (ch === '.' || ch === '!' || ch === '?') {
+        const prev = t[i - 1], next = t[i + 1];
+        const isDecimal = ch === '.' && prev >= '0' && prev <= '9' && next >= '0' && next <= '9';
+        if (!isDecimal && (next === undefined || next === ' ' || next === '\t' || next === '\n')) {
+          while (i + 1 < t.length && (t[i + 1] === ' ' || t[i + 1] === '\t')) cur += t[++i];
+          out.push(cur); cur = '';
+        }
+      }
+    }
+    if (cur) out.push(cur);
+    return out.length ? out : (t ? [t] : []);
+  }
+  function normSentence(s) {
+    return (s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  // LCS over normalized sentences → per-sentence shared/divergent flags.
+  function diffFlags(aSents, bSents) {
+    const aN = aSents.map(normSentence), bN = bSents.map(normSentence);
+    const n = aN.length, m = bN.length;
+    if (n * m > 40000) { // pathological size: skip dimming rather than lock the UI
+      return { a: aSents.map(() => false), b: bSents.map(() => false), any: false };
+    }
+    const dp = [];
+    for (let i = 0; i <= n; i++) dp.push(new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i][j] = (aN[i] && aN[i] === bN[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const aShared = new Array(n).fill(false), bShared = new Array(m).fill(false);
+    let i = 0, j = 0, any = false;
+    while (i < n && j < m) {
+      if (aN[i] && aN[i] === bN[j]) { aShared[i] = bShared[j] = true; any = true; i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) i++;
+      else j++;
+    }
+    return { a: aShared, b: bShared, any };
+  }
+  function computeAnswerDiff() {
+    // Candidate texts are immutable for the life of a task — memoize the LCS
+    // so re-renders (toggle, assist arrival, verdict) don't repay the O(n*m) DP.
+    if (state._diffCacheTask === state.task.task_id) return state._diffCache;
+    const cands = state.task.candidate_answers || [];
+    const A = cands.find((c) => c.id === 'A'), B = cands.find((c) => c.id === 'B');
+    if (!A || !B || A.text == null || B.text == null) return null; // not cached: texts may still load
+    const aS = splitSentences(A.text), bS = splitSentences(B.text);
+    const flags = diffFlags(aS, bS);
+    // Fully divergent answers: dimming adds nothing (cache the null too).
+    const diff = flags.any ? { A: { sents: aS, shared: flags.a }, B: { sents: bS, shared: flags.b } } : null;
+    state._diffCacheTask = state.task.task_id;
+    state._diffCache = diff;
+    return diff;
+  }
+  // Append text to a node, wrapping any model-suggested error span (Feature 2)
+  // occurring inside it in a highlight mark. Shared by the diff and plain views
+  // so error highlighting can never diverge between them.
+  function appendTextWithMarks(node, text, errSpans) {
+    let rest = text || '';
+    for (const es of errSpans || []) {
+      const idx = rest.indexOf(es);
+      if (idx === -1) continue;
+      node.appendChild(document.createTextNode(rest.slice(0, idx)));
+      node.appendChild(h('mark', { class: 'asc-err-span', title: 'Model-flagged likely error region' }, es));
+      rest = rest.slice(idx + es.length);
+    }
+    node.appendChild(document.createTextNode(rest));
+    return node;
+  }
+  function sentenceNode(sentence, shared, errSpans) {
+    const cls = 'asc-diff-sent' + (shared ? ' asc-diff-shared' : ' asc-diff-changed');
+    return appendTextWithMarks(h('span', { class: cls }), sentence, errSpans);
+  }
+  function renderAnswersInto(container) {
+    if (!container) return;
+    clear(container);
+    // V1 (classic) renders plain full text — no diff, no error-span marks.
+    const diff = (!isV2() || state.showFullText) ? null : computeAnswerDiff();
+    const a = assistData();
+    (state.task.candidate_answers || []).forEach((c) => {
+      container.appendChild(renderAnswerCard(c, diff, a));
+    });
+    refreshAnswerHighlight();
   }
 
   // ─── Stage 1: prompt validation gate (Feature A) ───────────────────────────
@@ -687,25 +980,108 @@
     }
   }
 
-  // ─── Stage 2: blind independent answer (Feature B) ─────────────────────────
+  // ─── Voice dictation mic (Speed Optimization §4) ────────────────────────────
+  // Reusable mic button: tap → MediaRecorder capture → POST /transcribe → the
+  // transcript is APPENDED to the field (still editable). Fields stay plain
+  // textareas (no keystroke interception), so the Wispr Flow desktop app keeps
+  // working everywhere; this in-app mic is a secondary convenience that degrades
+  // to typing when no STT provider is configured. Returns null when the browser
+  // has no recording support (the field simply has no mic).
+  function micButton(getVal, setVal) {
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder)) return null;
+    let recorder = null, chunks = [], stream = null;
+    const btn = h('button', {
+      class: 'asc-mic-btn', type: 'button',
+      title: 'Dictate into this field (tap to start/stop)',
+      'aria-label': 'Dictate into this field',
+    }, '🎤');
+    btn.addEventListener('click', async () => {
+      if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) { toast('Microphone unavailable — check browser permissions.', 'error'); return; }
+      chunks = [];
+      try {
+        recorder = new MediaRecorder(stream);
+      } catch (e) {
+        stream.getTracks().forEach((t) => t.stop());
+        toast('Recording is not supported in this browser.', 'error');
+        return;
+      }
+      recorder.addEventListener('dataavailable', (e) => { if (e.data && e.data.size) chunks.push(e.data); });
+      recorder.addEventListener('stop', async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        btn.classList.remove('recording');
+        btn.textContent = '…'; btn.disabled = true;
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        const fd = new FormData();
+        fd.append('file', blob, 'dictation.webm');
+        try {
+          const res = await api('/transcribe', { method: 'POST', body: fd, isForm: true });
+          const text = (res.text || '').trim();
+          if (text) {
+            const cur = (getVal() || '').trim();
+            setVal(cur ? cur + ' ' + text : text);
+          }
+        } catch (e) {
+          if (e.status === 503) toast('Dictation is not configured — type instead (or use the Wispr Flow app).', 'info');
+          else if (e.status !== 401) toast('Transcription failed: ' + e.message, 'error');
+        } finally {
+          btn.textContent = '🎤'; btn.disabled = false;
+        }
+      });
+      recorder.start();
+      btn.classList.add('recording');
+      btn.textContent = '■';
+    });
+    return btn;
+  }
+
+  // Wrap a textarea/input with its mic in one row. setVal pushes the transcript
+  // through the field's own input handler so the draft stays in sync. Dictation
+  // is a V2 feature — in V1 the field is returned unchanged (plain textarea).
+  function withMic(field) {
+    if (!isV2()) return field;
+    const mic = micButton(
+      () => field.value,
+      (v) => { field.value = v; field.dispatchEvent(new Event('input', { bubbles: true })); },
+    );
+    if (!mic) return field;
+    return h('div', { class: 'asc-mic-row' }, field, mic);
+  }
+
+  // ─── Stage 2: blind independent capture (Feature B / Speed Optimization §1) ─
+  // Default is the quick STANCE (30–45s take — the anti-anchoring guard; the
+  // gold SFT answer comes from the refined chosen answer). Tasks with
+  // independent_mode = "full" keep the original long-form blind ideal answer.
   function renderIndependentAnswer() {
     const ia = state.draft.independent_answer;
-    const ta = h('textarea', { class: 'asc-textarea', style: 'min-height:200px',
-      placeholder: 'Write your full ideal answer to this prompt…' }, ia.text || '');
+    // V1 (classic) always captures the full blind ideal answer. V2 uses the
+    // quick stance unless the admin marked the task premium/eval (full).
+    const fullMode = !isV2() || (state.task.independent_mode || 'stance') === 'full';
+    const ta = fullMode
+      ? h('textarea', { class: 'asc-textarea', style: 'min-height:200px',
+          placeholder: 'Write your full ideal answer to this prompt…' }, ia.text || '')
+      : h('textarea', { class: 'asc-textarea', style: 'min-height:90px',
+          placeholder: 'Your quick take — key points you\'d expect (bullets are fine). e.g. continue reduced-dose metformin · recheck eGFR 3 mo · watch for lactic acidosis.' }, ia.text || '');
     const revealBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascRevealBtn', onClick: commitIndependentAnswerAndReveal }, 'Reveal AI answers →');
     const hint = h('span', { class: 'asc-submit-hint', id: 'ascRevealHint' });
     const syncReveal = () => {
       const ok = (ia.text || '').trim().length > 0;
       revealBtn.disabled = !ok;
-      hint.textContent = ok ? '' : 'write your answer to continue';
+      hint.textContent = ok ? '' : (fullMode ? 'write your answer to continue' : 'jot your quick take to continue');
     };
     ta.addEventListener('input', () => { ia.text = ta.value; saveDraft(); syncReveal(); });
 
     const card = h('div', { class: 'asc-card asc-card-pad asc-gate' },
-      h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' }, 'Before you see the AI answers, write your ideal answer'),
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' },
+        fullMode ? 'Before you see the AI answers, write your ideal answer'
+                 : 'Before you see the answers — your quick take'),
       h('p', { class: 'asc-help', style: 'margin-bottom:16px' },
-        'This is captured uncontaminated — your own gold answer, before the A/B answers can anchor your judgment.'),
-      h('div', { class: 'asc-field' }, ta),
+        fullMode
+          ? 'This is captured uncontaminated — your own gold answer, before the A/B answers can anchor your judgment.'
+          : 'A few key points, captured before the A/B answers can anchor your judgment. 30–45 seconds is plenty — your refined chosen answer later is the gold answer.'),
+      h('div', { class: 'asc-field' }, withMic(ta)),
       renderAnchorBlock(ia.evidence_anchor, { label: 'citation for your answer', required: false }),
       h('div', { class: 'asc-gate-reveal' }, hint, revealBtn));
     setTimeout(syncReveal, 0);
@@ -726,7 +1102,13 @@
     const ia = state.draft.independent_answer;
     const res = await api('/tasks/' + state.draft.task_id + '/reveal', {
       method: 'POST',
-      body: { text: (ia.text || '').trim(), evidence_anchor: cleanAnchor(ia.evidence_anchor) },
+      body: {
+        text: (ia.text || '').trim(),
+        evidence_anchor: cleanAnchor(ia.evidence_anchor),
+        // Pins the flow server-side: V1 commits a full blind ideal answer,
+        // V2 a stance (unless the task is premium/eval full-mode).
+        portal_version: draftVersion(),
+      },
     });
     mergeAnswers(res.answers);
   }
@@ -758,14 +1140,28 @@
     renderTaskWorkspace();
   }
 
-  function renderAnswerCard(c) {
+  function renderAnswerCard(c, diff, assist) {
+    // Error spans (from the prelabel suggestion) only ever highlight inside the
+    // suggested-weaker answer — and never in full-text mode (nothing decorated).
+    const errSpans = (!state.showFullText && assist && assist.suggested_weaker === c.id)
+      ? (assist.error_spans || []) : [];
+    let body;
+    if (diff && diff[c.id]) {
+      body = h('div', { class: 'asc-answer-body asc-answer-diff' });
+      diff[c.id].sents.forEach((s, i) => body.appendChild(sentenceNode(s, diff[c.id].shared[i], errSpans)));
+    } else if (errSpans.length) {
+      // No usable sentence diff, but the error highlight is still valuable.
+      body = appendTextWithMarks(h('div', { class: 'asc-answer-body' }), c.text || '', errSpans);
+    } else {
+      body = h('div', { class: 'asc-answer-body' }, c.text || '');
+    }
     return h('div', { class: 'asc-answer', dataset: { id: c.id } },
       h('div', { class: 'asc-answer-head' },
         h('div', { class: 'asc-answer-tag' },
           h('span', { class: 'asc-answer-letter', dataset: { letter: c.id } }, c.id),
           'Answer ' + c.id),
       ),
-      h('div', { class: 'asc-answer-body' }, c.text || ''));
+      body);
   }
 
   function verdictButton(verdict, label, key, isBoth) {
@@ -856,6 +1252,7 @@
 
     const notes = h('textarea', { class: 'asc-textarea', placeholder: 'One line on why this answer is better (optional)…' }, rev.why_better_notes || '');
     notes.addEventListener('input', () => { rev.why_better_notes = notes.value; saveDraft(); });
+    const notesField = withMic(notes);
 
     const whyTags = (state.taxonomy.why_better_tags || []);
     const chips = renderChips(whyTags, rev.why_better_tags, (tag, on) => {
@@ -872,7 +1269,7 @@
           ta),
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Why it\'s better'),
-          notes),
+          notesField),
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Why-better tags ', h('span', { class: 'asc-label-hint' }, '(optional)')),
           chips),
@@ -889,14 +1286,18 @@
     const errorTags = (state.taxonomy.error_tags || []);
 
     const sevContainer = h('div', { id: 'ascSeverities' });
+    const reasonContainer = h('div', { id: 'ascTagReasons' });
     const anchorContainer = h('div', { id: 'ascTagAnchors' });
+    const suggestContainer = h('div', { id: 'ascTagSuggest' });
 
     const chips = renderChips(errorTags, crit.error_tags, (tag, on) => {
       toggleInArray(crit.error_tags, tag, on);
-      if (!on) { delete crit.severities[tag]; delete crit.error_tag_anchors[tag]; }
+      if (!on) { delete crit.severities[tag]; delete crit.error_tag_anchors[tag]; delete crit.error_tag_reasons[tag]; }
       saveDraft();
+      renderTagReasons(reasonContainer);
       renderSeverities(sevContainer);
       renderTagAnchors(anchorContainer);
+      renderTagSuggestions(suggestContainer);
     }, 'err');
 
     const whyWorse = h('input', { class: 'asc-input', placeholder: 'One line on the key problem (optional)…', value: crit.why_worse || '' });
@@ -905,47 +1306,126 @@
     const card = h('div', { class: 'asc-subcard' },
       h('div', { class: 'asc-subcard-head rejected' }, '✕ Rejected answer (' + d.rejected_id + ') — what went wrong'),
       h('div', { class: 'asc-subcard-body' },
+        suggestContainer,
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Error tags ', h('span', { class: 'asc-label-hint' }, '(select all that apply)')),
           chips),
+        reasonContainer,
         sevContainer,
         h('div', { class: 'asc-field' },
-          h('label', { class: 'asc-label' }, 'Why it\'s worse'),
-          whyWorse),
+          h('label', { class: 'asc-label' }, 'Why it\'s worse ', h('span', { class: 'asc-label-hint' }, '(optional nuance)')),
+          withMic(whyWorse)),
         h('div', { class: 'asc-disclosure' },
           discloseToggle('+ cite specific errors', anchorContainer)),
         anchorContainer,
       ));
+    renderTagSuggestions(suggestContainer);
+    renderTagReasons(reasonContainer);
     renderSeverities(sevContainer);
     renderTagAnchors(anchorContainer, true);
     return card;
   }
 
-  function renderSeverities(container) {
+  // Model-suggested error tags + draft rationale (Speed Optimization §2):
+  // rendered as visually-distinct "Suggested — tap to accept" chips. NOTHING is
+  // applied without an explicit tap; accepted values land in the normal editable
+  // fields. Suggestions only show on the model's suggested-weaker side.
+  // Accepting mutates the draft and re-renders the rationale from state (the
+  // renderers own the DOM — no hand-syncing of chip rows or inputs).
+  function renderTagSuggestions(container) {
+    if (!container) return;
+    clear(container);
+    const a = assistData();
+    const d = state.draft;
+    if (!a || d.rejected_id !== a.suggested_weaker) return;
+    const crit = d.rejected_critique;
+    const pendingTags = (a.suggested_error_tags || []).filter((t) => crit.error_tags.indexOf(t) === -1);
+    const rationalePending = (a.suggested_rationale || '').trim() && !(crit.why_worse || '').trim();
+    if (!pendingTags.length && !rationalePending) return;
+
+    const box = h('div', { class: 'asc-suggest-box' },
+      h('div', { class: 'asc-suggest-label' }, '✨ Suggested — tap to accept'));
+    if (pendingTags.length) {
+      const row = h('div', { class: 'asc-chips' });
+      pendingTags.forEach((tag) => {
+        row.appendChild(h('button', {
+          class: 'asc-chip asc-chip-suggest', type: 'button',
+          onClick: () => {
+            toggleInArray(crit.error_tags, tag, true);
+            saveDraft();
+            renderRationale();
+          },
+        }, '+ ' + tag.replace(/_/g, ' ')));
+      });
+      box.appendChild(row);
+    }
+    if (rationalePending) {
+      box.appendChild(h('div', { class: 'asc-suggest-rationale' },
+        h('span', { class: 'asc-suggest-text' }, '“' + a.suggested_rationale + '”'),
+        h('button', {
+          class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
+          onClick: () => {
+            crit.why_worse = a.suggested_rationale;
+            saveDraft();
+            renderRationale();
+          },
+        }, 'Use as “why it’s worse”')));
+    }
+    container.appendChild(box);
+  }
+
+  // Shared per-error-tag single-select pill rows (used by severities AND the
+  // structured reason chips): one row per selected tag, tap toggles the value
+  // in ``dict``, re-rendering only its own container.
+  function renderPerTagPills(container, opts) {
+    if (!container) return;
     clear(container);
     const crit = state.draft.rejected_critique;
-    if (!crit.error_tags.length) return;
-    const sevs = (state.taxonomy.error_severities || ['low', 'medium', 'high']);
+    if (!crit.error_tags.length || !(opts.options || []).length) return;
     const wrap = h('div', { class: 'asc-field' },
-      h('label', { class: 'asc-label' }, 'Severity per error ', h('span', { class: 'asc-label-hint' }, '(optional)')));
+      h('label', { class: 'asc-label' }, opts.label + ' ', h('span', { class: 'asc-label-hint' }, opts.hint)));
     crit.error_tags.forEach((tag) => {
-      const pills = h('div', { class: 'asc-sev-pills' });
-      sevs.forEach((sev) => {
+      const pills = h('div', { class: 'asc-sev-pills' + (opts.pillsClass ? ' ' + opts.pillsClass : '') });
+      opts.options.forEach((val) => {
         pills.appendChild(h('button', {
-          class: 'asc-sev-pill' + (crit.severities[tag] === sev ? ' active' : ''),
+          class: 'asc-sev-pill' + (opts.dict[tag] === val ? ' active' : ''),
           type: 'button',
-          onClick: (e) => {
-            if (crit.severities[tag] === sev) delete crit.severities[tag];
-            else crit.severities[tag] = sev;
+          onClick: () => {
+            if (opts.dict[tag] === val) delete opts.dict[tag];
+            else opts.dict[tag] = val;
             saveDraft();
-            renderSeverities(container);
+            renderPerTagPills(container, opts);
           },
-        }, sev));
+        }, val.replace(/_/g, ' ')));
       });
       wrap.appendChild(h('div', { class: 'asc-sev-row' },
         h('span', { class: 'asc-sev-name' }, tag.replace(/_/g, ' ')), pills));
     });
     container.appendChild(wrap);
+  }
+
+  // Structured-first capture (Speed Optimization §6): one-tap reason chips per
+  // selected error tag. The vocabulary comes from the server taxonomy only —
+  // a local copy would drift from what validation accepts. V2-only; V1 keeps
+  // the classic free-text "why it's worse" as the sole reason input.
+  function renderTagReasons(container) {
+    if (!isV2()) { if (container) clear(container); return; }
+    renderPerTagPills(container, {
+      label: 'Why, per error',
+      hint: '(one tap — optional)',
+      options: state.taxonomy.error_tag_reasons || [],
+      dict: state.draft.rejected_critique.error_tag_reasons,
+      pillsClass: 'asc-reason-pills',
+    });
+  }
+
+  function renderSeverities(container) {
+    renderPerTagPills(container, {
+      label: 'Severity per error',
+      hint: '(optional)',
+      options: (state.taxonomy.error_severities || ['low', 'medium', 'high']),
+      dict: state.draft.rejected_critique.severities,
+    });
   }
 
   function renderTagAnchors(container, keepHidden) {
@@ -994,7 +1474,7 @@
   // confirms it as-is (label=good) or edits it to correct it (label derived from
   // a one-tap reason). `original` is the AI's split step; pass null for an
   // authored step the AI omitted (see newAuthoredStep).
-  function newStep(text, original) {
+  function newStep(text, original, suggested) {
     return {
       step: 0,
       text: text || '',
@@ -1002,6 +1482,9 @@
       corrected: false, confirmed: false, added: false,
       correction_reason: null,
       label: null, step_reward: null, critique: '', evidence_anchor: emptyAnchor(),
+      // Pre-grade suggestion (Speed Optimization §2) — a hint, never the label.
+      suggested_label: (suggested && suggested.suggested_label) || null,
+      suggested_critique: (suggested && suggested.suggested_critique) || null,
     };
   }
   // A manually authored step (the doctor's own correct reasoning the AI omitted):
@@ -1011,15 +1494,31 @@
     s.added = true; s.label = 'good'; s.step_reward = 1;
     return s;
   }
+  // The single definition of what "confirmed good" / "back to pending" means
+  // for a step — used by the per-step button (expanded + collapsed) AND the
+  // bulk "Confirm all correct" action, so every confirm path emits an
+  // identical record shape.
+  function setStepConfirmed(s, on) {
+    if (on) {
+      s.confirmed = true; s.corrected = false; s.correction_reason = null;
+      s.label = 'good'; s.step_reward = 1; s.critique = '';
+    } else {
+      s.confirmed = false; s.label = null; s.step_reward = null;
+    }
+  }
+
   // The chosen/refined answer text to split into steps (chosen path only).
   function chosenRefinedText() {
     const rev = state.draft.chosen_revision;
     return (rev.revised_text != null ? rev.revised_text : chosenText()) || '';
   }
 
-  // Auto-split the chosen answer into gradable steps. Force re-runs even when
-  // steps already exist (the "Re-split" affordance). Degrades gracefully — on
-  // failure the doctor just adds steps manually.
+  // Auto-split the chosen answer into gradable steps — pre-graded when the LLM
+  // is available (Speed Optimization §2): each step arrives with a suggested
+  // good/bad label so the doctor spends time only on the flagged ones. Force
+  // re-runs even when steps already exist (the "Re-split" affordance). Degrades
+  // gracefully — offline the steps arrive unlabeled and the doctor grades
+  // manually; on failure the doctor just adds steps.
   async function autoSplitChosen(listId, force) {
     const text = chosenRefinedText().trim();
     const startedChosen = state.draft.chosen_id;
@@ -1029,7 +1528,8 @@
     const list = document.getElementById(listId);
     if (list) { clear(list); list.appendChild(h('p', { class: 'asc-help' }, '✨ Splitting the chosen answer into steps…')); }
     try {
-      const res = await api('/reasoning/split', {
+      // V2 pre-grades each step (suggested good/bad); V1 (classic) just splits.
+      const res = await api(isV2() ? '/reasoning/pregrade' : '/reasoning/split', {
         method: 'POST',
         body: { text, prompt: state.task.prompt, specialty: state.task.specialty },
       });
@@ -1038,7 +1538,12 @@
       if (state.draft.stage === 'compare' && state.draft.chosen_id === startedChosen) {
         const steps = activeSteps();
         steps.length = 0;
-        (res.steps || []).forEach((t) => steps.push(newStep(t, t)));
+        (res.steps || []).forEach((s) => {
+          // /reasoning/split returns strings; /reasoning/pregrade returns
+          // {text, suggested_label, suggested_critique}.
+          const t = (s && typeof s === 'object') ? (s.text || '') : String(s || '');
+          if (t) steps.push(newStep(t, t, (s && typeof s === 'object') ? s : null));
+        });
         saveDraft();
       }
     } catch (e) { /* graceful: leave steps for manual entry */ }
@@ -1092,9 +1597,59 @@
       || ['factual_error', 'outdated_guideline', 'incomplete', 'unsafe', 'wrong_order', 'minor_wording']);
     const required = (state.task.grounding_mode === 'required');
 
+    // Pre-graded flow (Speed Optimization §2): suggested-good steps render
+    // collapsed with per-step confirm + one deliberate "Confirm all correct"
+    // action; flagged steps render expanded for review/edit-to-correct. Every
+    // step still requires an explicit confirm/correct — silence ≠ endorsement.
+    const isCollapsed = (s) => (
+      s.suggested_label === 'good' && !s._exp && !s.corrected && !s.added
+      && (s.text || '').trim() === (s.original_text || '').trim()
+    );
+    const pendingGood = steps.filter((s) => isCollapsed(s) && !s.confirmed);
+    if (pendingGood.length) {
+      list.appendChild(h('div', { class: 'asc-step-bulkbar' },
+        h('span', { class: 'asc-step-bulk-label' },
+          '✨ ' + pendingGood.length + ' step' + (pendingGood.length === 1 ? ' looks' : 's look')
+          + ' correct to the model — read them, then confirm in one tap.'),
+        h('button', {
+          class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
+          onClick: () => {
+            steps.forEach((s) => { if (isCollapsed(s) && !s.confirmed) setStepConfirmed(s, true); });
+            saveDraft(); renderStepsList(listId); updateSubmitState();
+          },
+        }, '✓ Confirm all correct')));
+    }
+
     steps.forEach((s, idx) => {
       s.step = idx + 1;
       const hasOriginal = s.original_text != null;
+
+      // Collapsed compact row for a model-passed step (expand to edit/correct).
+      if (isCollapsed(s)) {
+        const pill = h('span', { class: 'asc-step-status ' + (s.confirmed ? 'confirmed' : 'pending') },
+          s.confirmed ? 'confirmed ✓' : 'pending');
+        list.appendChild(h('div', { class: 'asc-step asc-step-collapsed' + (s.confirmed ? ' is-confirmed' : '') },
+          h('div', { class: 'asc-step-head' },
+            h('div', { style: 'display:flex;align-items:center;gap:8px;min-width:0' },
+              h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)),
+              h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, '✨ looks correct'),
+              pill),
+            h('div', { style: 'display:flex;align-items:center;gap:8px' },
+              h('button', {
+                class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm' + (s.confirmed ? ' active' : ''),
+                type: 'button',
+                onClick: () => {
+                  setStepConfirmed(s, !s.confirmed);
+                  saveDraft(); renderStepsList(listId); updateSubmitState();
+                },
+              }, s.confirmed ? '✓ Confirmed' : '✓ Correct as-is'),
+              h('button', {
+                class: 'asc-btn-link', type: 'button',
+                onClick: () => { s._exp = true; renderStepsList(listId); },
+              }, 'Edit'))),
+          h('div', { class: 'asc-step-collapsed-text' }, s.text || '')));
+        return;
+      }
 
       const ta = h('textarea', { class: 'asc-textarea', placeholder: 'Describe this reasoning step…' }, s.text || '');
 
@@ -1106,12 +1661,7 @@
       const confirmBtn = h('button', {
         class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm', type: 'button',
         onClick: () => {
-          if (s.confirmed) {
-            s.confirmed = false; s.label = null; s.step_reward = null;
-          } else {
-            s.confirmed = true; s.corrected = false; s.correction_reason = null;
-            s.label = 'good'; s.step_reward = 1; s.critique = '';
-          }
+          setStepConfirmed(s, !s.confirmed);
           // In-place update only — a full re-render here resets the scroll
           // position and bounces the page up between steps.
           saveDraft(); syncStepUI(); updateSubmitState();
@@ -1150,11 +1700,19 @@
       // Optional one-line critique — kept available on a corrected step.
       const ci = h('input', { class: 'asc-input', placeholder: "What's off with this step? (optional, one line)", value: s.critique || '' });
       ci.addEventListener('input', () => { s.critique = ci.value; saveDraft(); });
-      const critiqueField = h('div', { class: 'asc-field', style: 'margin-top:8px' }, ci);
+      const critiqueField = h('div', { class: 'asc-field', style: 'margin-top:8px' }, withMic(ci));
+
+      // Model pre-grade flag (Speed Optimization §2) — a review hint, never a label.
+      const flaggedBadge = (s.suggested_label === 'bad')
+        ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, '⚑ model flags this')
+        : null;
+      const suggestHint = (s.suggested_label === 'bad' && s.suggested_critique)
+        ? h('div', { class: 'asc-step-suggest-hint' }, '✨ Model: ' + s.suggested_critique)
+        : null;
 
       const head = h('div', { class: 'asc-step-head' },
         h('div', { style: 'display:flex;align-items:center;gap:8px' },
-          h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)), statusPill, addedBadge),
+          h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)), statusPill, addedBadge, flaggedBadge),
         h('div', { style: 'display:flex;align-items:center;gap:8px' },
           confirmBtn,
           h('button', {
@@ -1204,7 +1762,7 @@
       });
 
       syncStepUI();
-      list.appendChild(h('div', { class: 'asc-step' }, head, ta, reasonWrap, originalBox, critiqueField, anchorBlock));
+      list.appendChild(h('div', { class: 'asc-step' }, head, suggestHint, ta, reasonWrap, originalBox, critiqueField, anchorBlock));
     });
     if (!steps.length) {
       list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually, or use “Re-split from answer”.'));
@@ -1396,6 +1954,10 @@
       label: s.label || null,
       step_reward: s.step_reward != null ? s.step_reward : null,
       critique: (s.critique || '').trim() || null,
+      // Pre-grade provenance (Speed Optimization §2): the suggestion ships next
+      // to the human label so override rate is monitorable.
+      suggested_label: s.suggested_label || null,
+      suggested_critique: (s.suggested_critique || '').trim() || null,
       evidence_anchor: cleanAnchor(s.evidence_anchor),
     }));
   }
@@ -1424,7 +1986,25 @@
         evidence_anchor: cleanAnchor(d.independent_answer.evidence_anchor),
         captured_at: d.independent_answer.captured_at,
       },
+      // Which evaluator flow produced this submission (Asclepius V2). The server
+      // treats the reveal-commit's version as authoritative; this is the value
+      // for the flagged-prompt path (no commit) and direct submits.
+      portal_version: draftVersion(),
     };
+    // Model-assist audit block (Speed Optimization §2): the suggestions that
+    // were SHOWN, stored next to the human finals so override rate is
+    // monitorable server-side. Absent when no suggestion was displayed.
+    const a = assistData();
+    if (a) {
+      payload.assist = {
+        prelabeled: true,
+        suggested_verdict: a.suggested_weaker === 'A' ? 'B_better' : 'A_better',
+        suggested_error_tags: (a.suggested_error_tags || []).slice(),
+        suggested_rationale: a.suggested_rationale || null,
+        suggested_step_labels: activeSteps().map((s) => s.suggested_label || null),
+        confidence: a.confidence != null ? a.confidence : null,
+      };
+    }
     if (d.verdict === 'A_better' || d.verdict === 'B_better') {
       const original = chosenText();
       const revised = d.chosen_revision.revised_text != null ? d.chosen_revision.revised_text : original;
@@ -1441,11 +2021,17 @@
         const a = cleanAnchor(d.rejected_critique.error_tag_anchors[tag]);
         if (a) tagAnchors[tag] = a;
       });
+      const tagReasons = {};
+      Object.keys(d.rejected_critique.error_tag_reasons || {}).forEach((tag) => {
+        if (d.rejected_critique.error_tags.indexOf(tag) === -1) return;
+        if (d.rejected_critique.error_tag_reasons[tag]) tagReasons[tag] = d.rejected_critique.error_tag_reasons[tag];
+      });
       payload.rejected_critique = {
         error_tags: d.rejected_critique.error_tags.slice(),
         severities: Object.assign({}, d.rejected_critique.severities),
         why_worse: d.rejected_critique.why_worse || '',
         error_tag_anchors: tagAnchors,
+        error_tag_reasons: tagReasons,
       };
       payload.reasoning_steps = cleanSteps(d.reasoning_steps);
       payload.from_scratch = null;
@@ -2065,6 +2651,46 @@
     body.appendChild(quickCard);
     refreshExportReadyCount();
 
+    // ── Export by product version (Asclepius V2 cohort filter) ──────────────
+    const cohortStatus = h('div', { style: 'margin-top:12px' });
+    const cohortSel = selectFrom(['both', 'v2', 'v1'], 'both');
+    const cohortInclExported = h('input', { type: 'checkbox' });
+    const cohortBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '⬇ Export cohort');
+    cohortBtn.addEventListener('click', async () => {
+      const sel = cohortSel.value;
+      const orig = cohortBtn.textContent;
+      cohortBtn.setAttribute('disabled', ''); cohortBtn.textContent = 'Packaging…';
+      clear(cohortStatus);
+      try {
+        const body2 = { profile: 'default', include_exported: cohortInclExported.checked };
+        if (sel !== 'both') body2.portal_version = sel;
+        const manifest = await api('/exports', { method: 'POST', body: body2 });
+        const n = manifest.record_count != null ? manifest.record_count : 0;
+        const bpv = (manifest.counts || {}).by_portal_version || {};
+        const mix = Object.keys(bpv).map((k) => k + ':' + bpv[k]).join(' · ') || '—';
+        cohortStatus.appendChild(h('div', { class: 'asc-inline-ok' },
+          'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' (' + mix + ') — downloading…'));
+        await downloadExport(manifest.export_id);
+        loadExportsHistory();
+        refreshExportReadyCount();
+      } catch (e) {
+        const msg = e.status === 400
+          ? 'No records match that version/filter yet.'
+          : (e.status === 422 ? 'Schema validation failed: ' + e.message : (e.message || 'Export failed'));
+        cohortStatus.appendChild(h('div', { class: 'asc-inline-error' }, msg));
+      } finally { cohortBtn.removeAttribute('disabled'); cohortBtn.textContent = orig; }
+    });
+    body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-card-title' }, 'Export by product version'),
+      h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
+        'Package a single cohort — V2 (assisted), V1 (classic), or both. Every record is also stamped with its source version.'),
+      h('div', { class: 'asc-form-row', style: 'align-items:flex-end' },
+        h('div', { class: 'asc-field', style: 'margin-bottom:0' },
+          h('label', { class: 'asc-label' }, 'Product version'), cohortSel),
+        h('label', { class: 'asc-checkbox-row', style: 'margin-bottom:0' }, cohortInclExported, 'Re-include already-exported'),
+        cohortBtn),
+      cohortStatus));
+
     // ── Contributors (by organization → contributor → profile) ──────────────
     const contribCard = h('div', { class: 'asc-card', id: 'ascContribBrowser' });
     body.appendChild(contribCard);
@@ -2384,14 +3010,25 @@
       clear(card);
       card.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Export history (' + exports.length + ')')));
       if (!exports.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No exports yet.'))); return; }
+      const versionCell = (x) => {
+        const m = x.manifest || {};
+        const filt = (m.filters || {}).portal_version;
+        if (filt) return (filt === 'v2' ? '✨ V2 only' : '📝 V1 only');
+        const bpv = (m.counts || {}).by_portal_version || {};
+        const keys = Object.keys(bpv);
+        if (!keys.length) return '—';
+        if (keys.length === 1) return (keys[0] === 'v2' ? '✨ V2' : '📝 V1');
+        return keys.sort().map((k) => k + ' ' + bpv[k]).join(' · '); // mixed
+      };
       const rows = exports.map((x) => h('tr', {},
         h('td', { class: 'asc-mono' }, (x.export_id || '').slice(0, 12)),
         h('td', {}, x.profile || '—'),
+        h('td', {}, versionCell(x)),
         h('td', {}, String(x.record_count != null ? x.record_count : (x.count != null ? x.count : '—'))),
         h('td', {}, fmtDate(x.created_at)),
         h('td', {}, h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: () => downloadExport(x.export_id) }, '⬇ Download'))));
       card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-        h('thead', {}, h('tr', {}, ['ID', 'Profile', 'Records', 'Created', ''].map((c) => h('th', {}, c)))),
+        h('thead', {}, h('tr', {}, ['ID', 'Profile', 'Version', 'Records', 'Created', ''].map((c) => h('th', {}, c)))),
         h('tbody', {}, rows))));
     } catch (e) {
       clear(card);
@@ -2441,6 +3078,19 @@
 
     body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Overview'), tiles));
+
+    // Data by product version (Asclepius V2): how many submissions came from the
+    // V1 (classic) vs V2 (assisted) evaluator flow.
+    const pvc = s.portal_version_counts || {};
+    const v1n = pvc.v1 || 0, v2n = pvc.v2 || 0, pvTotal = v1n + v2n;
+    const pct = (n) => pvTotal ? Math.round((100 * n) / pvTotal) + '%' : '0%';
+    body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Data by product version'),
+      h('div', { class: 'asc-stat-grid' },
+        stat(v2n, '✨ V2 · Assisted', pct(v2n) + ' of labeled data'),
+        stat(v1n, '📝 V1 · Classic', pct(v1n) + ' of labeled data')),
+      h('p', { class: 'asc-help', style: 'margin-top:10px' },
+        'Both flows capture the same judgment and produce the same record types; every record is stamped with its source version.')));
 
     // Status counts
     const statusRows = Object.keys(sc).map((k) => h('tr', {}, h('td', {}, k.replace(/_/g, ' ')), h('td', {}, String(sc[k]))));

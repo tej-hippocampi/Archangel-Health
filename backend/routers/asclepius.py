@@ -42,11 +42,15 @@ from asclepius.constants import (
     CREDENTIAL_SUMMARY_WATERMARK,
     CONFIDENCE_LEVELS,
     DEFAULT_GROUNDING_MODE,
+    DEFAULT_INDEPENDENT_MODE,
     ERROR_SEVERITIES,
+    ERROR_TAG_REASONS,
     ERROR_TAXONOMY,
     EVIDENCE_SOURCE_TYPES,
     GROUNDED_PREMIUM_DISCLAIMER,
     GROUNDING_MODES,
+    INDEPENDENT_MODES,
+    PORTAL_VERSIONS,
     PREFERENCE_VARIANTS,
     PROMPT_FLAGGED_TASK_STATUS,
     PROMPT_REVIEW_VERDICTS,
@@ -55,8 +59,18 @@ from asclepius.constants import (
     TASK_SOURCES,
     VERDICTS,
     WHY_BETTER_TAGS,
+    assist_min_confidence,
+    normalize_independent_mode,
+    normalize_portal_version,
 )
-from asclepius.critic import generate_candidates, generate_candidates_ex, run_reasoning_split
+from asclepius import stt as asc_stt
+from asclepius.critic import (
+    generate_candidates,
+    generate_candidates_ex,
+    run_prelabel,
+    run_reasoning_pregrade,
+    run_reasoning_split,
+)
 from asclepius.constants import (
     company_name as _company_name,
     non_circumvention_notice as _non_circumvention_notice,
@@ -74,6 +88,7 @@ from asclepius.schemas import (
     GenerationRequest,
     IndependentAnswer,
     LoginRequest,
+    PrelabelRequest,
     QADecisionRequest,
     ReasoningSplitRequest,
     ScopedExportRequest,
@@ -120,6 +135,8 @@ def _blind_task(task: Dict[str, Any]) -> Dict[str, Any]:
         "difficulty": task.get("difficulty"),
         "capture_reasoning": bool(task.get("capture_reasoning")),
         "grounding_mode": grounding_mode,
+        # Stage-2 capture mode (Speed Optimization §1): stance (default) | full.
+        "independent_mode": task.get("independent_mode") or DEFAULT_INDEPENDENT_MODE,
         # earn-more disclaimer surfaced near the verdict buttons only in required mode (opt §1.2)
         "grounding_disclaimer": GROUNDED_PREMIUM_DISCLAIMER if grounding_mode == "required" else None,
         "prompt": task.get("prompt"),
@@ -157,6 +174,9 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
         "evidence_source_types": list(EVIDENCE_SOURCE_TYPES),
         "reasoning_step_labels": list(REASONING_STEP_LABELS),
         "step_correction_reasons": list(STEP_CORRECTION_REASONS),
+        "error_tag_reasons": list(ERROR_TAG_REASONS),
+        "independent_modes": list(INDEPENDENT_MODES),
+        "portal_versions": list(PORTAL_VERSIONS),
         "preference_variants": list(PREFERENCE_VARIANTS),
         "export_profiles": asc_profiles.list_profiles(),
     }
@@ -274,6 +294,7 @@ async def upload_tasks(
             candidate_answers=[c.model_dump() for c in t.candidate_answers],
             max_labels=t.max_labels,
             grounding_mode=t.grounding_mode,
+            independent_mode=t.independent_mode or DEFAULT_INDEPENDENT_MODE,
             buyer_request_id=t.buyer_request_id,
             created_by=admin["id"],
         )
@@ -324,6 +345,7 @@ async def upload_tasks_file(
             candidate_answers=t.get("candidate_answers") or [],
             max_labels=int(t.get("max_labels") or 1),
             grounding_mode=t.get("grounding_mode") or "optional",
+            independent_mode=t.get("independent_mode") or DEFAULT_INDEPENDENT_MODE,
             created_by=admin["id"],
         )
         created.append(task["task_id"])
@@ -361,6 +383,7 @@ def _parse_csv_tasks(raw: str) -> List[Dict[str, Any]]:
                 "candidate_answers": cands,
                 "max_labels": int(row.get("max_labels") or 1),
                 "grounding_mode": row.get("grounding_mode") or "optional",
+                "independent_mode": row.get("independent_mode") or DEFAULT_INDEPENDENT_MODE,
             }
         )
     return out
@@ -411,6 +434,8 @@ async def generate_specialty_tasks(
     store = _store()
     if body.grounding_mode not in GROUNDING_MODES:
         raise HTTPException(status_code=400, detail="Invalid grounding_mode")
+    if body.independent_mode not in INDEPENDENT_MODES:
+        raise HTTPException(status_code=400, detail="Invalid independent_mode")
     try:
         result = await asc_generation.generate_tasks(
             store,
@@ -419,6 +444,7 @@ async def generate_specialty_tasks(
             difficulty_mix=body.difficulty_mix,
             capture_reasoning=body.capture_reasoning,
             grounding_mode=body.grounding_mode,
+            independent_mode=body.independent_mode,
             max_labels=body.max_labels,
             buyer_request_id=body.buyer_request_id,
             created_by=admin["id"],
@@ -657,11 +683,20 @@ async def reveal_task_answers(
                 "message": "Write your independent answer before revealing the AI answers.",
             },
         )
+    # The contributor's portal version drives the capture kind: V1 (classic)
+    # ALWAYS commits a full blind ideal answer; V2 respects the task's mode
+    # (stance default, 'full' for premium/eval). ``kind`` is stamped
+    # server-side, never trusted from the client — a quick stance can't be
+    # passed off as a full blind ideal answer (Speed Optimization §1).
+    pv = normalize_portal_version(body.portal_version)
+    kind = "full" if pv == "v1" else normalize_independent_mode(task.get("independent_mode"))
     store.commit_independent_answer(
         task_id=task_id,
         evaluator_id=user["id"],
         payload={
             "text": text,
+            "kind": kind,
+            "portal_version": pv,
             "evidence_anchor": body.evidence_anchor.model_dump() if body.evidence_anchor else None,
         },
     )
@@ -672,13 +707,11 @@ async def reveal_task_answers(
     return {"answers": _task_answers(task), "committed": True}
 
 
-@router.get("/tasks/{task_id}/answers")
-async def get_task_answers(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
-    """Re-fetch the revealed candidate answer texts (Eval Flow Upgrade §1, v2 anti-
-    peeking) — e.g. on a mid-task refresh resuming into the compare stage. GATED:
-    returns text only to an evaluator who has already committed an independent
-    answer (POST /tasks/{id}/reveal). Texts are still blinded (no generator_model)."""
-    store = _store()
+def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
+    """The v2 anti-peeking gate, shared by every endpoint that describes the
+    candidate answers (answer re-fetch, prelabel suggestions): the evaluator
+    must have committed their blind independent capture first. One policy, one
+    place — a hardening change here covers every answer-describing surface."""
     task = store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -690,6 +723,16 @@ async def get_task_answers(task_id: str, user: Dict[str, Any] = Depends(asc_auth
                 "message": "Commit your independent answer (POST /tasks/{id}/reveal) before revealing the AI answers.",
             },
         )
+    return task
+
+
+@router.get("/tasks/{task_id}/answers")
+async def get_task_answers(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+    """Re-fetch the revealed candidate answer texts (Eval Flow Upgrade §1, v2 anti-
+    peeking) — e.g. on a mid-task refresh resuming into the compare stage. GATED:
+    returns text only to an evaluator who has already committed an independent
+    answer (POST /tasks/{id}/reveal). Texts are still blinded (no generator_model)."""
+    task = _require_independent_commit(_store(), task_id, user)
     return {"answers": _task_answers(task)}
 
 
@@ -731,7 +774,9 @@ async def submit(
         # (§0/§13) still applies. Redact rather than persist a raw identifier.
         note_phi = residual_identifiers(review.note) if review.note else []
         safe_note = "[redacted — possible identifier detected]" if note_phi else review.note
+        flag_pv = normalize_portal_version(body.portal_version)
         flagged_payload = body.model_dump()
+        flagged_payload["portal_version"] = flag_pv
         if note_phi:
             (flagged_payload.get("prompt_review") or {})["note"] = safe_note
         store.insert_submission(
@@ -748,6 +793,7 @@ async def submit(
             dedupe_hash=None,
             grounded=False,
             grounding_mode=task.get("grounding_mode") or "optional",
+            portal_version=flag_pv,
             status=PROMPT_FLAGGED_TASK_STATUS,
         )
         store.mark_task_status(body.task_id, PROMPT_FLAGGED_TASK_STATUS)
@@ -799,6 +845,16 @@ async def submit(
     if _commit:
         payload["independent_answer"] = _commit["payload"]
 
+    # Portal version (Asclepius V2): the reveal commit's stamped version is
+    # authoritative (it drove the capture kind); fall back to the client's
+    # declared version when no commit exists (v1 with withholding off, or a
+    # direct API client). Stamped onto the row + payload so packaging carries it
+    # onto every record.
+    portal_version = normalize_portal_version(
+        (_commit or {}).get("payload", {}).get("portal_version") or body.portal_version
+    )
+    payload["portal_version"] = portal_version
+
     # Grounding Mode = required (opt §1.2): hard-gate Submit until the rationale
     # (and, on reasoning tasks, every step) carries a valid evidence anchor. This
     # mirrors the frontend submit-gating and is a non-silent 400.
@@ -834,6 +890,7 @@ async def submit(
         dedupe_hash=dedupe_hash,
         grounded=grounded,
         grounding_mode=grounding_mode,
+        portal_version=portal_version,
         status="submitted",
     )
     store.log_event(
@@ -875,6 +932,103 @@ async def reasoning_split(
     local heuristic split when no LLM is configured (never errors the doctor)."""
     res = await run_reasoning_split(body.text, prompt=body.prompt, specialty=body.specialty)
     return {"steps": res.get("steps", []), "source": res.get("source")}
+
+
+@router.post("/reasoning/pregrade")
+async def reasoning_pregrade(
+    body: ReasoningSplitRequest, _user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Split + pre-grade an answer's reasoning steps (Speed Optimization §2):
+    each step arrives with a SUGGESTED ``good``/``bad`` label (+ a one-line
+    critique on bad steps) so the doctor verifies instead of authoring. The
+    labels are suggestions only — every step still requires an explicit human
+    confirm/correct before submit. Degrades to the heuristic splitter with
+    ``suggested_label = null`` when no LLM is configured."""
+    res = await run_reasoning_pregrade(body.text, prompt=body.prompt, specialty=body.specialty)
+    return {
+        "steps": res.get("steps", []),
+        "source": res.get("source"),
+        "skipped": bool(res.get("skipped")),
+    }
+
+
+# ─── Model-assisted pre-labeling (Speed Optimization §2) ─────────────────────
+@router.post("/assist/prelabel")
+async def assist_prelabel(
+    body: PrelabelRequest, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Suggest the weaker answer + error tags + a draft rationale for a task the
+    evaluator is grading — VERIFY, don't author. Guardrails:
+
+      * Anti-peeking: gated behind the evaluator's independent-answer commit
+        (like ``GET /tasks/{id}/answers``) — the suggestion describes the A/B
+        answers, so it must not exist pre-reveal.
+      * Never applied server-side: the verdict/tags/rationale stay untouched;
+        the client renders the suggestion as a tap-to-accept hint only.
+      * Low-confidence suggestions (< ASCLEPIUS_ASSIST_MIN_CONF, default 0.6)
+        are HIDDEN — returned as ``skipped`` so the UI never nudges on an
+        uncertain call.
+      * Degrades to ``skipped=True`` with no LLM key — manual labeling always
+        works.
+    """
+    store = _store()
+    # Unconditional (even with withholding off): the suggestion names the weaker
+    # answer + error spans, so it must never exist before the blind commit.
+    task = _require_independent_commit(store, body.task_id, user)
+    res = await run_prelabel(task)
+    if res.get("skipped"):
+        return {"skipped": True, "reason": res.get("error") or "assist_unavailable"}
+    min_conf = assist_min_confidence()
+    if (res.get("confidence") or 0.0) < min_conf:
+        # Quality guardrail: don't nudge on uncertain calls. The suggestion is
+        # withheld entirely (not just de-emphasized).
+        store.log_event(
+            entity_type="task", entity_id=body.task_id, event_type="prelabel_hidden_low_conf",
+            actor=user["id"], payload={"confidence": res.get("confidence"), "min_conf": min_conf},
+        )
+        return {"skipped": True, "reason": "low_confidence"}
+    store.log_event(
+        entity_type="task", entity_id=body.task_id, event_type="prelabel_suggested",
+        actor=user["id"],
+        payload={
+            "suggested_weaker": res.get("suggested_weaker"),
+            "suggested_error_tags": res.get("suggested_error_tags"),
+            "confidence": res.get("confidence"),
+        },
+    )
+    return {
+        "skipped": False,
+        "suggested_weaker": res.get("suggested_weaker"),
+        "suggested_error_tags": res.get("suggested_error_tags") or [],
+        "suggested_rationale": res.get("suggested_rationale"),
+        "error_spans": res.get("error_spans") or [],
+        "confidence": res.get("confidence"),
+    }
+
+
+# ─── Voice dictation (Speed Optimization §4) ──────────────────────────────────
+@router.post("/transcribe")
+async def transcribe_audio(
+    file: UploadFile = File(...), _user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Transcribe a short dictation clip from the in-app mic. Provider-abstracted
+    (``ASCLEPIUS_STT_PROVIDER``: ``standard`` = Deepgram/Whisper, ``wispr`` stub).
+    Audio is EPHEMERAL — held in memory for this request only, never persisted
+    (synthetic prompts, no PHI; TLS in transit). 503 when no provider is
+    configured so the mic button can degrade to typing."""
+    data = await file.read()
+    res = await asc_stt.transcribe(data, mime=file.content_type or "audio/webm")
+    if res.get("skipped"):
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "stt_unavailable",
+                "message": "Dictation is not available — type your note instead "
+                           "(or use the Wispr Flow desktop app).",
+                "reason": res.get("error"),
+            },
+        )
+    return {"text": res.get("text", ""), "provider": res.get("provider")}
 
 
 @router.get("/submissions")
@@ -948,6 +1102,8 @@ async def create_export(
     body: ExportRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
 ):
     store = _store()
+    if body.portal_version is not None and body.portal_version not in PORTAL_VERSIONS:
+        raise HTTPException(status_code=400, detail="Invalid portal_version")
     try:
         manifest = asc_export.build_export(
             store,
@@ -962,6 +1118,7 @@ async def create_export(
             confidence_floor=body.confidence_floor,
             min_agreement=body.min_agreement,
             buyer_request_id=body.buyer_request_id,
+            portal_version=body.portal_version,
             note=body.note,
             include_exported=body.include_exported,
         )
@@ -1465,11 +1622,14 @@ async def create_buyer_request(
         raise HTTPException(status_code=400, detail="Invalid source")
     if body.grounding_mode not in GROUNDING_MODES:
         raise HTTPException(status_code=400, detail="Invalid grounding_mode")
+    if body.independent_mode not in INDEPENDENT_MODES:
+        raise HTTPException(status_code=400, detail="Invalid independent_mode")
     constraints = {
         "specialty": body.specialty,
         "difficulty": body.difficulty,
         "capture_reasoning": body.capture_reasoning,
         "grounding_mode": body.grounding_mode,
+        "independent_mode": body.independent_mode,
         "volume": body.volume,
         "max_labels": body.max_labels,
     }
@@ -1536,6 +1696,7 @@ async def batch_from_request(
     c = req.get("constraints") or {}
     source = req.get("source") or "internal_prompt_bank"
     grounding_mode = c.get("grounding_mode") or "optional"
+    independent_mode = c.get("independent_mode") or DEFAULT_INDEPENDENT_MODE
     capture_reasoning = bool(c.get("capture_reasoning"))
     difficulty = c.get("difficulty") or "medium"
     specialty = c.get("specialty") or "nephrology"
@@ -1558,6 +1719,7 @@ async def batch_from_request(
             candidate_answers=t.get("candidate_answers") or [],
             max_labels=int(t.get("max_labels") or max_labels),
             grounding_mode=t.get("grounding_mode") or grounding_mode,
+            independent_mode=t.get("independent_mode") or independent_mode,
             buyer_request_id=request_id,
             created_by=admin["id"],
         )
@@ -1575,6 +1737,7 @@ async def batch_from_request(
                 n=body.count,
                 capture_reasoning=capture_reasoning,
                 grounding_mode=grounding_mode,
+                independent_mode=independent_mode,
                 max_labels=max_labels,
                 buyer_request_id=request_id,
                 created_by=admin["id"],
@@ -1613,6 +1776,8 @@ async def stats(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
     )
     return {
         "status_counts": store.status_counts(),
+        # V1 (classic) vs V2 (assisted) provenance breakdown (Asclepius V2).
+        "portal_version_counts": store.portal_version_counts(),
         "qa_pass_rate": store.qa_pass_rate(),
         "average_agreement": store.average_agreement(),
         "kappa": asc_agreement.aggregate_kappa(store.list_agreement_observations()),

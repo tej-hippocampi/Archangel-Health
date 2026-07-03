@@ -176,6 +176,7 @@ class AsclepiusStore:
                     candidate_answers_json TEXT NOT NULL DEFAULT '[]',
                     max_labels      INTEGER NOT NULL DEFAULT 1,
                     grounding_mode  TEXT NOT NULL DEFAULT 'optional',
+                    independent_mode TEXT NOT NULL DEFAULT 'stance',
                     buyer_request_id TEXT,
                     generation_json TEXT,
                     status          TEXT NOT NULL DEFAULT 'open',
@@ -199,6 +200,7 @@ class AsclepiusStore:
                     dedupe_hash     TEXT,
                     grounded        INTEGER NOT NULL DEFAULT 0,
                     grounding_mode  TEXT NOT NULL DEFAULT 'optional',
+                    portal_version  TEXT NOT NULL DEFAULT 'v2',
                     caught_flaw     INTEGER,
                     payload_json    TEXT NOT NULL DEFAULT '{}',
                     validation_json TEXT,
@@ -366,6 +368,27 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE tasks ADD COLUMN buyer_request_id TEXT")
             if "generation_json" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN generation_json TEXT")
+            if "independent_mode" not in task_cols:
+                # Speed Optimization §1: ``independent_mode`` is the ADMIN's
+                # per-task intent — 'stance' (quick take, the default) or 'full'
+                # (long-form blind ideal, premium/eval batches). Pre-existing
+                # rows default to 'stance' BY DESIGN: the product requirement is
+                # that legacy tasks read as stance in V2. This is not a silent
+                # data loss — a premium blind ideal answer is still produced
+                # whenever the contributor selects the V1 (classic) experience
+                # (``_independent_kind`` forces 'full' for v1) OR the admin marks
+                # the task ``independent_mode='full'`` (honored in V2). Only the
+                # DEFAULT capture on an unmarked task in the DEFAULT (v2)
+                # experience is the quick stance.
+                conn.execute("ALTER TABLE tasks ADD COLUMN independent_mode TEXT NOT NULL DEFAULT 'stance'")
+
+            sub_cols = cols("submissions")
+            if "portal_version" not in sub_cols:
+                # Asclepius V2 launch: which evaluator flow produced the row
+                # (v1 classic | v2 assisted). Rows written before this column
+                # existed were all the classic flow, so backfill them to 'v1'.
+                conn.execute("ALTER TABLE submissions ADD COLUMN portal_version TEXT NOT NULL DEFAULT 'v2'")
+                conn.execute("UPDATE submissions SET portal_version = 'v1'")
 
             user_cols = cols("users")
             if "organization" not in user_cols:
@@ -548,21 +571,25 @@ class AsclepiusStore:
         candidate_answers: Optional[List[Dict[str, Any]]] = None,
         max_labels: int = 1,
         grounding_mode: str = "optional",
+        independent_mode: str = "stance",
         buyer_request_id: Optional[str] = None,
         generation: Optional[Dict[str, Any]] = None,
         task_id: Optional[str] = None,
         created_by: Optional[str] = None,
     ) -> Dict[str, Any]:
+        from asclepius.constants import normalize_independent_mode
+
         tid = task_id or _new_id("t")
         gm = grounding_mode if grounding_mode in ("optional", "required") else "optional"
+        im = normalize_independent_mode(independent_mode)
         with self._conn() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO tasks
                   (task_id, specialty, difficulty, capture_reasoning, source, prompt,
-                   candidate_answers_json, max_labels, grounding_mode, buyer_request_id,
-                   generation_json, status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   candidate_answers_json, max_labels, grounding_mode, independent_mode,
+                   buyer_request_id, generation_json, status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -574,6 +601,7 @@ class AsclepiusStore:
                     json.dumps(candidate_answers or []),
                     max(1, int(max_labels or 1)),
                     gm,
+                    im,
                     buyer_request_id,
                     json.dumps(generation) if generation else None,
                     created_by,
@@ -751,6 +779,7 @@ class AsclepiusStore:
         dedupe_hash: Optional[str],
         grounded: bool = False,
         grounding_mode: str = "optional",
+        portal_version: str = "v2",
         status: str = "submitted",
     ) -> Dict[str, Any]:
         now = _utcnow_iso()
@@ -760,8 +789,8 @@ class AsclepiusStore:
                 INSERT INTO submissions
                   (submission_id, task_id, evaluator_id, verdict, chosen_id, rejected_id,
                    confidence, time_spent_sec, status, dedupe_hash, grounded, grounding_mode,
-                   payload_json, annotator_json, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   portal_version, payload_json, annotator_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     submission_id,
@@ -776,6 +805,7 @@ class AsclepiusStore:
                     dedupe_hash,
                     1 if grounded else 0,
                     grounding_mode,
+                    portal_version,
                     json.dumps(payload),
                     json.dumps(annotator),
                     now,
@@ -1072,6 +1102,16 @@ class AsclepiusStore:
                 "SELECT status, COUNT(*) AS n FROM submissions GROUP BY status"
             ).fetchall()
         return {r["status"]: int(r["n"]) for r in rows}
+
+    def portal_version_counts(self) -> Dict[str, int]:
+        """Submissions by evaluator product version (Asclepius V2) — lets the
+        admin dashboard show how much data came from V1 (classic) vs V2
+        (assisted)."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT portal_version, COUNT(*) AS n FROM submissions GROUP BY portal_version"
+            ).fetchall()
+        return {(r["portal_version"] or "v2"): int(r["n"]) for r in rows}
 
     def evaluator_throughput(self) -> List[Dict[str, Any]]:
         with self._conn() as conn:

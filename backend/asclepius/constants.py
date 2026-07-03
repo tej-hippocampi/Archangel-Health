@@ -36,6 +36,34 @@ PROMPT_FLAGGED_TASK_STATUS = "prompt_flagged"
 # Quick confidence buttons.
 CONFIDENCE_LEVELS = ("low", "medium", "high")
 
+# Stage-2 independent-capture mode (Speed Optimization, Feature 1). ``stance``
+# (default) asks for a 30–45s quick take before reveal — the anti-anchoring
+# guard — while the gold SFT answer comes from the specialist-refined chosen
+# answer. ``full`` keeps the original long-form blind ideal answer (premium /
+# eval batches). Set per task via ``independent_mode``.
+INDEPENDENT_MODES = ("stance", "full")
+DEFAULT_INDEPENDENT_MODE = "stance"
+
+
+def normalize_independent_mode(value):
+    """Coerce any input to a known independent mode (single source of truth —
+    store, packaging, and router all normalize through here)."""
+    return value if value in INDEPENDENT_MODES else DEFAULT_INDEPENDENT_MODE
+
+
+# Evaluator portal versions (Asclepius V2 launch). Contributors choose per
+# session: ``v1`` is the classic flow (full blind ideal answer, no model
+# assist, no diff view); ``v2`` is the speed-optimized flow (quick stance,
+# pre-labeling, diff, dictation, structured reasons). Stage-1 prompt review
+# and the packaged record types are identical in both. The version is stamped
+# onto every submission + record so buyers/admin can segment by provenance.
+PORTAL_VERSIONS = ("v1", "v2")
+DEFAULT_PORTAL_VERSION = "v2"
+
+
+def normalize_portal_version(value):
+    return value if value in PORTAL_VERSIONS else DEFAULT_PORTAL_VERSION
+
 # Where the task (prompt + candidate answers) originated.
 TASK_SOURCES = ("lab_supplied", "internal_prompt_bank")
 
@@ -63,6 +91,23 @@ ERROR_TAXONOMY = (
 )
 
 ERROR_SEVERITIES = ("low", "medium", "high")
+
+# Structured-first capture (Speed Optimization, Feature 6): a controlled
+# vocabulary of one-tap REASONS attached per selected error tag, so the
+# diagnostic "why" is captured without typing. Persisted as
+# ``RejectedCritique.error_tag_reasons: {tag: reason}``; free text stays an
+# optional nuance field.
+ERROR_TAG_REASONS = (
+    "dose_too_high",
+    "dose_too_low",
+    "contraindicated",
+    "outdated_threshold",
+    "misreads_labs",
+    "wrong_order",
+    "unsafe",
+    "incomplete",
+    "not_indicated",
+)
 
 # Status lifecycle of a submission (PRD §5). ``needs_qa`` and ``rejected`` are
 # the side branches off the happy path; everything else is the linear spine:
@@ -118,6 +163,21 @@ def label_for_correction_reason(reason):
     """minor_wording is a non-substantive edit (neutral); any other reason means
     the original step was wrong (bad). Used to derive the buyer-facing label."""
     return "neutral" if reason == "minor_wording" else "bad"
+
+# ─── Model-assisted pre-labeling (Speed Optimization, Feature 2) ─────────────
+# Suggestions below this confidence are HIDDEN server-side — we never nudge the
+# specialist on an uncertain call (quality guardrail; spec Feature 2).
+def assist_min_confidence() -> float:
+    return _env_float("ASCLEPIUS_ASSIST_MIN_CONF", 0.6)
+
+
+# Time-floor guard for assisted tasks: confirming pre-labeled suggestions
+# implausibly fast routes the submission to needs_qa (rubber-stamp catch —
+# never a hard reject). Stricter than the base too-fast floor because the
+# doctor is expected to actually verify each flagged step.
+def assist_time_floor_sec() -> int:
+    return max(0, _env_int("ASCLEPIUS_ASSIST_TIME_FLOOR_SEC", 60))
+
 
 # Grounding Mode (opt §1.2). ``optional`` keeps the lightest path sacred;
 # ``required`` is the premium SKU that gates Submit on a valid citation.

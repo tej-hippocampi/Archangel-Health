@@ -15,9 +15,12 @@ from asclepius.prompts import (
     ASCLEPIUS_CRITIC_SYSTEM,
     ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
     ASCLEPIUS_GROUNDING_SYSTEM,
+    ASCLEPIUS_PRELABEL_SYSTEM,
     ASCLEPIUS_PROMPT_GEN_SYSTEM,
     ASCLEPIUS_PROMPT_JUDGE_SYSTEM,
+    ASCLEPIUS_REASONING_PREGRADE_SYSTEM,
     ASCLEPIUS_REASONING_SPLIT_SYSTEM,
+    ASCLEPIUS_STT_CLEANUP_SYSTEM,
 )
 from .system import SEMANTIC_ESCALATION_PROMPT
 from pipeline.grounding_check import GROUNDING_JUDGE_PROMPT
@@ -288,6 +291,30 @@ PROMPT_REGISTRY: dict = {
         "content": ASCLEPIUS_REASONING_SPLIT_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_REASONING_SPLIT_SYSTEM",
+        "type": "system",
+        "version": "1.0.0",
+    },
+    "asclepius_prelabel": {
+        "label": "Asclepius — A/B Pre-Label Suggestion (verify, don't author)",
+        "content": ASCLEPIUS_PRELABEL_SYSTEM,
+        "file": "backend/asclepius/prompts.py",
+        "variable": "ASCLEPIUS_PRELABEL_SYSTEM",
+        "type": "system",
+        "version": "1.0.0",
+    },
+    "asclepius_reasoning_pregrade": {
+        "label": "Asclepius — Reasoning Step Splitter + Pre-Grader",
+        "content": ASCLEPIUS_REASONING_PREGRADE_SYSTEM,
+        "file": "backend/asclepius/prompts.py",
+        "variable": "ASCLEPIUS_REASONING_PREGRADE_SYSTEM",
+        "type": "system",
+        "version": "1.0.0",
+    },
+    "asclepius_stt_cleanup": {
+        "label": "Asclepius — Dictation Transcript Cleanup",
+        "content": ASCLEPIUS_STT_CLEANUP_SYSTEM,
+        "file": "backend/asclepius/prompts.py",
+        "variable": "ASCLEPIUS_STT_CLEANUP_SYSTEM",
         "type": "system",
         "version": "1.0.0",
     },

@@ -187,3 +187,59 @@ def test_double_label_disagreement_routes_to_qa_then_approve():
     # Aggregate kappa observation is recorded for the task.
     stats = client.get("/api/asclepius/stats", headers=admin_h).json()
     assert stats["kappa"]["n"] >= 1
+
+
+def test_pre_v2_records_still_export_and_count_as_v1(monkeypatch):
+    """Data-preservation guarantee: a record packaged BEFORE the V2 feature — no
+    portal_version, stance, assist, or error_tag_reasons fields — must still
+    export cleanly (never dropped) and be counted/tagged as v1. Additive
+    migrations don't rewrite existing records, so this simulates a real
+    pre-upgrade batch sitting in the DB."""
+    from asclepius.export import build_export
+    from asclepius.store import get_store
+
+    store = get_store()
+    admin = A.make_user(store, role="admin")
+    # A legacy preference record exactly as the OLD packager emitted it — the new
+    # V2 fields simply do not exist on it.
+    legacy_payload = {
+        "type": "preference",
+        "prompt": "Legacy hyperkalemia case — how do you manage?",
+        "chosen": "Give IV calcium, then insulin-dextrose, then dialyze.",
+        "rejected": "Set dialysate K+ to 1.0 immediately.",
+        "context": {"specialty": "nephrology", "difficulty": "hard"},
+        "rationale": "safer sequencing",
+        "confidence": "high",
+        "annotator_credential": "board_certified_nephrology",
+        "annotator_specialty": "nephrology",
+        "annotator_id_hashed": "legacyhash0001",
+        "submission_id": "s-legacy-0001",
+        "task_id": "t-legacy-0001",
+        "source": "lab_supplied",
+        "taxonomy_version": "old",
+        "config_version": "old",
+        "license": "CC-BY-NC-4.0-clinical-eval",
+        "ip_cleared": True,
+        "contains_phi": False,
+        "captured_at": "2026-05-01T00:00:00",
+        # NOTE: no portal_version / stance / assist / error_tag_reasons.
+    }
+    store.insert_record(
+        submission_id="s-legacy-0001", task_id="t-legacy-0001", rtype="preference",
+        specialty="nephrology", payload=legacy_payload, status="export_ready",
+    )
+
+    # Export everything — the legacy record must be included, not dropped.
+    manifest = build_export(store, created_by=admin["id"], profile="default")
+    assert manifest["record_count"] >= 1
+    # Counted under v1 (unstamped legacy == classic).
+    assert manifest["counts"]["by_portal_version"].get("v1", 0) >= 1
+
+    # And it survives the V2 cohort filter as a v1 record.
+    store.update_records_status_for_submission("s-legacy-0001", "export_ready")
+    v1_manifest = build_export(
+        store, created_by=admin["id"], profile="default",
+        portal_version="v1", include_exported=True,
+    )
+    assert v1_manifest["record_count"] >= 1
+    assert set(v1_manifest["counts"]["by_portal_version"]) == {"v1"}

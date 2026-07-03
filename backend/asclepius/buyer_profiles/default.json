@@ -2,7 +2,11 @@
   "name": "default",
   "description": "Archangel canonical export profile. hh-rlhf preference pairs (flat variant by default), {prompt, completion} SFT, and PRM800K-style reasoning traces, with full credential + provenance + rights attestation on every record. Adding a new buyer is a copy of this file with their field names + schema.",
   "preference_variant": "flat",
-  "record_types": ["preference", "ideal_answer", "reasoning_trace"],
+  "record_types": [
+    "preference",
+    "ideal_answer",
+    "reasoning_trace"
+  ],
   "field_maps": {
     "preference": {
       "flat": {
@@ -17,6 +21,9 @@
         "error_tags_on_rejected": "error_tags_on_rejected",
         "error_tag_anchors": "error_tag_anchors",
         "error_severities": "error_severities",
+        "error_tag_reasons": "error_tag_reasons",
+        "stance": "stance",
+        "assist": "assist",
         "confidence": "confidence",
         "grounded": "grounded",
         "agreement_score": "agreement_score",
@@ -33,7 +40,8 @@
         "license": "license",
         "ip_cleared": "ip_cleared",
         "contains_phi": "contains_phi",
-        "captured_at": "captured_at"
+        "captured_at": "captured_at",
+        "portal_version": "portal_version"
       },
       "chat": {
         "type": "type",
@@ -47,6 +55,9 @@
         "error_tags_on_rejected": "error_tags_on_rejected",
         "error_tag_anchors": "error_tag_anchors",
         "error_severities": "error_severities",
+        "error_tag_reasons": "error_tag_reasons",
+        "stance": "stance",
+        "assist": "assist",
         "confidence": "confidence",
         "grounded": "grounded",
         "agreement_score": "agreement_score",
@@ -63,7 +74,8 @@
         "license": "license",
         "ip_cleared": "ip_cleared",
         "contains_phi": "contains_phi",
-        "captured_at": "captured_at"
+        "captured_at": "captured_at",
+        "portal_version": "portal_version"
       }
     },
     "ideal_answer": {
@@ -73,6 +85,9 @@
       "ideal_answer": "ideal_answer",
       "messages": "messages",
       "approach_notes": "approach_notes",
+      "independent": "independent",
+      "stance": "stance",
+      "assist": "assist",
       "evidence_anchor": "evidence_anchor",
       "context": "context",
       "confidence": "confidence",
@@ -90,7 +105,8 @@
       "license": "license",
       "ip_cleared": "ip_cleared",
       "contains_phi": "contains_phi",
-      "captured_at": "captured_at"
+      "captured_at": "captured_at",
+      "portal_version": "portal_version"
     },
     "reasoning_trace": {
       "type": "type",
@@ -113,69 +129,181 @@
       "license": "license",
       "ip_cleared": "ip_cleared",
       "contains_phi": "contains_phi",
-      "captured_at": "captured_at"
+      "captured_at": "captured_at",
+      "portal_version": "portal_version"
     }
   },
   "schemas": {
     "preference": {
       "flat": {
         "type": "object",
-        "required": ["type", "prompt", "chosen", "rejected", "annotator_credential", "license", "ip_cleared", "contains_phi"],
+        "required": [
+          "type",
+          "prompt",
+          "chosen",
+          "rejected",
+          "annotator_credential",
+          "license",
+          "ip_cleared",
+          "contains_phi"
+        ],
         "properties": {
-          "type": {"enum": ["preference"]},
-          "prompt": {"type": "string"},
-          "chosen": {"type": "string"},
-          "rejected": {"type": "string"},
-          "rationale": {"type": "string"},
-          "grounded": {"type": "boolean"},
-          "ip_cleared": {"type": "boolean"},
-          "contains_phi": {"type": "boolean"},
-          "license": {"type": "string"},
-          "annotator_credential": {"type": "string"}
+          "type": {
+            "enum": [
+              "preference"
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "chosen": {
+            "type": "string"
+          },
+          "rejected": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "grounded": {
+            "type": "boolean"
+          },
+          "ip_cleared": {
+            "type": "boolean"
+          },
+          "contains_phi": {
+            "type": "boolean"
+          },
+          "license": {
+            "type": "string"
+          },
+          "annotator_credential": {
+            "type": "string"
+          }
         }
       },
       "chat": {
         "type": "object",
-        "required": ["type", "chosen", "rejected", "annotator_credential", "license", "ip_cleared", "contains_phi"],
+        "required": [
+          "type",
+          "chosen",
+          "rejected",
+          "annotator_credential",
+          "license",
+          "ip_cleared",
+          "contains_phi"
+        ],
         "properties": {
-          "type": {"enum": ["preference"]},
-          "chosen": {"type": "array"},
-          "rejected": {"type": "array"},
-          "grounded": {"type": "boolean"},
-          "ip_cleared": {"type": "boolean"},
-          "contains_phi": {"type": "boolean"},
-          "license": {"type": "string"},
-          "annotator_credential": {"type": "string"}
+          "type": {
+            "enum": [
+              "preference"
+            ]
+          },
+          "chosen": {
+            "type": "array"
+          },
+          "rejected": {
+            "type": "array"
+          },
+          "grounded": {
+            "type": "boolean"
+          },
+          "ip_cleared": {
+            "type": "boolean"
+          },
+          "contains_phi": {
+            "type": "boolean"
+          },
+          "license": {
+            "type": "string"
+          },
+          "annotator_credential": {
+            "type": "string"
+          }
         }
       }
     },
     "ideal_answer": {
       "type": "object",
-      "required": ["type", "prompt", "completion", "annotator_credential", "license", "ip_cleared", "contains_phi"],
+      "required": [
+        "type",
+        "prompt",
+        "completion",
+        "annotator_credential",
+        "license",
+        "ip_cleared",
+        "contains_phi"
+      ],
       "properties": {
-        "type": {"enum": ["ideal_answer"]},
-        "prompt": {"type": "string"},
-        "completion": {"type": "string"},
-        "ideal_answer": {"type": "string"},
-        "grounded": {"type": "boolean"},
-        "ip_cleared": {"type": "boolean"},
-        "contains_phi": {"type": "boolean"},
-        "license": {"type": "string"},
-        "annotator_credential": {"type": "string"}
+        "type": {
+          "enum": [
+            "ideal_answer"
+          ]
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "completion": {
+          "type": "string"
+        },
+        "ideal_answer": {
+          "type": "string"
+        },
+        "grounded": {
+          "type": "boolean"
+        },
+        "ip_cleared": {
+          "type": "boolean"
+        },
+        "contains_phi": {
+          "type": "boolean"
+        },
+        "license": {
+          "type": "string"
+        },
+        "annotator_credential": {
+          "type": "string"
+        }
       }
     },
     "reasoning_trace": {
       "type": "object",
-      "required": ["type", "prompt", "steps", "annotator_credential", "license", "ip_cleared", "contains_phi"],
+      "required": [
+        "type",
+        "prompt",
+        "steps",
+        "annotator_credential",
+        "license",
+        "ip_cleared",
+        "contains_phi"
+      ],
       "properties": {
-        "type": {"enum": ["reasoning_trace"]},
-        "prompt": {"type": "string"},
-        "steps": {"type": "array"},
-        "grounded": {"type": "boolean"},
-        "ip_cleared": {"type": "boolean"},
-        "contains_phi": {"type": "boolean"},
-        "license": {"type": "string"},
-        "annotator_credential": {"type": "string"}
+        "type": {
+          "enum": [
+            "reasoning_trace"
+          ]
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "steps": {
+          "type": "array"
+        },
+        "grounded": {
+          "type": "boolean"
+        },
+        "ip_cleared": {
+          "type": "boolean"
+        },
+        "contains_phi": {
+          "type": "boolean"
+        },
+        "license": {
+          "type": "string"
+        },
+        "annotator_credential": {
+          "type": "string"
+        }
       }
     }
   }

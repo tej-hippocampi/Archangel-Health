@@ -28,6 +28,13 @@ MODEL_REGISTRY: dict[str, dict[str, Any]] = {
     # ordered steps for tap-to-grade. Deterministic (temp 0.0) — a structural
     # split, not a judgment. Overridable via MODEL_ASCLEPIUS_REASONING_SPLIT.
     "asclepius_reasoning_split": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1200},
+    # Speed Optimization §2 — model-assisted pre-labeling (verify, don't author).
+    # Suggestions only; never auto-applied. Overridable via MODEL_ASCLEPIUS_PRELABEL
+    # / MODEL_ASCLEPIUS_REASONING_PREGRADE / MODEL_ASCLEPIUS_STT_CLEANUP.
+    "asclepius_prelabel": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1200},
+    "asclepius_reasoning_pregrade": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1500},
+    # Dictation cleanup (Speed Optimization §4): mechanical transcript tidy.
+    "asclepius_stt_cleanup": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 1500},
     # Asclepius Seedmaker auto-generation (nephrology PRD §11). "Current Claude
     # model" is expressed via the registry + env override, never hardcoded in
     # logic. Prompt synthesis + judging default to the strongest model
