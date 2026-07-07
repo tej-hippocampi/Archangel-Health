@@ -74,8 +74,14 @@ class EvidenceAnchor(BaseModel):
     """
 
     citation_text: Optional[str] = None
-    source_type: Optional[str] = None  # guideline | primary_literature | expert_consensus | other
+    source_type: Optional[str] = None  # guideline | primary_literature | expert_consensus | fda_label | other
     identifier: Optional[str] = None  # e.g. "KDIGO 2024", "PMID:12345678", "DOI:..."
+    # Library source URL, when the anchor came from an auto-suggested citation (WS3).
+    url: Optional[str] = None
+    # True when the clinician explicitly CONFIRMED an auto-suggested citation
+    # (Seamless PRD WS3) — never set implicitly. Lets buyers/QA distinguish a
+    # confirmed library citation from a hand-typed one.
+    citation_confirmed: Optional[bool] = None
 
 
 # ─── Tasks (admin-loaded input) ───────────────────────────────────────────────
@@ -279,6 +285,16 @@ class PrelabelRequest(BaseModel):
     §2). Gated behind the independent-answer commit (anti-peeking)."""
 
     task_id: str
+
+
+class CiteRequest(BaseModel):
+    """Ask for auto-suggested citations for a rationale or reasoning step
+    (Seamless PRD WS3). ``text`` is the clinician's written rationale/step;
+    ``specialty`` scopes the citation library. Post-reveal, so no anti-peeking gate."""
+
+    text: str
+    specialty: str = "nephrology"
+    k: int = 3
 
 
 class ReasoningSplitRequest(BaseModel):

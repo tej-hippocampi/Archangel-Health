@@ -1,0 +1,167 @@
+{
+  "specialty": "nephrology",
+  "version": "nephrology.citations.v1",
+  "note": "Curated sources a nephrologist actually cites. Snippets are short, paraphrased summaries for retrieval + display; the identifier/url point to the authoritative source the clinician should confirm against. Extend per specialty (add cardiology.v1.json) without code changes.",
+  "citations": [
+    {
+      "id": "kdigo-ckd-2024",
+      "title": "KDIGO 2024 Clinical Practice Guideline for the Evaluation and Management of CKD",
+      "section": "Ch. 3–4: evaluation, risk (KFRE), and delaying progression",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2024 CKD",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Stage CKD by cause, GFR (G1–G5) and albuminuria (A1–A3); use the KFRE for risk. RAS inhibition and an SGLT2 inhibitor are foundational for albuminuric CKD to slow progression.",
+      "keywords": ["ckd", "egfr", "gfr", "albuminuria", "proteinuria", "kfre", "progression", "staging", "sglt2", "ras", "acei", "arb", "risk"]
+    },
+    {
+      "id": "kdigo-diabetes-ckd-2022",
+      "title": "KDIGO 2022 Clinical Practice Guideline for Diabetes Management in CKD",
+      "section": "SGLT2i, metformin dosing, finerenone, RAS blockade",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2022 Diabetes-CKD",
+      "url": "https://kdigo.org/guidelines/diabetes-ckd/",
+      "snippet": "For T2D + CKD: metformin + an SGLT2 inhibitor as first-line where eGFR permits; add finerenone for residual albuminuria on a maximally tolerated RAS inhibitor with acceptable potassium. Metformin: reassess dose at eGFR <45, stop <30.",
+      "keywords": ["diabetes", "t2d", "ckd", "metformin", "sglt2", "finerenone", "albuminuria", "dosing", "egfr", "potassium"]
+    },
+    {
+      "id": "kdigo-gn-2021",
+      "title": "KDIGO 2021 Clinical Practice Guideline for the Management of Glomerular Diseases",
+      "section": "IgAN, membranous, RPGN/ANCA, anti-GBM, FSGS, lupus nephritis",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2021 GN",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "IgAN: optimize supportive care (RAS blockade ± SGLT2i) before immunosuppression. RPGN: do not delay biopsy or empiric therapy; ANCA and anti-GBM require prompt immunosuppression, with plasma exchange for anti-GBM and selected severe ANCA.",
+      "keywords": ["glomerular", "gn", "iga", "igan", "membranous", "pla2r", "rpgn", "anca", "anti-gbm", "plasmapheresis", "plasma exchange", "fsgs", "lupus", "biopsy", "nephrotic", "proteinuria"]
+    },
+    {
+      "id": "kdigo-ckd-mbd-2017",
+      "title": "KDIGO 2017 Update: Chronic Kidney Disease–Mineral and Bone Disorder (CKD-MBD)",
+      "section": "Phosphate, PTH, calcium, vitamin D, calcimimetics",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2017 CKD-MBD",
+      "url": "https://kdigo.org/guidelines/ckd-mbd/",
+      "snippet": "Lower elevated phosphate toward normal, avoiding hypercalcemia; prefer non-calcium binders when calcium load is a concern. For high PTH on dialysis, calcimimetics, calcitriol/analogs, or a combination — individualized to calcium and phosphate.",
+      "keywords": ["ckd-mbd", "mbd", "phosphate", "phosphorus", "binder", "pth", "hyperparathyroidism", "calcium", "calcimimetic", "cinacalcet", "etelcalcetide", "vitamin d", "calcitriol", "dialysis"]
+    },
+    {
+      "id": "fidelio-dkd-2020",
+      "title": "FIDELIO-DKD: Finerenone in CKD and Type 2 Diabetes",
+      "section": "Primary CKD outcome; hyperkalemia signal",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2020;383:2219 (FIDELIO-DKD)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2025845",
+      "snippet": "In T2D + CKD on a maximally tolerated RAS inhibitor, finerenone reduced CKD progression and cardiovascular events versus placebo; hyperkalemia was more frequent, mandating potassium monitoring and eGFR-guided starting dose.",
+      "keywords": ["finerenone", "fidelio", "diabetes", "ckd", "albuminuria", "hyperkalemia", "potassium", "ras", "mra", "progression"]
+    },
+    {
+      "id": "figaro-dkd-2021",
+      "title": "FIGARO-DKD: Cardiovascular Events with Finerenone in CKD and Type 2 Diabetes",
+      "section": "Cardiovascular primary outcome (earlier CKD)",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2021;385:2252 (FIGARO-DKD)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2110956",
+      "snippet": "Finerenone reduced cardiovascular outcomes across a broader, earlier CKD + T2D population, complementing FIDELIO's kidney findings; the pooled FIDELITY analysis supports kidney and CV benefit.",
+      "keywords": ["finerenone", "figaro", "fidelity", "cardiovascular", "diabetes", "ckd", "albuminuria", "mra"]
+    },
+    {
+      "id": "dapa-ckd-2020",
+      "title": "DAPA-CKD: Dapagliflozin in Patients with Chronic Kidney Disease",
+      "section": "SGLT2i in CKD with and without diabetes",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2020;383:1436 (DAPA-CKD)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2024816",
+      "snippet": "Dapagliflozin reduced the composite of sustained eGFR decline, ESKD, and death in CKD with or without type 2 diabetes, including IgA nephropathy, down to an eGFR of 25.",
+      "keywords": ["dapagliflozin", "sglt2", "dapa-ckd", "ckd", "egfr", "proteinuria", "iga", "progression", "non-diabetic"]
+    },
+    {
+      "id": "credence-2019",
+      "title": "CREDENCE: Canagliflozin and Renal Outcomes in T2D and Nephropathy",
+      "section": "Kidney and CV outcomes in albuminuric diabetic CKD",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2019;380:2295 (CREDENCE)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1811744",
+      "snippet": "In T2D with albuminuric CKD, canagliflozin lowered the risk of kidney failure and cardiovascular events; established SGLT2 inhibition as kidney-protective beyond glycemic control.",
+      "keywords": ["canagliflozin", "sglt2", "credence", "diabetes", "ckd", "albuminuria", "kidney failure", "cardiovascular"]
+    },
+    {
+      "id": "empa-kidney-2023",
+      "title": "EMPA-KIDNEY: Empagliflozin in Patients with Chronic Kidney Disease",
+      "section": "Broad CKD population, lower eGFR range",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2023;388:117 (EMPA-KIDNEY)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2204233",
+      "snippet": "Empagliflozin reduced progression of kidney disease or cardiovascular death across a broad CKD population, including lower eGFR and non-diabetic causes, broadening SGLT2i eligibility.",
+      "keywords": ["empagliflozin", "sglt2", "empa-kidney", "ckd", "egfr", "non-diabetic", "progression"]
+    },
+    {
+      "id": "kerendia-fda-label",
+      "title": "KERENDIA (finerenone) FDA Prescribing Information",
+      "section": "Dosing by eGFR; potassium thresholds; contraindications",
+      "source_type": "fda_label",
+      "identifier": "FDA Label — KERENDIA (finerenone)",
+      "url": "https://www.accessdata.fda.gov/drugsatfda_docs/label/2021/215341s000lbl.pdf",
+      "snippet": "Start finerenone 10 mg (eGFR 25–<60) or 20 mg (eGFR ≥60); do not start if serum potassium >5.0 mmol/L. Check potassium at ~4 weeks and adjust; contraindicated with strong CYP3A4 inhibitors and adrenal insufficiency.",
+      "keywords": ["finerenone", "kerendia", "fda", "label", "dosing", "egfr", "potassium", "hyperkalemia", "cyp3a4", "contraindication", "starting dose"]
+    },
+    {
+      "id": "eliquis-fda-label",
+      "title": "ELIQUIS (apixaban) FDA Prescribing Information",
+      "section": "Dose reduction criteria; renal use",
+      "source_type": "fda_label",
+      "identifier": "FDA Label — ELIQUIS (apixaban)",
+      "url": "https://www.accessdata.fda.gov/drugsatfda_docs/label/2021/202155s029lbl.pdf",
+      "snippet": "For nonvalvular AF, reduce apixaban to 2.5 mg BID when ≥2 of: age ≥80, weight ≤60 kg, serum creatinine ≥1.5 mg/dL. Note eGFR is NOT one of the three criteria; the label addresses use across renal function including dialysis.",
+      "keywords": ["apixaban", "eliquis", "fda", "label", "dose reduction", "atrial fibrillation", "af", "creatinine", "weight", "age", "dialysis", "ckd", "anticoagulation"]
+    },
+    {
+      "id": "protect-sparsentan-2023",
+      "title": "PROTECT: Sparsentan versus Irbesartan in IgA Nephropathy",
+      "section": "Dual endothelin/angiotensin blockade, proteinuria",
+      "source_type": "primary_literature",
+      "identifier": "Lancet 2023;402:2077 (PROTECT)",
+      "url": "https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(23)02302-4/fulltext",
+      "snippet": "Sparsentan reduced proteinuria versus irbesartan in IgA nephropathy with a manageable safety profile, supporting a targeted option beyond RAS blockade for high-risk IgAN.",
+      "keywords": ["sparsentan", "protect", "iga", "igan", "proteinuria", "endothelin", "irbesartan", "ras"]
+    },
+    {
+      "id": "nefigard-budesonide-2023",
+      "title": "NefIgArd: Targeted-Release Budesonide in Primary IgA Nephropathy",
+      "section": "Gut-directed budesonide, eGFR preservation",
+      "source_type": "primary_literature",
+      "identifier": "Lancet 2023;402:859 (NefIgArd)",
+      "url": "https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(23)01554-4/fulltext",
+      "snippet": "Targeted-release budesonide (Nefecon) reduced proteinuria and preserved eGFR over two years in primary IgA nephropathy at risk of progression, a mucosal-immunity–directed therapy.",
+      "keywords": ["budesonide", "nefecon", "nefigard", "iga", "igan", "proteinuria", "egfr", "immunosuppression"]
+    },
+    {
+      "id": "ispd-peritonitis-2022",
+      "title": "ISPD Peritonitis Guideline (2022 Update)",
+      "section": "Empiric intraperitoneal antibiotics; catheter removal",
+      "source_type": "guideline",
+      "identifier": "ISPD Peritonitis Guideline 2022",
+      "url": "https://journals.sagepub.com/doi/10.1177/08968608221080586",
+      "snippet": "For PD peritonitis with cloudy effluent, start empiric intraperitoneal antibiotics covering gram-positive (vancomycin or cefazolin) and gram-negative (aminoglycoside or ceftazidime) organisms after cultures; remove the catheter for refractory, relapsing, or fungal peritonitis.",
+      "keywords": ["peritonitis", "pd", "peritoneal dialysis", "cloudy effluent", "intraperitoneal", "antibiotics", "vancomycin", "cefazolin", "catheter removal", "fungal", "ispd"]
+    },
+    {
+      "id": "hyponatremia-guideline-2014",
+      "title": "Clinical Practice Guideline on Diagnosis and Treatment of Hyponatraemia (EU)",
+      "section": "Correction limits; overcorrection rescue",
+      "source_type": "guideline",
+      "identifier": "Eur J Endocrinol 2014;170:G1 (Hyponatraemia CPG)",
+      "url": "https://academic.oup.com/ejendo/article/170/3/G1/6659548",
+      "snippet": "Limit sodium correction to ~10 mmol/L in the first 24 h (lower in high-risk chronic hyponatremia) to avoid osmotic demyelination; for overcorrection, re-lower with electrolyte-free water ± desmopressin. Severe symptomatic hyponatremia: 3% saline boluses.",
+      "keywords": ["hyponatremia", "hyponatraemia", "sodium", "correction", "overcorrection", "osmotic demyelination", "ods", "desmopressin", "ddavp", "siadh", "3% saline", "hypertonic", "seizure"]
+    },
+    {
+      "id": "kdigo-hyperkalemia-mgmt",
+      "title": "Hyperkalemia in CKD/HD — acute management principles",
+      "section": "Membrane stabilization, shift, removal",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus (acute hyperkalemia)",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "For hyperkalemia with ECG changes, give IV calcium to stabilize the myocardium (does NOT lower potassium), shift with insulin+dextrose ± beta-agonist, then remove via dialysis in ESRD. On HD, avoid an abrupt 1K bath because a steep K+ gradient is arrhythmogenic.",
+      "keywords": ["hyperkalemia", "potassium", "peaked t-waves", "ecg", "calcium gluconate", "insulin", "dextrose", "dialysis", "dialysate", "1k bath", "arrhythmia", "hd", "esrd"]
+    }
+  ]
+}

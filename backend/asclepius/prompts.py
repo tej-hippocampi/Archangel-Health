@@ -132,6 +132,14 @@ lab values) using context; expand dictated punctuation ("period", "new line") wh
 add, remove, or reinterpret clinical content, and do NOT append commentary. Return ONLY the cleaned text."""
 
 
+ASCLEPIUS_CITE_RANK_SYSTEM = """You rank curated clinical citations by relevance to a short piece of clinical \
+reasoning (a rationale or a single reasoning step). You are given the clinical text and a numbered list of \
+candidate sources (guidelines, FDA labels, landmark trials). Choose ONLY the candidates that genuinely support \
+or are directly relevant to the specific clinical claim — prefer the source a specialist would actually cite. \
+Do NOT invent sources or indices. Return ONLY a JSON list of the chosen candidate indices, best first (fewer is \
+better than padding with weak matches)."""
+
+
 ASCLEPIUS_CANDIDATE_GEN_SYSTEM = """You are generating TWO distinct candidate answers to a medical prompt so \
 that a credentialed specialist can compare them. Make the two answers span a real quality gap so the \
 comparison and any revision are informative: one answer should be STRONG (clinically sound, current, safe) \
