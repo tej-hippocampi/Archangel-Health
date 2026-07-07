@@ -1383,14 +1383,47 @@ class AsclepiusStore:
         }
 
     def portal_version_counts(self) -> Dict[str, int]:
-        """Submissions by evaluator product version (Asclepius V2) — lets the
-        admin dashboard show how much data came from V1 (classic) vs V2
-        (assisted)."""
+        """Submissions by evaluator product version — lets the admin dashboard
+        show how much data came from V1 (classic) vs V2 (assisted) vs V3
+        (seamless)."""
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT portal_version, COUNT(*) AS n FROM submissions GROUP BY portal_version"
             ).fetchall()
         return {(r["portal_version"] or "v2"): int(r["n"]) for r in rows}
+
+    def ab_balance_stats(self) -> Dict[str, Any]:
+        """Position-bias QC (Seamless PRD WS6). The stronger/weaker A-B slot is
+        randomized 50/50 at candidate build (``critic.generate_candidates_ex``)
+        so a reward model can't learn "A is better" instead of "the better answer
+        is better". Over generated tasks carrying a server-side
+        ``intended_flawed_id`` (never shown to the blinded evaluator), report the
+        fraction whose STRONGER answer landed in slot A — a rate that drifts from
+        ~0.5 is a QC alarm a competent buyer would also detect."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT generation_json FROM tasks WHERE generation_json IS NOT NULL"
+            ).fetchall()
+        n = 0
+        a_stronger = 0
+        for r in rows:
+            try:
+                gen = json.loads(r["generation_json"] or "null")
+            except (ValueError, TypeError):
+                continue
+            if not isinstance(gen, dict):
+                continue
+            fid = gen.get("intended_flawed_id")
+            if fid not in ("A", "B"):
+                continue
+            n += 1
+            if fid == "B":  # flawed answer in B ⇒ the stronger answer is in A
+                a_stronger += 1
+        return {
+            "n": n,
+            "a_stronger": a_stronger,
+            "a_stronger_rate": round(a_stronger / n, 3) if n else None,
+        }
 
     def evaluator_throughput(self) -> List[Dict[str, Any]]:
         with self._conn() as conn:

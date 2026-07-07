@@ -938,7 +938,10 @@ def test_buyer_request_independent_mode_constraint_applies_to_batch():
 # ─── Asclepius V2: portal version end-to-end ──────────────────────────────────
 def test_taxonomy_exposes_portal_versions():
     r = client.get("/api/asclepius/taxonomy", headers=A.headers_for(_seed()))
-    assert r.json()["portal_versions"] == ["v1", "v2"]
+    body = r.json()
+    assert body["portal_versions"] == ["v1", "v2", "v3"]
+    # Seamless PRD: the ~10s instinct capture is now a first-class mode.
+    assert "instinct" in body["independent_modes"]
 
 
 def test_v1_reveal_stamps_full_kind_on_stance_task(monkeypatch):

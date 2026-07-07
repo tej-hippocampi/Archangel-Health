@@ -8,10 +8,11 @@
   const API_BASE = '/api/asclepius';
   const TOKEN_KEY = 'asclepius_token';
   const DRAFT_PREFIX = 'asclepius_draft_';
-  // Contributor's chosen evaluator experience (Asclepius V2): 'v1' classic |
-  // 'v2' assisted. Persisted per browser; the default for every new task.
+  // Contributor's chosen evaluator experience: 'v1' classic | 'v2' assisted |
+  // 'v3' seamless (the recommended default). Persisted per browser; the default
+  // for every new task.
   const PORTAL_VERSION_KEY = 'asclepius_portal_version';
-  const DEFAULT_PORTAL_VERSION = 'v2';
+  const DEFAULT_PORTAL_VERSION = 'v3';
   // Doctor-portal session token (same origin). If present, we silently exchange
   // it for an Asclepius session so affiliated clinicians skip the login form.
   const DOCTOR_TOKEN_KEY = 'archangel_doctor_auth_token';
@@ -482,14 +483,15 @@
     try { localStorage.removeItem(draftKey(taskId)); } catch (e) { /* ignore */ }
   }
 
-  // ─── Portal version (V1 classic vs V2 assisted) ────────────────────────────
+  // ─── Portal version (V1 classic · V2 assisted · V3 seamless) ────────────────
+  const PORTAL_VERSIONS = ['v1', 'v2', 'v3'];
   function getPortalVersion() {
     let v = null;
     try { v = localStorage.getItem(PORTAL_VERSION_KEY); } catch (e) { v = null; }
-    return v === 'v1' || v === 'v2' ? v : DEFAULT_PORTAL_VERSION;
+    return PORTAL_VERSIONS.indexOf(v) !== -1 ? v : DEFAULT_PORTAL_VERSION;
   }
   function setPortalVersion(v) {
-    v = v === 'v1' ? 'v1' : 'v2';
+    v = PORTAL_VERSIONS.indexOf(v) !== -1 ? v : DEFAULT_PORTAL_VERSION;
     try { localStorage.setItem(PORTAL_VERSION_KEY, v); } catch (e) { /* ignore quota */ }
   }
   // The version a task is graded under: pinned onto the draft when the doctor
@@ -499,6 +501,12 @@
     return (state.draft && state.draft.portal_version) || getPortalVersion();
   }
   function isV2() { return draftVersion() === 'v2'; }
+  function isV3() { return draftVersion() === 'v3'; }
+  // Assisted flows (V2 + V3) share model pre-labeling, the A/B diff, dictation,
+  // and value-aware routing. V1 (classic) is the only non-assisted flow. Most
+  // former ``isV2()`` gates are really "is assisted"; V3-specific behavior
+  // (the instinct one-liner, hide-suggestions-until-verdict) uses ``isV3()``.
+  function isAssisted() { return draftVersion() !== 'v1'; }
 
   // ─── Grounding (mirror of backend validation.grounding_status) ──────────────
   function isValidAnchor(a) {
@@ -569,11 +577,21 @@
       h('div', { class: 'asc-stage-right' }, dots, timer));
   }
 
-  // ─── Home page: choose your evaluation experience (V1 / V2) ─────────────────
+  // ─── Home page: choose your evaluation experience (V1 / V2 / V3) ────────────
   const VERSION_OPTS = [
     {
-      v: 'v2', label: 'V2 · Assisted', tag: 'Recommended', icon: '✨',
-      blurb: 'The faster flow — under 10 minutes per task.',
+      v: 'v3', label: 'V3 · Seamless', tag: 'Recommended', icon: '⚡',
+      blurb: 'The fastest, sharpest flow — a 10-second gut check, then grade.',
+      bullets: [
+        'One-line "gut check" before you see the answers (~10s)',
+        'AI suggestions stay hidden until you commit your own verdict',
+        'One-click cited sources · roomy answer editor',
+        'Bright, marked A/B diff · voice dictation everywhere',
+      ],
+    },
+    {
+      v: 'v2', label: 'V2 · Assisted', tag: null, icon: '✨',
+      blurb: 'The assisted flow — under 10 minutes per task.',
       bullets: [
         'A 30-second quick take before you see the answers',
         'Model-suggested labels you verify (never auto-applied)',
@@ -623,7 +641,7 @@
       h('div', { class: 'asc-ver-home' },
         h('h1', { class: 'asc-ver-home-title' }, 'Choose your evaluation experience'),
         h('p', { class: 'asc-ver-home-sub' },
-          'Both capture the same clinical judgment and produce the same training data — pick how you want to work. You can switch anytime.'),
+          'All three capture the same clinical judgment and produce the same training data — pick how you want to work. You can switch anytime.'),
         cards)));
   }
 
@@ -631,9 +649,9 @@
   // is being graded under, with a one-tap route back to the home chooser.
   function renderExperienceBadge() {
     const v = draftVersion();
-    const label = v === 'v2' ? 'V2 · Assisted' : 'V1 · Classic';
+    const meta = { v3: ['⚡ ', 'V3 · Seamless'], v2: ['✨ ', 'V2 · Assisted'], v1: ['📝 ', 'V1 · Classic'] }[v] || ['📝 ', 'V1 · Classic'];
     return h('div', { class: 'asc-exp-badge' },
-      h('span', { class: 'asc-exp-badge-label' }, (v === 'v2' ? '✨ ' : '📝 ') + label),
+      h('span', { class: 'asc-exp-badge-label' }, meta[0] + meta[1]),
       h('button', {
         class: 'asc-btn-link', type: 'button',
         onClick: () => { state.portalChosen = false; renderEvalView(); },
@@ -706,7 +724,13 @@
   async function loadAssist() {
     const d = state.draft;
     if (!d || d.stage !== 'compare') return;
-    if (!isV2()) return;  // model assist is a V2-only feature
+    if (!isAssisted()) return;  // model assist is an assisted-flow (V2 + V3) feature
+    // V3 anti-rubber-stamp guard (Seamless PRD WS1): AI suggestions are hidden
+    // until the clinician commits their OWN verdict. We don't merely hide them —
+    // we don't even FETCH them, so the suggestion never reaches the client before
+    // the verdict. The fetch is (re)triggered from selectVerdict once a side is
+    // chosen. V2 keeps fetching on reveal (its established behavior).
+    if (isV3() && !(d.verdict)) return;
     // Only a SUCCESSFUL response (including a server-side "skipped" degrade) is
     // cached on the draft; a transient failure (network blip, restart, 5xx) is
     // remembered in memory only, so the next page load retries instead of the
@@ -734,7 +758,7 @@
   // (a rebuild would steal focus mid-keystroke; the chips appear on the next
   // natural re-render instead).
   function renderAssistUI() {
-    if (!isV2()) return;
+    if (!isAssisted()) return;
     renderAssistHint();
     if (!assistData()) return;
     renderAnswersInto(document.getElementById('ascAnswers'));
@@ -789,10 +813,10 @@
     const answers = h('div', { class: 'asc-answers', id: 'ascAnswers' });
     renderAnswersInto(answers);
 
-    // Diff view (Speed Optimization §3) — V2 only. V1 (classic) shows the full
-    // answer text with no diff toggle, exactly as the original product did.
-    const v2 = isV2();
-    const diffToggle = v2 ? h('button', {
+    // Diff view (Speed Optimization §3) — assisted flows (V2 + V3). V1 (classic)
+    // shows the full answer text with no diff toggle, exactly as the original.
+    const assisted = isAssisted();
+    const diffToggle = assisted ? h('button', {
       class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button', id: 'ascDiffToggle',
       onClick: () => {
         state.showFullText = !state.showFullText;
@@ -807,8 +831,9 @@
       verdictButton('B_better', 'B is better', '2'),
       verdictButton('both_inadequate', 'Both inadequate', '3', true),
     );
-    // Assist hint container exists only in V2.
-    const assistHint = v2 ? h('div', { class: 'asc-assist-hint', id: 'ascAssistHint' }) : null;
+    // Assist hint container exists in the assisted flows (V2 + V3). In V3 it
+    // stays empty until a verdict is committed (assist isn't fetched until then).
+    const assistHint = assisted ? h('div', { class: 'asc-assist-hint', id: 'ascAssistHint' }) : null;
     const rationale = h('div', { id: 'ascRationale' });
     const submitBar = renderSubmitBar();
 
@@ -816,7 +841,7 @@
       h('div', { class: 'asc-compare-head' },
         h('div', { class: 'asc-card-title' }, 'Compare the answers'),
         diffToggle),
-      v2 ? h('p', { class: 'asc-help', style: 'margin:2px 0 14px' },
+      assisted ? h('p', { class: 'asc-help', style: 'margin:2px 0 14px' },
         'Shared text is dimmed; passages where the answers diverge are highlighted.') : null,
       answers));
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
@@ -826,7 +851,7 @@
       assistHint,
       rationale));
     wrap.appendChild(h('div', { class: 'asc-card' }, submitBar));
-    if (v2) setTimeout(renderAssistHint, 0);
+    if (assisted) setTimeout(renderAssistHint, 0);
   }
 
   // ─── Sentence-level diff (Speed Optimization §3, dependency-free) ───────────
@@ -917,8 +942,9 @@
   function renderAnswersInto(container) {
     if (!container) return;
     clear(container);
-    // V1 (classic) renders plain full text — no diff, no error-span marks.
-    const diff = (!isV2() || state.showFullText) ? null : computeAnswerDiff();
+    // V1 (classic) renders plain full text — no diff, no error-span marks. The
+    // assisted flows (V2 + V3) get the bright, marked A/B diff.
+    const diff = (!isAssisted() || state.showFullText) ? null : computeAnswerDiff();
     const a = assistData();
     (state.task.candidate_answers || []).forEach((c) => {
       container.appendChild(renderAnswerCard(c, diff, a));
@@ -1022,69 +1048,114 @@
           if (text) {
             const cur = (getVal() || '').trim();
             setVal(cur ? cur + ' ' + text : text);
+          } else {
+            // Provider succeeded but heard nothing — tell the doctor rather than
+            // silently doing nothing (the reported "mic opens, nothing happens").
+            toast('No speech detected — tap the mic and try again.', 'info');
           }
         } catch (e) {
           if (e.status === 503) toast('Dictation is not configured — type instead (or use the Wispr Flow app).', 'info');
           else if (e.status !== 401) toast('Transcription failed: ' + e.message, 'error');
         } finally {
           btn.textContent = '🎤'; btn.disabled = false;
+          btn.setAttribute('aria-label', 'Dictate into this field');
+          btn.title = 'Dictate into this field (tap to start/stop)';
         }
       });
       recorder.start();
       btn.classList.add('recording');
       btn.textContent = '■';
+      btn.setAttribute('aria-label', 'Listening — tap to stop dictation');
+      btn.title = 'Listening… tap to stop';
     });
     return btn;
   }
 
-  // Wrap a textarea/input with its mic in one row. setVal pushes the transcript
-  // through the field's own input handler so the draft stays in sync. Dictation
-  // is a V2 feature — in V1 the field is returned unchanged (plain textarea).
+  // Wrap a textarea/input with its mic in one row. setVal writes the transcript
+  // to the field AND fires its input handler so the draft stays in sync, then
+  // focuses the field with the cursor at the end so the inserted text is visible
+  // and immediately editable (the fix for "mic opens but text isn't written" —
+  // WS7). Dictation is an assisted-flow feature (V2 + V3); V1 returns the field
+  // unchanged (plain textarea, so the Wispr desktop app still works).
   function withMic(field) {
-    if (!isV2()) return field;
+    if (!isAssisted()) return field;
     const mic = micButton(
       () => field.value,
-      (v) => { field.value = v; field.dispatchEvent(new Event('input', { bubbles: true })); },
+      (v) => {
+        field.value = v;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        try {
+          field.focus();
+          const n = field.value.length;
+          if (field.setSelectionRange) field.setSelectionRange(n, n);
+        } catch (e) { /* ignore */ }
+      },
     );
     if (!mic) return field;
     return h('div', { class: 'asc-mic-row' }, field, mic);
   }
 
-  // ─── Stage 2: blind independent capture (Feature B / Speed Optimization §1) ─
-  // Default is the quick STANCE (30–45s take — the anti-anchoring guard; the
-  // gold SFT answer comes from the refined chosen answer). Tasks with
-  // independent_mode = "full" keep the original long-form blind ideal answer.
+  // ─── Stage 2: blind independent capture ─────────────────────────────────────
+  // Three capture modes (cheapest → richest), by portal version + task mode:
+  //   V3 (seamless)  → INSTINCT: a ~10s single-line "gut check" (Seamless PRD WS1)
+  //   V2 (assisted)  → STANCE: a 30–45s quick take (Speed Optimization §1)
+  //   V1 / full task → FULL: the long-form blind ideal answer
+  // All are the anti-anchoring guard — committed BEFORE the A/B answers are
+  // revealed. The gold SFT answer stays the refined chosen answer (instinct and
+  // stance ride the record as a lightweight context field, never gold).
   function renderIndependentAnswer() {
     const ia = state.draft.independent_answer;
-    // V1 (classic) always captures the full blind ideal answer. V2 uses the
-    // quick stance unless the admin marked the task premium/eval (full).
-    const fullMode = !isV2() || (state.task.independent_mode || 'stance') === 'full';
-    const ta = fullMode
-      ? h('textarea', { class: 'asc-textarea', style: 'min-height:200px',
-          placeholder: 'Write your full ideal answer to this prompt…' }, ia.text || '')
-      : h('textarea', { class: 'asc-textarea', style: 'min-height:90px',
-          placeholder: 'Your quick take — key points you\'d expect (bullets are fine). e.g. continue reduced-dose metformin · recheck eGFR 3 mo · watch for lactic acidosis.' }, ia.text || '');
+    const taskFull = (state.task.independent_mode || 'stance') === 'full';
+    const fullMode = !isAssisted() || taskFull;       // V1, or any assisted 'full' task
+    const instinctMode = !fullMode && isV3();          // V3 (non-full) → 10s one-liner
+    // The instinct one-liner is a single-line input with a soft ~140-char shape
+    // (hard-capped at 200 so it stays one line); stance/full use a textarea.
+    const field = instinctMode
+      ? h('input', { class: 'asc-input asc-instinct-input', type: 'text', maxlength: '200',
+          autocomplete: 'off',
+          placeholder: 'e.g., continue reduced-dose metformin · recheck eGFR 3 mo · watch lactic acidosis',
+          value: ia.text || '' })
+      : fullMode
+        ? h('textarea', { class: 'asc-textarea', style: 'min-height:200px',
+            placeholder: 'Write your full ideal answer to this prompt…' }, ia.text || '')
+        : h('textarea', { class: 'asc-textarea', style: 'min-height:90px',
+            placeholder: 'Your quick take — key points you\'d expect (bullets are fine). e.g. continue reduced-dose metformin · recheck eGFR 3 mo · watch for lactic acidosis.' }, ia.text || '');
     const revealBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascRevealBtn', onClick: commitIndependentAnswerAndReveal }, 'Reveal AI answers →');
     const hint = h('span', { class: 'asc-submit-hint', id: 'ascRevealHint' });
+    // Soft length cue for the instinct one-liner (guidance, not a gate).
+    const counter = instinctMode ? h('span', { class: 'asc-instinct-count', id: 'ascInstinctCount' }) : null;
     const syncReveal = () => {
-      const ok = (ia.text || '').trim().length > 0;
+      const val = (ia.text || '').trim();
+      const ok = val.length > 0;
       revealBtn.disabled = !ok;
-      hint.textContent = ok ? '' : (fullMode ? 'write your answer to continue' : 'jot your quick take to continue');
+      hint.textContent = ok ? '' : (instinctMode ? 'add your one-line gut check to continue'
+        : fullMode ? 'write your answer to continue' : 'jot your quick take to continue');
+      if (counter) counter.textContent = val.length > 140 ? 'keep it to one line' : '';
     };
-    ta.addEventListener('input', () => { ia.text = ta.value; saveDraft(); syncReveal(); });
+    field.addEventListener('input', () => { ia.text = field.value; saveDraft(); syncReveal(); });
+    if (instinctMode) {
+      field.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (ia.text || '').trim()) { e.preventDefault(); commitIndependentAnswerAndReveal(); }
+      });
+    }
 
     const card = h('div', { class: 'asc-card asc-card-pad asc-gate' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' },
-        fullMode ? 'Before you see the AI answers, write your ideal answer'
-                 : 'Before you see the answers — your quick take'),
+        instinctMode ? 'Quick gut check — in one line, what\'s the crux of the right answer?'
+          : fullMode ? 'Before you see the AI answers, write your ideal answer'
+          : 'Before you see the answers — your quick take'),
       h('p', { class: 'asc-help', style: 'margin-bottom:16px' },
-        fullMode
-          ? 'This is captured uncontaminated — your own gold answer, before the A/B answers can anchor your judgment.'
-          : 'A few key points, captured before the A/B answers can anchor your judgment. 30–45 seconds is plenty — your refined chosen answer later is the gold answer.'),
-      h('div', { class: 'asc-field' }, withMic(ta)),
+        instinctMode
+          ? '~10 seconds. This commits your instinct before the A/B answers can anchor you — your refined chosen answer later is the gold.'
+          : fullMode
+            ? 'This is captured uncontaminated — your own gold answer, before the A/B answers can anchor your judgment.'
+            : 'A few key points, captured before the A/B answers can anchor your judgment. 30–45 seconds is plenty — your refined chosen answer later is the gold answer.'),
+      h('div', { class: 'asc-field' }, withMic(field), counter),
       renderAnchorBlock(ia.evidence_anchor, { label: 'citation for your answer', required: false }),
       h('div', { class: 'asc-gate-reveal' }, hint, revealBtn));
     setTimeout(syncReveal, 0);
+    // Auto-focus the instinct one-liner so the doctor can type immediately (~10s target).
+    if (instinctMode) setTimeout(() => { try { field.focus(); } catch (e) { /* ignore */ } }, 30);
     return card;
   }
 
@@ -1199,6 +1270,10 @@
     refreshAnswerHighlight();
     renderRationale();
     updateSubmitState();
+    // V3 (Seamless PRD WS1): AI suggestions were withheld until the clinician
+    // committed a verdict — now that one exists, fetch + reveal them for the
+    // "confirm/adjust" step. loadAssist is idempotent and a no-op for V2/V1.
+    if (isV3() && verdict) loadAssist();
   }
 
   function refreshAnswerHighlight() {
@@ -1409,7 +1484,7 @@
   // a local copy would drift from what validation accepts. V2-only; V1 keeps
   // the classic free-text "why it's worse" as the sole reason input.
   function renderTagReasons(container) {
-    if (!isV2()) { if (container) clear(container); return; }
+    if (!isAssisted()) { if (container) clear(container); return; }
     renderPerTagPills(container, {
       label: 'Why, per error',
       hint: '(one tap — optional)',
@@ -1528,8 +1603,10 @@
     const list = document.getElementById(listId);
     if (list) { clear(list); list.appendChild(h('p', { class: 'asc-help' }, '✨ Splitting the chosen answer into steps…')); }
     try {
-      // V2 pre-grades each step (suggested good/bad); V1 (classic) just splits.
-      const res = await api(isV2() ? '/reasoning/pregrade' : '/reasoning/split', {
+      // Assisted flows (V2 + V3) pre-grade each step (suggested good/bad); V1
+      // (classic) just splits. In V3 this only runs post-verdict (editing the
+      // chosen answer), so it never leaks a suggestion before the verdict.
+      const res = await api(isAssisted() ? '/reasoning/pregrade' : '/reasoning/split', {
         method: 'POST',
         body: { text, prompt: state.task.prompt, specialty: state.task.specialty },
       });
@@ -2651,9 +2728,9 @@
     body.appendChild(quickCard);
     refreshExportReadyCount();
 
-    // ── Export by product version (Asclepius V2 cohort filter) ──────────────
+    // ── Export by product version cohort filter (V1 / V2 / V3) ──────────────
     const cohortStatus = h('div', { style: 'margin-top:12px' });
-    const cohortSel = selectFrom(['both', 'v2', 'v1'], 'both');
+    const cohortSel = selectFrom(['both', 'v3', 'v2', 'v1'], 'both');
     const cohortInclExported = h('input', { type: 'checkbox' });
     const cohortBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '⬇ Export cohort');
     cohortBtn.addEventListener('click', async () => {
@@ -3010,14 +3087,15 @@
       clear(card);
       card.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Export history (' + exports.length + ')')));
       if (!exports.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No exports yet.'))); return; }
+      const verLabel = (v) => ({ v3: '⚡ V3', v2: '✨ V2', v1: '📝 V1' }[v] || v);
       const versionCell = (x) => {
         const m = x.manifest || {};
         const filt = (m.filters || {}).portal_version;
-        if (filt) return (filt === 'v2' ? '✨ V2 only' : '📝 V1 only');
+        if (filt) return verLabel(filt) + ' only';
         const bpv = (m.counts || {}).by_portal_version || {};
         const keys = Object.keys(bpv);
         if (!keys.length) return '—';
-        if (keys.length === 1) return (keys[0] === 'v2' ? '✨ V2' : '📝 V1');
+        if (keys.length === 1) return verLabel(keys[0]);
         return keys.sort().map((k) => k + ' ' + bpv[k]).join(' · '); // mixed
       };
       const rows = exports.map((x) => h('tr', {},
@@ -3079,18 +3157,28 @@
     body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Overview'), tiles));
 
-    // Data by product version (Asclepius V2): how many submissions came from the
-    // V1 (classic) vs V2 (assisted) evaluator flow.
+    // Data by product version: how many submissions came from the V1 (classic),
+    // V2 (assisted), and V3 (seamless) evaluator flows.
     const pvc = s.portal_version_counts || {};
-    const v1n = pvc.v1 || 0, v2n = pvc.v2 || 0, pvTotal = v1n + v2n;
+    const v1n = pvc.v1 || 0, v2n = pvc.v2 || 0, v3n = pvc.v3 || 0, pvTotal = v1n + v2n + v3n;
     const pct = (n) => pvTotal ? Math.round((100 * n) / pvTotal) + '%' : '0%';
+    // Position-bias QC (Seamless PRD WS6): the A/B slot is randomized 50/50 so a
+    // reward model can't learn "A is better" — a rate drifting from ~50% is an alarm.
+    const abb = s.ab_balance || {};
+    const abRate = abb.a_stronger_rate;
+    const abOk = abRate == null || (abRate >= 0.4 && abRate <= 0.6);
     body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Data by product version'),
       h('div', { class: 'asc-stat-grid' },
+        stat(v3n, '⚡ V3 · Seamless', pct(v3n) + ' of labeled data'),
         stat(v2n, '✨ V2 · Assisted', pct(v2n) + ' of labeled data'),
-        stat(v1n, '📝 V1 · Classic', pct(v1n) + ' of labeled data')),
+        stat(v1n, '📝 V1 · Classic', pct(v1n) + ' of labeled data'),
+        stat(abRate == null ? '—' : Math.round(abRate * 100) + '%',
+          (abOk ? '' : '⚠️ ') + 'A-is-stronger rate',
+          'target ~50% · n=' + (abb.n || 0) + ' (position-bias QC)')),
       h('p', { class: 'asc-help', style: 'margin-top:10px' },
-        'Both flows capture the same judgment and produce the same record types; every record is stamped with its source version.')));
+        'All three flows capture the same judgment and produce the same record types; every record is stamped with its source version. '
+        + 'The A/B slot is randomized 50/50 so preference data carries no position bias.')));
 
     // Value per clinician-minute (Value-per-Minute PRD Part A): the north-star
     // metric — sellable dollars produced per minute of clinician time — reported
@@ -3118,6 +3206,7 @@
         stat(ratio(realizedOverall), (meets ? '✅ ' : '') + 'Realized V/T',
           'target ' + ratio(vTarget) + ' · n=' + (vptOverall.n || 0)),
         stat(ratio(vptOverall.projected_vpm), 'Projected V/T', '× reuse forecast'),
+        stat(ratio((byVer.v3 || {}).realized_vpm), '⚡ V3 realized V/T', 'n=' + ((byVer.v3 || {}).n || 0)),
         stat(ratio((byVer.v2 || {}).realized_vpm), '✨ V2 realized V/T', 'n=' + ((byVer.v2 || {}).n || 0)),
         stat(ratio((byVer.v1 || {}).realized_vpm), '📝 V1 realized V/T', 'n=' + ((byVer.v1 || {}).n || 0)),
         stat(fmtNum(kappa.overall), "Cohen's κ", 'quality anchor · n=' + (kappa.n != null ? kappa.n : 0)),

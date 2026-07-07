@@ -246,32 +246,32 @@ def test_stats_includes_value_per_time_summary():
     assert "override_rate" in s
 
 
-def test_value_aware_routing_is_v2_only():
-    """The "edits only on V2" guarantee: value-aware routing reorders the queue
-    ONLY when the request declares the v2 flow. Absent or v1 → classic oldest-
-    first, byte-for-byte unchanged."""
+def test_value_aware_routing_is_assisted_only():
+    """The "V1 untouched" guarantee: value-aware routing reorders the queue ONLY
+    when the request declares an assisted flow (v2 or v3). Absent, v1, empty, or
+    a typo → classic oldest-first, byte-for-byte unchanged."""
     admin_h = A.headers_for(_admin())
     ev_h = A.headers_for(_seed())
     # Low-value task inserted FIRST (so it is the oldest), high-value SECOND.
     low = _upload(admin_h, difficulty="easy", source="internal_prompt_bank", capture_reasoning=False)
     high = _upload(admin_h, difficulty="hard", source="lab_supplied", capture_reasoning=True)
 
+    def served(query=""):
+        return client.get("/api/asclepius/tasks/next" + query, headers=ev_h).json()["task"]["task_id"]
+
     # Classic (no param): oldest wins — V1 behavior is untouched.
-    classic = client.get("/api/asclepius/tasks/next", headers=ev_h).json()["task"]
-    assert classic["task_id"] == low
+    assert served() == low
     # Explicit v1 is still classic.
-    v1 = client.get("/api/asclepius/tasks/next?portal_version=v1", headers=ev_h).json()["task"]
-    assert v1["task_id"] == low
+    assert served("?portal_version=v1") == low
     # An empty or typo'd param must NOT silently opt into value-aware routing
-    # (only the literal "v2" does) — otherwise a v1/garbage request gets a
+    # (only a real assisted version does) — otherwise a v1/garbage request gets a
     # reordered queue.
-    empty = client.get("/api/asclepius/tasks/next?portal_version=", headers=ev_h).json()["task"]
-    assert empty["task_id"] == low
-    typo = client.get("/api/asclepius/tasks/next?portal_version=v3", headers=ev_h).json()["task"]
-    assert typo["task_id"] == low
-    # v2: value-aware routing serves the higher expected value-per-minute task.
-    v2 = client.get("/api/asclepius/tasks/next?portal_version=v2", headers=ev_h).json()["task"]
-    assert v2["task_id"] == high
+    assert served("?portal_version=") == low
+    assert served("?portal_version=v9") == low
+    # v2 AND v3 (the assisted flows) get value-aware routing: the higher expected
+    # value-per-minute task is served first.
+    assert served("?portal_version=v2") == high
+    assert served("?portal_version=v3") == high
 
 
 def test_override_rate_flags_assist_disagreement():
