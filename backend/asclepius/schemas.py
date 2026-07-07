@@ -106,6 +106,11 @@ class TaskIn(BaseModel):
     independent_mode: Optional[str] = None
     # Links the task back to the buyer request that spawned it (opt §2.5).
     buyer_request_id: Optional[str] = None
+    # Value-per-Minute (PRD B3): optional ADMIN routing hint ("premium" |
+    # "on_policy" | "eval" | "standard"). Free-text-tolerant and never gates
+    # capture — value-aware routing scores from the ESTIMATED value of the task's
+    # attributes, not this label; the tier is a human annotation for the queue.
+    value_tier: Optional[str] = None
 
 
 class TaskUploadRequest(BaseModel):
@@ -292,6 +297,11 @@ class SubmissionResult(BaseModel):
     record_count: int = 0
     critic: Optional[Dict[str, Any]] = None
     agreement_score: Optional[float] = None
+    # Value-per-Minute (PRD Part A): the estimated sellable dollar value of this
+    # judgment (realized = bankable to one buyer; projected = × reuse forecast).
+    # Measurement only — never a buyer-facing record field.
+    value_estimate_usd: Optional[float] = None
+    value_estimate_projected_usd: Optional[float] = None
 
 
 # ─── QA ───────────────────────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ from asclepius.critic import run_critic, run_grounding_check
 from asclepius.packaging import package_submission
 from asclepius.store import AsclepiusStore
 from asclepius.validation import validate_submission
+from asclepius.value import estimate_value
 
 log = logging.getLogger("asclepius.pipeline")
 
@@ -46,6 +47,47 @@ def _should_sample() -> bool:
 def _error_tags(submission: Dict[str, Any]) -> list:
     payload = submission.get("payload") or {}
     return list((payload.get("rejected_critique") or {}).get("error_tags") or [])
+
+
+def estimate_and_store_value(
+    store: AsclepiusStore, task: Dict[str, Any], submission_id: str, *, log_event: bool = True
+) -> Dict[str, Any]:
+    """Value-per-Minute (PRD Part A): estimate the sellable dollar value of a
+    judgment from its packaged records + captured attributes and persist it on
+    the submission alongside the clinician-minutes it took. Measurement only — it
+    never alters records, status, routing, or any v1/v2 capture behavior, and a
+    modeling hiccup must never fail a real submission (no lost work).
+
+    Reads the stored records so it can be re-run when agreement lands (the
+    double-labeled + credentialed premium multiplier depends on ``agreement_score``,
+    which is only known once a second labeler submits). ``log_event=False`` for
+    that re-valuation pass so the ``value_estimated`` event is emitted exactly
+    once per submission (the persisted value itself is idempotent). Returns the
+    value fields for the submit response, or ``{}`` on any failure."""
+    try:
+        sub = store.get_submission(submission_id) or {}
+        recs = [r.get("payload") or {} for r in store.records_for_submission(submission_id)]
+        est = estimate_value(recs, task, sub)
+        secs = int(sub.get("time_spent_sec") or 0)
+        store.set_submission_value(
+            submission_id,
+            realized=est["realized_value"],
+            projected=est["projected_value"],
+            clinician_review_seconds=secs,
+        )
+        if log_event:
+            store.log_event(
+                entity_type="submission", entity_id=submission_id, event_type="value_estimated",
+                actor=sub.get("evaluator_id"),
+                payload={**est, "clinician_review_seconds": secs},
+            )
+        return {
+            "value_estimate_usd": est["realized_value"],
+            "value_estimate_projected_usd": est["projected_value"],
+        }
+    except Exception:  # pragma: no cover - defensive: never break capture on value math
+        log.exception("asclepius value estimation failed for %s", submission_id)
+        return {}
 
 
 def compute_and_store_agreement(store: AsclepiusStore, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -97,6 +139,12 @@ def compute_and_store_agreement(store: AsclepiusStore, task: Dict[str, Any]) -> 
         for rec in store.records_for_submission(s["submission_id"]):
             if rec["type"] == "preference":
                 store.patch_record_payload(rec["record_id"], {"agreement_score": score})
+        # Re-value each label now that a κ-reportable agreement exists (Value-per-
+        # Minute PRD): double-labeled + credentialed unlocks the premium tier
+        # multiplier the earlier labeler's first estimate could not have seen.
+        # log_event=False so the current submission (re-valued again right after,
+        # in process_submission) logs its ``value_estimated`` event only once.
+        estimate_and_store_value(store, task, s["submission_id"], log_event=False)
 
     # On disagreement, pull back any sibling that already reached export_ready so a
     # low-agreement task is never silently exported (opt §1.3). Not yet-exported.
@@ -170,6 +218,12 @@ async def process_submission(
         store.get_submission(sid) or {}
     ).get("agreement_score") if agreement else None
 
+    # Value-per-Minute (PRD Part A): estimate AFTER agreement so a double-labeled
+    # credentialed judgment picks up its κ-reportable premium. compute_and_store_
+    # agreement has already refreshed the sibling's value when it stamped the
+    # shared agreement score, so both labels end up consistently valued.
+    value_fields = estimate_and_store_value(store, task, sid)
+
     if not vres["valid"]:
         store.update_submission(sid, status="needs_qa", qa_reason=",".join(vres["issues"]))
         store.update_records_status_for_submission(sid, "needs_qa")
@@ -187,6 +241,7 @@ async def process_submission(
             "record_count": len(record_ids),
             "critic": None,
             "agreement_score": agreement_score,
+            **value_fields,
         }
 
     store.update_submission(sid, status="auto_validated")
@@ -230,6 +285,7 @@ async def process_submission(
             "record_count": len(record_ids),
             "critic": critic,
             "agreement_score": agreement_score,
+            **value_fields,
         }
 
     # 5. Passed validation + critic + grounding, agreed, not sampled -> export-ready.
@@ -248,6 +304,7 @@ async def process_submission(
         "record_count": len(record_ids),
         "critic": critic,
         "agreement_score": agreement_score,
+        **value_fields,
     }
 
 
