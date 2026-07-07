@@ -262,6 +262,13 @@ def test_value_aware_routing_is_v2_only():
     # Explicit v1 is still classic.
     v1 = client.get("/api/asclepius/tasks/next?portal_version=v1", headers=ev_h).json()["task"]
     assert v1["task_id"] == low
+    # An empty or typo'd param must NOT silently opt into value-aware routing
+    # (only the literal "v2" does) — otherwise a v1/garbage request gets a
+    # reordered queue.
+    empty = client.get("/api/asclepius/tasks/next?portal_version=", headers=ev_h).json()["task"]
+    assert empty["task_id"] == low
+    typo = client.get("/api/asclepius/tasks/next?portal_version=v3", headers=ev_h).json()["task"]
+    assert typo["task_id"] == low
     # v2: value-aware routing serves the higher expected value-per-minute task.
     v2 = client.get("/api/asclepius/tasks/next?portal_version=v2", headers=ev_h).json()["task"]
     assert v2["task_id"] == high

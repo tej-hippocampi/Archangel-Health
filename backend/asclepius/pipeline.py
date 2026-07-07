@@ -50,7 +50,7 @@ def _error_tags(submission: Dict[str, Any]) -> list:
 
 
 def estimate_and_store_value(
-    store: AsclepiusStore, task: Dict[str, Any], submission_id: str
+    store: AsclepiusStore, task: Dict[str, Any], submission_id: str, *, log_event: bool = True
 ) -> Dict[str, Any]:
     """Value-per-Minute (PRD Part A): estimate the sellable dollar value of a
     judgment from its packaged records + captured attributes and persist it on
@@ -60,8 +60,10 @@ def estimate_and_store_value(
 
     Reads the stored records so it can be re-run when agreement lands (the
     double-labeled + credentialed premium multiplier depends on ``agreement_score``,
-    which is only known once a second labeler submits). Returns the value fields
-    for the submit response, or ``{}`` on any failure."""
+    which is only known once a second labeler submits). ``log_event=False`` for
+    that re-valuation pass so the ``value_estimated`` event is emitted exactly
+    once per submission (the persisted value itself is idempotent). Returns the
+    value fields for the submit response, or ``{}`` on any failure."""
     try:
         sub = store.get_submission(submission_id) or {}
         recs = [r.get("payload") or {} for r in store.records_for_submission(submission_id)]
@@ -73,11 +75,12 @@ def estimate_and_store_value(
             projected=est["projected_value"],
             clinician_review_seconds=secs,
         )
-        store.log_event(
-            entity_type="submission", entity_id=submission_id, event_type="value_estimated",
-            actor=sub.get("evaluator_id"),
-            payload={**est, "clinician_review_seconds": secs},
-        )
+        if log_event:
+            store.log_event(
+                entity_type="submission", entity_id=submission_id, event_type="value_estimated",
+                actor=sub.get("evaluator_id"),
+                payload={**est, "clinician_review_seconds": secs},
+            )
         return {
             "value_estimate_usd": est["realized_value"],
             "value_estimate_projected_usd": est["projected_value"],
@@ -139,7 +142,9 @@ def compute_and_store_agreement(store: AsclepiusStore, task: Dict[str, Any]) -> 
         # Re-value each label now that a κ-reportable agreement exists (Value-per-
         # Minute PRD): double-labeled + credentialed unlocks the premium tier
         # multiplier the earlier labeler's first estimate could not have seen.
-        estimate_and_store_value(store, task, s["submission_id"])
+        # log_event=False so the current submission (re-valued again right after,
+        # in process_submission) logs its ``value_estimated`` event only once.
+        estimate_and_store_value(store, task, s["submission_id"], log_event=False)
 
     # On disagreement, pull back any sibling that already reached export_ready so a
     # low-agreement task is never silently exported (opt §1.3). Not yet-exported.

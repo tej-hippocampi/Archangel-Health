@@ -748,19 +748,25 @@ class AsclepiusStore:
         return None
 
     def eligible_tasks_for_evaluator(
-        self, *, evaluator_id: str, specialty: Optional[str], limit: int = 50
+        self, *, evaluator_id: str, specialty: Optional[str], limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """All open tasks this evaluator may take (not already theirs + still has
-        label capacity), oldest first. The full candidate set value-aware routing
-        (Value-per-Minute PRD B3) ranks by expected value-per-minute. ``limit``
-        bounds the scan so ranking stays cheap on a deep queue."""
+        label capacity), oldest first — the candidate set value-aware routing
+        (Value-per-Minute PRD B3) ranks by expected value-per-minute.
+
+        The scan is UNBOUNDED, exactly like the classic ``next_task_for_evaluator``
+        (both filter ``mine``/capacity in Python at pod scale). A SQL ``LIMIT``
+        applied before that filter would starve value-aware routing: if the N
+        oldest open tasks are all already-labeled or at capacity, a capped fetch
+        returns nothing even though eligible tasks exist further down — and a
+        newer high-value task could never enter the ranked set. ``limit`` (if
+        given) caps only the returned candidate count AFTER filtering."""
         clauses = ["t.status = 'open'"]
         params: List[Any] = [evaluator_id]
         if specialty:
             clauses.append("t.specialty = ?")
             params.append(specialty)
         where = " AND ".join(clauses)
-        params.append(int(max(1, limit)) * 4)  # over-fetch: some rows filter out below
         with self._conn() as conn:
             rows = conn.execute(
                 f"""
@@ -771,7 +777,6 @@ class AsclepiusStore:
                 FROM tasks t
                 WHERE {where}
                 ORDER BY t.created_at ASC
-                LIMIT ?
                 """,
                 tuple(params),
             ).fetchall()
@@ -785,7 +790,7 @@ class AsclepiusStore:
             rec.pop("sub_count", None)
             rec.pop("mine", None)
             out.append(rec)
-            if len(out) >= limit:
+            if limit is not None and len(out) >= limit:
                 break
         return out
 
@@ -1273,6 +1278,7 @@ class AsclepiusStore:
                 LEFT JOIN users u ON u.id = s.evaluator_id
                 WHERE s.value_estimate_usd IS NOT NULL
                   AND COALESCE(s.clinician_review_seconds, s.time_spent_sec) > 0
+                  AND s.status != 'rejected'
                 """
             ).fetchall()
         return [dict(r) for r in rows]

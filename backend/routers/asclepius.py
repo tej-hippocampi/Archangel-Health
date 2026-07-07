@@ -542,7 +542,7 @@ def _value_aware_next(store: Any, user: Dict[str, Any], specialty: Optional[str]
     rolling median speed × each task's expected realized value). Ties break on
     the oldest task, preserving FIFO fairness within an equal-value cohort."""
     candidates = store.eligible_tasks_for_evaluator(
-        evaluator_id=user["id"], specialty=specialty, limit=50
+        evaluator_id=user["id"], specialty=specialty
     )
     if not candidates:
         return None
@@ -563,7 +563,10 @@ def _query_next(
     # Value-aware routing is a V2-only enhancement. V1 (and any request that does
     # not explicitly declare the v2 flow) keeps the exact classic oldest-first
     # behavior — this is the "edits only on V2" guarantee, enforced at the gate.
-    value_aware = normalize_portal_version(portal_version) == "v2" and portal_version is not None
+    # Match the LITERAL "v2" only: an absent, empty, v1, or typo'd value must fall
+    # to classic (normalize_portal_version would map "" / "v3" to the "v2" default
+    # and silently opt them in — exactly what this gate must not do).
+    value_aware = portal_version == "v2"
 
     def _classic(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
         return store.next_task_for_evaluator(evaluator_id=user["id"], specialty=specialty)
