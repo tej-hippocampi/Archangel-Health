@@ -57,13 +57,16 @@ from asclepius.constants import (
     REASONING_STEP_LABELS,
     STEP_CORRECTION_REASONS,
     TASK_SOURCES,
+    VALUE_TIERS,
     VERDICTS,
     WHY_BETTER_TAGS,
     assist_min_confidence,
     normalize_independent_mode,
     normalize_portal_version,
+    value_per_minute_target,
 )
 from asclepius import stt as asc_stt
+from asclepius import value as asc_value
 from asclepius.critic import (
     generate_candidates,
     generate_candidates_ex,
@@ -177,6 +180,7 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
         "error_tag_reasons": list(ERROR_TAG_REASONS),
         "independent_modes": list(INDEPENDENT_MODES),
         "portal_versions": list(PORTAL_VERSIONS),
+        "value_tiers": list(VALUE_TIERS),
         "preference_variants": list(PREFERENCE_VARIANTS),
         "export_profiles": asc_profiles.list_profiles(),
     }
@@ -296,6 +300,7 @@ async def upload_tasks(
             grounding_mode=t.grounding_mode,
             independent_mode=t.independent_mode or DEFAULT_INDEPENDENT_MODE,
             buyer_request_id=t.buyer_request_id,
+            value_tier=t.value_tier,
             created_by=admin["id"],
         )
         created.append(task["task_id"])
@@ -531,12 +536,43 @@ def _autofill_specialty(user: Dict[str, Any]) -> str:
     return "nephrology"
 
 
-def _query_next(store: Any, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    task = store.next_task_for_evaluator(evaluator_id=user["id"], specialty=user.get("specialty"))
-    if not task and not user.get("specialty"):
+def _value_aware_next(store: Any, user: Dict[str, Any], specialty: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Value-aware routing (Value-per-Minute PRD B3) — V2 ONLY. Serves the eligible
+    task with the highest expected value-per-minute for THIS contributor (their
+    rolling median speed × each task's expected realized value). Ties break on
+    the oldest task, preserving FIFO fairness within an equal-value cohort."""
+    candidates = store.eligible_tasks_for_evaluator(
+        evaluator_id=user["id"], specialty=specialty, limit=50
+    )
+    if not candidates:
+        return None
+    median_secs = store.evaluator_median_seconds(user["id"])
+    # Higher score first; stable sort keeps the original oldest-first order as the
+    # tiebreaker (candidates already arrive oldest-first).
+    ranked = sorted(
+        candidates,
+        key=lambda t: asc_value.routing_score(t, median_secs),
+        reverse=True,
+    )
+    return ranked[0]
+
+
+def _query_next(
+    store: Any, user: Dict[str, Any], *, portal_version: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    # Value-aware routing is a V2-only enhancement. V1 (and any request that does
+    # not explicitly declare the v2 flow) keeps the exact classic oldest-first
+    # behavior — this is the "edits only on V2" guarantee, enforced at the gate.
+    value_aware = normalize_portal_version(portal_version) == "v2" and portal_version is not None
+
+    def _classic(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
+        return store.next_task_for_evaluator(evaluator_id=user["id"], specialty=specialty)
+
+    pick = _value_aware_next(store, user, user.get("specialty")) if value_aware else _classic(user.get("specialty"))
+    if not pick and not user.get("specialty"):
         # admins/QA (and SSO-provisioned clinicians) with no specialty see any queue
-        task = store.next_task_for_evaluator(evaluator_id=user["id"], specialty=None)
-    return task
+        pick = _value_aware_next(store, user, None) if value_aware else _classic(None)
+    return pick
 
 
 async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int) -> int:
@@ -612,7 +648,9 @@ async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int) -> int
     return created
 
 
-async def _autofill_queue(store: Any, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+async def _autofill_queue(
+    store: Any, user: Dict[str, Any], *, portal_version: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     if not _autofill_enabled():
         return None
     specialty = _autofill_specialty(user)
@@ -622,7 +660,7 @@ async def _autofill_queue(store: Any, user: Dict[str, Any]) -> Optional[Dict[str
     async with _AUTOFILL_LOCK:
         # Another request may have filled the queue (or just attempted) while we
         # waited on the lock — re-check both before spending LLM budget.
-        task = _query_next(store, user)
+        task = _query_next(store, user, portal_version=portal_version)
         if task:
             return task
         if time.monotonic() - _autofill_last_attempt.get(specialty, 0.0) < cooldown:
@@ -639,16 +677,24 @@ async def _autofill_queue(store: Any, user: Dict[str, Any]) -> Optional[Dict[str
         except Exception:  # never let generation break the evaluator's queue request
             log.exception("asclepius autofill failed")
             return None
-    return _query_next(store, user)
+    return _query_next(store, user, portal_version=portal_version)
 
 
 @router.get("/tasks/next")
-async def next_task(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def next_task(
+    portal_version: Optional[str] = Query(
+        None,
+        description="Declare the active flow. 'v2' opts into value-aware routing "
+        "(serves the highest expected value-per-minute task for you). Absent or "
+        "'v1' keeps the classic oldest-first queue unchanged.",
+    ),
+    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+):
     store = _store()
-    task = _query_next(store, user)
+    task = _query_next(store, user, portal_version=portal_version)
     if not task:
         # Empty queue -> auto-generate a fresh batch via the engine, then serve.
-        task = await _autofill_queue(store, user)
+        task = await _autofill_queue(store, user, portal_version=portal_version)
     return {"task": _blind_task(task) if task else None}
 
 
@@ -1580,6 +1626,31 @@ async def metrics_contributors(
     return {"contributors": rows, "organization": organization}
 
 
+@router.get("/metrics/value-per-time")
+async def metrics_value_per_time(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """Value-per-clinician-minute — the north-star metric (Value-per-Minute PRD
+    A4). Median REALIZED and PROJECTED V/T, split by product version (v1 vs v2),
+    difficulty, grounded vs plain, Mode A vs B, and per contributor.
+
+    The team is held to REALIZED V/T ≥ the target; projected (× reuse) is the
+    fuller economics but a forecast. Reported next to κ + the assist override
+    rate so a rising ratio with falling quality reads as the regression it is."""
+    store = _store()
+    vpt = store.value_per_time_stats()
+    target = value_per_minute_target()
+    vpt["target"] = target
+    overall = (vpt.get("overall") or {}).get("realized_vpm")
+    return {
+        "value_per_time": vpt,
+        "target_realized_vpm": target,
+        "meets_target": (overall is not None and overall >= target),
+        # Quality gate context (Part D): a high V/T is only real if κ holds and the
+        # clinician is not rubber-stamping the model's suggestions.
+        "kappa": asc_agreement.aggregate_kappa(store.list_agreement_observations()),
+        "override_rate": store.override_rate_stats(portal_version="v2"),
+    }
+
+
 @router.get("/credential-policy")
 async def credential_policy(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
     """The tiering policy + the §9 notice text, for the UI (ack modal, tier hints)."""
@@ -1774,10 +1845,20 @@ async def stats(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
         if grounded["submissions_total"]
         else 0.0
     )
+    # Value-per-Minute (PRD Part A): a compact V/T summary on the same call the
+    # admin Metrics tile already makes, so the north-star ratio sits next to κ.
+    # The full breakdown (by difficulty/grounded/mode/contributor) is on
+    # GET /metrics/value-per-time.
+    vpt = store.value_per_time_stats()
+    vpt["target"] = value_per_minute_target()
     return {
         "status_counts": store.status_counts(),
         # V1 (classic) vs V2 (assisted) provenance breakdown (Asclepius V2).
         "portal_version_counts": store.portal_version_counts(),
+        "value_per_time": vpt,
+        "value_per_time_target": value_per_minute_target(),
+        # Rubber-stamp guard: model-assist override rate on the v2 assisted flow.
+        "override_rate": store.override_rate_stats(portal_version="v2"),
         "qa_pass_rate": store.qa_pass_rate(),
         "average_agreement": store.average_agreement(),
         "kappa": asc_agreement.aggregate_kappa(store.list_agreement_observations()),

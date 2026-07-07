@@ -179,6 +179,7 @@ class AsclepiusStore:
                     independent_mode TEXT NOT NULL DEFAULT 'stance',
                     buyer_request_id TEXT,
                     generation_json TEXT,
+                    value_tier      TEXT,
                     status          TEXT NOT NULL DEFAULT 'open',
                     created_by      TEXT,
                     created_at      TEXT NOT NULL
@@ -402,6 +403,23 @@ class AsclepiusStore:
             if "caught_flaw" not in sub_cols:
                 conn.execute("ALTER TABLE submissions ADD COLUMN caught_flaw INTEGER")
 
+            # Value-per-Minute (PRD Part A): the estimated sellable value of a
+            # judgment + the clinician-minutes it took, persisted per submission
+            # so V/T is reported next to κ. Purely additive measurement columns —
+            # no existing flow (v1 or v2) reads them; NULL on legacy rows means
+            # "not yet estimated" and the metrics endpoint skips them.
+            if "value_estimate_usd" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN value_estimate_usd REAL")
+            if "value_estimate_projected_usd" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN value_estimate_projected_usd REAL")
+            if "clinician_review_seconds" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN clinician_review_seconds INTEGER")
+
+            if "value_tier" not in task_cols:
+                # Optional admin routing hint (Value-per-Minute PRD B3). Additive;
+                # NULL means "unspecified" and routing scores from attributes.
+                conn.execute("ALTER TABLE tasks ADD COLUMN value_tier TEXT")
+
             # Rich credential record provisioned by the Asclepius onboarding flow.
             user_cols = cols("users")
             for col, decl in (
@@ -610,6 +628,7 @@ class AsclepiusStore:
         independent_mode: str = "stance",
         buyer_request_id: Optional[str] = None,
         generation: Optional[Dict[str, Any]] = None,
+        value_tier: Optional[str] = None,
         task_id: Optional[str] = None,
         created_by: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -624,8 +643,8 @@ class AsclepiusStore:
                 INSERT OR REPLACE INTO tasks
                   (task_id, specialty, difficulty, capture_reasoning, source, prompt,
                    candidate_answers_json, max_labels, grounding_mode, independent_mode,
-                   buyer_request_id, generation_json, status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   buyer_request_id, generation_json, value_tier, status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -640,6 +659,7 @@ class AsclepiusStore:
                     im,
                     buyer_request_id,
                     json.dumps(generation) if generation else None,
+                    (value_tier or None),
                     created_by,
                     _utcnow_iso(),
                 ),
@@ -726,6 +746,65 @@ class AsclepiusStore:
             rec.pop("mine", None)
             return rec
         return None
+
+    def eligible_tasks_for_evaluator(
+        self, *, evaluator_id: str, specialty: Optional[str], limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """All open tasks this evaluator may take (not already theirs + still has
+        label capacity), oldest first. The full candidate set value-aware routing
+        (Value-per-Minute PRD B3) ranks by expected value-per-minute. ``limit``
+        bounds the scan so ranking stays cheap on a deep queue."""
+        clauses = ["t.status = 'open'"]
+        params: List[Any] = [evaluator_id]
+        if specialty:
+            clauses.append("t.specialty = ?")
+            params.append(specialty)
+        where = " AND ".join(clauses)
+        params.append(int(max(1, limit)) * 4)  # over-fetch: some rows filter out below
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT t.*,
+                       (SELECT COUNT(*) FROM submissions s WHERE s.task_id = t.task_id) AS sub_count,
+                       (SELECT COUNT(*) FROM submissions s2
+                         WHERE s2.task_id = t.task_id AND s2.evaluator_id = ?) AS mine
+                FROM tasks t
+                WHERE {where}
+                ORDER BY t.created_at ASC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            rec = self._task_row(r)
+            if rec.get("mine"):
+                continue
+            if int(r["sub_count"]) >= int(rec.get("max_labels") or 1):
+                continue
+            rec.pop("sub_count", None)
+            rec.pop("mine", None)
+            out.append(rec)
+            if len(out) >= limit:
+                break
+        return out
+
+    def evaluator_median_seconds(self, evaluator_id: str) -> Optional[float]:
+        """The contributor's rolling median seconds-per-task (Value-per-Minute
+        PRD B3 routing denominator). Median, not mean, so one slow outlier task
+        doesn't distort routing. None until they have any timed submission."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT time_spent_sec FROM submissions "
+                "WHERE evaluator_id = ? AND time_spent_sec > 0 ORDER BY time_spent_sec ASC",
+                (evaluator_id,),
+            ).fetchall()
+        vals = [int(r["time_spent_sec"]) for r in rows]
+        if not vals:
+            return None
+        n = len(vals)
+        mid = n // 2
+        return float(vals[mid]) if n % 2 else (vals[mid - 1] + vals[mid]) / 2.0
 
     def mark_task_status(self, task_id: str, status: str) -> None:
         with self._conn() as conn:
@@ -1138,6 +1217,164 @@ class AsclepiusStore:
                 "SELECT status, COUNT(*) AS n FROM submissions GROUP BY status"
             ).fetchall()
         return {r["status"]: int(r["n"]) for r in rows}
+
+    def set_submission_value(
+        self,
+        submission_id: str,
+        *,
+        realized: Optional[float],
+        projected: Optional[float],
+        clinician_review_seconds: Optional[int],
+    ) -> None:
+        """Persist the value estimate + clinician-minutes for a submission
+        (Value-per-Minute PRD A4). Measurement only — never touches records,
+        status, or any v1/v2 behavior."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE submissions SET value_estimate_usd = ?, "
+                "value_estimate_projected_usd = ?, clinician_review_seconds = ?, updated_at = ? "
+                "WHERE submission_id = ?",
+                (
+                    None if realized is None else round(float(realized), 2),
+                    None if projected is None else round(float(projected), 2),
+                    None if clinician_review_seconds is None else int(clinician_review_seconds),
+                    _utcnow_iso(),
+                    submission_id,
+                ),
+            )
+
+    @staticmethod
+    def _median(vals: List[float]) -> Optional[float]:
+        vals = sorted(v for v in vals if v is not None)
+        if not vals:
+            return None
+        n = len(vals)
+        mid = n // 2
+        return round(float(vals[mid]) if n % 2 else (vals[mid - 1] + vals[mid]) / 2.0, 2)
+
+    def value_per_time_rows(self) -> List[Dict[str, Any]]:
+        """Raw per-submission value + time + segmenting attributes for the V/T
+        report (Value-per-Minute PRD A4). Only rows with a value estimate AND
+        positive time contribute a ratio (an un-timed row has no defined V/T)."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT s.evaluator_id,
+                       u.email                                   AS evaluator_email,
+                       s.portal_version                          AS portal_version,
+                       t.difficulty                              AS difficulty,
+                       t.source                                  AS source,
+                       s.grounded                                AS grounded,
+                       s.value_estimate_usd                      AS realized,
+                       s.value_estimate_projected_usd            AS projected,
+                       COALESCE(s.clinician_review_seconds, s.time_spent_sec) AS seconds
+                FROM submissions s
+                JOIN tasks t ON t.task_id = s.task_id
+                LEFT JOIN users u ON u.id = s.evaluator_id
+                WHERE s.value_estimate_usd IS NOT NULL
+                  AND COALESCE(s.clinician_review_seconds, s.time_spent_sec) > 0
+                """
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def value_per_time_stats(self) -> Dict[str, Any]:
+        """Median realized + projected value-per-minute, split by portal_version
+        (v1 vs v2), difficulty, grounded vs plain, Mode A vs B, and per
+        contributor (Value-per-Minute PRD A4). Medians (robust to outliers).
+        Realized is what the team is held to; projected is the reuse forecast."""
+        rows = self.value_per_time_rows()
+
+        def vpm(r: Dict[str, Any], key: str) -> Optional[float]:
+            secs = r.get("seconds") or 0
+            val = r.get(key)
+            if not secs or val is None:
+                return None
+            return float(val) / (secs / 60.0)
+
+        def summarize(subset: List[Dict[str, Any]]) -> Dict[str, Any]:
+            realized = [x for x in (vpm(r, "realized") for r in subset) if x is not None]
+            projected = [x for x in (vpm(r, "projected") for r in subset) if x is not None]
+            return {
+                "n": len(subset),
+                "realized_vpm": self._median(realized),
+                "projected_vpm": self._median(projected),
+                "realized_value_median": self._median([float(r["realized"]) for r in subset if r.get("realized") is not None]),
+            }
+
+        def group_by(fn) -> Dict[str, Any]:
+            buckets: Dict[str, List[Dict[str, Any]]] = {}
+            for r in rows:
+                buckets.setdefault(str(fn(r)), []).append(r)
+            return {k: summarize(v) for k, v in buckets.items()}
+
+        return {
+            "overall": summarize(rows),
+            "by_portal_version": group_by(lambda r: r.get("portal_version") or "v2"),
+            "by_difficulty": group_by(lambda r: r.get("difficulty") or "medium"),
+            "by_grounded": group_by(lambda r: "grounded" if r.get("grounded") else "plain"),
+            "by_mode": group_by(lambda r: "mode_b" if (r.get("source") == "lab_supplied") else "mode_a"),
+            "by_contributor": group_by(lambda r: r.get("evaluator_email") or r.get("evaluator_id") or "—"),
+            "target": None,  # filled by the router from constants (keeps store I/O-free)
+        }
+
+    def override_rate_stats(self, *, portal_version: Optional[str] = "v2") -> Dict[str, Any]:
+        """Model-assist override rate (Value-per-Minute PRD Part D quality gate):
+        of the assisted submissions where a suggestion existed, how often did the
+        clinician's FINAL differ from the machine SUGGESTION? A near-zero rate
+        flags rubber-stamping. Scoped to v2 (only the assisted flow pre-labels).
+
+        Verdict override: final verdict != assist.suggested_verdict.
+        Step override: any reasoning step whose final label != suggested_label."""
+        params: List[Any] = []
+        pv_clause = ""
+        if portal_version:
+            pv_clause = "WHERE s.portal_version = ?"
+            params.append(portal_version)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT s.verdict, s.payload_json FROM submissions s {pv_clause}",
+                tuple(params),
+            ).fetchall()
+        verdict_total = verdict_overrides = 0
+        step_total = step_overrides = 0
+        for r in rows:
+            try:
+                payload = json.loads(r["payload_json"] or "{}")
+            except (ValueError, TypeError):
+                continue
+            assist = payload.get("assist") or {}
+            if assist.get("prelabeled") and assist.get("suggested_verdict"):
+                verdict_total += 1
+                if (r["verdict"] or None) != assist.get("suggested_verdict"):
+                    verdict_overrides += 1
+            for step in payload.get("reasoning_steps") or []:
+                sug = step.get("suggested_label")
+                if sug is None:
+                    continue
+                step_total += 1
+                if (step.get("label") or None) != sug:
+                    step_overrides += 1
+            for src in ("from_scratch",):
+                for step in (payload.get(src) or {}).get("reasoning_steps") or []:
+                    sug = step.get("suggested_label")
+                    if sug is None:
+                        continue
+                    step_total += 1
+                    if (step.get("label") or None) != sug:
+                        step_overrides += 1
+        return {
+            "portal_version": portal_version,
+            "verdict": {
+                "assisted": verdict_total,
+                "overrides": verdict_overrides,
+                "override_rate": round(verdict_overrides / verdict_total, 3) if verdict_total else None,
+            },
+            "steps": {
+                "assisted": step_total,
+                "overrides": step_overrides,
+                "override_rate": round(step_overrides / step_total, 3) if step_total else None,
+            },
+        }
 
     def portal_version_counts(self) -> Dict[str, int]:
         """Submissions by evaluator product version (Asclepius V2) — lets the

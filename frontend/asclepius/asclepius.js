@@ -3092,6 +3092,40 @@
       h('p', { class: 'asc-help', style: 'margin-top:10px' },
         'Both flows capture the same judgment and produce the same record types; every record is stamped with its source version.')));
 
+    // Value per clinician-minute (Value-per-Minute PRD Part A): the north-star
+    // metric — sellable dollars produced per minute of clinician time — reported
+    // REALIZED (bankable) with the PROJECTED reuse forecast alongside, and always
+    // next to κ + the assist override rate so a rising ratio with falling quality
+    // reads as the regression it is.
+    const vpt = s.value_per_time || {};
+    const vptOverall = vpt.overall || {};
+    const vTarget = (s.value_per_time_target != null) ? s.value_per_time_target : (vpt.target != null ? vpt.target : 10);
+    const byVer = vpt.by_portal_version || {};
+    const ovr = s.override_rate || {};
+    const ratio = (v) => (v == null ? '—' : (Math.round(v * 10) / 10) + ' : 1');
+    const realizedOverall = vptOverall.realized_vpm;
+    const meets = (realizedOverall != null && realizedOverall >= vTarget);
+    const pctOr = (o) => {
+      const r = o && o.override_rate;
+      return r == null ? '—' : Math.round(r * 100) + '%';
+    };
+    body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' }, 'Value per clinician-minute'),
+      h('p', { class: 'asc-help', style: 'margin-top:0;margin-bottom:14px' },
+        'North-star: sellable $ produced per minute of clinician time. Held to realized ≥ '
+          + ratio(vTarget) + '. Projected includes the ×reuse forecast (not banked).'),
+      h('div', { class: 'asc-stat-grid' },
+        stat(ratio(realizedOverall), (meets ? '✅ ' : '') + 'Realized V/T',
+          'target ' + ratio(vTarget) + ' · n=' + (vptOverall.n || 0)),
+        stat(ratio(vptOverall.projected_vpm), 'Projected V/T', '× reuse forecast'),
+        stat(ratio((byVer.v2 || {}).realized_vpm), '✨ V2 realized V/T', 'n=' + ((byVer.v2 || {}).n || 0)),
+        stat(ratio((byVer.v1 || {}).realized_vpm), '📝 V1 realized V/T', 'n=' + ((byVer.v1 || {}).n || 0)),
+        stat(fmtNum(kappa.overall), "Cohen's κ", 'quality anchor · n=' + (kappa.n != null ? kappa.n : 0)),
+        stat(pctOr(ovr.verdict), 'Verdict override', 'assist accepted vs changed'),
+        stat(pctOr(ovr.steps), 'Step override', 'rubber-stamp guard')),
+      h('p', { class: 'asc-help', style: 'margin-top:12px' },
+        'A near-zero override rate flags rubber-stamping: V/T only counts when κ holds and the clinician still stands behind every judgment.')));
+
     // Status counts
     const statusRows = Object.keys(sc).map((k) => h('tr', {}, h('td', {}, k.replace(/_/g, ' ')), h('td', {}, String(sc[k]))));
     if (statusRows.length) {

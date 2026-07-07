@@ -321,6 +321,100 @@ def gen_fewshot_k() -> int:
     return max(1, _env_int("ASCLEPIUS_GEN_FEWSHOT_K", 6))
 
 
+# ─── Value model (Value-per-Minute PRD, Part A) ───────────────────────────────
+# north-star = value ÷ time = dollars of sellable data value produced per minute
+# of clinician time. Every coefficient is env-overridable so the model can be
+# recalibrated to realized sales WITHOUT a code change. The defaults are honest
+# MARGINAL dollars (§A2): the four formats derive from ONE correlated judgment,
+# so a standard bundle (preference + ideal + reasoning, 0 corrections) totals
+# $70 — matching today's per-record figure — NOT 4× a standalone record.
+#
+# ``value_tier`` is an optional ADMIN hint on a task ("premium" / "standard" /
+# "on_policy" …) surfaced to value-aware routing; it never gates capture and is
+# free-text-tolerant (routing scores from the estimated value, not the label).
+VALUE_TIERS = ("standard", "premium", "on_policy", "eval")
+
+
+def value_preference_base() -> float:
+    """Reward-model anchor (the hh-rlhf pair). The base every completed judgment
+    carries — even a ``both_inadequate`` verdict is a preference-grade signal."""
+    return _env_float("ASCLEPIUS_VALUE_PREFERENCE_BASE", 45.0)
+
+
+def value_ideal_answer_marginal() -> float:
+    """SFT (refined chosen) — overlaps the pair, so priced as a marginal add-on."""
+    return _env_float("ASCLEPIUS_VALUE_IDEAL_ANSWER_MARGINAL", 12.0)
+
+
+def value_reasoning_trace_marginal() -> float:
+    """PRM step-level trace — a distinct training use from the preference pair."""
+    return _env_float("ASCLEPIUS_VALUE_REASONING_TRACE_MARGINAL", 13.0)
+
+
+def value_step_pair_each() -> float:
+    """Each corrected step = one step-level preference pair (rejected→chosen)."""
+    return _env_float("ASCLEPIUS_VALUE_STEP_PAIR_EACH", 6.0)
+
+
+def value_step_pair_max() -> int:
+    """Cap on counted step-pairs per judgment — no runaway stacking."""
+    return max(0, _env_int("ASCLEPIUS_VALUE_STEP_PAIR_MAX", 4))
+
+
+def value_grounded_mult() -> float:
+    """≥1 valid evidence anchor → premium grounded SKU."""
+    return _env_float("ASCLEPIUS_VALUE_GROUNDED_MULT", 1.30)
+
+
+def value_difficulty_mult() -> Dict[str, float]:
+    """Harder cases are worth more (N+1 signal). Env override is a JSON-ish
+    ``easy:0.75,medium:1.0,hard:1.4`` string; falls back to the defaults."""
+    raw = os.getenv("ASCLEPIUS_VALUE_DIFFICULTY_MULT")
+    base = {"easy": 0.75, "medium": 1.00, "hard": 1.40}
+    if raw:
+        for pair in raw.split(","):
+            if ":" in pair:
+                k, v = pair.split(":", 1)
+                try:
+                    base[k.strip()] = float(v)
+                except ValueError:
+                    pass
+    return base
+
+
+def value_on_policy_mult() -> float:
+    """Mode B — grading the buyer's OWN model outputs (``source=lab_supplied``).
+    On-policy data commands the highest price."""
+    return _env_float("ASCLEPIUS_VALUE_ON_POLICY_MULT", 1.50)
+
+
+def value_full_independent_mult() -> float:
+    """``independent_mode == 'full'`` — an uncontaminated blind gold answer."""
+    return _env_float("ASCLEPIUS_VALUE_FULL_INDEPENDENT_MULT", 1.20)
+
+
+def value_credentialed_kappa_mult() -> float:
+    """Double-labeled + credentialed → a reportable κ (eval-grade)."""
+    return _env_float("ASCLEPIUS_VALUE_CREDENTIALED_KAPPA_MULT", 1.15)
+
+
+def value_tier_mult_cap() -> float:
+    """Hard ceiling on the stacked tier multiplier — no fantasy stacking."""
+    return _env_float("ASCLEPIUS_VALUE_TIER_MULT_CAP", 2.50)
+
+
+def value_reuse_mult() -> float:
+    """Non-exclusive + benchmark repackaging. PROJECTED, not banked — the team is
+    held to REALIZED V/T; this only feeds the projected forecast column."""
+    return _env_float("ASCLEPIUS_VALUE_REUSE_MULT", 1.50)
+
+
+def value_per_minute_target() -> float:
+    """The north-star floor: realized value-per-clinician-minute the team is held
+    to on v2 ``capture_reasoning`` tasks (PRD acceptance criteria)."""
+    return _env_float("ASCLEPIUS_VALUE_PER_MINUTE_TARGET", 10.0)
+
+
 # ─── Contributors view + tiered export (credential tiering) ──────────────────
 # The governing rule: records sent to buyers ("Export Data") carry credential
 # ATTRIBUTES only; anything that identifies or locates the physician lives in a
