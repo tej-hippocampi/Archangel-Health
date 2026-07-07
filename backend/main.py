@@ -217,10 +217,15 @@ app.state.team_store = _team_store
 try:
     from asclepius.store import get_store as _get_asclepius_store
     from asclepius.auth import seed_default_admin as _seed_asclepius_admin
+    from asclepius.auth import ensure_admin_from_env as _ensure_asclepius_admin
 
     _asclepius_store = _get_asclepius_store()
     app.state.asclepius_store = _asclepius_store
     _seed_asclepius_admin(_asclepius_store)
+    # Idempotently (re)provision the operator's admin from env on every boot, so
+    # setting ASCLEPIUS_ADMIN_EMAIL/PASSWORD works even after the table is seeded
+    # (seed_default_admin only fires on an empty table).
+    _ensure_asclepius_admin(_asclepius_store)
 except Exception:
     _logging_boot = __import__("logging").getLogger("asclepius.boot")
     _logging_boot.warning("Asclepius store init failed; portal disabled", exc_info=True)

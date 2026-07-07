@@ -151,6 +151,32 @@ def require_qa(
     return user
 
 
+def ensure_admin_from_env(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
+    """Idempotently provision the operator-specified admin on every boot.
+
+    ``seed_default_admin`` only fires when the user table is EMPTY, so setting
+    ``ASCLEPIUS_ADMIN_EMAIL`` / ``ASCLEPIUS_ADMIN_PASSWORD`` after the portal has
+    already booted once (and seeded demo/default users) silently has no effect —
+    the account is never created and the operator is locked out.
+
+    This closes that gap: whenever BOTH env vars are set, ensure that admin
+    account exists with the given password (creating it, or resetting an existing
+    account to role='admin', active, matching password). Runs in all
+    environments — it is the supported way to (re)gain admin access. No-op when
+    either env var is unset (nothing to provision)."""
+    admin_email = (os.getenv("ASCLEPIUS_ADMIN_EMAIL") or "").strip().lower()
+    admin_pw = os.getenv("ASCLEPIUS_ADMIN_PASSWORD")
+    if not admin_email or not admin_pw:
+        return None
+    admin = store.ensure_admin(email=admin_email, password=admin_pw)
+    log.warning(
+        "Asclepius: ensured admin account '%s' from ASCLEPIUS_ADMIN_EMAIL/"
+        "ASCLEPIUS_ADMIN_PASSWORD. Rotate the password after logging in.",
+        admin_email,
+    )
+    return admin
+
+
 def seed_default_admin(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
     """Create a bootstrap admin (and, outside production, a demo evaluator) on
     first boot if the user table is empty.

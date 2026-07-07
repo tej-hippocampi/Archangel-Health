@@ -452,6 +452,42 @@ class AsclepiusStore:
             )
         return self.get_user_by_id(uid)  # type: ignore[return-value]
 
+    def ensure_admin(self, *, email: str, password: str) -> Dict[str, Any]:
+        """Idempotently guarantee a bootstrap admin exists for ``email``.
+
+        Unlike ``seed_default_admin`` (which only runs when the user table is
+        empty), this runs on every boot when ``ASCLEPIUS_ADMIN_EMAIL`` /
+        ``ASCLEPIUS_ADMIN_PASSWORD`` are set, so an operator can always (re)gain
+        access by setting those env vars and redeploying:
+
+          * missing        -> create the account with role='admin', active=1
+          * exists, drifted-> force role='admin', active=1, and reset the
+                              password to match the env value
+          * exists, matches-> no-op (no write, password already correct)
+
+        Only touches this one account; other users are never modified.
+        """
+        email = email.lower().strip()
+        existing = self.get_user_by_email(email)
+        if not existing:
+            return self.create_user(email=email, password=password, role="admin")
+        # Only write when something actually needs to change, so a redeploy with
+        # unchanged credentials doesn't churn the row (or revert a matching pw).
+        needs_update = (
+            existing.get("role") != "admin"
+            or not existing.get("active")
+            or not verify_password(password, existing["password_hash"])
+        )
+        if needs_update:
+            with self._conn() as conn:
+                conn.execute(
+                    "UPDATE users SET password_hash = ?, role = 'admin', active = 1 "
+                    "WHERE email = ?",
+                    (hash_password(password), email),
+                )
+            return self.get_user_by_email(email)  # type: ignore[return-value]
+        return existing
+
     def provision_user(
         self,
         *,
