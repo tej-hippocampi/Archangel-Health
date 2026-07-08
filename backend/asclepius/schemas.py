@@ -357,6 +357,13 @@ class ExportRequest(BaseModel):
     buyer_request_id: Optional[str] = None
     # V1/V2 cohort filter (Asclepius V2): "v1" | "v2" | None (both).
     portal_version: Optional[str] = None
+    # Modality cohort filter (Multimodal PRD §8): "text" | "multimodal" | None (both).
+    modality: Optional[str] = None
+    # Case provenance filter: "synthetic" | "real_deid" | None (any).
+    case_source: Optional[str] = None
+    # Benchmark opt-in (Multimodal PRD §7): bundle the held-out case answer key
+    # under ``answer_key``. OFF by default — the answer key is withheld otherwise.
+    include_answer_key: bool = False
     note: Optional[str] = None
     # Re-include already-shipped records so the bundle can be re-downloaded.
     include_exported: bool = False

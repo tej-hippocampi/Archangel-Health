@@ -1259,6 +1259,10 @@ async def create_export(
     store = _store()
     if body.portal_version is not None and body.portal_version not in PORTAL_VERSIONS:
         raise HTTPException(status_code=400, detail="Invalid portal_version")
+    if body.modality is not None and body.modality not in asc_cases.MODALITIES:
+        raise HTTPException(status_code=400, detail="Invalid modality")
+    if body.case_source is not None and body.case_source not in asc_cases.CASE_SOURCES:
+        raise HTTPException(status_code=400, detail="Invalid case_source")
     try:
         manifest = asc_export.build_export(
             store,
@@ -1274,6 +1278,9 @@ async def create_export(
             min_agreement=body.min_agreement,
             buyer_request_id=body.buyer_request_id,
             portal_version=body.portal_version,
+            modality=body.modality,
+            case_source=body.case_source,
+            include_answer_key=body.include_answer_key,
             note=body.note,
             include_exported=body.include_exported,
         )

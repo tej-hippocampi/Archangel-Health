@@ -520,6 +520,18 @@ def value_reuse_mult() -> float:
     return _env_float("ASCLEPIUS_VALUE_REUSE_MULT", 1.50)
 
 
+def value_multimodal_mult() -> float:
+    """Structured multimodal case (labs/note integration) — Synthetic Multimodal
+    Cases PRD §9. Folded into the tier multiplier under TIER_MULT_CAP.
+
+    HONESTY GUARDRAIL (must be in the datasheet): synthetic multimodal is the
+    ARCHITECTURE PROOF, not the ~2× tier. The ~2× premium applies to REAL,
+    context-preserved multimodal (case_source == 'real_deid'); a synthetic case is
+    marked 'synthetic' and priced with this modest multiplier — never let a
+    datasheet imply synthetic multimodal is real-patient data."""
+    return _env_float("ASCLEPIUS_VALUE_MULTIMODAL_MULT", 1.35)
+
+
 def value_per_minute_target() -> float:
     """The north-star floor: realized value-per-clinician-minute the team is held
     to on v2 ``capture_reasoning`` tasks (PRD acceptance criteria)."""
@@ -612,9 +624,18 @@ TIER_B_FORBIDDEN_ALIASES = (
     "ssn",
 )
 
+# Multimodal case answer-key fields (Synthetic Multimodal Cases PRD §6, §8). These
+# are internal generation/QA metadata that must NEVER ship on a normal record —
+# packaging strips them via ``cases.public_case``, and adding them here makes the
+# export leak-gate reject the whole batch loudly if one ever reaches a record
+# (defense-in-depth over the case block, which the recursive scan already visits).
+CASE_ANSWER_KEY_FIELDS = ("ground_truth", "hard_hook", "reasoning_divergence")
+
 # The complete forbidden-key set scanned (exact, case-insensitive) on every
 # exported record line.
-TIER_B_FORBIDDEN_KEYS = tuple(sorted(set(TIER_B_VERIFY_FIELDS) | set(TIER_B_FORBIDDEN_ALIASES)))
+TIER_B_FORBIDDEN_KEYS = tuple(sorted(
+    set(TIER_B_VERIFY_FIELDS) | set(TIER_B_FORBIDDEN_ALIASES) | set(CASE_ANSWER_KEY_FIELDS)
+))
 
 
 def company_name() -> str:

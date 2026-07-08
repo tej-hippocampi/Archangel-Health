@@ -66,10 +66,41 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _rec_modality(rec: Dict[str, Any]) -> str:
+    """Record modality (Synthetic Multimodal Cases PRD §5, §8): 'multimodal' when
+    the record carries a structured case, else 'text'. Stamped into
+    ``payload.context.modality`` by packaging for multimodal tasks only, so every
+    legacy/text record reads as 'text'."""
+    return ((rec.get("payload") or {}).get("context") or {}).get("modality") or "text"
+
+
+def _rec_case_source(rec: Dict[str, Any]) -> Optional[str]:
+    """Provenance of a multimodal record's case: 'synthetic' or 'real_deid'
+    (PRD §5). None for text records."""
+    return ((rec.get("payload") or {}).get("context") or {}).get("case_source")
+
+
+def _case_answer_key(store: Any, rec: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The held-out answer key for a multimodal record's case (Multimodal PRD §7).
+    Read from the SERVER-SIDE task (never the buyer-facing public case, which has
+    it stripped), so a benchmark buyer who opts in gets the ground truth while the
+    default export keeps it withheld. None for text records or if unavailable."""
+    if _rec_modality(rec) != "multimodal":
+        return None
+    tid = rec.get("task_id") or (rec.get("payload") or {}).get("task_id")
+    if not tid:
+        return None
+    task = store.get_task(tid) or {}
+    gt = ((task.get("case") or {}) or {}).get("ground_truth")
+    return gt or None
+
+
 def _counts(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     by_type: Dict[str, int] = {}
     by_specialty: Dict[str, int] = {}
     by_portal_version: Dict[str, int] = {}
+    by_modality: Dict[str, int] = {}
+    by_case_source: Dict[str, int] = {}
     for r in records:
         by_type[r["type"]] = by_type.get(r["type"], 0) + 1
         sp = r.get("specialty") or "unknown"
@@ -78,10 +109,18 @@ def _counts(records: List[Dict[str, Any]]) -> Dict[str, Any]:
         # with no stamp are counted as v1 (they predate the assisted flow).
         pv = (r.get("payload") or {}).get("portal_version") or "v1"
         by_portal_version[pv] = by_portal_version.get(pv, 0) + 1
+        # Text vs multimodal (structured-case) breakdown (Multimodal PRD §8).
+        mod = _rec_modality(r)
+        by_modality[mod] = by_modality.get(mod, 0) + 1
+        cs = _rec_case_source(r)
+        if cs:
+            by_case_source[cs] = by_case_source.get(cs, 0) + 1
     return {
         "by_type": by_type,
         "by_specialty": by_specialty,
         "by_portal_version": by_portal_version,
+        "by_modality": by_modality,
+        "by_case_source": by_case_source,
         "total": len(records),
     }
 
@@ -97,6 +136,8 @@ def _passes_filters(
     buyer_request_id: Optional[str],
     annotator_ids: Optional[set],
     portal_version: Optional[str] = None,
+    modality: Optional[str] = None,
+    case_source: Optional[str] = None,
 ) -> bool:
     payload = rec.get("payload") or {}
     if difficulty and (payload.get("context") or {}).get("difficulty") != difficulty:
@@ -104,6 +145,14 @@ def _passes_filters(
     # V1/V2 cohort filter (Asclepius V2): ship or analyze one product version at
     # a time. Unstamped legacy records count as v1.
     if portal_version and (payload.get("portal_version") or "v1") != portal_version:
+        return False
+    # Text vs multimodal cohort filter (Multimodal PRD §8): package a text-only or
+    # a structured-multimodal batch. Legacy/text records read as 'text'.
+    if modality and _rec_modality(rec) != modality:
+        return False
+    # Case provenance filter (synthetic vs real_deid). Only meaningful for
+    # multimodal records; a text record has no case_source and is excluded.
+    if case_source and _rec_case_source(rec) != case_source:
         return False
     if grounded_only and not bool(payload.get("grounded")):
         return False
@@ -306,6 +355,34 @@ def _stance_semantics_md(records: List[Dict[str, Any]]) -> str:
     )
 
 
+def _multimodal_section_md(records: List[Dict[str, Any]], counts: Dict[str, Any]) -> str:
+    """Datasheet copy for structured-multimodal cases (Multimodal PRD §5, §8) —
+    only emitted when the batch actually carries multimodal records. Reports the
+    modality mix, case provenance, the no-imaging/PHI-free contract, and whether
+    the held-out answer key is bundled."""
+    mm = [r for r in records if _rec_modality(r) == "multimodal"]
+    if not mm:
+        return ""
+    by_source = counts.get("by_case_source") or {}
+    source_lines = ", ".join(f"{k} — {v}" for k, v in sorted(by_source.items())) or "n/a"
+    return f"""
+## Multimodal cases (structured clinical cases)
+- **{len(mm)}/{counts['total']}** records are structured-multimodal: each carries a
+  PHI-free clinical case (demographics as age bands, lab panels with reference
+  ranges + flags, free-text notes, meds/problems/vitals) alongside the question.
+- Case provenance: {source_lines}. `synthetic` cases are AI-authored against a
+  clinician-curated archetype and PHI-scanned; `real_deid` cases are de-identified
+  from real encounters (Safe Harbor).
+- **No imaging.** Cases are text + structured tabular data only; there are no
+  DICOM/image modalities in this dataset.
+- Lab timing is relative (`collected_offset_days` from an index event), never
+  calendar dates — a further de-identification guard.
+- Held-out answer key: the case's ground truth is **withheld** from the
+  buyer-facing record by default; it ships (under `answer_key`) only for explicit
+  benchmark exports.
+"""
+
+
 def _datasheet_md(*, export_id: str, profile_name: str, counts: Dict[str, Any],
                   records: List[Dict[str, Any]], contributors: List[Dict[str, Any]],
                   scope: Optional[Dict[str, Any]] = None) -> str:
@@ -331,7 +408,9 @@ examples, and PRM800K-style step-level reasoning traces for frontier-lab trainin
 {type_lines}
 - Specialties: {", ".join(specialties) or "n/a"}
 - By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 = classic flow, V2 = assisted flow)
+- By modality: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_modality', {}).items())) or "n/a"} (text vs structured-multimodal case)
 {_scope_section_md(scope)}
+{_multimodal_section_md(records, counts)}
 {_synthetic_provenance_md(records)}
 
 ## Collection process
@@ -366,6 +445,40 @@ Training / evaluating medical LLMs (reward modeling, SFT, process supervision).
 """
 
 
+def _multimodal_quality_md(records: List[Dict[str, Any]], counts: Dict[str, Any]) -> str:
+    """Quality-report block for the multimodal case judge (Multimodal PRD §5): the
+    mean case-judge dimensions over the shipped multimodal records, so a buyer can
+    see the structured cases cleared the coherence / multimodal-necessity /
+    ground-truth-determinable / reasoning-divergence gates. Empty when the batch
+    has no multimodal records."""
+    mm = [r for r in records if _rec_modality(r) == "multimodal"]
+    if not mm:
+        return ""
+    dims = ("coherence", "multimodal_necessity", "ground_truth_determinable", "reasoning_divergence_potential")
+    sums: Dict[str, float] = {d: 0.0 for d in dims}
+    n: Dict[str, int] = {d: 0 for d in dims}
+    for r in mm:
+        cj = ((r.get("payload") or {}).get("generation") or {}).get("case_judge") or {}
+        for d in dims:
+            v = cj.get(d)
+            if isinstance(v, (int, float)):
+                sums[d] += float(v)
+                n[d] += 1
+    dim_lines = "\n".join(
+        f"- {d}: {round(sums[d] / n[d], 3) if n[d] else 'n/a'} (n={n[d]})" for d in dims
+    )
+    by_source = counts.get("by_case_source") or {}
+    source_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(by_source.items())) or "- n/a"
+    return f"""
+## Multimodal cases (structured-case judge)
+- Multimodal records: **{len(mm)}/{counts['total']}**
+- Case provenance:
+{source_lines}
+- Mean case-judge dimensions (every shipped case cleared the generation-time floors):
+{dim_lines}
+"""
+
+
 def _quality_report_md(*, export_id: str, profile_name: str, records: List[Dict[str, Any]],
                        stats: Dict[str, Any]) -> str:
     counts = _counts(records)
@@ -387,6 +500,7 @@ def _quality_report_md(*, export_id: str, profile_name: str, records: List[Dict[
         for k, v in sorted(counts.get("by_portal_version", {}).items())
     ) or "- n/a"
     conf_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(conf.items()))
+    mm_section = _multimodal_quality_md(records, counts)
     qa = stats.get("qa_pass_rate") or {}
     kappa = stats.get("kappa") or {}
     by_spec = kappa.get("by_specialty") or {}
@@ -409,7 +523,7 @@ Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
 
 ## By product version (V1 classic / V2 assisted)
 {portal_lines}
-
+{mm_section}
 ## Grounded (evidence-anchored) premium tier
 - Grounded records: **{grounded}/{counts['total']}** (**{grounded_pct}%**)
 
@@ -471,6 +585,9 @@ def build_export(
     min_agreement: Optional[float] = None,
     buyer_request_id: Optional[str] = None,
     portal_version: Optional[str] = None,
+    modality: Optional[str] = None,
+    case_source: Optional[str] = None,
+    include_answer_key: bool = False,
     note: Optional[str] = None,
     include_exported: bool = False,
     annotator_id_hashed: Optional[str] = None,
@@ -494,7 +611,14 @@ def build_export(
 
     ``include_exported`` re-includes already-shipped records so an admin can
     re-package / re-download a fresh bundle of everything (records stay in the DB
-    permanently; export is non-destructive)."""
+    permanently; export is non-destructive).
+
+    ``modality`` / ``case_source`` scope the batch to text-only or
+    structured-multimodal records (and by case provenance). ``include_answer_key``
+    (default OFF, Multimodal PRD §7) attaches each multimodal case's held-out
+    answer key under a non-forbidden ``answer_key`` field for *benchmark* buyers —
+    the raw ``ground_truth`` key stays forbidden by the leak gate, so the answer
+    key never ships by accident; it ships only on explicit opt-in."""
     prof = profiles.load_profile(profile)
     profile_name = prof.get("name") or profile
 
@@ -531,6 +655,8 @@ def build_export(
             buyer_request_id=buyer_request_id,
             annotator_ids=annotator_id_set,
             portal_version=portal_version,
+            modality=modality,
+            case_source=case_source,
         )
     ]
     if not records:
@@ -559,6 +685,14 @@ def build_export(
                     f"Record {rec.get('record_id')} ({rtype}) failed profile "
                     f"{profile_name!r} schema: {errs[0]}"
                 )
+        # Benchmark opt-in (Multimodal PRD §7): attach the case's held-out answer
+        # key under ``answer_key`` (NOT the forbidden raw ``ground_truth`` key), so
+        # a benchmark buyer can score models. Added after schema validation but
+        # BEFORE the leak gate, so the gate still scans it for stray Tier B keys.
+        if include_answer_key:
+            ak = _case_answer_key(store, rec)
+            if ak:
+                mapped["answer_key"] = ak
         # THE CORE RULE (spec §4, §5): buyer-facing records carry credential
         # ATTRIBUTES only. Reject the whole batch loudly if ANY Tier B
         # (identifying / locating) field appears in ANY record.
@@ -633,6 +767,9 @@ def build_export(
         "min_agreement": min_agreement,
         "buyer_request_id": buyer_request_id,
         "portal_version": portal_version,
+        "modality": modality,
+        "case_source": case_source,
+        "include_answer_key": include_answer_key,
         "annotator_id_hashed": annotator_id_hashed,
         "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
     }
@@ -649,6 +786,7 @@ def build_export(
         "submission_count": len({r["submission_id"] for r in emitted}),
         "counts": counts,
         "grounded_count": sum(1 for r in emitted if (r.get("payload") or {}).get("grounded")),
+        "multimodal_count": sum(1 for r in emitted if _rec_modality(r) == "multimodal"),
         "synthetic_prompt_count": len(_synthetic_records(emitted)),
         # Tri-state: true (all synthetic prompts from a ratified corpus), false
         # (some unratified — see datasheet warning), or null (no synthetic prompts).

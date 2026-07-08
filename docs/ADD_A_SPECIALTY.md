@@ -40,11 +40,54 @@ chip degrades to `skipped` (doctors type citations manually).
   hard"** (prompt-review verdict `not_hard`), which routes it out and feeds back
   for hardness recalibration.
 
+## Multimodal (structured-case) archetypes — V3
+
+A specialty can also produce **multimodal cases** (Synthetic Multimodal Cases
+PRD): a structured clinical case (lab panels + notes + meds/problems/vitals) the
+specialist reasons *across*, not a one-line prompt. This is pure config too — the
+case generator, case judge (Stage 3c), value multiplier, and export filters are
+all specialty-agnostic.
+
+### Add `multimodal_archetypes[]` to the seed corpus
+Each archetype seeds one case the generator varies:
+- `topic` (**must match a taxonomy bucket id**), `subtopic`, `why_hard`.
+- `multimodal` — the case shape hint: `{panels[], notes[], hard_hook, ...}`
+  (e.g. `panels: ["BMP", "urine studies"]`, `hard_hook: "urine osm decides"`).
+- The generator authors a PHI-free case with a fixed **held-out answer key**
+  (`ground_truth`) + a shortcut path (`reasoning_divergence`); `public_case`
+  strips the key before it is blinded to an evaluator or shipped.
+
+Generation gates every case through the case judge — coherence,
+`ground_truth_determinable`, `multimodal_necessity`, and
+`reasoning_divergence_potential` floors (env-tunable) — before it becomes a task.
+Multimodal tasks are always `difficulty=hard`, always capture the reasoning
+trace, and carry a **1.35× value multiplier** (`ASCLEPIUS_VALUE_MULTIMODAL_MULT`).
+
+Invariants (enforced, not optional): **no imaging**; age **bands** only; lab
+timing is **relative** (`collected_offset_days`), never a date.
+
+### Real de-identified cases (`real_deid`) — the ingest seam
+`case_source` is `synthetic` (generated) or `real_deid` (parsed from a real,
+de-identified export). Real cases come in through `case_formats.ingest_real_deid`:
+a format adapter (`lab_csv` / `fhir_r4` / `hl7v2`) maps the export to a
+`ClinicalCase`, then `deidentify()` enforces the Safe-Harbor bar (age banding,
+residual-identifier scan, relative-offset check) before the case is stamped.
+`dicom` is registered only to **reject** — imaging is never a gradable modality.
+The adapters are a wired seam (`CaseFormatNotImplemented` until a parser lands);
+every downstream path already handles `real_deid` with no change.
+
+### Export
+Filter a batch by `modality` (`text` | `multimodal`) and `case_source`
+(`synthetic` | `real_deid`). The held-out answer key ships only on an explicit
+`include_answer_key` benchmark export (under `answer_key`, never raw
+`ground_truth`).
+
 ## Checklist
 1. Author `seed_corpus/<specialty>.v1.json` (a clinician + the LLM co-author the archetypes/rubric).
-2. Add the taxonomy + `SpecialtyConfig(enabled=True)`.
-3. (Optional) add `citations/<specialty>.v1.json`.
-4. Run the suite: `pytest backend/tests -k asclepius`.
-5. Have a specialist ratify the corpus (`ratified: true`) before selling its data.
+2. (Optional) add `multimodal_archetypes[]` for V3 structured cases.
+3. Add the taxonomy + `SpecialtyConfig(enabled=True)`.
+4. (Optional) add `citations/<specialty>.v1.json`.
+5. Run the suite: `pytest backend/tests -k asclepius`.
+6. Have a specialist ratify the corpus (`ratified: true`) before selling its data.
 
 No other code changes are required.
