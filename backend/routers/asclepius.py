@@ -592,12 +592,17 @@ def _query_next(
     return pick
 
 
-async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int) -> int:
+async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int, *, hard_only: bool = False) -> int:
     """Turn ratified seed-corpus prompts into eval tasks by generating only the
     two candidate answers (Sonnet ``asclepius_candidate_gen``). This deliberately
     bypasses the Opus prompt-synthesis + judge + dedupe pipeline (``generate_tasks``)
     so the queue fills reliably and fast: the prompts are already vetted, we just
-    need the A/B answers. Returns the number of tasks created."""
+    need the A/B answers. Returns the number of tasks created.
+
+    ``hard_only`` (the V3 hard-case queue, Seamless PRD WS2): only seed items
+    already marked ``difficulty=hard`` are used — we never fabricate hardness by
+    promoting a medium seed, and we never create tasks V3 would filter out (which
+    would waste candidate-gen calls and leave the queue perpetually empty)."""
     items = asc_corpus.load_corpus(specialty).get("items") or []
     # Dedup against prompts ALREADY in the queue/DB only — NOT the corpus itself
     # (generation._existing_prompt_hashes also hashes the seeds, which here are
@@ -610,6 +615,8 @@ async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int) -> int
     for it in items:
         prompt = (it.get("prompt") or "").strip()
         if not prompt or asc_generation._prompt_hash(prompt) in existing:  # noqa: SLF001
+            continue
+        if hard_only and (it.get("difficulty") or "medium") != "hard":
             continue
         picks.append(it)
         if len(picks) >= batch:
@@ -684,7 +691,9 @@ async def _autofill_queue(
             return None
         _autofill_last_attempt[specialty] = time.monotonic()
         try:
-            created = await _seed_tasks_from_corpus(store, specialty, _autofill_batch())
+            created = await _seed_tasks_from_corpus(
+                store, specialty, _autofill_batch(), hard_only=(portal_version == "v3")
+            )
             log.info("asclepius autofill: created %d task(s) for %s", created, specialty)
         except asc_specialties.SpecialtyNotEnabled:
             return None

@@ -283,11 +283,18 @@ async def generate_tasks(
 
             # Stage 3b: Hard-Case gate (Seamless PRD WS2). Score how genuinely hard
             # the prompt is; drop below the floor (``below_hardness_floor``) and
-            # force ``difficulty=hard`` on accept so the hard-case queue is 100%
-            # hard. Degrades safely: a skipped hardness judge (no LLM key) leaves
-            # difficulty untouched and never drops — offline generation is
-            # unaffected, and the serving-side hard filter still applies.
+            # STAMP the task ``difficulty=hard`` on accept so the hard-case queue is
+            # 100% hard. Degrades safely: a skipped hardness judge (no LLM key)
+            # leaves difficulty untouched and never drops.
+            #
+            # ``insert_difficulty`` is separate from ``difficulty`` on purpose: the
+            # difficulty_mix quota (Gate 4 + the decrement below) is accounted on
+            # the RAW requested ``difficulty`` the gate admitted; only the stored
+            # task is promoted to hard. Overwriting ``difficulty`` here would drain
+            # the wrong quota bucket and then spuriously drop later prompts as
+            # difficulty_mix_skew.
             hardness = None
+            insert_difficulty = difficulty
             if hard_only_generation():
                 hj = await run_hardness_judge(
                     prompt, candidates, failure_domains=failure_domain_names(specialty)
@@ -297,7 +304,7 @@ async def generate_tasks(
                     if hs is None or hs < hardness_min():
                         dropped["below_hardness_floor"] += 1
                         continue
-                    difficulty = "hard"
+                    insert_difficulty = "hard"
                     hardness = {
                         "score": hs,
                         "axes": hj.get("hardness_axes") or [],
@@ -335,7 +342,7 @@ async def generate_tasks(
             task = store.insert_task(
                 prompt=prompt,
                 specialty=specialty,
-                difficulty=difficulty,
+                difficulty=insert_difficulty,
                 capture_reasoning=cap,
                 source="internal_prompt_bank",
                 candidate_answers=candidates,
