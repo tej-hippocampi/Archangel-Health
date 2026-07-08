@@ -947,6 +947,36 @@
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
+/* WS5 (V3): brighter, unmissable divergence marking + a legend. Shared text is
+   dimmed further so the eye goes straight to the deltas. Accessible contrast:
+   a solid left accent + amber wash, not colour alone. */
+.asc-answers-v3diff .asc-answer-diff .asc-diff-shared { opacity: .34; }
+.asc-answers-v3diff .asc-answer-diff .asc-diff-changed {
+  background: rgba(245, 158, 11, .26);
+  box-shadow: inset 2px 0 0 var(--asc-warning, #f59e0b);
+  padding: 1px 2px;
+  font-weight: 600;
+}
+.asc-diff-legend {
+  font-size: 12.5px; color: var(--asc-muted, #64748b);
+  margin: 0 0 10px; display: flex; align-items: center; gap: 6px;
+}
+.asc-diff-legend-mark {
+  color: var(--asc-warning, #f59e0b); font-weight: 700;
+  background: rgba(245, 158, 11, .22); border-radius: 3px; padding: 0 4px;
+}
+/* WS4 (V3): the roomy gold-answer editor + its "what you changed" diff view. */
+.asc-v3-editor { min-height: 46vh; font-size: 15px; line-height: 1.6; }
+.asc-editdiff-wrap { margin-top: 8px; }
+.asc-editdiff {
+  padding: 10px 12px; border: 1px dashed var(--asc-line-strong, #cbd5e1);
+  border-radius: 8px; background: var(--asc-surface-2, #f8fafc);
+  font-size: 13.5px; line-height: 1.6;
+}
+.asc-editdiff .asc-diff-shared { opacity: .5; }
+.asc-editdiff .asc-diff-changed {
+  background: rgba(37, 99, 235, .14); border-radius: 3px; padding: 1px 2px; font-weight: 600;
+}
 .asc-err-span {
   background: rgba(245, 158, 11, .32);
   border-bottom: 2px solid var(--asc-warning);
