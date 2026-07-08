@@ -7,6 +7,46 @@
   "reviewed_at": null,
   "generated_by": "asclepius_seedmaker_scaffold",
   "note": "Original synthetic vignettes written to exercise known AI failure modes. No PHI, no verbatim text from any benchmark/exam. reference_basis cites the CONCEPT source (guideline/review), not copied question text. AI-drafted starter corpus pending nephrologist ratification before sale.",
+  "failure_domains": [
+    {"name": "electrolyte_acid_base", "weight": 0.28, "why": "Top model-failure domain (~42% accuracy); models get hyponatremia and mixed acid-base wrong outright."},
+    {"name": "glomerular_disease_biopsy", "weight": 0.18, "why": "~46% accuracy; biopsy timing, RPGN urgency, PLA2R primary-vs-secondary nuance."},
+    {"name": "transplant", "weight": 0.12, "why": "Rejection vs. CNI toxicity vs. BK vs. recurrent GN — low-consensus, high-stakes."},
+    {"name": "dialysis_ckd_mbd", "weight": 0.14, "why": "Intradialytic hypotension, calciphylaxis, CKD-MBD sequencing, PD peritonitis."},
+    {"name": "renal_pharmacology_dosing", "weight": 0.16, "why": "eGFR-guided dosing, dose-reduction criteria, cutoff-lag on recent thresholds."},
+    {"name": "cardiorenal_hepatorenal_judgment", "weight": 0.12, "why": "Diuretic resistance, permissive creatinine rise, HRS vs. ATN — judgment / low consensus."}
+  ],
+  "hardness_rubric": [
+    "Requires multi-step reasoning, not single-fact recall.",
+    "Involves competing considerations / a genuine trade-off.",
+    "Sits in a known model-failure domain for nephrology.",
+    "Contains a plausible trap (the obvious answer is wrong or incomplete).",
+    "Rewards guideline nuance or a recent change (updated dosing thresholds).",
+    "High clinical stakes (safety-relevant)."
+  ],
+  "hard_case_archetypes": [
+    {"topic": "hyponatremia_beer_potomania_vs_siadh", "failure_domain": "electrolyte_acid_base", "why_hard": "Na 108 with seizures; the overcorrection trap and pre-emptive DDAVP + D5W to re-lower; plan differs for true chronic SIADH.", "axes": ["multi_step", "diagnostic_trap", "high_stakes", "guideline_nuance"]},
+    {"topic": "severe_hyponatremia_in_advanced_ckd", "failure_domain": "electrolyte_acid_base", "why_hard": "Usual free-water rules change when the kidney can't excrete water; dialysis complicates correction.", "axes": ["multi_step", "diagnostic_trap", "high_stakes"]},
+    {"topic": "triple_acid_base_disorder", "failure_domain": "electrolyte_acid_base", "why_hard": "Vomiting + DKA + sepsis; anion gap, delta-delta, and Winter's formula identify all three; single-diagnosis answer fails.", "axes": ["multi_step", "diagnostic_trap"]},
+    {"topic": "refractory_hypokalemia_metabolic_alkalosis", "failure_domain": "electrolyte_acid_base", "why_hard": "Gitelman vs. Bartter vs. surreptitious vomiting/diuretic; urine chloride + diuretic screen differentiate.", "axes": ["multi_step", "diagnostic_trap"]},
+    {"topic": "hyperkalemia_hd_1k_dialysate_trap", "failure_domain": "electrolyte_acid_base", "why_hard": "K 6.4 with peaked T-waves on HD; the 1K bath arrhythmia trap; calcium stabilizes but does not lower K; sequencing.", "axes": ["diagnostic_trap", "high_stakes", "recent_change"]},
+    {"topic": "type_4_rta_in_diabetic", "failure_domain": "electrolyte_acid_base", "why_hard": "Hyperkalemic non-anion-gap acidosis; potassium/acid-base interplay and management.", "axes": ["multi_step", "guideline_nuance"]},
+    {"topic": "pth_independent_hypercalcemia_workup", "failure_domain": "electrolyte_acid_base", "why_hard": "Granulomatous vs. malignancy vs. milk-alkali; trap of treating before diagnosing.", "axes": ["diagnostic_trap", "multi_step"]},
+    {"topic": "diabetic_nephrotic_without_retinopathy", "failure_domain": "glomerular_disease_biopsy", "why_hard": "Atypical for diabetic nephropathy; when to biopsy for an alternative diagnosis.", "axes": ["diagnostic_trap", "guideline_nuance"]},
+    {"topic": "rapidly_progressive_gn", "failure_domain": "glomerular_disease_biopsy", "why_hard": "ANCA vs. anti-GBM vs. immune-complex; biopsy urgency, empiric steroids, plasmapheresis timing.", "axes": ["multi_step", "high_stakes", "guideline_nuance"]},
+    {"topic": "pla2r_membranous_primary_vs_secondary", "failure_domain": "glomerular_disease_biopsy", "why_hard": "Primary vs. secondary (malignancy/lupus) workup; conservative vs. immunosuppressive and monitoring.", "axes": ["diagnostic_trap", "guideline_nuance"]},
+    {"topic": "igan_risk_stratification_recent_agents", "failure_domain": "glomerular_disease_biopsy", "why_hard": "Supportive (RAS + SGLT2i) vs. immunosuppression; sparsentan and targeted-release budesonide shifts.", "axes": ["recent_change", "guideline_nuance", "multi_step"]},
+    {"topic": "post_transplant_rising_creatinine", "failure_domain": "transplant", "why_hard": "Rejection vs. CNI toxicity vs. BK nephropathy vs. recurrent GN; biopsy vs. adjust levels; the 'just lower tacrolimus' trap.", "axes": ["diagnostic_trap", "multi_step", "high_stakes"]},
+    {"topic": "recurrent_fsgs_post_transplant", "failure_domain": "transplant", "why_hard": "Early recognition + plasmapheresis; distinguishing from de novo disease.", "axes": ["diagnostic_trap", "high_stakes"]},
+    {"topic": "refractory_intradialytic_hypotension", "failure_domain": "dialysis_ckd_mbd", "why_hard": "Dry-weight reassessment, UF-rate, dialysate sodium/temperature, midodrine; the reflex-saline-bolus trap.", "axes": ["diagnostic_trap", "multi_step"]},
+    {"topic": "calciphylaxis_in_dialysis", "failure_domain": "dialysis_ckd_mbd", "why_hard": "Recognition, sodium thiosulfate, modifiable risk factors (warfarin, calcium load).", "axes": ["diagnostic_trap", "high_stakes"]},
+    {"topic": "ckd_mbd_sequencing", "failure_domain": "dialysis_ckd_mbd", "why_hard": "Binders vs. calcimimetics vs. active vitamin D with high PTH, high phosphate, rising calcium.", "axes": ["multi_step", "competing_risks", "guideline_nuance"]},
+    {"topic": "pd_peritonitis_empiric", "failure_domain": "dialysis_ckd_mbd", "why_hard": "Cloudy effluent; empiric intraperitoneal antibiotics and indications for catheter removal.", "axes": ["guideline_nuance", "high_stakes"]},
+    {"topic": "finerenone_add_on_dosing", "failure_domain": "renal_pharmacology_dosing", "why_hard": "T2D + albuminuric CKD on ACEi + SGLT2i; eGFR-guided start, K thresholds, monitoring.", "axes": ["recent_change", "guideline_nuance", "high_stakes"]},
+    {"topic": "apixaban_in_ckd4_dialysis_af", "failure_domain": "renal_pharmacology_dosing", "why_hard": "2-of-3 dose-reduction criteria and why eGFR is NOT one of them.", "axes": ["diagnostic_trap", "guideline_nuance"]},
+    {"topic": "gabapentin_neurotoxicity_ckd4", "failure_domain": "renal_pharmacology_dosing", "why_hard": "Renal dose adjustment and the 'hepatic metabolism' misconception.", "axes": ["diagnostic_trap", "high_stakes"]},
+    {"topic": "cardiorenal_diuretic_resistance", "failure_domain": "cardiorenal_hepatorenal_judgment", "why_hard": "Decongestion vs. worsening creatinine; permissive creatinine rise, sequential nephron blockade, when to ultrafilter.", "axes": ["competing_risks", "multi_step", "high_stakes"]},
+    {"topic": "hrs_vs_atn_vs_prerenal_in_cirrhosis", "failure_domain": "cardiorenal_hepatorenal_judgment", "why_hard": "Diagnostic criteria, albumin challenge, terlipressin, and traps in urine indices.", "axes": ["diagnostic_trap", "multi_step", "high_stakes"]}
+  ],
   "items": [
     {
       "seed_id": "neph-seed-0001",

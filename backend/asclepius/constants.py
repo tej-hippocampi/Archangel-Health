@@ -26,12 +26,20 @@ VERDICTS = ("A_better", "B_better", "both_inadequate")
 
 # Stage-1 prompt-validation gate (Eval Flow Upgrade §2). The clinician signs off
 # on the prompt before any answer is revealed: ``valid`` upgrades provenance and
-# continues capture; ``flagged`` skips the task to admin review (0 records).
-PROMPT_REVIEW_VERDICTS = ("valid", "flagged")
+# continues capture; ``flagged`` skips the task to admin review (0 records);
+# ``not_hard`` (Seamless PRD WS2) means the prompt is clinically valid but NOT
+# genuinely hard — it is routed out of the hard-case queue and fed back to
+# recalibrate the hardness judge/corpus (human-in-the-loop hardness curation).
+PROMPT_REVIEW_VERDICTS = ("valid", "flagged", "not_hard")
 
 # Task-side status for a prompt a clinician flagged as invalid. Excluded from the
 # evaluator queue (not ``open``) and surfaced in the admin Tasks list for triage.
 PROMPT_FLAGGED_TASK_STATUS = "prompt_flagged"
+
+# Task-side status for a prompt flagged "not actually hard" (WS2). Also excluded
+# from the queue; distinct from prompt_flagged so hardness-curation feedback is
+# separable from clinical-validity triage.
+NOT_HARD_TASK_STATUS = "not_hard"
 
 # Quick confidence buttons.
 CONFIDENCE_LEVELS = ("low", "medium", "high")
@@ -161,6 +169,9 @@ SUBMISSION_STATUSES = (
     # Stage-1 flag: prompt judged clinically invalid; captured for audit but never
     # packaged (Eval Flow Upgrade §2). Terminal side-branch off the happy path.
     "prompt_flagged",
+    # Stage-1 "not actually hard" flag (Seamless PRD WS2): valid but not hard;
+    # captured for hardness-judge recalibration, never packaged.
+    "not_hard",
 )
 
 # Packaged training-record types (PRD §6.3).
@@ -319,10 +330,40 @@ GENERATION_DROP_REASONS = (
     "unsafe",               # judge: safety_ok == false
     "low_error_likelihood",  # judge: below ASCLEPIUS_GEN_MIN_ERROR_LIKELIHOOD
     "low_revision_value",   # judge: below ASCLEPIUS_GEN_MIN_REVISION_VALUE
+    "below_hardness_floor",  # hardness judge: score < HARDNESS_MIN (Seamless PRD WS2)
     "candidate_gen_failed",  # could not produce two candidate answers
     "empty_prompt",         # model returned an empty/blank prompt
     "judge_failed",         # judge unavailable / unparseable for this item
 )
+
+# ─── Hard-Case Engine (Seamless PRD WS2) ──────────────────────────────────────
+# Every generated candidate is scored 0–1 on a hardness rubric; below the floor
+# it is dropped (``below_hardness_floor``). A passing candidate is auto-set to
+# ``difficulty=hard`` and stamped with its hardness score + axes so exports can
+# filter/prove hardness. The hard-case queue (V3) serves ONLY difficulty=hard.
+HARDNESS_AXES = (
+    "multi_step",         # requires multi-step reasoning, not single-fact recall
+    "competing_risks",    # a genuine trade-off (e.g. decongestion vs. rising Cr)
+    "diagnostic_trap",    # the "obvious" answer is wrong or incomplete
+    "guideline_nuance",   # rewards guideline nuance
+    "recent_change",      # rewards a recent guideline/dosing change (AI cutoff lag)
+    "high_stakes",        # safety-relevant / high clinical stakes
+    "model_failure_domain",  # sits in a known model-weak area for the specialty
+)
+
+
+def hardness_min() -> float:
+    """Minimum hardness score (0–1) a generated candidate must reach to be served
+    as a hard case. Env-overridable so the floor can be tuned to judge behavior."""
+    return _env_float("ASCLEPIUS_HARDNESS_MIN", 0.7)
+
+
+def hard_only_generation() -> bool:
+    """Whether the generator gates on hardness (drops below the floor + forces
+    difficulty=hard). Default ON — the engine's purpose is hard cases — but the
+    hardness judge degrades to skipped with no LLM key, so offline generation is
+    unaffected. Set ASCLEPIUS_HARD_ONLY=0 to disable the gate entirely."""
+    return (os.getenv("ASCLEPIUS_HARD_ONLY", "1").strip().lower() in ("1", "true", "yes", "on"))
 
 # Near-duplicate threshold: token-set Jaccard >= this against any existing prompt
 # (seed or prior generation) drops the new prompt as ``near_duplicate`` (PRD §7.4).
