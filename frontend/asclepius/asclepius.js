@@ -508,6 +508,156 @@
   // (the instinct one-liner, hide-suggestions-until-verdict) uses ``isV3()``.
   function isAssisted() { return draftVersion() !== 'v1'; }
 
+  // ─── Multimodal cases (Synthetic Multimodal Cases PRD §5) ───────────────────
+  // The current task's PUBLIC structured case (answer key already stripped
+  // server-side), or null for a plain text task.
+  function multimodalCase() {
+    const t = state.task;
+    if (!t || (t.modality || 'text') !== 'multimodal') return null;
+    return (t.case && typeof t.case === 'object') ? t.case : null;
+  }
+
+  // The clinical question, split out of a rendered multimodal prompt so the
+  // prompt card shows the question and the case panel shows the data (no dupe).
+  // Mirrors ``cases.render_case_prompt`` ("CLINICAL QUESTION:\n{q}\n\nCLINICAL
+  // CASE…"); falls back to the whole prompt if the markers aren't present.
+  function caseQuestion(prompt) {
+    const s = String(prompt || '');
+    const idx = s.indexOf('\n\nCLINICAL CASE');
+    const head = idx !== -1 ? s.slice(0, idx) : s;
+    return head.replace(/^CLINICAL QUESTION:\s*/i, '').trim() || s.trim();
+  }
+
+  // Lab out-of-range flag → severity class for cell highlighting.
+  function labFlagClass(flag) {
+    const f = String(flag || '').toUpperCase();
+    if (f === 'LL' || f === 'HH') return 'asc-lab-crit';
+    if (f === 'L' || f === 'H') return 'asc-lab-warn';
+    return '';
+  }
+  function fmtOffset(off) {
+    const n = parseInt(off, 10) || 0;
+    if (n === 0) return 'day 0';
+    return 'day ' + (n > 0 ? '+' : '') + n;
+  }
+
+  // A trend table across all lab panels: one row per analyte, one column per
+  // distinct collection offset (oldest → newest), so a clinician reads the
+  // trajectory (e.g. a falling sodium) at a glance. Cells are flag-highlighted.
+  function renderLabsTrend(panels) {
+    const ps = (panels || []).slice().sort(
+      (a, b) => (parseInt(a.collected_offset_days, 10) || 0) - (parseInt(b.collected_offset_days, 10) || 0));
+    if (!ps.length) return null;
+    const offsets = [];
+    ps.forEach((p) => { const o = parseInt(p.collected_offset_days, 10) || 0; if (offsets.indexOf(o) === -1) offsets.push(o); });
+    // analyte order = first-seen; carry unit + ref range + which panel.
+    const order = [];
+    const meta = {};
+    const cell = {}; // analyte -> offset -> {value, flag}
+    ps.forEach((p) => {
+      const off = parseInt(p.collected_offset_days, 10) || 0;
+      (p.results || []).forEach((r) => {
+        const a = String(r.analyte || '');
+        if (!a) return;
+        if (order.indexOf(a) === -1) { order.push(a); meta[a] = { unit: r.unit || '', ref: refRange(r), panel: p.panel || '' }; }
+        cell[a] = cell[a] || {};
+        cell[a][off] = { value: r.value, flag: r.flag };
+      });
+    });
+    const head = h('tr', {},
+      h('th', {}, 'Analyte'),
+      h('th', {}, 'Ref'),
+      ...offsets.map((o) => h('th', { class: 'asc-lab-num' }, fmtOffset(o))));
+    const rows = order.map((a) => h('tr', {},
+      h('td', { class: 'asc-lab-analyte' }, a + (meta[a].unit ? ' (' + meta[a].unit + ')' : '')),
+      h('td', { class: 'asc-lab-ref' }, meta[a].ref),
+      ...offsets.map((o) => {
+        const c = (cell[a] || {})[o];
+        if (!c || c.value == null || c.value === '') return h('td', { class: 'asc-lab-num' }, '·');
+        return h('td', { class: 'asc-lab-num ' + labFlagClass(c.flag) },
+          String(c.value) + (c.flag ? ' ' + String(c.flag).toUpperCase() : ''));
+      })));
+    return h('div', { class: 'asc-lab-scroll' },
+      h('table', { class: 'asc-lab-table' }, h('thead', {}, head), h('tbody', {}, ...rows)));
+  }
+  function refRange(r) {
+    const lo = (r.ref_low === null || r.ref_low === undefined) ? '' : r.ref_low;
+    const hi = (r.ref_high === null || r.ref_high === undefined) ? '' : r.ref_high;
+    if (lo === '' && hi === '') return '—';
+    return lo + '–' + hi;
+  }
+
+  // The tabbed case panel. Tabs are built only for sections that carry data, so a
+  // labs-only case doesn't show empty Meds/Vitals tabs. State (active tab) lives
+  // on ``state._caseTab`` keyed by task so it survives re-renders within a task.
+  function renderCasePanel() {
+    const c = multimodalCase();
+    if (!c) return null;
+    const demo = c.demographics || {};
+    const who = [demo.sex, demo.age_band ? ('age ' + demo.age_band) : null].filter(Boolean).join(', ');
+
+    const tabs = [];
+    // Patient overview (always present).
+    const overview = h('div', { class: 'asc-case-body' },
+      h('div', { class: 'asc-case-patient' }, who ? ('Patient: ' + who) : 'Patient (de-identified)'),
+      (c.problem_list && c.problem_list.length)
+        ? h('div', { class: 'asc-case-sub' }, 'Active problems: ' + c.problem_list.map((p) => p.condition + (p.since ? ' (since ' + p.since + ')' : '')).join('; '))
+        : null,
+      h('div', { class: 'asc-case-note-meta' }, 'De-identified · relative dates · no imaging'));
+    tabs.push({ key: 'overview', label: 'Patient', body: overview });
+
+    if (c.lab_panels && c.lab_panels.length) {
+      tabs.push({ key: 'labs', label: 'Labs', body: h('div', { class: 'asc-case-body' }, renderLabsTrend(c.lab_panels)) });
+    }
+    if (c.notes && c.notes.length) {
+      tabs.push({ key: 'notes', label: 'Notes' + (c.notes.length > 1 ? ' (' + c.notes.length + ')' : ''),
+        body: h('div', { class: 'asc-case-body' }, ...c.notes.map((n) => h('div', { class: 'asc-case-note' },
+          h('div', { class: 'asc-case-note-meta' }, '[' + (n.note_type || 'Note') + ' — ' + (n.author_role || 'clinician') + ']'),
+          h('div', { class: 'asc-case-note-text' }, (n.text || '').trim())))) });
+    }
+    const meds = c.medications || [];
+    if (meds.length) {
+      tabs.push({ key: 'meds', label: 'Meds', body: h('div', { class: 'asc-case-body' },
+        h('ul', { class: 'asc-case-list' }, ...meds.map((m) => h('li', {},
+          [m.drug, m.dose, m.route, m.freq].filter(Boolean).join(' '))))) });
+    }
+    const vitals = c.vitals || {};
+    const vkeys = Object.keys(vitals).filter((k) => vitals[k] !== null && vitals[k] !== undefined && vitals[k] !== '');
+    if (vkeys.length) {
+      tabs.push({ key: 'vitals', label: 'Vitals', body: h('div', { class: 'asc-case-body' },
+        h('div', { class: 'asc-case-vitals' }, ...vkeys.map((k) => h('span', { class: 'asc-vital' },
+          h('span', { class: 'asc-vital-k' }, k), ' ', h('span', { class: 'asc-vital-v' }, String(vitals[k])))))) });
+    }
+
+    const tid = state.task && state.task.task_id;
+    if (!state._caseTab || state._caseTabTask !== tid) { state._caseTab = tabs[0].key; state._caseTabTask = tid; }
+    if (!tabs.some((t) => t.key === state._caseTab)) state._caseTab = tabs[0].key;
+
+    const bodyHost = h('div', { class: 'asc-case-host' });
+    const tabRow = h('div', { class: 'asc-case-tabs', role: 'tablist' });
+    function paint() {
+      clear(bodyHost);
+      const active = tabs.find((t) => t.key === state._caseTab) || tabs[0];
+      bodyHost.appendChild(active.body);
+      Array.prototype.forEach.call(tabRow.children, (btn) => {
+        btn.classList.toggle('asc-case-tab-active', btn.getAttribute('data-tab') === state._caseTab);
+      });
+    }
+    tabs.forEach((t) => {
+      const btn = h('button', { class: 'asc-case-tab', type: 'button', role: 'tab', 'data-tab': t.key,
+        onClick: () => { state._caseTab = t.key; paint(); } }, t.label);
+      tabRow.appendChild(btn);
+    });
+
+    const panel = h('div', { class: 'asc-card asc-case-card' },
+      h('div', { class: 'asc-case-head' },
+        h('span', { class: 'asc-badge asc-badge-accent' }, '🧬 Multimodal case'),
+        h('span', { class: 'asc-case-source' }, (c.case_source === 'real_deid' ? 'Real (de-identified)' : 'Synthetic'))),
+      tabRow, bodyHost);
+    paint();
+    return panel;
+  }
+
   // ─── Grounding (mirror of backend validation.grounding_status) ──────────────
   function isValidAnchor(a) {
     if (!a) return false;
@@ -663,16 +813,22 @@
     const d = state.draft;
     const required = (task.grounding_mode || 'optional') === 'required';
 
+    const caseObj = multimodalCase();
+    // For a multimodal task the case is shown in the structured panel below, so
+    // the prompt card carries only the clinical QUESTION (parsed out of the
+    // rendered prompt) — no duplicated wall of serialized case text.
+    const promptText = caseObj ? caseQuestion(task.prompt) : (task.prompt || '');
     const promptCard = h('div', { class: 'asc-card asc-prompt-card' },
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-meta-row' },
           h('span', { class: 'asc-badge asc-badge-primary' }, task.specialty || 'general'),
           h('span', { class: 'asc-badge asc-badge-gray' }, 'Difficulty: ' + (task.difficulty || 'medium')),
+          caseObj ? h('span', { class: 'asc-badge asc-badge-accent' }, 'Multimodal case') : null,
           task.capture_reasoning ? h('span', { class: 'asc-badge asc-badge-accent' }, 'Reasoning capture') : null,
           required ? h('span', { class: 'asc-badge asc-badge-amber' }, 'Grounding required') : null,
         ),
-        h('div', { class: 'asc-prompt-label' }, 'Clinical prompt'),
-        h('div', { class: 'asc-prompt-text' }, task.prompt || ''),
+        h('div', { class: 'asc-prompt-label' }, caseObj ? 'Clinical question' : 'Clinical prompt'),
+        h('div', { class: 'asc-prompt-text' }, promptText),
       ));
 
     // Grounding disclaimer banner (required mode only)
@@ -686,7 +842,7 @@
         ));
     }
 
-    const wrap = h('div', { class: 'asc-wrap' }, renderExperienceBadge(), promptCard, groundingBanner);
+    const wrap = h('div', { class: 'asc-wrap' }, renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
 
     if (d.stage === 'prompt_review') {
       wrap.appendChild(stageHeader('Review the prompt'));
@@ -977,22 +1133,51 @@
     const reasonBox = h('div', { id: 'ascFlagReason', hidden: true });
     const reasonInput = h('input', { class: 'asc-input', placeholder: 'One line — why is this prompt invalid? (e.g. ambiguous, not clinically meaningful, unsafe premise)', value: d.prompt_review.note || '' });
     reasonInput.addEventListener('input', () => { d.prompt_review.note = reasonInput.value; saveDraft(); });
-    const confirmFlag = h('button', { class: 'asc-btn asc-btn-danger', onClick: flagPrompt }, 'Confirm — flag & skip');
+    // One confirm button dispatches by the reason box's mode, so the flag and the
+    // (multimodal-only) case-incoherent paths share the same reason input without
+    // double-binding a handler.
+    const confirmFlag = h('button', { class: 'asc-btn asc-btn-danger', onClick: () => {
+      if (reasonBox.getAttribute('data-mode') === 'case_incoherent') flagCaseIncoherent();
+      else flagPrompt();
+    } }, 'Confirm — flag & skip');
     reasonBox.appendChild(h('div', { class: 'asc-field', style: 'margin-top:14px' },
       h('label', { class: 'asc-label' }, 'Reason for flagging'),
       reasonInput,
       h('div', { style: 'margin-top:10px' }, confirmFlag)));
 
-    return h('div', { class: 'asc-card asc-card-pad asc-gate' },
-      h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' }, 'Is this prompt clinically valid?'),
-      h('p', { class: 'asc-help', style: 'margin-bottom:16px' },
-        'Confirm the prompt is a real, answerable clinical question before you see any answer. Your sign-off upgrades the data; flagged prompts are sent to admin review and excluded.'),
-      h('div', { class: 'asc-gate-actions' },
-        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', onClick: validatePrompt }, 'Prompt is clinically valid ✓'),
-        h('button', { class: 'asc-btn asc-btn-ghost', onClick: () => {
+    const isCase = !!multimodalCase();
+    // Multimodal (Multimodal PRD §5): a clinician can flag a case whose labs /
+    // notes / problems / meds are internally inconsistent — the human counterpart
+    // to the case-judge coherence gate. Routes the case out (0 records) and feeds
+    // back to recalibrate case generation.
+    const incoherentBtn = isCase
+      ? h('button', { class: 'asc-btn asc-btn-ghost', onClick: () => {
+          reasonInput.placeholder = 'One line — what doesn’t add up? (e.g. the sodium contradicts the note)';
           reasonBox.hidden = false;
+          reasonBox.setAttribute('data-mode', 'case_incoherent');
+          confirmFlag.textContent = 'Confirm — case is inconsistent & skip';
           reasonInput.focus();
-        } }, 'Flag as invalid')),
+        } }, 'Case is internally inconsistent')
+      : null;
+
+    return h('div', { class: 'asc-card asc-card-pad asc-gate' },
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' },
+        isCase ? 'Is this case clinically valid?' : 'Is this prompt clinically valid?'),
+      h('p', { class: 'asc-help', style: 'margin-bottom:16px' },
+        isCase
+          ? 'Confirm the case is coherent and answerable before you see any answer. Your sign-off upgrades the data; flagged cases are sent to review and excluded.'
+          : 'Confirm the prompt is a real, answerable clinical question before you see any answer. Your sign-off upgrades the data; flagged prompts are sent to admin review and excluded.'),
+      h('div', { class: 'asc-gate-actions' },
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', onClick: validatePrompt },
+          isCase ? 'Case is clinically valid ✓' : 'Prompt is clinically valid ✓'),
+        h('button', { class: 'asc-btn asc-btn-ghost', onClick: () => {
+          reasonInput.placeholder = 'One line — why is this invalid? (e.g. ambiguous, not clinically meaningful, unsafe premise)';
+          reasonBox.hidden = false;
+          reasonBox.removeAttribute('data-mode');
+          confirmFlag.textContent = 'Confirm — flag & skip';
+          reasonInput.focus();
+        } }, 'Flag as invalid'),
+        incoherentBtn),
       reasonBox);
   }
 
@@ -1020,6 +1205,30 @@
       renderEvalView();
     } catch (e) {
       if (e.status !== 401) toast('Could not flag the prompt: ' + e.message, 'error');
+    } finally {
+      state.submitting = false;
+    }
+  }
+
+  // Multimodal case flagged internally inconsistent (Multimodal PRD §5) — mirrors
+  // flagPrompt but stamps the case_incoherent verdict; the server routes the case
+  // out (0 records) and feeds the signal back to case-generation recalibration.
+  async function flagCaseIncoherent() {
+    const d = state.draft;
+    d.prompt_review.reviewed = true;
+    d.prompt_review.verdict = 'case_incoherent';
+    d.prompt_review.reviewed_at = new Date().toISOString();
+    saveDraft();
+    if (state.submitting) return;
+    state.submitting = true;
+    try {
+      await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
+      clearDraft(d.task_id);
+      stopTimer();
+      toast('Case flagged as inconsistent — loading the next task', 'success');
+      renderEvalView();
+    } catch (e) {
+      if (e.status !== 401) toast('Could not flag the case: ' + e.message, 'error');
     } finally {
       state.submitting = false;
     }

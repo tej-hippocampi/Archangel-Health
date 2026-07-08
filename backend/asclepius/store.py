@@ -858,7 +858,8 @@ class AsclepiusStore:
         # they stay out of the queue even if a concurrent normal submission lands:
         #   prompt_flagged — clinically invalid prompt (Eval Flow Upgrade §2)
         #   not_hard       — valid but not a hard case (Seamless PRD WS2)
-        if task.get("status") in ("prompt_flagged", "not_hard"):
+        #   case_incoherent— internally inconsistent multimodal case (Multimodal §5)
+        if task.get("status") in ("prompt_flagged", "not_hard", "case_incoherent"):
             return
         count = self.submission_count_for_task(task_id)
         new_status = "done" if count >= int(task.get("max_labels") or 1) else "open"

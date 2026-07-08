@@ -260,3 +260,24 @@ def test_invalid_modality_and_case_source_rejected():
     admin_h = _admin_h()
     assert client.post("/api/asclepius/exports", json={"modality": "bogus"}, headers=admin_h).status_code == 400
     assert client.post("/api/asclepius/exports", json={"case_source": "bogus"}, headers=admin_h).status_code == 400
+
+
+def test_case_incoherent_flag_routes_case_out_zero_records():
+    """A multimodal case a clinician flags as internally inconsistent is routed
+    out (0 records) — the human counterpart to the case-judge coherence gate."""
+    admin_h, ev_h = _admin_h(), _evaluator_h()
+    tid = client.post("/api/asclepius/tasks", json={"tasks": [_mm_task_body()]}, headers=admin_h).json()["created"][0]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": "s-" + uuid.uuid4().hex[:12], "task_id": tid,
+        "portal_version": "v3", "time_spent_sec": 25,
+        "prompt_review": {"reviewed": True, "verdict": "case_incoherent", "note": "sodium contradicts the note"},
+    }, headers=ev_h)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "case_incoherent"
+    assert r.json()["record_count"] == 0
+    assert _store().get_task(tid)["status"] == "case_incoherent"
+
+
+def test_taxonomy_exposes_case_incoherent_verdict():
+    r = client.get("/api/asclepius/taxonomy", headers=_evaluator_h())
+    assert "case_incoherent" in r.json()["prompt_review_verdicts"]

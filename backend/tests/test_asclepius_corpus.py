@@ -7,6 +7,7 @@ review). The registry must enable only nephrology in v1.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -92,3 +93,34 @@ def test_unknown_or_disabled_specialty_raises():
         asc_specialties.get_specialty_config("dermatology")
     assert asc_specialties.is_enabled("nephrology") is True
     assert asc_specialties.is_enabled("dermatology") is False
+
+
+# ─── Multimodal archetypes (Synthetic Multimodal Cases PRD §10) ────────────────
+def test_multimodal_archetypes_present_and_wellformed():
+    from asclepius.generation import _multimodal_archetypes
+    neph = _multimodal_archetypes("nephrology")
+    card = _multimodal_archetypes("cardiology")
+    # Full Appendix A nephrology set + a cardiology multimodal set.
+    assert len(neph) >= 10, len(neph)
+    assert len(card) >= 4, len(card)
+    seen_topics = set()
+    for a in neph + card:
+        assert a.get("topic") and a["topic"] not in seen_topics, a.get("topic")
+        seen_topics.add(a["topic"])
+        mm = a.get("multimodal") or {}
+        assert mm.get("panels"), a["topic"]          # at least one lab panel to reason across
+        assert mm.get("hard_hook"), a["topic"]       # the data-integration trap
+        assert mm.get("ground_truth_spec"), a["topic"]  # the fixed answer key spec
+        # No imaging modality is ever seeded (PRD §2).
+        blob = (json.dumps(mm)).lower()
+        assert "dicom" not in blob and "imaging" not in blob, a["topic"]
+
+
+def test_multimodal_archetype_failure_domains_valid():
+    """Each multimodal archetype's failure_domain must be one the corpus declares,
+    so the hardness judge gets valid domain context."""
+    from asclepius.generation import _multimodal_archetypes, load_hardness_config
+    for sp in ("nephrology", "cardiology"):
+        domains = {f["name"] for f in (load_hardness_config(sp).get("failure_domains") or [])}
+        for a in _multimodal_archetypes(sp):
+            assert a.get("failure_domain") in domains, (sp, a.get("topic"), a.get("failure_domain"))
