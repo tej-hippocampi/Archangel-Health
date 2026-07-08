@@ -939,13 +939,32 @@
     const cls = 'asc-diff-sent' + (shared ? ' asc-diff-shared' : ' asc-diff-changed');
     return appendTextWithMarks(h('span', { class: cls }), sentence, errSpans);
   }
+  // Render the revised gold answer with the sentences the doctor CHANGED from the
+  // original chosen answer highlighted (Seamless PRD WS4 — "see what you changed").
+  // Reuses the A/B sentence-diff primitives on (original, revised).
+  function renderEditDiff(originalText, revisedText) {
+    const wrap = h('div', { class: 'asc-editdiff' });
+    const oS = splitSentences(originalText || ''), rS = splitSentences(revisedText || '');
+    const flags = diffFlags(oS, rS);
+    if (!flags.any) { wrap.appendChild(h('span', { class: 'asc-diff-shared' }, revisedText || '')); return wrap; }
+    rS.forEach((s, i) => wrap.appendChild(sentenceNode(s, flags.b[i], null)));
+    return wrap;
+  }
   function renderAnswersInto(container) {
     if (!container) return;
     clear(container);
     // V1 (classic) renders plain full text — no diff, no error-span marks. The
-    // assisted flows (V2 + V3) get the bright, marked A/B diff.
+    // assisted flows (V2 + V3) get the marked A/B diff.
     const diff = (!isAssisted() || state.showFullText) ? null : computeAnswerDiff();
     const a = assistData();
+    // WS5 (V3): brighter, unmissable divergence marking + a one-line legend so the
+    // doctor adjudicates the deltas, not the boilerplate. V2 keeps its subtler diff.
+    container.classList.toggle('asc-answers-v3diff', !!(diff && isV3()));
+    if (diff && isV3()) {
+      container.appendChild(h('div', { class: 'asc-diff-legend' },
+        h('span', { class: 'asc-diff-legend-mark' }, '⬍'),
+        ' Bright passages are where A and B differ — shared text is dimmed.'));
+    }
     (state.task.candidate_answers || []).forEach((c) => {
       container.appendChild(renderAnswerCard(c, diff, a));
     });
@@ -1317,12 +1336,40 @@
     const d = state.draft;
     const rev = d.chosen_revision;
     const original = chosenText();
-    const ta = h('textarea', { class: 'asc-textarea', style: 'min-height:120px' },
-      rev.revised_text != null ? rev.revised_text : original);
+    // WS4 (V3): editing the chosen answer into gold is the core high-value action,
+    // so give it a large, comfortable surface (was a cramped 120px box).
+    const bigEditor = isV3();
+    const ta = h('textarea', {
+      class: 'asc-textarea' + (bigEditor ? ' asc-v3-editor' : ''),
+      style: bigEditor ? 'min-height:46vh' : 'min-height:120px',
+    }, rev.revised_text != null ? rev.revised_text : original);
+    // WS4 (V3): a collapsible "what you changed" view diffs the revised gold
+    // against the original so the doctor sees (and the record captures) their edits.
+    const editDiff = h('div', { class: 'asc-editdiff-wrap' });
+    editDiff.setAttribute('hidden', '');
+    const editDiffToggle = bigEditor ? h('button', {
+      class: 'asc-btn-link', type: 'button', style: 'margin-top:6px',
+      onClick: () => {
+        if (editDiff.hasAttribute('hidden')) {
+          clear(editDiff);
+          editDiff.appendChild(renderEditDiff(original, ta.value));
+          editDiff.removeAttribute('hidden');
+          editDiffToggle.textContent = 'Hide changes';
+        } else {
+          editDiff.setAttribute('hidden', '');
+          editDiffToggle.textContent = '⬍ Show what you changed';
+        }
+      },
+    }, '⬍ Show what you changed') : null;
     ta.addEventListener('input', () => {
       rev.revised_text = ta.value;
       rev.edited = ta.value !== original;
       saveDraft();
+      // Keep an open diff in sync as the doctor edits.
+      if (editDiffToggle && !editDiff.hasAttribute('hidden')) {
+        clear(editDiff);
+        editDiff.appendChild(renderEditDiff(original, ta.value));
+      }
     });
 
     const notes = h('textarea', { class: 'asc-textarea', placeholder: 'One line on why this answer is better (optional)…' }, rev.why_better_notes || '');
@@ -1351,7 +1398,7 @@
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Refined answer ',
             h('span', { class: 'asc-label-hint' }, 'edits become the gold revision; original is preserved')),
-          ta),
+          ta, editDiffToggle, editDiff),
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Why it\'s better'),
           notesField),
