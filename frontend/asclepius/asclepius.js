@@ -1215,11 +1215,18 @@
   async function commitIndependentAnswerAndReveal() {
     const d = state.draft;
     if (!(d.independent_answer.text || '').trim()) return;
+    // Re-entrancy guard: V3's Enter-to-reveal can fire again while the reveal POST
+    // is in flight (the disabled button doesn't gate the keydown path). Without
+    // this a second Enter would double-POST /reveal and race two workspace
+    // re-renders on the same draft.
+    if (state._revealing) return;
+    state._revealing = true;
     const btn = document.getElementById('ascRevealBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Revealing…'; }
     try {
       await revealAnswers();
     } catch (e) {
+      state._revealing = false;
       if (btn) { btn.disabled = false; btn.textContent = 'Reveal AI answers →'; }
       if (e.status !== 401) toast('Could not reveal the AI answers: ' + e.message, 'error');
       return;  // stay on Stage 2 rather than reveal blank answers
@@ -1227,6 +1234,7 @@
     d.independent_answer.captured_at = new Date().toISOString();
     d.stage = 'compare';
     saveDraft();
+    state._revealing = false;
     renderTaskWorkspace();
   }
 
@@ -1940,13 +1948,20 @@
             s.section ? h('span', { class: 'asc-cite-sec' }, ' · ' + s.section) : null),
           h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
             onClick: () => {
-              anchor.citation_text = (s.snippet || s.title || '').trim();
-              anchor.source_type = s.source_type || '';
-              anchor.identifier = s.identifier || s.title || '';
+              anchor.citation_text = (s.snippet || s.title || s.identifier || '').trim();
+              // Only accept a source_type the validator recognizes; otherwise leave
+              // it blank so the doctor completes it (never a false "grounded").
+              const types = (state.taxonomy && state.taxonomy.evidence_source_types) || [];
+              anchor.source_type = types.indexOf(s.source_type) !== -1 ? s.source_type : '';
+              anchor.identifier = (s.identifier || s.title || '').trim();
               anchor.url = s.url || '';
               anchor.citation_confirmed = true;
               saveDraft();
-              toast('Citation added — this record is now grounded.', 'success');
+              // Toast the TRUTH: only claim grounded when the anchor actually
+              // validates (else cleanAnchor would strip it on submit / block a
+              // grounding=required task — the misleading-success case).
+              if (isValidAnchor(anchor)) toast('Citation added — this record is now grounded.', 'success');
+              else toast('Citation added — finish the source fields below to ground it.', 'info');
               if (onConfirm) onConfirm();
             } }, '✓ Confirm'));
         wrap.appendChild(chip);
@@ -1961,9 +1976,19 @@
       if (text.length < 12) { clear(wrap); lastQuery = null; return; }
       if (text === lastQuery) return;
       lastQuery = text;
+      // Task-level cache so a renderRationale REBUILD (e.g. when the prelabel
+      // assist arrives and re-renders the card) doesn't re-POST /assist/cite for
+      // the same rationale text — each rebuild otherwise re-bills the retrieval.
+      const cache = state._citeCache;
+      const tid = state.task && state.task.task_id;
+      if (cache && cache.tid === tid && cache.text === text) {
+        if (!dismissed && !isValidAnchor(anchor) && (cache.suggestions || []).length) renderChips(cache.suggestions);
+        return;
+      }
       try {
         const res = await api('/assist/cite', { method: 'POST',
           body: { text, specialty: (state.task && state.task.specialty) || 'nephrology' } });
+        state._citeCache = { tid, text, suggestions: (res && res.suggestions) || [] };
         if (dismissed || isValidAnchor(anchor)) return;
         if (res.skipped || !(res.suggestions || []).length) { clear(wrap); return; }
         renderChips(res.suggestions);
