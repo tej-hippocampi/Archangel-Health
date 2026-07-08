@@ -113,6 +113,36 @@ NEPHROLOGY_TAXONOMY: List[TaxonomyBucket] = [
 ]
 
 
+# ─── Cardiology taxonomy (Seamless PRD WS2 — config-only onboarding demo) ──────
+# Proves the engine is specialty-agnostic: this taxonomy + seed_corpus/
+# cardiology.v1.json + the registry entry below are the ONLY additions needed to
+# enable a new specialty. The Seedmaker, hardness judge, and hard-only serving
+# read this config with zero pipeline changes (see docs/ADD_A_SPECIALTY.md).
+CARDIOLOGY_TAXONOMY: List[TaxonomyBucket] = [
+    TaxonomyBucket(
+        id="hf_gdmt",
+        label="Heart-failure guideline-directed medical therapy",
+        min_difficulty="hard",
+        target_count=40,
+        subtopics=["arni_initiation", "beta_blocker_titration", "mra_potassium", "sglt2i_hf"],
+    ),
+    TaxonomyBucket(
+        id="arrhythmia_anticoag",
+        label="Arrhythmia & anticoagulation trade-offs",
+        min_difficulty="hard",
+        target_count=30,
+        subtopics=["doac_dosing_ckd", "af_stroke_bleeding", "periprocedural_bridging"],
+    ),
+    TaxonomyBucket(
+        id="acs_antithrombotic",
+        label="ACS antithrombotic strategy",
+        min_difficulty="hard",
+        target_count=30,
+        subtopics=["dapt_duration", "de_escalation", "triple_therapy"],
+    ),
+]
+
+
 SPECIALTY_REGISTRY: Dict[str, SpecialtyConfig] = {
     "nephrology": SpecialtyConfig(
         name="nephrology",
@@ -120,9 +150,15 @@ SPECIALTY_REGISTRY: Dict[str, SpecialtyConfig] = {
         taxonomy=NEPHROLOGY_TAXONOMY,
         enabled=True,
     ),
-    # Future specialties are config-only (PRD §15); shipped disabled.
-    # "cardiology": SpecialtyConfig(name="cardiology",
-    #     seed_corpus="seed_corpus/cardiology.v1.json", taxonomy=[...], enabled=False),
+    # Config-only onboarding demo (PRD §15 / Seamless WS2): a new specialty is a
+    # corpus file + a taxonomy + a registry entry, nothing else. Enabled so the
+    # hard-case engine + serving can be demonstrated end-to-end for cardiology.
+    "cardiology": SpecialtyConfig(
+        name="cardiology",
+        seed_corpus="seed_corpus/cardiology.v1.json",
+        taxonomy=CARDIOLOGY_TAXONOMY,
+        enabled=True,
+    ),
 }
 
 

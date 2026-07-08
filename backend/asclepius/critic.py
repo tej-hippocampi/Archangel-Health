@@ -19,6 +19,7 @@ from asclepius.prompts import (
     ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
     ASCLEPIUS_CRITIC_SYSTEM,
     ASCLEPIUS_GROUNDING_SYSTEM,
+    ASCLEPIUS_HARDNESS_JUDGE_SYSTEM,
     ASCLEPIUS_PRELABEL_SYSTEM,
     ASCLEPIUS_PROMPT_GEN_SYSTEM,
     ASCLEPIUS_PROMPT_JUDGE_SYSTEM,
@@ -530,6 +531,55 @@ async def run_prompt_judge(prompt: str, candidates: List[Dict[str, Any]]) -> Dic
         "revision_value": _f(parsed.get("revision_value")),
         "on_specialty": bool(parsed.get("on_specialty", True)),
         "safety_ok": bool(parsed.get("safety_ok", True)),
+        "explanation": parsed.get("explanation", ""),
+        "model": (rec or {}).get("model"),
+    }
+
+
+async def run_hardness_judge(
+    prompt: str,
+    candidates: Optional[List[Dict[str, Any]]] = None,
+    *,
+    failure_domains: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Score how genuinely HARD a prompt is on the WS2 rubric (Seamless PRD).
+    Returns ``{skipped, hardness_score (0–1), hardness_axes, explanation, model}``.
+    Never raises; degrades to ``skipped=True`` with no API key so offline
+    generation is unaffected (the caller then does NOT drop on hardness)."""
+    try:
+        from ai.llm_client import call_llm, first_text
+    except Exception as exc:  # pragma: no cover
+        return {"skipped": True, "error": f"import:{exc}"}
+
+    ctx = ""
+    if failure_domains:
+        ctx = "\n\nKNOWN MODEL-FAILURE DOMAINS FOR THIS SPECIALTY:\n- " + "\n- ".join(failure_domains)
+    lines = [f"PROMPT:\n{prompt}"]
+    for c in candidates or []:
+        lines.append(f"[{c.get('id')}]: {c.get('text', '')}")
+    try:
+        resp, rec = await call_llm(
+            role="asclepius_hardness_judge",
+            system=ASCLEPIUS_HARDNESS_JUDGE_SYSTEM,
+            messages=[{"role": "user", "content": "\n".join(lines) + ctx}],
+            prompt_id="asclepius_hardness_judge",
+            purpose="asclepius_hardness_judge",
+        )
+    except Exception as exc:
+        log.info("asclepius hardness-judge unavailable: %s", exc)
+        return {"skipped": True, "error": str(exc)}
+    parsed = _extract_json(first_text(resp))
+    if parsed is None:
+        return {"skipped": True, "error": "unparseable_hardness_response"}
+    try:
+        score = float(parsed.get("hardness_score"))
+    except (TypeError, ValueError):
+        return {"skipped": True, "error": "no_hardness_score"}
+    axes = [a for a in (parsed.get("hardness_axes") or []) if isinstance(a, str)]
+    return {
+        "skipped": False,
+        "hardness_score": max(0.0, min(1.0, score)),
+        "hardness_axes": axes,
         "explanation": parsed.get("explanation", ""),
         "model": (rec or {}).get("model"),
     }

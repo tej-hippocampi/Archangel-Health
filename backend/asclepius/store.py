@@ -708,10 +708,12 @@ class AsclepiusStore:
             )
 
     def next_task_for_evaluator(
-        self, *, evaluator_id: str, specialty: Optional[str]
+        self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False
     ) -> Optional[Dict[str, Any]]:
         """Oldest open task in the evaluator's specialty that (a) they have not
         already submitted and (b) still has label capacity (max_labels).
+        ``hard_only`` (Seamless PRD WS2, the V3 hard-case queue) restricts to
+        ``difficulty='hard'`` tasks.
 
         TODO(scale): this scans candidate open tasks in Python; fine at pod scale.
         Push the not-mine + capacity filter fully into SQL when volume grows."""
@@ -722,6 +724,8 @@ class AsclepiusStore:
         if specialty:
             clauses.append("t.specialty = ?")
             params.append(specialty)
+        if hard_only:
+            clauses.append("t.difficulty = 'hard'")
         where = " AND ".join(clauses)
         with self._conn() as conn:
             row = conn.execute(
@@ -748,11 +752,14 @@ class AsclepiusStore:
         return None
 
     def eligible_tasks_for_evaluator(
-        self, *, evaluator_id: str, specialty: Optional[str], limit: Optional[int] = None
+        self, *, evaluator_id: str, specialty: Optional[str], limit: Optional[int] = None,
+        hard_only: bool = False,
     ) -> List[Dict[str, Any]]:
         """All open tasks this evaluator may take (not already theirs + still has
         label capacity), oldest first — the candidate set value-aware routing
         (Value-per-Minute PRD B3) ranks by expected value-per-minute.
+        ``hard_only`` (Seamless PRD WS2) restricts to ``difficulty='hard'`` (the
+        V3 hard-case queue).
 
         The scan is UNBOUNDED, exactly like the classic ``next_task_for_evaluator``
         (both filter ``mine``/capacity in Python at pod scale). A SQL ``LIMIT``
@@ -766,6 +773,8 @@ class AsclepiusStore:
         if specialty:
             clauses.append("t.specialty = ?")
             params.append(specialty)
+        if hard_only:
+            clauses.append("t.difficulty = 'hard'")
         where = " AND ".join(clauses)
         with self._conn() as conn:
             rows = conn.execute(
@@ -825,7 +834,11 @@ class AsclepiusStore:
         task = self.get_task(task_id)
         if not task:
             return
-        if task.get("status") == "prompt_flagged":
+        # Terminal Stage-1 flags never reopen/close back to a normal status, so
+        # they stay out of the queue even if a concurrent normal submission lands:
+        #   prompt_flagged — clinically invalid prompt (Eval Flow Upgrade §2)
+        #   not_hard       — valid but not a hard case (Seamless PRD WS2)
+        if task.get("status") in ("prompt_flagged", "not_hard"):
             return
         count = self.submission_count_for_task(task_id)
         new_status = "done" if count >= int(task.get("max_labels") or 1) else "open"

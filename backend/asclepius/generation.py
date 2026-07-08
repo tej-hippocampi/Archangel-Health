@@ -34,8 +34,11 @@ from asclepius.constants import (
     gen_max_attempts_per_task,
     gen_min_error_likelihood,
     gen_min_revision_value,
+    hard_only_generation,
+    hardness_min,
 )
-from asclepius.critic import generate_candidates_ex, run_prompt_gen, run_prompt_judge
+from asclepius.corpus import failure_domain_names
+from asclepius.critic import generate_candidates_ex, run_hardness_judge, run_prompt_gen, run_prompt_judge
 from asclepius.specialties import get_specialty_config
 from asclepius.validation import contamination_hits
 
@@ -278,6 +281,38 @@ async def generate_tasks(
                 dropped["low_revision_value"] += 1
                 continue
 
+            # Stage 3b: Hard-Case gate (Seamless PRD WS2). Score how genuinely hard
+            # the prompt is; drop below the floor (``below_hardness_floor``) and
+            # STAMP the task ``difficulty=hard`` on accept so the hard-case queue is
+            # 100% hard. Degrades safely: a skipped hardness judge (no LLM key)
+            # leaves difficulty untouched and never drops.
+            #
+            # ``insert_difficulty`` is separate from ``difficulty`` on purpose: the
+            # difficulty_mix quota (Gate 4 + the decrement below) is accounted on
+            # the RAW requested ``difficulty`` the gate admitted; only the stored
+            # task is promoted to hard. Overwriting ``difficulty`` here would drain
+            # the wrong quota bucket and then spuriously drop later prompts as
+            # difficulty_mix_skew.
+            hardness = None
+            insert_difficulty = difficulty
+            if hard_only_generation():
+                hj = await run_hardness_judge(
+                    prompt, candidates, failure_domains=failure_domain_names(specialty)
+                )
+                if not hj.get("skipped"):
+                    hs = hj.get("hardness_score")
+                    if hs is None or hs < hardness_min():
+                        dropped["below_hardness_floor"] += 1
+                        continue
+                    insert_difficulty = "hard"
+                    hardness = {
+                        "score": hs,
+                        "axes": hj.get("hardness_axes") or [],
+                        "min": hardness_min(),
+                        "explanation": hj.get("explanation", ""),
+                        "judge_model": hj.get("model"),
+                    }
+
             # Accept: stamp provenance + insert as an ordinary internal-bank task.
             generation = {
                 "engine": ASCLEPIUS_ENGINE,
@@ -300,11 +335,14 @@ async def generate_tasks(
                 # server-side only; stripped from the blinded eval screen (PRD §7.2, §16)
                 "intended_flawed_id": cg.get("intended_flawed_id"),
             }
+            # Hardness provenance (WS2): a buyer can filter/prove the case is hard.
+            if hardness is not None:
+                generation["hardness"] = hardness
             cap = bool(capture_reasoning) or bool(p.get("capture_reasoning_recommended"))
             task = store.insert_task(
                 prompt=prompt,
                 specialty=specialty,
-                difficulty=difficulty,
+                difficulty=insert_difficulty,
                 capture_reasoning=cap,
                 source="internal_prompt_bank",
                 candidate_answers=candidates,

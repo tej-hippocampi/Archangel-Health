@@ -1,0 +1,72 @@
+{
+  "version": "cardiology.v1",
+  "specialty": "cardiology",
+  "ratified": false,
+  "review_status": "ai_drafted_pending_clinician_review",
+  "reviewed_by": null,
+  "reviewed_at": null,
+  "generated_by": "asclepius_seedmaker_scaffold",
+  "note": "STUB corpus demonstrating config-only specialty onboarding (Seamless PRD WS2). Adding this file + a SpecialtyConfig in specialties.py enables cardiology with ZERO pipeline changes — the Seedmaker, hardness judge, and hard-only serving are specialty-agnostic and read this config. Expand the archetypes + items with a cardiologist before production use.",
+  "failure_domains": [
+    {"name": "heart_failure_gdmt", "weight": 0.34, "why": "Sequencing/titrating the four GDMT pillars with low BP, hyperkalemia, or worsening renal function — competing risks the model flattens."},
+    {"name": "arrhythmia_anticoagulation", "weight": 0.33, "why": "AF stroke/bleeding trade-offs, DOAC dosing in renal impairment, and periprocedural bridging traps."},
+    {"name": "acs_antithrombotic", "weight": 0.33, "why": "DAPT duration and de-escalation balancing ischemic vs. bleeding risk — low-consensus judgment."}
+  ],
+  "hardness_rubric": [
+    "Requires multi-step reasoning, not single-fact recall.",
+    "Involves a genuine ischemic-vs-bleeding or efficacy-vs-tolerability trade-off.",
+    "Sits in a known model-failure domain for cardiology.",
+    "Contains a plausible trap (the guideline-reflex answer is wrong for this patient).",
+    "Rewards guideline nuance or a recent change.",
+    "High clinical stakes (safety-relevant)."
+  ],
+  "hard_case_archetypes": [
+    {"topic": "hf_gdmt", "failure_domain": "heart_failure_gdmt", "why_hard": "Initiating/sequencing ARNI + beta-blocker + MRA + SGLT2i in HFrEF with borderline SBP, CKD, and K 5.1 — which pillar first, which to hold.", "axes": ["competing_risks", "multi_step", "guideline_nuance", "high_stakes"]},
+    {"topic": "arrhythmia_anticoag", "failure_domain": "arrhythmia_anticoagulation", "why_hard": "AF anticoagulation in CKD-4 with prior GI bleed — DOAC vs. warfarin, dose-reduction criteria, and the eGFR misconception.", "axes": ["competing_risks", "diagnostic_trap", "high_stakes"]},
+    {"topic": "acs_antithrombotic", "failure_domain": "acs_antithrombotic", "why_hard": "DAPT duration after PCI in a high-bleeding-risk patient on an anticoagulant — de-escalation timing and agent choice.", "axes": ["competing_risks", "guideline_nuance", "high_stakes"]}
+  ],
+  "items": [
+    {
+      "seed_id": "cardio-seed-0001",
+      "specialty": "cardiology",
+      "topic": "hf_gdmt",
+      "subtopic": "arni_initiation",
+      "difficulty": "hard",
+      "prompt": "A 68-year-old with HFrEF (LVEF 28%) on lisinopril and carvedilol has SBP 104, eGFR 34, and K+ 5.1. How do you advance guideline-directed medical therapy, and in what order do you add or switch agents?",
+      "ai_failure_mode": "Recommends adding all four pillars at once or switching to sacubitril/valsartan without accounting for borderline BP, CKD, and potassium.",
+      "why_high_value": "Sequencing GDMT under competing constraints is a low-consensus, high-stakes judgment models routinely oversimplify.",
+      "reference_basis": "AHA/ACC/HFSA heart failure guideline (GDMT sequencing).",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": ["hfref", "gdmt", "arni", "sglt2i", "mra"]
+    },
+    {
+      "seed_id": "cardio-seed-0002",
+      "specialty": "cardiology",
+      "topic": "arrhythmia_anticoag",
+      "subtopic": "doac_dosing_ckd",
+      "difficulty": "hard",
+      "prompt": "A 79-year-old with nonvalvular AF (CHA2DS2-VASc 5), CKD-4 (eGFR 24), weight 58 kg, and a prior GI bleed needs stroke prevention. What anticoagulation strategy and dose do you choose, and what is the common dosing pitfall?",
+      "ai_failure_mode": "Uses eGFR as an apixaban dose-reduction criterion or defers anticoagulation entirely because of the bleed history.",
+      "why_high_value": "Balancing stroke vs. bleeding with renal dose nuance is a frequent, safety-critical model error.",
+      "reference_basis": "Apixaban labeling dose-reduction criteria; AF anticoagulation guidance.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": ["af", "anticoagulation", "apixaban", "ckd", "bleeding"]
+    },
+    {
+      "seed_id": "cardio-seed-0003",
+      "specialty": "cardiology",
+      "topic": "acs_antithrombotic",
+      "subtopic": "dapt_duration",
+      "difficulty": "hard",
+      "prompt": "A 72-year-old on apixaban for AF undergoes PCI with a drug-eluting stent for NSTEMI. How do you structure antithrombotic therapy and DAPT duration given the high bleeding risk?",
+      "ai_failure_mode": "Defaults to 12 months of triple therapy without de-escalation, ignoring bleeding-risk-guided shortening.",
+      "why_high_value": "Triple-therapy duration is a nuanced, guideline-updated, high-bleeding-risk trade-off.",
+      "reference_basis": "ACC/AHA ACS and DAPT guidance for patients on oral anticoagulation.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": ["acs", "pci", "dapt", "triple_therapy", "bleeding"]
+    }
+  ]
+}

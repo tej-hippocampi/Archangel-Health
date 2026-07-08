@@ -305,7 +305,7 @@ def test_unknown_specialty_raises(monkeypatch):
     install_stubs(monkeypatch)
     from asclepius.specialties import SpecialtyNotEnabled
     with pytest.raises(SpecialtyNotEnabled):
-        _gen(specialty="cardiology", n=1)
+        _gen(specialty="dermatology", n=1)
 
 
 # ─── "Did the doctor catch it?" metric (PRD §16) ──────────────────────────────
@@ -387,7 +387,7 @@ def test_router_generation_admin_ok(monkeypatch):
 def test_router_disabled_specialty_400(monkeypatch):
     install_stubs(monkeypatch)
     admin = A.make_user(_store(), role="admin")
-    r = client.post("/api/asclepius/generation/cardiology",
+    r = client.post("/api/asclepius/generation/dermatology",
                     json={"count": 1}, headers=A.headers_for(admin))
     assert r.status_code == 400
     assert r.json()["detail"]["error"] == "specialty_not_enabled"

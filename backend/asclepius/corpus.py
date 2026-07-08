@@ -124,9 +124,38 @@ def load_corpus(specialty: str = "nephrology", *, force: bool = False) -> Dict[s
         "reviewed_by": (data.get("reviewed_by") if isinstance(data, dict) else None),
         "reviewed_at": (data.get("reviewed_at") if isinstance(data, dict) else None),
         "items": items,
+        # Hard-Case Engine config (Seamless PRD WS2). Optional top-level keys; a
+        # corpus without them still loads (hardness scoring falls back to the
+        # universal rubric with no specialty failure-domain context).
+        "failure_domains": (data.get("failure_domains") if isinstance(data, dict) else None) or [],
+        "hard_case_archetypes": (data.get("hard_case_archetypes") if isinstance(data, dict) else None) or [],
+        "hardness_rubric": (data.get("hardness_rubric") if isinstance(data, dict) else None) or [],
     }
     _CACHE[key] = parsed
     return parsed
+
+
+def load_hardness_config(specialty: str = "nephrology") -> Dict[str, Any]:
+    """Per-specialty Hard-Case Engine config (Seamless PRD WS2): the model
+    ``failure_domains``, ``hard_case_archetypes``, and ``hardness_rubric`` the
+    judge + generation read. Returns empty lists when the corpus omits them, so
+    onboarding a specialty with hardness is purely additive corpus data."""
+    c = load_corpus(specialty)
+    return {
+        "failure_domains": c.get("failure_domains") or [],
+        "hard_case_archetypes": c.get("hard_case_archetypes") or [],
+        "hardness_rubric": c.get("hardness_rubric") or [],
+    }
+
+
+def failure_domain_names(specialty: str = "nephrology") -> List[str]:
+    """Flat list of failure-domain names to give the hardness judge as context."""
+    out: List[str] = []
+    for fd in load_hardness_config(specialty).get("failure_domains") or []:
+        name = fd.get("name") if isinstance(fd, dict) else str(fd)
+        if name:
+            out.append(str(name))
+    return out
 
 
 def items_for_bucket(specialty: str, bucket_id: str) -> List[Dict[str, Any]]:

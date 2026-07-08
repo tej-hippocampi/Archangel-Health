@@ -140,6 +140,21 @@ Do NOT invent sources or indices. Return ONLY a JSON list of the chosen candidat
 better than padding with weak matches)."""
 
 
+ASCLEPIUS_HARDNESS_JUDGE_SYSTEM = """You score how genuinely HARD a clinical prompt is — the kind of case where a \
+frontier LLM is most likely to be wrong and a specialist's correction is most valuable (the N+1 frontier). Score \
+0.0–1.0 on this rubric, awarding credit for each item the case satisfies:
+- multi_step: requires multi-step reasoning, NOT single-fact recall.
+- competing_risks: involves a genuine trade-off or competing considerations (e.g. decongestion vs. rising creatinine).
+- diagnostic_trap: the "obvious"/pattern-matched answer is wrong or dangerously incomplete.
+- guideline_nuance: rewards specific guideline nuance.
+- recent_change: rewards a recent guideline or dosing change (a model cutoff-lag zone).
+- high_stakes: safety-relevant, high clinical stakes.
+- model_failure_domain: sits in a known model-weak area for the specialty (given as context when provided).
+A trivial recall question scores low; a multi-step, trap-laden, high-stakes trade-off in a model-weak domain scores \
+high. Return ONLY JSON: {"hardness_score": 0.0-1.0, "hardness_axes": [<the satisfied axis names>], "explanation": \
+"<one sentence>"}. Do not add commentary."""
+
+
 ASCLEPIUS_CANDIDATE_GEN_SYSTEM = """You are generating TWO distinct candidate answers to a medical prompt so \
 that a credentialed specialist can compare them. Make the two answers span a real quality gap so the \
 comparison and any revision are informative: one answer should be STRONG (clinically sound, current, safe) \

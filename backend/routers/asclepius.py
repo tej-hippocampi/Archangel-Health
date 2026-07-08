@@ -51,6 +51,7 @@ from asclepius.constants import (
     GROUNDED_PREMIUM_DISCLAIMER,
     GROUNDING_MODES,
     INDEPENDENT_MODES,
+    NOT_HARD_TASK_STATUS,
     PORTAL_VERSIONS,
     PREFERENCE_VARIANTS,
     PROMPT_FLAGGED_TASK_STATUS,
@@ -539,13 +540,16 @@ def _autofill_specialty(user: Dict[str, Any]) -> str:
     return "nephrology"
 
 
-def _value_aware_next(store: Any, user: Dict[str, Any], specialty: Optional[str]) -> Optional[Dict[str, Any]]:
-    """Value-aware routing (Value-per-Minute PRD B3) — V2 ONLY. Serves the eligible
-    task with the highest expected value-per-minute for THIS contributor (their
-    rolling median speed × each task's expected realized value). Ties break on
-    the oldest task, preserving FIFO fairness within an equal-value cohort."""
+def _value_aware_next(
+    store: Any, user: Dict[str, Any], specialty: Optional[str], *, hard_only: bool = False
+) -> Optional[Dict[str, Any]]:
+    """Value-aware routing (Value-per-Minute PRD B3) — assisted flows. Serves the
+    eligible task with the highest expected value-per-minute for THIS contributor
+    (their rolling median speed × each task's expected realized value). Ties break
+    on the oldest task, preserving FIFO fairness within an equal-value cohort.
+    ``hard_only`` (WS2) restricts the candidate set to hard cases (the V3 queue)."""
     candidates = store.eligible_tasks_for_evaluator(
-        evaluator_id=user["id"], specialty=specialty
+        evaluator_id=user["id"], specialty=specialty, hard_only=hard_only
     )
     if not candidates:
         return None
@@ -570,23 +574,35 @@ def _query_next(
     # typo'd value must fall to classic (normalize_portal_version would map
     # "" / "v9" to the default and silently opt them in — what this must not do).
     value_aware = portal_version in ASSISTED_PORTAL_VERSIONS
+    # V3 is the hard-case queue (Seamless PRD WS2): it serves ONLY difficulty=hard.
+    hard_only = portal_version == "v3"
 
     def _classic(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
-        return store.next_task_for_evaluator(evaluator_id=user["id"], specialty=specialty)
+        return store.next_task_for_evaluator(
+            evaluator_id=user["id"], specialty=specialty, hard_only=hard_only
+        )
 
-    pick = _value_aware_next(store, user, user.get("specialty")) if value_aware else _classic(user.get("specialty"))
+    def _pick(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
+        return _value_aware_next(store, user, specialty, hard_only=hard_only) if value_aware else _classic(specialty)
+
+    pick = _pick(user.get("specialty"))
     if not pick and not user.get("specialty"):
         # admins/QA (and SSO-provisioned clinicians) with no specialty see any queue
-        pick = _value_aware_next(store, user, None) if value_aware else _classic(None)
+        pick = _pick(None)
     return pick
 
 
-async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int) -> int:
+async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int, *, hard_only: bool = False) -> int:
     """Turn ratified seed-corpus prompts into eval tasks by generating only the
     two candidate answers (Sonnet ``asclepius_candidate_gen``). This deliberately
     bypasses the Opus prompt-synthesis + judge + dedupe pipeline (``generate_tasks``)
     so the queue fills reliably and fast: the prompts are already vetted, we just
-    need the A/B answers. Returns the number of tasks created."""
+    need the A/B answers. Returns the number of tasks created.
+
+    ``hard_only`` (the V3 hard-case queue, Seamless PRD WS2): only seed items
+    already marked ``difficulty=hard`` are used — we never fabricate hardness by
+    promoting a medium seed, and we never create tasks V3 would filter out (which
+    would waste candidate-gen calls and leave the queue perpetually empty)."""
     items = asc_corpus.load_corpus(specialty).get("items") or []
     # Dedup against prompts ALREADY in the queue/DB only — NOT the corpus itself
     # (generation._existing_prompt_hashes also hashes the seeds, which here are
@@ -599,6 +615,8 @@ async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int) -> int
     for it in items:
         prompt = (it.get("prompt") or "").strip()
         if not prompt or asc_generation._prompt_hash(prompt) in existing:  # noqa: SLF001
+            continue
+        if hard_only and (it.get("difficulty") or "medium") != "hard":
             continue
         picks.append(it)
         if len(picks) >= batch:
@@ -673,7 +691,9 @@ async def _autofill_queue(
             return None
         _autofill_last_attempt[specialty] = time.monotonic()
         try:
-            created = await _seed_tasks_from_corpus(store, specialty, _autofill_batch())
+            created = await _seed_tasks_from_corpus(
+                store, specialty, _autofill_batch(), hard_only=(portal_version == "v3")
+            )
             log.info("asclepius autofill: created %d task(s) for %s", created, specialty)
         except asc_specialties.SpecialtyNotEnabled:
             return None
@@ -880,6 +900,40 @@ async def submit(
             "record_count": 0,
             "critic": None,
             "agreement_score": None,
+        }
+
+    # Stage-1 "not actually hard" flag (Seamless PRD WS2): the prompt is clinically
+    # valid but not a genuinely hard case. Route it out of the hard-case queue and
+    # feed the signal back to recalibrate the hardness judge/corpus (human-in-the-
+    # loop hardness curation). No records; the doctor advances.
+    if review and review.verdict == "not_hard":
+        # PHI scan on the reason (this path skips validate_submission, but the
+        # "PHI scan on every submission" rule still applies) — redact, don't persist.
+        nh_note_phi = residual_identifiers(review.note) if review.note else []
+        nh_safe_note = "[redacted — possible identifier detected]" if nh_note_phi else review.note
+        nh_pv = normalize_portal_version(body.portal_version)
+        nh_payload = body.model_dump()
+        nh_payload["portal_version"] = nh_pv
+        if nh_note_phi:
+            (nh_payload.get("prompt_review") or {})["note"] = nh_safe_note
+        store.insert_submission(
+            submission_id=sid, task_id=body.task_id, evaluator_id=user["id"],
+            verdict=None, chosen_id=None, rejected_id=None, confidence=body.confidence,
+            time_spent_sec=body.time_spent_sec, payload=nh_payload,
+            annotator=store.annotator_block(user), dedupe_hash=None, grounded=False,
+            grounding_mode=task.get("grounding_mode") or "optional",
+            portal_version=nh_pv, status=NOT_HARD_TASK_STATUS,
+        )
+        store.mark_task_status(body.task_id, NOT_HARD_TASK_STATUS)
+        store.log_event(
+            entity_type="task", entity_id=body.task_id, event_type="prompt_not_hard",
+            actor=user["id"],
+            payload={"submission_id": sid, "hardness": (task.get("generation") or {}).get("hardness"),
+                     "note": nh_safe_note, "phi_redacted": bool(nh_note_phi)},
+        )
+        return {
+            "submission_id": sid, "status": NOT_HARD_TASK_STATUS,
+            "issues": [], "record_count": 0, "critic": None, "agreement_score": None,
         }
 
     if body.verdict not in VERDICTS:

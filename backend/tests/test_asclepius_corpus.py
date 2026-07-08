@@ -79,14 +79,16 @@ def test_sample_exemplars_returns_k():
     assert all("prompt" in e for e in ex)
 
 
-def test_registry_only_nephrology_enabled():
+def test_registry_enabled_specialties():
+    # nephrology (v1) + cardiology (Seamless PRD WS2 config-only onboarding demo).
     specs = {s["specialty"]: s["enabled"] for s in asc_specialties.list_specialties()}
     assert specs.get("nephrology") is True
-    assert all(v is False for k, v in specs.items() if k != "nephrology")
+    assert specs.get("cardiology") is True
 
 
 def test_unknown_or_disabled_specialty_raises():
+    # A specialty with no registry entry raises (config-only onboarding gate).
     with pytest.raises(asc_specialties.SpecialtyNotEnabled):
-        asc_specialties.get_specialty_config("cardiology")
+        asc_specialties.get_specialty_config("dermatology")
     assert asc_specialties.is_enabled("nephrology") is True
-    assert asc_specialties.is_enabled("cardiology") is False
+    assert asc_specialties.is_enabled("dermatology") is False
