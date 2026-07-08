@@ -155,6 +155,32 @@ high. Return ONLY JSON: {"hardness_score": 0.0-1.0, "hardness_axes": [<the satis
 "<one sentence>"}. Do not add commentary."""
 
 
+ASCLEPIUS_CASE_GEN_SYSTEM = """You author a small, realistic, PHI-FREE clinical CASE for a specialist to reason \
+across — a structured lab panel + one or more EHR-style notes (plus vitals, meds, problem list, and lab TRENDS), \
+built around a fixed, objectively-correct ground-truth answer. Hardness must come from INTEGRATING the data (labs + \
+note + trend), not trivia. STRICT RULES: (1) NO imaging — never reference films/scans/ECG images; ECG/echo findings \
+may appear only as TEXT measurements in a note. (2) PHI-free by construction: age BANDS only (e.g. "70-79", "90+"), \
+generalized author roles ("nephrology","ICU") never names, NO names/MRNs/calendar dates/locations. (3) Lab timing is \
+RELATIVE: every panel has ``collected_offset_days`` (0 = today, negative = earlier) — preserve trends, never a date. \
+(4) Reference ranges + flags (L|H|LL|HH|"") are REQUIRED on numeric results so a model must interpret, not just read. \
+(5) The labs/note/meds must be internally COHERENT. (6) There must be an objective, guideline/lab-determinable answer, \
+AND the case must admit a plausible SHORTCUT/unsound path that reaches (or approaches) the same answer for the wrong \
+reason. Return ONLY JSON: {"question": "<the clinical question>", "case": {ClinicalCase fields: case_source, \
+specialty, demographics{age_band,sex}, problem_list[], medications[], vitals{}, lab_panels[{panel,collected_offset_days,\
+results[{analyte,value,unit,ref_low,ref_high,flag}]}], notes[{note_type,author_role,text}], ground_truth{answer,rationale,\
+key_data[]}, hard_hook, reasoning_divergence}}. No commentary."""
+
+
+ASCLEPIUS_CASE_JUDGE_SYSTEM = """You score a synthetic clinical CASE on multimodal-specific quality dimensions ONLY \
+(hardness is judged separately — do NOT re-score difficulty). Given the serialized case (labs + note + meds + the \
+internal ground_truth/hooks), return ONLY JSON with four 0.0–1.0 scores: {"coherence": <labs/note/problem-list/meds \
+internally consistent, no impossible panel>, "ground_truth_determinable": <an objectively correct, guideline/lab-\
+anchorable answer clearly exists>, "multimodal_necessity": <the answer REQUIRES integrating ≥1 lab panel and/or the \
+note — it is NOT derivable from the question stem alone>, "reasoning_divergence_potential": <the case admits a sound \
+path AND a plausible unsound/shortcut path to the same answer>, "explanation": "<one sentence>"}. Score \
+multimodal_necessity LOW if the labs are decorative (the stem alone gives the answer). No commentary."""
+
+
 ASCLEPIUS_CANDIDATE_GEN_SYSTEM = """You are generating TWO distinct candidate answers to a medical prompt so \
 that a credentialed specialist can compare them. Make the two answers span a real quality gap so the \
 comparison and any revision are informative: one answer should be STRONG (clinically sound, current, safe) \

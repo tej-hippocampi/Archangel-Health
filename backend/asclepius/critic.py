@@ -17,6 +17,8 @@ from typing import Any, Dict, List, Optional
 
 from asclepius.prompts import (
     ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
+    ASCLEPIUS_CASE_GEN_SYSTEM,
+    ASCLEPIUS_CASE_JUDGE_SYSTEM,
     ASCLEPIUS_CRITIC_SYSTEM,
     ASCLEPIUS_GROUNDING_SYSTEM,
     ASCLEPIUS_HARDNESS_JUDGE_SYSTEM,
@@ -580,6 +582,118 @@ async def run_hardness_judge(
         "skipped": False,
         "hardness_score": max(0.0, min(1.0, score)),
         "hardness_axes": axes,
+        "explanation": parsed.get("explanation", ""),
+        "model": (rec or {}).get("model"),
+    }
+
+
+# ─── Multimodal case generation + judge (Synthetic Multimodal Cases PRD §3) ────
+async def generate_case(archetype: Dict[str, Any], *, specialty: str = "general") -> Dict[str, Any]:
+    """Author a PHI-free ClinicalCase from a multimodal archetype (the archetype's
+    ``multimodal`` block seeds the panels/hooks/ground-truth). Returns
+    ``{case, question, model, skipped}``; the case is coerced through the
+    ClinicalCase model (so extra fields drop, shape is guaranteed) and stamped
+    ``case_source='synthetic'``. Never raises; degrades to ``skipped=True`` with
+    no LLM (the caller then drops nothing / disables generation, same contract as
+    the other generators)."""
+    empty = {"case": None, "question": None, "model": None, "skipped": True}
+    try:
+        from ai.llm_client import call_llm, first_text
+    except Exception as exc:  # pragma: no cover
+        return {**empty, "error": f"import:{exc}"}
+    from asclepius.cases import ClinicalCase
+
+    mm = (archetype or {}).get("multimodal") or {}
+    ctx = [f"Specialty: {specialty}", f"Archetype topic: {archetype.get('topic', '')}"]
+    if archetype.get("why_hard"):
+        ctx.append(f"Why hard: {archetype['why_hard']}")
+    if mm.get("panels"):
+        ctx.append("Lab panels to synthesize: " + ", ".join(map(str, mm["panels"])))
+    if mm.get("note_types"):
+        ctx.append("Note types: " + ", ".join(map(str, mm["note_types"])))
+    if mm.get("hard_hook"):
+        ctx.append("Hard hook (the data-integration trap): " + str(mm["hard_hook"]))
+    if mm.get("ground_truth_spec"):
+        ctx.append("Ground-truth spec (the objectively correct answer): " + str(mm["ground_truth_spec"]))
+    if mm.get("reasoning_divergence"):
+        ctx.append("Reasoning divergence (sound vs shortcut path): " + str(mm["reasoning_divergence"]))
+    try:
+        resp, rec = await call_llm(
+            role="asclepius_case_gen",
+            system=ASCLEPIUS_CASE_GEN_SYSTEM,
+            messages=[{"role": "user", "content": "\n".join(ctx)}],
+            prompt_id="asclepius_case_gen",
+            purpose="asclepius_case_generation",
+        )
+    except Exception as exc:
+        log.info("asclepius case-gen unavailable: %s", exc)
+        return empty
+    parsed = _extract_json(first_text(resp))
+    if not isinstance(parsed, dict):
+        return {**empty, "error": "unparseable_case"}
+    question = (parsed.get("question") or "").strip()
+    raw_case = parsed.get("case")
+    if not question or not isinstance(raw_case, dict):
+        return {**empty, "error": "incomplete_case"}
+    try:
+        case = ClinicalCase(**raw_case).model_dump()
+    except Exception as exc:  # schema mismatch → drop this item
+        log.info("asclepius case-gen schema error: %s", exc)
+        return {**empty, "error": "case_schema"}
+    case["case_source"] = "synthetic"
+    case.setdefault("specialty", specialty)
+    return {"case": case, "question": question, "model": (rec or {}).get("model"), "skipped": False}
+
+
+async def run_case_judge(case: Dict[str, Any]) -> Dict[str, Any]:
+    """Score a case on multimodal dimensions ONLY (hardness is judged separately by
+    ``run_hardness_judge``). Returns
+    ``{skipped, coherence, ground_truth_determinable, multimodal_necessity,
+    reasoning_divergence_potential, explanation, model}`` — each 0..1. Never
+    raises; degrades to ``skipped=True`` with no LLM (the caller then does NOT
+    drop on case dims, same contract as the hardness judge)."""
+    try:
+        from ai.llm_client import call_llm, first_text
+    except Exception as exc:  # pragma: no cover
+        return {"skipped": True, "error": f"import:{exc}"}
+    from asclepius.cases import as_dict, render_case_prompt
+
+    cd = as_dict(case) or {}
+    serialized = render_case_prompt(cd, "(case under review)")   # PUBLIC render (no key)
+    gt = cd.get("ground_truth") or {}
+    internal = (
+        "\n\nINTERNAL (for judging ground_truth_determinable + divergence only):\n"
+        f"ground_truth.answer: {gt.get('answer', '')}\n"
+        f"hard_hook: {cd.get('hard_hook', '')}\n"
+        f"reasoning_divergence: {cd.get('reasoning_divergence', '')}"
+    )
+    try:
+        resp, rec = await call_llm(
+            role="asclepius_case_judge",
+            system=ASCLEPIUS_CASE_JUDGE_SYSTEM,
+            messages=[{"role": "user", "content": serialized + internal}],
+            prompt_id="asclepius_case_judge",
+            purpose="asclepius_case_judge",
+        )
+    except Exception as exc:
+        log.info("asclepius case-judge unavailable: %s", exc)
+        return {"skipped": True, "error": str(exc)}
+    parsed = _extract_json(first_text(resp))
+    if not isinstance(parsed, dict):
+        return {"skipped": True, "error": "unparseable_case_judge"}
+
+    def _f(v: Any) -> Optional[float]:
+        try:
+            return max(0.0, min(1.0, float(v)))
+        except (TypeError, ValueError):
+            return None
+
+    return {
+        "skipped": False,
+        "coherence": _f(parsed.get("coherence")),
+        "ground_truth_determinable": _f(parsed.get("ground_truth_determinable")),
+        "multimodal_necessity": _f(parsed.get("multimodal_necessity")),
+        "reasoning_divergence_potential": _f(parsed.get("reasoning_divergence_potential")),
         "explanation": parsed.get("explanation", ""),
         "model": (rec or {}).get("model"),
     }
