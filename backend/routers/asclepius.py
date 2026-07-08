@@ -56,12 +56,13 @@ from asclepius.constants import (
     PROMPT_REVIEW_VERDICTS,
     REASONING_STEP_LABELS,
     STEP_CORRECTION_REASONS,
+    ASSISTED_PORTAL_VERSIONS,
     TASK_SOURCES,
     VALUE_TIERS,
     VERDICTS,
     WHY_BETTER_TAGS,
     assist_min_confidence,
-    normalize_independent_mode,
+    independent_capture_kind,
     normalize_portal_version,
     value_per_minute_target,
 )
@@ -560,13 +561,13 @@ def _value_aware_next(store: Any, user: Dict[str, Any], specialty: Optional[str]
 def _query_next(
     store: Any, user: Dict[str, Any], *, portal_version: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
-    # Value-aware routing is a V2-only enhancement. V1 (and any request that does
-    # not explicitly declare the v2 flow) keeps the exact classic oldest-first
-    # behavior — this is the "edits only on V2" guarantee, enforced at the gate.
-    # Match the LITERAL "v2" only: an absent, empty, v1, or typo'd value must fall
-    # to classic (normalize_portal_version would map "" / "v3" to the "v2" default
-    # and silently opt them in — exactly what this gate must not do).
-    value_aware = portal_version == "v2"
+    # Value-aware routing is an ASSISTED-flow enhancement (V2 + V3). V1 (and any
+    # request that does not explicitly declare an assisted flow) keeps the exact
+    # classic oldest-first behavior — the "V1 untouched" guarantee, enforced at
+    # the gate. Match the LITERAL declared version only: an absent, empty, or
+    # typo'd value must fall to classic (normalize_portal_version would map
+    # "" / "v9" to the default and silently opt them in — what this must not do).
+    value_aware = portal_version in ASSISTED_PORTAL_VERSIONS
 
     def _classic(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
         return store.next_task_for_evaluator(evaluator_id=user["id"], specialty=specialty)
@@ -732,13 +733,14 @@ async def reveal_task_answers(
                 "message": "Write your independent answer before revealing the AI answers.",
             },
         )
-    # The contributor's portal version drives the capture kind: V1 (classic)
-    # ALWAYS commits a full blind ideal answer; V2 respects the task's mode
-    # (stance default, 'full' for premium/eval). ``kind`` is stamped
-    # server-side, never trusted from the client — a quick stance can't be
-    # passed off as a full blind ideal answer (Speed Optimization §1).
+    # The contributor's portal version drives the capture kind (single source of
+    # truth in constants): V1 always commits a full blind ideal answer; V3
+    # commits the ~10s instinct one-liner (unless the admin marked the task
+    # 'full'); V2 respects the task's mode (stance default). ``kind`` is stamped
+    # server-side, never trusted from the client — a lightweight capture can't be
+    # passed off as a full blind ideal answer.
     pv = normalize_portal_version(body.portal_version)
-    kind = "full" if pv == "v1" else normalize_independent_mode(task.get("independent_mode"))
+    kind = independent_capture_kind(pv, task.get("independent_mode"))
     store.commit_independent_answer(
         task_id=task_id,
         evaluator_id=user["id"],
@@ -1860,8 +1862,10 @@ async def stats(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
         "portal_version_counts": store.portal_version_counts(),
         "value_per_time": vpt,
         "value_per_time_target": value_per_minute_target(),
-        # Rubber-stamp guard: model-assist override rate on the v2 assisted flow.
+        # Rubber-stamp guard: model-assist override rate on the assisted flow.
         "override_rate": store.override_rate_stats(portal_version="v2"),
+        # Position-bias QC (Seamless PRD WS6): observed A-is-stronger rate (~0.5).
+        "ab_balance": store.ab_balance_stats(),
         "qa_pass_rate": store.qa_pass_rate(),
         "average_agreement": store.average_agreement(),
         "kappa": asc_agreement.aggregate_kappa(store.list_agreement_observations()),

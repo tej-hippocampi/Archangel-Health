@@ -36,13 +36,21 @@ PROMPT_FLAGGED_TASK_STATUS = "prompt_flagged"
 # Quick confidence buttons.
 CONFIDENCE_LEVELS = ("low", "medium", "high")
 
-# Stage-2 independent-capture mode (Speed Optimization, Feature 1). ``stance``
-# (default) asks for a 30–45s quick take before reveal — the anti-anchoring
-# guard — while the gold SFT answer comes from the specialist-refined chosen
-# answer. ``full`` keeps the original long-form blind ideal answer (premium /
-# eval batches). Set per task via ``independent_mode``.
-INDEPENDENT_MODES = ("stance", "full")
+# Stage-2 independent-capture mode. Three kinds, cheapest→richest:
+#   ``instinct`` (V3 default, Seamless PRD WS1) — a ~10s single-line "gut check"
+#     (the crux of the right answer) before reveal. The lightest anti-anchoring
+#     guard; ships as a context field, NOT a gold answer.
+#   ``stance`` (V2 default, Speed Optimization F1) — a 30–45s quick take.
+#   ``full`` — the long-form blind ideal answer (premium / eval batches); the
+#     only kind that packages an additional premium blind-gold SFT record.
+# Set per task via ``independent_mode``; the CAPTURE kind actually stamped is
+# resolved by ``independent_capture_kind`` from the contributor's portal version.
+INDEPENDENT_MODES = ("instinct", "stance", "full")
 DEFAULT_INDEPENDENT_MODE = "stance"
+
+# The pre-reveal capture kinds that are LIGHTWEIGHT anchoring signals (ride the
+# primary record as a context field) rather than a gold blind ideal answer.
+LIGHTWEIGHT_INDEPENDENT_KINDS = ("instinct", "stance")
 
 
 def normalize_independent_mode(value):
@@ -51,14 +59,44 @@ def normalize_independent_mode(value):
     return value if value in INDEPENDENT_MODES else DEFAULT_INDEPENDENT_MODE
 
 
-# Evaluator portal versions (Asclepius V2 launch). Contributors choose per
-# session: ``v1`` is the classic flow (full blind ideal answer, no model
-# assist, no diff view); ``v2`` is the speed-optimized flow (quick stance,
-# pre-labeling, diff, dictation, structured reasons). Stage-1 prompt review
-# and the packaged record types are identical in both. The version is stamped
-# onto every submission + record so buyers/admin can segment by provenance.
-PORTAL_VERSIONS = ("v1", "v2")
-DEFAULT_PORTAL_VERSION = "v2"
+def independent_capture_kind(portal_version, independent_mode):
+    """The Stage-2 capture kind actually stamped, by portal version (one source
+    of truth for the reveal endpoint AND packaging):
+
+      * V1 (classic)  → always ``full`` (the classic flow writes the full blind
+        ideal answer regardless of the task's mode).
+      * V3 (seamless) → ``full`` only when the admin explicitly marked the task
+        ``full`` (premium/eval batch); otherwise the ~10s ``instinct`` one-liner.
+      * V2 (assisted) → the task's ``independent_mode`` (``stance`` by default).
+
+    A client-supplied kind can never upgrade a lightweight capture into a premium
+    blind-gold record — the portal version + task mode are authoritative."""
+    pv = normalize_portal_version(portal_version)
+    if pv == "v1":
+        return "full"
+    if pv == "v3":
+        return "full" if independent_mode == "full" else "instinct"
+    return normalize_independent_mode(independent_mode)
+
+
+# Evaluator portal versions. Contributors choose per session:
+#   ``v1`` classic   — full blind ideal answer, no model assist, no diff view.
+#   ``v2`` assisted  — quick stance, pre-labeling, diff, dictation, structured
+#                      reasons (Speed Optimization + Value-per-Minute).
+#   ``v3`` seamless  — the newest flow (Seamless + Hard-Cases PRD): a ~10s
+#                      instinct one-liner, AI suggestions hidden until the verdict
+#                      is committed, one-click citations, a larger edit surface,
+#                      brighter A/B diff, and a hard-case-only queue. Inherits
+#                      every V2 assisted capability.
+# Stage-1 prompt review and the packaged record TYPES are identical across all
+# three. The version is stamped onto every submission + record so buyers/admin
+# can segment by provenance. V3 is the recommended default for new sessions.
+PORTAL_VERSIONS = ("v1", "v2", "v3")
+DEFAULT_PORTAL_VERSION = "v3"
+
+# Portal versions that get the ASSISTED capabilities (model pre-labeling, diff,
+# dictation, value-aware routing). V1 (classic) is deliberately excluded.
+ASSISTED_PORTAL_VERSIONS = ("v2", "v3")
 
 
 def normalize_portal_version(value):

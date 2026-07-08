@@ -243,6 +243,9 @@
   transition: border-color .15s, box-shadow .15s;
 }
 .asc-textarea { resize: vertical; min-height: 78px; line-height: 1.55; }
+/* V3 instinct one-liner (Seamless PRD WS1): a prominent single-line "gut check". */
+.asc-instinct-input { font-size: 16px; padding: 13px 14px; }
+.asc-instinct-count { display: block; margin-top: 6px; font-size: 12px; color: var(--asc-warn, #b45309); min-height: 14px; }
 .asc-input:focus, .asc-select:focus, .asc-textarea:focus {
   outline: none;
   border-color: var(--asc-primary);

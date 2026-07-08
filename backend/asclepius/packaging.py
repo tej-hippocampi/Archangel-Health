@@ -206,17 +206,17 @@ def _portal_version(submission: Dict[str, Any], payload: Dict[str, Any]) -> str:
 
 
 def _independent_kind(task: Dict[str, Any], ia: Dict[str, Any], portal_version: str) -> str:
-    """Stage-2 capture kind. V1 (classic flow) ALWAYS captures a full blind
-    ideal answer, regardless of the task's mode. V2 respects the admin's
-    per-task ``independent_mode`` (stance default; 'full' for premium/eval).
-    The TASK is authoritative — a client-supplied ``kind`` can never upgrade a
-    stance capture into a premium blind-gold record (it's only consulted for
-    legacy task dicts predating the ``independent_mode`` column)."""
-    from asclepius.constants import normalize_independent_mode, normalize_portal_version
+    """Stage-2 capture kind, by portal version (delegates to the single source of
+    truth in constants): V1 always ``full``; V3 defaults to the ~10s ``instinct``
+    one-liner (``full`` only when the admin marked the task so); V2 respects the
+    task's ``independent_mode`` (``stance`` default). The TASK + portal version are
+    authoritative — a client-supplied ``kind`` can never upgrade a lightweight
+    capture into a premium blind-gold record."""
+    from asclepius.constants import independent_capture_kind
 
-    if normalize_portal_version(portal_version) == "v1":
-        return "full"
-    return normalize_independent_mode(task.get("independent_mode") or ia.get("kind"))
+    return independent_capture_kind(
+        portal_version, task.get("independent_mode") or ia.get("kind")
+    )
 
 
 def _assist_block(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -249,9 +249,14 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
     ia_text = (ia.get("text") or "").strip()
     portal_version = _portal_version(submission, payload)
     ia_kind = _independent_kind(task, ia, portal_version)
-    # In stance mode the pre-reveal capture is a lightweight anchoring-guard
-    # signal attached to the primary record — NOT a gold ideal answer.
-    stance_text = ia_text if (ia_text and ia_kind == "stance") else None
+    # instinct (V3, ~10s one-liner) and stance (V2, quick take) are both
+    # LIGHTWEIGHT pre-reveal anchoring signals attached to the primary record as
+    # context — NOT gold ideal answers. Only ``full`` packages a premium blind
+    # ideal SFT record (below). ``ia_kind`` is stamped on the record so a buyer
+    # can tell an instinct one-liner from a stance from a full blind answer.
+    from asclepius.constants import LIGHTWEIGHT_INDEPENDENT_KINDS
+
+    stance_text = ia_text if (ia_text and ia_kind in LIGHTWEIGHT_INDEPENDENT_KINDS) else None
     assist = _assist_block(payload)
 
     if verdict in ("A_better", "B_better"):
@@ -310,6 +315,9 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
             # Pre-reveal quick stance (Speed Optimization §1): context/anchoring
             # signal only — the gold ideal_answer stays the refined chosen answer.
             "stance": stance_text,
+            # Which lightweight pre-reveal capture produced ``stance`` (instinct |
+            # stance), so a buyer can segment V3 instinct one-liners from V2 stances.
+            "independent_kind": ia_kind if stance_text else None,
             # Model-assist provenance (suggested_* next to the human finals).
             "assist": assist,
             "confidence": submission.get("confidence"),
@@ -356,6 +364,7 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
                 "context": _context(task),
                 # Pre-reveal quick stance rides the primary record (Speed Opt §1).
                 "stance": stance_text,
+                "independent_kind": ia_kind if stance_text else None,
                 "assist": assist,
                 "confidence": submission.get("confidence"),
                 "grounded": grounded,
