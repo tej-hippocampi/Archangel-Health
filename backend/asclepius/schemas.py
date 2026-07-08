@@ -12,6 +12,8 @@ from typing import Annotated, Any, Dict, List, Optional
 
 from pydantic import AfterValidator, BaseModel, Field
 
+from asclepius.cases import ClinicalCase
+
 # Internal evaluation-portal accounts often use non-deliverable / reserved
 # domains (e.g. ``evaluator@asclepius.local``). Pydantic's ``EmailStr`` rejects
 # those via ``email-validator``'s special-use list, so we use a permissive
@@ -117,6 +119,13 @@ class TaskIn(BaseModel):
     # capture — value-aware routing scores from the ESTIMATED value of the task's
     # attributes, not this label; the tier is a human annotation for the queue.
     value_tier: Optional[str] = None
+    # Multimodal clinical case (Synthetic Multimodal Cases PRD §5). Optional +
+    # fully back-compatible: no case → today's text behavior exactly. The
+    # ``modality`` flag lets a buyer/frontend branch without inspecting the case.
+    # ``case`` may carry internal ground_truth on the wire (admin upload); it is
+    # stripped by ``cases.public_case`` before blinding/shipping.
+    case: Optional[ClinicalCase] = None
+    modality: str = "text"  # "text" | "multimodal"
 
 
 class TaskUploadRequest(BaseModel):

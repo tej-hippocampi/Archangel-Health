@@ -27,6 +27,7 @@ from fastapi.responses import StreamingResponse
 
 from asclepius import agreement as asc_agreement
 from asclepius import auth as asc_auth
+from asclepius import cases as asc_cases
 from asclepius import citations as asc_citations
 from asclepius import corpus as asc_corpus
 from asclepius import credentials as asc_credentials
@@ -150,6 +151,12 @@ def _blind_task(task: Dict[str, Any]) -> Dict[str, Any]:
         "candidate_answers": answers,
         # Tells the client the texts must be fetched at reveal (Stage 2 -> 3).
         "answers_withheld": withhold,
+        # Multimodal (Synthetic Multimodal Cases PRD): the case panel renders the
+        # PUBLIC case only — ground_truth/hard_hook/reasoning_divergence are the
+        # answer key and are stripped here, exactly like generator_model. The
+        # rendered case is already in ``prompt`` regardless.
+        "modality": task.get("modality") or "text",
+        "case": asc_cases.public_case(task.get("case")),
     }
     return out
 
@@ -292,9 +299,15 @@ async def upload_tasks(
     for t in body.tasks:
         if not (t.prompt or "").strip():
             continue
+        # Multimodal (Synthetic Multimodal Cases PRD §5): when a structured case is
+        # supplied, the STORED prompt is the rendered case (question + labs table +
+        # notes + meds/vitals) so packaging/export/buyers work unchanged; the full
+        # case (incl. internal ground_truth) is persisted server-side.
+        case_dict = t.case.model_dump() if t.case else None
+        prompt_to_store = asc_cases.render_case_prompt(case_dict, t.prompt) if case_dict else t.prompt
         task = store.insert_task(
             task_id=t.task_id,
-            prompt=t.prompt,
+            prompt=prompt_to_store,
             specialty=t.specialty,
             difficulty=t.difficulty,
             capture_reasoning=t.capture_reasoning,
@@ -305,6 +318,8 @@ async def upload_tasks(
             independent_mode=t.independent_mode or DEFAULT_INDEPENDENT_MODE,
             buyer_request_id=t.buyer_request_id,
             value_tier=t.value_tier,
+            modality=t.modality,
+            case=case_dict,
             created_by=admin["id"],
         )
         created.append(task["task_id"])

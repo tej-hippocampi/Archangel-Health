@@ -180,6 +180,8 @@ class AsclepiusStore:
                     buyer_request_id TEXT,
                     generation_json TEXT,
                     value_tier      TEXT,
+                    modality        TEXT NOT NULL DEFAULT 'text',
+                    case_json       TEXT,
                     status          TEXT NOT NULL DEFAULT 'open',
                     created_by      TEXT,
                     created_at      TEXT NOT NULL
@@ -419,6 +421,12 @@ class AsclepiusStore:
                 # Optional admin routing hint (Value-per-Minute PRD B3). Additive;
                 # NULL means "unspecified" and routing scores from attributes.
                 conn.execute("ALTER TABLE tasks ADD COLUMN value_tier TEXT")
+            if "modality" not in task_cols:
+                # Multimodal clinical cases (Synthetic Multimodal Cases PRD). Additive;
+                # 'text' (default) is today's one-line prompt, 'multimodal' carries a case.
+                conn.execute("ALTER TABLE tasks ADD COLUMN modality TEXT NOT NULL DEFAULT 'text'")
+            if "case_json" not in task_cols:
+                conn.execute("ALTER TABLE tasks ADD COLUMN case_json TEXT")
 
             # Rich credential record provisioned by the Asclepius onboarding flow.
             user_cols = cols("users")
@@ -629,6 +637,8 @@ class AsclepiusStore:
         buyer_request_id: Optional[str] = None,
         generation: Optional[Dict[str, Any]] = None,
         value_tier: Optional[str] = None,
+        modality: str = "text",
+        case: Optional[Dict[str, Any]] = None,
         task_id: Optional[str] = None,
         created_by: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -637,14 +647,20 @@ class AsclepiusStore:
         tid = task_id or _new_id("t")
         gm = grounding_mode if grounding_mode in ("optional", "required") else "optional"
         im = normalize_independent_mode(independent_mode)
+        # Multimodal (Synthetic Multimodal Cases PRD): a structured case implies
+        # modality='multimodal'. The FULL case (incl. internal ground_truth) is
+        # stored server-side; blinding/packaging strip the answer key downstream —
+        # the same contract as the server-side ``intended_flawed_id``.
+        md = "multimodal" if (case or modality == "multimodal") else "text"
         with self._conn() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO tasks
                   (task_id, specialty, difficulty, capture_reasoning, source, prompt,
                    candidate_answers_json, max_labels, grounding_mode, independent_mode,
-                   buyer_request_id, generation_json, value_tier, status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   buyer_request_id, generation_json, value_tier, modality, case_json,
+                   status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -660,6 +676,8 @@ class AsclepiusStore:
                     buyer_request_id,
                     json.dumps(generation) if generation else None,
                     (value_tier or None),
+                    md,
+                    json.dumps(case) if case else None,
                     created_by,
                     _utcnow_iso(),
                 ),
@@ -679,6 +697,8 @@ class AsclepiusStore:
         rec["capture_reasoning"] = bool(rec.get("capture_reasoning"))
         rec["candidate_answers"] = json.loads(rec.pop("candidate_answers_json", "[]") or "[]")
         rec["generation"] = json.loads(rec.pop("generation_json", "null") or "null")
+        # Multimodal case (may be absent on legacy rows / text tasks).
+        rec["case"] = json.loads(rec.pop("case_json", "null") or "null")
         return rec
 
     def list_tasks(
