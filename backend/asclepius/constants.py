@@ -174,7 +174,7 @@ DIFFICULTIES = ("easy", "medium", "hard")
 
 # Evidence anchor source types (opt §1.2). Every anchor declares where the
 # citation came from so a buyer can filter on guideline-grounded evidence.
-EVIDENCE_SOURCE_TYPES = ("guideline", "primary_literature", "expert_consensus", "other")
+EVIDENCE_SOURCE_TYPES = ("guideline", "primary_literature", "expert_consensus", "fda_label", "other")
 
 # PRM800K-style per-step labels (opt §1.1). Each reasoning step is independently
 # labeled; optional numeric ``step_reward`` may accompany the label. Under the

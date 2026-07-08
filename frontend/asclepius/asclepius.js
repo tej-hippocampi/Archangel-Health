@@ -1335,6 +1335,16 @@
       saveDraft();
     });
 
+    // V3 (WS3): auto-suggested citation for this rationale — retrieval keys on
+    // the refined answer + the "why it's better" note. Confirming re-renders so
+    // the anchor block fills and the record reads as grounded.
+    const cite = renderCiteSuggest(
+      rev.evidence_anchor,
+      () => ((rev.revised_text != null ? rev.revised_text : original) + ' ' + (rev.why_better_notes || '')),
+      renderRationale);
+    wireCiteSuggest(notes, cite);
+    wireCiteSuggest(ta, cite);
+
     return h('div', { class: 'asc-subcard' },
       h('div', { class: 'asc-subcard-head chosen' }, '✓ Chosen answer (' + d.chosen_id + ') — edit to improve'),
       h('div', { class: 'asc-subcard-body' },
@@ -1348,6 +1358,7 @@
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Why-better tags ', h('span', { class: 'asc-label-hint' }, '(optional)')),
           chips),
+        cite,
         renderAnchorBlock(rev.evidence_anchor, {
           label: 'citation for this rationale',
           required: (state.task.grounding_mode === 'required'),
@@ -1528,6 +1539,14 @@
     const approach = h('textarea', { class: 'asc-textarea', placeholder: 'Notes on your approach (optional)…' }, fs.approach_notes || '');
     approach.addEventListener('input', () => { fs.approach_notes = approach.value; saveDraft(); });
 
+    // V3 (WS3): auto-suggested citation for the from-scratch ideal answer.
+    const cite = renderCiteSuggest(
+      fs.evidence_anchor,
+      () => ((fs.ideal_answer || '') + ' ' + (fs.approach_notes || '')),
+      renderRationale);
+    wireCiteSuggest(ideal, cite);
+    wireCiteSuggest(approach, cite);
+
     return h('div', { class: 'asc-subcard' },
       h('div', { class: 'asc-subcard-head' }, '✎ Compose the ideal answer'),
       h('div', { class: 'asc-subcard-body' },
@@ -1537,6 +1556,7 @@
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Approach notes ', h('span', { class: 'asc-label-hint' }, '(optional)')),
           approach),
+        cite,
         renderAnchorBlock(fs.evidence_anchor, {
           label: 'citation for this answer',
           required: (state.task.grounding_mode === 'required'),
@@ -1847,6 +1867,76 @@
   }
 
   // ─── Evidence anchor block (progressive disclosure) ─────────────────────────
+  // V3 auto-suggest citation chip (Seamless PRD WS3). Given the clinician's
+  // rationale/answer text, fetch the 1–3 most relevant library citations; the
+  // doctor opens the snippet inline and Confirms (one tap) to set the
+  // evidence_anchor + mark the record grounded (value ×1.3). Nothing is
+  // auto-attached — the confirm is required (mission line). V3 only; returns
+  // null elsewhere so V1/V2 keep the manual citation field unchanged.
+  function renderCiteSuggest(anchor, getText, onConfirm) {
+    if (!isV3()) return null;
+    const wrap = h('div', { class: 'asc-cite-suggest' });
+    let lastQuery = null, dismissed = false;
+    const renderChips = (suggestions) => {
+      clear(wrap);
+      if (!suggestions.length) return;
+      wrap.appendChild(h('div', { class: 'asc-cite-head' },
+        h('span', { class: 'asc-cite-title' }, '📎 Suggested source' + (suggestions.length > 1 ? 's' : '') + ' — tap to review, confirm to cite'),
+        h('button', { class: 'asc-btn-link', type: 'button', onClick: () => { dismissed = true; clear(wrap); } }, 'dismiss')));
+      suggestions.slice(0, 3).forEach((s) => {
+        const snippet = h('div', { class: 'asc-cite-snippet' }, s.snippet || '');
+        snippet.setAttribute('hidden', '');
+        const chip = h('div', { class: 'asc-cite-chip' },
+          h('button', { class: 'asc-cite-open', type: 'button', title: 'Show the source text',
+            onClick: () => { if (snippet.hasAttribute('hidden')) snippet.removeAttribute('hidden'); else snippet.setAttribute('hidden', ''); } },
+            h('strong', {}, s.identifier || s.title || 'Source'),
+            s.section ? h('span', { class: 'asc-cite-sec' }, ' · ' + s.section) : null),
+          h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
+            onClick: () => {
+              anchor.citation_text = (s.snippet || s.title || '').trim();
+              anchor.source_type = s.source_type || '';
+              anchor.identifier = s.identifier || s.title || '';
+              anchor.url = s.url || '';
+              anchor.citation_confirmed = true;
+              saveDraft();
+              toast('Citation added — this record is now grounded.', 'success');
+              if (onConfirm) onConfirm();
+            } }, '✓ Confirm'));
+        wrap.appendChild(chip);
+        wrap.appendChild(snippet);
+      });
+    };
+    const fetchSuggest = async () => {
+      if (dismissed) return;
+      // Don't re-suggest once the doctor has already confirmed/typed a citation.
+      if (isValidAnchor(anchor)) { clear(wrap); return; }
+      const text = (getText() || '').trim();
+      if (text.length < 12) { clear(wrap); lastQuery = null; return; }
+      if (text === lastQuery) return;
+      lastQuery = text;
+      try {
+        const res = await api('/assist/cite', { method: 'POST',
+          body: { text, specialty: (state.task && state.task.specialty) || 'nephrology' } });
+        if (dismissed || isValidAnchor(anchor)) return;
+        if (res.skipped || !(res.suggestions || []).length) { clear(wrap); return; }
+        renderChips(res.suggestions);
+      } catch (e) { /* suggestions are a bonus — never surface an error to the doctor */ }
+    };
+    wrap._fetch = fetchSuggest;
+    setTimeout(fetchSuggest, 400);
+    return wrap;
+  }
+
+  // Attach a debounced citation re-suggest to a text field (V3). No-op pre-V3.
+  function wireCiteSuggest(field, widget) {
+    if (!widget || !field) return;
+    let t = null;
+    field.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => { if (widget._fetch) widget._fetch(); }, 700);
+    });
+  }
+
   function renderAnchorBlock(anchor, opts) {
     opts = opts || {};
     const required = !!opts.required;
@@ -2018,7 +2108,15 @@
     }
   }
 
-  function cleanAnchor(a) { return isValidAnchor(a) ? { citation_text: a.citation_text.trim(), source_type: a.source_type, identifier: a.identifier.trim() } : null; }
+  function cleanAnchor(a) {
+    if (!isValidAnchor(a)) return null;
+    const out = { citation_text: a.citation_text.trim(), source_type: a.source_type, identifier: a.identifier.trim() };
+    // Carry the library URL + the confirm flag from an auto-suggested citation
+    // (Seamless PRD WS3) so the record distinguishes a confirmed source.
+    if ((a.url || '').trim()) out.url = a.url.trim();
+    if (a.citation_confirmed) out.citation_confirmed = true;
+    return out;
+  }
   function cleanSteps(steps) {
     return (steps || []).filter((s) => (s.text || '').trim()).map((s, i) => ({
       step: i + 1,

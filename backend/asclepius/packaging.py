@@ -53,16 +53,23 @@ def _context(task: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _anchor(a: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Normalize an evidence anchor to the canonical 3-key shape, or None."""
+    """Normalize an evidence anchor to the canonical shape, or None. Carries the
+    library ``url`` and the ``citation_confirmed`` flag (Seamless PRD WS3) so a
+    buyer can tell a clinician-confirmed library citation from a hand-typed one."""
     if not a or not isinstance(a, dict):
         return None
     if not any((a.get("citation_text"), a.get("source_type"), a.get("identifier"))):
         return None
-    return {
+    out = {
         "citation_text": a.get("citation_text"),
         "source_type": a.get("source_type"),
         "identifier": a.get("identifier"),
     }
+    if a.get("url"):
+        out["url"] = a.get("url")
+    if a.get("citation_confirmed") is not None:
+        out["citation_confirmed"] = bool(a.get("citation_confirmed"))
+    return out
 
 
 def _generation_provenance(task: Dict[str, Any]) -> Optional[Dict[str, Any]]:

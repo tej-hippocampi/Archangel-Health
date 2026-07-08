@@ -246,6 +246,21 @@
 /* V3 instinct one-liner (Seamless PRD WS1): a prominent single-line "gut check". */
 .asc-instinct-input { font-size: 16px; padding: 13px 14px; }
 .asc-instinct-count { display: block; margin-top: 6px; font-size: 12px; color: var(--asc-warn, #b45309); min-height: 14px; }
+
+/* V3 auto-suggested citation chip (Seamless PRD WS3). */
+.asc-cite-suggest { margin: 8px 0 4px; }
+.asc-cite-suggest:empty { display: none; }
+.asc-cite-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.asc-cite-title { font-size: 12.5px; font-weight: 600; color: var(--asc-primary, #2563eb); }
+.asc-cite-chip { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; margin-top: 6px; border: 1.5px solid var(--asc-line-strong, #cbd5e1);
+  border-radius: 8px; background: rgba(37,99,235,.05); }
+.asc-cite-open { flex: 1; min-width: 0; text-align: left; background: none; border: none; cursor: pointer;
+  color: var(--asc-text); font: inherit; padding: 0; }
+.asc-cite-open strong { color: var(--asc-primary, #2563eb); }
+.asc-cite-sec { color: var(--asc-muted, #64748b); font-size: 12px; }
+.asc-cite-snippet { margin: 4px 2px 2px; padding: 8px 10px; font-size: 12.5px; line-height: 1.5;
+  color: var(--asc-text); background: var(--asc-surface-2, #f8fafc); border-left: 3px solid var(--asc-primary, #2563eb); border-radius: 4px; }
 .asc-input:focus, .asc-select:focus, .asc-textarea:focus {
   outline: none;
   border-color: var(--asc-primary);

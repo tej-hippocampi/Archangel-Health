@@ -27,6 +27,7 @@ from fastapi.responses import StreamingResponse
 
 from asclepius import agreement as asc_agreement
 from asclepius import auth as asc_auth
+from asclepius import citations as asc_citations
 from asclepius import corpus as asc_corpus
 from asclepius import credentials as asc_credentials
 from asclepius import export as asc_export
@@ -85,6 +86,7 @@ from asclepius.schemas import (
     BuyerRequestIn,
     BuyerRequestStatusUpdate,
     CandidateGenRequest,
+    CiteRequest,
     ContributorCredentialsIn,
     CreateUserRequest,
     CredentialSummaryRequest,
@@ -1055,6 +1057,38 @@ async def assist_prelabel(
         "error_spans": res.get("error_spans") or [],
         "confidence": res.get("confidence"),
     }
+
+
+# ─── Auto-suggested citations (Seamless PRD WS3) ──────────────────────────────
+@router.post("/assist/cite")
+async def assist_cite(
+    body: CiteRequest, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Auto-suggest the 1–3 most relevant library citations for a rationale or
+    reasoning step so grounding a record is a one-click *confirm* (WS3 — the
+    biggest ratio lever: more grounded/premium records at less time).
+
+    Guardrails: the doctor MUST confirm — nothing is auto-attached; the suggestion
+    is a starting point. Retrieval is deterministic (always works); an optional
+    LLM rerank refines ordering. Degrades to ``skipped=True`` when the specialty
+    has no citation library (the doctor types a citation as before). No
+    anti-peeking gate: citing happens post-reveal on the doctor's OWN text."""
+    text = (body.text or "").strip()
+    if not text:
+        return {"skipped": False, "suggestions": [], "source": "empty_text"}
+    res = await asc_citations.suggest_citations_ranked(
+        text, specialty=(body.specialty or "nephrology"), k=max(1, min(int(body.k or 3), 5))
+    )
+    if res.get("skipped"):
+        return {"skipped": True, "suggestions": [], "reason": "no_citation_library"}
+    if res.get("suggestions"):
+        _store().log_event(
+            entity_type="user", entity_id=user["id"], event_type="citation_suggested",
+            actor=user["id"],
+            payload={"n": len(res["suggestions"]), "source": res.get("source"),
+                     "top": (res["suggestions"][0] or {}).get("identifier")},
+        )
+    return {"skipped": False, "suggestions": res.get("suggestions") or [], "source": res.get("source")}
 
 
 # ─── Voice dictation (Speed Optimization §4) ──────────────────────────────────
