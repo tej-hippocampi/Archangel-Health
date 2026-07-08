@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -57,16 +58,14 @@ def test_suggestions_expose_only_public_fields():
     assert set(top[0].keys()) <= {"id", "title", "section", "source_type", "identifier", "url", "snippet"}
 
 
-@pytest.mark.asyncio
-async def test_ranked_skips_without_library():
-    res = await C.suggest_citations_ranked("anything", specialty="dermatology")
+def test_ranked_skips_without_library():
+    res = asyncio.run(C.suggest_citations_ranked("anything", specialty="dermatology"))
     assert res["skipped"] is True and res["suggestions"] == []
 
 
-@pytest.mark.asyncio
-async def test_ranked_returns_retrieval_offline():
+def test_ranked_returns_retrieval_offline():
     # No LLM key in the test env → deterministic retrieval order, not skipped.
-    res = await C.suggest_citations_ranked("finerenone eGFR 40 potassium", specialty="nephrology", k=3)
+    res = asyncio.run(C.suggest_citations_ranked("finerenone eGFR 40 potassium", specialty="nephrology", k=3))
     assert res["skipped"] is False
     assert res["source"] == "retrieval"
     assert 1 <= len(res["suggestions"]) <= 3
