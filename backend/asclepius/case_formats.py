@@ -1,0 +1,183 @@
+"""Real de-identified case ingestion — the format-adapter seam
+(Synthetic Multimodal Cases PRD §2, §5, §10).
+
+Synthetic cases are authored by the generation engine (``critic.generate_case``).
+The *other* provenance is ``real_deid``: a case parsed from a real, already
+de-identified clinical export. This module is the drop-in seam for that adapter —
+one registry keyed by source format, plus a de-identification guard every
+inbound case must pass before it can be stamped ``case_source="real_deid"``.
+
+Why a separate module: ``cases.py`` owns the PHI-free value model + serialization
+and must stay import-light (routers, packaging, and value all import it). The
+ingest adapters pull in format-specific parsing (CSV / FHIR / HL7v2) and belong
+behind their own seam so nothing downstream depends on them.
+
+Design invariants carried from the model (PRD §2):
+  * **No imaging.** ``dicom`` is registered only to REJECT — images are never a
+    gradable modality, so an imaging export can never become a case.
+  * **Relative offsets, age bands, no PHI.** ``deidentify`` collapses exact ages
+    into bands (90+ merged), scans every free-text field with the shared
+    Safe-Harbor scanner, and refuses a case that still carries residual
+    identifiers. Calendar→relative-offset conversion is the adapter's job (the
+    absolute dates never enter the model), asserted here as a post-condition.
+
+The concrete parsers are intentionally unimplemented (``CaseFormatNotImplemented``)
+so the seam ships as a wired, tested contract without pretending to parse formats
+we have not yet validated against real exports. When an adapter lands, it slots
+into ``FORMATS`` and every downstream path (generation source, value model,
+export filters, datasheet) already handles ``real_deid`` with zero change.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Callable, Dict, List, Optional
+
+from asclepius.cases import ClinicalCase, as_dict
+from asclepius.validation import residual_identifiers
+
+# Source formats a real de-identified export can arrive in. ``dicom`` is present
+# only to reject (no imaging). Keep in sync with the adapter registry below.
+CASE_FORMATS = ("lab_csv", "fhir_r4", "hl7v2", "dicom")
+
+
+class CaseIngestError(ValueError):
+    """A real_deid case could not be ingested (unknown format, parse failure, or
+    it failed the de-identification guard). Never a partial/silent ingest."""
+
+
+class CaseFormatNotImplemented(CaseIngestError):
+    """The format is recognized but its adapter has not landed yet — a wired seam,
+    not a silent no-op."""
+
+
+class ImagingRejected(CaseIngestError):
+    """An imaging export was submitted. Images are never a gradable modality
+    (PRD §2) — the case is rejected outright."""
+
+
+# ─── De-identification guard ──────────────────────────────────────────────────
+def age_to_band(age: Optional[int]) -> Optional[str]:
+    """Collapse an exact age into a Safe-Harbor age band. 90+ merges into a single
+    bucket (HIPAA §164.514(b)(2)(i)(C)); None → None."""
+    if age is None:
+        return None
+    try:
+        a = int(age)
+    except (TypeError, ValueError):
+        return None
+    if a < 0:
+        return None
+    if a >= 90:
+        return "90+"
+    lo = (a // 10) * 10
+    return f"{lo}-{lo + 9}"
+
+
+def _case_text_fields(case: Dict[str, Any]) -> List[str]:
+    """Every free-text field a residual identifier could hide in (note bodies,
+    problem/medication strings, vitals values)."""
+    out: List[str] = []
+    for n in case.get("notes") or []:
+        out.append(str(n.get("text") or ""))
+    for p in case.get("problem_list") or []:
+        out.append(str(p.get("condition") or ""))
+        out.append(str(p.get("since") or ""))
+    for m in case.get("medications") or []:
+        out.append(" ".join(str(m.get(k) or "") for k in ("drug", "dose", "route", "freq")))
+    for k, v in (case.get("vitals") or {}).items():
+        out.append(f"{k} {v}")
+    for lp in case.get("lab_panels") or []:
+        for r in lp.get("results") or []:
+            out.append(str(r.get("value") or ""))
+    return out
+
+
+def deidentify(case: Any) -> Dict[str, Any]:
+    """Return a PHI-free case dict, or raise ``CaseIngestError`` if it cannot be
+    made safe. This is the gate every ``real_deid`` case must clear before it is
+    stamped and stored — the same Safe-Harbor bar synthetic generation is held to.
+
+    Enforced now:
+      * Demographics carry an age BAND only; an ``age`` key is collapsed to a band
+        and dropped, and an out-of-policy exact age never survives.
+      * Every free-text field is scanned with the shared residual-identifier
+        scanner; any hit (name/MRN/SSN/phone/email/**calendar date**) rejects the
+        case — the caller must map dates to ``collected_offset_days`` first.
+      * ``collected_offset_days`` must be an int (relative), never a date string.
+    """
+    c = as_dict(case)
+    if not c:
+        raise CaseIngestError("empty case")
+    c = dict(c)
+
+    demo = dict(c.get("demographics") or {})
+    if demo.get("age") is not None and not demo.get("age_band"):
+        demo["age_band"] = age_to_band(demo.get("age"))
+    demo.pop("age", None)  # exact age never survives
+    c["demographics"] = demo
+
+    # Relative offsets only — a stray date string here means the adapter skipped
+    # the calendar→offset mapping.
+    for lp in c.get("lab_panels") or []:
+        off = lp.get("collected_offset_days", 0)
+        if not isinstance(off, int):
+            raise CaseIngestError(
+                f"lab panel {lp.get('panel')!r} has a non-relative collected_offset_days "
+                f"({off!r}); map calendar dates to integer day offsets before ingest."
+            )
+
+    # Residual-identifier scan across every free-text field (Safe Harbor).
+    kinds: List[str] = []
+    for text in _case_text_fields(c):
+        kinds.extend(residual_identifiers(text))
+    if kinds:
+        raise CaseIngestError(
+            "residual identifiers detected (" + ", ".join(sorted(set(kinds))) + "); "
+            "case is not de-identified and cannot be ingested as real_deid."
+        )
+    return c
+
+
+# ─── Format adapters (seam) ───────────────────────────────────────────────────
+def _not_implemented(fmt: str) -> Callable[..., Dict[str, Any]]:
+    def _adapter(raw: Any, *, specialty: str = "general") -> Dict[str, Any]:
+        raise CaseFormatNotImplemented(
+            f"the {fmt!r} case adapter is not implemented yet. The seam is wired: "
+            f"add a parser that maps {fmt!r} → a ClinicalCase dict and register it in "
+            f"FORMATS, and real_deid ingestion works end-to-end with no other change."
+        )
+    return _adapter
+
+
+def _reject_imaging(raw: Any, *, specialty: str = "general") -> Dict[str, Any]:
+    raise ImagingRejected(
+        "DICOM/imaging is never a gradable modality (PRD §2): cases are text + "
+        "structured tabular data only. Imaging exports are rejected at ingest."
+    )
+
+
+# name → adapter(raw, *, specialty) -> ClinicalCase dict (pre-deidentify).
+FORMATS: Dict[str, Callable[..., Dict[str, Any]]] = {
+    "lab_csv": _not_implemented("lab_csv"),
+    "fhir_r4": _not_implemented("fhir_r4"),
+    "hl7v2": _not_implemented("hl7v2"),
+    "dicom": _reject_imaging,
+}
+
+
+def ingest_real_deid(raw: Any, fmt: str, *, specialty: str = "general") -> Dict[str, Any]:
+    """Parse a real de-identified export into a stored-ready ClinicalCase dict:
+    dispatch to the format adapter, run the de-identification guard, coerce
+    through the ClinicalCase model, and stamp ``case_source="real_deid"``.
+
+    Raises ``CaseIngestError`` for an unknown format, a not-yet-implemented
+    adapter, an imaging export, or a case that fails de-identification."""
+    adapter = FORMATS.get(fmt)
+    if adapter is None:
+        raise CaseIngestError(
+            f"unknown case format {fmt!r}; supported: {', '.join(CASE_FORMATS)}."
+        )
+    parsed = adapter(raw, specialty=specialty)
+    safe = deidentify(parsed)
+    case = ClinicalCase(**{**safe, "case_source": "real_deid", "specialty": safe.get("specialty") or specialty})
+    return case.model_dump()

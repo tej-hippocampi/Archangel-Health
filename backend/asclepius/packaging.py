@@ -46,10 +46,23 @@ def _candidate_text(task: Dict[str, Any], cid: Optional[str]) -> str:
 
 
 def _context(task: Dict[str, Any]) -> Dict[str, Any]:
-    return {
+    ctx: Dict[str, Any] = {
         "specialty": task.get("specialty"),
         "difficulty": task.get("difficulty"),
     }
+    # Multimodal (Synthetic Multimodal Cases PRD §5, §8): carry the PUBLIC case
+    # (no answer key), the modality, and case_source onto every record so a
+    # structured-multimodal buyer gets it while text-only buyers ignore it. Added
+    # ONLY for multimodal tasks — text records are byte-identical to before.
+    from asclepius.cases import is_multimodal, public_case
+
+    if is_multimodal(task):
+        gen = task.get("generation") or {}
+        case = task.get("case") or {}
+        ctx["modality"] = "multimodal"
+        ctx["case"] = public_case(case)
+        ctx["case_source"] = case.get("case_source") or gen.get("case_source") or "synthetic"
+    return ctx
 
 
 def _anchor(a: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:

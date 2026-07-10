@@ -51,15 +51,18 @@ def _tier_mult(
     is_mode_b: bool,
     is_full_independent: bool,
     is_double_labeled_credentialed: bool,
+    is_multimodal: bool = False,
 ) -> float:
     """§A1: multiplicative premium factors, hard-capped so nothing stacks into a
-    fantasy number."""
+    fantasy number. ``is_multimodal`` adds the structured-case premium (PRD §9),
+    still under the cap."""
     mult = (
         (C.value_grounded_mult() if is_grounded else 1.0)
         * _difficulty_mult(difficulty)
         * (C.value_on_policy_mult() if is_mode_b else 1.0)
         * (C.value_full_independent_mult() if is_full_independent else 1.0)
         * (C.value_credentialed_kappa_mult() if is_double_labeled_credentialed else 1.0)
+        * (C.value_multimodal_mult() if is_multimodal else 1.0)
     )
     return min(C.value_tier_mult_cap(), mult)
 
@@ -68,6 +71,17 @@ def _is_mode_b(task: Dict[str, Any]) -> bool:
     """Mode B (on-policy) = grading the buyer's OWN model outputs — the highest-
     value path (PRD B4). Modeled as ``source == 'lab_supplied'``."""
     return (task.get("source") or "") == "lab_supplied"
+
+
+def _is_multimodal(task: Dict[str, Any], records: List[Dict[str, Any]]) -> bool:
+    """A multimodal (structured-case) judgment (Synthetic Multimodal Cases PRD §9).
+    True from the task's modality/case, or a record's ``context.modality``."""
+    if (task.get("modality") or "text") == "multimodal" or task.get("case"):
+        return True
+    for r in records or []:
+        if (r.get("context") or {}).get("modality") == "multimodal":
+            return True
+    return False
 
 
 def _annotator_credentialed(submission: Dict[str, Any]) -> bool:
@@ -132,6 +146,7 @@ def estimate_value(
     is_mode_b = _is_mode_b(task)
     is_full = _independent_full(records, task, submission)
     is_dl_cred = submission.get("agreement_score") is not None and _annotator_credentialed(submission)
+    is_mm = _is_multimodal(task, records)
 
     tier = _tier_mult(
         is_grounded=is_grounded,
@@ -139,6 +154,7 @@ def estimate_value(
         is_mode_b=is_mode_b,
         is_full_independent=is_full,
         is_double_labeled_credentialed=is_dl_cred,
+        is_multimodal=is_mm,
     )
 
     realized = content * tier
@@ -194,6 +210,7 @@ def expected_value_for_task(task: Dict[str, Any]) -> Dict[str, Any]:
         is_mode_b=_is_mode_b(task),
         is_full_independent=(task.get("independent_mode") == "full"),
         is_double_labeled_credentialed=int(task.get("max_labels") or 1) >= 2,
+        is_multimodal=_is_multimodal(task, []),
     )
     realized = content * tier
     return {
