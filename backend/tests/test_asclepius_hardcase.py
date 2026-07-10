@@ -187,6 +187,24 @@ def test_v3_serves_only_hard_tasks():
     assert v2 is not None
 
 
+def test_hard_only_disabled_lets_v3_serve_any(monkeypatch):
+    """Config consistency: if ASCLEPIUS_HARD_ONLY=0 disables the hardness gate
+    (nothing gets stamped 'hard'), the V3 queue must NOT keep filtering to hard —
+    otherwise every V3 clinician sees an empty queue. It falls back to serving the
+    available queue."""
+    monkeypatch.setenv("ASCLEPIUS_HARD_ONLY", "0")
+    A.fresh_store()
+    admin_h = _admin_h()
+    ev_h = _ev_h()
+    medium = _mk_task(admin_h, "medium")
+    served = []
+    for _ in range(4):
+        t = client.get("/api/asclepius/tasks/next?portal_version=v3", headers=ev_h).json()["task"]
+        if t:
+            served.append(t["task_id"])
+    assert medium in served  # not filtered out when the gate is off
+
+
 def test_not_hard_flag_routes_task_out_zero_records():
     A.fresh_store()
     admin_h = _admin_h()

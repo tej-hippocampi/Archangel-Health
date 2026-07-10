@@ -361,9 +361,9 @@
   //  EVALUATOR WORKSPACE
   // ═══════════════════════════════════════════════════════════════════════════
   async function renderEvalView() {
-    // Home page: the evaluator picks their experience (V1 classic / V2 assisted)
-    // before any labeling. Shown on entry until a choice is made this session
-    // (and again whenever they tap "Change experience").
+    // Home page: the evaluator picks their experience (V3 seamless — the
+    // recommended default — / V2 assisted / V1 classic) before any labeling. Shown
+    // on entry until a choice is made this session (and again on "Change experience").
     if (!state.portalChosen) { renderVersionHome(); return; }
     const wrap = h('div', { class: 'asc-wrap' });
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
@@ -2568,6 +2568,13 @@
               try {
                 const res = await api('/tasks', { method: 'POST', body: { tasks } });
                 pasteStatus.appendChild(h('div', { class: 'asc-inline-ok' }, 'Created ' + res.count + ' task(s).'));
+                // V3 (the default flow) serves ONLY difficulty:"hard" tasks. Warn if
+                // any uploaded task isn't hard, so it doesn't silently never appear.
+                const notHard = tasks.filter((t) => ((t && t.difficulty) || 'medium') !== 'hard').length;
+                if (notHard > 0) {
+                  pasteStatus.appendChild(h('div', { class: 'asc-inline-warn', style: 'margin-top:8px' },
+                    '⚠️ ' + notHard + ' of ' + tasks.length + ' task(s) are not difficulty:"hard" and will NOT appear in the V3 (default) hard-case queue. Set difficulty:"hard" to serve them in V3.'));
+                }
                 jsonTa.value = '';
                 loadTasksTable();
               } catch (e) { pasteStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
