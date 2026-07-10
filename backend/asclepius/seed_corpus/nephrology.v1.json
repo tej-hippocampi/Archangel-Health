@@ -8,12 +8,36 @@
   "generated_by": "asclepius_seedmaker_scaffold",
   "note": "Original synthetic vignettes written to exercise known AI failure modes. No PHI, no verbatim text from any benchmark/exam. reference_basis cites the CONCEPT source (guideline/review), not copied question text. AI-drafted starter corpus pending nephrologist ratification before sale.",
   "failure_domains": [
-    {"name": "electrolyte_acid_base", "weight": 0.28, "why": "Top model-failure domain (~42% accuracy); models get hyponatremia and mixed acid-base wrong outright."},
-    {"name": "glomerular_disease_biopsy", "weight": 0.18, "why": "~46% accuracy; biopsy timing, RPGN urgency, PLA2R primary-vs-secondary nuance."},
-    {"name": "transplant", "weight": 0.12, "why": "Rejection vs. CNI toxicity vs. BK vs. recurrent GN — low-consensus, high-stakes."},
-    {"name": "dialysis_ckd_mbd", "weight": 0.14, "why": "Intradialytic hypotension, calciphylaxis, CKD-MBD sequencing, PD peritonitis."},
-    {"name": "renal_pharmacology_dosing", "weight": 0.16, "why": "eGFR-guided dosing, dose-reduction criteria, cutoff-lag on recent thresholds."},
-    {"name": "cardiorenal_hepatorenal_judgment", "weight": 0.12, "why": "Diuretic resistance, permissive creatinine rise, HRS vs. ATN — judgment / low consensus."}
+    {
+      "name": "electrolyte_acid_base",
+      "weight": 0.28,
+      "why": "Top model-failure domain (~42% accuracy); models get hyponatremia and mixed acid-base wrong outright."
+    },
+    {
+      "name": "glomerular_disease_biopsy",
+      "weight": 0.18,
+      "why": "~46% accuracy; biopsy timing, RPGN urgency, PLA2R primary-vs-secondary nuance."
+    },
+    {
+      "name": "transplant",
+      "weight": 0.12,
+      "why": "Rejection vs. CNI toxicity vs. BK vs. recurrent GN — low-consensus, high-stakes."
+    },
+    {
+      "name": "dialysis_ckd_mbd",
+      "weight": 0.14,
+      "why": "Intradialytic hypotension, calciphylaxis, CKD-MBD sequencing, PD peritonitis."
+    },
+    {
+      "name": "renal_pharmacology_dosing",
+      "weight": 0.16,
+      "why": "eGFR-guided dosing, dose-reduction criteria, cutoff-lag on recent thresholds."
+    },
+    {
+      "name": "cardiorenal_hepatorenal_judgment",
+      "weight": 0.12,
+      "why": "Diuretic resistance, permissive creatinine rise, HRS vs. ATN — judgment / low consensus."
+    }
   ],
   "hardness_rubric": [
     "Requires multi-step reasoning, not single-fact recall.",
@@ -24,28 +48,468 @@
     "High clinical stakes (safety-relevant)."
   ],
   "hard_case_archetypes": [
-    {"topic": "hyponatremia_beer_potomania_vs_siadh", "failure_domain": "electrolyte_acid_base", "why_hard": "Na 108 with seizures; the overcorrection trap and pre-emptive DDAVP + D5W to re-lower; plan differs for true chronic SIADH.", "axes": ["multi_step", "diagnostic_trap", "high_stakes", "guideline_nuance"]},
-    {"topic": "severe_hyponatremia_in_advanced_ckd", "failure_domain": "electrolyte_acid_base", "why_hard": "Usual free-water rules change when the kidney can't excrete water; dialysis complicates correction.", "axes": ["multi_step", "diagnostic_trap", "high_stakes"]},
-    {"topic": "triple_acid_base_disorder", "failure_domain": "electrolyte_acid_base", "why_hard": "Vomiting + DKA + sepsis; anion gap, delta-delta, and Winter's formula identify all three; single-diagnosis answer fails.", "axes": ["multi_step", "diagnostic_trap"]},
-    {"topic": "refractory_hypokalemia_metabolic_alkalosis", "failure_domain": "electrolyte_acid_base", "why_hard": "Gitelman vs. Bartter vs. surreptitious vomiting/diuretic; urine chloride + diuretic screen differentiate.", "axes": ["multi_step", "diagnostic_trap"]},
-    {"topic": "hyperkalemia_hd_1k_dialysate_trap", "failure_domain": "electrolyte_acid_base", "why_hard": "K 6.4 with peaked T-waves on HD; the 1K bath arrhythmia trap; calcium stabilizes but does not lower K; sequencing.", "axes": ["diagnostic_trap", "high_stakes", "recent_change"]},
-    {"topic": "type_4_rta_in_diabetic", "failure_domain": "electrolyte_acid_base", "why_hard": "Hyperkalemic non-anion-gap acidosis; potassium/acid-base interplay and management.", "axes": ["multi_step", "guideline_nuance"]},
-    {"topic": "pth_independent_hypercalcemia_workup", "failure_domain": "electrolyte_acid_base", "why_hard": "Granulomatous vs. malignancy vs. milk-alkali; trap of treating before diagnosing.", "axes": ["diagnostic_trap", "multi_step"]},
-    {"topic": "diabetic_nephrotic_without_retinopathy", "failure_domain": "glomerular_disease_biopsy", "why_hard": "Atypical for diabetic nephropathy; when to biopsy for an alternative diagnosis.", "axes": ["diagnostic_trap", "guideline_nuance"]},
-    {"topic": "rapidly_progressive_gn", "failure_domain": "glomerular_disease_biopsy", "why_hard": "ANCA vs. anti-GBM vs. immune-complex; biopsy urgency, empiric steroids, plasmapheresis timing.", "axes": ["multi_step", "high_stakes", "guideline_nuance"]},
-    {"topic": "pla2r_membranous_primary_vs_secondary", "failure_domain": "glomerular_disease_biopsy", "why_hard": "Primary vs. secondary (malignancy/lupus) workup; conservative vs. immunosuppressive and monitoring.", "axes": ["diagnostic_trap", "guideline_nuance"]},
-    {"topic": "igan_risk_stratification_recent_agents", "failure_domain": "glomerular_disease_biopsy", "why_hard": "Supportive (RAS + SGLT2i) vs. immunosuppression; sparsentan and targeted-release budesonide shifts.", "axes": ["recent_change", "guideline_nuance", "multi_step"]},
-    {"topic": "post_transplant_rising_creatinine", "failure_domain": "transplant", "why_hard": "Rejection vs. CNI toxicity vs. BK nephropathy vs. recurrent GN; biopsy vs. adjust levels; the 'just lower tacrolimus' trap.", "axes": ["diagnostic_trap", "multi_step", "high_stakes"]},
-    {"topic": "recurrent_fsgs_post_transplant", "failure_domain": "transplant", "why_hard": "Early recognition + plasmapheresis; distinguishing from de novo disease.", "axes": ["diagnostic_trap", "high_stakes"]},
-    {"topic": "refractory_intradialytic_hypotension", "failure_domain": "dialysis_ckd_mbd", "why_hard": "Dry-weight reassessment, UF-rate, dialysate sodium/temperature, midodrine; the reflex-saline-bolus trap.", "axes": ["diagnostic_trap", "multi_step"]},
-    {"topic": "calciphylaxis_in_dialysis", "failure_domain": "dialysis_ckd_mbd", "why_hard": "Recognition, sodium thiosulfate, modifiable risk factors (warfarin, calcium load).", "axes": ["diagnostic_trap", "high_stakes"]},
-    {"topic": "ckd_mbd_sequencing", "failure_domain": "dialysis_ckd_mbd", "why_hard": "Binders vs. calcimimetics vs. active vitamin D with high PTH, high phosphate, rising calcium.", "axes": ["multi_step", "competing_risks", "guideline_nuance"]},
-    {"topic": "pd_peritonitis_empiric", "failure_domain": "dialysis_ckd_mbd", "why_hard": "Cloudy effluent; empiric intraperitoneal antibiotics and indications for catheter removal.", "axes": ["guideline_nuance", "high_stakes"]},
-    {"topic": "finerenone_add_on_dosing", "failure_domain": "renal_pharmacology_dosing", "why_hard": "T2D + albuminuric CKD on ACEi + SGLT2i; eGFR-guided start, K thresholds, monitoring.", "axes": ["recent_change", "guideline_nuance", "high_stakes"]},
-    {"topic": "apixaban_in_ckd4_dialysis_af", "failure_domain": "renal_pharmacology_dosing", "why_hard": "2-of-3 dose-reduction criteria and why eGFR is NOT one of them.", "axes": ["diagnostic_trap", "guideline_nuance"]},
-    {"topic": "gabapentin_neurotoxicity_ckd4", "failure_domain": "renal_pharmacology_dosing", "why_hard": "Renal dose adjustment and the 'hepatic metabolism' misconception.", "axes": ["diagnostic_trap", "high_stakes"]},
-    {"topic": "cardiorenal_diuretic_resistance", "failure_domain": "cardiorenal_hepatorenal_judgment", "why_hard": "Decongestion vs. worsening creatinine; permissive creatinine rise, sequential nephron blockade, when to ultrafilter.", "axes": ["competing_risks", "multi_step", "high_stakes"]},
-    {"topic": "hrs_vs_atn_vs_prerenal_in_cirrhosis", "failure_domain": "cardiorenal_hepatorenal_judgment", "why_hard": "Diagnostic criteria, albumin challenge, terlipressin, and traps in urine indices.", "axes": ["diagnostic_trap", "multi_step", "high_stakes"]}
+    {
+      "topic": "hyponatremia_beer_potomania_vs_siadh",
+      "failure_domain": "electrolyte_acid_base",
+      "why_hard": "Na 108 with seizures; the overcorrection trap and pre-emptive DDAVP + D5W to re-lower; plan differs for true chronic SIADH.",
+      "axes": [
+        "multi_step",
+        "diagnostic_trap",
+        "high_stakes",
+        "guideline_nuance"
+      ]
+    },
+    {
+      "topic": "severe_hyponatremia_in_advanced_ckd",
+      "failure_domain": "electrolyte_acid_base",
+      "why_hard": "Usual free-water rules change when the kidney can't excrete water; dialysis complicates correction.",
+      "axes": [
+        "multi_step",
+        "diagnostic_trap",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "triple_acid_base_disorder",
+      "failure_domain": "electrolyte_acid_base",
+      "why_hard": "Vomiting + DKA + sepsis; anion gap, delta-delta, and Winter's formula identify all three; single-diagnosis answer fails.",
+      "axes": [
+        "multi_step",
+        "diagnostic_trap"
+      ]
+    },
+    {
+      "topic": "refractory_hypokalemia_metabolic_alkalosis",
+      "failure_domain": "electrolyte_acid_base",
+      "why_hard": "Gitelman vs. Bartter vs. surreptitious vomiting/diuretic; urine chloride + diuretic screen differentiate.",
+      "axes": [
+        "multi_step",
+        "diagnostic_trap"
+      ]
+    },
+    {
+      "topic": "hyperkalemia_hd_1k_dialysate_trap",
+      "failure_domain": "electrolyte_acid_base",
+      "why_hard": "K 6.4 with peaked T-waves on HD; the 1K bath arrhythmia trap; calcium stabilizes but does not lower K; sequencing.",
+      "axes": [
+        "diagnostic_trap",
+        "high_stakes",
+        "recent_change"
+      ]
+    },
+    {
+      "topic": "type_4_rta_in_diabetic",
+      "failure_domain": "electrolyte_acid_base",
+      "why_hard": "Hyperkalemic non-anion-gap acidosis; potassium/acid-base interplay and management.",
+      "axes": [
+        "multi_step",
+        "guideline_nuance"
+      ]
+    },
+    {
+      "topic": "pth_independent_hypercalcemia_workup",
+      "failure_domain": "electrolyte_acid_base",
+      "why_hard": "Granulomatous vs. malignancy vs. milk-alkali; trap of treating before diagnosing.",
+      "axes": [
+        "diagnostic_trap",
+        "multi_step"
+      ]
+    },
+    {
+      "topic": "diabetic_nephrotic_without_retinopathy",
+      "failure_domain": "glomerular_disease_biopsy",
+      "why_hard": "Atypical for diabetic nephropathy; when to biopsy for an alternative diagnosis.",
+      "axes": [
+        "diagnostic_trap",
+        "guideline_nuance"
+      ]
+    },
+    {
+      "topic": "rapidly_progressive_gn",
+      "failure_domain": "glomerular_disease_biopsy",
+      "why_hard": "ANCA vs. anti-GBM vs. immune-complex; biopsy urgency, empiric steroids, plasmapheresis timing.",
+      "axes": [
+        "multi_step",
+        "high_stakes",
+        "guideline_nuance"
+      ]
+    },
+    {
+      "topic": "pla2r_membranous_primary_vs_secondary",
+      "failure_domain": "glomerular_disease_biopsy",
+      "why_hard": "Primary vs. secondary (malignancy/lupus) workup; conservative vs. immunosuppressive and monitoring.",
+      "axes": [
+        "diagnostic_trap",
+        "guideline_nuance"
+      ]
+    },
+    {
+      "topic": "igan_risk_stratification_recent_agents",
+      "failure_domain": "glomerular_disease_biopsy",
+      "why_hard": "Supportive (RAS + SGLT2i) vs. immunosuppression; sparsentan and targeted-release budesonide shifts.",
+      "axes": [
+        "recent_change",
+        "guideline_nuance",
+        "multi_step"
+      ]
+    },
+    {
+      "topic": "post_transplant_rising_creatinine",
+      "failure_domain": "transplant",
+      "why_hard": "Rejection vs. CNI toxicity vs. BK nephropathy vs. recurrent GN; biopsy vs. adjust levels; the 'just lower tacrolimus' trap.",
+      "axes": [
+        "diagnostic_trap",
+        "multi_step",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "recurrent_fsgs_post_transplant",
+      "failure_domain": "transplant",
+      "why_hard": "Early recognition + plasmapheresis; distinguishing from de novo disease.",
+      "axes": [
+        "diagnostic_trap",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "refractory_intradialytic_hypotension",
+      "failure_domain": "dialysis_ckd_mbd",
+      "why_hard": "Dry-weight reassessment, UF-rate, dialysate sodium/temperature, midodrine; the reflex-saline-bolus trap.",
+      "axes": [
+        "diagnostic_trap",
+        "multi_step"
+      ]
+    },
+    {
+      "topic": "calciphylaxis_in_dialysis",
+      "failure_domain": "dialysis_ckd_mbd",
+      "why_hard": "Recognition, sodium thiosulfate, modifiable risk factors (warfarin, calcium load).",
+      "axes": [
+        "diagnostic_trap",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "ckd_mbd_sequencing",
+      "failure_domain": "dialysis_ckd_mbd",
+      "why_hard": "Binders vs. calcimimetics vs. active vitamin D with high PTH, high phosphate, rising calcium.",
+      "axes": [
+        "multi_step",
+        "competing_risks",
+        "guideline_nuance"
+      ]
+    },
+    {
+      "topic": "pd_peritonitis_empiric",
+      "failure_domain": "dialysis_ckd_mbd",
+      "why_hard": "Cloudy effluent; empiric intraperitoneal antibiotics and indications for catheter removal.",
+      "axes": [
+        "guideline_nuance",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "finerenone_add_on_dosing",
+      "failure_domain": "renal_pharmacology_dosing",
+      "why_hard": "T2D + albuminuric CKD on ACEi + SGLT2i; eGFR-guided start, K thresholds, monitoring.",
+      "axes": [
+        "recent_change",
+        "guideline_nuance",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "apixaban_in_ckd4_dialysis_af",
+      "failure_domain": "renal_pharmacology_dosing",
+      "why_hard": "2-of-3 dose-reduction criteria and why eGFR is NOT one of them.",
+      "axes": [
+        "diagnostic_trap",
+        "guideline_nuance"
+      ]
+    },
+    {
+      "topic": "gabapentin_neurotoxicity_ckd4",
+      "failure_domain": "renal_pharmacology_dosing",
+      "why_hard": "Renal dose adjustment and the 'hepatic metabolism' misconception.",
+      "axes": [
+        "diagnostic_trap",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "cardiorenal_diuretic_resistance",
+      "failure_domain": "cardiorenal_hepatorenal_judgment",
+      "why_hard": "Decongestion vs. worsening creatinine; permissive creatinine rise, sequential nephron blockade, when to ultrafilter.",
+      "axes": [
+        "competing_risks",
+        "multi_step",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "hrs_vs_atn_vs_prerenal_in_cirrhosis",
+      "failure_domain": "cardiorenal_hepatorenal_judgment",
+      "why_hard": "Diagnostic criteria, albumin challenge, terlipressin, and traps in urine indices.",
+      "axes": [
+        "diagnostic_trap",
+        "multi_step",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "hyponatremia_siadh_vs_potomania_vs_thiazide",
+      "failure_domain": "electrolyte_acid_base",
+      "why_hard": "Na 112 with overlapping histories; urine osm + urine Na separate SIADH, beer potomania, and thiazide effect, and each has a different correction ceiling and DDAVP-clamp plan.",
+      "axes": [
+        "multi_step",
+        "diagnostic_trap",
+        "high_stakes",
+        "data_integration"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "serum osmolality",
+          "urine osmolality",
+          "urine electrolytes"
+        ],
+        "note_types": [
+          "Consult",
+          "Nursing"
+        ],
+        "hard_hook": "Urine osm and urine Na are what discriminate the three; the shortcut fixates on 'SIADH' from the low serum osm alone and misses the overcorrection/auto-diuresis trap.",
+        "ground_truth_spec": "Classify by urine studies (low urine osm -> potomania/low solute; high urine osm + high urine Na -> SIADH; thiazide history + euvolemia) AND state a safe correction rate with a re-lowering plan.",
+        "reasoning_divergence": "Sound path integrates urine osm/Na + volume + meds; shortcut anchors on serum osm and picks SIADH, over-corrects."
+      }
+    },
+    {
+      "topic": "hyperkalemia_true_vs_pseudo_with_ecg",
+      "failure_domain": "electrolyte_acid_base",
+      "why_hard": "K 6.8 on a RAASi + spironolactone with a hemolyzed draw note; separating pseudohyperkalemia from true, and sequencing membrane stabilization vs shift vs removal.",
+      "axes": [
+        "multi_step",
+        "high_stakes",
+        "data_integration",
+        "guideline_nuance"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "venous blood gas",
+          "hemolysis index"
+        ],
+        "note_types": [
+          "ED Provider",
+          "Nursing"
+        ],
+        "hard_hook": "A hemolysis flag + the ECG findings decide whether this is emergent; the shortcut treats the number without reconciling the hemolyzed specimen or the ECG.",
+        "ground_truth_spec": "Decide true vs pseudohyperkalemia from the hemolysis index/repeat and ECG, then give the correct emergent sequence (calcium -> insulin/dextrose + albuterol -> definitive removal) and stop the offending drugs.",
+        "reasoning_divergence": "Sound path reconciles specimen quality + ECG before acting; shortcut gives dialysis-or-nothing off a single value."
+      }
+    },
+    {
+      "topic": "high_anion_gap_acidosis_osmolar_gap",
+      "failure_domain": "electrolyte_acid_base",
+      "why_hard": "HAGMA with a raised osmolar gap: toxic alcohol vs DKA vs lactic vs 5-oxoproline; the osmolar gap and ketones/lactate steer antidote vs insulin vs source control.",
+      "axes": [
+        "diagnostic_trap",
+        "multi_step",
+        "high_stakes",
+        "data_integration"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "ABG",
+          "serum osmolality",
+          "lactate",
+          "beta-hydroxybutyrate"
+        ],
+        "note_types": [
+          "ED Provider"
+        ],
+        "hard_hook": "The osmolar gap + ketone/lactate pattern is the discriminator; the shortcut calls DKA off the glucose and misses a treatable toxic alcohol.",
+        "ground_truth_spec": "Compute the anion gap and osmolar gap, use ketones/lactate to classify the etiology, and name the etiology-specific treatment (e.g. fomepizole for toxic alcohol) rather than blanket insulin.",
+        "reasoning_divergence": "Sound path computes both gaps and integrates ketones/lactate; shortcut anchors on hyperglycemia."
+      }
+    },
+    {
+      "topic": "aki_prerenal_vs_atn_vs_ain",
+      "failure_domain": "renal_pharmacology_dosing",
+      "why_hard": "Oliguric AKI on a diuretic + recent PPI/antibiotic; FENa is confounded by diuretics, urine eosinophils are unreliable, and the sediment + FEUrea + med timeline are what actually separate pre-renal, ATN, and AIN.",
+      "axes": [
+        "diagnostic_trap",
+        "multi_step",
+        "data_integration",
+        "guideline_nuance"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "urinalysis with microscopy",
+          "urine electrolytes"
+        ],
+        "note_types": [
+          "Consult",
+          "Medication Reconciliation"
+        ],
+        "hard_hook": "On a loop diuretic, FENa is misleading; the shortcut reads 'high FENa = ATN' off a diuretic-confounded value instead of using FEUrea + sediment + drug timeline.",
+        "ground_truth_spec": "Use the urine sediment (muddy-brown casts vs WBC casts vs bland), FEUrea when diuretics are on board, and the medication timeline to classify, and act (stop the culprit drug for AIN).",
+        "reasoning_divergence": "Sound path distrusts FENa on diuretics and reads the sediment/drug timeline; shortcut trusts FENa."
+      }
+    },
+    {
+      "topic": "metabolic_alkalosis_urine_chloride",
+      "failure_domain": "electrolyte_acid_base",
+      "why_hard": "Metabolic alkalosis where urine chloride (not urine Na) separates chloride-responsive (vomiting/diuretics) from chloride-resistant (hyperaldosteronism/Bartter); BP and the diuretic history refine it.",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "guideline_nuance"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "ABG",
+          "urine electrolytes"
+        ],
+        "note_types": [
+          "Consult"
+        ],
+        "hard_hook": "Urine chloride is the discriminator, not urine sodium; the shortcut uses urine Na and mislabels a chloride-responsive alkalosis.",
+        "ground_truth_spec": "Interpret urine chloride (low -> saline-responsive; high -> resistant), integrate BP and meds, and give the correct treatment (saline/K repletion vs mineralocorticoid workup).",
+        "reasoning_divergence": "Sound path keys on urine chloride + BP; shortcut substitutes urine sodium."
+      }
+    },
+    {
+      "topic": "nephritic_vs_nephrotic_serologies",
+      "failure_domain": "glomerular_disease_biopsy",
+      "why_hard": "Glomerular disease where the active sediment + complement + serologies + degree of proteinuria decide nephritic vs nephrotic and drive the biopsy/immunosuppression decision.",
+      "axes": [
+        "multi_step",
+        "diagnostic_trap",
+        "data_integration",
+        "recency"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "urinalysis with microscopy",
+          "spot urine protein-creatinine ratio",
+          "complement (C3/C4)",
+          "serum albumin"
+        ],
+        "note_types": [
+          "Consult"
+        ],
+        "hard_hook": "An active sediment (dysmorphic RBCs/RBC casts) with low C3 points nephritic; the shortcut calls 'nephrotic' off heavy proteinuria alone and delays the right serologic workup.",
+        "ground_truth_spec": "Classify the pattern from sediment + complement + serologies + UPCR, and state the next step (serologies/biopsy) and whether empiric immunosuppression is warranted.",
+        "reasoning_divergence": "Sound path integrates sediment + complement; shortcut classifies on proteinuria magnitude."
+      }
+    },
+    {
+      "topic": "ckd_mbd_calcium_phosphate_pth",
+      "failure_domain": "dialysis_ckd_mbd",
+      "why_hard": "CKD-MBD where albumin-corrected calcium, phosphate, PTH, and vitamin D must be read together with the binder/cinacalcet list; oversuppressed PTH risks adynamic bone.",
+      "axes": [
+        "multi_step",
+        "data_integration",
+        "guideline_nuance"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "phosphate",
+          "intact PTH",
+          "25-OH vitamin D",
+          "corrected calcium"
+        ],
+        "note_types": [
+          "Consult",
+          "Medication Reconciliation"
+        ],
+        "hard_hook": "Calcium must be corrected for albumin and PTH read in the CKD target range; the shortcut treats a 'low' uncorrected calcium and over-suppresses PTH.",
+        "ground_truth_spec": "Correct calcium for albumin, interpret PTH against the CKD-stage target, and adjust binders/analogs to avoid both hyperphosphatemia and adynamic bone.",
+        "reasoning_divergence": "Sound path corrects calcium + targets PTH range; shortcut reacts to raw values."
+      }
+    },
+    {
+      "topic": "transplant_rising_creatinine_tac_dsa_bk",
+      "failure_domain": "transplant",
+      "why_hard": "Kidney-transplant creatinine rise where the tacrolimus level, DSA, and BK viral load separate calcineurin toxicity, rejection, and BK nephropathy — opposite treatments (reduce vs augment immunosuppression).",
+      "axes": [
+        "diagnostic_trap",
+        "high_stakes",
+        "data_integration",
+        "multi_step"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "tacrolimus trough",
+          "donor-specific antibody",
+          "BK PCR (blood)"
+        ],
+        "note_types": [
+          "Transplant Consult"
+        ],
+        "hard_hook": "Reducing immunosuppression helps CNI toxicity/BK but worsens rejection; the shortcut picks 'rejection' and pulses steroids into a BK nephropathy.",
+        "ground_truth_spec": "Integrate tac level + DSA + BK PCR (and note biopsy need) to name the mechanism and the DIRECTION of immunosuppression change; do not empirically augment without excluding BK.",
+        "reasoning_divergence": "Sound path excludes CNI toxicity/BK before augmenting; shortcut equates any creatinine rise with rejection."
+      }
+    },
+    {
+      "topic": "cardiorenal_vs_hepatorenal_diuretic_response",
+      "failure_domain": "cardiorenal_hepatorenal_judgment",
+      "why_hard": "Low urine sodium AKI in a patient with both heart failure and cirrhosis; the creatinine trend, diuretic/albumin response, and exam decide cardiorenal vs hepatorenal vs pre-renal.",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "high_stakes",
+        "multi_step"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "urine electrolytes",
+          "liver panel",
+          "serum albumin"
+        ],
+        "note_types": [
+          "Consult",
+          "Nursing"
+        ],
+        "hard_hook": "Urine Na is low in all three; the response to an albumin/volume challenge and the diuretic trajectory are the discriminators the shortcut skips.",
+        "ground_truth_spec": "Use the creatinine trend + response to albumin/diuretic + volume exam (not urine Na alone) to classify, and give the mechanism-specific step (decongestion vs albumin+vasoconstrictors).",
+        "reasoning_divergence": "Sound path uses response-to-challenge; shortcut labels off a single urine Na."
+      }
+    },
+    {
+      "topic": "contrast_vs_cholesterol_emboli_aki",
+      "failure_domain": "renal_pharmacology_dosing",
+      "why_hard": "Post-angiography AKI where timing of the creatinine rise, eosinophilia, complement, and livedo/skin findings separate contrast-associated AKI (early, self-limited) from atheroembolic disease (delayed, progressive).",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "recency",
+        "multi_step"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "complete blood count with differential",
+          "complement (C3/C4)",
+          "urinalysis with microscopy"
+        ],
+        "note_types": [
+          "Consult"
+        ],
+        "hard_hook": "The TIMING of the rise plus eosinophilia/low complement/livedo is the discriminator; the shortcut calls everything post-cath 'contrast nephropathy' and misses progressive atheroemboli.",
+        "ground_truth_spec": "Use the day-by-day creatinine timeline + eosinophilia + complement + skin exam to classify, set the trajectory expectation, and avoid re-exposure/anticoagulation pitfalls in atheroemboli.",
+        "reasoning_divergence": "Sound path reads the temporal pattern + eosinophilia; shortcut defaults to contrast nephropathy."
+      }
+    }
   ],
   "items": [
     {
@@ -60,7 +524,12 @@
       "reference_basis": "FDA metformin labeling revision and KDIGO 2024 CKD guideline drug-dosing principles (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "current_guideline", "diabetes", "egfr"]
+      "tags": [
+        "dosing",
+        "current_guideline",
+        "diabetes",
+        "egfr"
+      ]
     },
     {
       "seed_id": "neph-seed-0002",
@@ -74,7 +543,12 @@
       "reference_basis": "Apixaban prescribing information dose-reduction criteria and society commentary on DOACs in advanced CKD (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "anticoagulation", "safety", "esrd"]
+      "tags": [
+        "dosing",
+        "anticoagulation",
+        "safety",
+        "esrd"
+      ]
     },
     {
       "seed_id": "neph-seed-0003",
@@ -88,7 +562,11 @@
       "reference_basis": "Gabapentin renal dosing references and pharmacology reviews (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["dosing", "safety", "neurotoxicity"]
+      "tags": [
+        "dosing",
+        "safety",
+        "neurotoxicity"
+      ]
     },
     {
       "seed_id": "neph-seed-0004",
@@ -102,7 +580,12 @@
       "reference_basis": "Hyperkalemia-in-hemodialysis practice points and dialysate-potassium safety literature (paraphrased concepts).",
       "reference_type": "expert_consensus",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "safety", "electrolytes", "current_guideline"]
+      "tags": [
+        "dosing",
+        "safety",
+        "electrolytes",
+        "current_guideline"
+      ]
     },
     {
       "seed_id": "neph-seed-0005",
@@ -116,7 +599,11 @@
       "reference_basis": "KDIGO anemia-in-CKD guideline iron and ESA principles (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "anemia", "current_guideline"]
+      "tags": [
+        "dosing",
+        "anemia",
+        "current_guideline"
+      ]
     },
     {
       "seed_id": "neph-seed-0006",
@@ -130,7 +617,11 @@
       "reference_basis": "Ultrafiltration-rate safety literature and dialysis adequacy reviews (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["safety", "hemodynamics", "adequacy"]
+      "tags": [
+        "safety",
+        "hemodynamics",
+        "adequacy"
+      ]
     },
     {
       "seed_id": "neph-seed-0007",
@@ -144,7 +635,11 @@
       "reference_basis": "Hyponatremia management guidelines and osmotic demyelination prevention literature (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["safety", "electrolytes", "rate_of_correction"]
+      "tags": [
+        "safety",
+        "electrolytes",
+        "rate_of_correction"
+      ]
     },
     {
       "seed_id": "neph-seed-0008",
@@ -158,7 +653,11 @@
       "reference_basis": "Acute hyperkalemia management reviews and insulin-dextrose dosing debate (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "safety", "electrolytes"]
+      "tags": [
+        "dosing",
+        "safety",
+        "electrolytes"
+      ]
     },
     {
       "seed_id": "neph-seed-0009",
@@ -172,7 +671,11 @@
       "reference_basis": "Acid-base interpretation methodology references (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["acid_base", "reasoning", "diagnosis"]
+      "tags": [
+        "acid_base",
+        "reasoning",
+        "diagnosis"
+      ]
     },
     {
       "seed_id": "neph-seed-0010",
@@ -186,7 +689,11 @@
       "reference_basis": "KDIGO 2024 CKD guideline and major SGLT2i CKD trial principles (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["current_guideline", "cutoff_lag", "ckd"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "ckd"
+      ]
     },
     {
       "seed_id": "neph-seed-0011",
@@ -200,7 +707,12 @@
       "reference_basis": "Finerenone CKD/T2D trial principles and KDIGO commentary (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["current_guideline", "cutoff_lag", "dosing", "safety"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "dosing",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0012",
@@ -214,7 +726,11 @@
       "reference_basis": "Recent GLP-1 RA kidney-outcome trial principles and society updates (paraphrased concepts).",
       "reference_type": "primary_literature",
       "capture_reasoning_recommended": false,
-      "tags": ["current_guideline", "cutoff_lag", "diabetes"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "diabetes"
+      ]
     },
     {
       "seed_id": "neph-seed-0013",
@@ -228,7 +744,11 @@
       "reference_basis": "Transplant nephrology rejection and BK management reviews (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["transplant", "diagnosis", "safety"]
+      "tags": [
+        "transplant",
+        "diagnosis",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0014",
@@ -242,7 +762,12 @@
       "reference_basis": "Tacrolimus CYP3A4 interaction pharmacology references (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["transplant", "dosing", "drug_interaction", "safety"]
+      "tags": [
+        "transplant",
+        "dosing",
+        "drug_interaction",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0015",
@@ -256,7 +781,11 @@
       "reference_basis": "BK virus nephropathy management guidelines (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["transplant", "immunosuppression", "safety"]
+      "tags": [
+        "transplant",
+        "immunosuppression",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0016",
@@ -270,7 +799,11 @@
       "reference_basis": "KDIGO and rheumatology lupus nephritis management updates (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["current_guideline", "cutoff_lag", "autoimmune"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "autoimmune"
+      ]
     },
     {
       "seed_id": "neph-seed-0017",
@@ -284,7 +817,11 @@
       "reference_basis": "ANCA-associated vasculitis induction and plasma-exchange trial principles (paraphrased concepts).",
       "reference_type": "primary_literature",
       "capture_reasoning_recommended": true,
-      "tags": ["autoimmune", "current_guideline", "rpgn"]
+      "tags": [
+        "autoimmune",
+        "current_guideline",
+        "rpgn"
+      ]
     },
     {
       "seed_id": "neph-seed-0018",
@@ -298,7 +835,11 @@
       "reference_basis": "KDIGO 2025 IgAN/IgAV guideline treatment-threshold principles (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["current_guideline", "cutoff_lag", "proteinuria"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "proteinuria"
+      ]
     },
     {
       "seed_id": "neph-seed-0019",
@@ -312,7 +853,11 @@
       "reference_basis": "Critical-care nephrology RRT modality and timing literature (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["critical_care", "aki", "safety"]
+      "tags": [
+        "critical_care",
+        "aki",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0020",
@@ -326,7 +871,11 @@
       "reference_basis": "Rhabdomyolysis-associated AKI management reviews (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["aki", "fluids", "evidence_vs_dogma"]
+      "tags": [
+        "aki",
+        "fluids",
+        "evidence_vs_dogma"
+      ]
     },
     {
       "seed_id": "neph-seed-0021",
@@ -340,7 +889,11 @@
       "reference_basis": "Hepatorenal syndrome diagnostic-criteria and treatment literature (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["aki", "diagnosis", "dosing"]
+      "tags": [
+        "aki",
+        "diagnosis",
+        "dosing"
+      ]
     },
     {
       "seed_id": "neph-seed-0022",
@@ -354,7 +907,11 @@
       "reference_basis": "CKD-in-pregnancy management and antihypertensive safety references (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["pregnancy", "safety", "medication_switch"]
+      "tags": [
+        "pregnancy",
+        "safety",
+        "medication_switch"
+      ]
     },
     {
       "seed_id": "neph-seed-0023",
@@ -368,7 +925,11 @@
       "reference_basis": "Conservative kidney management and shared decision-making literature in the elderly (paraphrased concepts).",
       "reference_type": "expert_consensus",
       "capture_reasoning_recommended": true,
-      "tags": ["goals_of_care", "shared_decision_making", "geriatrics"]
+      "tags": [
+        "goals_of_care",
+        "shared_decision_making",
+        "geriatrics"
+      ]
     },
     {
       "seed_id": "neph-seed-0024",
@@ -382,7 +943,12 @@
       "reference_basis": "Contemporary contrast-associated AKI risk and prophylaxis evidence (paraphrased concepts).",
       "reference_type": "primary_literature",
       "capture_reasoning_recommended": false,
-      "tags": ["current_guideline", "cutoff_lag", "imaging", "evidence_vs_dogma"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "imaging",
+        "evidence_vs_dogma"
+      ]
     },
     {
       "seed_id": "neph-seed-0025",
@@ -396,7 +962,12 @@
       "reference_basis": "Perioperative SGLT2 inhibitor and euglycemic DKA safety guidance (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "safety", "perioperative", "current_guideline"]
+      "tags": [
+        "dosing",
+        "safety",
+        "perioperative",
+        "current_guideline"
+      ]
     },
     {
       "seed_id": "neph-seed-0026",
@@ -410,7 +981,12 @@
       "reference_basis": "Radiology society guidance on gadolinium agent classes and NSF risk in CKD (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": false,
-      "tags": ["safety", "imaging", "current_guideline", "cutoff_lag"]
+      "tags": [
+        "safety",
+        "imaging",
+        "current_guideline",
+        "cutoff_lag"
+      ]
     },
     {
       "seed_id": "neph-seed-0027",
@@ -424,7 +1000,11 @@
       "reference_basis": "Nephrotoxicity reviews on NSAID-RAS-diuretic triple-whammy AKI (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["safety", "aki", "drug_interaction"]
+      "tags": [
+        "safety",
+        "aki",
+        "drug_interaction"
+      ]
     },
     {
       "seed_id": "neph-seed-0028",
@@ -438,7 +1018,12 @@
       "reference_basis": "Vancomycin AUC-guided dosing consensus and hemodialysis dosing references (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "safety", "esrd", "antibiotic"]
+      "tags": [
+        "dosing",
+        "safety",
+        "esrd",
+        "antibiotic"
+      ]
     },
     {
       "seed_id": "neph-seed-0029",
@@ -452,7 +1037,12 @@
       "reference_basis": "Pharmacology literature on cefepime neurotoxicity in renal impairment (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "safety", "neurotoxicity", "antibiotic"]
+      "tags": [
+        "dosing",
+        "safety",
+        "neurotoxicity",
+        "antibiotic"
+      ]
     },
     {
       "seed_id": "neph-seed-0030",
@@ -466,7 +1056,12 @@
       "reference_basis": "Antimicrobial prescribing guidance on nitrofurantoin and renal function (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": false,
-      "tags": ["dosing", "safety", "antibiotic", "cutoff_lag"]
+      "tags": [
+        "dosing",
+        "safety",
+        "antibiotic",
+        "cutoff_lag"
+      ]
     },
     {
       "seed_id": "neph-seed-0031",
@@ -480,7 +1075,11 @@
       "reference_basis": "DOAC pharmacokinetics and renal dosing label differences (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "anticoagulation", "safety"]
+      "tags": [
+        "dosing",
+        "anticoagulation",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0032",
@@ -494,7 +1093,11 @@
       "reference_basis": "Enoxaparin renal dosing and anti-Xa monitoring references (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["dosing", "anticoagulation", "safety"]
+      "tags": [
+        "dosing",
+        "anticoagulation",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0033",
@@ -508,7 +1111,11 @@
       "reference_basis": "Case literature on baclofen neurotoxicity in renal failure (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["dosing", "safety", "neurotoxicity"]
+      "tags": [
+        "dosing",
+        "safety",
+        "neurotoxicity"
+      ]
     },
     {
       "seed_id": "neph-seed-0034",
@@ -522,7 +1129,12 @@
       "reference_basis": "Palliative-care references on opioid use and metabolite accumulation in renal impairment (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "safety", "palliative", "neurotoxicity"]
+      "tags": [
+        "dosing",
+        "safety",
+        "palliative",
+        "neurotoxicity"
+      ]
     },
     {
       "seed_id": "neph-seed-0035",
@@ -536,7 +1148,11 @@
       "reference_basis": "Digoxin renal dosing and toxicity references (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["dosing", "safety", "cardiorenal"]
+      "tags": [
+        "dosing",
+        "safety",
+        "cardiorenal"
+      ]
     },
     {
       "seed_id": "neph-seed-0036",
@@ -550,7 +1166,12 @@
       "reference_basis": "Gout management guidance on allopurinol titration and HLA-B*5801 in CKD (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "safety", "current_guideline", "cutoff_lag"]
+      "tags": [
+        "dosing",
+        "safety",
+        "current_guideline",
+        "cutoff_lag"
+      ]
     },
     {
       "seed_id": "neph-seed-0037",
@@ -564,7 +1185,11 @@
       "reference_basis": "Metformin labeling and lactic acidosis risk guidance for acute illness and contrast (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "safety", "current_guideline"]
+      "tags": [
+        "dosing",
+        "safety",
+        "current_guideline"
+      ]
     },
     {
       "seed_id": "neph-seed-0038",
@@ -578,7 +1203,11 @@
       "reference_basis": "Hemodialysis adequacy guidance on Kt/V targets and prescription (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["adequacy", "dosing", "current_guideline"]
+      "tags": [
+        "adequacy",
+        "dosing",
+        "current_guideline"
+      ]
     },
     {
       "seed_id": "neph-seed-0039",
@@ -592,7 +1221,10 @@
       "reference_basis": "Incremental hemodialysis and residual kidney function literature (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["adequacy", "current_guideline"]
+      "tags": [
+        "adequacy",
+        "current_guideline"
+      ]
     },
     {
       "seed_id": "neph-seed-0040",
@@ -606,7 +1238,11 @@
       "reference_basis": "KDIGO CKD-MBD guidance on phosphate binders (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": false,
-      "tags": ["mineral_bone", "dosing", "current_guideline"]
+      "tags": [
+        "mineral_bone",
+        "dosing",
+        "current_guideline"
+      ]
     },
     {
       "seed_id": "neph-seed-0041",
@@ -620,7 +1256,11 @@
       "reference_basis": "KDIGO CKD-MBD guidance on secondary hyperparathyroidism therapy (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["mineral_bone", "dosing", "current_guideline"]
+      "tags": [
+        "mineral_bone",
+        "dosing",
+        "current_guideline"
+      ]
     },
     {
       "seed_id": "neph-seed-0042",
@@ -634,7 +1274,10 @@
       "reference_basis": "CKD-MBD literature on adynamic bone disease and PTH oversuppression (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["mineral_bone", "safety"]
+      "tags": [
+        "mineral_bone",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0043",
@@ -648,7 +1291,12 @@
       "reference_basis": "ISPD peritonitis management recommendations (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["peritoneal_dialysis", "dosing", "antibiotic", "current_guideline"]
+      "tags": [
+        "peritoneal_dialysis",
+        "dosing",
+        "antibiotic",
+        "current_guideline"
+      ]
     },
     {
       "seed_id": "neph-seed-0044",
@@ -662,7 +1310,10 @@
       "reference_basis": "Peritoneal dialysis transport status and ultrafiltration management references (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["peritoneal_dialysis", "volume"]
+      "tags": [
+        "peritoneal_dialysis",
+        "volume"
+      ]
     },
     {
       "seed_id": "neph-seed-0045",
@@ -676,7 +1327,11 @@
       "reference_basis": "Vascular access and catheter infection management guidance (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": false,
-      "tags": ["access", "antibiotic", "safety"]
+      "tags": [
+        "access",
+        "antibiotic",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0046",
@@ -690,7 +1345,10 @@
       "reference_basis": "Literature on dialysis disequilibrium syndrome and gentle initiation (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["safety", "initiation"]
+      "tags": [
+        "safety",
+        "initiation"
+      ]
     },
     {
       "seed_id": "neph-seed-0047",
@@ -704,7 +1362,10 @@
       "reference_basis": "Dialysis circuit anticoagulation references including citrate and heparin-free techniques (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["safety", "anticoagulation"]
+      "tags": [
+        "safety",
+        "anticoagulation"
+      ]
     },
     {
       "seed_id": "neph-seed-0048",
@@ -718,7 +1379,11 @@
       "reference_basis": "Literature on novel potassium binders for chronic hyperkalemia (paraphrased concepts).",
       "reference_type": "primary_literature",
       "capture_reasoning_recommended": false,
-      "tags": ["dosing", "electrolytes", "current_guideline"]
+      "tags": [
+        "dosing",
+        "electrolytes",
+        "current_guideline"
+      ]
     },
     {
       "seed_id": "neph-seed-0049",
@@ -732,7 +1397,11 @@
       "reference_basis": "Hypercalcemia of malignancy management references (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["electrolytes", "dosing", "aki"]
+      "tags": [
+        "electrolytes",
+        "dosing",
+        "aki"
+      ]
     },
     {
       "seed_id": "neph-seed-0050",
@@ -746,7 +1415,11 @@
       "reference_basis": "Pharmacovigilance literature on denosumab hypocalcemia in advanced CKD (paraphrased concepts).",
       "reference_type": "primary_literature",
       "capture_reasoning_recommended": true,
-      "tags": ["electrolytes", "safety", "dosing"]
+      "tags": [
+        "electrolytes",
+        "safety",
+        "dosing"
+      ]
     },
     {
       "seed_id": "neph-seed-0051",
@@ -760,7 +1433,11 @@
       "reference_basis": "SIADH and vaptan use guidance with sodium correction limits (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["electrolytes", "rate_of_correction", "safety"]
+      "tags": [
+        "electrolytes",
+        "rate_of_correction",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0052",
@@ -774,7 +1451,10 @@
       "reference_basis": "Hypernatremia management and free water deficit references (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["electrolytes", "rate_of_correction"]
+      "tags": [
+        "electrolytes",
+        "rate_of_correction"
+      ]
     },
     {
       "seed_id": "neph-seed-0053",
@@ -788,7 +1468,10 @@
       "reference_basis": "Electrolyte physiology references on magnesium and refractory hypokalemia (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["electrolytes", "reasoning"]
+      "tags": [
+        "electrolytes",
+        "reasoning"
+      ]
     },
     {
       "seed_id": "neph-seed-0054",
@@ -802,7 +1485,11 @@
       "reference_basis": "Laboratory medicine references on pseudohyperkalemia (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["electrolytes", "diagnosis", "safety"]
+      "tags": [
+        "electrolytes",
+        "diagnosis",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0055",
@@ -816,7 +1503,11 @@
       "reference_basis": "KDIGO CKD guidance on metabolic acidosis treatment (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": false,
-      "tags": ["acid_base", "current_guideline", "ckd"]
+      "tags": [
+        "acid_base",
+        "current_guideline",
+        "ckd"
+      ]
     },
     {
       "seed_id": "neph-seed-0056",
@@ -830,7 +1521,11 @@
       "reference_basis": "Renal tubular acidosis diagnostic and treatment references (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["acid_base", "diagnosis", "reasoning"]
+      "tags": [
+        "acid_base",
+        "diagnosis",
+        "reasoning"
+      ]
     },
     {
       "seed_id": "neph-seed-0057",
@@ -844,7 +1539,11 @@
       "reference_basis": "References on type 4 RTA and hyporeninemic hypoaldosteronism (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["acid_base", "electrolytes", "diabetes"]
+      "tags": [
+        "acid_base",
+        "electrolytes",
+        "diabetes"
+      ]
     },
     {
       "seed_id": "neph-seed-0058",
@@ -858,7 +1557,11 @@
       "reference_basis": "Toxic alcohol poisoning management references (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["acid_base", "toxicology", "dosing"]
+      "tags": [
+        "acid_base",
+        "toxicology",
+        "dosing"
+      ]
     },
     {
       "seed_id": "neph-seed-0059",
@@ -872,7 +1575,11 @@
       "reference_basis": "Salicylate poisoning management references (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["acid_base", "toxicology", "safety"]
+      "tags": [
+        "acid_base",
+        "toxicology",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0060",
@@ -886,7 +1593,11 @@
       "reference_basis": "Refeeding syndrome and phosphate repletion references (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["electrolytes", "dosing", "safety"]
+      "tags": [
+        "electrolytes",
+        "dosing",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0061",
@@ -900,7 +1611,11 @@
       "reference_basis": "Tumor lysis syndrome management guidance (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["electrolytes", "aki", "dosing"]
+      "tags": [
+        "electrolytes",
+        "aki",
+        "dosing"
+      ]
     },
     {
       "seed_id": "neph-seed-0062",
@@ -914,7 +1629,11 @@
       "reference_basis": "KDIGO 2024 CKD classification and risk-stratification concepts (paraphrased).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": false,
-      "tags": ["current_guideline", "ckd", "albuminuria"]
+      "tags": [
+        "current_guideline",
+        "ckd",
+        "albuminuria"
+      ]
     },
     {
       "seed_id": "neph-seed-0063",
@@ -928,7 +1647,11 @@
       "reference_basis": "KDIGO lipid management in CKD concepts (paraphrased).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": false,
-      "tags": ["current_guideline", "ckd", "cutoff_lag"]
+      "tags": [
+        "current_guideline",
+        "ckd",
+        "cutoff_lag"
+      ]
     },
     {
       "seed_id": "neph-seed-0064",
@@ -942,7 +1665,11 @@
       "reference_basis": "KDIGO 2025 IgAN/IgAV guidance and recent IgAN trial concepts (paraphrased).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["current_guideline", "cutoff_lag", "proteinuria"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "proteinuria"
+      ]
     },
     {
       "seed_id": "neph-seed-0065",
@@ -956,7 +1683,11 @@
       "reference_basis": "KDIGO 2025 IgAV nephritis guidance concepts (paraphrased).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["current_guideline", "autoimmune", "cutoff_lag"]
+      "tags": [
+        "current_guideline",
+        "autoimmune",
+        "cutoff_lag"
+      ]
     },
     {
       "seed_id": "neph-seed-0066",
@@ -970,7 +1701,12 @@
       "reference_basis": "Finerenone and SGLT2i combination therapy concepts in diabetic kidney disease (paraphrased).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["current_guideline", "cutoff_lag", "dosing", "safety"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "dosing",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0067",
@@ -984,7 +1720,11 @@
       "reference_basis": "SGLT2 inhibitor use in non-diabetic CKD and sick-day guidance (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": false,
-      "tags": ["current_guideline", "cutoff_lag", "ckd"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "ckd"
+      ]
     },
     {
       "seed_id": "neph-seed-0068",
@@ -998,7 +1738,11 @@
       "reference_basis": "Recent GLP-1 receptor agonist kidney-outcome evidence (paraphrased concepts).",
       "reference_type": "primary_literature",
       "capture_reasoning_recommended": false,
-      "tags": ["current_guideline", "cutoff_lag", "diabetes"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "diabetes"
+      ]
     },
     {
       "seed_id": "neph-seed-0069",
@@ -1012,7 +1756,11 @@
       "reference_basis": "KDIGO blood pressure in CKD concepts including standardized measurement (paraphrased).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": false,
-      "tags": ["current_guideline", "cutoff_lag", "hypertension"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "hypertension"
+      ]
     },
     {
       "seed_id": "neph-seed-0070",
@@ -1026,7 +1774,12 @@
       "reference_basis": "Guidance on maintaining RAS inhibition with potassium binders in hyperkalemia (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["current_guideline", "cutoff_lag", "electrolytes", "safety"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "electrolytes",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0071",
@@ -1040,7 +1793,11 @@
       "reference_basis": "Literature on HIF prolyl-hydroxylase inhibitors in CKD anemia (paraphrased concepts).",
       "reference_type": "primary_literature",
       "capture_reasoning_recommended": false,
-      "tags": ["current_guideline", "cutoff_lag", "anemia"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "anemia"
+      ]
     },
     {
       "seed_id": "neph-seed-0072",
@@ -1054,7 +1811,11 @@
       "reference_basis": "Comprehensive diabetic kidney disease therapy concepts (paraphrased).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["current_guideline", "cutoff_lag", "diabetes"]
+      "tags": [
+        "current_guideline",
+        "cutoff_lag",
+        "diabetes"
+      ]
     },
     {
       "seed_id": "neph-seed-0073",
@@ -1068,7 +1829,10 @@
       "reference_basis": "Transplant immunosuppression references on tacrolimus target troughs over time (paraphrased concepts).",
       "reference_type": "expert_consensus",
       "capture_reasoning_recommended": true,
-      "tags": ["transplant", "dosing"]
+      "tags": [
+        "transplant",
+        "dosing"
+      ]
     },
     {
       "seed_id": "neph-seed-0074",
@@ -1082,7 +1846,11 @@
       "reference_basis": "Pharmacogenomics references on CYP3A5 and tacrolimus dosing (paraphrased concepts).",
       "reference_type": "primary_literature",
       "capture_reasoning_recommended": true,
-      "tags": ["transplant", "dosing", "pharmacogenomics"]
+      "tags": [
+        "transplant",
+        "dosing",
+        "pharmacogenomics"
+      ]
     },
     {
       "seed_id": "neph-seed-0075",
@@ -1096,7 +1864,12 @@
       "reference_basis": "Transplant and pregnancy immunosuppression safety references (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["transplant", "pregnancy", "safety", "medication_switch"]
+      "tags": [
+        "transplant",
+        "pregnancy",
+        "safety",
+        "medication_switch"
+      ]
     },
     {
       "seed_id": "neph-seed-0076",
@@ -1110,7 +1883,11 @@
       "reference_basis": "Transplant references on mTOR inhibitor adverse effects (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["transplant", "safety", "proteinuria"]
+      "tags": [
+        "transplant",
+        "safety",
+        "proteinuria"
+      ]
     },
     {
       "seed_id": "neph-seed-0077",
@@ -1124,7 +1901,11 @@
       "reference_basis": "Transplant infectious disease prophylaxis references for cytomegalovirus (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["transplant", "dosing", "safety"]
+      "tags": [
+        "transplant",
+        "dosing",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0078",
@@ -1138,7 +1919,11 @@
       "reference_basis": "References on post-transplant diabetes mellitus and immunosuppression (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["transplant", "diabetes", "safety"]
+      "tags": [
+        "transplant",
+        "diabetes",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0079",
@@ -1152,7 +1937,11 @@
       "reference_basis": "Transplant references on antibody-mediated rejection and recurrent glomerular disease (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["transplant", "diagnosis", "proteinuria"]
+      "tags": [
+        "transplant",
+        "diagnosis",
+        "proteinuria"
+      ]
     },
     {
       "seed_id": "neph-seed-0080",
@@ -1166,7 +1955,11 @@
       "reference_basis": "KDIGO glomerular disease guidance on membranous nephropathy and PLA2R (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["current_guideline", "autoimmune", "proteinuria"]
+      "tags": [
+        "current_guideline",
+        "autoimmune",
+        "proteinuria"
+      ]
     },
     {
       "seed_id": "neph-seed-0081",
@@ -1180,7 +1973,10 @@
       "reference_basis": "KDIGO glomerular disease guidance on minimal change disease (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": false,
-      "tags": ["autoimmune", "current_guideline"]
+      "tags": [
+        "autoimmune",
+        "current_guideline"
+      ]
     },
     {
       "seed_id": "neph-seed-0082",
@@ -1194,7 +1990,11 @@
       "reference_basis": "Literature on thromboprophylaxis in nephrotic syndrome (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["autoimmune", "anticoagulation", "safety"]
+      "tags": [
+        "autoimmune",
+        "anticoagulation",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0083",
@@ -1208,7 +2008,11 @@
       "reference_basis": "Glomerular disease references on primary versus secondary FSGS (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["autoimmune", "diagnosis", "proteinuria"]
+      "tags": [
+        "autoimmune",
+        "diagnosis",
+        "proteinuria"
+      ]
     },
     {
       "seed_id": "neph-seed-0084",
@@ -1222,7 +2026,10 @@
       "reference_basis": "References on biopsy indications in diabetic patients with kidney disease (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": false,
-      "tags": ["diagnosis", "diabetes"]
+      "tags": [
+        "diagnosis",
+        "diabetes"
+      ]
     },
     {
       "seed_id": "neph-seed-0085",
@@ -1236,7 +2043,11 @@
       "reference_basis": "References on anti-GBM disease management and plasma exchange (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["autoimmune", "rpgn", "safety"]
+      "tags": [
+        "autoimmune",
+        "rpgn",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0086",
@@ -1250,7 +2061,11 @@
       "reference_basis": "References on C3 glomerulopathy and complement evaluation (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["autoimmune", "diagnosis", "complement"]
+      "tags": [
+        "autoimmune",
+        "diagnosis",
+        "complement"
+      ]
     },
     {
       "seed_id": "neph-seed-0087",
@@ -1264,7 +2079,11 @@
       "reference_basis": "KDIGO and rheumatology lupus nephritis maintenance guidance (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["autoimmune", "current_guideline", "cutoff_lag"]
+      "tags": [
+        "autoimmune",
+        "current_guideline",
+        "cutoff_lag"
+      ]
     },
     {
       "seed_id": "neph-seed-0088",
@@ -1278,7 +2097,11 @@
       "reference_basis": "References on hepatitis C-associated cryoglobulinemic glomerulonephritis (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["autoimmune", "diagnosis", "proteinuria"]
+      "tags": [
+        "autoimmune",
+        "diagnosis",
+        "proteinuria"
+      ]
     },
     {
       "seed_id": "neph-seed-0089",
@@ -1292,7 +2115,11 @@
       "reference_basis": "Contemporary contrast-associated AKI evidence on risk and prophylaxis (paraphrased concepts).",
       "reference_type": "primary_literature",
       "capture_reasoning_recommended": true,
-      "tags": ["aki", "evidence_vs_dogma", "critical_care"]
+      "tags": [
+        "aki",
+        "evidence_vs_dogma",
+        "critical_care"
+      ]
     },
     {
       "seed_id": "neph-seed-0090",
@@ -1306,7 +2133,11 @@
       "reference_basis": "Critical-care nephrology references on CRRT dose and drug dosing (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["aki", "critical_care", "dosing"]
+      "tags": [
+        "aki",
+        "critical_care",
+        "dosing"
+      ]
     },
     {
       "seed_id": "neph-seed-0091",
@@ -1320,7 +2151,11 @@
       "reference_basis": "References on FeNa and FeUrea interpretation in AKI (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["aki", "diagnosis", "reasoning"]
+      "tags": [
+        "aki",
+        "diagnosis",
+        "reasoning"
+      ]
     },
     {
       "seed_id": "neph-seed-0092",
@@ -1334,7 +2169,11 @@
       "reference_basis": "Cardiorenal syndrome and diuretic resistance references (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["aki", "cardiorenal", "dosing"]
+      "tags": [
+        "aki",
+        "cardiorenal",
+        "dosing"
+      ]
     },
     {
       "seed_id": "neph-seed-0093",
@@ -1348,7 +2187,11 @@
       "reference_basis": "Critical-care references on fluid strategy and balanced crystalloids in sepsis-associated AKI (paraphrased concepts).",
       "reference_type": "primary_literature",
       "capture_reasoning_recommended": true,
-      "tags": ["aki", "critical_care", "fluids"]
+      "tags": [
+        "aki",
+        "critical_care",
+        "fluids"
+      ]
     },
     {
       "seed_id": "neph-seed-0094",
@@ -1362,7 +2205,11 @@
       "reference_basis": "Trial evidence on accelerated versus standard RRT initiation timing in AKI (paraphrased concepts).",
       "reference_type": "primary_literature",
       "capture_reasoning_recommended": true,
-      "tags": ["aki", "critical_care", "evidence_vs_dogma"]
+      "tags": [
+        "aki",
+        "critical_care",
+        "evidence_vs_dogma"
+      ]
     },
     {
       "seed_id": "neph-seed-0095",
@@ -1376,7 +2223,11 @@
       "reference_basis": "Critical-care references on intra-abdominal hypertension and AKI (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["aki", "critical_care", "diagnosis"]
+      "tags": [
+        "aki",
+        "critical_care",
+        "diagnosis"
+      ]
     },
     {
       "seed_id": "neph-seed-0096",
@@ -1390,7 +2241,11 @@
       "reference_basis": "Pediatric nephrology references on eGFR estimation and weight-based renal dosing (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["pediatric", "dosing", "safety"]
+      "tags": [
+        "pediatric",
+        "dosing",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0097",
@@ -1404,7 +2259,11 @@
       "reference_basis": "Shared decision-making and conservative/palliative kidney care references (paraphrased concepts).",
       "reference_type": "expert_consensus",
       "capture_reasoning_recommended": true,
-      "tags": ["goals_of_care", "shared_decision_making", "palliative"]
+      "tags": [
+        "goals_of_care",
+        "shared_decision_making",
+        "palliative"
+      ]
     },
     {
       "seed_id": "neph-seed-0098",
@@ -1418,7 +2277,12 @@
       "reference_basis": "References on cystatin C-based GFR estimation in low muscle mass (paraphrased concepts).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "egfr", "geriatrics", "safety"]
+      "tags": [
+        "dosing",
+        "egfr",
+        "geriatrics",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0099",
@@ -1432,7 +2296,11 @@
       "reference_basis": "References on indexed versus absolute GFR for drug dosing in obesity (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["dosing", "egfr", "safety"]
+      "tags": [
+        "dosing",
+        "egfr",
+        "safety"
+      ]
     },
     {
       "seed_id": "neph-seed-0100",
@@ -1446,7 +2314,11 @@
       "reference_basis": "References on AKI prevention and hepatorenal physiology in cirrhosis (paraphrased concepts).",
       "reference_type": "review",
       "capture_reasoning_recommended": true,
-      "tags": ["cirrhosis", "aki", "safety"]
+      "tags": [
+        "cirrhosis",
+        "aki",
+        "safety"
+      ]
     }
   ]
 }

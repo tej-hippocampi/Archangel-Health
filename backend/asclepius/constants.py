@@ -30,7 +30,11 @@ VERDICTS = ("A_better", "B_better", "both_inadequate")
 # ``not_hard`` (Seamless PRD WS2) means the prompt is clinically valid but NOT
 # genuinely hard — it is routed out of the hard-case queue and fed back to
 # recalibrate the hardness judge/corpus (human-in-the-loop hardness curation).
-PROMPT_REVIEW_VERDICTS = ("valid", "flagged", "not_hard")
+# ``case_incoherent`` (Multimodal PRD §5) is the human counterpart to the
+# case-judge coherence gate: a MULTIMODAL case whose labs / notes / problem list /
+# meds are internally inconsistent (e.g. a value contradicts the narrative). It is
+# routed out of the queue and fed back to recalibrate case generation.
+PROMPT_REVIEW_VERDICTS = ("valid", "flagged", "not_hard", "case_incoherent")
 
 # Task-side status for a prompt a clinician flagged as invalid. Excluded from the
 # evaluator queue (not ``open``) and surfaced in the admin Tasks list for triage.
@@ -40,6 +44,11 @@ PROMPT_FLAGGED_TASK_STATUS = "prompt_flagged"
 # from the queue; distinct from prompt_flagged so hardness-curation feedback is
 # separable from clinical-validity triage.
 NOT_HARD_TASK_STATUS = "not_hard"
+
+# Task-side status for a multimodal case a clinician flagged as internally
+# inconsistent (Multimodal PRD §5). Excluded from the queue; distinct from
+# not_hard/prompt_flagged so case-generation feedback is separable.
+CASE_INCOHERENT_TASK_STATUS = "case_incoherent"
 
 # Quick confidence buttons.
 CONFIDENCE_LEVELS = ("low", "medium", "high")
@@ -172,6 +181,9 @@ SUBMISSION_STATUSES = (
     # Stage-1 "not actually hard" flag (Seamless PRD WS2): valid but not hard;
     # captured for hardness-judge recalibration, never packaged.
     "not_hard",
+    # Stage-1 "case internally inconsistent" flag (Multimodal PRD §5): captured for
+    # case-generation recalibration, never packaged.
+    "case_incoherent",
 )
 
 # Packaged training-record types (PRD §6.3).

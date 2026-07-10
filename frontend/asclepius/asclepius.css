@@ -1111,3 +1111,64 @@
   margin-bottom: 12px; padding: 6px 4px;
 }
 .asc-exp-badge-label { font-size: 13px; font-weight: 600; color: var(--asc-text); }
+
+/* ─── Multimodal case panel (Synthetic Multimodal Cases PRD §5) ─────────────── */
+.asc-case-card { margin-bottom: 18px; overflow: hidden; }
+.asc-case-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 16px; border-bottom: 1px solid var(--asc-line);
+  background: linear-gradient(0deg, transparent, rgba(124, 58, 237, .04));
+}
+.asc-case-source {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--asc-muted);
+}
+.asc-case-tabs {
+  display: flex; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--asc-line);
+  overflow-x: auto;
+}
+.asc-case-tab {
+  border: none; background: transparent; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--asc-muted);
+  padding: 8px 14px; border-radius: 8px 8px 0 0; white-space: nowrap;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.asc-case-tab:hover { color: var(--asc-text); background: var(--gray-100, #f3f4f6); }
+.asc-case-tab-active {
+  color: var(--asc-accent); border-bottom-color: var(--asc-accent);
+}
+.asc-case-host { padding: 16px; }
+.asc-case-body { display: flex; flex-direction: column; gap: 12px; }
+.asc-case-patient { font-size: 14px; font-weight: 600; color: var(--asc-text); }
+.asc-case-sub { font-size: 13px; color: var(--asc-text); }
+.asc-case-note-meta {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--asc-muted);
+}
+.asc-case-note { display: flex; flex-direction: column; gap: 4px; }
+.asc-case-note-text { font-size: 13.5px; line-height: 1.55; color: var(--asc-text); white-space: pre-wrap; }
+.asc-case-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.asc-case-list li { font-size: 13.5px; color: var(--asc-text); }
+.asc-case-vitals { display: flex; flex-wrap: wrap; gap: 8px; }
+.asc-vital {
+  font-size: 13px; background: var(--gray-100, #f3f4f6); border: 1px solid var(--asc-line);
+  border-radius: 8px; padding: 4px 10px;
+}
+.asc-vital-k { color: var(--asc-muted); font-weight: 600; }
+.asc-vital-v { color: var(--asc-text); font-weight: 700; }
+
+/* Labs trend table — analyte rows × time-offset columns, flag-highlighted. */
+.asc-lab-scroll { overflow-x: auto; }
+.asc-lab-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.asc-lab-table th, .asc-lab-table td {
+  border: 1px solid var(--asc-line); padding: 6px 10px; text-align: left;
+}
+.asc-lab-table th {
+  background: var(--gray-100, #f3f4f6); font-weight: 700; color: var(--asc-text);
+  position: sticky; top: 0;
+}
+.asc-lab-analyte { font-weight: 600; white-space: nowrap; }
+.asc-lab-ref { color: var(--asc-muted); white-space: nowrap; }
+.asc-lab-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.asc-lab-warn { background: rgba(245, 158, 11, .16); color: #92400e; font-weight: 700; }
+.asc-lab-crit { background: rgba(239, 68, 68, .18); color: #991b1b; font-weight: 800; }

@@ -66,6 +66,13 @@ trace, and carry a **1.35× value multiplier** (`ASCLEPIUS_VALUE_MULTIMODAL_MULT
 Invariants (enforced, not optional): **no imaging**; age **bands** only; lab
 timing is **relative** (`collected_offset_days`), never a date.
 
+**Evaluator view.** A multimodal task renders a structured case panel
+(Patient / Labs / Notes / Meds / Vitals tabs; labs as a flag-highlighted trend
+table across time offsets) and the clinician can flag a case as internally
+inconsistent (`case_incoherent` prompt-review verdict) — the human counterpart to
+the case-judge coherence gate. A flagged case is routed out (0 records) and fed
+back to recalibrate case generation.
+
 ### Real de-identified cases (`real_deid`) — the ingest seam
 `case_source` is `synthetic` (generated) or `real_deid` (parsed from a real,
 de-identified export). Real cases come in through `case_formats.ingest_real_deid`:

@@ -628,18 +628,23 @@ async def generate_case(archetype: Dict[str, Any], *, specialty: str = "general"
     except Exception as exc:
         log.info("asclepius case-gen unavailable: %s", exc)
         return empty
+    # The LLM answered — from here a failure is a BAD CASE (drop this one item),
+    # NOT "no LLM" (which is skipped=True and stops the whole run). Return
+    # skipped=False + case=None so the caller counts case_gen_failed and continues
+    # to the next archetype instead of aborting the batch as "no LLM configured".
+    bad = {"case": None, "question": None, "model": (rec or {}).get("model"), "skipped": False}
     parsed = _extract_json(first_text(resp))
     if not isinstance(parsed, dict):
-        return {**empty, "error": "unparseable_case"}
+        return {**bad, "error": "unparseable_case"}
     question = (parsed.get("question") or "").strip()
     raw_case = parsed.get("case")
     if not question or not isinstance(raw_case, dict):
-        return {**empty, "error": "incomplete_case"}
+        return {**bad, "error": "incomplete_case"}
     try:
         case = ClinicalCase(**raw_case).model_dump()
     except Exception as exc:  # schema mismatch → drop this item
         log.info("asclepius case-gen schema error: %s", exc)
-        return {**empty, "error": "case_schema"}
+        return {**bad, "error": "case_schema"}
     case["case_source"] = "synthetic"
     case.setdefault("specialty", specialty)
     return {"case": case, "question": question, "model": (rec or {}).get("model"), "skipped": False}

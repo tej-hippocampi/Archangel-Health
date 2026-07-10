@@ -8,9 +8,21 @@
   "generated_by": "asclepius_seedmaker_scaffold",
   "note": "STUB corpus demonstrating config-only specialty onboarding (Seamless PRD WS2). Adding this file + a SpecialtyConfig in specialties.py enables cardiology with ZERO pipeline changes — the Seedmaker, hardness judge, and hard-only serving are specialty-agnostic and read this config. Expand the archetypes + items with a cardiologist before production use.",
   "failure_domains": [
-    {"name": "heart_failure_gdmt", "weight": 0.34, "why": "Sequencing/titrating the four GDMT pillars with low BP, hyperkalemia, or worsening renal function — competing risks the model flattens."},
-    {"name": "arrhythmia_anticoagulation", "weight": 0.33, "why": "AF stroke/bleeding trade-offs, DOAC dosing in renal impairment, and periprocedural bridging traps."},
-    {"name": "acs_antithrombotic", "weight": 0.33, "why": "DAPT duration and de-escalation balancing ischemic vs. bleeding risk — low-consensus judgment."}
+    {
+      "name": "heart_failure_gdmt",
+      "weight": 0.34,
+      "why": "Sequencing/titrating the four GDMT pillars with low BP, hyperkalemia, or worsening renal function — competing risks the model flattens."
+    },
+    {
+      "name": "arrhythmia_anticoagulation",
+      "weight": 0.33,
+      "why": "AF stroke/bleeding trade-offs, DOAC dosing in renal impairment, and periprocedural bridging traps."
+    },
+    {
+      "name": "acs_antithrombotic",
+      "weight": 0.33,
+      "why": "DAPT duration and de-escalation balancing ischemic vs. bleeding risk — low-consensus judgment."
+    }
   ],
   "hardness_rubric": [
     "Requires multi-step reasoning, not single-fact recall.",
@@ -21,9 +33,133 @@
     "High clinical stakes (safety-relevant)."
   ],
   "hard_case_archetypes": [
-    {"topic": "hf_gdmt", "failure_domain": "heart_failure_gdmt", "why_hard": "Initiating/sequencing ARNI + beta-blocker + MRA + SGLT2i in HFrEF with borderline SBP, CKD, and K 5.1 — which pillar first, which to hold.", "axes": ["competing_risks", "multi_step", "guideline_nuance", "high_stakes"]},
-    {"topic": "arrhythmia_anticoag", "failure_domain": "arrhythmia_anticoagulation", "why_hard": "AF anticoagulation in CKD-4 with prior GI bleed — DOAC vs. warfarin, dose-reduction criteria, and the eGFR misconception.", "axes": ["competing_risks", "diagnostic_trap", "high_stakes"]},
-    {"topic": "acs_antithrombotic", "failure_domain": "acs_antithrombotic", "why_hard": "DAPT duration after PCI in a high-bleeding-risk patient on an anticoagulant — de-escalation timing and agent choice.", "axes": ["competing_risks", "guideline_nuance", "high_stakes"]}
+    {
+      "topic": "hf_gdmt",
+      "failure_domain": "heart_failure_gdmt",
+      "why_hard": "Initiating/sequencing ARNI + beta-blocker + MRA + SGLT2i in HFrEF with borderline SBP, CKD, and K 5.1 — which pillar first, which to hold.",
+      "axes": [
+        "competing_risks",
+        "multi_step",
+        "guideline_nuance",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "arrhythmia_anticoag",
+      "failure_domain": "arrhythmia_anticoagulation",
+      "why_hard": "AF anticoagulation in CKD-4 with prior GI bleed — DOAC vs. warfarin, dose-reduction criteria, and the eGFR misconception.",
+      "axes": [
+        "competing_risks",
+        "diagnostic_trap",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "acs_antithrombotic",
+      "failure_domain": "acs_antithrombotic",
+      "why_hard": "DAPT duration after PCI in a high-bleeding-risk patient on an anticoagulant — de-escalation timing and agent choice.",
+      "axes": [
+        "competing_risks",
+        "guideline_nuance",
+        "high_stakes"
+      ]
+    },
+    {
+      "topic": "hfref_gdmt_initiation_labs",
+      "failure_domain": "heart_failure_gdmt",
+      "why_hard": "HFrEF GDMT start with borderline SBP, CKD, and K 5.1: which of ARNI/beta-blocker/MRA/SGLT2i to start first and which to hold turns on the BMP trend, BP/HR, and the current med list.",
+      "axes": [
+        "competing_risks",
+        "multi_step",
+        "guideline_nuance",
+        "data_integration"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "NT-proBNP",
+          "estimated GFR"
+        ],
+        "note_types": [
+          "Cardiology Consult",
+          "Nursing (vitals)"
+        ],
+        "hard_hook": "K 5.1 + CKD constrains MRA/ARNI sequencing; the shortcut starts all four pillars at once ignoring the potassium and BP headroom.",
+        "ground_truth_spec": "Pick the initiation order/holds justified by the K, eGFR, SBP, and HR (e.g. SGLT2i early; caution MRA/ARNI at K 5.1), not a blanket 'start all four'.",
+        "reasoning_divergence": "Sound path sequences by BMP/vitals headroom; shortcut starts everything."
+      }
+    },
+    {
+      "topic": "af_anticoagulation_renal_dosing",
+      "failure_domain": "arrhythmia_anticoagulation",
+      "why_hard": "New AF where the anticoagulation decision and DOAC dose depend on CrCl, weight, age, and bleeding history — and CHA2DS2-VASc vs HAS-BLED must be weighed, not just computed.",
+      "axes": [
+        "competing_risks",
+        "data_integration",
+        "guideline_nuance"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP",
+          "complete blood count",
+          "creatinine clearance (Cockcroft-Gault)"
+        ],
+        "note_types": [
+          "Cardiology Consult",
+          "Medication Reconciliation"
+        ],
+        "hard_hook": "DOAC dose is set by CrCl (not eGFR) with drug-specific cutoffs; the shortcut uses a standard dose and ignores the renal/age/weight criteria.",
+        "ground_truth_spec": "Decide to anticoagulate from the stroke/bleed balance and select the agent + renally-adjusted dose using CrCl and the drug-specific reduction criteria.",
+        "reasoning_divergence": "Sound path dose-adjusts by CrCl + criteria; shortcut gives a standard dose."
+      }
+    },
+    {
+      "topic": "acs_antithrombotic_bleeding_ckd",
+      "failure_domain": "acs_antithrombotic",
+      "why_hard": "ACS where the troponin trend, hemoglobin/platelets, and renal function drive DAPT/anticoagulant choice and duration in a high-bleeding-risk patient — potency vs bleeding.",
+      "axes": [
+        "competing_risks",
+        "high_stakes",
+        "data_integration",
+        "multi_step"
+      ],
+      "multimodal": {
+        "panels": [
+          "high-sensitivity troponin (serial)",
+          "complete blood count",
+          "BMP"
+        ],
+        "note_types": [
+          "Cardiology Consult"
+        ],
+        "hard_hook": "The serial troponin defines the ACS type and the Hgb/platelets + CKD define bleeding risk; the shortcut maxes potency ignoring the bleeding/renal profile.",
+        "ground_truth_spec": "Use the troponin trajectory to classify ACS and choose the antiplatelet potency/duration + anticoagulant that fits the bleeding and renal risk (e.g. avoid the most potent agent at high bleeding risk).",
+        "reasoning_divergence": "Sound path balances ischemia vs bleeding from the labs; shortcut defaults to maximal potency."
+      }
+    },
+    {
+      "topic": "hf_hyponatremia_diuretic_sglt2",
+      "failure_domain": "heart_failure_gdmt",
+      "why_hard": "Hyponatremia in decompensated HF on a loop diuretic +/- SGLT2i: dilutional vs diuretic-induced vs the transient SGLT2i natriuresis, read off the BMP trend + volume exam + med timeline.",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "multi_step"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP (serial)",
+          "NT-proBNP"
+        ],
+        "note_types": [
+          "Cardiology Consult",
+          "Nursing (vitals)"
+        ],
+        "hard_hook": "The Na trend against the diuretic/SGLT2i timeline distinguishes dilutional from drug effect; the shortcut fluid-restricts everyone or stops the SGLT2i reflexively.",
+        "ground_truth_spec": "Classify the hyponatremia mechanism from the sodium trend + volume status + med timeline and give the mechanism-specific move (decongest vs adjust diuretic) rather than reflexive fluid restriction.",
+        "reasoning_divergence": "Sound path integrates the trend + volume + drugs; shortcut fluid-restricts by default."
+      }
+    }
   ],
   "items": [
     {
@@ -38,7 +174,13 @@
       "reference_basis": "AHA/ACC/HFSA heart failure guideline (GDMT sequencing).",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["hfref", "gdmt", "arni", "sglt2i", "mra"]
+      "tags": [
+        "hfref",
+        "gdmt",
+        "arni",
+        "sglt2i",
+        "mra"
+      ]
     },
     {
       "seed_id": "cardio-seed-0002",
@@ -52,7 +194,13 @@
       "reference_basis": "Apixaban labeling dose-reduction criteria; AF anticoagulation guidance.",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["af", "anticoagulation", "apixaban", "ckd", "bleeding"]
+      "tags": [
+        "af",
+        "anticoagulation",
+        "apixaban",
+        "ckd",
+        "bleeding"
+      ]
     },
     {
       "seed_id": "cardio-seed-0003",
@@ -66,7 +214,13 @@
       "reference_basis": "ACC/AHA ACS and DAPT guidance for patients on oral anticoagulation.",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
-      "tags": ["acs", "pci", "dapt", "triple_therapy", "bleeding"]
+      "tags": [
+        "acs",
+        "pci",
+        "dapt",
+        "triple_therapy",
+        "bleeding"
+      ]
     }
   ]
 }

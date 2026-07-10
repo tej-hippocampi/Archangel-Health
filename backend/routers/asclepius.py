@@ -50,6 +50,7 @@ from asclepius.constants import (
     ERROR_TAXONOMY,
     EVIDENCE_SOURCE_TYPES,
     GROUNDED_PREMIUM_DISCLAIMER,
+    CASE_INCOHERENT_TASK_STATUS,
     GROUNDING_MODES,
     INDEPENDENT_MODES,
     NOT_HARD_TASK_STATUS,
@@ -949,6 +950,38 @@ async def submit(
         )
         return {
             "submission_id": sid, "status": NOT_HARD_TASK_STATUS,
+            "issues": [], "record_count": 0, "critic": None, "agreement_score": None,
+        }
+
+    # Stage-1 "case internally inconsistent" flag (Multimodal PRD §5): the human
+    # counterpart to the case-judge coherence gate. Route the case out and feed the
+    # signal back to recalibrate case generation. No records; the doctor advances.
+    if review and review.verdict == "case_incoherent":
+        ci_note_phi = residual_identifiers(review.note) if review.note else []
+        ci_safe_note = "[redacted — possible identifier detected]" if ci_note_phi else review.note
+        ci_pv = normalize_portal_version(body.portal_version)
+        ci_payload = body.model_dump()
+        ci_payload["portal_version"] = ci_pv
+        if ci_note_phi:
+            (ci_payload.get("prompt_review") or {})["note"] = ci_safe_note
+        store.insert_submission(
+            submission_id=sid, task_id=body.task_id, evaluator_id=user["id"],
+            verdict=None, chosen_id=None, rejected_id=None, confidence=body.confidence,
+            time_spent_sec=body.time_spent_sec, payload=ci_payload,
+            annotator=store.annotator_block(user), dedupe_hash=None, grounded=False,
+            grounding_mode=task.get("grounding_mode") or "optional",
+            portal_version=ci_pv, status=CASE_INCOHERENT_TASK_STATUS,
+        )
+        store.mark_task_status(body.task_id, CASE_INCOHERENT_TASK_STATUS)
+        store.log_event(
+            entity_type="task", entity_id=body.task_id, event_type="prompt_case_incoherent",
+            actor=user["id"],
+            payload={"submission_id": sid, "case_id": (task.get("case") or {}).get("case_id"),
+                     "case_judge": (task.get("generation") or {}).get("case_judge"),
+                     "note": ci_safe_note, "phi_redacted": bool(ci_note_phi)},
+        )
+        return {
+            "submission_id": sid, "status": CASE_INCOHERENT_TASK_STATUS,
             "issues": [], "record_count": 0, "critic": None, "agreement_score": None,
         }
 

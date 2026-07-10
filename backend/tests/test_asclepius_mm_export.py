@@ -71,6 +71,24 @@ def test_packaging_context_multimodal_keys():
     assert ctx["case"]["lab_panels"]
 
 
+def test_caseless_multimodal_label_stored_as_text():
+    """Integrity: a task labeled modality='multimodal' with NO case is stored as
+    'text' — the value premium + multimodal record stamp require an actual case,
+    so a hand-built mislabel can't inflate value."""
+    A.fresh_store()
+    st = _store()
+    t = st.insert_task(prompt="plain text task", specialty="nephrology",
+                       modality="multimodal", case=None,
+                       candidate_answers=[{"id": "A", "text": "a"}, {"id": "B", "text": "b"}])
+    assert t["modality"] == "text"
+    assert t.get("case") is None
+    # And a case with no explicit label is still multimodal (case is the truth).
+    t2 = st.insert_task(prompt="q", specialty="nephrology", modality="text",
+                        case={"case_source": "synthetic", "lab_panels": []},
+                        candidate_answers=[{"id": "A", "text": "a"}, {"id": "B", "text": "b"}])
+    assert t2["modality"] == "multimodal"
+
+
 def test_packaging_context_text_unchanged():
     from asclepius.packaging import _context
     ctx = _context({"specialty": "nephrology", "difficulty": "medium"})
@@ -134,6 +152,22 @@ def test_deidentify_rejects_absolute_offset():
     from asclepius import case_formats as cf
     with pytest.raises(cf.CaseIngestError):
         cf.deidentify({"lab_panels": [{"panel": "BMP", "collected_offset_days": "2024-01-01", "results": []}]})
+
+
+def test_deidentify_scans_all_string_fields_not_just_note_text():
+    """Regression (security review): the de-id guard must scan EVERY string a
+    residual identifier can hide in — note author_role/note_type and lab
+    panel/analyte/unit labels — not just note bodies, since all of them render
+    into the shipped prompt."""
+    from asclepius import case_formats as cf
+    # provider name + phone in the note author (a real-EHR author field)
+    with pytest.raises(cf.CaseIngestError):
+        cf.deidentify({"demographics": {"age_band": "70-79"},
+                       "notes": [{"note_type": "Progress", "author_role": "Dr. Jane Doe 555-123-4567", "text": "euvolemic"}]})
+    # a date hiding in a lab analyte label
+    with pytest.raises(cf.CaseIngestError):
+        cf.deidentify({"lab_panels": [{"panel": "BMP", "collected_offset_days": 0,
+                                       "results": [{"analyte": "Na drawn 03/14/2024", "value": 112}]}]})
 
 
 def test_format_registry_dicom_rejected_others_seamed():
@@ -260,3 +294,24 @@ def test_invalid_modality_and_case_source_rejected():
     admin_h = _admin_h()
     assert client.post("/api/asclepius/exports", json={"modality": "bogus"}, headers=admin_h).status_code == 400
     assert client.post("/api/asclepius/exports", json={"case_source": "bogus"}, headers=admin_h).status_code == 400
+
+
+def test_case_incoherent_flag_routes_case_out_zero_records():
+    """A multimodal case a clinician flags as internally inconsistent is routed
+    out (0 records) — the human counterpart to the case-judge coherence gate."""
+    admin_h, ev_h = _admin_h(), _evaluator_h()
+    tid = client.post("/api/asclepius/tasks", json={"tasks": [_mm_task_body()]}, headers=admin_h).json()["created"][0]
+    r = client.post("/api/asclepius/submissions", json={
+        "submission_id": "s-" + uuid.uuid4().hex[:12], "task_id": tid,
+        "portal_version": "v3", "time_spent_sec": 25,
+        "prompt_review": {"reviewed": True, "verdict": "case_incoherent", "note": "sodium contradicts the note"},
+    }, headers=ev_h)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "case_incoherent"
+    assert r.json()["record_count"] == 0
+    assert _store().get_task(tid)["status"] == "case_incoherent"
+
+
+def test_taxonomy_exposes_case_incoherent_verdict():
+    r = client.get("/api/asclepius/taxonomy", headers=_evaluator_h())
+    assert "case_incoherent" in r.json()["prompt_review_verdicts"]

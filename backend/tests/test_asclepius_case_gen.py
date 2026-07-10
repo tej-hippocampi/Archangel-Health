@@ -190,3 +190,60 @@ def test_multimodal_with_no_archetypes_creates_nothing(monkeypatch):
     monkeypatch.setattr(gen, "_multimodal_archetypes", lambda specialty: [])
     res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=2, multimodal=True))
     assert res["accepted"] == 0
+
+
+# ─── Regression: a bad case must not be misreported as "no LLM" (review Finding 1)
+def test_bad_case_counts_case_gen_failed_not_disabled(monkeypatch):
+    """A returned-but-unparseable case (LLM working, this case bad) must count as
+    case_gen_failed and let generation continue — NOT abort the whole batch as
+    'no LLM configured'. Regression for the skipped=True conflation bug."""
+    A.fresh_store()
+    _install(monkeypatch)
+
+    async def bad_first_then_good(archetype, *, specialty="general"):
+        # First call: LLM answered but the case failed to parse (skipped=False,
+        # case=None). Later calls succeed.
+        bad_first_then_good.n += 1
+        if bad_first_then_good.n == 1:
+            return {"case": None, "question": None, "model": "cg", "skipped": False}
+        na = 108 + bad_first_then_good.n
+        case = _case(lab_panels=[{"panel": "BMP", "collected_offset_days": 0, "results": [
+            {"analyte": "Sodium", "value": na, "unit": "mmol/L", "ref_low": 135, "ref_high": 145, "flag": "LL"}]}],
+            notes=[{"note_type": "Consult", "author_role": "nephrology", "text": f"case {na} distinct narrative"}])
+        return {"case": case, "question": f"Classify hyponatremia {na}.", "model": "cg", "skipped": False}
+    bad_first_then_good.n = 0
+
+    monkeypatch.setattr(gen, "generate_case", bad_first_then_good)
+    res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=2, multimodal=True))
+    # Did NOT raise GenerationDisabled; the bad first case is counted, later ones accepted.
+    assert res["accepted"] >= 1, res
+    assert res["dropped"].get("case_gen_failed", 0) >= 1, res["dropped"]
+
+
+def test_no_llm_still_disables_generation(monkeypatch):
+    """The genuine 'no LLM' path (skipped=True) must still disable generation."""
+    A.fresh_store()
+    _install(monkeypatch)
+
+    async def no_llm(archetype, *, specialty="general"):
+        return {"case": None, "question": None, "model": None, "skipped": True}
+
+    monkeypatch.setattr(gen, "generate_case", no_llm)
+    try:
+        asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=2, multimodal=True))
+        assert False, "expected GenerationDisabled"
+    except gen.GenerationDisabled:
+        pass
+
+
+# ─── Regression: multimodal ignores a non-hard difficulty_mix (review Finding 2)
+def test_multimodal_ignores_difficulty_mix(monkeypatch):
+    """Multimodal cases are definitionally hard; a difficulty_mix without a 'hard'
+    bucket must NOT drop every case as difficulty_mix_skew."""
+    A.fresh_store()
+    _install(monkeypatch)
+    res = asyncio.run(gen.generate_tasks(
+        _store(), specialty="nephrology", n=2, multimodal=True,
+        difficulty_mix={"easy": 1.0}))
+    assert res["accepted"] == 2, res["dropped"]
+    assert res["dropped"].get("difficulty_mix_skew", 0) == 0
