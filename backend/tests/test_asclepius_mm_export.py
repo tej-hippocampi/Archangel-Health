@@ -71,6 +71,24 @@ def test_packaging_context_multimodal_keys():
     assert ctx["case"]["lab_panels"]
 
 
+def test_caseless_multimodal_label_stored_as_text():
+    """Integrity: a task labeled modality='multimodal' with NO case is stored as
+    'text' — the value premium + multimodal record stamp require an actual case,
+    so a hand-built mislabel can't inflate value."""
+    A.fresh_store()
+    st = _store()
+    t = st.insert_task(prompt="plain text task", specialty="nephrology",
+                       modality="multimodal", case=None,
+                       candidate_answers=[{"id": "A", "text": "a"}, {"id": "B", "text": "b"}])
+    assert t["modality"] == "text"
+    assert t.get("case") is None
+    # And a case with no explicit label is still multimodal (case is the truth).
+    t2 = st.insert_task(prompt="q", specialty="nephrology", modality="text",
+                        case={"case_source": "synthetic", "lab_panels": []},
+                        candidate_answers=[{"id": "A", "text": "a"}, {"id": "B", "text": "b"}])
+    assert t2["modality"] == "multimodal"
+
+
 def test_packaging_context_text_unchanged():
     from asclepius.packaging import _context
     ctx = _context({"specialty": "nephrology", "difficulty": "medium"})

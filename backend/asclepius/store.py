@@ -647,11 +647,15 @@ class AsclepiusStore:
         tid = task_id or _new_id("t")
         gm = grounding_mode if grounding_mode in ("optional", "required") else "optional"
         im = normalize_independent_mode(independent_mode)
-        # Multimodal (Synthetic Multimodal Cases PRD): a structured case implies
-        # modality='multimodal'. The FULL case (incl. internal ground_truth) is
-        # stored server-side; blinding/packaging strip the answer key downstream —
-        # the same contract as the server-side ``intended_flawed_id``.
-        md = "multimodal" if (case or modality == "multimodal") else "text"
+        # Multimodal (Synthetic Multimodal Cases PRD): modality is DERIVED from case
+        # presence — a task is multimodal iff it carries a structured case. We do
+        # NOT honor a bare modality='multimodal' label with no case: that would
+        # stamp records multimodal + grant the value premium with no case data
+        # behind it (a mislabel from a hand-built upload). Case is the single source
+        # of truth; the ``modality`` param is advisory. The FULL case (incl. internal
+        # ground_truth) is stored server-side; blinding/packaging strip the answer
+        # key downstream — the same contract as the server-side ``intended_flawed_id``.
+        md = "multimodal" if case else "text"
         with self._conn() as conn:
             conn.execute(
                 """
