@@ -78,6 +78,41 @@ def list_demo_credentials(*, cedar_password: str) -> List[Dict[str, Any]]:
             },
             "redirectAfterLogin": doctor_app,
         },
+        *_asclepius_mock_account(urls),
+    ]
+
+
+def _asclepius_mock_account(urls: Dict[str, str]) -> List[Dict[str, Any]]:
+    """The Asclepius mock/sandbox contributor card (internal demo tool). Lets an
+    operator open the LIVE Expert-Evaluation portal and exercise the latest flow
+    (V3, multimodal cases) with a real login whose data is HARD-EXCLUDED from
+    exports. Returns [] when the sandbox is disabled (ASCLEPIUS_MOCK_ENABLED=0)."""
+    try:
+        from asclepius.auth import mock_credentials
+    except Exception:
+        return []
+    cfg = mock_credentials()
+    if not cfg.get("enabled"):
+        return []
+    portal = f"{urls['backend']}/asclepius"
+    return [
+        {
+            "id": "asclepius-mock-contributor",
+            "label": "Asclepius — Mock Contributor Account",
+            "role": "Evaluator · sandbox (data excluded from exports)",
+            "email": cfg["email"],
+            "password": cfg["password"],
+            "authType": "asclepius",
+            "tenantSlug": None,
+            "healthSystemCode": None,
+            # The portal opens as its own page with its own login; type the email +
+            # password above. Its submissions never enter a shipped export batch and
+            # are labeled "Mock Contributor Account" in the Asclepius admin.
+            "signInUrls": {
+                "asclepiusPortal": portal,
+            },
+            "redirectAfterLogin": portal,
+        },
     ]
 
 

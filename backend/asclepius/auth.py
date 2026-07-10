@@ -177,6 +177,61 @@ def ensure_admin_from_env(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
     return admin
 
 
+# ─── Mock / sandbox contributor (internal demo tool) ──────────────────────────
+# A stable, credentialed evaluator account an operator can log into on the LIVE
+# portal to exercise the latest flow (V3, multimodal cases, …). Its submissions
+# are HARD-EXCLUDED from real exports by default and labeled in the admin, so a
+# demo never contaminates a shipped training batch. Enabled in all environments
+# (it is a safe, isolated sandbox) but can be turned off with
+# ASCLEPIUS_MOCK_ENABLED=0. Credentials are env-overridable.
+_MOCK_DEFAULT_EMAIL = "mock.contributor@archangelhealth.ai"
+_MOCK_DEFAULT_PASSWORD = "MockContributor-2026"
+
+
+def mock_enabled() -> bool:
+    return (os.getenv("ASCLEPIUS_MOCK_ENABLED", "1").strip().lower()
+            not in ("0", "false", "no", "off"))
+
+
+def mock_credentials() -> Dict[str, Any]:
+    """Resolve the mock contributor's login + display profile (env-overridable)."""
+    return {
+        "enabled": mock_enabled(),
+        "email": (os.getenv("ASCLEPIUS_MOCK_EMAIL") or _MOCK_DEFAULT_EMAIL).strip().lower(),
+        "password": os.getenv("ASCLEPIUS_MOCK_PASSWORD") or _MOCK_DEFAULT_PASSWORD,
+        "specialty": (os.getenv("ASCLEPIUS_MOCK_SPECIALTY") or "nephrology").strip().lower(),
+        "board_cert": os.getenv("ASCLEPIUS_MOCK_BOARD_CERT") or "board_certified_nephrology",
+        "years_experience": _mock_years(),
+        "organization": os.getenv("ASCLEPIUS_MOCK_ORG") or "Archangel Health (Sandbox)",
+    }
+
+
+def _mock_years() -> int:
+    try:
+        return int(os.getenv("ASCLEPIUS_MOCK_YEARS", "12"))
+    except (ValueError, TypeError):
+        return 12
+
+
+def ensure_mock_contributor(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
+    """Idempotently provision the mock/sandbox contributor on every boot (no-op
+    when ASCLEPIUS_MOCK_ENABLED=0). Safe in production: the account is isolated
+    (is_mock=1) and its data never ships in a default export."""
+    cfg = mock_credentials()
+    if not cfg["enabled"]:
+        return None
+    user = store.ensure_mock_user(
+        email=cfg["email"], password=cfg["password"], specialty=cfg["specialty"],
+        board_cert=cfg["board_cert"], years_experience=cfg["years_experience"],
+        organization=cfg["organization"],
+    )
+    log.warning(
+        "Asclepius: ensured MOCK contributor '%s' (sandbox; data hard-excluded from "
+        "exports). Disable with ASCLEPIUS_MOCK_ENABLED=0.", cfg["email"],
+    )
+    return user
+
+
 def seed_default_admin(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
     """Create a bootstrap admin (and, outside production, a demo evaluator) on
     first boot if the user table is empty.

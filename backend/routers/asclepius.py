@@ -1314,6 +1314,7 @@ async def create_export(
             modality=body.modality,
             case_source=body.case_source,
             include_answer_key=body.include_answer_key,
+            include_mock=body.include_mock,
             note=body.note,
             include_exported=body.include_exported,
         )

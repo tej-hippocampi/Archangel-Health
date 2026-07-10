@@ -364,6 +364,9 @@ class ExportRequest(BaseModel):
     # Benchmark opt-in (Multimodal PRD §7): bundle the held-out case answer key
     # under ``answer_key``. OFF by default — the answer key is withheld otherwise.
     include_answer_key: bool = False
+    # Mock/sandbox contributor records are hard-excluded from every export by
+    # default; set true only to deliberately include them (internal demo tool).
+    include_mock: bool = False
     note: Optional[str] = None
     # Re-include already-shipped records so the bundle can be re-downloaded.
     include_exported: bool = False

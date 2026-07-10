@@ -1112,9 +1112,15 @@
     }
     body.innerHTML = accounts.map((acc, idx) => {
       const urls = acc.signInUrls || {};
-      const urlRows = Object.entries(urls).map(([k, v]) =>
-        `<tr><td style="font-weight:600;color:var(--gray-500);width:180px;">${escHtml(k)}</td><td><code style="font-size:0.8rem;">${escHtml(v)}</code></td></tr>`
-      ).join('');
+      const urlRows = Object.entries(urls).map(([k, v]) => {
+        // Render an absolute http(s) URL as a real "Open ↗" button (new tab) so a
+        // portal link is one click; keep the raw URL visible as code alongside.
+        const isLink = /^https?:\/\//i.test(String(v || ''));
+        const openBtn = isLink
+          ? `<a href="${escAttr(v)}" target="_blank" rel="noopener" class="badge badge-blue" style="text-decoration:none;margin-left:8px;padding:3px 10px;">Open ↗</a>`
+          : '';
+        return `<tr><td style="font-weight:600;color:var(--gray-500);width:180px;">${escHtml(k)}</td><td><code style="font-size:0.8rem;">${escHtml(v)}</code>${openBtn}</td></tr>`;
+      }).join('');
       return `
         <div class="data-section" style="margin-bottom:20px;">
           <div class="data-section-header">

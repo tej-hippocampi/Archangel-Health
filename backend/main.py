@@ -218,6 +218,7 @@ try:
     from asclepius.store import get_store as _get_asclepius_store
     from asclepius.auth import seed_default_admin as _seed_asclepius_admin
     from asclepius.auth import ensure_admin_from_env as _ensure_asclepius_admin
+    from asclepius.auth import ensure_mock_contributor as _ensure_asclepius_mock
 
     _asclepius_store = _get_asclepius_store()
     app.state.asclepius_store = _asclepius_store
@@ -226,6 +227,10 @@ try:
     # setting ASCLEPIUS_ADMIN_EMAIL/PASSWORD works even after the table is seeded
     # (seed_default_admin only fires on an empty table).
     _ensure_asclepius_admin(_asclepius_store)
+    # Idempotently provision the mock/sandbox contributor (internal demo tool):
+    # a stable login for exercising the live V3 flow whose data is hard-excluded
+    # from exports. No-op when ASCLEPIUS_MOCK_ENABLED=0.
+    _ensure_asclepius_mock(_asclepius_store)
 except Exception:
     _logging_boot = __import__("logging").getLogger("asclepius.boot")
     _logging_boot.warning("Asclepius store init failed; portal disabled", exc_info=True)

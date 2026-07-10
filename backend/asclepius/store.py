@@ -437,6 +437,10 @@ class AsclepiusStore:
                 ("npi", "TEXT"),
                 ("credentials_json", "TEXT"),
                 ("attestations_json", "TEXT"),
+                # Mock/sandbox contributor (internal demo tool): submissions are
+                # HARD-EXCLUDED from real exports by default so a demo can exercise
+                # the live portal without contaminating a shipped training batch.
+                ("is_mock", "INTEGER NOT NULL DEFAULT 0"),
             ):
                 if col not in user_cols:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
@@ -452,6 +456,7 @@ class AsclepiusStore:
         board_cert: Optional[str] = None,
         years_experience: Optional[int] = None,
         organization: Optional[str] = None,
+        is_mock: bool = False,
     ) -> Dict[str, Any]:
         email = email.lower().strip()
         uid = _new_id("u")
@@ -460,8 +465,8 @@ class AsclepiusStore:
             conn.execute(
                 """
                 INSERT INTO users (id, email, password_hash, role, specialty, board_cert,
-                                   years_experience, organization, id_hashed, active, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                                   years_experience, organization, id_hashed, active, is_mock, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                 """,
                 (
                     uid,
@@ -473,6 +478,7 @@ class AsclepiusStore:
                     years_experience,
                     organization,
                     id_hashed,
+                    1 if is_mock else 0,
                     _utcnow_iso(),
                 ),
             )
@@ -608,6 +614,53 @@ class AsclepiusStore:
     def count_users(self) -> int:
         with self._conn() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
+
+    def mock_annotator_id_hashes(self) -> set:
+        """The ``id_hashed`` of every mock/sandbox contributor. Records carry the
+        annotator's ``id_hashed``; export hard-excludes these by default and the
+        admin labels them, so a demo never contaminates a shipped batch."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id_hashed FROM users WHERE is_mock = 1 AND id_hashed IS NOT NULL"
+            ).fetchall()
+        return {r[0] for r in rows if r[0]}
+
+    def ensure_mock_user(
+        self,
+        *,
+        email: str,
+        password: str,
+        specialty: Optional[str] = None,
+        board_cert: Optional[str] = None,
+        years_experience: Optional[int] = None,
+        organization: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Idempotently guarantee the mock/sandbox contributor exists (internal demo
+        tool). Runs on every boot: creates the account if missing, else forces it to
+        role='evaluator', active, is_mock=1, and resets the password to match the
+        configured value (so an operator can always regain the sandbox login). Only
+        touches this one account."""
+        email = email.lower().strip()
+        existing = self.get_user_by_email(email)
+        if not existing:
+            return self.create_user(
+                email=email, password=password, role="evaluator",
+                specialty=specialty, board_cert=board_cert,
+                years_experience=years_experience, organization=organization,
+                is_mock=True,
+            )
+        with self._conn() as conn:
+            conn.execute(
+                """UPDATE users SET password_hash = ?, role = 'evaluator', active = 1,
+                       is_mock = 1, specialty = COALESCE(specialty, ?),
+                       board_cert = COALESCE(board_cert, ?),
+                       years_experience = COALESCE(years_experience, ?),
+                       organization = COALESCE(organization, ?)
+                   WHERE email = ?""",
+                (hash_password(password), specialty, board_cert, years_experience,
+                 organization, email),
+            )
+        return self.get_user_by_email(email)  # type: ignore[return-value]
 
     def annotator_block(self, user: Dict[str, Any]) -> Dict[str, Any]:
         """The credential block copied onto every emitted record (PRD §6.2)."""
@@ -1717,7 +1770,7 @@ class AsclepiusStore:
         with self._conn() as conn:
             rows = conn.execute(
                 """
-                SELECT u.id, u.id_hashed, u.email, u.role, u.specialty,
+                SELECT u.id, u.id_hashed, u.email, u.role, u.specialty, u.is_mock,
                        -- The onboarding flow historically wrote the health-system
                        -- name to org_name; the canonical column is organization.
                        -- COALESCE both so existing onboarded users (organization
@@ -1762,6 +1815,9 @@ class AsclepiusStore:
                     "degree": ship.get("degree"),
                     "credentials_verified": bool((cred or {}).get("credentials_verified")),
                     "has_credentials": has_cred,
+                    # Mock/sandbox contributor — labeled in the admin and hard-
+                    # excluded from real exports (internal demo tool).
+                    "is_mock": bool(r["is_mock"]),
                     "record_count": int(rec_counts.get(r["id"], 0)),
                     "submission_count": submission_count,
                     "last_labeled_at": r["last_labeled_at"],
