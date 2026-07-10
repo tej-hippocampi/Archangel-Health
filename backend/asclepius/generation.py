@@ -34,13 +34,25 @@ from asclepius.constants import (
     gen_max_attempts_per_task,
     gen_min_error_likelihood,
     gen_min_revision_value,
+    case_coherence_min,
+    case_divergence_min,
+    case_ground_truth_min,
+    case_mm_necessity_min,
     hard_only_generation,
     hardness_min,
 )
-from asclepius.corpus import failure_domain_names
-from asclepius.critic import generate_candidates_ex, run_hardness_judge, run_prompt_gen, run_prompt_judge
+from asclepius.cases import render_case_prompt
+from asclepius.corpus import failure_domain_names, load_hardness_config
+from asclepius.critic import (
+    generate_candidates_ex,
+    generate_case,
+    run_case_judge,
+    run_hardness_judge,
+    run_prompt_gen,
+    run_prompt_judge,
+)
 from asclepius.specialties import get_specialty_config
-from asclepius.validation import contamination_hits
+from asclepius.validation import contamination_hits, residual_identifiers
 
 log = logging.getLogger("asclepius.generation")
 
@@ -130,6 +142,44 @@ def _bucket_order(cfg: Any) -> List[Any]:
     return weighted or buckets
 
 
+def _multimodal_archetypes(specialty: str) -> List[Dict[str, Any]]:
+    """Specialty archetypes that carry a ``multimodal`` block (Synthetic Multimodal
+    Cases PRD §10) — the seeds the case generator turns into full clinical cases."""
+    arches = load_hardness_config(specialty).get("hard_case_archetypes") or []
+    return [a for a in arches if isinstance(a, dict) and a.get("multimodal")]
+
+
+async def _gen_multimodal_items(
+    specialty: str, archetypes: List[Dict[str, Any]], start_idx: int, want: int
+) -> Dict[str, Any]:
+    """Produce ``run_prompt_gen``-shaped output for the multimodal path: each item
+    is a rendered case prompt carrying its structured ``_case`` + ``_question`` +
+    the ``hard_hook`` as ``ai_failure_mode`` (so the flawed candidate's error is a
+    reasoning-over-data error keyed to the trap). ``skipped`` is True only when NO
+    item could be generated (no LLM), matching the run_prompt_gen contract."""
+    items: List[Dict[str, Any]] = []
+    model = None
+    for j in range(max(1, want)):
+        arche = archetypes[(start_idx + j) % len(archetypes)]
+        cg = await generate_case(arche, specialty=specialty)
+        if cg.get("skipped"):
+            break
+        model = cg.get("model") or model
+        case = cg.get("case") or {}
+        question = cg.get("question") or ""
+        prompt = render_case_prompt(case, question)
+        hook = case.get("hard_hook") or (arche.get("multimodal") or {}).get("hard_hook")
+        items.append({
+            "prompt": prompt,
+            "difficulty": "hard",
+            "ai_failure_mode": hook,
+            "_case": case,
+            "_question": question,
+            "_archetype_id": arche.get("topic") or arche.get("id"),
+        })
+    return {"prompts": items, "model": model, "skipped": len(items) == 0}
+
+
 async def generate_tasks(
     store: Any,
     *,
@@ -141,6 +191,7 @@ async def generate_tasks(
     independent_mode: str = "stance",
     max_labels: int = 1,
     buyer_request_id: Optional[str] = None,
+    multimodal: bool = False,
     created_by: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate up to ``n`` validated nephrology tasks. Returns
@@ -166,6 +217,13 @@ async def generate_tasks(
     order = _bucket_order(cfg)
     gm = grounding_mode if grounding_mode in ("optional", "required") else "optional"
 
+    # Multimodal (Synthetic Multimodal Cases PRD): the prompt-source is the
+    # specialty's multimodal archetypes turned into full cases, not run_prompt_gen.
+    # With no multimodal archetypes there is nothing to generate — skip the loop.
+    mm_archetypes = _multimodal_archetypes(specialty) if multimodal else []
+    if multimodal and capture_reasoning is False:
+        capture_reasoning = True  # the multimodal value IS the reasoning trace (§4)
+
     # difficulty_mix -> integer per-difficulty quotas (None == legacy free choice).
     quota = _difficulty_quota(n, difficulty_mix)
     remaining: Dict[str, int] = dict(quota) if quota else {}
@@ -174,7 +232,7 @@ async def generate_tasks(
     idx = 0
     llm_seen_working = False
 
-    while len(created) < n and calls < max_calls and order:
+    while len(created) < n and calls < max_calls and order and (not multimodal or mm_archetypes):
         bucket = order[idx % len(order)]
         idx += 1
         calls += 1
@@ -190,18 +248,23 @@ async def generate_tasks(
                 if _DIFFICULTY_RANK[target_difficulty] < _DIFFICULTY_RANK[floor]:
                     target_difficulty = floor
 
-        exemplars = corpus.sample_exemplars(specialty, bucket.id, k)
-        failure_modes = [e.get("ai_failure_mode") for e in exemplars]
         want = min(3, n - len(created))
-        pg = await run_prompt_gen(
-            specialty=specialty,
-            bucket_id=bucket.id,
-            bucket_label=bucket.label,
-            exemplars=exemplars,
-            failure_modes=failure_modes,
-            n=max(1, want),
-            difficulty=target_difficulty,
-        )
+        exemplars: List[Dict[str, Any]] = []
+        if multimodal:
+            # Archetype-driven case generation feeds the SAME downstream gates.
+            pg = await _gen_multimodal_items(specialty, mm_archetypes, idx, want)
+        else:
+            exemplars = corpus.sample_exemplars(specialty, bucket.id, k)
+            failure_modes = [e.get("ai_failure_mode") for e in exemplars]
+            pg = await run_prompt_gen(
+                specialty=specialty,
+                bucket_id=bucket.id,
+                bucket_label=bucket.label,
+                exemplars=exemplars,
+                failure_modes=failure_modes,
+                n=max(1, want),
+                difficulty=target_difficulty,
+            )
         if pg.get("skipped"):
             # No LLM. If we have produced nothing at all, generation is disabled
             # (never emit ungated synthetic tasks). Otherwise stop early.
@@ -220,7 +283,17 @@ async def generate_tasks(
                 break
             prompt = (p.get("prompt") or "").strip()
             if not prompt:
-                dropped["empty_prompt"] += 1
+                dropped["empty_prompt" if not multimodal else "case_gen_failed"] += 1
+                continue
+            # Multimodal: the structured case rides this item; the rendered case IS
+            # the prompt (so candidate-gen already conditions on labs + note).
+            case = p.get("_case")
+
+            # PHI defensive scan on the generated case (PRD §3.1) — synthetic is
+            # PHI-free by construction, but drop rather than ship anything the scan
+            # flags (never emit a case with a residual identifier).
+            if case is not None and residual_identifiers(prompt):
+                dropped["case_gen_failed"] += 1
                 continue
 
             # Gate 1: contamination (lifted from a public benchmark).
@@ -313,6 +386,37 @@ async def generate_tasks(
                         "judge_model": hj.get("model"),
                     }
 
+            # Stage 3c: multimodal case gate (Synthetic Multimodal Cases PRD §3.2)
+            # — case-specific dimensions ONLY (hardness was judged in 3b). Runs only
+            # for multimodal items; degrades safely (a skipped case judge never
+            # drops, same contract as run_hardness_judge).
+            case_judge = None
+            if case is not None:
+                cj = await run_case_judge(case)
+                if not cj.get("skipped"):
+                    if (cj.get("coherence") or 0.0) < case_coherence_min():
+                        dropped["case_incoherent"] += 1
+                        continue
+                    if (cj.get("ground_truth_determinable") or 0.0) < case_ground_truth_min():
+                        dropped["ground_truth_indeterminate"] += 1
+                        continue
+                    if (cj.get("multimodal_necessity") or 0.0) < case_mm_necessity_min():
+                        dropped["multimodal_not_necessary"] += 1
+                        continue
+                    if (cj.get("reasoning_divergence_potential") or 0.0) < case_divergence_min():
+                        dropped["low_reasoning_divergence"] += 1
+                        continue
+                    case_judge = {
+                        k: cj.get(k) for k in (
+                            "coherence", "ground_truth_determinable",
+                            "multimodal_necessity", "reasoning_divergence_potential")
+                    }
+                    case_judge["explanation"] = cj.get("explanation", "")
+                    case_judge["judge_model"] = cj.get("model")
+                # A multimodal item always ships difficulty=hard (the case is the
+                # hard case) even if the hardness judge degraded to skipped.
+                insert_difficulty = "hard"
+
             # Accept: stamp provenance + insert as an ordinary internal-bank task.
             generation = {
                 "engine": ASCLEPIUS_ENGINE,
@@ -338,6 +442,16 @@ async def generate_tasks(
             # Hardness provenance (WS2): a buyer can filter/prove the case is hard.
             if hardness is not None:
                 generation["hardness"] = hardness
+            # Multimodal provenance (PRD §3.4): case_source + which archetype + the
+            # case-judge scores, so exports can filter/prove the modality.
+            if case is not None:
+                case.setdefault("case_id", "case-" + _prompt_hash(prompt)[:12])
+                generation["case_source"] = case.get("case_source", "synthetic")
+                generation["case_id"] = case.get("case_id")
+                generation["seed_archetype_id"] = p.get("_archetype_id")
+                generation["modality"] = "multimodal"
+                if case_judge is not None:
+                    generation["case_judge"] = case_judge
             cap = bool(capture_reasoning) or bool(p.get("capture_reasoning_recommended"))
             task = store.insert_task(
                 prompt=prompt,
@@ -348,6 +462,8 @@ async def generate_tasks(
                 candidate_answers=candidates,
                 max_labels=max(1, int(max_labels or 1)),
                 grounding_mode=gm,
+                modality=("multimodal" if case is not None else "text"),
+                case=case,
                 independent_mode=independent_mode,
                 buyer_request_id=buyer_request_id,
                 created_by=created_by,

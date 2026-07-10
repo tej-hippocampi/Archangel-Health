@@ -334,6 +334,12 @@ GENERATION_DROP_REASONS = (
     "candidate_gen_failed",  # could not produce two candidate answers
     "empty_prompt",         # model returned an empty/blank prompt
     "judge_failed",         # judge unavailable / unparseable for this item
+    # ── Multimodal case gates (Synthetic Multimodal Cases PRD §3.2, Stage 3c) ──
+    "case_incoherent",         # labs/note/problem-list/meds internally inconsistent
+    "ground_truth_indeterminate",  # no objectively correct, guideline/lab-anchorable answer
+    "multimodal_not_necessary",    # answer derivable from the stem alone (decorative labs)
+    "low_reasoning_divergence",    # no sound-vs-shortcut path (right-answer-wrong-reason)
+    "case_gen_failed",         # case generation unavailable / unparseable / PHI-flagged
 )
 
 # ─── Hard-Case Engine (Seamless PRD WS2) ──────────────────────────────────────
@@ -364,6 +370,32 @@ def hard_only_generation() -> bool:
     hardness judge degrades to skipped with no LLM key, so offline generation is
     unaffected. Set ASCLEPIUS_HARD_ONLY=0 to disable the gate entirely."""
     return (os.getenv("ASCLEPIUS_HARD_ONLY", "1").strip().lower() in ("1", "true", "yes", "on"))
+
+
+# ─── Multimodal case judge floors (Synthetic Multimodal Cases PRD §3.2) ────────
+# Stage 3c scores case-specific dimensions ONLY — hardness is REUSED from Stage 3b
+# (run_hardness_judge). Degrades safely: a skipped case judge never drops.
+def case_coherence_min() -> float:
+    """Labs/note/problem-list/meds must be internally consistent (no impossible panel)."""
+    return _env_float("ASCLEPIUS_CASE_COHERENCE_MIN", 0.8)
+
+
+def case_mm_necessity_min() -> float:
+    """The answer must REQUIRE integrating ≥1 lab panel and/or the note — not be
+    derivable from the question stem alone (the anti-"decorative labs" gate)."""
+    return _env_float("ASCLEPIUS_CASE_MM_NECESSITY_MIN", 0.7)
+
+
+# An objectively correct, guideline/lab-anchorable answer must exist; and the case
+# must admit a sound path AND a plausible shortcut/unsound path to it (the
+# right-answer-wrong-reason surface). Gated at fixed, sensible floors (the PRD
+# names only the two env floors above); env-overridable for tuning.
+def case_ground_truth_min() -> float:
+    return _env_float("ASCLEPIUS_CASE_GROUND_TRUTH_MIN", 0.7)
+
+
+def case_divergence_min() -> float:
+    return _env_float("ASCLEPIUS_CASE_DIVERGENCE_MIN", 0.5)
 
 # Near-duplicate threshold: token-set Jaccard >= this against any existing prompt
 # (seed or prior generation) drops the new prompt as ``near_duplicate`` (PRD §7.4).

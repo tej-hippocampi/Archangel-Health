@@ -153,6 +153,10 @@ class GenerationRequest(BaseModel):
     max_labels: int = 1
     # Stamp generated tasks back to the buyer request that asked for them.
     buyer_request_id: Optional[str] = None
+    # Multimodal clinical cases (Synthetic Multimodal Cases PRD): when true, the
+    # engine generates from the specialty's multimodal archetypes (case-gen +
+    # Stage 3c case judge) instead of plain prompt-gen.
+    multimodal: bool = False
 
 
 # ─── Submission (raw, what the doctor produced) (PRD §6.2) ────────────────────

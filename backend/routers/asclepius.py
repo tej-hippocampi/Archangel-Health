@@ -471,6 +471,7 @@ async def generate_specialty_tasks(
             independent_mode=body.independent_mode,
             max_labels=body.max_labels,
             buyer_request_id=body.buyer_request_id,
+            multimodal=body.multimodal,
             created_by=admin["id"],
         )
     except asc_specialties.SpecialtyNotEnabled as exc:
