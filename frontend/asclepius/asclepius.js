@@ -370,7 +370,12 @@
       h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Loading next evaluation…')));
     setRoot(wrap);
     try {
-      const data = await api('/tasks/next');
+      // Declare the active flow so the server applies it: V3 serves the hard-case
+      // queue (difficulty=hard only) with value-aware routing; V2 value-aware;
+      // V1 classic. WITHOUT this param the server safely falls back to the classic
+      // oldest-first queue — i.e. the whole V3/V2 serving path is dead unless the
+      // client sends its selected version here.
+      const data = await api('/tasks/next?portal_version=' + encodeURIComponent(getPortalVersion()));
       state.task = data.task;
       if (!state.task) { renderEvalEmpty(); return; }
       initDraftForTask(state.task);
