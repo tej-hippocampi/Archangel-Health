@@ -81,6 +81,7 @@ from asclepius.critic import (
 )
 from asclepius.constants import (
     company_name as _company_name,
+    hard_only_generation,
     non_circumvention_notice as _non_circumvention_notice,
 )
 from asclepius.schemas import (
@@ -592,7 +593,11 @@ def _query_next(
     # "" / "v9" to the default and silently opt them in — what this must not do).
     value_aware = portal_version in ASSISTED_PORTAL_VERSIONS
     # V3 is the hard-case queue (Seamless PRD WS2): it serves ONLY difficulty=hard.
-    hard_only = portal_version == "v3"
+    # Gated on hard_only_generation() so the two settings can't silently disagree:
+    # if an operator sets ASCLEPIUS_HARD_ONLY=0 (disabling the hardness gate, so
+    # nothing gets stamped 'hard'), V3 stops filtering to hard and serves the
+    # available queue instead of showing an empty V3 to every clinician.
+    hard_only = portal_version == "v3" and hard_only_generation()
 
     def _classic(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
         return store.next_task_for_evaluator(
@@ -709,7 +714,8 @@ async def _autofill_queue(
         _autofill_last_attempt[specialty] = time.monotonic()
         try:
             created = await _seed_tasks_from_corpus(
-                store, specialty, _autofill_batch(), hard_only=(portal_version == "v3")
+                store, specialty, _autofill_batch(),
+                hard_only=(portal_version == "v3" and hard_only_generation()),
             )
             log.info("asclepius autofill: created %d task(s) for %s", created, specialty)
         except asc_specialties.SpecialtyNotEnabled:
@@ -1314,6 +1320,7 @@ async def create_export(
             modality=body.modality,
             case_source=body.case_source,
             include_answer_key=body.include_answer_key,
+            include_mock=body.include_mock,
             note=body.note,
             include_exported=body.include_exported,
         )

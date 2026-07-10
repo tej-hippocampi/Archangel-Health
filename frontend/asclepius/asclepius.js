@@ -284,7 +284,9 @@
   // ─── Login screen ────────────────────────────────────────────────────────--
   function renderLogin(errorMsg) {
     document.getElementById('ascHeader').setAttribute('hidden', '');
-    const emailInput = h('input', { class: 'asc-input', type: 'email', placeholder: 'you@hospital.org', autocomplete: 'username', required: 'required' });
+    // Accepts an email OR a username/id (e.g. the `mockadmin` sandbox login), so
+    // it's a plain text field, not type=email (which would block a username).
+    const emailInput = h('input', { class: 'asc-input', type: 'text', placeholder: 'you@hospital.org or username', autocomplete: 'username', required: 'required' });
     const pwInput = h('input', { class: 'asc-input', type: 'password', placeholder: '••••••••', autocomplete: 'current-password', required: 'required' });
     const errBox = h('div', { class: 'asc-login-error', hidden: !errorMsg }, errorMsg || '');
     const submitBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-block asc-btn-lg', type: 'submit' }, 'Sign in');
@@ -320,7 +322,7 @@
       },
     },
       errBox,
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Email'), emailInput),
+      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Email or username'), emailInput),
       h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Password'), pwInput),
       submitBtn,
     );
@@ -359,16 +361,21 @@
   //  EVALUATOR WORKSPACE
   // ═══════════════════════════════════════════════════════════════════════════
   async function renderEvalView() {
-    // Home page: the evaluator picks their experience (V1 classic / V2 assisted)
-    // before any labeling. Shown on entry until a choice is made this session
-    // (and again whenever they tap "Change experience").
+    // Home page: the evaluator picks their experience (V3 seamless — the
+    // recommended default — / V2 assisted / V1 classic) before any labeling. Shown
+    // on entry until a choice is made this session (and again on "Change experience").
     if (!state.portalChosen) { renderVersionHome(); return; }
     const wrap = h('div', { class: 'asc-wrap' });
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Loading next evaluation…')));
     setRoot(wrap);
     try {
-      const data = await api('/tasks/next');
+      // Declare the active flow so the server applies it: V3 serves the hard-case
+      // queue (difficulty=hard only) with value-aware routing; V2 value-aware;
+      // V1 classic. WITHOUT this param the server safely falls back to the classic
+      // oldest-first queue — i.e. the whole V3/V2 serving path is dead unless the
+      // client sends its selected version here.
+      const data = await api('/tasks/next?portal_version=' + encodeURIComponent(getPortalVersion()));
       state.task = data.task;
       if (!state.task) { renderEvalEmpty(); return; }
       initDraftForTask(state.task);
@@ -2561,6 +2568,13 @@
               try {
                 const res = await api('/tasks', { method: 'POST', body: { tasks } });
                 pasteStatus.appendChild(h('div', { class: 'asc-inline-ok' }, 'Created ' + res.count + ' task(s).'));
+                // V3 (the default flow) serves ONLY difficulty:"hard" tasks. Warn if
+                // any uploaded task isn't hard, so it doesn't silently never appear.
+                const notHard = tasks.filter((t) => ((t && t.difficulty) || 'medium') !== 'hard').length;
+                if (notHard > 0) {
+                  pasteStatus.appendChild(h('div', { class: 'asc-inline-warn', style: 'margin-top:8px' },
+                    '⚠️ ' + notHard + ' of ' + tasks.length + ' task(s) are not difficulty:"hard" and will NOT appear in the V3 (default) hard-case queue. Set difficulty:"hard" to serve them in V3.'));
+                }
                 jsonTa.value = '';
                 loadTasksTable();
               } catch (e) { pasteStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
@@ -2633,41 +2647,66 @@
         }, 'Generate'),
         genStatus));
 
-    // Seedmaker auto-generation (Mode A, nephrology) — generate N validated
-    // tasks (prompt + 2 candidates) grounded in the curated seed corpus.
+    // Seedmaker auto-generation (Mode A) — generate N validated tasks (prompt + 2
+    // candidates) from the curated seed corpus, as TEXT prompts or structured
+    // MULTIMODAL cases (labs + notes the specialist reasons across, Multimodal PRD).
+    const agSpecialty = selectFrom(['nephrology', 'cardiology'], 'nephrology');
+    const agCaseType = selectFrom(['text', 'multimodal'], 'text');
     const agCount = h('input', { type: 'number', class: 'asc-input', value: '10', min: '1', max: '200' });
     const agDiff = selectFrom(['balanced', 'hard_heavy', 'hard_only'], 'balanced');
     const agGround = selectFrom(tax.grounding_modes || ['optional', 'required'], 'optional');
     const agCapture = h('input', { type: 'checkbox' });
     const agStatus = h('div', {});
-    const agBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Generate nephrology tasks');
+    const agNote = h('div', { class: 'asc-card-sub', style: 'margin:8px 0 12px' });
+    const agBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Generate tasks');
+    // Multimodal cases are definitionally hard + always capture the reasoning
+    // trace (that's the value), so those controls don't apply — reflect that.
+    function syncCaseType() {
+      const mm = agCaseType.value === 'multimodal';
+      agDiff.disabled = mm; agCapture.disabled = mm;
+      agBtn.textContent = mm ? 'Generate multimodal cases' : 'Generate tasks';
+      agNote.textContent = mm
+        ? 'Multimodal: synthesizes a PHI-free clinical case (lab panels + notes) the specialist reasons across. Always hard + reasoning capture; served in the V3 queue with a structured case panel. Needs an LLM key.'
+        : 'Synthesizes novel, hard prompts from the seed corpus + two candidate answers, quality-gated before they enter the queue. Needs an LLM key.';
+    }
+    agCaseType.addEventListener('change', syncCaseType);
     const autoGenCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Auto-generate tasks (nephrology Seedmaker)'),
-        h('div', { class: 'asc-card-sub' }, 'Synthesizes novel, hard nephrology prompts from the seed corpus + two candidate answers, quality-gated before they enter the queue. Needs an LLM key.'))),
+        h('div', { class: 'asc-card-title' }, 'Auto-generate tasks (Seedmaker)'),
+        h('div', { class: 'asc-card-sub' }, 'Text prompts or structured multimodal cases, quality-gated before they enter the queue.'))),
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'How many'), agCount),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), agSpecialty),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Case type'), agCaseType),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'How many'), agCount)),
+        h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Difficulty mix'), agDiff),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Grounding'), agGround)),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Grounding'), agGround),
+          h('div', {})),
         h('label', { class: 'asc-checkbox-row', style: 'margin-bottom:12px' }, agCapture, 'Capture reasoning steps'),
+        agNote,
         agBtn,
         agStatus));
+    syncCaseType();
     agBtn.addEventListener('click', async () => {
       clear(agStatus);
       const count = Math.max(1, parseInt(agCount.value, 10) || 1);
+      const multimodal = agCaseType.value === 'multimodal';
       const mixMap = {
         balanced: { hard: 0.6, medium: 0.4 },
         hard_heavy: { hard: 0.8, medium: 0.2 },
         hard_only: { hard: 1.0 },
       };
       agBtn.setAttribute('disabled', '');
-      agStatus.appendChild(loadingCard('Generating ' + count + ' task(s)… this calls the LLM and may take a moment.'));
+      agStatus.appendChild(loadingCard('Generating ' + count + ' ' + (multimodal ? 'multimodal case' : 'task') + '(s)… this calls the LLM and may take a moment.'));
       try {
-        const res = await api('/generation/nephrology', {
+        const res = await api('/generation/' + encodeURIComponent(agSpecialty.value), {
           method: 'POST', body: {
-            count, difficulty_mix: mixMap[agDiff.value] || null,
-            capture_reasoning: agCapture.checked, grounding_mode: agGround.value,
+            count,
+            difficulty_mix: multimodal ? null : (mixMap[agDiff.value] || null),
+            capture_reasoning: multimodal ? true : agCapture.checked,
+            grounding_mode: agGround.value,
+            multimodal,
           },
         });
         clear(agStatus);
@@ -3257,6 +3296,7 @@
         h('div', { class: 'asc-browse-main' },
           h('div', { class: 'asc-browse-name' },
             '👩‍⚕️ ' + (c.display_name || c.id_hashed),
+            c.is_mock ? h('span', { class: 'asc-badge asc-badge-amber', style: 'margin-left:8px' }, '🧪 Mock Contributor Account') : null,
             c.credentials_verified ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:8px' }, 'verified ✓') : null),
           h('div', { class: 'asc-browse-meta' }, meta.join(' · '))),
         h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: open }, 'Open →')));
@@ -3298,6 +3338,7 @@
       h('div', { class: 'asc-profile-avatar' }, '👩‍⚕️'),
       h('div', {},
         h('div', { class: 'asc-profile-name' }, c.display_name || idHashed,
+          c.is_mock ? h('span', { class: 'asc-badge asc-badge-amber', style: 'margin-left:10px' }, '🧪 Mock Contributor Account') : null,
           cr.credentials_verified ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:10px' }, 'verified ✓') : null),
         h('div', { class: 'asc-meta-row', style: 'margin-top:6px' },
           h('span', { class: 'asc-badge asc-badge-primary' }, cr.role_title || '—'),
@@ -3318,6 +3359,13 @@
       pad.appendChild(h('div', { class: 'asc-chip-row' }, chips.map((t) => h('span', { class: 'asc-chip' }, t))));
     }
 
+    if (c.is_mock) {
+      pad.appendChild(h('div', { class: 'asc-grounding-banner', style: 'margin-top:14px' },
+        h('div', { class: 'asc-gb-icon' }, '🧪'),
+        h('div', {},
+          h('div', { class: 'asc-gb-title' }, 'Sandbox account — excluded from exports'),
+          h('div', { class: 'asc-gb-text' }, 'This is the Mock Contributor Account. Its submissions are hard-excluded from every export batch by default so a demo never contaminates a shipped dataset.'))));
+    }
     const statusBox = h('div', { style: 'margin-top:14px' });
     pad.appendChild(h('div', { class: 'asc-profile-actions' },
       h('button', { class: 'asc-btn asc-btn-primary',

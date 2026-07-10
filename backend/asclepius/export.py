@@ -588,6 +588,7 @@ def build_export(
     modality: Optional[str] = None,
     case_source: Optional[str] = None,
     include_answer_key: bool = False,
+    include_mock: bool = False,
     note: Optional[str] = None,
     include_exported: bool = False,
     annotator_id_hashed: Optional[str] = None,
@@ -618,9 +619,23 @@ def build_export(
     (default OFF, Multimodal PRD §7) attaches each multimodal case's held-out
     answer key under a non-forbidden ``answer_key`` field for *benchmark* buyers —
     the raw ``ground_truth`` key stays forbidden by the leak gate, so the answer
-    key never ships by accident; it ships only on explicit opt-in."""
+    key never ships by accident; it ships only on explicit opt-in.
+
+    ``include_mock`` (default OFF) is the ONLY way mock/sandbox-contributor records
+    enter a batch. By default every record whose annotator is a mock contributor is
+    hard-excluded, so a demo on the live portal never contaminates a shipped
+    training batch (internal demo tool)."""
     prof = profiles.load_profile(profile)
     profile_name = prof.get("name") or profile
+
+    # Mock/sandbox contributor isolation: hard-exclude their records unless an admin
+    # explicitly opts in. Computed once (empty set when including mock or none exist).
+    mock_ids: set = set()
+    if not include_mock:
+        try:
+            mock_ids = store.mock_annotator_id_hashes()
+        except Exception:
+            mock_ids = set()
 
     annotator_id_set: Optional[set] = None
     if annotator_id_hashed:
@@ -646,7 +661,8 @@ def build_export(
     records = [
         r
         for r in candidates
-        if _passes_filters(
+        if (not mock_ids or (r.get("payload") or {}).get("annotator_id_hashed") not in mock_ids)
+        and _passes_filters(
             r,
             difficulty=difficulty,
             grounded_only=grounded_only,
@@ -770,6 +786,9 @@ def build_export(
         "modality": modality,
         "case_source": case_source,
         "include_answer_key": include_answer_key,
+        # Mock/sandbox records are hard-excluded unless explicitly included.
+        "include_mock": include_mock,
+        "mock_excluded": (not include_mock and bool(mock_ids)),
         "annotator_id_hashed": annotator_id_hashed,
         "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
     }

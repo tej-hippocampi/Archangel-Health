@@ -31,9 +31,23 @@ def _normalize_email(value: str) -> str:
 EmailLike = Annotated[str, AfterValidator(_normalize_email)]
 
 
+def _normalize_login_identifier(value: str) -> str:
+    """Login accepts an email OR a plain username/id (e.g. the ``mockadmin``
+    sandbox account). We only normalize (strip + lowercase) — no email-format
+    check, so a username without an ``@`` is a valid login. Account CREATION still
+    uses ``EmailLike`` (real users need real emails); this leniency is login-only,
+    and a bad identifier simply fails auth (401), never a 422."""
+    return (value or "").strip().lower()
+
+
+LoginIdentifier = Annotated[str, AfterValidator(_normalize_login_identifier)]
+
+
 # ─── Auth ────────────────────────────────────────────────────────────────────
 class LoginRequest(BaseModel):
-    email: EmailLike
+    # Named ``email`` for backward compatibility with existing clients; accepts an
+    # email or a username/id (see ``_normalize_login_identifier``).
+    email: LoginIdentifier
     password: str
 
 
@@ -364,6 +378,9 @@ class ExportRequest(BaseModel):
     # Benchmark opt-in (Multimodal PRD §7): bundle the held-out case answer key
     # under ``answer_key``. OFF by default — the answer key is withheld otherwise.
     include_answer_key: bool = False
+    # Mock/sandbox contributor records are hard-excluded from every export by
+    # default; set true only to deliberately include them (internal demo tool).
+    include_mock: bool = False
     note: Optional[str] = None
     # Re-include already-shipped records so the bundle can be re-downloaded.
     include_exported: bool = False
