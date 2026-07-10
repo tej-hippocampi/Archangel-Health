@@ -52,6 +52,8 @@ def test_ensure_mock_contributor_seeds_isolated_evaluator():
     st = _store()
     u = asc_auth.ensure_mock_contributor(st)
     assert u["role"] == "evaluator" and u["is_mock"] == 1
+    # login is a plain username/id (no @), not an email
+    assert u["email"] == "mockadmin" and "@" not in u["email"]
     # idempotent — same account, password re-applied, still the only mock
     u2 = asc_auth.ensure_mock_contributor(st)
     assert u2["id"] == u["id"]
@@ -59,6 +61,25 @@ def test_ensure_mock_contributor_seeds_isolated_evaluator():
     # authenticates with the configured credentials
     cfg = asc_auth.mock_credentials()
     assert asc_auth.authenticate(st, cfg["email"], cfg["password"]) is not None
+
+
+def test_username_login_via_http():
+    """The portal /auth/login accepts the plain username (no email format), so you
+    sign in with just 'mockadmin' + password."""
+    st = _store()
+    asc_auth.ensure_mock_contributor(st)
+    cfg = asc_auth.mock_credentials()
+    r = client.post("/api/asclepius/auth/login", json={"email": cfg["email"], "password": cfg["password"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["email"] == "mockadmin"
+    # wrong password still fails cleanly (401, not a 422 email-format error)
+    bad = client.post("/api/asclepius/auth/login", json={"email": "mockadmin", "password": "nope"})
+    assert bad.status_code == 401
+
+
+def test_mock_id_env_override(monkeypatch):
+    monkeypatch.setenv("ASCLEPIUS_MOCK_ID", "sandbox")
+    assert asc_auth.mock_credentials()["email"] == "sandbox"
 
 
 def test_mock_disabled_seeds_nothing(monkeypatch):

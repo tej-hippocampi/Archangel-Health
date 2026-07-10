@@ -184,7 +184,7 @@ def ensure_admin_from_env(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
 # demo never contaminates a shipped training batch. Enabled in all environments
 # (it is a safe, isolated sandbox) but can be turned off with
 # ASCLEPIUS_MOCK_ENABLED=0. Credentials are env-overridable.
-_MOCK_DEFAULT_EMAIL = "mock.contributor@archangelhealth.ai"
+_MOCK_DEFAULT_ID = "mockadmin"
 _MOCK_DEFAULT_PASSWORD = "MockContributor-2026"
 
 
@@ -194,10 +194,18 @@ def mock_enabled() -> bool:
 
 
 def mock_credentials() -> Dict[str, Any]:
-    """Resolve the mock contributor's login + display profile (env-overridable)."""
+    """Resolve the mock contributor's login + display profile (env-overridable).
+
+    The login is a plain USERNAME/ID (default ``mockadmin``), not an email —
+    ``ASCLEPIUS_MOCK_ID`` sets it (``ASCLEPIUS_MOCK_EMAIL`` still honored for
+    back-compat). The portal login accepts a username or an email, so you sign in
+    with just the id + password. Stored in the identity column like any login."""
+    login_id = (os.getenv("ASCLEPIUS_MOCK_ID")
+                or os.getenv("ASCLEPIUS_MOCK_EMAIL")
+                or _MOCK_DEFAULT_ID).strip().lower()
     return {
         "enabled": mock_enabled(),
-        "email": (os.getenv("ASCLEPIUS_MOCK_EMAIL") or _MOCK_DEFAULT_EMAIL).strip().lower(),
+        "email": login_id,   # the login identifier (username or email)
         "password": os.getenv("ASCLEPIUS_MOCK_PASSWORD") or _MOCK_DEFAULT_PASSWORD,
         "specialty": (os.getenv("ASCLEPIUS_MOCK_SPECIALTY") or "nephrology").strip().lower(),
         "board_cert": os.getenv("ASCLEPIUS_MOCK_BOARD_CERT") or "board_certified_nephrology",

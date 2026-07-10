@@ -284,7 +284,9 @@
   // ─── Login screen ────────────────────────────────────────────────────────--
   function renderLogin(errorMsg) {
     document.getElementById('ascHeader').setAttribute('hidden', '');
-    const emailInput = h('input', { class: 'asc-input', type: 'email', placeholder: 'you@hospital.org', autocomplete: 'username', required: 'required' });
+    // Accepts an email OR a username/id (e.g. the `mockadmin` sandbox login), so
+    // it's a plain text field, not type=email (which would block a username).
+    const emailInput = h('input', { class: 'asc-input', type: 'text', placeholder: 'you@hospital.org or username', autocomplete: 'username', required: 'required' });
     const pwInput = h('input', { class: 'asc-input', type: 'password', placeholder: '••••••••', autocomplete: 'current-password', required: 'required' });
     const errBox = h('div', { class: 'asc-login-error', hidden: !errorMsg }, errorMsg || '');
     const submitBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-block asc-btn-lg', type: 'submit' }, 'Sign in');
@@ -320,7 +322,7 @@
       },
     },
       errBox,
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Email'), emailInput),
+      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Email or username'), emailInput),
       h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Password'), pwInput),
       submitBtn,
     );
