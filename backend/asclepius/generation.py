@@ -162,11 +162,20 @@ async def _gen_multimodal_items(
     for j in range(max(1, want)):
         arche = archetypes[(start_idx + j) % len(archetypes)]
         cg = await generate_case(arche, specialty=specialty)
+        # skipped=True means the LLM is UNAVAILABLE — stop (the caller disables
+        # generation only if nothing at all was produced). A returned-but-empty
+        # case (skipped=False, case=None) is a per-item parse/schema failure: emit
+        # an empty-prompt sentinel so the caller counts it as ``case_gen_failed``
+        # and moves on, instead of one bad case aborting the whole batch.
         if cg.get("skipped"):
             break
         model = cg.get("model") or model
-        case = cg.get("case") or {}
+        case = cg.get("case")
         question = cg.get("question") or ""
+        if not case:
+            items.append({"prompt": "", "difficulty": "hard",
+                          "_archetype_id": arche.get("topic") or arche.get("id")})
+            continue
         prompt = render_case_prompt(case, question)
         hook = case.get("hard_hook") or (arche.get("multimodal") or {}).get("hard_hook")
         items.append({
@@ -225,7 +234,10 @@ async def generate_tasks(
         capture_reasoning = True  # the multimodal value IS the reasoning trace (§4)
 
     # difficulty_mix -> integer per-difficulty quotas (None == legacy free choice).
-    quota = _difficulty_quota(n, difficulty_mix)
+    # Multimodal cases are definitionally hard (§4), so they IGNORE difficulty_mix —
+    # otherwise a mix without a 'hard' bucket would drop every case as
+    # difficulty_mix_skew and silently produce zero tasks.
+    quota = _difficulty_quota(n, None if multimodal else difficulty_mix)
     remaining: Dict[str, int] = dict(quota) if quota else {}
 
     calls = 0

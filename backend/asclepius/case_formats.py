@@ -73,22 +73,34 @@ def age_to_band(age: Optional[int]) -> Optional[str]:
     return f"{lo}-{lo + 9}"
 
 
-def _case_text_fields(case: Dict[str, Any]) -> List[str]:
-    """Every free-text field a residual identifier could hide in (note bodies,
-    problem/medication strings, vitals values)."""
+def _case_text_fields(case: Any) -> List[str]:
+    """EVERY string a residual identifier could hide in, collected by walking the
+    whole case recursively. Drift-proof by construction: any field the case model
+    grows (note ``author_role``/``note_type``, a lab ``panel``/``analyte``/``unit``,
+    a med field, a vitals value, a dict key) is scanned automatically, so the guard
+    can never fall behind what ``render_case_prompt``/the shipped record emit.
+
+    A field-by-field allowlist here was the bug: it scanned note ``text`` but not
+    ``author_role``/``note_type`` or the lab labels, so a real-EHR provider name or
+    phone in one of those fields would pass the guard and ship into ``task.prompt``.
+    """
     out: List[str] = []
-    for n in case.get("notes") or []:
-        out.append(str(n.get("text") or ""))
-    for p in case.get("problem_list") or []:
-        out.append(str(p.get("condition") or ""))
-        out.append(str(p.get("since") or ""))
-    for m in case.get("medications") or []:
-        out.append(" ".join(str(m.get(k) or "") for k in ("drug", "dose", "route", "freq")))
-    for k, v in (case.get("vitals") or {}).items():
-        out.append(f"{k} {v}")
-    for lp in case.get("lab_panels") or []:
-        for r in lp.get("results") or []:
-            out.append(str(r.get("value") or ""))
+
+    def _walk(node: Any) -> None:
+        if isinstance(node, str):
+            out.append(node)
+        elif isinstance(node, dict):
+            for k, v in node.items():
+                if isinstance(k, str):
+                    out.append(k)
+                _walk(v)
+        elif isinstance(node, (list, tuple)):
+            for v in node:
+                _walk(v)
+        elif node is not None:
+            out.append(str(node))
+
+    _walk(case)
     return out
 
 

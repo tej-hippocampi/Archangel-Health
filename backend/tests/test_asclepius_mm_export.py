@@ -136,6 +136,22 @@ def test_deidentify_rejects_absolute_offset():
         cf.deidentify({"lab_panels": [{"panel": "BMP", "collected_offset_days": "2024-01-01", "results": []}]})
 
 
+def test_deidentify_scans_all_string_fields_not_just_note_text():
+    """Regression (security review): the de-id guard must scan EVERY string a
+    residual identifier can hide in — note author_role/note_type and lab
+    panel/analyte/unit labels — not just note bodies, since all of them render
+    into the shipped prompt."""
+    from asclepius import case_formats as cf
+    # provider name + phone in the note author (a real-EHR author field)
+    with pytest.raises(cf.CaseIngestError):
+        cf.deidentify({"demographics": {"age_band": "70-79"},
+                       "notes": [{"note_type": "Progress", "author_role": "Dr. Jane Doe 555-123-4567", "text": "euvolemic"}]})
+    # a date hiding in a lab analyte label
+    with pytest.raises(cf.CaseIngestError):
+        cf.deidentify({"lab_panels": [{"panel": "BMP", "collected_offset_days": 0,
+                                       "results": [{"analyte": "Na drawn 03/14/2024", "value": 112}]}]})
+
+
 def test_format_registry_dicom_rejected_others_seamed():
     from asclepius import case_formats as cf
     assert set(cf.FORMATS) == set(cf.CASE_FORMATS)
