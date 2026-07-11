@@ -2094,6 +2094,19 @@
 
       const anchorBlock = renderAnchorBlock(s.evidence_anchor, { label: 'citation for this step', required });
 
+      // V3 (WS3, audit P2): one-click citation auto-suggest on EACH reasoning
+      // step — the highest-value place to ground (PRM step-level supervision).
+      // Retrieval keys on the step text + its critique; Confirm fills the step's
+      // evidence_anchor exactly like the rationale chip. Mounted only on this
+      // expanded card (collapsed model-passed steps have no anchor UI), and the
+      // per-task suggestion cache keeps list re-renders from re-billing retrieval.
+      const stepCite = renderCiteSuggest(
+        s.evidence_anchor,
+        () => ((s.text || '') + ' ' + (s.critique || '')),
+        () => renderStepsList(listId));
+      wireCiteSuggest(ta, stepCite);
+      wireCiteSuggest(ci, stepCite);
+
       // Sync affordances to step state WITHOUT a full re-render, so typing in the
       // textarea never steals focus mid-edit.
       function syncStepUI() {
@@ -2130,7 +2143,7 @@
       });
 
       syncStepUI();
-      list.appendChild(h('div', { class: 'asc-step' }, head, suggestHint, ta, reasonWrap, originalBox, critiqueField, anchorBlock));
+      list.appendChild(h('div', { class: 'asc-step' }, head, suggestHint, ta, reasonWrap, originalBox, critiqueField, stepCite, anchorBlock));
     });
     if (!steps.length) {
       list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually, or use “Re-split from answer”.'));
@@ -2192,19 +2205,24 @@
       if (text.length < 12) { clear(wrap); lastQuery = null; return; }
       if (text === lastQuery) return;
       lastQuery = text;
-      // Task-level cache so a renderRationale REBUILD (e.g. when the prelabel
-      // assist arrives and re-renders the card) doesn't re-POST /assist/cite for
-      // the same rationale text — each rebuild otherwise re-bills the retrieval.
-      const cache = state._citeCache;
+      // Task-level cache so a card REBUILD (e.g. when the prelabel assist arrives,
+      // or the steps list re-renders) doesn't re-POST /assist/cite for the same
+      // text. A per-task MAP (not a single entry): with per-step chips several
+      // widgets fetch different texts on one screen, and a single-entry cache
+      // would thrash and re-bill the retrieval on every rebuild.
       const tid = state.task && state.task.task_id;
-      if (cache && cache.tid === tid && cache.text === text) {
-        if (!dismissed && !isValidAnchor(anchor) && (cache.suggestions || []).length) renderChips(cache.suggestions);
+      if (!state._citeCache || state._citeCache.tid !== tid) state._citeCache = { tid, map: {} };
+      const cached = state._citeCache.map[text];
+      if (cached) {
+        if (!dismissed && !isValidAnchor(anchor) && cached.length) renderChips(cached);
+        else clear(wrap);
         return;
       }
       try {
         const res = await api('/assist/cite', { method: 'POST',
           body: { text, specialty: (state.task && state.task.specialty) || 'nephrology' } });
-        state._citeCache = { tid, text, suggestions: (res && res.suggestions) || [] };
+        if (Object.keys(state._citeCache.map).length > 40) state._citeCache.map = {};
+        state._citeCache.map[text] = (res && res.suggestions) || [];
         if (dismissed || isValidAnchor(anchor)) return;
         if (res.skipped || !(res.suggestions || []).length) { clear(wrap); return; }
         renderChips(res.suggestions);
