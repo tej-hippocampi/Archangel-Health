@@ -1483,6 +1483,20 @@ class AsclepiusStore:
             ).fetchall()
         return {(r["portal_version"] or "v2"): int(r["n"]) for r in rows}
 
+    def open_modality_counts(self) -> Dict[str, int]:
+        """OPEN (servable) tasks by modality (Multimodal Debug PRD P3.11) — the
+        admin dashboard shows "multimodal in queue: N" so an operator always knows
+        whether structured cases exist without inspecting the tasks table."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT COALESCE(modality, 'text') AS m, COUNT(*) AS n "
+                "FROM tasks WHERE status = 'open' GROUP BY m"
+            ).fetchall()
+        counts = {r["m"]: int(r["n"]) for r in rows}
+        counts.setdefault("text", 0)
+        counts.setdefault("multimodal", 0)
+        return counts
+
     def ab_balance_stats(self) -> Dict[str, Any]:
         """Position-bias QC (Seamless PRD WS6). The stronger/weaker A-B slot is
         randomized 50/50 at candidate build (``critic.generate_candidates_ex``)

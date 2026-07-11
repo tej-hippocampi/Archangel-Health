@@ -2788,14 +2788,27 @@
       if (!jobs.length) { card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No generation runs yet.'))); return; }
       const rows = jobs.slice(0, 50).map((j) => {
         const dropped = j.dropped || {};
-        const dsum = Object.keys(dropped).reduce((a, k) => a + (dropped[k] || 0), 0);
+        const dkeys = Object.keys(dropped).filter((k) => dropped[k] > 0);
+        const dsum = dkeys.reduce((a, k) => a + dropped[k], 0);
+        // Per-reason breakdown, permanently visible (Multimodal Debug PRD P1.5):
+        // a batch that drops to 0 accepted must SHOW why (case_incoherent,
+        // multimodal_not_necessary, near_duplicate, …), not just a count — that's
+        // the difference between "broken" and "thresholds need tuning".
+        const breakdown = dkeys.length
+          ? dkeys.sort((a, b) => dropped[b] - dropped[a])
+              .map((k) => k.replace(/_/g, ' ') + ' ' + dropped[k]).join(' · ')
+          : '—';
+        const zeroYield = !j.accepted && dsum > 0;
         return h('tr', {},
           h('td', {}, fmtDate(j.created_at)),
-          h('td', {}, String(j.accepted) + ' / ' + String(j.requested_n)),
-          h('td', {}, String(dsum)));
+          h('td', {}, zeroYield
+            ? h('span', { class: 'asc-badge asc-badge-amber' }, '0 / ' + String(j.requested_n))
+            : String(j.accepted) + ' / ' + String(j.requested_n)),
+          h('td', {}, String(dsum)),
+          h('td', { class: 'asc-card-sub', style: 'max-width:340px' }, breakdown));
       });
       card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-        h('thead', {}, h('tr', {}, ['When', 'Accepted / Requested', 'Dropped'].map((c) => h('th', {}, c)))),
+        h('thead', {}, h('tr', {}, ['When', 'Accepted / Requested', 'Dropped', 'Why dropped'].map((c) => h('th', {}, c)))),
         h('tbody', {}, rows))));
     } catch (e) {
       clear(card);
@@ -2818,6 +2831,11 @@
       const rows = tasks.slice(0, 200).map((t) => h('tr', {},
         h('td', { class: 'asc-mono' }, (t.task_id || '').slice(0, 10)),
         h('td', {}, h('span', { class: 'asc-badge asc-badge-primary' }, t.specialty || '—')),
+        // Modality badge (Multimodal Debug PRD P0.3): multimodal batches must be
+        // distinguishable at a glance, not invisible among text tasks.
+        h('td', {}, (t.modality || 'text') === 'multimodal'
+          ? h('span', { class: 'asc-badge asc-badge-accent' }, '🧬 multimodal')
+          : 'text'),
         h('td', {}, t.difficulty || '—'),
         h('td', {}, (t.prompt || '').slice(0, 90) + ((t.prompt || '').length > 90 ? '…' : '')),
         h('td', {}, t.grounding_mode === 'required' ? h('span', { class: 'asc-badge asc-badge-amber' }, 'required') : 'optional'),
@@ -2828,7 +2846,7 @@
       card.appendChild(h('div', { class: 'asc-table-wrap' },
         h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
-            ['ID', 'Specialty', 'Difficulty', 'Prompt', 'Grounding', 'Labels', 'Status'].map((c) => h('th', {}, c)))),
+            ['ID', 'Specialty', 'Modality', 'Difficulty', 'Prompt', 'Grounding', 'Labels', 'Status'].map((c) => h('th', {}, c)))),
           h('tbody', {}, rows))));
     } catch (e) {
       clear(card);
@@ -3571,8 +3589,14 @@
     const flaw = s.flaw_catch_rate || {};
 
     // Top stat tiles
+    const omc = s.open_modality_counts || {};
     const tiles = h('div', { class: 'asc-stat-grid' },
       stat(s.task_count != null ? s.task_count : 0, 'Tasks'),
+      // Multimodal Debug PRD P3.11: always-visible count of structured cases in
+      // the OPEN queue — "0" here is the tell that generation hasn't produced
+      // (or the queue drained), before anyone wonders why no case panel appears.
+      stat(omc.multimodal != null ? omc.multimodal : 0, '🧬 Multimodal in queue',
+        (omc.text != null ? omc.text : 0) + ' text open'),
       stat(sumValues(sc), 'Submissions'),
       stat((qpr.pass_rate != null ? Math.round(qpr.pass_rate * 100) : 0) + '%', 'QA pass rate', (qpr.passed || 0) + ' / ' + (qpr.reviewed || 0) + ' reviewed'),
       stat(fmtNum(s.average_agreement), 'Avg agreement'),

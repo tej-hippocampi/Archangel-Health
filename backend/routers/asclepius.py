@@ -543,6 +543,16 @@ def _autofill_batch() -> int:
         return 3
 
 
+def _autofill_multimodal() -> bool:
+    """Whether the empty-queue autofill may generate MULTIMODAL cases (Multimodal
+    Debug PRD P0.2). Default OFF: multimodal generation runs the full case-gen +
+    case-judge pipeline (slower, more LLM budget) and an operator should opt in.
+    When ON, autofill tries a multimodal batch FIRST and still falls back to text
+    corpus seeding if it yields nothing — the queue never starves either way."""
+    return (os.getenv("ASCLEPIUS_AUTOFILL_MULTIMODAL", "0").strip().lower()
+            in ("1", "true", "yes", "on"))
+
+
 def _autofill_cooldown_sec() -> float:
     try:
         return max(0.0, float(os.getenv("ASCLEPIUS_AUTOFILL_COOLDOWN_SEC", "30")))
@@ -713,11 +723,38 @@ async def _autofill_queue(
             return None
         _autofill_last_attempt[specialty] = time.monotonic()
         try:
-            created = await _seed_tasks_from_corpus(
-                store, specialty, _autofill_batch(),
-                hard_only=(portal_version == "v3" and hard_only_generation()),
-            )
-            log.info("asclepius autofill: created %d task(s) for %s", created, specialty)
+            created = 0
+            # Multimodal autofill (Multimodal Debug PRD P0.2): when opted in, try a
+            # full multimodal batch FIRST (case-gen → case-judge → hardness, all the
+            # normal gates). Any failure or zero yield falls through to the fast
+            # text corpus seeding below, so enabling this can never starve the queue.
+            if _autofill_multimodal():
+                try:
+                    mm = await asc_generation.generate_tasks(
+                        store, specialty=specialty, n=_autofill_batch(),
+                        multimodal=True, created_by="system:autofill",
+                    )
+                    created = int(mm.get("accepted") or 0)
+                    if created:
+                        log.info(
+                            "asclepius autofill: created %d MULTIMODAL case(s) for %s (dropped: %s)",
+                            created, specialty, mm.get("dropped") or {},
+                        )
+                    elif mm.get("dropped"):
+                        log.warning(
+                            "asclepius autofill: multimodal batch yielded 0 for %s (dropped: %s); "
+                            "falling back to text seeding", specialty, mm.get("dropped"),
+                        )
+                except asc_generation.GenerationDisabled:
+                    pass  # no LLM — the text path below logs the actionable warning
+                except Exception:
+                    log.exception("asclepius autofill: multimodal generation failed; falling back to text")
+            if created == 0:
+                created = await _seed_tasks_from_corpus(
+                    store, specialty, _autofill_batch(),
+                    hard_only=(portal_version == "v3" and hard_only_generation()),
+                )
+                log.info("asclepius autofill: created %d task(s) for %s", created, specialty)
         except asc_specialties.SpecialtyNotEnabled:
             return None
         except asc_corpus.CorpusError as exc:
@@ -2011,6 +2048,9 @@ async def stats(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
         "status_counts": store.status_counts(),
         # V1 (classic) vs V2 (assisted) provenance breakdown (Asclepius V2).
         "portal_version_counts": store.portal_version_counts(),
+        # Open queue by modality (Multimodal Debug PRD P3.11): "multimodal in
+        # queue: N" so the operator always knows structured cases exist.
+        "open_modality_counts": store.open_modality_counts(),
         "value_per_time": vpt,
         "value_per_time_target": value_per_minute_target(),
         # Rubber-stamp guard: model-assist override rate on the assisted flow.
