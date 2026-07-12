@@ -19,7 +19,10 @@ ASCLEPIUS_TAXONOMY_VERSION = "2026-06-30.1"
 ASCLEPIUS_CONFIG_VERSION = APP_AI_CONFIG_VERSION
 
 # Asclepius-local roles (NOT the clinical RBAC roles).
-ROLES = ("evaluator", "admin", "qa_reviewer")
+# ``data_partner`` (EHR PRD §4): a partner account that can do exactly one thing
+# — upload a de-identified bundle through its own tokenized link. No queue
+# access, no exports, no data reads.
+ROLES = ("evaluator", "admin", "qa_reviewer", "data_partner")
 
 # Primary verdict on the A/B comparison.
 VERDICTS = ("A_better", "B_better", "both_inadequate")
@@ -91,7 +94,9 @@ def independent_capture_kind(portal_version, independent_mode):
     pv = normalize_portal_version(portal_version)
     if pv == "v1":
         return "full"
-    if pv == "v3":
+    if pv in ("v3", "v4"):
+        # V4 (real cases) behaves EXACTLY like V3 — the flow is identical, only
+        # the data differs (EHR PRD §9.5).
         return "full" if independent_mode == "full" else "instinct"
     return normalize_independent_mode(independent_mode)
 
@@ -105,22 +110,33 @@ def independent_capture_kind(portal_version, independent_mode):
 #                      is committed, one-click citations, a larger edit surface,
 #                      brighter A/B diff, and a hard-case-only queue. Inherits
 #                      every V2 assisted capability.
+#   ``v4`` real cases — the V3 seamless flow over REAL, de-identified patient
+#                      cases (Real EHR Ingestion PRD §9.5). Identical UX to V3;
+#                      only the DATA differs (case_source="real_deid"). Served
+#                      exclusively to contributors flagged ``real_data_approved``.
 # Stage-1 prompt review and the packaged record TYPES are identical across all
-# three. The version is stamped onto every submission + record so buyers/admin
+# versions. The version is stamped onto every submission + record so buyers/admin
 # can segment by provenance. V3 is the recommended default for new sessions.
-PORTAL_VERSIONS = ("v1", "v2", "v3")
+PORTAL_VERSIONS = ("v1", "v2", "v3", "v4")
 DEFAULT_PORTAL_VERSION = "v3"
 
 # Portal versions that get the ASSISTED capabilities (model pre-labeling, diff,
 # dictation, value-aware routing). V1 (classic) is deliberately excluded.
-ASSISTED_PORTAL_VERSIONS = ("v2", "v3")
+ASSISTED_PORTAL_VERSIONS = ("v2", "v3", "v4")
+
+# The V4 wall (EHR PRD §9.5): a real (case_source="real_deid") task is a V4 task
+# and ONLY a V4 task; a synthetic task can never be V4. Enforced server-side in
+# queue routing, submission derivation, and packaging — never trusted from the UI.
+REAL_CASE_PORTAL_VERSION = "v4"
+SYNTHETIC_PORTAL_VERSIONS = ("v1", "v2", "v3")
 
 
 def normalize_portal_version(value):
     return value if value in PORTAL_VERSIONS else DEFAULT_PORTAL_VERSION
 
-# Where the task (prompt + candidate answers) originated.
-TASK_SOURCES = ("lab_supplied", "internal_prompt_bank")
+# Where the task (prompt + candidate answers) originated. ``partner_ehr`` (EHR
+# PRD): a real, de-identified case ingested from a data partner's secure upload.
+TASK_SOURCES = ("lab_supplied", "internal_prompt_bank", "partner_ehr")
 
 # Structured "why it's better" tags for the chosen answer (PRD §4.1).
 WHY_BETTER_TAGS = (

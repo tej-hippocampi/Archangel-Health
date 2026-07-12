@@ -102,6 +102,10 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         "specialty": user.get("specialty"),
         "board_cert": user.get("board_cert"),
         "years_experience": user.get("years_experience"),
+        # V4 access gate (EHR PRD §9.5): the client uses this to show the
+        # "V4 · Real Cases" box unlocked/locked. Serving is enforced server-side
+        # regardless — this is display truth, not the gate itself.
+        "real_data_approved": bool(user.get("real_data_approved")),
     }
 
 

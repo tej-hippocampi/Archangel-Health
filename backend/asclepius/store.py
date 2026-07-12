@@ -427,6 +427,20 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE tasks ADD COLUMN modality TEXT NOT NULL DEFAULT 'text'")
             if "case_json" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN case_json TEXT")
+            if "case_source" not in task_cols:
+                # Real EHR Ingestion PRD §9.5: 'synthetic' | 'real_deid' as a first-
+                # class COLUMN so the V4 routing wall filters in SQL (a real case is
+                # only ever served to a v4 session). NULL = text task (no case).
+                # Backfill existing multimodal rows from their stored case.
+                conn.execute("ALTER TABLE tasks ADD COLUMN case_source TEXT")
+                for r in conn.execute(
+                    "SELECT task_id, case_json FROM tasks WHERE case_json IS NOT NULL"
+                ).fetchall():
+                    try:
+                        cs = (json.loads(r["case_json"]) or {}).get("case_source") or "synthetic"
+                    except Exception:
+                        cs = "synthetic"
+                    conn.execute("UPDATE tasks SET case_source = ? WHERE task_id = ?", (cs, r["task_id"]))
 
             # Rich credential record provisioned by the Asclepius onboarding flow.
             user_cols = cols("users")
@@ -441,6 +455,10 @@ class AsclepiusStore:
                 # HARD-EXCLUDED from real exports by default so a demo can exercise
                 # the live portal without contaminating a shipped training batch.
                 ("is_mock", "INTEGER NOT NULL DEFAULT 0"),
+                # Real-data access gate (EHR PRD §9.5): V4 (real de-identified
+                # cases) is served ONLY to contributors flagged approved (BAA /
+                # training complete). Default off for everyone.
+                ("real_data_approved", "INTEGER NOT NULL DEFAULT 0"),
             ):
                 if col not in user_cols:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
@@ -615,6 +633,14 @@ class AsclepiusStore:
         with self._conn() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
 
+    def set_real_data_approved(self, user_id: str, approved: bool) -> None:
+        """Grant/revoke V4 real-case access (EHR PRD §9.5)."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET real_data_approved = ? WHERE id = ?",
+                (1 if approved else 0, user_id),
+            )
+
     def mock_annotator_id_hashes(self) -> set:
         """The ``id_hashed`` of every mock/sandbox contributor. Records carry the
         annotator's ``id_hashed``; export hard-excludes these by default and the
@@ -643,16 +669,22 @@ class AsclepiusStore:
         email = email.lower().strip()
         existing = self.get_user_by_email(email)
         if not existing:
-            return self.create_user(
+            u = self.create_user(
                 email=email, password=password, role="evaluator",
                 specialty=specialty, board_cert=board_cert,
                 years_experience=years_experience, organization=organization,
                 is_mock=True,
             )
+            # The sandbox account may demo V4 (real cases): its submissions are
+            # hard-excluded from exports anyway, so unlocking the V4 box for the
+            # demo login is safe by construction (EHR PRD §9.5).
+            self.set_real_data_approved(u["id"], True)
+            return self.get_user_by_id(u["id"])  # type: ignore[return-value]
         with self._conn() as conn:
             conn.execute(
                 """UPDATE users SET password_hash = ?, role = 'evaluator', active = 1,
-                       is_mock = 1, specialty = COALESCE(specialty, ?),
+                       is_mock = 1, real_data_approved = 1,
+                       specialty = COALESCE(specialty, ?),
                        board_cert = COALESCE(board_cert, ?),
                        years_experience = COALESCE(years_experience, ?),
                        organization = COALESCE(organization, ?)
@@ -709,6 +741,10 @@ class AsclepiusStore:
         # ground_truth) is stored server-side; blinding/packaging strip the answer
         # key downstream — the same contract as the server-side ``intended_flawed_id``.
         md = "multimodal" if case else "text"
+        # case_source is DERIVED from the case (EHR PRD §9.5): 'real_deid' only
+        # when the case itself says so; any other case is 'synthetic'; a text
+        # task has none. First-class column so the V4 routing wall is pure SQL.
+        cs = ((case.get("case_source") or "synthetic") if case else None)
         with self._conn() as conn:
             conn.execute(
                 """
@@ -716,8 +752,8 @@ class AsclepiusStore:
                   (task_id, specialty, difficulty, capture_reasoning, source, prompt,
                    candidate_answers_json, max_labels, grounding_mode, independent_mode,
                    buyer_request_id, generation_json, value_tier, modality, case_json,
-                   status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   case_source, status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -735,6 +771,7 @@ class AsclepiusStore:
                     (value_tier or None),
                     md,
                     json.dumps(case) if case else None,
+                    cs,
                     created_by,
                     _utcnow_iso(),
                 ),
@@ -785,12 +822,17 @@ class AsclepiusStore:
             )
 
     def next_task_for_evaluator(
-        self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False
+        self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
+        real_only: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Oldest open task in the evaluator's specialty that (a) they have not
         already submitted and (b) still has label capacity (max_labels).
         ``hard_only`` (Seamless PRD WS2, the V3 hard-case queue) restricts to
         ``difficulty='hard'`` tasks.
+
+        ``real_only`` is the V4 wall (EHR PRD §9.5), enforced in SQL: True serves
+        ONLY ``case_source='real_deid'`` tasks (the V4 queue); False EXCLUDES
+        them entirely (v1/v2/v3 can never be served a real patient case).
 
         TODO(scale): this scans candidate open tasks in Python; fine at pod scale.
         Push the not-mine + capacity filter fully into SQL when volume grows."""
@@ -803,6 +845,10 @@ class AsclepiusStore:
             params.append(specialty)
         if hard_only:
             clauses.append("t.difficulty = 'hard'")
+        clauses.append(
+            "t.case_source = 'real_deid'" if real_only
+            else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
+        )
         where = " AND ".join(clauses)
         with self._conn() as conn:
             row = conn.execute(
@@ -830,7 +876,7 @@ class AsclepiusStore:
 
     def eligible_tasks_for_evaluator(
         self, *, evaluator_id: str, specialty: Optional[str], limit: Optional[int] = None,
-        hard_only: bool = False,
+        hard_only: bool = False, real_only: bool = False,
     ) -> List[Dict[str, Any]]:
         """All open tasks this evaluator may take (not already theirs + still has
         label capacity), oldest first — the candidate set value-aware routing
@@ -852,6 +898,11 @@ class AsclepiusStore:
             params.append(specialty)
         if hard_only:
             clauses.append("t.difficulty = 'hard'")
+        # The V4 wall (EHR PRD §9.5) — same rule as next_task_for_evaluator.
+        clauses.append(
+            "t.case_source = 'real_deid'" if real_only
+            else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
+        )
         where = " AND ".join(clauses)
         with self._conn() as conn:
             rows = conn.execute(

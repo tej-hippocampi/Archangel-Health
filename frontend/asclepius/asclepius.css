@@ -1180,3 +1180,13 @@
 .asc-lab-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .asc-lab-warn { background: rgba(245, 158, 11, .16); color: #92400e; font-weight: 700; }
 .asc-lab-crit { background: rgba(239, 68, 68, .18); color: #991b1b; font-weight: 800; }
+
+/* ─── V4 · Real Cases (EHR PRD §9.5) ─────────────────────────────────────────── */
+.asc-ver-locked { opacity: .62; cursor: not-allowed; }
+.asc-ver-locked:hover { transform: none; box-shadow: none; }
+.asc-ver-tag-real { background: #b91c1c !important; }
+.asc-badge-real {
+  display: inline-block; font-size: 11px; font-weight: 700;
+  color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca;
+  border-radius: 999px; padding: 2px 9px; white-space: nowrap;
+}

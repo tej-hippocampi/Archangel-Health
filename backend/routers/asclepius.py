@@ -56,6 +56,8 @@ from asclepius.constants import (
     NOT_HARD_TASK_STATUS,
     PORTAL_VERSIONS,
     PREFERENCE_VARIANTS,
+    REAL_CASE_PORTAL_VERSION,
+    SYNTHETIC_PORTAL_VERSIONS,
     PROMPT_FLAGGED_TASK_STATUS,
     PROMPT_REVIEW_VERDICTS,
     REASONING_STEP_LABELS,
@@ -93,6 +95,7 @@ from asclepius.schemas import (
     CiteRequest,
     ContributorCredentialsIn,
     CreateUserRequest,
+    RealDataApprovalRequest,
     CredentialSummaryRequest,
     ExportRequest,
     GenerationRequest,
@@ -289,6 +292,27 @@ async def create_user(
 @router.get("/users")
 async def list_users(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
     return {"users": [asc_auth.public_user(u) for u in _store().list_users()]}
+
+
+@router.post("/users/{user_id}/real-data-approval")
+async def set_real_data_approval(
+    user_id: str, body: RealDataApprovalRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Grant/revoke V4 real-case access for a contributor (EHR PRD §9.5) — the
+    BAA/training attestation lives outside the system; this flag records the
+    admin's decision. Serving enforces it on every /tasks/next."""
+    store = _store()
+    user = store.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    store.set_real_data_approved(user_id, bool(body.approved))
+    store.log_event(
+        entity_type="user", entity_id=user_id,
+        event_type=("real_data_approved" if body.approved else "real_data_revoked"),
+        actor=admin["id"],
+    )
+    return asc_auth.public_user(store.get_user_by_id(user_id))
 
 
 # ─── Tasks ────────────────────────────────────────────────────────────────────
@@ -569,15 +593,18 @@ def _autofill_specialty(user: Dict[str, Any]) -> str:
 
 
 def _value_aware_next(
-    store: Any, user: Dict[str, Any], specialty: Optional[str], *, hard_only: bool = False
+    store: Any, user: Dict[str, Any], specialty: Optional[str], *, hard_only: bool = False,
+    real_only: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """Value-aware routing (Value-per-Minute PRD B3) — assisted flows. Serves the
     eligible task with the highest expected value-per-minute for THIS contributor
     (their rolling median speed × each task's expected realized value). Ties break
     on the oldest task, preserving FIFO fairness within an equal-value cohort.
-    ``hard_only`` (WS2) restricts the candidate set to hard cases (the V3 queue)."""
+    ``hard_only`` (WS2) restricts the candidate set to hard cases (the V3 queue);
+    ``real_only`` is the V4 wall (EHR PRD §9.5)."""
     candidates = store.eligible_tasks_for_evaluator(
-        evaluator_id=user["id"], specialty=specialty, hard_only=hard_only
+        evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
+        real_only=real_only,
     )
     if not candidates:
         return None
@@ -608,14 +635,24 @@ def _query_next(
     # nothing gets stamped 'hard'), V3 stops filtering to hard and serves the
     # available queue instead of showing an empty V3 to every clinician.
     hard_only = portal_version == "v3" and hard_only_generation()
+    # The V4 wall (EHR PRD §9.5): v4 serves ONLY real (case_source='real_deid')
+    # tasks; every other version EXCLUDES them — a real patient case can never be
+    # served into a v1/v2/v3 session, even by accident. V4 additionally requires
+    # the contributor to be real-data approved (BAA/training) — an unapproved
+    # evaluator asking for v4 gets an empty queue, never a real case.
+    real_only = portal_version == REAL_CASE_PORTAL_VERSION
+    if real_only and not user.get("real_data_approved"):
+        return None
 
     def _classic(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
         return store.next_task_for_evaluator(
-            evaluator_id=user["id"], specialty=specialty, hard_only=hard_only
+            evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
+            real_only=real_only,
         )
 
     def _pick(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
-        return _value_aware_next(store, user, specialty, hard_only=hard_only) if value_aware else _classic(specialty)
+        return (_value_aware_next(store, user, specialty, hard_only=hard_only, real_only=real_only)
+                if value_aware else _classic(specialty))
 
     pick = _pick(user.get("specialty"))
     if not pick and not user.get("specialty"):
@@ -708,6 +745,10 @@ async def _autofill_queue(
     store: Any, user: Dict[str, Any], *, portal_version: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     if not _autofill_enabled():
+        return None
+    # V4 (real cases) can NEVER be autofilled — real patient data cannot be
+    # fabricated. An empty V4 queue stays empty until a partner bundle ingests.
+    if portal_version == REAL_CASE_PORTAL_VERSION:
         return None
     specialty = _autofill_specialty(user)
     cooldown = _autofill_cooldown_sec()
@@ -821,7 +862,7 @@ async def reveal_task_answers(
     # 'full'); V2 respects the task's mode (stance default). ``kind`` is stamped
     # server-side, never trusted from the client — a lightweight capture can't be
     # passed off as a full blind ideal answer.
-    pv = normalize_portal_version(body.portal_version)
+    pv = _derive_portal_version(task, body.portal_version)
     kind = independent_capture_kind(pv, task.get("independent_mode"))
     store.commit_independent_answer(
         task_id=task_id,
@@ -838,6 +879,37 @@ async def reveal_task_answers(
         event_type="independent_answer_committed", actor=user["id"],
     )
     return {"answers": _task_answers(task), "committed": True}
+
+
+def _derive_portal_version(task: Dict[str, Any], claimed: Optional[str]) -> str:
+    """The V4 derivation wall (EHR PRD §9.5): the portal version stamped onto a
+    commit/submission is DERIVED from the task's ``case_source``, never trusted
+    from the client, at every stamping point (reveal, submit, stage-1 flags).
+
+      * real task (``case_source='real_deid'``) → always ``v4``. A client
+        explicitly claiming a SYNTHETIC version on a real case is a 400 — a
+        mislabel attempt, not a normalization case.
+      * synthetic/text task → the claimed version as before, except an explicit
+        ``v4`` claim is a 400 (a synthetic task can never be V4).
+    """
+    is_real = (task.get("case_source") == "real_deid")
+    if is_real:
+        if claimed in SYNTHETIC_PORTAL_VERSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "This is a real-case (V4) task: portal_version "
+                    f"{claimed!r} is not valid for it. Real de-identified cases are "
+                    "graded only in the V4 flow."
+                ),
+            )
+        return REAL_CASE_PORTAL_VERSION
+    if claimed == REAL_CASE_PORTAL_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail="portal_version 'v4' is reserved for real-case tasks; this task is synthetic.",
+        )
+    return normalize_portal_version(claimed)
 
 
 def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
@@ -907,7 +979,7 @@ async def submit(
         # (§0/§13) still applies. Redact rather than persist a raw identifier.
         note_phi = residual_identifiers(review.note) if review.note else []
         safe_note = "[redacted — possible identifier detected]" if note_phi else review.note
-        flag_pv = normalize_portal_version(body.portal_version)
+        flag_pv = _derive_portal_version(task, body.portal_version)
         flagged_payload = body.model_dump()
         flagged_payload["portal_version"] = flag_pv
         if note_phi:
@@ -971,7 +1043,7 @@ async def submit(
         # "PHI scan on every submission" rule still applies) — redact, don't persist.
         nh_note_phi = residual_identifiers(review.note) if review.note else []
         nh_safe_note = "[redacted — possible identifier detected]" if nh_note_phi else review.note
-        nh_pv = normalize_portal_version(body.portal_version)
+        nh_pv = _derive_portal_version(task, body.portal_version)
         nh_payload = body.model_dump()
         nh_payload["portal_version"] = nh_pv
         if nh_note_phi:
@@ -1002,7 +1074,7 @@ async def submit(
     if review and review.verdict == "case_incoherent":
         ci_note_phi = residual_identifiers(review.note) if review.note else []
         ci_safe_note = "[redacted — possible identifier detected]" if ci_note_phi else review.note
-        ci_pv = normalize_portal_version(body.portal_version)
+        ci_pv = _derive_portal_version(task, body.portal_version)
         ci_payload = body.model_dump()
         ci_payload["portal_version"] = ci_pv
         if ci_note_phi:
@@ -1048,9 +1120,11 @@ async def submit(
     # authoritative (it drove the capture kind); fall back to the client's
     # declared version when no commit exists (v1 with withholding off, or a
     # direct API client). Stamped onto the row + payload so packaging carries it
-    # onto every record.
-    portal_version = normalize_portal_version(
-        (_commit or {}).get("payload", {}).get("portal_version") or body.portal_version
+    # onto every record. The V4 derivation wall (EHR PRD §9.5) applies HERE too:
+    # a real-case task derives v4 (a synthetic-version claim on it is a 400),
+    # and a synthetic task can never stamp v4 — even via a stale commit.
+    portal_version = _derive_portal_version(
+        task, (_commit or {}).get("payload", {}).get("portal_version") or body.portal_version
     )
     payload["portal_version"] = portal_version
 

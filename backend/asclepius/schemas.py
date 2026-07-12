@@ -80,6 +80,12 @@ class CreateUserRequest(BaseModel):
     years_experience: Optional[int] = None
 
 
+class RealDataApprovalRequest(BaseModel):
+    """Grant/revoke a contributor's V4 real-case access (EHR PRD §9.5)."""
+
+    approved: bool
+
+
 # ─── Evidence anchors (opt §1.2 — the medical premium) ────────────────────────
 class EvidenceAnchor(BaseModel):
     """A citation grounding a judgment/step in a clinical source.

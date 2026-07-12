@@ -192,6 +192,15 @@ def validate_submission(
     verdict = submission.get("verdict") or payload.get("verdict")
     issues: List[str] = []
 
+    # 0. The V4 packaging wall (EHR PRD §9.5): case_source=='real_deid' ⇔
+    # portal_version=='v4' on everything that would ship. The router already
+    # derives the version server-side; this is the belt-and-braces assertion at
+    # the packaging layer — a mismatch (a bug, a direct DB write) routes the
+    # submission to needs_qa and NO record ships mislabeled. Never silent.
+    pv = (payload.get("portal_version") or submission.get("portal_version") or "")
+    if (task.get("case_source") == "real_deid") != (pv == "v4"):
+        issues.append("portal_version_case_source_mismatch")
+
     # 1. verdict + completeness
     if verdict not in VERDICTS:
         issues.append("invalid_verdict")
