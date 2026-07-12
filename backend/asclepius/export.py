@@ -407,7 +407,7 @@ examples, and PRM800K-style step-level reasoning traces for frontier-lab trainin
 - Total records: **{counts['total']}**
 {type_lines}
 - Specialties: {", ".join(specialties) or "n/a"}
-- By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 = classic flow, V2 = assisted flow)
+- By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 classic · V2 assisted · V3 seamless synthetic · **V4 REAL de-identified cases**)
 - By modality: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_modality', {}).items())) or "n/a"} (text vs structured-multimodal case)
 {_scope_section_md(scope)}
 {_multimodal_section_md(records, counts)}
@@ -496,7 +496,7 @@ def _quality_report_md(*, export_id: str, profile_name: str, records: List[Dict[
         conf[c] = conf.get(c, 0) + 1
     type_lines = "\n".join(f"- `{k}`: {v}" for k, v in sorted(counts["by_type"].items()))
     portal_lines = "\n".join(
-        f"- {k} ({'classic' if k == 'v1' else 'assisted'}): {v}"
+        f"- {k} ({dict(v1='classic', v2='assisted', v3='seamless synthetic', v4='REAL de-identified cases').get(k, 'assisted')}): {v}"
         for k, v in sorted(counts.get("by_portal_version", {}).items())
     ) or "- n/a"
     conf_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(conf.items()))

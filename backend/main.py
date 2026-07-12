@@ -2412,6 +2412,17 @@ async def asclepius_portal():
         return HTMLResponse(content=f.read())
 
 
+@app.get("/partner/upload", response_class=HTMLResponse)
+async def partner_upload_page():
+    """Data-partner secure upload page (EHR Ingestion PRD §4): a minimal,
+    standalone page (no app shell, no PHI displayed) reached only through a
+    tokenized, expiring link. The token is validated server-side on the POST —
+    this shell renders for anyone, uploads only with a valid token."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/partner_upload.html")
+    with open(html_path) as f:
+        return HTMLResponse(content=f.read())
+
+
 @app.get("/doctor")
 async def doctor_portal_legacy_path(request: Request):
     """Bookmarks to /doctor land on sign-in; dashboard is /doctor/app."""

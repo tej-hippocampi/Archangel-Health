@@ -364,6 +364,64 @@ class AsclepiusStore:
             def cols(table: str) -> set:
                 return {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
 
+            # ── Real EHR ingestion (EHR PRD §4, §5, §8) — new tables (idempotent).
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ingest_upload_links (
+                    link_id       TEXT PRIMARY KEY,
+                    token_hash    TEXT NOT NULL UNIQUE,   -- SHA-256; raw token never stored
+                    partner_id    TEXT NOT NULL,
+                    partner_label TEXT,
+                    specialty     TEXT NOT NULL DEFAULT 'nephrology',
+                    expires_at    TEXT NOT NULL,
+                    one_time      INTEGER NOT NULL DEFAULT 1,
+                    max_bytes     INTEGER NOT NULL DEFAULT 104857600,
+                    used_count    INTEGER NOT NULL DEFAULT 0,
+                    revoked       INTEGER NOT NULL DEFAULT 0,
+                    created_by    TEXT,
+                    created_at    TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ingest_uploads (
+                    upload_id   TEXT PRIMARY KEY,
+                    link_id     TEXT NOT NULL,
+                    partner_id  TEXT NOT NULL,
+                    filename    TEXT,
+                    sha256      TEXT,
+                    size_bytes  INTEGER,
+                    status      TEXT NOT NULL DEFAULT 'received',
+                    reason      TEXT,
+                    files_json  TEXT,           -- per-entry classification/outcome
+                    raw_path    TEXT,           -- encrypted quarantine blob on disk
+                    source_ip   TEXT,
+                    created_at  TEXT NOT NULL,
+                    updated_at  TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ingest_cases (
+                    ingest_case_id TEXT PRIMARY KEY,
+                    upload_id      TEXT NOT NULL,
+                    patient_key    TEXT,
+                    specialty      TEXT,
+                    case_json      TEXT,
+                    status         TEXT NOT NULL DEFAULT 'ingested',
+                    report_json    TEXT,        -- timeline + verify findings (masked)
+                    override_reason TEXT,
+                    task_id        TEXT,        -- set on promote
+                    created_at     TEXT NOT NULL,
+                    updated_at     TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_upload ON ingest_cases(upload_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_status ON ingest_cases(status)")
+
             task_cols = cols("tasks")
             if "grounding_mode" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN grounding_mode TEXT NOT NULL DEFAULT 'optional'")
@@ -632,6 +690,187 @@ class AsclepiusStore:
     def count_users(self) -> int:
         with self._conn() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
+
+    # ─── Real EHR ingestion (EHR PRD §4, §5, §8) ─────────────────────────────
+    def create_upload_link(
+        self, *, token_hash: str, partner_id: str, partner_label: Optional[str],
+        specialty: str, expires_at: str, one_time: bool, max_bytes: int,
+        created_by: Optional[str],
+    ) -> Dict[str, Any]:
+        lid = _new_id("lnk")
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO ingest_upload_links
+                   (link_id, token_hash, partner_id, partner_label, specialty,
+                    expires_at, one_time, max_bytes, created_by, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (lid, token_hash, partner_id, partner_label, specialty, expires_at,
+                 1 if one_time else 0, int(max_bytes), created_by, _utcnow_iso()),
+            )
+        return self.get_upload_link(lid)  # type: ignore[return-value]
+
+    def get_upload_link(self, link_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ingest_upload_links WHERE link_id = ?", (link_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_upload_link_by_token_hash(self, token_hash: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ingest_upload_links WHERE token_hash = ?", (token_hash,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_upload_links(self) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ingest_upload_links ORDER BY created_at DESC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def mark_upload_link_used(self, link_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_upload_links SET used_count = used_count + 1 WHERE link_id = ?",
+                (link_id,),
+            )
+
+    def revoke_upload_link(self, link_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE ingest_upload_links SET revoked = 1 WHERE link_id = ?", (link_id,))
+
+    def insert_ingest_upload(
+        self, *, link_id: str, partner_id: str, filename: Optional[str],
+        sha256: Optional[str], size_bytes: Optional[int], raw_path: Optional[str],
+        source_ip: Optional[str],
+    ) -> Dict[str, Any]:
+        uid = _new_id("upl")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO ingest_uploads
+                   (upload_id, link_id, partner_id, filename, sha256, size_bytes,
+                    status, raw_path, source_ip, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, 'received', ?, ?, ?, ?)""",
+                (uid, link_id, partner_id, filename, sha256, size_bytes,
+                 raw_path, source_ip, now, now),
+            )
+        return self.get_ingest_upload(uid)  # type: ignore[return-value]
+
+    def update_ingest_upload(self, upload_id: str, **fields: Any) -> None:
+        allowed = {"status", "reason", "files_json", "raw_path"}
+        sets, params = [], []
+        for k, v in fields.items():
+            if k not in allowed:
+                continue
+            if k == "files_json" and not isinstance(v, (str, type(None))):
+                v = json.dumps(v)
+            sets.append(f"{k} = ?")
+            params.append(v)
+        if not sets:
+            return
+        sets.append("updated_at = ?")
+        params.extend([_utcnow_iso(), upload_id])
+        with self._conn() as conn:
+            conn.execute(f"UPDATE ingest_uploads SET {', '.join(sets)} WHERE upload_id = ?", tuple(params))
+
+    def get_ingest_upload(self, upload_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM ingest_uploads WHERE upload_id = ?", (upload_id,)).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["files"] = json.loads(rec.pop("files_json") or "[]")
+        return rec
+
+    def list_ingest_uploads(self, *, limit: int = 200) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ingest_uploads ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        out = []
+        for r in rows:
+            rec = dict(r)
+            rec["files"] = json.loads(rec.pop("files_json") or "[]")
+            out.append(rec)
+        return out
+
+    def insert_ingest_case(
+        self, *, upload_id: str, patient_key: Optional[str], specialty: Optional[str],
+        case: Optional[Dict[str, Any]], status: str, report: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        cid = _new_id("icase")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO ingest_cases
+                   (ingest_case_id, upload_id, patient_key, specialty, case_json,
+                    status, report_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (cid, upload_id, patient_key, specialty,
+                 json.dumps(case) if case else None, status,
+                 json.dumps(report) if report else None, now, now),
+            )
+        return self.get_ingest_case(cid)  # type: ignore[return-value]
+
+    def update_ingest_case(self, ingest_case_id: str, **fields: Any) -> None:
+        allowed = {"status", "case_json", "report_json", "task_id", "override_reason"}
+        sets, params = [], []
+        for k, v in fields.items():
+            if k not in allowed:
+                continue
+            if k in ("case_json", "report_json") and not isinstance(v, (str, type(None))):
+                v = json.dumps(v)
+            sets.append(f"{k} = ?")
+            params.append(v)
+        if not sets:
+            return
+        sets.append("updated_at = ?")
+        params.extend([_utcnow_iso(), ingest_case_id])
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE ingest_cases SET {', '.join(sets)} WHERE ingest_case_id = ?", tuple(params)
+            )
+
+    def get_ingest_case(self, ingest_case_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ingest_cases WHERE ingest_case_id = ?", (ingest_case_id,)
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["case"] = json.loads(rec.pop("case_json") or "null")
+        rec["report"] = json.loads(rec.pop("report_json") or "null")
+        return rec
+
+    def list_ingest_cases(
+        self, *, upload_id: Optional[str] = None, status: Optional[str] = None,
+        limit: int = 500,
+    ) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if upload_id:
+            clauses.append("upload_id = ?")
+            params.append(upload_id)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM ingest_cases {where} ORDER BY created_at DESC LIMIT ?",
+                tuple(params),
+            ).fetchall()
+        out = []
+        for r in rows:
+            rec = dict(r)
+            rec["case"] = json.loads(rec.pop("case_json") or "null")
+            rec["report"] = json.loads(rec.pop("report_json") or "null")
+            out.append(rec)
+        return out
 
     def set_real_data_approved(self, user_id: str, approved: bool) -> None:
         """Grant/revoke V4 real-case access (EHR PRD §9.5)."""

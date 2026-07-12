@@ -2558,6 +2558,7 @@
     stopTimer();
     const tabs = [
       ['tasks', 'Tasks'],
+      ['ingestion', '🏥 Ingestion'],
       ['buyers', 'Buyers & Requests'],
       ['exports', 'Exports'],
       ['metrics', 'Metrics'],
@@ -2574,9 +2575,169 @@
     setRoot(h('div', { class: 'asc-wrap' }, subnav, body));
 
     if (state.adminTab === 'tasks') renderAdminTasks(body);
+    else if (state.adminTab === 'ingestion') renderAdminIngestion(body);
     else if (state.adminTab === 'buyers') renderAdminBuyers(body);
     else if (state.adminTab === 'exports') renderAdminExports(body);
     else if (state.adminTab === 'metrics') renderAdminMetrics(body);
+  }
+
+  // ─── Admin: Real EHR Ingestion (EHR PRD §4, §8, §9) ─────────────────────────
+  // The ONLY door that produces V4 real cases (the Seedmaker card produces V3
+  // synthetic — two doors, clearly signed). Mint secure partner links, watch
+  // uploads land, triage quarantine, and promote ingested cases to V4 tasks.
+  function renderAdminIngestion(body) {
+    clear(body);
+
+    // Mint a secure upload link
+    const pid = h('input', { class: 'asc-input', placeholder: 'partner id (e.g. mercy-health)' });
+    const plabel = h('input', { class: 'asc-input', placeholder: 'display label (optional)' });
+    const pspec = selectFrom(['nephrology', 'cardiology'], 'nephrology');
+    const phours = h('input', { type: 'number', class: 'asc-input', value: '72', min: '1', max: '720' });
+    const ponce = h('input', { type: 'checkbox', checked: 'checked' });
+    const mintStatus = h('div', {});
+    const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '🔗 Mint secure upload link');
+    mintBtn.addEventListener('click', async () => {
+      clear(mintStatus);
+      if (!pid.value.trim()) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Partner id is required.')); return; }
+      try {
+        const res = await api('/admin/upload-links', { method: 'POST', body: {
+          partner_id: pid.value.trim(), partner_label: plabel.value.trim() || null,
+          specialty: pspec.value, expires_hours: Math.max(1, parseInt(phours.value, 10) || 72),
+          one_time: ponce.checked,
+        } });
+        const url = res.upload_url || ('/partner/upload?t=' + res.token);
+        mintStatus.appendChild(h('div', { class: 'asc-inline-warn' },
+          '⚠️ Copy this link NOW — the token is shown once and never stored: '));
+        const urlBox = h('input', { class: 'asc-input asc-mono', value: url, readonly: 'readonly', style: 'margin-top:8px' });
+        urlBox.addEventListener('click', () => { urlBox.select(); });
+        mintStatus.appendChild(urlBox);
+        mintStatus.appendChild(h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', style: 'margin-top:8px', onClick: () => {
+          navigator.clipboard.writeText(url).then(() => toast('Link copied.', 'success')).catch(() => {});
+        } }, '📋 Copy link'));
+        loadIngestionLists();
+      } catch (e) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
+    });
+    const mintCard = h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Secure partner upload link'),
+        h('div', { class: 'asc-card-sub' }, 'Tokenized, expiring, single-purpose. The partner uploads a de-identified .zip — no app account. This is the only door that produces V4 real cases.'))),
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-form-row-3' },
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Partner id'), pid),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Label'), plabel),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), pspec)),
+        h('div', { class: 'asc-form-row-3' },
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Expires (hours)'), phours),
+          h('label', { class: 'asc-checkbox-row', style: 'align-self:end;margin-bottom:14px' }, ponce, 'Single use'),
+          h('div', {})),
+        mintBtn, mintStatus));
+
+    const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));
+    const quarCard = h('div', { class: 'asc-card', id: 'ascIngestQuar' }, loadingCard('Loading quarantine…'));
+    const casesCard = h('div', { class: 'asc-card', id: 'ascIngestCases' }, loadingCard('Loading ingested cases…'));
+    body.appendChild(mintCard);
+    body.appendChild(uploadsCard);
+    body.appendChild(quarCard);
+    body.appendChild(casesCard);
+    loadIngestionLists();
+  }
+
+  async function loadIngestionLists() {
+    const up = document.getElementById('ascIngestUploads');
+    const qc = document.getElementById('ascIngestQuar');
+    const cc = document.getElementById('ascIngestCases');
+    if (!up) return;
+    // Uploads
+    try {
+      const data = await api('/ingestion/uploads');
+      clear(up);
+      up.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Partner uploads (' + (data.uploads || []).length + ')')));
+      if (!(data.uploads || []).length) { up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No uploads yet — mint a link above and send it to the partner.'))); }
+      else {
+        const rows = data.uploads.slice(0, 50).map((u) => h('tr', {},
+          h('td', {}, fmtDate(u.created_at)),
+          h('td', {}, u.partner_id || '—'),
+          h('td', { class: 'asc-mono' }, (u.filename || '') + ' · ' + Math.round((u.size_bytes || 0) / 1024) + 'KB'),
+          h('td', {}, h('span', { class: 'asc-badge ' + (u.status === 'ingested' ? 'asc-badge-green' : (u.status === 'quarantined' ? 'asc-badge-amber' : (u.status === 'rejected' ? 'asc-badge-red' : 'asc-badge-gray'))) }, u.status)),
+          h('td', { class: 'asc-card-sub', style: 'max-width:260px' }, u.reason || '—')));
+        up.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+          h('thead', {}, h('tr', {}, ['When', 'Partner', 'File', 'Status', 'Reason'].map((c) => h('th', {}, c)))),
+          h('tbody', {}, rows))));
+      }
+    } catch (e) { clear(up); up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); }
+
+    // Quarantine
+    try {
+      const data = await api('/ingestion/quarantine');
+      clear(qc);
+      qc.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, '🔒 Quarantine (' + (data.cases || []).length + ')'),
+        h('div', { class: 'asc-card-sub' }, 'Cases the verifier flagged — findings are MASKED (a suspected identifier is never shown). Scrub redacts exactly the flagged spans; override requires a documented reason and still cannot bypass the hard guard.'))));
+      if (!(data.cases || []).length) { qc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'Quarantine is empty. ✅'))); }
+      else {
+        data.cases.forEach((c) => {
+          const findings = ((c.report || {}).verification || {}).findings || [];
+          const fLines = findings.slice(0, 6).map((f) => h('div', { class: 'asc-card-sub asc-mono' },
+            (f.kind || 'finding') + ' @ ' + (f.field_path || '?') + ' → ' + (f.snippet_masked || '')));
+          const st = h('div', {});
+          qc.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
+            h('div', { style: 'display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap' },
+              h('div', {},
+                h('strong', {}, (c.patient_key || 'case') + ' · ' + (c.specialty || '')),
+                h('div', { class: 'asc-card-sub' }, ((c.report || {}).quarantine_reason) || 'flagged')),
+              h('div', { style: 'display:flex;gap:8px' },
+                h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: async () => {
+                  try { const r = await api('/ingestion/quarantine/' + c.ingest_case_id + '/scrub', { method: 'POST' });
+                        toast(r.status === 'ingested' ? 'Scrubbed + ingested.' : ('Still quarantined: ' + (r.remaining_findings || '') + ' finding(s) remain.'), r.status === 'ingested' ? 'success' : 'info');
+                        loadIngestionLists(); }
+                  catch (e) { toast(e.message, 'error'); } } }, '🧹 Scrub flagged spans'),
+                h('button', { class: 'asc-btn asc-btn-danger asc-btn-sm', onClick: async () => {
+                  try { await api('/ingestion/quarantine/' + c.ingest_case_id + '/reject', { method: 'POST' }); toast('Rejected.', 'success'); loadIngestionLists(); }
+                  catch (e) { toast(e.message, 'error'); } } }, 'Reject'))),
+            h('div', { style: 'margin-top:8px' }, fLines), st));
+        });
+      }
+    } catch (e) { clear(qc); qc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); }
+
+    // Ingested cases → promote
+    try {
+      const data = await api('/ingestion/cases?status=ingested');
+      clear(cc);
+      cc.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, '✅ Ingested cases — ready to promote (' + (data.cases || []).length + ')'),
+        h('div', { class: 'asc-card-sub' }, 'Attach the clinical question; candidates are generated ON the real case, gated by the real-case judge (no ground-truth dimension — the specialist is the answer key), and the task enters the V4 queue.'))));
+      if (!(data.cases || []).length) { cc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No cases awaiting promotion.'))); }
+      else {
+        data.cases.forEach((c) => {
+          const q = h('input', { class: 'asc-input', placeholder: 'Clinical question for this case (e.g. "Classify the AKI and set the next step.")' });
+          const st = h('div', {});
+          const btn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, '⚡ Promote to V4 task');
+          btn.addEventListener('click', async () => {
+            clear(st);
+            if (!q.value.trim()) { st.appendChild(h('div', { class: 'asc-inline-error' }, 'A clinical question is required.')); return; }
+            btn.setAttribute('disabled', '');
+            try {
+              const r = await api('/ingestion/cases/' + c.ingest_case_id + '/promote', { method: 'POST', body: { question: q.value.trim() } });
+              st.appendChild(h('div', { class: 'asc-inline-ok' }, 'Promoted → task ' + r.task_id + ' (V4 queue).'));
+              loadIngestionLists();
+            } catch (e) {
+              st.appendChild(h('div', { class: 'asc-inline-error' }, typeof e.message === 'string' ? e.message : 'Promotion gated — see case-judge scores.'));
+            } finally { btn.removeAttribute('disabled'); }
+          });
+          const kase = c.case || {};
+          cc.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
+            h('div', { style: 'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap' },
+              h('div', {},
+                h('strong', {}, (c.patient_key || 'case') + ' · ' + (c.specialty || '')),
+                h('div', { class: 'asc-card-sub' },
+                  (kase.lab_panels || []).length + ' lab panel(s) · ' + (kase.notes || []).length + ' note(s) · ' +
+                  ((kase.demographics || {}).age_band || '?') + ' ' + ((kase.demographics || {}).sex || ''))),
+              h('span', { class: 'asc-badge-real' }, '🏥 real · V4')),
+            h('div', { class: 'asc-field', style: 'margin-top:10px' }, q),
+            btn, st));
+        });
+      }
+    } catch (e) { clear(cc); cc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); }
   }
 
   function loadingCard(label) {
@@ -2713,8 +2874,8 @@
     agCaseType.addEventListener('change', syncCaseType);
     const autoGenCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Auto-generate tasks (Seedmaker)'),
-        h('div', { class: 'asc-card-sub' }, 'Text prompts or structured multimodal cases, quality-gated before they enter the queue.'))),
+        h('div', { class: 'asc-card-title' }, 'Auto-generate tasks (Seedmaker — SYNTHETIC, V1–V3)'),
+        h('div', { class: 'asc-card-sub' }, 'Text prompts or structured multimodal cases — all SYNTHETIC (V3 tier). Real patient cases (V4) come only from the 🏥 Ingestion tab. Quality-gated before they enter the queue.'))),
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), agSpecialty),

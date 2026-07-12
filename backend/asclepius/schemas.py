@@ -86,6 +86,34 @@ class RealDataApprovalRequest(BaseModel):
     approved: bool
 
 
+# ─── Real EHR ingestion (EHR PRD §4, §8, §9) ──────────────────────────────────
+class UploadLinkRequest(BaseModel):
+    """Mint a tokenized, expiring partner upload link."""
+
+    partner_id: str
+    partner_label: Optional[str] = None
+    specialty: str = "nephrology"
+    expires_hours: int = 72          # capped 1..720 server-side
+    one_time: bool = True
+    max_bytes: Optional[int] = None  # capped to the global ingest limit
+
+
+class QuarantineOverrideRequest(BaseModel):
+    """Documented admin override of verifier findings. The deidentify() hard
+    guard still applies and cannot be overridden."""
+
+    reason: str
+
+
+class PromoteCaseRequest(BaseModel):
+    """Promote an ingested real case to a gradable V4 task (EHR PRD §9)."""
+
+    question: str
+    max_labels: int = 1
+    grounding_mode: Optional[str] = None
+    independent_mode: Optional[str] = None
+
+
 # ─── Evidence anchors (opt §1.2 — the medical premium) ────────────────────────
 class EvidenceAnchor(BaseModel):
     """A citation grounding a judgment/step in a clinical source.

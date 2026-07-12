@@ -560,6 +560,14 @@ def value_multimodal_mult() -> float:
     return _env_float("ASCLEPIUS_VALUE_MULTIMODAL_MULT", 1.35)
 
 
+def value_real_case_mult() -> float:
+    """REAL de-identified case premium (EHR PRD §9.5) — the 2–3× tier. Keys off
+    ``case_source == 'real_deid'`` (the ground truth), never the version label,
+    so a mislabeled session cannot game it. Applied ON TOP of the multimodal
+    factor (a real case is also multimodal), still under TIER_MULT_CAP."""
+    return _env_float("ASCLEPIUS_VALUE_REAL_CASE_MULT", 2.0)
+
+
 def value_per_minute_target() -> float:
     """The north-star floor: realized value-per-clinician-minute the team is held
     to on v2 ``capture_reasoning`` tasks (PRD acceptance criteria)."""

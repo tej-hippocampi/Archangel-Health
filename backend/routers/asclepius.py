@@ -13,16 +13,21 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import hashlib
 import io
 import json
 import logging
 import os
+import secrets
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request,
+    UploadFile,
+)
 from fastapi.responses import StreamingResponse
 
 from asclepius import agreement as asc_agreement
@@ -95,7 +100,10 @@ from asclepius.schemas import (
     CiteRequest,
     ContributorCredentialsIn,
     CreateUserRequest,
+    PromoteCaseRequest,
+    QuarantineOverrideRequest,
     RealDataApprovalRequest,
+    UploadLinkRequest,
     CredentialSummaryRequest,
     ExportRequest,
     GenerationRequest,
@@ -2162,3 +2170,389 @@ async def events(
     _qa: Dict[str, Any] = Depends(asc_auth.require_qa),
 ):
     return {"events": _store().list_events(entity_type=entity_type, entity_id=entity_id, limit=limit)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Real EHR ingestion (EHR Ingestion PRD §4, §5, §8, §9)
+#  Partner secure upload → verify → parse → normalize → quarantine/ingest →
+#  promote to a V4 task. Partner endpoints are TOKEN-auth (no app account);
+#  everything else is admin.
+# ═══════════════════════════════════════════════════════════════════════════════
+from asclepius import deid_verify as asc_deid_verify  # noqa: E402
+from asclepius import ingestion as asc_ingestion  # noqa: E402
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256((token or "").encode("utf-8")).hexdigest()
+
+
+def _validate_upload_token(store: Any, token: Optional[str]) -> Dict[str, Any]:
+    """Resolve + validate a partner upload token. 410 for expired/used/revoked
+    (the PRD's contract), 401 for unknown. The RAW token is never stored —
+    only its SHA-256."""
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing upload token")
+    link = store.get_upload_link_by_token_hash(_token_hash(token))
+    if not link:
+        raise HTTPException(status_code=401, detail="Invalid upload token")
+    if link.get("revoked"):
+        raise HTTPException(status_code=410, detail="This upload link was revoked")
+    try:
+        expired = datetime.utcnow().isoformat() > str(link.get("expires_at"))
+    except Exception:
+        expired = True
+    if expired:
+        raise HTTPException(status_code=410, detail="This upload link has expired")
+    if link.get("one_time") and int(link.get("used_count") or 0) > 0:
+        raise HTTPException(status_code=410, detail="This upload link was already used")
+    return link
+
+
+@router.post("/admin/upload-links")
+async def mint_upload_link(
+    body: UploadLinkRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """Mint a single-purpose, expiring partner upload link (PRD §4). The raw
+    token is returned ONCE here and never stored (SHA-256 at rest)."""
+    store = _store()
+    token = secrets.token_urlsafe(32)
+    expires_at = (datetime.utcnow() + timedelta(hours=max(1, min(720, body.expires_hours)))).isoformat()
+    link = store.create_upload_link(
+        token_hash=_token_hash(token),
+        partner_id=body.partner_id.strip(),
+        partner_label=(body.partner_label or "").strip() or None,
+        specialty=body.specialty,
+        expires_at=expires_at,
+        one_time=body.one_time,
+        max_bytes=min(body.max_bytes or asc_ingestion.max_zip_bytes(), asc_ingestion.max_zip_bytes()),
+        created_by=admin["id"],
+    )
+    store.log_event(entity_type="ingest_link", entity_id=link["link_id"],
+                    event_type="upload_link_minted", actor=admin["id"],
+                    payload={"partner_id": body.partner_id, "expires_at": expires_at,
+                             "one_time": body.one_time})
+    base = (os.getenv("BASE_URL") or "").rstrip("/")
+    return {**{k: v for k, v in link.items() if k != "token_hash"},
+            "token": token,
+            "upload_url": f"{base}/partner/upload?t={token}"}
+
+
+@router.get("/admin/upload-links")
+async def list_upload_links(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    links = [{k: v for k, v in l.items() if k != "token_hash"} for l in _store().list_upload_links()]
+    return {"links": links}
+
+
+@router.post("/admin/upload-links/{link_id}/revoke")
+async def revoke_upload_link(
+    link_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    store = _store()
+    if not store.get_upload_link(link_id):
+        raise HTTPException(status_code=404, detail="Link not found")
+    store.revoke_upload_link(link_id)
+    store.log_event(entity_type="ingest_link", entity_id=link_id,
+                    event_type="upload_link_revoked", actor=admin["id"])
+    return {"revoked": True}
+
+
+@router.post("/partner/uploads")
+async def partner_upload(
+    request: Request,
+    background: BackgroundTasks,
+    file: UploadFile = File(...),
+    t: Optional[str] = Query(None, description="upload link token"),
+):
+    """The partner's one capability (PRD §4): POST a .zip through their token.
+    Caps + magic-byte check + SHA-256 + encrypted quarantine write happen inline;
+    unpack/parse/verify run in the background (never in the request path)."""
+    store = _store()
+    link = _validate_upload_token(store, t)
+    data = await file.read()
+    if len(data) > int(link.get("max_bytes") or asc_ingestion.max_zip_bytes()):
+        raise HTTPException(status_code=413, detail="Upload exceeds the link's size cap")
+    if data[:2] != b"PK":
+        raise HTTPException(status_code=400, detail="Only .zip bundles are accepted")
+    digest = asc_ingestion.sha256_hex(data)
+    upload = store.insert_ingest_upload(
+        link_id=link["link_id"], partner_id=link["partner_id"],
+        filename=(file.filename or "bundle.zip")[:120], sha256=digest,
+        size_bytes=len(data), raw_path=None,
+        source_ip=(request.client.host if request.client else None),
+    )
+    raw_path = asc_ingestion.store_raw(upload["upload_id"], data)
+    store.update_ingest_upload(upload["upload_id"], raw_path=raw_path)
+    store.mark_upload_link_used(link["link_id"])
+    store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
+                    event_type="upload_received",
+                    payload={"partner_id": link["partner_id"], "sha256": digest,
+                             "bytes": len(data),
+                             "source_ip": request.client.host if request.client else None})
+    background.add_task(asc_ingestion.process_upload, store, upload["upload_id"])
+    return {"upload_id": upload["upload_id"], "sha256": digest, "status": "received"}
+
+
+@router.get("/partner/uploads/{upload_id}")
+async def partner_upload_status(upload_id: str, t: Optional[str] = Query(None)):
+    """The partner polls their OWN upload's status through the same token —
+    accepted / quarantined + a human-readable reason. No other data is exposed."""
+    store = _store()
+    link = _validate_upload_token_lenient(store, t)
+    upload = store.get_ingest_upload(upload_id)
+    if not upload or upload.get("link_id") != link["link_id"]:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    return {"upload_id": upload_id, "status": upload["status"],
+            "reason": upload.get("reason"),
+            "filename": upload.get("filename"), "sha256": upload.get("sha256")}
+
+
+def _validate_upload_token_lenient(store: Any, token: Optional[str]) -> Dict[str, Any]:
+    """Status polling stays available after a one-time link is used (the partner
+    needs to see the outcome of the upload they just made) — but never after
+    revocation or expiry."""
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing upload token")
+    link = store.get_upload_link_by_token_hash(_token_hash(token))
+    if not link:
+        raise HTTPException(status_code=401, detail="Invalid upload token")
+    if link.get("revoked"):
+        raise HTTPException(status_code=410, detail="This upload link was revoked")
+    try:
+        if datetime.utcnow().isoformat() > str(link.get("expires_at")):
+            raise HTTPException(status_code=410, detail="This upload link has expired")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=410, detail="This upload link has expired")
+    return link
+
+
+# ─── Admin: ingestion review ──────────────────────────────────────────────────
+@router.get("/ingestion/uploads")
+async def list_ingestion_uploads(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    return {"uploads": _store().list_ingest_uploads()}
+
+
+@router.get("/ingestion/uploads/{upload_id}")
+async def get_ingestion_upload(
+    upload_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    upload = dict(upload)
+    upload.pop("raw_path", None)  # server-side path is not admin-relevant
+    upload["cases"] = store.list_ingest_cases(upload_id=upload_id)
+    return upload
+
+
+@router.post("/ingestion/uploads/{upload_id}/retry")
+async def retry_ingestion_upload(
+    upload_id: str, background: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Re-run the pipeline (e.g. after loosening a knob or fixing an adapter).
+    Only the raw blob is reused; prior case rows for the upload stay for audit."""
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    if not upload.get("raw_path") or not os.path.exists(upload["raw_path"]):
+        raise HTTPException(status_code=410, detail="Raw upload already purged (retention window)")
+    store.update_ingest_upload(upload_id, status="received", reason=None)
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="upload_retry", actor=admin["id"])
+    background.add_task(asc_ingestion.process_upload, store, upload_id)
+    return {"upload_id": upload_id, "status": "received"}
+
+
+@router.get("/ingestion/quarantine")
+async def list_quarantine(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """Quarantined cases with MASKED findings (a suspected identifier is never
+    rendered in cleartext — PRD §8)."""
+    cases = _store().list_ingest_cases(status="quarantined")
+    for c in cases:
+        c.pop("case", None)  # the case body is not needed to triage; keep the payload light
+    return {"cases": cases}
+
+
+@router.post("/ingestion/quarantine/{ingest_case_id}/reject")
+async def quarantine_reject(
+    ingest_case_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic or ic["status"] != "quarantined":
+        raise HTTPException(status_code=404, detail="Quarantined case not found")
+    store.update_ingest_case(ingest_case_id, status="rejected")
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="quarantine_rejected", actor=admin["id"])
+    return {"status": "rejected"}
+
+
+@router.post("/ingestion/quarantine/{ingest_case_id}/scrub")
+async def quarantine_scrub(
+    ingest_case_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """Targeted scrub (PRD §8): redact EXACTLY the flagged spans and re-run the
+    verification + hard guard. An explicit, logged human action — never automatic."""
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic or ic["status"] != "quarantined":
+        raise HTTPException(status_code=404, detail="Quarantined case not found")
+    findings = ((ic.get("report") or {}).get("verification") or {}).get("findings") or []
+    scrubbed = asc_deid_verify.apply_targeted_scrub(ic.get("case") or {}, findings)
+    verification = asc_deid_verify.verify_deid(scrubbed)
+    report = dict(ic.get("report") or {})
+    report["verification"] = verification
+    report["scrubbed_spans"] = len(findings)
+    if verification["status"] == "flagged":
+        store.update_ingest_case(ingest_case_id, case_json=scrubbed, report_json=report)
+        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                        event_type="quarantine_scrub_insufficient", actor=admin["id"],
+                        payload={"remaining": len(verification["findings"])})
+        return {"status": "quarantined",
+                "remaining_findings": len(verification["findings"])}
+    try:
+        from asclepius import case_formats as _cf
+        from asclepius.cases import ClinicalCase as _CC
+        safe = _cf.deidentify(scrubbed)
+        case = _CC(**{**safe, "case_source": "real_deid",
+                      "specialty": safe.get("specialty") or ic.get("specialty") or "nephrology"}).model_dump()
+    except Exception as exc:
+        store.update_ingest_case(ingest_case_id, case_json=scrubbed, report_json=report)
+        return {"status": "quarantined", "reason": f"hard guard still rejects: {exc}"}
+    report["quarantine_reason"] = None
+    store.update_ingest_case(ingest_case_id, status="ingested", case_json=case, report_json=report)
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="quarantine_scrubbed_ingested", actor=admin["id"],
+                    payload={"scrubbed_spans": len(findings)})
+    return {"status": "ingested"}
+
+
+@router.post("/ingestion/quarantine/{ingest_case_id}/override")
+async def quarantine_override(
+    ingest_case_id: str, body: QuarantineOverrideRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Documented admin override of VERIFIER findings (e.g. a false positive on a
+    lab value shaped like a phone number). The ``deidentify()`` HARD guard still
+    runs and cannot be overridden — if it rejects, the override fails."""
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic or ic["status"] != "quarantined":
+        raise HTTPException(status_code=404, detail="Quarantined case not found")
+    reason = (body.reason or "").strip()
+    if len(reason) < 10:
+        raise HTTPException(status_code=400, detail="An override requires a documented reason (≥10 chars)")
+    try:
+        from asclepius import case_formats as _cf
+        from asclepius.cases import ClinicalCase as _CC
+        safe = _cf.deidentify(ic.get("case") or {})
+        case = _CC(**{**safe, "case_source": "real_deid",
+                      "specialty": safe.get("specialty") or ic.get("specialty") or "nephrology"}).model_dump()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"The hard de-identification guard rejects this case ({exc}); it cannot be overridden.",
+        )
+    store.update_ingest_case(ingest_case_id, status="ingested", case_json=case,
+                             override_reason=reason)
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="quarantine_overridden", actor=admin["id"],
+                    payload={"reason": reason})
+    return {"status": "ingested", "override_reason": reason}
+
+
+@router.get("/ingestion/cases")
+async def list_ingestion_cases(
+    status: Optional[str] = None,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    return {"cases": _store().list_ingest_cases(status=status)}
+
+
+@router.post("/ingestion/cases/{ingest_case_id}/promote")
+async def promote_ingest_case(
+    ingest_case_id: str, body: PromoteCaseRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Ingested case → gradable V4 task (PRD §9): attach the clinical question,
+    render the case prompt, generate candidates CONDITIONED ON THE REAL CASE,
+    gate (hardness + real-variant case judge — no ground-truth dimension: the
+    specialist is the answer key), insert as a partner_ehr task. Needs an LLM."""
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic:
+        raise HTTPException(status_code=404, detail="Ingested case not found")
+    if ic["status"] != "ingested":
+        raise HTTPException(status_code=409, detail=f"Case is {ic['status']!r}, not 'ingested'")
+    question = (body.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="A clinical question is required to promote")
+    case = ic.get("case") or {}
+    specialty = ic.get("specialty") or case.get("specialty") or "nephrology"
+    prompt = asc_cases.render_case_prompt(case, question)
+
+    cg = await generate_candidates_ex(prompt, specialty=specialty)
+    candidates = cg.get("candidates") or []
+    if len(candidates) < 2:
+        raise HTTPException(
+            status_code=503,
+            detail="Candidate generation unavailable (no LLM key configured?) — cannot promote.",
+        )
+    from asclepius.critic import run_case_judge, run_hardness_judge
+    generation: Dict[str, Any] = {
+        "mode": "real_case_promote",
+        "ingest_case_id": ingest_case_id,
+        "upload_id": ic.get("upload_id"),
+        "case_source": "real_deid",
+        "modality": "multimodal",
+        "candidate_gen_model": cg.get("model"),
+        "intended_flawed_id": cg.get("intended_flawed_id"),
+    }
+    hj = await run_hardness_judge(prompt, candidates)
+    if not hj.get("skipped"):
+        generation["hardness"] = {"score": hj.get("hardness_score"),
+                                  "axes": hj.get("hardness_axes") or []}
+    cj = await run_case_judge(case, case_source="real_deid")
+    if not cj.get("skipped"):
+        generation["case_judge"] = {k: cj.get(k) for k in (
+            "coherence", "multimodal_necessity", "reasoning_divergence_potential")}
+        # Real-variant gate (PRD §9): coherence / multimodal_necessity /
+        # reasoning_divergence ONLY — no ground-truth dimension (the specialist is
+        # the answer key). A failing case stays 'ingested' (not consumed) so the
+        # admin can reject it or re-promote with a sharper question.
+        from asclepius.constants import (
+            case_coherence_min, case_divergence_min, case_mm_necessity_min,
+        )
+        failures = []
+        if (cj.get("coherence") or 0.0) < case_coherence_min():
+            failures.append(f"coherence {cj.get('coherence')} < {case_coherence_min()}")
+        if (cj.get("multimodal_necessity") or 0.0) < case_mm_necessity_min():
+            failures.append(f"multimodal_necessity {cj.get('multimodal_necessity')} < {case_mm_necessity_min()}")
+        if (cj.get("reasoning_divergence_potential") or 0.0) < case_divergence_min():
+            failures.append(
+                f"reasoning_divergence_potential {cj.get('reasoning_divergence_potential')} < {case_divergence_min()}")
+        if failures:
+            store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                            event_type="promote_gated", actor=admin["id"],
+                            payload={"failures": failures})
+            raise HTTPException(status_code=422, detail={
+                "error": "case_judge_gate", "failures": failures,
+                "hint": "Try a sharper clinical question, or reject the case. Floors are env-tunable."})
+    task = store.insert_task(
+        prompt=prompt, specialty=specialty, difficulty="hard",
+        capture_reasoning=True, source="partner_ehr",
+        candidate_answers=candidates, max_labels=max(1, int(body.max_labels or 1)),
+        grounding_mode=body.grounding_mode or DEFAULT_GROUNDING_MODE,
+        independent_mode=body.independent_mode or DEFAULT_INDEPENDENT_MODE,
+        case=case, generation=generation, created_by=admin["id"],
+    )
+    store.update_ingest_case(ingest_case_id, status="promoted", task_id=task["task_id"])
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="case_promoted", actor=admin["id"],
+                    payload={"task_id": task["task_id"]})
+    return {"task_id": task["task_id"], "case_source": task.get("case_source"),
+            "modality": task.get("modality")}
