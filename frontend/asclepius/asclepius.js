@@ -491,7 +491,7 @@
   }
 
   // ─── Portal version (V1 classic · V2 assisted · V3 seamless) ────────────────
-  const PORTAL_VERSIONS = ['v1', 'v2', 'v3'];
+  const PORTAL_VERSIONS = ['v1', 'v2', 'v3', 'v4'];
   function getPortalVersion() {
     let v = null;
     try { v = localStorage.getItem(PORTAL_VERSION_KEY); } catch (e) { v = null; }
@@ -737,6 +737,17 @@
   // ─── Home page: choose your evaluation experience (V1 / V2 / V3) ────────────
   const VERSION_OPTS = [
     {
+      v: 'v4', label: 'V4 · Real Cases', tag: 'Real patient data', tagKind: 'real',
+      icon: '🧬', real: true,
+      blurb: 'Grade real, de-identified patient cases sourced from partner clinics. Inherits every V3 capability.',
+      bullets: [
+        'Real multimodal cases — de-identified labs + clinician notes',
+        'The treating specialist is the answer key',
+        'Everything in V3: gut check, hidden suggestions, cited sources, A/B diff, dictation',
+        'Highest-value training signal — premium, provenance-tracked records',
+      ],
+    },
+    {
       v: 'v3', label: 'V3 · Seamless', tag: 'Recommended', icon: '⚡',
       blurb: 'The fastest, sharpest flow — a 10-second gut check, then grade.',
       bullets: [
@@ -776,22 +787,44 @@
     const last = getPortalVersion();
     const cards = h('div', { class: 'asc-ver-cards' });
     VERSION_OPTS.forEach((o) => {
-      const card = h('div', {
-        class: 'asc-ver-card' + (last === o.v ? ' last-used' : ''),
-        role: 'button', tabindex: '0',
-        onClick: () => chooseVersion(o.v),
-        onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseVersion(o.v); } },
-      },
+      // V4 (real de-identified patient data) is gated on a per-user approval flag
+      // (BAA + training). Un-approved users see the card in a LOCKED state that
+      // cannot select the experience.
+      const locked = o.v === 'v4' && !(state.user && state.user.real_data_approved);
+      const tagClass = 'asc-ver-card-tag' + (o.tagKind === 'real' ? ' real' : '');
+      const cardAttrs = {
+        class: 'asc-ver-card'
+          + (o.real ? ' asc-ver-card-real' : '')
+          + (locked ? ' locked' : '')
+          + (last === o.v ? ' last-used' : ''),
+      };
+      if (!locked) {
+        cardAttrs.role = 'button';
+        cardAttrs.tabindex = '0';
+        cardAttrs.onClick = () => chooseVersion(o.v);
+        cardAttrs.onKeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseVersion(o.v); } };
+      } else {
+        cardAttrs['aria-disabled'] = 'true';
+      }
+      const startBtn = locked
+        ? h('button', {
+            class: 'asc-btn asc-btn-subtle asc-btn-block', type: 'button', tabindex: '-1',
+            disabled: true, 'aria-disabled': 'true',
+          }, '🔒 Locked — requires real-data approval (BAA + training)')
+        : h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
+            'Start with ' + o.label.split(' ')[0] + ' →');
+      const card = h('div', cardAttrs,
         h('div', { class: 'asc-ver-card-head' },
-          h('span', { class: 'asc-ver-card-icon' }, o.icon),
+          h('span', { class: 'asc-ver-card-icon' }, locked ? '🔒' : o.icon),
           h('div', {},
             h('div', { class: 'asc-ver-card-title' }, o.label,
-              o.tag ? h('span', { class: 'asc-ver-card-tag' }, o.tag) : null,
+              o.tag ? h('span', { class: tagClass }, o.tag) : null,
               last === o.v ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null),
             h('div', { class: 'asc-ver-card-blurb' }, o.blurb))),
         h('ul', { class: 'asc-ver-card-list' }, o.bullets.map((b) => h('li', {}, b))),
-        h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
-          'Start with ' + o.label.split(' ')[0] + ' →'));
+        startBtn,
+        locked ? h('div', { class: 'asc-ver-card-locknote' },
+          'Ask an admin for real-data approval — it requires a signed BAA and completing the de-identified-data handling training.') : null);
       cards.appendChild(card);
     });
     setRoot(h('div', { class: 'asc-wrap' },
@@ -806,7 +839,7 @@
   // is being graded under, with a one-tap route back to the home chooser.
   function renderExperienceBadge() {
     const v = draftVersion();
-    const meta = { v3: ['⚡ ', 'V3 · Seamless'], v2: ['✨ ', 'V2 · Assisted'], v1: ['📝 ', 'V1 · Classic'] }[v] || ['📝 ', 'V1 · Classic'];
+    const meta = { v4: ['🧬 ', 'V4 · Real Cases'], v3: ['⚡ ', 'V3 · Seamless'], v2: ['✨ ', 'V2 · Assisted'], v1: ['📝 ', 'V1 · Classic'] }[v] || ['📝 ', 'V1 · Classic'];
     return h('div', { class: 'asc-exp-badge' },
       h('span', { class: 'asc-exp-badge-label' }, meta[0] + meta[1]),
       h('button', {
@@ -2537,6 +2570,7 @@
       ['tasks', 'Tasks'],
       ['buyers', 'Buyers & Requests'],
       ['exports', 'Exports'],
+      ['ingestion', 'Ingestion'],
       ['metrics', 'Metrics'],
     ];
     // QA Queue was removed from the nav; bounce any stale selection.
@@ -2553,6 +2587,7 @@
     if (state.adminTab === 'tasks') renderAdminTasks(body);
     else if (state.adminTab === 'buyers') renderAdminBuyers(body);
     else if (state.adminTab === 'exports') renderAdminExports(body);
+    else if (state.adminTab === 'ingestion') renderAdminIngestion(body);
     else if (state.adminTab === 'metrics') renderAdminMetrics(body);
   }
 
@@ -2854,6 +2889,12 @@
         h('td', {}, (t.modality || 'text') === 'multimodal'
           ? h('span', { class: 'asc-badge asc-badge-accent' }, '🧬 multimodal')
           : 'text'),
+        // Case-source: real de-identified patient data vs synthetic vs plain text.
+        h('td', {}, caseSourceBadge(t)),
+        // Version the task is served/graded under (v4 = real-cases queue).
+        h('td', {}, t.portal_version
+          ? h('span', { class: 'asc-badge ' + (t.portal_version === 'v4' ? 'asc-badge-red' : 'asc-badge-gray') }, t.portal_version)
+          : '—'),
         h('td', {}, t.difficulty || '—'),
         h('td', {}, (t.prompt || '').slice(0, 90) + ((t.prompt || '').length > 90 ? '…' : '')),
         h('td', {}, t.grounding_mode === 'required' ? h('span', { class: 'asc-badge asc-badge-amber' }, 'required') : 'optional'),
@@ -2864,7 +2905,7 @@
       card.appendChild(h('div', { class: 'asc-table-wrap' },
         h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
-            ['ID', 'Specialty', 'Modality', 'Difficulty', 'Prompt', 'Grounding', 'Labels', 'Status'].map((c) => h('th', {}, c)))),
+            ['ID', 'Specialty', 'Modality', 'Case-source', 'Version', 'Difficulty', 'Prompt', 'Grounding', 'Labels', 'Status'].map((c) => h('th', {}, c)))),
           h('tbody', {}, rows))));
     } catch (e) {
       clear(card);
@@ -3230,6 +3271,136 @@
     const historyCard = h('div', { class: 'asc-card', id: 'ascExportHistory' }, loadingCard('Loading export history…'));
     body.appendChild(historyCard);
     loadExportsHistory();
+
+    // ── Data providers (invite clinical partners to upload de-identified data) ─
+    body.appendChild(renderDataProvidersCard());
+  }
+
+  // ─── Admin: Data providers ─────────────────────────────────────────────────
+  // Invite clinical data providers and track their upload activity. The list is
+  // refreshed after every mutating action (invite / resend / revoke).
+  function renderDataProvidersCard() {
+    const dpEmail = h('input', { class: 'asc-input', type: 'email', id: 'ascDpEmail', placeholder: 'clinician@partner-clinic.org', required: true });
+    const dpOrg = h('input', { class: 'asc-input', id: 'ascDpOrg', placeholder: 'Partner Nephrology Group' });
+    const dpSpec = h('input', { class: 'asc-input', id: 'ascDpSpec', placeholder: 'nephrology' });
+    const dpNote = h('textarea', { class: 'asc-textarea', id: 'ascDpNote', placeholder: 'Optional note included in the invite email…' });
+    const dpStatus = h('div', { style: 'margin-top:12px', 'aria-live': 'polite' });
+    const dpBtn = h('button', { class: 'asc-btn asc-btn-primary', type: 'button' }, 'Send upload invite');
+    const dpList = h('div', { id: 'ascDataProvidersList', style: 'margin-top:8px' }, loadingCard('Loading data providers…'));
+
+    dpBtn.addEventListener('click', async () => {
+      clear(dpStatus);
+      const email = dpEmail.value.trim();
+      if (!email) { dpStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Email is required.')); dpEmail.focus(); return; }
+      const orig = dpBtn.textContent;
+      dpBtn.setAttribute('disabled', ''); dpBtn.textContent = 'Sending…';
+      try {
+        const res = await api('/admin/data-providers', {
+          method: 'POST',
+          body: {
+            email,
+            org_name: dpOrg.value.trim() || null,
+            specialty: dpSpec.value.trim() || null,
+            note: dpNote.value.trim() || null,
+          },
+        });
+        dpStatus.appendChild(h('div', { class: 'asc-inline-ok' }, (res && res.message) || 'Invite sent.'));
+        dpEmail.value = ''; dpOrg.value = ''; dpSpec.value = ''; dpNote.value = '';
+        loadDataProvidersList();
+      } catch (e) {
+        dpStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message));
+      } finally {
+        dpBtn.removeAttribute('disabled'); dpBtn.textContent = orig;
+      }
+    });
+
+    const card = h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Data Providers'),
+        h('div', { class: 'asc-card-sub' }, 'Invite a clinical data provider to securely upload de-identified data.'))),
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-form-row' },
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label', for: 'ascDpEmail' }, 'Email'), dpEmail),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label', for: 'ascDpOrg' }, 'Organization'), dpOrg)),
+        h('div', { class: 'asc-form-row' },
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label', for: 'ascDpSpec' }, 'Specialty'), dpSpec),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label', for: 'ascDpNote' }, 'Note (appears in the email)'), dpNote)),
+        dpBtn,
+        dpStatus,
+        dpList));
+    loadDataProvidersList();
+    return card;
+  }
+
+  function dpStatusBadge(status) {
+    const s = (status || '').toLowerCase();
+    if (s === 'active') return h('span', { class: 'asc-badge asc-badge-green' }, 'active');
+    if (s === 'revoked') return h('span', { class: 'asc-badge asc-badge-red' }, 'revoked');
+    if (s === 'invited') return h('span', { class: 'asc-badge asc-badge-amber' }, 'invited');
+    return h('span', { class: 'asc-badge asc-badge-gray' }, status || '—');
+  }
+
+  async function loadDataProvidersList() {
+    const card = document.getElementById('ascDataProvidersList');
+    if (!card) return;
+    clear(card);
+    card.appendChild(loadingCard('Loading data providers…'));
+    let providers;
+    try {
+      const data = await api('/admin/data-providers');
+      providers = (data && data.providers) || [];
+    } catch (e) {
+      clear(card);
+      card.appendChild(h('div', { class: 'asc-inline-error' }, e.message));
+      return;
+    }
+    clear(card);
+    if (!providers.length) {
+      card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No data providers invited yet.')));
+      return;
+    }
+    const rows = providers.map((p) => {
+      const quality = p.quality && p.quality.clean_pct != null
+        ? fmtNum(p.quality.clean_pct) + '%'
+        : '—';
+      const revoked = (p.status || '').toLowerCase() === 'revoked';
+      const resendBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button' }, 'Resend');
+      resendBtn.addEventListener('click', async () => {
+        resendBtn.setAttribute('disabled', '');
+        try {
+          await api('/admin/data-providers/' + encodeURIComponent(p.id) + '/resend', { method: 'POST' });
+          toast('Invite resent.', 'info');
+          loadDataProvidersList();
+        } catch (e) { toast(e.message, 'error'); resendBtn.removeAttribute('disabled'); }
+      });
+      const revokeBtn = h('button', { class: 'asc-btn asc-btn-danger asc-btn-sm', type: 'button', disabled: revoked }, 'Revoke');
+      if (!revoked) {
+        revokeBtn.addEventListener('click', async () => {
+          if (!confirm('Revoke upload access for ' + p.email + '? They will no longer be able to upload data.')) return;
+          revokeBtn.setAttribute('disabled', '');
+          try {
+            await api('/admin/data-providers/' + encodeURIComponent(p.id) + '/revoke', { method: 'POST' });
+            toast('Provider revoked.', 'info');
+            loadDataProvidersList();
+          } catch (e) { toast(e.message, 'error'); revokeBtn.removeAttribute('disabled'); }
+        });
+      }
+      return h('tr', {},
+        h('td', { class: 'asc-mono' }, p.email || '—'),
+        h('td', {}, p.org_name || '—'),
+        h('td', {}, p.specialty || '—'),
+        h('td', {}, fmtDate(p.invited_at)),
+        h('td', {}, fmtDate(p.last_upload_at)),
+        h('td', {}, String(p.uploads != null ? p.uploads : 0)),
+        h('td', {}, quality),
+        h('td', {}, dpStatusBadge(p.status)),
+        h('td', {}, h('div', { class: 'asc-btn-row' }, resendBtn, revokeBtn)));
+    });
+    card.appendChild(h('div', { class: 'asc-table-wrap' },
+      h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {},
+          ['Email', 'Org', 'Specialty', 'Invited', 'Last upload', '#Uploads', 'Quality', 'Status', 'Actions'].map((c) => h('th', {}, c)))),
+        h('tbody', {}, rows))));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -3744,6 +3915,274 @@
     const browseCard = h('div', { class: 'asc-card', id: 'ascMetricsBrowser' });
     body.appendChild(browseCard);
     renderOrgContribBrowser(browseCard, 'metrics');
+  }
+
+  // ─── Admin: Ingestion (de-identified partner-clinic data pipeline) ─────────
+  // Case-source badge shared by the Tasks table and the ingestion case preview.
+  function caseSourceBadge(t) {
+    const src = t && t.case && t.case.case_source;
+    if (src === 'real_deid') return h('span', { class: 'asc-badge asc-badge-red' }, 'REAL');
+    if (src === 'synthetic') return h('span', { class: 'asc-badge asc-badge-gray' }, 'synthetic');
+    return '—';
+  }
+
+  function ingestStatusBadge(status) {
+    const s = (status || '').toLowerCase();
+    const map = {
+      received: 'asc-badge-amber', parsing: 'asc-badge-amber', needs_review: 'asc-badge-amber',
+      ingested: 'asc-badge-green',
+      quarantined: 'asc-badge-red', failed: 'asc-badge-red',
+    };
+    return h('span', { class: 'asc-badge ' + (map[s] || 'asc-badge-gray') }, status || '—');
+  }
+
+  function fmtBytes(n) {
+    if (n == null || isNaN(n)) return '—';
+    n = Number(n);
+    if (n < 1024) return n + ' B';
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let u = -1;
+    do { n /= 1024; u++; } while (n >= 1024 && u < units.length - 1);
+    return (Math.round(n * 10) / 10) + ' ' + units[u];
+  }
+
+  function renderAdminIngestion(body) {
+    clear(body);
+    const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));
+    const detailCard = h('div', { class: 'asc-card', id: 'ascIngestDetail', hidden: true });
+    const quarCard = h('div', { class: 'asc-card', id: 'ascIngestQuarantine' }, loadingCard('Loading quarantine…'));
+    body.appendChild(uploadsCard);
+    body.appendChild(detailCard);
+    body.appendChild(quarCard);
+    loadIngestionUploads();
+    loadIngestionQuarantine();
+  }
+
+  async function loadIngestionUploads() {
+    const card = document.getElementById('ascIngestUploads');
+    if (!card) return;
+    clear(card);
+    card.appendChild(loadingCard('Loading uploads…'));
+    let uploads;
+    try {
+      const data = await api('/ingestion/uploads');
+      uploads = (data && data.uploads) || [];
+    } catch (e) { clear(card); card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); return; }
+    clear(card);
+    card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+      h('div', { class: 'asc-card-title' }, 'Uploads (' + uploads.length + ')'),
+      h('div', { class: 'asc-card-sub' }, 'De-identified data batches received from partner clinics. Select a row to inspect its files and assembled cases.'))));
+    if (!uploads.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No uploads received yet.'))); return; }
+    const rows = uploads.map((u) => {
+      const tr = h('tr', { class: 'asc-row-clickable', tabindex: '0', role: 'button' },
+        h('td', {}, u.provider_email || '—'),
+        h('td', {}, fmtDate(u.received_at)),
+        h('td', {}, String(u.file_count != null ? u.file_count : 0)),
+        h('td', {}, fmtBytes(u.total_bytes)),
+        h('td', {}, ingestStatusBadge(u.status)),
+        h('td', { class: 'asc-mono' }, trunc(u.checksum, 16)));
+      const open = () => loadIngestionDetail(u.upload_id);
+      tr.addEventListener('click', open);
+      tr.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+      return tr;
+    });
+    card.appendChild(h('div', { class: 'asc-table-wrap' },
+      h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {}, ['Provider', 'Received', 'Files', 'Size', 'Status', 'Checksum'].map((c) => h('th', {}, c)))),
+        h('tbody', {}, rows))));
+  }
+
+  async function loadIngestionDetail(uploadId) {
+    const card = document.getElementById('ascIngestDetail');
+    if (!card) return;
+    card.removeAttribute('hidden');
+    clear(card);
+    card.appendChild(loadingCard('Loading upload detail…'));
+    let d;
+    try { d = await api('/ingestion/uploads/' + encodeURIComponent(uploadId)); }
+    catch (e) { clear(card); card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); return; }
+    clear(card);
+    card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+      h('div', { class: 'asc-card-title' }, 'Upload detail'),
+      h('div', { class: 'asc-card-sub asc-mono' }, uploadId))));
+    const pad = h('div', { class: 'asc-card-pad' });
+    card.appendChild(pad);
+
+    // Files table
+    const files = d.files || [];
+    pad.appendChild(h('div', { class: 'asc-ingest-sec-title' }, 'Files'));
+    if (!files.length) {
+      pad.appendChild(h('div', { class: 'asc-card-sub' }, 'No files parsed.'));
+    } else {
+      const frows = files.map((f) => h('tr', {},
+        h('td', {}, f.filename || '—'),
+        h('td', {}, f.detected_type || '—'),
+        h('td', {}, f.adapter || '—'),
+        h('td', {}, ingestStatusBadge(f.status)),
+        h('td', {}, f.outcome || '—')));
+      pad.appendChild(h('div', { class: 'asc-table-wrap' },
+        h('table', { class: 'asc-table' },
+          h('thead', {}, h('tr', {}, ['Filename', 'Detected type', 'Adapter', 'Status', 'Outcome'].map((c) => h('th', {}, c)))),
+          h('tbody', {}, frows))));
+    }
+
+    // Assembled cases (with previews + promote)
+    const cases = d.cases || [];
+    pad.appendChild(h('div', { class: 'asc-ingest-sec-title', style: 'margin-top:20px' }, 'Assembled cases (' + cases.length + ')'));
+    if (!cases.length) {
+      pad.appendChild(h('div', { class: 'asc-card-sub' }, 'No cases assembled from this upload yet.'));
+    } else {
+      cases.forEach((c) => pad.appendChild(renderIngestCasePreview(c)));
+    }
+  }
+
+  function promotedNotice(taskId) {
+    return h('div', { class: 'asc-inline-ok', style: 'margin-top:10px' },
+      'Promoted to the V4 real-cases queue',
+      taskId ? [' · task ', h('span', { class: 'asc-mono' }, trunc(taskId, 16))] : null);
+  }
+
+  function renderIngestCasePreview(c) {
+    const cs = c.case || {};
+    const demo = cs.demographics || {};
+    const box = h('div', { class: 'asc-ingest-case' });
+
+    const demoBits = [demo.age_band, demo.sex].filter(Boolean).join(' · ');
+    box.appendChild(h('div', { class: 'asc-ingest-case-head' },
+      h('div', { class: 'asc-ingest-case-titlerow' },
+        h('span', { class: 'asc-ingest-case-title' }, 'Case ' + trunc(c.ic_id, 12)),
+        caseSourceBadge({ case: cs }),
+        cs.specialty ? h('span', { class: 'asc-badge asc-badge-primary' }, cs.specialty) : null),
+      demoBits ? h('span', { class: 'asc-ingest-case-demo' }, demoBits) : null));
+
+    // Labs preview — grouped by panel, with the collection day offset.
+    (cs.lab_panels || []).forEach((panel) => {
+      const dayLabel = panel.collected_offset_days != null ? ' [day ' + panel.collected_offset_days + ']' : '';
+      box.appendChild(h('div', { class: 'asc-ingest-panel-head' }, (panel.panel || 'Panel') + dayLabel));
+      const lrows = (panel.results || []).map((r) => {
+        const flag = (r.flag || '').toString();
+        const flagged = flag && flag.toUpperCase() !== 'N' && flag !== '';
+        const ref = (r.ref_low != null || r.ref_high != null)
+          ? (r.ref_low != null ? r.ref_low : '') + '–' + (r.ref_high != null ? r.ref_high : '')
+          : '—';
+        return h('tr', { class: flagged ? 'asc-lab-warn' : null },
+          h('td', {}, r.analyte || '—'),
+          h('td', { class: 'asc-lab-num' }, r.value != null ? String(r.value) : '—'),
+          h('td', {}, r.unit || ''),
+          h('td', { class: 'asc-lab-ref' }, ref),
+          h('td', {}, flag || '—'));
+      });
+      box.appendChild(h('div', { class: 'asc-table-wrap' },
+        h('table', { class: 'asc-table asc-table-tight' },
+          h('thead', {}, h('tr', {}, ['Analyte', 'Value', 'Unit', 'Ref', 'Flag'].map((cc) => h('th', {}, cc)))),
+          h('tbody', {}, lrows))));
+    });
+
+    // Clinician notes.
+    (cs.notes || []).forEach((n) => {
+      box.appendChild(h('div', { class: 'asc-ingest-note' },
+        h('div', { class: 'asc-ingest-note-meta' },
+          (n.note_type || 'note') + ((n.author_role) ? ' — ' + n.author_role : '')),
+        h('div', { class: 'asc-ingest-note-text' }, n.text || '')));
+    });
+
+    // Promote to V4.
+    const promoteHost = h('div', { class: 'asc-ingest-promote' });
+    if (c.task_id) {
+      promoteHost.appendChild(promotedNotice(c.task_id));
+    } else {
+      const qInput = h('input', { class: 'asc-input', type: 'text', placeholder: 'Clinical question for the V4 grading task…', 'aria-label': 'Clinical question' });
+      const pStatus = h('div', { style: 'margin-top:8px', 'aria-live': 'polite' });
+      const pBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button' }, 'Promote to V4');
+      pBtn.addEventListener('click', async () => {
+        clear(pStatus);
+        let question = qInput.value.trim();
+        if (!question) {
+          // Fall back to a prompt() so promotion is still possible without the inline field.
+          question = (window.prompt('Clinical question for this V4 case:') || '').trim();
+          if (!question) { pStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'A clinical question is required to promote.')); return; }
+        }
+        const orig = pBtn.textContent;
+        pBtn.setAttribute('disabled', ''); pBtn.textContent = 'Promoting…';
+        try {
+          const res = await api('/ingestion/cases/' + encodeURIComponent(c.ic_id) + '/promote', { method: 'POST', body: { question } });
+          toast('Promoted to the V4 real-cases queue.', 'info');
+          clear(promoteHost);
+          promoteHost.appendChild(promotedNotice((res && res.task_id) || c.task_id));
+        } catch (e) {
+          pBtn.removeAttribute('disabled'); pBtn.textContent = orig;
+          const msg = e.status === 502
+            ? (e.message || 'Candidate generation unavailable — please try again shortly.')
+            : e.message;
+          pStatus.appendChild(h('div', { class: 'asc-inline-error' }, msg));
+        }
+      });
+      promoteHost.appendChild(h('div', { class: 'asc-ingest-promote-row' }, qInput, pBtn));
+      promoteHost.appendChild(pStatus);
+    }
+    box.appendChild(promoteHost);
+    return box;
+  }
+
+  async function loadIngestionQuarantine() {
+    const card = document.getElementById('ascIngestQuarantine');
+    if (!card) return;
+    clear(card);
+    card.appendChild(loadingCard('Loading quarantine…'));
+    let items;
+    try {
+      const data = await api('/ingestion/quarantine?status=open');
+      items = (data && data.quarantine) || [];
+    } catch (e) { clear(card); card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); return; }
+    clear(card);
+    card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+      h('div', { class: 'asc-card-title' }, 'Quarantine (' + items.length + ')'),
+      h('div', { class: 'asc-card-sub' }, 'Findings are shown as masked identifier types only — never the suspected value.'))));
+    const pad = h('div', { class: 'asc-card-pad' });
+    card.appendChild(pad);
+    if (!items.length) { pad.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'Nothing in quarantine.'))); return; }
+    items.forEach((q) => pad.appendChild(renderQuarantineItem(q)));
+  }
+
+  function renderQuarantineItem(q) {
+    const item = h('div', { class: 'asc-quar-item' });
+    item.appendChild(h('div', { class: 'asc-quar-head' },
+      h('span', { class: 'asc-badge asc-badge-amber' }, q.kind || 'flag'),
+      q.upload_id ? h('span', { class: 'asc-mono asc-quar-upl' }, trunc(q.upload_id, 16)) : null,
+      q.status ? h('span', { class: 'asc-badge asc-badge-gray' }, q.status) : null));
+
+    const findings = q.masked_findings || [];
+    if (findings.length) {
+      item.appendChild(h('div', { class: 'asc-chips asc-quar-chips' },
+        findings.map((f) => h('span', { class: 'asc-chip-static' }, String(f)))));
+    }
+    if (q.detail) item.appendChild(h('div', { class: 'asc-quar-detail' }, q.detail));
+
+    const noteInput = h('input', { class: 'asc-input', type: 'text', placeholder: 'Optional note…', 'aria-label': 'Quarantine action note' });
+    const btnRow = h('div', { class: 'asc-btn-row', style: 'margin-top:10px' });
+    const actions = [
+      ['reject', 'Reject', 'asc-btn-ghost', false],
+      ['remap', 'Re-map', 'asc-btn-ghost', false],
+      ['scrub', 'Scrub & retry', 'asc-btn-subtle', false],
+      ['override', 'Override', 'asc-btn-danger', true],
+    ];
+    actions.forEach((a) => {
+      const action = a[0], label = a[1], cls = a[2], danger = a[3];
+      const b = h('button', { class: 'asc-btn ' + cls + ' asc-btn-sm', type: 'button' }, label);
+      b.addEventListener('click', async () => {
+        if (danger && !confirm('Override the quarantine hold for this item? This ingests the data despite the flagged findings.')) return;
+        b.setAttribute('disabled', '');
+        try {
+          await api('/ingestion/quarantine/' + encodeURIComponent(q.q_id) + '/' + action, { method: 'POST', body: { note: noteInput.value.trim() || null } });
+          toast('Quarantine: ' + label.toLowerCase() + ' applied.', 'info');
+          loadIngestionQuarantine();
+        } catch (e) { toast(e.message, 'error'); b.removeAttribute('disabled'); }
+      });
+      btnRow.appendChild(b);
+    });
+    item.appendChild(h('div', { class: 'asc-field', style: 'margin:10px 0 0' }, noteInput));
+    item.appendChild(btnRow);
+    return item;
   }
 
   function stat(value, label, sub) {

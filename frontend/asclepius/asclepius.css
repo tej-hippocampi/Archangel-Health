@@ -1113,6 +1113,30 @@
 .asc-ver-card-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .asc-ver-card-list li { font-size: 13.5px; color: var(--asc-text); }
 
+/* V4 · Real Cases — distinctive red accent + gated (locked) state. */
+.asc-ver-card-real { border-color: rgba(239, 68, 68, .45); }
+.asc-ver-card-real:hover, .asc-ver-card-real:focus-visible {
+  border-color: var(--asc-danger);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, .14);
+}
+.asc-ver-card-real .asc-ver-card-icon { color: var(--asc-danger); }
+.asc-ver-card-tag.real { background: var(--asc-danger); }
+.asc-ver-card.locked {
+  cursor: not-allowed;
+  border-color: var(--asc-line);
+  background: var(--gray-50, #f9fafb);
+}
+.asc-ver-card.locked:hover {
+  transform: none; box-shadow: none; border-color: var(--asc-line);
+}
+.asc-ver-card.locked .asc-ver-card-title,
+.asc-ver-card.locked .asc-ver-card-list li { color: var(--asc-muted); }
+.asc-ver-card-locknote {
+  font-size: 12.5px; color: var(--asc-muted); line-height: 1.5;
+  padding: 8px 10px; background: var(--gray-100, #f3f4f6);
+  border-radius: var(--radius-sm, 8px);
+}
+
 /* Small in-workspace experience indicator + change link. */
 .asc-exp-badge {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -1180,3 +1204,53 @@
 .asc-lab-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .asc-lab-warn { background: rgba(245, 158, 11, .16); color: #92400e; font-weight: 700; }
 .asc-lab-crit { background: rgba(239, 68, 68, .18); color: #991b1b; font-weight: 800; }
+
+/* ─── Shared: action button rows + static (non-interactive) chips ──────────── */
+.asc-btn-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.asc-chip-static {
+  font-size: 12px; font-weight: 600;
+  color: var(--gray-600, #4b5563); background: var(--gray-100, #f3f4f6);
+  border: 1px solid var(--asc-line); border-radius: 999px;
+  padding: 3px 10px; white-space: nowrap;
+}
+.asc-table-tight th, .asc-table-tight td { padding: 5px 10px; font-size: 12.5px; }
+
+/* ─── Admin: Ingestion pipeline ────────────────────────────────────────────── */
+.asc-ingest-sec-title {
+  font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--asc-muted); margin-bottom: 10px;
+}
+.asc-ingest-case {
+  border: 1px solid var(--asc-line); border-radius: var(--radius-sm, 8px);
+  padding: 14px 16px; margin-bottom: 14px; background: var(--asc-surface);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.asc-ingest-case-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.asc-ingest-case-titlerow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.asc-ingest-case-title { font-size: 14px; font-weight: 700; color: var(--asc-text); }
+.asc-ingest-case-demo { font-size: 12.5px; color: var(--asc-muted); font-weight: 600; }
+.asc-ingest-panel-head {
+  font-size: 12.5px; font-weight: 700; color: var(--asc-text); margin: 4px 0 2px;
+}
+.asc-ingest-note { display: flex; flex-direction: column; gap: 3px; }
+.asc-ingest-note-meta {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--asc-muted);
+}
+.asc-ingest-note-text { font-size: 13.5px; line-height: 1.55; color: var(--asc-text); white-space: pre-wrap; }
+.asc-ingest-promote {
+  margin-top: 4px; padding-top: 12px; border-top: 1px dashed var(--asc-line);
+}
+.asc-ingest-promote-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.asc-ingest-promote-row .asc-input { flex: 1; min-width: 220px; }
+
+.asc-quar-item {
+  border: 1px solid var(--asc-line); border-radius: var(--radius-sm, 8px);
+  padding: 14px 16px; margin-bottom: 12px; background: var(--asc-surface);
+}
+.asc-quar-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.asc-quar-upl { font-size: 12px; color: var(--asc-muted); }
+.asc-quar-chips { margin-top: 10px; }
+.asc-quar-detail { font-size: 13.5px; color: var(--asc-text); margin-top: 10px; line-height: 1.5; }
