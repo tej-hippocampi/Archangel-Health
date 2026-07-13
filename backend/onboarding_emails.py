@@ -380,6 +380,81 @@ def build_asclepius_complete_email(
     return _shell(subject="Your Asclepius workspace is ready", body_html=body)
 
 
+def build_data_provider_invite_email(
+    *,
+    portal_url: str,
+    email: str,
+    temporary_password: str,
+    org_name: str = "",
+    specialty: str = "",
+    note: str = "",
+    invite_ttl_days: int = 14,
+    magic_link: str = "",
+) -> str:
+    """Data Provider Portal invite (Data Provider Portal PRD §4) — "Place your data
+    right here." Carries the portal URL + the credentials (email + temporary
+    password) in the inset card, matching the existing Asclepius brand.
+
+    Security posture (PRD §4): emailing a password is weaker than a magic link, so
+    the password is TEMPORARY, single-use, forced-reset on first login, and
+    expires in ``invite_ttl_days``; login is rate-limited. An optional one-click
+    ``magic_link`` is offered IN ADDITION to the credentials when provided.
+    """
+    safe_org = (org_name or "").strip()
+    safe_spec = (specialty or "").strip()
+
+    rows = [
+        ("Portal", portal_url, False),
+        ("Email", email, True),
+        ("Temporary password", temporary_password, True),
+    ]
+    if safe_org:
+        rows.append(("Organization", safe_org, False))
+    if safe_spec:
+        rows.append(("Specialty", safe_spec, False))
+
+    what_to_send = _p(
+        _strong("What to send: ")
+        + "a structured EHR export (FHIR / HL7 / CSV), lab results, clinical "
+        "notes, and medication &amp; problem lists. "
+        + _strong("Already de-identified and date-shifted.")
+        + " Optionally include a <code>manifest.json</code> "
+        "(<code>patient_key</code>, <code>index_event</code>, "
+        "<code>specialty</code>) — it makes ingestion far more reliable. "
+        + _strong("No imaging."),
+        small=True,
+    )
+
+    intro = (
+        "You&rsquo;ve been invited to securely send your de-identified clinical "
+        "data to " + _strong("Archangel Health") + ". Your upload portal is ready "
+        "and a locked-down account has been created for you — the credentials are "
+        "below."
+    )
+    if note:
+        intro += " " + html.escape(note.strip())
+
+    body = (
+        _eyebrow("Upload access · Archangel Health")
+        + _h1("Place your data right here.")
+        + _p(intro)
+        + _inset_card(_detail_rows(rows))
+        + _cta((magic_link or (portal_url.rstrip("/") + "/provider")), "Open the upload portal →")
+        + what_to_send
+        + _p(
+            "For your security, this is a "
+            + _strong("temporary password")
+            + f": you&rsquo;ll be required to reset it on first login, and this "
+            f"invite expires in {int(invite_ttl_days)} days. If it lapses, ask your "
+            "Archangel Health contact to re-send it.",
+            muted=True,
+            small=True,
+        )
+    )
+    subject = "Send us your clinical data — your Archangel Health upload access"
+    return _shell(subject=subject, body_html=body)
+
+
 def build_complete_email(
     *,
     director_email: str,
