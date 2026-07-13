@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Secure Data Upload — Archangel Health</title>
+<style>
+  /* Standalone by design: no app shell, no shared assets, no PHI rendered. */
+  :root { --line:#e5e7eb; --text:#111827; --muted:#6b7280; --blue:#2563eb; --ok:#065f46; --warn:#92400e; --err:#991b1b; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Inter',system-ui,sans-serif; background:#eef2f9; color:var(--text);
+         min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px; max-width:560px; width:100%;
+          padding:32px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  h1 { font-size:20px; margin-bottom:6px; }
+  .sub { color:var(--muted); font-size:14px; line-height:1.55; margin-bottom:22px; }
+  .drop { border:2px dashed #d1d5db; border-radius:12px; padding:38px 20px; text-align:center;
+          cursor:pointer; transition:border-color .15s, background .15s; }
+  .drop.over { border-color:var(--blue); background:#eff6ff; }
+  .drop strong { color:var(--blue); }
+  .hint { font-size:12px; color:var(--muted); margin-top:10px; }
+  .status { margin-top:18px; padding:14px; border-radius:10px; font-size:14px; display:none; }
+  .status.show { display:block; }
+  .status.info { background:#eff6ff; color:#1d4ed8; }
+  .status.ok { background:#ecfdf5; color:var(--ok); }
+  .status.warn { background:#fffbeb; color:var(--warn); }
+  .status.err { background:#fef2f2; color:var(--err); }
+  .rules { margin-top:22px; font-size:12.5px; color:var(--muted); line-height:1.7; }
+  .rules li { margin-left:18px; }
+  .mono { font-family:ui-monospace,monospace; font-size:12px; }
+  progress { width:100%; margin-top:12px; height:8px; display:none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🔐 Secure clinical data upload</h1>
+  <p class="sub">Upload your <strong>de-identified</strong> bundle as a single <span class="mono">.zip</span>.
+     FHIR R4 exports, HL7 v2 results, lab CSVs, and clinical notes are accepted — <strong>no imaging</strong>.
+     This link is single-purpose and expires. We independently verify de-identification; anything flagged goes
+     to quarantine review, never silently used.</p>
+  <div class="drop" id="drop">
+    <div>📦 Drag your <span class="mono">.zip</span> here, or <strong>browse</strong></div>
+    <div class="hint">One archive per upload · encrypted in transit and at rest · integrity-checksummed</div>
+    <input type="file" id="file" accept=".zip,application/zip" hidden>
+  </div>
+  <progress id="prog" max="100" value="0"></progress>
+  <div class="status" id="status"></div>
+  <ul class="rules">
+    <li>You keep doing de-identification + date-shifting exactly as today; we verify and convert.</li>
+    <li>Optional <span class="mono">manifest.json</span>: <span class="mono">{"patient_key", "index_event", "specialty", "column_map"}</span> makes grouping and timeline anchoring exact.</li>
+    <li>DICOM / imaging entries are rejected; the rest of the bundle still processes.</li>
+  </ul>
+</div>
+<script>
+(function () {
+  'use strict';
+  var token = new URLSearchParams(location.search).get('t') || '';
+  var drop = document.getElementById('drop');
+  var input = document.getElementById('file');
+  var statusEl = document.getElementById('status');
+  var prog = document.getElementById('prog');
+  var busy = false;
+
+  function show(kind, text) {
+    statusEl.className = 'status show ' + kind;
+    statusEl.textContent = text;
+  }
+  if (!token) show('err', 'This page needs the secure link you were sent (missing token).');
+
+  drop.addEventListener('click', function () { if (!busy) input.click(); });
+  drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
+  drop.addEventListener('drop', function (e) {
+    e.preventDefault(); drop.classList.remove('over');
+    if (!busy && e.dataTransfer.files.length) upload(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change', function () { if (input.files.length) upload(input.files[0]); });
+
+  function poll(uploadId, tries) {
+    if (tries > 60) { show('warn', 'Still processing — you can close this page; your contact will confirm.'); return; }
+    fetch('/api/asclepius/partner/uploads/' + encodeURIComponent(uploadId) + '?t=' + encodeURIComponent(token))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.status === 'ingested') {
+          show('ok', '✅ Accepted. Your bundle passed verification and was ingested (checksum ' + (d.sha256 || '').slice(0, 12) + '…).');
+        } else if (d.status === 'quarantined') {
+          show('warn', '⚠️ Received, but held for review: ' + (d.reason || 'verification flagged findings') +
+            '. Nothing was silently used — our team will follow up.');
+        } else if (d.status === 'rejected') {
+          show('err', '❌ Rejected: ' + (d.reason || 'the bundle could not be processed') + '.');
+        } else {
+          show('info', 'Processing… (' + d.status + ')');
+          setTimeout(function () { poll(uploadId, tries + 1); }, 2000);
+        }
+      })
+      .catch(function () { setTimeout(function () { poll(uploadId, tries + 1); }, 3000); });
+  }
+
+  function upload(file) {
+    if (!token) { show('err', 'Missing the secure token — reopen the link you were sent.'); return; }
+    if (!/\.zip$/i.test(file.name)) { show('err', 'Please upload a single .zip archive.'); return; }
+    busy = true;
+    prog.style.display = 'block'; prog.value = 0;
+    show('info', 'Uploading ' + file.name + ' (' + Math.round(file.size / 1024) + ' KB)…');
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/asclepius/partner/uploads?t=' + encodeURIComponent(token));
+    xhr.upload.onprogress = function (e) { if (e.lengthComputable) prog.value = (e.loaded / e.total) * 100; };
+    xhr.onload = function () {
+      busy = false; prog.style.display = 'none';
+      var d = {};
+      try { d = JSON.parse(xhr.responseText); } catch (e) { /* fall through */ }
+      if (xhr.status === 200 && d.upload_id) {
+        show('info', 'Received (checksum ' + (d.sha256 || '').slice(0, 12) + '…) — verifying and parsing…');
+        poll(d.upload_id, 0);
+      } else if (xhr.status === 410) {
+        show('err', 'This link has expired or was already used. Ask your contact for a fresh one.');
+      } else {
+        show('err', (d.detail && (d.detail.message || d.detail)) || ('Upload failed (' + xhr.status + ').'));
+      }
+    };
+    xhr.onerror = function () { busy = false; prog.style.display = 'none'; show('err', 'Network error — try again.'); };
+    var form = new FormData();
+    form.append('file', file);
+    xhr.send(form);
+  }
+})();
+</script>
+</body>
+</html>

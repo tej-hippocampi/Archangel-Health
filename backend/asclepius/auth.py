@@ -102,6 +102,10 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         "specialty": user.get("specialty"),
         "board_cert": user.get("board_cert"),
         "years_experience": user.get("years_experience"),
+        # V4 access gate (EHR PRD §9.5): the client uses this to show the
+        # "V4 · Real Cases" box unlocked/locked. Serving is enforced server-side
+        # regardless — this is display truth, not the gate itself.
+        "real_data_approved": bool(user.get("real_data_approved")),
     }
 
 
@@ -224,18 +228,27 @@ def _mock_years() -> int:
 def ensure_mock_contributor(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
     """Idempotently provision the mock/sandbox contributor on every boot (no-op
     when ASCLEPIUS_MOCK_ENABLED=0). Safe in production: the account is isolated
-    (is_mock=1) and its data never ships in a default export."""
+    (is_mock=1) and its data never ships in a default export.
+
+    V4 (real patient cases) access: the sandbox is V4-approved ONLY when its
+    password is not the known default in production. An out-of-the-box prod
+    deployment must never expose real de-identified cases behind published
+    credentials (security review); set ASCLEPIUS_MOCK_PASSWORD to a private
+    value to unlock the V4 demo on prod. Dev/staging stays unlocked."""
     cfg = mock_credentials()
     if not cfg["enabled"]:
         return None
+    custom_password = bool(os.getenv("ASCLEPIUS_MOCK_PASSWORD"))
+    v4_ok = custom_password or not _is_production()
     user = store.ensure_mock_user(
         email=cfg["email"], password=cfg["password"], specialty=cfg["specialty"],
         board_cert=cfg["board_cert"], years_experience=cfg["years_experience"],
-        organization=cfg["organization"],
+        organization=cfg["organization"], real_data_approved=v4_ok,
     )
     log.warning(
         "Asclepius: ensured MOCK contributor '%s' (sandbox; data hard-excluded from "
-        "exports). Disable with ASCLEPIUS_MOCK_ENABLED=0.", cfg["email"],
+        "exports; V4 real-case demo %s). Disable with ASCLEPIUS_MOCK_ENABLED=0.",
+        cfg["email"], "UNLOCKED" if v4_ok else "LOCKED (set ASCLEPIUS_MOCK_PASSWORD to unlock)",
     )
     return user
 

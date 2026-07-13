@@ -52,10 +52,12 @@ def _tier_mult(
     is_full_independent: bool,
     is_double_labeled_credentialed: bool,
     is_multimodal: bool = False,
+    is_real_case: bool = False,
 ) -> float:
     """§A1: multiplicative premium factors, hard-capped so nothing stacks into a
-    fantasy number. ``is_multimodal`` adds the structured-case premium (PRD §9),
-    still under the cap."""
+    fantasy number. ``is_multimodal`` adds the structured-case premium (PRD §9);
+    ``is_real_case`` adds the REAL de-identified case premium on top (EHR PRD
+    §9.5 — the 2–3× tier, keyed on case_source, still under the cap)."""
     mult = (
         (C.value_grounded_mult() if is_grounded else 1.0)
         * _difficulty_mult(difficulty)
@@ -63,6 +65,7 @@ def _tier_mult(
         * (C.value_full_independent_mult() if is_full_independent else 1.0)
         * (C.value_credentialed_kappa_mult() if is_double_labeled_credentialed else 1.0)
         * (C.value_multimodal_mult() if is_multimodal else 1.0)
+        * (C.value_real_case_mult() if is_real_case else 1.0)
     )
     return min(C.value_tier_mult_cap(), mult)
 
@@ -80,6 +83,20 @@ def _is_multimodal(task: Dict[str, Any], records: List[Dict[str, Any]]) -> bool:
         return True
     for r in records or []:
         if (r.get("context") or {}).get("modality") == "multimodal":
+            return True
+    return False
+
+
+def _is_real_case(task: Dict[str, Any], records: List[Dict[str, Any]]) -> bool:
+    """A REAL de-identified case judgment (EHR PRD §9.5). True from the task's
+    case_source (column or case body), or a record's ``context.case_source`` —
+    the ground truth, never the version label."""
+    if task.get("case_source") == "real_deid":
+        return True
+    if ((task.get("case") or {}) or {}).get("case_source") == "real_deid":
+        return True
+    for r in records or []:
+        if (r.get("context") or {}).get("case_source") == "real_deid":
             return True
     return False
 
@@ -147,6 +164,7 @@ def estimate_value(
     is_full = _independent_full(records, task, submission)
     is_dl_cred = submission.get("agreement_score") is not None and _annotator_credentialed(submission)
     is_mm = _is_multimodal(task, records)
+    is_real = _is_real_case(task, records)
 
     tier = _tier_mult(
         is_grounded=is_grounded,
@@ -155,6 +173,7 @@ def estimate_value(
         is_full_independent=is_full,
         is_double_labeled_credentialed=is_dl_cred,
         is_multimodal=is_mm,
+        is_real_case=is_real,
     )
 
     realized = content * tier
@@ -211,6 +230,7 @@ def expected_value_for_task(task: Dict[str, Any]) -> Dict[str, Any]:
         is_full_independent=(task.get("independent_mode") == "full"),
         is_double_labeled_credentialed=int(task.get("max_labels") or 1) >= 2,
         is_multimodal=_is_multimodal(task, []),
+        is_real_case=_is_real_case(task, []),
     )
     realized = content * tier
     return {

@@ -21,11 +21,11 @@ Design invariants carried from the model (PRD §2):
     identifiers. Calendar→relative-offset conversion is the adapter's job (the
     absolute dates never enter the model), asserted here as a post-condition.
 
-The concrete parsers are intentionally unimplemented (``CaseFormatNotImplemented``)
-so the seam ships as a wired, tested contract without pretending to parse formats
-we have not yet validated against real exports. When an adapter lands, it slots
-into ``FORMATS`` and every downstream path (generation source, value model,
-export filters, datasheet) already handles ``real_deid`` with zero change.
+The concrete parsers live in ``asclepius/adapters/`` (EHR Ingestion PRD §6):
+``lab_csv``, ``fhir_r4``, ``hl7v2``, and ``note_text`` are REAL, dependency-free
+implementations registered below; ``dicom`` is registered only to reject. The
+single-file path is ``ingest_real_deid`` (adapter → timeline normalization →
+guard); multi-file bundle assembly is orchestrated by ``ingestion.py``.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from asclepius.validation import residual_identifiers
 
 # Source formats a real de-identified export can arrive in. ``dicom`` is present
 # only to reject (no imaging). Keep in sync with the adapter registry below.
-CASE_FORMATS = ("lab_csv", "fhir_r4", "hl7v2", "dicom")
+CASE_FORMATS = ("lab_csv", "fhir_r4", "hl7v2", "note_text", "dicom")
 
 
 class CaseIngestError(ValueError):
@@ -150,46 +150,91 @@ def deidentify(case: Any) -> Dict[str, Any]:
     return c
 
 
-# ─── Format adapters (seam) ───────────────────────────────────────────────────
-def _not_implemented(fmt: str) -> Callable[..., Dict[str, Any]]:
-    def _adapter(raw: Any, *, specialty: str = "general") -> Dict[str, Any]:
-        raise CaseFormatNotImplemented(
-            f"the {fmt!r} case adapter is not implemented yet. The seam is wired: "
-            f"add a parser that maps {fmt!r} → a ClinicalCase dict and register it in "
-            f"FORMATS, and real_deid ingestion works end-to-end with no other change."
-        )
-    return _adapter
-
-
-def _reject_imaging(raw: Any, *, specialty: str = "general") -> Dict[str, Any]:
+# ─── Format adapters ──────────────────────────────────────────────────────────
+def _reject_imaging(raw: Any, *, specialty: str = "general", manifest: Any = None) -> Dict[str, Any]:
     raise ImagingRejected(
         "DICOM/imaging is never a gradable modality (PRD §2): cases are text + "
         "structured tabular data only. Imaging exports are rejected at ingest."
     )
 
 
-# name → adapter(raw, *, specialty) -> ClinicalCase dict (pre-deidentify).
+def _adapter(fmt: str) -> Callable[..., Dict[str, Any]]:
+    """Lazily resolve the real parser (EHR PRD §6). Lazy so ``asclepius.adapters``
+    (which imports ``age_to_band`` from this module) never forms an import cycle,
+    and a broken adapter module degrades to a per-format ingest error instead of
+    breaking every import of case_formats."""
+    def _dispatch(raw: Any, *, specialty: str = "general", manifest: Any = None) -> Dict[str, Any]:
+        from asclepius import adapters as _adapters
+        mod = getattr(_adapters, fmt, None)
+        if mod is None or not hasattr(mod, "parse"):
+            raise CaseFormatNotImplemented(f"no parser registered for {fmt!r}")
+        return mod.parse(raw, specialty=specialty, manifest=manifest)
+    return _dispatch
+
+
+# name → adapter(raw, *, specialty, manifest) -> ClinicalCase FRAGMENTS
+# (pre-normalize, pre-deidentify). ``dicom`` is registered only to reject.
 FORMATS: Dict[str, Callable[..., Dict[str, Any]]] = {
-    "lab_csv": _not_implemented("lab_csv"),
-    "fhir_r4": _not_implemented("fhir_r4"),
-    "hl7v2": _not_implemented("hl7v2"),
+    "lab_csv": _adapter("lab_csv"),
+    "fhir_r4": _adapter("fhir_r4"),
+    "hl7v2": _adapter("hl7v2"),
+    "note_text": _adapter("note_text"),
     "dicom": _reject_imaging,
 }
 
 
-def ingest_real_deid(raw: Any, fmt: str, *, specialty: str = "general") -> Dict[str, Any]:
-    """Parse a real de-identified export into a stored-ready ClinicalCase dict:
-    dispatch to the format adapter, run the de-identification guard, coerce
-    through the ClinicalCase model, and stamp ``case_source="real_deid"``.
+def _strip_meta(fragments: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop adapter-internal keys (``_patient_keys``, ``_imaging_skipped``…) so
+    they never reach the ClinicalCase model or a stored case."""
+    return {k: v for k, v in (fragments or {}).items() if not str(k).startswith("_")}
 
-    Raises ``CaseIngestError`` for an unknown format, a not-yet-implemented
-    adapter, an imaging export, or a case that fails de-identification."""
+
+def ingest_real_deid(
+    raw: Any, fmt: str, *, specialty: str = "general",
+    manifest: Optional[Dict[str, Any]] = None, index_event: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Parse ONE real de-identified export into a stored-ready ClinicalCase dict:
+
+        adapter → ``timeline.normalize_timeline`` (shifted dates → relative
+        offsets; the B1 bridge — ordering is load-bearing, PRD §7) →
+        ``deidentify()`` hard guard → ClinicalCase, stamped ``real_deid``.
+
+    Raises ``CaseIngestError`` for an unknown format, an imaging export, an
+    unnormalizable timeline, UNRESOLVED date-like tokens (quarantine — we never
+    guess), or a case that fails the de-identification guard. Multi-file bundle
+    assembly lives in ``ingestion.py``; this is the single-file path."""
+    from asclepius.timeline import TimelineError, normalize_timeline
+
     adapter = FORMATS.get(fmt)
     if adapter is None:
         raise CaseIngestError(
             f"unknown case format {fmt!r}; supported: {', '.join(CASE_FORMATS)}."
         )
-    parsed = adapter(raw, specialty=specialty)
-    safe = deidentify(parsed)
+    try:
+        parsed = adapter(raw, specialty=specialty, manifest=manifest)
+    except CaseIngestError:
+        raise  # ImagingRejected / CaseFormatNotImplemented pass through untouched
+    except Exception as exc:
+        # Adapter-native parse errors (LabCsvError, FhirParseError, …) surface as
+        # one clean, quarantinable ingest error — never a raw 500.
+        raise CaseIngestError(f"{fmt} parse failed: {exc}") from exc
+    try:
+        # Anchor precedence: explicit arg > partner manifest > the adapter's own
+        # suggestion (its latest encounter/observation datetime) > latest lab.
+        normalized, report = normalize_timeline(
+            _strip_meta(parsed),
+            index_event=(index_event
+                         or (manifest or {}).get("index_event")
+                         or parsed.get("_index_event")),
+        )
+    except TimelineError as exc:
+        raise CaseIngestError(f"timeline normalization failed: {exc}") from exc
+    if report.get("unresolved"):
+        raise CaseIngestError(
+            "unresolved date-like tokens after timeline normalization ("
+            + ", ".join(report["unresolved"][:5])
+            + "); refusing to guess — review in quarantine."
+        )
+    safe = deidentify(normalized)
     case = ClinicalCase(**{**safe, "case_source": "real_deid", "specialty": safe.get("specialty") or specialty})
     return case.model_dump()

@@ -13,16 +13,21 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import hashlib
 import io
 import json
 import logging
 import os
+import secrets
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request,
+    UploadFile,
+)
 from fastapi.responses import StreamingResponse
 
 from asclepius import agreement as asc_agreement
@@ -56,6 +61,8 @@ from asclepius.constants import (
     NOT_HARD_TASK_STATUS,
     PORTAL_VERSIONS,
     PREFERENCE_VARIANTS,
+    REAL_CASE_PORTAL_VERSION,
+    SYNTHETIC_PORTAL_VERSIONS,
     PROMPT_FLAGGED_TASK_STATUS,
     PROMPT_REVIEW_VERDICTS,
     REASONING_STEP_LABELS,
@@ -93,6 +100,10 @@ from asclepius.schemas import (
     CiteRequest,
     ContributorCredentialsIn,
     CreateUserRequest,
+    PromoteCaseRequest,
+    QuarantineOverrideRequest,
+    RealDataApprovalRequest,
+    UploadLinkRequest,
     CredentialSummaryRequest,
     ExportRequest,
     GenerationRequest,
@@ -289,6 +300,27 @@ async def create_user(
 @router.get("/users")
 async def list_users(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
     return {"users": [asc_auth.public_user(u) for u in _store().list_users()]}
+
+
+@router.post("/users/{user_id}/real-data-approval")
+async def set_real_data_approval(
+    user_id: str, body: RealDataApprovalRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Grant/revoke V4 real-case access for a contributor (EHR PRD §9.5) — the
+    BAA/training attestation lives outside the system; this flag records the
+    admin's decision. Serving enforces it on every /tasks/next."""
+    store = _store()
+    user = store.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    store.set_real_data_approved(user_id, bool(body.approved))
+    store.log_event(
+        entity_type="user", entity_id=user_id,
+        event_type=("real_data_approved" if body.approved else "real_data_revoked"),
+        actor=admin["id"],
+    )
+    return asc_auth.public_user(store.get_user_by_id(user_id))
 
 
 # ─── Tasks ────────────────────────────────────────────────────────────────────
@@ -569,15 +601,18 @@ def _autofill_specialty(user: Dict[str, Any]) -> str:
 
 
 def _value_aware_next(
-    store: Any, user: Dict[str, Any], specialty: Optional[str], *, hard_only: bool = False
+    store: Any, user: Dict[str, Any], specialty: Optional[str], *, hard_only: bool = False,
+    real_only: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """Value-aware routing (Value-per-Minute PRD B3) — assisted flows. Serves the
     eligible task with the highest expected value-per-minute for THIS contributor
     (their rolling median speed × each task's expected realized value). Ties break
     on the oldest task, preserving FIFO fairness within an equal-value cohort.
-    ``hard_only`` (WS2) restricts the candidate set to hard cases (the V3 queue)."""
+    ``hard_only`` (WS2) restricts the candidate set to hard cases (the V3 queue);
+    ``real_only`` is the V4 wall (EHR PRD §9.5)."""
     candidates = store.eligible_tasks_for_evaluator(
-        evaluator_id=user["id"], specialty=specialty, hard_only=hard_only
+        evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
+        real_only=real_only,
     )
     if not candidates:
         return None
@@ -608,14 +643,24 @@ def _query_next(
     # nothing gets stamped 'hard'), V3 stops filtering to hard and serves the
     # available queue instead of showing an empty V3 to every clinician.
     hard_only = portal_version == "v3" and hard_only_generation()
+    # The V4 wall (EHR PRD §9.5): v4 serves ONLY real (case_source='real_deid')
+    # tasks; every other version EXCLUDES them — a real patient case can never be
+    # served into a v1/v2/v3 session, even by accident. V4 additionally requires
+    # the contributor to be real-data approved (BAA/training) — an unapproved
+    # evaluator asking for v4 gets an empty queue, never a real case.
+    real_only = portal_version == REAL_CASE_PORTAL_VERSION
+    if real_only and not user.get("real_data_approved"):
+        return None
 
     def _classic(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
         return store.next_task_for_evaluator(
-            evaluator_id=user["id"], specialty=specialty, hard_only=hard_only
+            evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
+            real_only=real_only,
         )
 
     def _pick(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
-        return _value_aware_next(store, user, specialty, hard_only=hard_only) if value_aware else _classic(specialty)
+        return (_value_aware_next(store, user, specialty, hard_only=hard_only, real_only=real_only)
+                if value_aware else _classic(specialty))
 
     pick = _pick(user.get("specialty"))
     if not pick and not user.get("specialty"):
@@ -709,6 +754,10 @@ async def _autofill_queue(
 ) -> Optional[Dict[str, Any]]:
     if not _autofill_enabled():
         return None
+    # V4 (real cases) can NEVER be autofilled — real patient data cannot be
+    # fabricated. An empty V4 queue stays empty until a partner bundle ingests.
+    if portal_version == REAL_CASE_PORTAL_VERSION:
+        return None
     specialty = _autofill_specialty(user)
     cooldown = _autofill_cooldown_sec()
     if time.monotonic() - _autofill_last_attempt.get(specialty, 0.0) < cooldown:
@@ -784,11 +833,29 @@ async def next_task(
     return {"task": _blind_task(task) if task else None}
 
 
+def _require_real_data_access(task: Dict[str, Any], user: Dict[str, Any]) -> None:
+    """The V4 wall on DIRECT task access (EHR PRD §9.5): a real (case_source=
+    'real_deid') task is visible to admins/QA and to real_data_approved
+    evaluators only. /tasks/next already filters; this closes the by-ID paths
+    (fetch, reveal, answers, prelabel, submit) so the wall never depends on task
+    IDs being unguessable."""
+    if task.get("case_source") != "real_deid":
+        return
+    if user.get("role") in ("admin", "qa_reviewer"):
+        return
+    if not user.get("real_data_approved"):
+        raise HTTPException(
+            status_code=403,
+            detail="This is a real-patient (V4) case; it requires real-data approval.",
+        )
+
+
 @router.get("/tasks/{task_id}")
-async def get_task(task_id: str, _user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     task = _store().get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)
     return {"task": _blind_task(task)}
 
 
@@ -806,6 +873,7 @@ async def reveal_task_answers(
     task = store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)
     text = (body.text or "").strip()
     if not text:
         raise HTTPException(
@@ -821,7 +889,7 @@ async def reveal_task_answers(
     # 'full'); V2 respects the task's mode (stance default). ``kind`` is stamped
     # server-side, never trusted from the client — a lightweight capture can't be
     # passed off as a full blind ideal answer.
-    pv = normalize_portal_version(body.portal_version)
+    pv = _derive_portal_version(task, body.portal_version)
     kind = independent_capture_kind(pv, task.get("independent_mode"))
     store.commit_independent_answer(
         task_id=task_id,
@@ -840,6 +908,37 @@ async def reveal_task_answers(
     return {"answers": _task_answers(task), "committed": True}
 
 
+def _derive_portal_version(task: Dict[str, Any], claimed: Optional[str]) -> str:
+    """The V4 derivation wall (EHR PRD §9.5): the portal version stamped onto a
+    commit/submission is DERIVED from the task's ``case_source``, never trusted
+    from the client, at every stamping point (reveal, submit, stage-1 flags).
+
+      * real task (``case_source='real_deid'``) → always ``v4``. A client
+        explicitly claiming a SYNTHETIC version on a real case is a 400 — a
+        mislabel attempt, not a normalization case.
+      * synthetic/text task → the claimed version as before, except an explicit
+        ``v4`` claim is a 400 (a synthetic task can never be V4).
+    """
+    is_real = (task.get("case_source") == "real_deid")
+    if is_real:
+        if claimed in SYNTHETIC_PORTAL_VERSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "This is a real-case (V4) task: portal_version "
+                    f"{claimed!r} is not valid for it. Real de-identified cases are "
+                    "graded only in the V4 flow."
+                ),
+            )
+        return REAL_CASE_PORTAL_VERSION
+    if claimed == REAL_CASE_PORTAL_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail="portal_version 'v4' is reserved for real-case tasks; this task is synthetic.",
+        )
+    return normalize_portal_version(claimed)
+
+
 def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
     """The v2 anti-peeking gate, shared by every endpoint that describes the
     candidate answers (answer re-fetch, prelabel suggestions): the evaluator
@@ -848,6 +947,7 @@ def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) 
     task = store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)  # V4 wall on answer-describing surfaces
     if not store.get_independent_commit(task_id, user["id"]):
         raise HTTPException(
             status_code=403,
@@ -894,6 +994,7 @@ async def submit(
     task = store.get_task(body.task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)  # V4 wall on the submit path
 
     # Stage-1 prompt validation gate (Eval Flow Upgrade §2): a clinician who
     # flagged the prompt as invalid never judged answers. Capture the flag for
@@ -907,7 +1008,7 @@ async def submit(
         # (§0/§13) still applies. Redact rather than persist a raw identifier.
         note_phi = residual_identifiers(review.note) if review.note else []
         safe_note = "[redacted — possible identifier detected]" if note_phi else review.note
-        flag_pv = normalize_portal_version(body.portal_version)
+        flag_pv = _derive_portal_version(task, body.portal_version)
         flagged_payload = body.model_dump()
         flagged_payload["portal_version"] = flag_pv
         if note_phi:
@@ -971,7 +1072,7 @@ async def submit(
         # "PHI scan on every submission" rule still applies) — redact, don't persist.
         nh_note_phi = residual_identifiers(review.note) if review.note else []
         nh_safe_note = "[redacted — possible identifier detected]" if nh_note_phi else review.note
-        nh_pv = normalize_portal_version(body.portal_version)
+        nh_pv = _derive_portal_version(task, body.portal_version)
         nh_payload = body.model_dump()
         nh_payload["portal_version"] = nh_pv
         if nh_note_phi:
@@ -1002,7 +1103,7 @@ async def submit(
     if review and review.verdict == "case_incoherent":
         ci_note_phi = residual_identifiers(review.note) if review.note else []
         ci_safe_note = "[redacted — possible identifier detected]" if ci_note_phi else review.note
-        ci_pv = normalize_portal_version(body.portal_version)
+        ci_pv = _derive_portal_version(task, body.portal_version)
         ci_payload = body.model_dump()
         ci_payload["portal_version"] = ci_pv
         if ci_note_phi:
@@ -1048,9 +1149,11 @@ async def submit(
     # authoritative (it drove the capture kind); fall back to the client's
     # declared version when no commit exists (v1 with withholding off, or a
     # direct API client). Stamped onto the row + payload so packaging carries it
-    # onto every record.
-    portal_version = normalize_portal_version(
-        (_commit or {}).get("payload", {}).get("portal_version") or body.portal_version
+    # onto every record. The V4 derivation wall (EHR PRD §9.5) applies HERE too:
+    # a real-case task derives v4 (a synthetic-version claim on it is a 400),
+    # and a synthetic task can never stamp v4 — even via a stale commit.
+    portal_version = _derive_portal_version(
+        task, (_commit or {}).get("payload", {}).get("portal_version") or body.portal_version
     )
     payload["portal_version"] = portal_version
 
@@ -2088,3 +2191,427 @@ async def events(
     _qa: Dict[str, Any] = Depends(asc_auth.require_qa),
 ):
     return {"events": _store().list_events(entity_type=entity_type, entity_id=entity_id, limit=limit)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Real EHR ingestion (EHR Ingestion PRD §4, §5, §8, §9)
+#  Partner secure upload → verify → parse → normalize → quarantine/ingest →
+#  promote to a V4 task. Partner endpoints are TOKEN-auth (no app account);
+#  everything else is admin.
+# ═══════════════════════════════════════════════════════════════════════════════
+from asclepius import deid_verify as asc_deid_verify  # noqa: E402
+from asclepius import ingestion as asc_ingestion  # noqa: E402
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256((token or "").encode("utf-8")).hexdigest()
+
+
+def _validate_upload_token(store: Any, token: Optional[str]) -> Dict[str, Any]:
+    """Resolve + validate a partner upload token. 410 for expired/used/revoked
+    (the PRD's contract), 401 for unknown. The RAW token is never stored —
+    only its SHA-256."""
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing upload token")
+    link = store.get_upload_link_by_token_hash(_token_hash(token))
+    if not link:
+        raise HTTPException(status_code=401, detail="Invalid upload token")
+    if link.get("revoked"):
+        raise HTTPException(status_code=410, detail="This upload link was revoked")
+    try:
+        expired = datetime.utcnow().isoformat() > str(link.get("expires_at"))
+    except Exception:
+        expired = True
+    if expired:
+        raise HTTPException(status_code=410, detail="This upload link has expired")
+    if link.get("one_time") and int(link.get("used_count") or 0) > 0:
+        raise HTTPException(status_code=410, detail="This upload link was already used")
+    return link
+
+
+@router.post("/admin/upload-links")
+async def mint_upload_link(
+    body: UploadLinkRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """Mint a single-purpose, expiring partner upload link (PRD §4). The raw
+    token is returned ONCE here and never stored (SHA-256 at rest)."""
+    store = _store()
+    token = secrets.token_urlsafe(32)
+    expires_at = (datetime.utcnow() + timedelta(hours=max(1, min(720, body.expires_hours)))).isoformat()
+    link = store.create_upload_link(
+        token_hash=_token_hash(token),
+        partner_id=body.partner_id.strip(),
+        partner_label=(body.partner_label or "").strip() or None,
+        specialty=body.specialty,
+        expires_at=expires_at,
+        one_time=body.one_time,
+        max_bytes=min(body.max_bytes or asc_ingestion.max_zip_bytes(), asc_ingestion.max_zip_bytes()),
+        created_by=admin["id"],
+    )
+    store.log_event(entity_type="ingest_link", entity_id=link["link_id"],
+                    event_type="upload_link_minted", actor=admin["id"],
+                    payload={"partner_id": body.partner_id, "expires_at": expires_at,
+                             "one_time": body.one_time})
+    base = (os.getenv("BASE_URL") or "").rstrip("/")
+    return {**{k: v for k, v in link.items() if k != "token_hash"},
+            "token": token,
+            "upload_url": f"{base}/partner/upload?t={token}"}
+
+
+@router.get("/admin/upload-links")
+async def list_upload_links(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    links = [{k: v for k, v in l.items() if k != "token_hash"} for l in _store().list_upload_links()]
+    return {"links": links}
+
+
+@router.post("/admin/upload-links/{link_id}/revoke")
+async def revoke_upload_link(
+    link_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    store = _store()
+    if not store.get_upload_link(link_id):
+        raise HTTPException(status_code=404, detail="Link not found")
+    store.revoke_upload_link(link_id)
+    store.log_event(entity_type="ingest_link", entity_id=link_id,
+                    event_type="upload_link_revoked", actor=admin["id"])
+    return {"revoked": True}
+
+
+@router.post("/partner/uploads")
+async def partner_upload(
+    request: Request,
+    background: BackgroundTasks,
+    file: UploadFile = File(...),
+    t: Optional[str] = Query(None, description="upload link token"),
+):
+    """The partner's one capability (PRD §4): POST a .zip through their token.
+    Caps + magic-byte check + SHA-256 + encrypted quarantine write happen inline;
+    unpack/parse/verify run in the background (never in the request path)."""
+    store = _store()
+    # FAIL CLOSED in production (security review): the raw partner bundle is the
+    # most sensitive artifact in the pipeline — we refuse to accept it at all if
+    # it cannot be encrypted at rest (DATA_ENCRYPTION_KEY unset).
+    if (os.getenv("ENV") or "").strip().lower() == "production":
+        import field_crypto
+        if not field_crypto.is_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="Ingestion is disabled: DATA_ENCRYPTION_KEY is not configured, "
+                       "so the upload cannot be encrypted at rest.",
+            )
+    link = _validate_upload_token(store, t)
+    data = await file.read()
+    if len(data) > int(link.get("max_bytes") or asc_ingestion.max_zip_bytes()):
+        raise HTTPException(status_code=413, detail="Upload exceeds the link's size cap")
+    if data[:2] != b"PK":
+        raise HTTPException(status_code=400, detail="Only .zip bundles are accepted")
+    # ATOMIC one-time claim (closes the TOCTOU race where two concurrent uploads
+    # both pass the used_count==0 validation read). After the cheap validations,
+    # so an innocent oversized/wrong-type attempt doesn't burn the link.
+    if not store.consume_upload_link(link["link_id"], one_time=bool(link.get("one_time"))):
+        raise HTTPException(status_code=410, detail="This upload link was already used")
+    digest = asc_ingestion.sha256_hex(data)
+    upload = store.insert_ingest_upload(
+        link_id=link["link_id"], partner_id=link["partner_id"],
+        filename=(file.filename or "bundle.zip")[:120], sha256=digest,
+        size_bytes=len(data), raw_path=None,
+        source_ip=(request.client.host if request.client else None),
+    )
+    raw_path = asc_ingestion.store_raw(upload["upload_id"], data)
+    store.update_ingest_upload(upload["upload_id"], raw_path=raw_path)
+    store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
+                    event_type="upload_received",
+                    payload={"partner_id": link["partner_id"], "sha256": digest,
+                             "bytes": len(data),
+                             "source_ip": request.client.host if request.client else None})
+    background.add_task(asc_ingestion.process_upload, store, upload["upload_id"])
+    return {"upload_id": upload["upload_id"], "sha256": digest, "status": "received"}
+
+
+@router.get("/partner/uploads/{upload_id}")
+async def partner_upload_status(upload_id: str, t: Optional[str] = Query(None)):
+    """The partner polls their OWN upload's status through the same token —
+    accepted / quarantined + a human-readable reason. No other data is exposed."""
+    store = _store()
+    link = _validate_upload_token_lenient(store, t)
+    upload = store.get_ingest_upload(upload_id)
+    if not upload or upload.get("link_id") != link["link_id"]:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    return {"upload_id": upload_id, "status": upload["status"],
+            "reason": upload.get("reason"),
+            "filename": upload.get("filename"), "sha256": upload.get("sha256")}
+
+
+def _validate_upload_token_lenient(store: Any, token: Optional[str]) -> Dict[str, Any]:
+    """Status polling stays available after a one-time link is used (the partner
+    needs to see the outcome of the upload they just made) — but never after
+    revocation or expiry."""
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing upload token")
+    link = store.get_upload_link_by_token_hash(_token_hash(token))
+    if not link:
+        raise HTTPException(status_code=401, detail="Invalid upload token")
+    if link.get("revoked"):
+        raise HTTPException(status_code=410, detail="This upload link was revoked")
+    try:
+        if datetime.utcnow().isoformat() > str(link.get("expires_at")):
+            raise HTTPException(status_code=410, detail="This upload link has expired")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=410, detail="This upload link has expired")
+    return link
+
+
+# ─── Admin: ingestion review ──────────────────────────────────────────────────
+@router.get("/ingestion/uploads")
+async def list_ingestion_uploads(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    return {"uploads": _store().list_ingest_uploads()}
+
+
+@router.get("/ingestion/uploads/{upload_id}")
+async def get_ingestion_upload(
+    upload_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    upload = dict(upload)
+    upload.pop("raw_path", None)  # server-side path is not admin-relevant
+    upload["cases"] = store.list_ingest_cases(upload_id=upload_id)
+    return upload
+
+
+@router.post("/ingestion/uploads/{upload_id}/retry")
+async def retry_ingestion_upload(
+    upload_id: str, background: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Re-run the pipeline (e.g. after loosening a knob or fixing an adapter).
+    Only the raw blob is reused; prior case rows for the upload stay for audit."""
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    if not upload.get("raw_path") or not os.path.exists(upload["raw_path"]):
+        raise HTTPException(status_code=410, detail="Raw upload already purged (retention window)")
+    store.update_ingest_upload(upload_id, status="received", reason=None)
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="upload_retry", actor=admin["id"])
+    background.add_task(asc_ingestion.process_upload, store, upload_id)
+    return {"upload_id": upload_id, "status": "received"}
+
+
+@router.get("/ingestion/quarantine")
+async def list_quarantine(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """Quarantined cases with MASKED findings (a suspected identifier is never
+    rendered in cleartext — PRD §8)."""
+    cases = _store().list_ingest_cases(status="quarantined")
+    for c in cases:
+        c.pop("case", None)  # the case body is not needed to triage; keep the payload light
+    return {"cases": cases}
+
+
+@router.post("/ingestion/quarantine/{ingest_case_id}/reject")
+async def quarantine_reject(
+    ingest_case_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic or ic["status"] != "quarantined":
+        raise HTTPException(status_code=404, detail="Quarantined case not found")
+    store.update_ingest_case(ingest_case_id, status="rejected")
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="quarantine_rejected", actor=admin["id"])
+    return {"status": "rejected"}
+
+
+@router.post("/ingestion/quarantine/{ingest_case_id}/scrub")
+async def quarantine_scrub(
+    ingest_case_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """Targeted scrub (PRD §8): redact EXACTLY the flagged spans and re-run the
+    verification + hard guard. An explicit, logged human action — never automatic."""
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic or ic["status"] != "quarantined":
+        raise HTTPException(status_code=404, detail="Quarantined case not found")
+    findings = ((ic.get("report") or {}).get("verification") or {}).get("findings") or []
+    scrubbed = asc_deid_verify.apply_targeted_scrub(ic.get("case") or {}, findings)
+    # Review finding: a TIMELINE-unresolved quarantine (ambiguous date tokens the
+    # normalizer refused to guess) has no verifier findings to scrub — it must
+    # NOT flip to ingested while those tokens are still in the text. Only a
+    # better manifest index_event (re-upload/retry) or rejection resolves it.
+    from asclepius.timeline import datelike_leftovers
+    leftovers = datelike_leftovers(scrubbed)
+    if leftovers:
+        report0 = dict(ic.get("report") or {})
+        report0["unresolved_after_scrub"] = leftovers[:10]
+        store.update_ingest_case(ingest_case_id, report_json=report0)
+        return {"status": "quarantined",
+                "reason": "unresolved date-like tokens remain (" + ", ".join(leftovers[:3]) +
+                          "); scrub cannot fix an ambiguous timeline — re-upload with a "
+                          "manifest index_event, or reject."}
+    verification = asc_deid_verify.verify_deid(scrubbed)
+    report = dict(ic.get("report") or {})
+    report["verification"] = verification
+    report["scrubbed_spans"] = len(findings)
+    if verification["status"] == "flagged":
+        store.update_ingest_case(ingest_case_id, case_json=scrubbed, report_json=report)
+        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                        event_type="quarantine_scrub_insufficient", actor=admin["id"],
+                        payload={"remaining": len(verification["findings"])})
+        return {"status": "quarantined",
+                "remaining_findings": len(verification["findings"])}
+    try:
+        from asclepius import case_formats as _cf
+        from asclepius.cases import ClinicalCase as _CC
+        safe = _cf.deidentify(scrubbed)
+        case = _CC(**{**safe, "case_source": "real_deid",
+                      "specialty": safe.get("specialty") or ic.get("specialty") or "nephrology"}).model_dump()
+    except Exception as exc:
+        store.update_ingest_case(ingest_case_id, case_json=scrubbed, report_json=report)
+        return {"status": "quarantined", "reason": f"hard guard still rejects: {exc}"}
+    report["quarantine_reason"] = None
+    store.update_ingest_case(ingest_case_id, status="ingested", case_json=case, report_json=report)
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="quarantine_scrubbed_ingested", actor=admin["id"],
+                    payload={"scrubbed_spans": len(findings)})
+    return {"status": "ingested"}
+
+
+@router.post("/ingestion/quarantine/{ingest_case_id}/override")
+async def quarantine_override(
+    ingest_case_id: str, body: QuarantineOverrideRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Documented admin override of VERIFIER findings (e.g. a false positive on a
+    lab value shaped like a phone number). The ``deidentify()`` HARD guard still
+    runs and cannot be overridden — if it rejects, the override fails."""
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic or ic["status"] != "quarantined":
+        raise HTTPException(status_code=404, detail="Quarantined case not found")
+    reason = (body.reason or "").strip()
+    if len(reason) < 10:
+        raise HTTPException(status_code=400, detail="An override requires a documented reason (≥10 chars)")
+    try:
+        from asclepius import case_formats as _cf
+        from asclepius.cases import ClinicalCase as _CC
+        safe = _cf.deidentify(ic.get("case") or {})
+        case = _CC(**{**safe, "case_source": "real_deid",
+                      "specialty": safe.get("specialty") or ic.get("specialty") or "nephrology"}).model_dump()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"The hard de-identification guard rejects this case ({exc}); it cannot be overridden.",
+        )
+    store.update_ingest_case(ingest_case_id, status="ingested", case_json=case,
+                             override_reason=reason)
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="quarantine_overridden", actor=admin["id"],
+                    payload={"reason": reason})
+    return {"status": "ingested", "override_reason": reason}
+
+
+@router.get("/ingestion/cases")
+async def list_ingestion_cases(
+    status: Optional[str] = None,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    return {"cases": _store().list_ingest_cases(status=status)}
+
+
+@router.post("/ingestion/cases/{ingest_case_id}/promote")
+async def promote_ingest_case(
+    ingest_case_id: str, body: PromoteCaseRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Ingested case → gradable V4 task (PRD §9): attach the clinical question,
+    render the case prompt, generate candidates CONDITIONED ON THE REAL CASE,
+    gate (hardness + real-variant case judge — no ground-truth dimension: the
+    specialist is the answer key), insert as a partner_ehr task. Needs an LLM."""
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic:
+        raise HTTPException(status_code=404, detail="Ingested case not found")
+    if ic["status"] != "ingested":
+        raise HTTPException(status_code=409, detail=f"Case is {ic['status']!r}, not 'ingested'")
+    question = (body.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="A clinical question is required to promote")
+    case = ic.get("case") or {}
+    specialty = ic.get("specialty") or case.get("specialty") or "nephrology"
+    prompt = asc_cases.render_case_prompt(case, question)
+
+    cg = await generate_candidates_ex(prompt, specialty=specialty)
+    candidates = cg.get("candidates") or []
+    if len(candidates) < 2:
+        raise HTTPException(
+            status_code=503,
+            detail="Candidate generation unavailable (no LLM key configured?) — cannot promote.",
+        )
+    from asclepius.critic import run_case_judge, run_hardness_judge
+    generation: Dict[str, Any] = {
+        "mode": "real_case_promote",
+        "ingest_case_id": ingest_case_id,
+        "upload_id": ic.get("upload_id"),
+        "case_source": "real_deid",
+        "modality": "multimodal",
+        "candidate_gen_model": cg.get("model"),
+        "intended_flawed_id": cg.get("intended_flawed_id"),
+    }
+    hj = await run_hardness_judge(prompt, candidates)
+    if not hj.get("skipped"):
+        generation["hardness"] = {"score": hj.get("hardness_score"),
+                                  "axes": hj.get("hardness_axes") or []}
+    cj = await run_case_judge(case, case_source="real_deid")
+    if cj.get("skipped"):
+        # FAIL CLOSED for real data (review finding): the synthetic pipeline's
+        # "skipped never drops" degrade contract is not appropriate here — a V4
+        # task must not enter the queue ungated. Candidates just generated, so
+        # the LLM is demonstrably up; a skipped judge is transient. Retry.
+        raise HTTPException(
+            status_code=503,
+            detail="Case judge unavailable — promotion requires the real-case gate; try again.",
+        )
+    if not cj.get("skipped"):
+        generation["case_judge"] = {k: cj.get(k) for k in (
+            "coherence", "multimodal_necessity", "reasoning_divergence_potential")}
+        # Real-variant gate (PRD §9): coherence / multimodal_necessity /
+        # reasoning_divergence ONLY — no ground-truth dimension (the specialist is
+        # the answer key). A failing case stays 'ingested' (not consumed) so the
+        # admin can reject it or re-promote with a sharper question.
+        from asclepius.constants import (
+            case_coherence_min, case_divergence_min, case_mm_necessity_min,
+        )
+        failures = []
+        if (cj.get("coherence") or 0.0) < case_coherence_min():
+            failures.append(f"coherence {cj.get('coherence')} < {case_coherence_min()}")
+        if (cj.get("multimodal_necessity") or 0.0) < case_mm_necessity_min():
+            failures.append(f"multimodal_necessity {cj.get('multimodal_necessity')} < {case_mm_necessity_min()}")
+        if (cj.get("reasoning_divergence_potential") or 0.0) < case_divergence_min():
+            failures.append(
+                f"reasoning_divergence_potential {cj.get('reasoning_divergence_potential')} < {case_divergence_min()}")
+        if failures:
+            store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                            event_type="promote_gated", actor=admin["id"],
+                            payload={"failures": failures})
+            raise HTTPException(status_code=422, detail={
+                "error": "case_judge_gate", "failures": failures,
+                "hint": "Try a sharper clinical question, or reject the case. Floors are env-tunable."})
+    task = store.insert_task(
+        prompt=prompt, specialty=specialty, difficulty="hard",
+        capture_reasoning=True, source="partner_ehr",
+        candidate_answers=candidates, max_labels=max(1, int(body.max_labels or 1)),
+        grounding_mode=body.grounding_mode or DEFAULT_GROUNDING_MODE,
+        independent_mode=body.independent_mode or DEFAULT_INDEPENDENT_MODE,
+        case=case, generation=generation, created_by=admin["id"],
+    )
+    store.update_ingest_case(ingest_case_id, status="promoted", task_id=task["task_id"])
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="case_promoted", actor=admin["id"],
+                    payload={"task_id": task["task_id"]})
+    return {"task_id": task["task_id"], "case_source": task.get("case_source"),
+            "modality": task.get("modality")}

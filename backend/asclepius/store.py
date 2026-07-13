@@ -364,6 +364,64 @@ class AsclepiusStore:
             def cols(table: str) -> set:
                 return {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
 
+            # ── Real EHR ingestion (EHR PRD §4, §5, §8) — new tables (idempotent).
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ingest_upload_links (
+                    link_id       TEXT PRIMARY KEY,
+                    token_hash    TEXT NOT NULL UNIQUE,   -- SHA-256; raw token never stored
+                    partner_id    TEXT NOT NULL,
+                    partner_label TEXT,
+                    specialty     TEXT NOT NULL DEFAULT 'nephrology',
+                    expires_at    TEXT NOT NULL,
+                    one_time      INTEGER NOT NULL DEFAULT 1,
+                    max_bytes     INTEGER NOT NULL DEFAULT 104857600,
+                    used_count    INTEGER NOT NULL DEFAULT 0,
+                    revoked       INTEGER NOT NULL DEFAULT 0,
+                    created_by    TEXT,
+                    created_at    TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ingest_uploads (
+                    upload_id   TEXT PRIMARY KEY,
+                    link_id     TEXT NOT NULL,
+                    partner_id  TEXT NOT NULL,
+                    filename    TEXT,
+                    sha256      TEXT,
+                    size_bytes  INTEGER,
+                    status      TEXT NOT NULL DEFAULT 'received',
+                    reason      TEXT,
+                    files_json  TEXT,           -- per-entry classification/outcome
+                    raw_path    TEXT,           -- encrypted quarantine blob on disk
+                    source_ip   TEXT,
+                    created_at  TEXT NOT NULL,
+                    updated_at  TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ingest_cases (
+                    ingest_case_id TEXT PRIMARY KEY,
+                    upload_id      TEXT NOT NULL,
+                    patient_key    TEXT,
+                    specialty      TEXT,
+                    case_json      TEXT,
+                    status         TEXT NOT NULL DEFAULT 'ingested',
+                    report_json    TEXT,        -- timeline + verify findings (masked)
+                    override_reason TEXT,
+                    task_id        TEXT,        -- set on promote
+                    created_at     TEXT NOT NULL,
+                    updated_at     TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_upload ON ingest_cases(upload_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_status ON ingest_cases(status)")
+
             task_cols = cols("tasks")
             if "grounding_mode" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN grounding_mode TEXT NOT NULL DEFAULT 'optional'")
@@ -427,6 +485,20 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE tasks ADD COLUMN modality TEXT NOT NULL DEFAULT 'text'")
             if "case_json" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN case_json TEXT")
+            if "case_source" not in task_cols:
+                # Real EHR Ingestion PRD §9.5: 'synthetic' | 'real_deid' as a first-
+                # class COLUMN so the V4 routing wall filters in SQL (a real case is
+                # only ever served to a v4 session). NULL = text task (no case).
+                # Backfill existing multimodal rows from their stored case.
+                conn.execute("ALTER TABLE tasks ADD COLUMN case_source TEXT")
+                for r in conn.execute(
+                    "SELECT task_id, case_json FROM tasks WHERE case_json IS NOT NULL"
+                ).fetchall():
+                    try:
+                        cs = (json.loads(r["case_json"]) or {}).get("case_source") or "synthetic"
+                    except Exception:
+                        cs = "synthetic"
+                    conn.execute("UPDATE tasks SET case_source = ? WHERE task_id = ?", (cs, r["task_id"]))
 
             # Rich credential record provisioned by the Asclepius onboarding flow.
             user_cols = cols("users")
@@ -441,6 +513,10 @@ class AsclepiusStore:
                 # HARD-EXCLUDED from real exports by default so a demo can exercise
                 # the live portal without contaminating a shipped training batch.
                 ("is_mock", "INTEGER NOT NULL DEFAULT 0"),
+                # Real-data access gate (EHR PRD §9.5): V4 (real de-identified
+                # cases) is served ONLY to contributors flagged approved (BAA /
+                # training complete). Default off for everyone.
+                ("real_data_approved", "INTEGER NOT NULL DEFAULT 0"),
             ):
                 if col not in user_cols:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
@@ -615,6 +691,215 @@ class AsclepiusStore:
         with self._conn() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
 
+    # ─── Real EHR ingestion (EHR PRD §4, §5, §8) ─────────────────────────────
+    def create_upload_link(
+        self, *, token_hash: str, partner_id: str, partner_label: Optional[str],
+        specialty: str, expires_at: str, one_time: bool, max_bytes: int,
+        created_by: Optional[str],
+    ) -> Dict[str, Any]:
+        lid = _new_id("lnk")
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO ingest_upload_links
+                   (link_id, token_hash, partner_id, partner_label, specialty,
+                    expires_at, one_time, max_bytes, created_by, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (lid, token_hash, partner_id, partner_label, specialty, expires_at,
+                 1 if one_time else 0, int(max_bytes), created_by, _utcnow_iso()),
+            )
+        return self.get_upload_link(lid)  # type: ignore[return-value]
+
+    def get_upload_link(self, link_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ingest_upload_links WHERE link_id = ?", (link_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_upload_link_by_token_hash(self, token_hash: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ingest_upload_links WHERE token_hash = ?", (token_hash,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_upload_links(self) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ingest_upload_links ORDER BY created_at DESC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def mark_upload_link_used(self, link_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_upload_links SET used_count = used_count + 1 WHERE link_id = ?",
+                (link_id,),
+            )
+
+    def consume_upload_link(self, link_id: str, *, one_time: bool) -> bool:
+        """ATOMIC use-claim (security review: closes the one-time TOCTOU race —
+        two concurrent uploads both passing the used_count==0 read). For a
+        one-time link the conditional UPDATE succeeds for exactly one caller;
+        multi-use links just increment. Returns False when the claim lost."""
+        with self._conn() as conn:
+            if one_time:
+                cur = conn.execute(
+                    "UPDATE ingest_upload_links SET used_count = used_count + 1 "
+                    "WHERE link_id = ? AND used_count = 0 AND revoked = 0",
+                    (link_id,),
+                )
+            else:
+                cur = conn.execute(
+                    "UPDATE ingest_upload_links SET used_count = used_count + 1 "
+                    "WHERE link_id = ? AND revoked = 0",
+                    (link_id,),
+                )
+            return cur.rowcount == 1
+
+    def revoke_upload_link(self, link_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE ingest_upload_links SET revoked = 1 WHERE link_id = ?", (link_id,))
+
+    def insert_ingest_upload(
+        self, *, link_id: str, partner_id: str, filename: Optional[str],
+        sha256: Optional[str], size_bytes: Optional[int], raw_path: Optional[str],
+        source_ip: Optional[str],
+    ) -> Dict[str, Any]:
+        uid = _new_id("upl")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO ingest_uploads
+                   (upload_id, link_id, partner_id, filename, sha256, size_bytes,
+                    status, raw_path, source_ip, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, 'received', ?, ?, ?, ?)""",
+                (uid, link_id, partner_id, filename, sha256, size_bytes,
+                 raw_path, source_ip, now, now),
+            )
+        return self.get_ingest_upload(uid)  # type: ignore[return-value]
+
+    def update_ingest_upload(self, upload_id: str, **fields: Any) -> None:
+        allowed = {"status", "reason", "files_json", "raw_path"}
+        sets, params = [], []
+        for k, v in fields.items():
+            if k not in allowed:
+                continue
+            if k == "files_json" and not isinstance(v, (str, type(None))):
+                v = json.dumps(v)
+            sets.append(f"{k} = ?")
+            params.append(v)
+        if not sets:
+            return
+        sets.append("updated_at = ?")
+        params.extend([_utcnow_iso(), upload_id])
+        with self._conn() as conn:
+            conn.execute(f"UPDATE ingest_uploads SET {', '.join(sets)} WHERE upload_id = ?", tuple(params))
+
+    def get_ingest_upload(self, upload_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM ingest_uploads WHERE upload_id = ?", (upload_id,)).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["files"] = json.loads(rec.pop("files_json") or "[]")
+        return rec
+
+    def list_ingest_uploads(self, *, limit: int = 200) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ingest_uploads ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        out = []
+        for r in rows:
+            rec = dict(r)
+            rec["files"] = json.loads(rec.pop("files_json") or "[]")
+            out.append(rec)
+        return out
+
+    def insert_ingest_case(
+        self, *, upload_id: str, patient_key: Optional[str], specialty: Optional[str],
+        case: Optional[Dict[str, Any]], status: str, report: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        cid = _new_id("icase")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO ingest_cases
+                   (ingest_case_id, upload_id, patient_key, specialty, case_json,
+                    status, report_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (cid, upload_id, patient_key, specialty,
+                 json.dumps(case) if case else None, status,
+                 json.dumps(report) if report else None, now, now),
+            )
+        return self.get_ingest_case(cid)  # type: ignore[return-value]
+
+    def update_ingest_case(self, ingest_case_id: str, **fields: Any) -> None:
+        allowed = {"status", "case_json", "report_json", "task_id", "override_reason"}
+        sets, params = [], []
+        for k, v in fields.items():
+            if k not in allowed:
+                continue
+            if k in ("case_json", "report_json") and not isinstance(v, (str, type(None))):
+                v = json.dumps(v)
+            sets.append(f"{k} = ?")
+            params.append(v)
+        if not sets:
+            return
+        sets.append("updated_at = ?")
+        params.extend([_utcnow_iso(), ingest_case_id])
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE ingest_cases SET {', '.join(sets)} WHERE ingest_case_id = ?", tuple(params)
+            )
+
+    def get_ingest_case(self, ingest_case_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ingest_cases WHERE ingest_case_id = ?", (ingest_case_id,)
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["case"] = json.loads(rec.pop("case_json") or "null")
+        rec["report"] = json.loads(rec.pop("report_json") or "null")
+        return rec
+
+    def list_ingest_cases(
+        self, *, upload_id: Optional[str] = None, status: Optional[str] = None,
+        limit: int = 500,
+    ) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if upload_id:
+            clauses.append("upload_id = ?")
+            params.append(upload_id)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM ingest_cases {where} ORDER BY created_at DESC LIMIT ?",
+                tuple(params),
+            ).fetchall()
+        out = []
+        for r in rows:
+            rec = dict(r)
+            rec["case"] = json.loads(rec.pop("case_json") or "null")
+            rec["report"] = json.loads(rec.pop("report_json") or "null")
+            out.append(rec)
+        return out
+
+    def set_real_data_approved(self, user_id: str, approved: bool) -> None:
+        """Grant/revoke V4 real-case access (EHR PRD §9.5)."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET real_data_approved = ? WHERE id = ?",
+                (1 if approved else 0, user_id),
+            )
+
     def mock_annotator_id_hashes(self) -> set:
         """The ``id_hashed`` of every mock/sandbox contributor. Records carry the
         annotator's ``id_hashed``; export hard-excludes these by default and the
@@ -634,31 +919,41 @@ class AsclepiusStore:
         board_cert: Optional[str] = None,
         years_experience: Optional[int] = None,
         organization: Optional[str] = None,
+        real_data_approved: bool = False,
     ) -> Dict[str, Any]:
         """Idempotently guarantee the mock/sandbox contributor exists (internal demo
         tool). Runs on every boot: creates the account if missing, else forces it to
         role='evaluator', active, is_mock=1, and resets the password to match the
         configured value (so an operator can always regain the sandbox login). Only
-        touches this one account."""
+        touches this one account.
+
+        ``real_data_approved`` is DECIDED BY THE CALLER (auth.ensure_mock_contributor):
+        the sandbox may demo V4 real cases only when its password is NOT the known
+        default in production — a default-credential account must never grant read
+        access to real patient data (security review finding)."""
         email = email.lower().strip()
+        approved = 1 if real_data_approved else 0
         existing = self.get_user_by_email(email)
         if not existing:
-            return self.create_user(
+            u = self.create_user(
                 email=email, password=password, role="evaluator",
                 specialty=specialty, board_cert=board_cert,
                 years_experience=years_experience, organization=organization,
                 is_mock=True,
             )
+            self.set_real_data_approved(u["id"], bool(real_data_approved))
+            return self.get_user_by_id(u["id"])  # type: ignore[return-value]
         with self._conn() as conn:
             conn.execute(
                 """UPDATE users SET password_hash = ?, role = 'evaluator', active = 1,
-                       is_mock = 1, specialty = COALESCE(specialty, ?),
+                       is_mock = 1, real_data_approved = ?,
+                       specialty = COALESCE(specialty, ?),
                        board_cert = COALESCE(board_cert, ?),
                        years_experience = COALESCE(years_experience, ?),
                        organization = COALESCE(organization, ?)
                    WHERE email = ?""",
-                (hash_password(password), specialty, board_cert, years_experience,
-                 organization, email),
+                (hash_password(password), approved, specialty, board_cert,
+                 years_experience, organization, email),
             )
         return self.get_user_by_email(email)  # type: ignore[return-value]
 
@@ -709,6 +1004,10 @@ class AsclepiusStore:
         # ground_truth) is stored server-side; blinding/packaging strip the answer
         # key downstream — the same contract as the server-side ``intended_flawed_id``.
         md = "multimodal" if case else "text"
+        # case_source is DERIVED from the case (EHR PRD §9.5): 'real_deid' only
+        # when the case itself says so; any other case is 'synthetic'; a text
+        # task has none. First-class column so the V4 routing wall is pure SQL.
+        cs = ((case.get("case_source") or "synthetic") if case else None)
         with self._conn() as conn:
             conn.execute(
                 """
@@ -716,8 +1015,8 @@ class AsclepiusStore:
                   (task_id, specialty, difficulty, capture_reasoning, source, prompt,
                    candidate_answers_json, max_labels, grounding_mode, independent_mode,
                    buyer_request_id, generation_json, value_tier, modality, case_json,
-                   status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   case_source, status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -735,6 +1034,7 @@ class AsclepiusStore:
                     (value_tier or None),
                     md,
                     json.dumps(case) if case else None,
+                    cs,
                     created_by,
                     _utcnow_iso(),
                 ),
@@ -785,12 +1085,17 @@ class AsclepiusStore:
             )
 
     def next_task_for_evaluator(
-        self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False
+        self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
+        real_only: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Oldest open task in the evaluator's specialty that (a) they have not
         already submitted and (b) still has label capacity (max_labels).
         ``hard_only`` (Seamless PRD WS2, the V3 hard-case queue) restricts to
         ``difficulty='hard'`` tasks.
+
+        ``real_only`` is the V4 wall (EHR PRD §9.5), enforced in SQL: True serves
+        ONLY ``case_source='real_deid'`` tasks (the V4 queue); False EXCLUDES
+        them entirely (v1/v2/v3 can never be served a real patient case).
 
         TODO(scale): this scans candidate open tasks in Python; fine at pod scale.
         Push the not-mine + capacity filter fully into SQL when volume grows."""
@@ -803,6 +1108,10 @@ class AsclepiusStore:
             params.append(specialty)
         if hard_only:
             clauses.append("t.difficulty = 'hard'")
+        clauses.append(
+            "t.case_source = 'real_deid'" if real_only
+            else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
+        )
         where = " AND ".join(clauses)
         with self._conn() as conn:
             row = conn.execute(
@@ -830,7 +1139,7 @@ class AsclepiusStore:
 
     def eligible_tasks_for_evaluator(
         self, *, evaluator_id: str, specialty: Optional[str], limit: Optional[int] = None,
-        hard_only: bool = False,
+        hard_only: bool = False, real_only: bool = False,
     ) -> List[Dict[str, Any]]:
         """All open tasks this evaluator may take (not already theirs + still has
         label capacity), oldest first — the candidate set value-aware routing
@@ -852,6 +1161,11 @@ class AsclepiusStore:
             params.append(specialty)
         if hard_only:
             clauses.append("t.difficulty = 'hard'")
+        # The V4 wall (EHR PRD §9.5) — same rule as next_task_for_evaluator.
+        clauses.append(
+            "t.case_source = 'real_deid'" if real_only
+            else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
+        )
         where = " AND ".join(clauses)
         with self._conn() as conn:
             rows = conn.execute(

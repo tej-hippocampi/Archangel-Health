@@ -650,28 +650,41 @@ async def generate_case(archetype: Dict[str, Any], *, specialty: str = "general"
     return {"case": case, "question": question, "model": (rec or {}).get("model"), "skipped": False}
 
 
-async def run_case_judge(case: Dict[str, Any]) -> Dict[str, Any]:
+async def run_case_judge(case: Dict[str, Any], case_source: str = "synthetic") -> Dict[str, Any]:
     """Score a case on multimodal dimensions ONLY (hardness is judged separately by
     ``run_hardness_judge``). Returns
     ``{skipped, coherence, ground_truth_determinable, multimodal_necessity,
     reasoning_divergence_potential, explanation, model}`` — each 0..1. Never
     raises; degrades to ``skipped=True`` with no LLM (the caller then does NOT
-    drop on case dims, same contract as the hardness judge)."""
+    drop on case dims, same contract as the hardness judge).
+
+    REAL-CASE VARIANT (EHR PRD §9): for ``case_source='real_deid'`` the
+    ``ground_truth_determinable`` dimension is returned as ``None`` and never
+    judged — a real case carries no synthetic answer key; the SPECIALIST is the
+    answer key (and, later, the real outcome). Gates must skip that dimension."""
     try:
         from ai.llm_client import call_llm, first_text
     except Exception as exc:  # pragma: no cover
         return {"skipped": True, "error": f"import:{exc}"}
     from asclepius.cases import as_dict, render_case_prompt
 
+    is_real = (case_source == "real_deid")
     cd = as_dict(case) or {}
     serialized = render_case_prompt(cd, "(case under review)")   # PUBLIC render (no key)
     gt = cd.get("ground_truth") or {}
-    internal = (
-        "\n\nINTERNAL (for judging ground_truth_determinable + divergence only):\n"
-        f"ground_truth.answer: {gt.get('answer', '')}\n"
-        f"hard_hook: {cd.get('hard_hook', '')}\n"
-        f"reasoning_divergence: {cd.get('reasoning_divergence', '')}"
-    )
+    if is_real:
+        internal = (
+            "\n\nNOTE: this is a REAL de-identified case with NO synthetic answer key. "
+            "Do NOT judge ground_truth_determinable (return null for it); judge "
+            "coherence, multimodal_necessity, and reasoning_divergence_potential only."
+        )
+    else:
+        internal = (
+            "\n\nINTERNAL (for judging ground_truth_determinable + divergence only):\n"
+            f"ground_truth.answer: {gt.get('answer', '')}\n"
+            f"hard_hook: {cd.get('hard_hook', '')}\n"
+            f"reasoning_divergence: {cd.get('reasoning_divergence', '')}"
+        )
     try:
         resp, rec = await call_llm(
             role="asclepius_case_judge",
@@ -696,7 +709,10 @@ async def run_case_judge(case: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "skipped": False,
         "coherence": _f(parsed.get("coherence")),
-        "ground_truth_determinable": _f(parsed.get("ground_truth_determinable")),
+        # Real cases NEVER carry this dimension (no synthetic answer key exists) —
+        # forced None regardless of what the model returned, so no gate can
+        # accidentally apply the floor to a real case.
+        "ground_truth_determinable": (None if is_real else _f(parsed.get("ground_truth_determinable"))),
         "multimodal_necessity": _f(parsed.get("multimodal_necessity")),
         "reasoning_divergence_potential": _f(parsed.get("reasoning_divergence_potential")),
         "explanation": parsed.get("explanation", ""),

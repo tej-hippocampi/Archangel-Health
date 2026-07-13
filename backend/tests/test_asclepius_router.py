@@ -939,7 +939,7 @@ def test_buyer_request_independent_mode_constraint_applies_to_batch():
 def test_taxonomy_exposes_portal_versions():
     r = client.get("/api/asclepius/taxonomy", headers=A.headers_for(_seed()))
     body = r.json()
-    assert body["portal_versions"] == ["v1", "v2", "v3"]
+    assert body["portal_versions"] == ["v1", "v2", "v3", "v4"]
     # Seamless PRD: the ~10s instinct capture is now a first-class mode.
     assert "instinct" in body["independent_modes"]
 

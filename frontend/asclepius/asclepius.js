@@ -491,7 +491,7 @@
   }
 
   // ─── Portal version (V1 classic · V2 assisted · V3 seamless) ────────────────
-  const PORTAL_VERSIONS = ['v1', 'v2', 'v3'];
+  const PORTAL_VERSIONS = ['v1', 'v2', 'v3', 'v4'];
   function getPortalVersion() {
     let v = null;
     try { v = localStorage.getItem(PORTAL_VERSION_KEY); } catch (e) { v = null; }
@@ -508,7 +508,10 @@
     return (state.draft && state.draft.portal_version) || getPortalVersion();
   }
   function isV2() { return draftVersion() === 'v2'; }
-  function isV3() { return draftVersion() === 'v3'; }
+  // The SEAMLESS-flow gate: V4 (real cases) is the V3 flow over real data -
+  // every V3 UX behavior (instinct one-liner, hidden-until-verdict suggestions,
+  // one-click citations, bright diff, big editor) applies identically to v4.
+  function isV3() { return draftVersion() === 'v3' || draftVersion() === 'v4'; }
   // Assisted flows (V2 + V3) share model pre-labeling, the A/B diff, dictation,
   // and value-aware routing. V1 (classic) is the only non-assisted flow. Most
   // former ``isV2()`` gates are really "is assisted"; V3-specific behavior
@@ -734,8 +737,22 @@
       h('div', { class: 'asc-stage-right' }, dots, timer));
   }
 
-  // ─── Home page: choose your evaluation experience (V1 / V2 / V3) ────────────
+  // ─── Home page: choose your evaluation experience (V1–V4) ───────────────────
   const VERSION_OPTS = [
+    {
+      // V4 (EHR PRD §9.5): the V3 flow over REAL de-identified patient cases.
+      // Shown LOCKED unless the contributor is real_data_approved — serving is
+      // enforced server-side regardless; the lock is honest UI, not the gate.
+      v: 'v4', label: 'V4 · Real Cases', tag: 'Real patient data', icon: '🏥',
+      requiresRealData: true,
+      blurb: 'De-identified real patient cases — labs, notes, and a real clinical timeline. Same fast flow as V3.',
+      bullets: [
+        'Real, de-identified cases from partner health systems',
+        'Full labs trend + clinical notes in the case panel',
+        'Identical V3 flow: gut check, hidden suggestions, one-click citations',
+        'Requires real-data approval (BAA / training)',
+      ],
+    },
     {
       v: 'v3', label: 'V3 · Seamless', tag: 'Recommended', icon: '⚡',
       blurb: 'The fastest, sharpest flow — a 10-second gut check, then grade.',
@@ -774,31 +791,37 @@
   function renderVersionHome() {
     stopTimer();
     const last = getPortalVersion();
+    const approved = !!(state.user && state.user.real_data_approved);
     const cards = h('div', { class: 'asc-ver-cards' });
     VERSION_OPTS.forEach((o) => {
+      const locked = !!(o.requiresRealData && !approved);
       const card = h('div', {
-        class: 'asc-ver-card' + (last === o.v ? ' last-used' : ''),
+        class: 'asc-ver-card' + (last === o.v ? ' last-used' : '') + (locked ? ' asc-ver-locked' : ''),
         role: 'button', tabindex: '0',
-        onClick: () => chooseVersion(o.v),
-        onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseVersion(o.v); } },
+        'aria-disabled': locked ? 'true' : null,
+        onClick: () => { if (!locked) chooseVersion(o.v); },
+        onKeydown: (e) => { if (!locked && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); chooseVersion(o.v); } },
       },
         h('div', { class: 'asc-ver-card-head' },
           h('span', { class: 'asc-ver-card-icon' }, o.icon),
           h('div', {},
             h('div', { class: 'asc-ver-card-title' }, o.label,
-              o.tag ? h('span', { class: 'asc-ver-card-tag' }, o.tag) : null,
-              last === o.v ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null),
+              o.tag ? h('span', { class: 'asc-ver-card-tag' + (o.requiresRealData ? ' asc-ver-tag-real' : '') }, o.tag) : null,
+              last === o.v && !locked ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null),
             h('div', { class: 'asc-ver-card-blurb' }, o.blurb))),
         h('ul', { class: 'asc-ver-card-list' }, o.bullets.map((b) => h('li', {}, b))),
-        h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
-          'Start with ' + o.label.split(' ')[0] + ' →'));
+        locked
+          ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-block', type: 'button', tabindex: '-1', disabled: true },
+              '🔒 Requires real-data approval')
+          : h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
+              'Start with ' + o.label.split(' ')[0] + ' →'));
       cards.appendChild(card);
     });
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-ver-home' },
         h('h1', { class: 'asc-ver-home-title' }, 'Choose your evaluation experience'),
         h('p', { class: 'asc-ver-home-sub' },
-          'All three capture the same clinical judgment and produce the same training data — pick how you want to work. You can switch anytime.'),
+          'Every version captures the same clinical judgment and produces the same training data — pick how you want to work. You can switch anytime.'),
         cards)));
   }
 
@@ -806,7 +829,7 @@
   // is being graded under, with a one-tap route back to the home chooser.
   function renderExperienceBadge() {
     const v = draftVersion();
-    const meta = { v3: ['⚡ ', 'V3 · Seamless'], v2: ['✨ ', 'V2 · Assisted'], v1: ['📝 ', 'V1 · Classic'] }[v] || ['📝 ', 'V1 · Classic'];
+    const meta = { v4: ['🏥 ', 'V4 · Real Cases'], v3: ['⚡ ', 'V3 · Seamless'], v2: ['✨ ', 'V2 · Assisted'], v1: ['📝 ', 'V1 · Classic'] }[v] || ['📝 ', 'V1 · Classic'];
     return h('div', { class: 'asc-exp-badge' },
       h('span', { class: 'asc-exp-badge-label' }, meta[0] + meta[1]),
       h('button', {
@@ -2535,6 +2558,7 @@
     stopTimer();
     const tabs = [
       ['tasks', 'Tasks'],
+      ['ingestion', '🏥 Ingestion'],
       ['buyers', 'Buyers & Requests'],
       ['exports', 'Exports'],
       ['metrics', 'Metrics'],
@@ -2551,9 +2575,169 @@
     setRoot(h('div', { class: 'asc-wrap' }, subnav, body));
 
     if (state.adminTab === 'tasks') renderAdminTasks(body);
+    else if (state.adminTab === 'ingestion') renderAdminIngestion(body);
     else if (state.adminTab === 'buyers') renderAdminBuyers(body);
     else if (state.adminTab === 'exports') renderAdminExports(body);
     else if (state.adminTab === 'metrics') renderAdminMetrics(body);
+  }
+
+  // ─── Admin: Real EHR Ingestion (EHR PRD §4, §8, §9) ─────────────────────────
+  // The ONLY door that produces V4 real cases (the Seedmaker card produces V3
+  // synthetic — two doors, clearly signed). Mint secure partner links, watch
+  // uploads land, triage quarantine, and promote ingested cases to V4 tasks.
+  function renderAdminIngestion(body) {
+    clear(body);
+
+    // Mint a secure upload link
+    const pid = h('input', { class: 'asc-input', placeholder: 'partner id (e.g. mercy-health)' });
+    const plabel = h('input', { class: 'asc-input', placeholder: 'display label (optional)' });
+    const pspec = selectFrom(['nephrology', 'cardiology'], 'nephrology');
+    const phours = h('input', { type: 'number', class: 'asc-input', value: '72', min: '1', max: '720' });
+    const ponce = h('input', { type: 'checkbox', checked: 'checked' });
+    const mintStatus = h('div', {});
+    const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '🔗 Mint secure upload link');
+    mintBtn.addEventListener('click', async () => {
+      clear(mintStatus);
+      if (!pid.value.trim()) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Partner id is required.')); return; }
+      try {
+        const res = await api('/admin/upload-links', { method: 'POST', body: {
+          partner_id: pid.value.trim(), partner_label: plabel.value.trim() || null,
+          specialty: pspec.value, expires_hours: Math.max(1, parseInt(phours.value, 10) || 72),
+          one_time: ponce.checked,
+        } });
+        const url = res.upload_url || ('/partner/upload?t=' + res.token);
+        mintStatus.appendChild(h('div', { class: 'asc-inline-warn' },
+          '⚠️ Copy this link NOW — the token is shown once and never stored: '));
+        const urlBox = h('input', { class: 'asc-input asc-mono', value: url, readonly: 'readonly', style: 'margin-top:8px' });
+        urlBox.addEventListener('click', () => { urlBox.select(); });
+        mintStatus.appendChild(urlBox);
+        mintStatus.appendChild(h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', style: 'margin-top:8px', onClick: () => {
+          navigator.clipboard.writeText(url).then(() => toast('Link copied.', 'success')).catch(() => {});
+        } }, '📋 Copy link'));
+        loadIngestionLists();
+      } catch (e) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
+    });
+    const mintCard = h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Secure partner upload link'),
+        h('div', { class: 'asc-card-sub' }, 'Tokenized, expiring, single-purpose. The partner uploads a de-identified .zip — no app account. This is the only door that produces V4 real cases.'))),
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-form-row-3' },
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Partner id'), pid),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Label'), plabel),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), pspec)),
+        h('div', { class: 'asc-form-row-3' },
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Expires (hours)'), phours),
+          h('label', { class: 'asc-checkbox-row', style: 'align-self:end;margin-bottom:14px' }, ponce, 'Single use'),
+          h('div', {})),
+        mintBtn, mintStatus));
+
+    const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));
+    const quarCard = h('div', { class: 'asc-card', id: 'ascIngestQuar' }, loadingCard('Loading quarantine…'));
+    const casesCard = h('div', { class: 'asc-card', id: 'ascIngestCases' }, loadingCard('Loading ingested cases…'));
+    body.appendChild(mintCard);
+    body.appendChild(uploadsCard);
+    body.appendChild(quarCard);
+    body.appendChild(casesCard);
+    loadIngestionLists();
+  }
+
+  async function loadIngestionLists() {
+    const up = document.getElementById('ascIngestUploads');
+    const qc = document.getElementById('ascIngestQuar');
+    const cc = document.getElementById('ascIngestCases');
+    if (!up) return;
+    // Uploads
+    try {
+      const data = await api('/ingestion/uploads');
+      clear(up);
+      up.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Partner uploads (' + (data.uploads || []).length + ')')));
+      if (!(data.uploads || []).length) { up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No uploads yet — mint a link above and send it to the partner.'))); }
+      else {
+        const rows = data.uploads.slice(0, 50).map((u) => h('tr', {},
+          h('td', {}, fmtDate(u.created_at)),
+          h('td', {}, u.partner_id || '—'),
+          h('td', { class: 'asc-mono' }, (u.filename || '') + ' · ' + Math.round((u.size_bytes || 0) / 1024) + 'KB'),
+          h('td', {}, h('span', { class: 'asc-badge ' + (u.status === 'ingested' ? 'asc-badge-green' : (u.status === 'quarantined' ? 'asc-badge-amber' : (u.status === 'rejected' ? 'asc-badge-red' : 'asc-badge-gray'))) }, u.status)),
+          h('td', { class: 'asc-card-sub', style: 'max-width:260px' }, u.reason || '—')));
+        up.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+          h('thead', {}, h('tr', {}, ['When', 'Partner', 'File', 'Status', 'Reason'].map((c) => h('th', {}, c)))),
+          h('tbody', {}, rows))));
+      }
+    } catch (e) { clear(up); up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); }
+
+    // Quarantine
+    try {
+      const data = await api('/ingestion/quarantine');
+      clear(qc);
+      qc.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, '🔒 Quarantine (' + (data.cases || []).length + ')'),
+        h('div', { class: 'asc-card-sub' }, 'Cases the verifier flagged — findings are MASKED (a suspected identifier is never shown). Scrub redacts exactly the flagged spans; override requires a documented reason and still cannot bypass the hard guard.'))));
+      if (!(data.cases || []).length) { qc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'Quarantine is empty. ✅'))); }
+      else {
+        data.cases.forEach((c) => {
+          const findings = ((c.report || {}).verification || {}).findings || [];
+          const fLines = findings.slice(0, 6).map((f) => h('div', { class: 'asc-card-sub asc-mono' },
+            (f.kind || 'finding') + ' @ ' + (f.field_path || '?') + ' → ' + (f.snippet_masked || '')));
+          const st = h('div', {});
+          qc.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
+            h('div', { style: 'display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap' },
+              h('div', {},
+                h('strong', {}, (c.patient_key || 'case') + ' · ' + (c.specialty || '')),
+                h('div', { class: 'asc-card-sub' }, ((c.report || {}).quarantine_reason) || 'flagged')),
+              h('div', { style: 'display:flex;gap:8px' },
+                h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: async () => {
+                  try { const r = await api('/ingestion/quarantine/' + c.ingest_case_id + '/scrub', { method: 'POST' });
+                        toast(r.status === 'ingested' ? 'Scrubbed + ingested.' : ('Still quarantined: ' + (r.remaining_findings || '') + ' finding(s) remain.'), r.status === 'ingested' ? 'success' : 'info');
+                        loadIngestionLists(); }
+                  catch (e) { toast(e.message, 'error'); } } }, '🧹 Scrub flagged spans'),
+                h('button', { class: 'asc-btn asc-btn-danger asc-btn-sm', onClick: async () => {
+                  try { await api('/ingestion/quarantine/' + c.ingest_case_id + '/reject', { method: 'POST' }); toast('Rejected.', 'success'); loadIngestionLists(); }
+                  catch (e) { toast(e.message, 'error'); } } }, 'Reject'))),
+            h('div', { style: 'margin-top:8px' }, fLines), st));
+        });
+      }
+    } catch (e) { clear(qc); qc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); }
+
+    // Ingested cases → promote
+    try {
+      const data = await api('/ingestion/cases?status=ingested');
+      clear(cc);
+      cc.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, '✅ Ingested cases — ready to promote (' + (data.cases || []).length + ')'),
+        h('div', { class: 'asc-card-sub' }, 'Attach the clinical question; candidates are generated ON the real case, gated by the real-case judge (no ground-truth dimension — the specialist is the answer key), and the task enters the V4 queue.'))));
+      if (!(data.cases || []).length) { cc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No cases awaiting promotion.'))); }
+      else {
+        data.cases.forEach((c) => {
+          const q = h('input', { class: 'asc-input', placeholder: 'Clinical question for this case (e.g. "Classify the AKI and set the next step.")' });
+          const st = h('div', {});
+          const btn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, '⚡ Promote to V4 task');
+          btn.addEventListener('click', async () => {
+            clear(st);
+            if (!q.value.trim()) { st.appendChild(h('div', { class: 'asc-inline-error' }, 'A clinical question is required.')); return; }
+            btn.setAttribute('disabled', '');
+            try {
+              const r = await api('/ingestion/cases/' + c.ingest_case_id + '/promote', { method: 'POST', body: { question: q.value.trim() } });
+              st.appendChild(h('div', { class: 'asc-inline-ok' }, 'Promoted → task ' + r.task_id + ' (V4 queue).'));
+              loadIngestionLists();
+            } catch (e) {
+              st.appendChild(h('div', { class: 'asc-inline-error' }, typeof e.message === 'string' ? e.message : 'Promotion gated — see case-judge scores.'));
+            } finally { btn.removeAttribute('disabled'); }
+          });
+          const kase = c.case || {};
+          cc.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
+            h('div', { style: 'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap' },
+              h('div', {},
+                h('strong', {}, (c.patient_key || 'case') + ' · ' + (c.specialty || '')),
+                h('div', { class: 'asc-card-sub' },
+                  (kase.lab_panels || []).length + ' lab panel(s) · ' + (kase.notes || []).length + ' note(s) · ' +
+                  ((kase.demographics || {}).age_band || '?') + ' ' + ((kase.demographics || {}).sex || ''))),
+              h('span', { class: 'asc-badge-real' }, '🏥 real · V4')),
+            h('div', { class: 'asc-field', style: 'margin-top:10px' }, q),
+            btn, st));
+        });
+      }
+    } catch (e) { clear(cc); cc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); }
   }
 
   function loadingCard(label) {
@@ -2690,8 +2874,8 @@
     agCaseType.addEventListener('change', syncCaseType);
     const autoGenCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Auto-generate tasks (Seedmaker)'),
-        h('div', { class: 'asc-card-sub' }, 'Text prompts or structured multimodal cases, quality-gated before they enter the queue.'))),
+        h('div', { class: 'asc-card-title' }, 'Auto-generate tasks (Seedmaker — SYNTHETIC, V1–V3)'),
+        h('div', { class: 'asc-card-sub' }, 'Text prompts or structured multimodal cases — all SYNTHETIC (V3 tier). Real patient cases (V4) come only from the 🏥 Ingestion tab. Quality-gated before they enter the queue.'))),
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), agSpecialty),
@@ -2854,6 +3038,11 @@
         h('td', {}, (t.modality || 'text') === 'multimodal'
           ? h('span', { class: 'asc-badge asc-badge-accent' }, '🧬 multimodal')
           : 'text'),
+        // Case source + version (EHR PRD §9.5): an admin must never mistake a
+        // REAL case for a synthetic one at a glance. Real ⇒ V4, always.
+        h('td', {}, t.case_source === 'real_deid'
+          ? h('span', { class: 'asc-badge asc-badge-real' }, '🏥 real · V4')
+          : (t.case_source ? 'synthetic' : '—')),
         h('td', {}, t.difficulty || '—'),
         h('td', {}, (t.prompt || '').slice(0, 90) + ((t.prompt || '').length > 90 ? '…' : '')),
         h('td', {}, t.grounding_mode === 'required' ? h('span', { class: 'asc-badge asc-badge-amber' }, 'required') : 'optional'),
@@ -2864,7 +3053,7 @@
       card.appendChild(h('div', { class: 'asc-table-wrap' },
         h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
-            ['ID', 'Specialty', 'Modality', 'Difficulty', 'Prompt', 'Grounding', 'Labels', 'Status'].map((c) => h('th', {}, c)))),
+            ['ID', 'Specialty', 'Modality', 'Case source', 'Difficulty', 'Prompt', 'Grounding', 'Labels', 'Status'].map((c) => h('th', {}, c)))),
           h('tbody', {}, rows))));
     } catch (e) {
       clear(card);
@@ -3629,7 +3818,7 @@
     // Data by product version: how many submissions came from the V1 (classic),
     // V2 (assisted), and V3 (seamless) evaluator flows.
     const pvc = s.portal_version_counts || {};
-    const v1n = pvc.v1 || 0, v2n = pvc.v2 || 0, v3n = pvc.v3 || 0, pvTotal = v1n + v2n + v3n;
+    const v1n = pvc.v1 || 0, v2n = pvc.v2 || 0, v3n = pvc.v3 || 0, v4n = pvc.v4 || 0, pvTotal = v1n + v2n + v3n + v4n;
     const pct = (n) => pvTotal ? Math.round((100 * n) / pvTotal) + '%' : '0%';
     // Position-bias QC (Seamless PRD WS6): the A/B slot is randomized 50/50 so a
     // reward model can't learn "A is better" — a rate drifting from ~50% is an alarm.
@@ -3639,6 +3828,7 @@
     body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Data by product version'),
       h('div', { class: 'asc-stat-grid' },
+        stat(v4n, '🏥 V4 · Real Cases', pct(v4n) + ' of labeled data'),
         stat(v3n, '⚡ V3 · Seamless', pct(v3n) + ' of labeled data'),
         stat(v2n, '✨ V2 · Assisted', pct(v2n) + ' of labeled data'),
         stat(v1n, '📝 V1 · Classic', pct(v1n) + ' of labeled data'),
