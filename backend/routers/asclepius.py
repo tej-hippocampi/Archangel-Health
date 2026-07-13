@@ -569,15 +569,18 @@ def _autofill_specialty(user: Dict[str, Any]) -> str:
 
 
 def _value_aware_next(
-    store: Any, user: Dict[str, Any], specialty: Optional[str], *, hard_only: bool = False
+    store: Any, user: Dict[str, Any], specialty: Optional[str], *, hard_only: bool = False,
+    real_only: bool = False, exclude_real: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """Value-aware routing (Value-per-Minute PRD B3) — assisted flows. Serves the
     eligible task with the highest expected value-per-minute for THIS contributor
     (their rolling median speed × each task's expected realized value). Ties break
     on the oldest task, preserving FIFO fairness within an equal-value cohort.
-    ``hard_only`` (WS2) restricts the candidate set to hard cases (the V3 queue)."""
+    ``hard_only`` (WS2) restricts the candidate set to hard cases (the V3 queue).
+    ``real_only`` / ``exclude_real`` enforce the V4 wall (PRD §8.1)."""
     candidates = store.eligible_tasks_for_evaluator(
-        evaluator_id=user["id"], specialty=specialty, hard_only=hard_only
+        evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
+        real_only=real_only, exclude_real=exclude_real,
     )
     if not candidates:
         return None
@@ -608,14 +611,24 @@ def _query_next(
     # nothing gets stamped 'hard'), V3 stops filtering to hard and serves the
     # available queue instead of showing an empty V3 to every clinician.
     hard_only = portal_version == "v3" and hard_only_generation()
+    # The V4 wall (Data Provider Portal PRD §8.1): V4 serves ONLY real de-identified
+    # cases; EVERY other queue (v1/v2/v3 and any absent/typo'd version) excludes
+    # them. A real patient case can therefore never land in a synthetic session.
+    real_only = portal_version == "v4"
+    exclude_real = not real_only
 
     def _classic(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
         return store.next_task_for_evaluator(
-            evaluator_id=user["id"], specialty=specialty, hard_only=hard_only
+            evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
+            real_only=real_only, exclude_real=exclude_real,
         )
 
     def _pick(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
-        return _value_aware_next(store, user, specialty, hard_only=hard_only) if value_aware else _classic(specialty)
+        return (
+            _value_aware_next(store, user, specialty, hard_only=hard_only,
+                              real_only=real_only, exclude_real=exclude_real)
+            if value_aware else _classic(specialty)
+        )
 
     pick = _pick(user.get("specialty"))
     if not pick and not user.get("specialty"):
@@ -707,6 +720,13 @@ async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int, *, har
 async def _autofill_queue(
     store: Any, user: Dict[str, Any], *, portal_version: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
+    # The V4 queue holds ONLY real de-identified cases (Data Provider Portal PRD
+    # §8): it is populated exclusively by the ingestion → promote pipeline, never
+    # by synthetic autofill. Seeding synthetic corpus tasks here would only burn
+    # LLM budget on tasks the V4 wall immediately filters back out. An empty V4
+    # queue simply means no real cases are pending — return nothing.
+    if portal_version == "v4":
+        return None
     if not _autofill_enabled():
         return None
     specialty = _autofill_specialty(user)
@@ -1049,9 +1069,20 @@ async def submit(
     # declared version when no commit exists (v1 with withholding off, or a
     # direct API client). Stamped onto the row + payload so packaging carries it
     # onto every record.
-    portal_version = normalize_portal_version(
-        (_commit or {}).get("payload", {}).get("portal_version") or body.portal_version
-    )
+    # The V4 wall — derivation (Data Provider Portal PRD §8.2): the portal_version
+    # of a real de-identified case is DERIVED from case_source server-side, never
+    # trusted from the client. A client claiming v1/v2/v3 on a real case (or v4 on
+    # a synthetic one) is contradicting the provenance → 400, no record.
+    declared_pv = (_commit or {}).get("payload", {}).get("portal_version") or body.portal_version
+    try:
+        portal_version = normalize_portal_version(
+            asc_cases.derive_portal_version(task, declared_pv)
+        )
+    except asc_cases.V4WallViolation as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "v4_wall", "message": str(exc)},
+        )
     payload["portal_version"] = portal_version
 
     # Grounding Mode = required (opt §1.2): hard-gate Submit until the rationale

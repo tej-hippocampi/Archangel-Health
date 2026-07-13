@@ -257,11 +257,36 @@ def _assist_block(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
+def v4_wall_violation(task: Dict[str, Any], portal_version: str) -> Optional[str]:
+    """The V4 wall — packaging assertion (Data Provider Portal PRD §8.3):
+    ``case_source == 'real_deid'`` ⇔ ``portal_version == 'v4'``. Returns a reason
+    string when the biconditional is broken, else ``None``. A broken record must
+    emit NOTHING and route to needs_qa — never ship a real case stamped v3, and
+    never ship a v4 record with no real case behind it."""
+    from asclepius.cases import is_real_case_task, REAL_CASE_PORTAL_VERSION
+
+    is_real = is_real_case_task(task)
+    is_v4 = portal_version == REAL_CASE_PORTAL_VERSION
+    if is_real and not is_v4:
+        return f"real_deid case packaged as portal_version={portal_version!r} (expected v4)"
+    if is_v4 and not is_real:
+        return "v4 record with no real_deid case behind it"
+    return None
+
+
 def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List[Dict[str, Any]]:
     payload = submission.get("payload") or {}
     verdict = submission.get("verdict") or payload.get("verdict")
     prompt = task.get("prompt", "")
     prov = _provenance(task, submission)
+
+    # The V4 wall assertion (PRD §8.3), the last line of defense after routing +
+    # derivation. If provenance and version disagree, emit NO record — the empty
+    # result routes the submission to needs_qa via the standard validation gate
+    # ("no_records_packaged"), exactly as the PRD requires.
+    if v4_wall_violation(task, prov.get("portal_version") or ""):
+        return []
+
     records: List[Dict[str, Any]] = []
 
     # Stage-2 independent capture (Eval Flow Upgrade §3 / Speed Optimization §1).

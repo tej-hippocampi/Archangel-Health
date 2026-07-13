@@ -105,15 +105,26 @@ def independent_capture_kind(portal_version, independent_mode):
 #                      is committed, one-click citations, a larger edit surface,
 #                      brighter A/B diff, and a hard-case-only queue. Inherits
 #                      every V2 assisted capability.
+#   ``v4`` real cases — the Data Provider Portal flow: grades REAL, de-identified
+#                      patient cases (``case_source='real_deid'``) instead of
+#                      synthetic ones. Inherits every V3 capability. The V4 WALL is
+#                      an architecture invariant (Data Provider Portal PRD §8): a
+#                      real case is a V4 task and ONLY a V4 task — a synthetic case
+#                      can never surface in V4 and a real case can never surface in
+#                      v1/v2/v3. Enforced server-side in routing + derivation +
+#                      packaging (``asclepius.cases.derive_portal_version`` /
+#                      ``packaging.v4_wall_violation``), never in the UI.
 # Stage-1 prompt review and the packaged record TYPES are identical across all
-# three. The version is stamped onto every submission + record so buyers/admin
-# can segment by provenance. V3 is the recommended default for new sessions.
-PORTAL_VERSIONS = ("v1", "v2", "v3")
+# four. The version is stamped onto every submission + record so buyers/admin
+# can segment by provenance. V3 is the recommended default for new SYNTHETIC
+# sessions; V4 is derived from case provenance, not chosen by the client.
+PORTAL_VERSIONS = ("v1", "v2", "v3", "v4")
 DEFAULT_PORTAL_VERSION = "v3"
 
 # Portal versions that get the ASSISTED capabilities (model pre-labeling, diff,
-# dictation, value-aware routing). V1 (classic) is deliberately excluded.
-ASSISTED_PORTAL_VERSIONS = ("v2", "v3")
+# dictation, value-aware routing). V1 (classic) is deliberately excluded; V4
+# inherits every V3 assisted capability.
+ASSISTED_PORTAL_VERSIONS = ("v2", "v3", "v4")
 
 
 def normalize_portal_version(value):
@@ -542,6 +553,38 @@ def value_multimodal_mult() -> float:
     marked 'synthetic' and priced with this modest multiplier — never let a
     datasheet imply synthetic multimodal is real-patient data."""
     return _env_float("ASCLEPIUS_VALUE_MULTIMODAL_MULT", 1.35)
+
+
+def value_real_case_mult() -> float:
+    """REAL, context-preserved multimodal (``case_source == 'real_deid'``) — the
+    V4 premium (Data Provider Portal PRD §8). Keyed on CASE_SOURCE, never on the
+    version label, so it can't be gamed by a client claiming ``v4``. Folded into
+    the tier multiplier under TIER_MULT_CAP like every other factor. This is the
+    ~2× the honesty guardrail on ``value_multimodal_mult`` reserves for real
+    patient data (synthetic multimodal keeps the modest 1.35×)."""
+    return _env_float("ASCLEPIUS_VALUE_REAL_CASE_MULT", 2.0)
+
+
+# ─── Data Provider Portal (Data Provider Portal PRD §3, §4, §9) ──────────────
+def provider_invite_ttl_days() -> int:
+    """Days a data-provider invite (temporary password) stays valid before it must
+    be re-sent. Surfaced in the invite email's fine print (PRD §4)."""
+    return max(1, _env_int("ASCLEPIUS_PROVIDER_INVITE_TTL_DAYS", 14))
+
+
+def raw_retention_days() -> int:
+    """Days a raw provider upload is retained before auto-purge (PRD §9). We keep
+    the DERIVED case, never the raw PHI-adjacent file — this is the purge floor."""
+    return max(1, _env_int("ASCLEPIUS_RAW_RETENTION_DAYS", 30))
+
+
+def deid_verifier() -> str:
+    """Which de-id VERIFIER backend runs after the provider's own de-identification
+    (PRD §7.5). The provider de-identifies; we verify. Pluggable: 'baseline'
+    (self-contained regex, always available), 'presidio', or 'comprehend_medical'.
+    Unknown values fall back to 'baseline' (never a silent no-op)."""
+    v = (os.getenv("ASCLEPIUS_DEID_VERIFIER") or "baseline").strip().lower()
+    return v if v in ("baseline", "presidio", "comprehend_medical") else "baseline"
 
 
 def value_per_minute_target() -> float:

@@ -224,3 +224,68 @@ def is_multimodal(task: Dict[str, Any]) -> bool:
     if (task.get("modality") or "text") == "multimodal":
         return True
     return bool(task.get("case"))
+
+
+# ─── The V4 wall (Data Provider Portal PRD §8) ────────────────────────────────
+# A real, de-identified patient case is a V4 task and ONLY a V4 task. The rule is
+# a biconditional on CASE PROVENANCE (never the client-declared version label):
+#     case_source == "real_deid"  ⇔  portal_version == "v4"
+# Enforced in three places server-side — routing (store queries filter by
+# provenance), derivation (:func:`derive_portal_version` below, at submit), and
+# packaging (``packaging.v4_wall_violation``). Never enforced in the UI.
+REAL_CASE_SOURCE = "real_deid"
+REAL_CASE_PORTAL_VERSION = "v4"
+
+
+class V4WallViolation(ValueError):
+    """A submission's declared portal_version contradicts its case provenance —
+    e.g. a client claiming ``v3`` on a real patient case, or ``v4`` on a synthetic
+    one. The router converts this to a 400; packaging converts it to needs_qa."""
+
+
+def task_case_source(task: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Provenance of a task's case: ``'real_deid'`` | ``'synthetic'`` for a
+    multimodal task, or ``None`` for a text task (no case). Reads the case's own
+    stamp — the single source of truth, set at ingest/generation."""
+    if not task:
+        return None
+    case = task.get("case")
+    if not case or not isinstance(case, dict):
+        return None
+    return case.get("case_source") or "synthetic"
+
+
+def is_real_case_task(task: Optional[Dict[str, Any]]) -> bool:
+    """True iff the task carries a real de-identified patient case (a V4 task)."""
+    return task_case_source(task) == REAL_CASE_SOURCE
+
+
+def derive_portal_version(task: Optional[Dict[str, Any]], declared: Optional[str]) -> str:
+    """Resolve the authoritative portal_version for a submission, enforcing the V4
+    wall server-side (PRD §8.2 derivation). The CASE decides, not the client:
+
+      * A real case (``case_source == 'real_deid'``) is always ``v4``. A client
+        that explicitly declared v1/v2/v3 on a real case is contradicting the
+        provenance → :class:`V4WallViolation`.
+      * A synthetic/text task can never be ``v4`` — ``v4`` is reserved for real
+        cases. A client declaring ``v4`` on a synthetic task → :class:`V4WallViolation`.
+
+    ``declared`` is the client's raw (un-normalized) value so an *explicit*
+    contradiction is distinguishable from an absent/defaulted one."""
+    d = (declared or "").strip() or None
+    if is_real_case_task(task):
+        if d is not None and d != REAL_CASE_PORTAL_VERSION:
+            raise V4WallViolation(
+                f"declared portal_version={d!r} on a real de-identified case; a "
+                f"real case is a {REAL_CASE_PORTAL_VERSION!r} task and only a "
+                f"{REAL_CASE_PORTAL_VERSION!r} task."
+            )
+        return REAL_CASE_PORTAL_VERSION
+    # Not a real case: v4 is not allowed.
+    if d == REAL_CASE_PORTAL_VERSION:
+        raise V4WallViolation(
+            f"declared portal_version={REAL_CASE_PORTAL_VERSION!r} on a "
+            f"non-real case; {REAL_CASE_PORTAL_VERSION!r} is reserved for "
+            f"case_source={REAL_CASE_SOURCE!r}."
+        )
+    return d or ""

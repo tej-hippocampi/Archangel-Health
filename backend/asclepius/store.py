@@ -784,13 +784,30 @@ class AsclepiusStore:
                 ).fetchone()[0]
             )
 
+    @staticmethod
+    def _passes_case_source(rec: Dict[str, Any], *, real_only: bool, exclude_real: bool) -> bool:
+        """The V4 wall (Data Provider Portal PRD §8.1) applied to one candidate task.
+        ``real_only`` (V4) admits ONLY real de-identified cases; ``exclude_real``
+        (v1/v2/v3) admits everything EXCEPT them. A real case can therefore never
+        surface in a synthetic session and vice-versa — enforced in routing, not
+        the UI."""
+        cs = (rec.get("case") or {}).get("case_source") if rec.get("case") else None
+        is_real = cs == "real_deid"
+        if real_only and not is_real:
+            return False
+        if exclude_real and is_real:
+            return False
+        return True
+
     def next_task_for_evaluator(
-        self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False
+        self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
+        real_only: bool = False, exclude_real: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Oldest open task in the evaluator's specialty that (a) they have not
         already submitted and (b) still has label capacity (max_labels).
         ``hard_only`` (Seamless PRD WS2, the V3 hard-case queue) restricts to
-        ``difficulty='hard'`` tasks.
+        ``difficulty='hard'`` tasks. ``real_only`` / ``exclude_real`` enforce the
+        V4 wall (real de-identified cases serve ONLY to v4; v1/v2/v3 exclude them).
 
         TODO(scale): this scans candidate open tasks in Python; fine at pod scale.
         Push the not-mine + capacity filter fully into SQL when volume grows."""
@@ -823,6 +840,8 @@ class AsclepiusStore:
                 continue
             if int(r["sub_count"]) >= int(rec.get("max_labels") or 1):
                 continue
+            if not self._passes_case_source(rec, real_only=real_only, exclude_real=exclude_real):
+                continue
             rec.pop("sub_count", None)
             rec.pop("mine", None)
             return rec
@@ -830,13 +849,14 @@ class AsclepiusStore:
 
     def eligible_tasks_for_evaluator(
         self, *, evaluator_id: str, specialty: Optional[str], limit: Optional[int] = None,
-        hard_only: bool = False,
+        hard_only: bool = False, real_only: bool = False, exclude_real: bool = False,
     ) -> List[Dict[str, Any]]:
         """All open tasks this evaluator may take (not already theirs + still has
         label capacity), oldest first — the candidate set value-aware routing
         (Value-per-Minute PRD B3) ranks by expected value-per-minute.
         ``hard_only`` (Seamless PRD WS2) restricts to ``difficulty='hard'`` (the
-        V3 hard-case queue).
+        V3 hard-case queue). ``real_only`` / ``exclude_real`` enforce the V4 wall
+        (real de-identified cases serve ONLY to v4; v1/v2/v3 exclude them).
 
         The scan is UNBOUNDED, exactly like the classic ``next_task_for_evaluator``
         (both filter ``mine``/capacity in Python at pod scale). A SQL ``LIMIT``
@@ -872,6 +892,8 @@ class AsclepiusStore:
             if rec.get("mine"):
                 continue
             if int(r["sub_count"]) >= int(rec.get("max_labels") or 1):
+                continue
+            if not self._passes_case_source(rec, real_only=real_only, exclude_real=exclude_real):
                 continue
             rec.pop("sub_count", None)
             rec.pop("mine", None)
