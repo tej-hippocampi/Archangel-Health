@@ -127,6 +127,30 @@ def test_v4_queue_never_autofills_synthetic(monkeypatch):
     assert _store().list_tasks(limit=10) == []  # nothing was generated
 
 
+def test_direct_task_fetch_gated_by_approval():
+    """The wall must not depend on task IDs being unguessable: an unapproved
+    evaluator is 403'd on DIRECT access to a v4 task (fetch, reveal, submit);
+    an approved one passes; synthetic tasks are unaffected."""
+    real = _mk_real_task()
+    synth = _mk_synth_task()
+    h_no = A.headers_for(_ev(approved=False))
+    h_ok = A.headers_for(_ev(approved=True))
+    # fetch
+    assert client.get(f"/api/asclepius/tasks/{real['task_id']}", headers=h_no).status_code == 403
+    assert client.get(f"/api/asclepius/tasks/{real['task_id']}", headers=h_ok).status_code == 200
+    assert client.get(f"/api/asclepius/tasks/{synth['task_id']}", headers=h_no).status_code == 200
+    # reveal
+    r = client.post(f"/api/asclepius/tasks/{real['task_id']}/reveal",
+                    json={"text": "ATN from the casts."}, headers=h_no)
+    assert r.status_code == 403
+    # submit
+    r2 = _submit(h_no, real["task_id"], "v4")
+    assert r2.status_code == 403
+    # admin/QA can still see it (they triage + review)
+    admin_h = A.headers_for(A.make_user(_store(), role="admin"))
+    assert client.get(f"/api/asclepius/tasks/{real['task_id']}", headers=admin_h).status_code == 200
+
+
 # ─── 2. Derivation (never trust the client) ───────────────────────────────────
 def _submit(headers, tid, pv, **payload_over):
     body = {

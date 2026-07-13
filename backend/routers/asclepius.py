@@ -833,11 +833,29 @@ async def next_task(
     return {"task": _blind_task(task) if task else None}
 
 
+def _require_real_data_access(task: Dict[str, Any], user: Dict[str, Any]) -> None:
+    """The V4 wall on DIRECT task access (EHR PRD §9.5): a real (case_source=
+    'real_deid') task is visible to admins/QA and to real_data_approved
+    evaluators only. /tasks/next already filters; this closes the by-ID paths
+    (fetch, reveal, answers, prelabel, submit) so the wall never depends on task
+    IDs being unguessable."""
+    if task.get("case_source") != "real_deid":
+        return
+    if user.get("role") in ("admin", "qa_reviewer"):
+        return
+    if not user.get("real_data_approved"):
+        raise HTTPException(
+            status_code=403,
+            detail="This is a real-patient (V4) case; it requires real-data approval.",
+        )
+
+
 @router.get("/tasks/{task_id}")
-async def get_task(task_id: str, _user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     task = _store().get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)
     return {"task": _blind_task(task)}
 
 
@@ -855,6 +873,7 @@ async def reveal_task_answers(
     task = store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)
     text = (body.text or "").strip()
     if not text:
         raise HTTPException(
@@ -928,6 +947,7 @@ def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) 
     task = store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)  # V4 wall on answer-describing surfaces
     if not store.get_independent_commit(task_id, user["id"]):
         raise HTTPException(
             status_code=403,
@@ -974,6 +994,7 @@ async def submit(
     task = store.get_task(body.task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)  # V4 wall on the submit path
 
     # Stage-1 prompt validation gate (Eval Flow Upgrade §2): a clinician who
     # flagged the prompt as invalid never judged answers. Capture the flag for
