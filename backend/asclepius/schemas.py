@@ -461,3 +461,39 @@ class CredentialSummaryRequest(BaseModel):
 
     recipient: Optional[str] = None
     acknowledged: bool = False
+
+
+# ─── Data Provider Portal (Data Provider Portal PRD §3–§8) ───────────────────
+class DataProviderInviteRequest(BaseModel):
+    """Admin invites a data provider (Exports → Data Providers, PRD §3)."""
+
+    email: EmailLike
+    org_name: Optional[str] = None
+    specialty: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ProviderPasswordRequest(BaseModel):
+    """Provider forced/normal password reset (PRD §5). ``current_password`` is
+    required for a normal change; on the FIRST forced reset the Bearer token is the
+    proof of identity (the temp password was already consumed at login), so it may
+    be blank."""
+
+    new_password: str
+    current_password: str = ""
+
+
+class PromoteCaseRequest(BaseModel):
+    """Promote an ingested real case to a V4 task (PRD §8). ``question`` is the
+    clinical question the specialist will answer (from the manifest, or admin/LLM-
+    drafted and ratified at the Stage-1 prompt gate)."""
+
+    question: str
+    capture_reasoning: bool = False
+
+
+class QuarantineActionRequest(BaseModel):
+    """Admin resolution of a quarantine item (PRD §6): reject · remap · scrub · override."""
+
+    note: Optional[str] = None
+    format: Optional[str] = None  # for 'remap': the format to re-map the file to

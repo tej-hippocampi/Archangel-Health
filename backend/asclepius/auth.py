@@ -132,6 +132,30 @@ def get_current_user(
 ) -> Dict[str, Any]:
     if user is None:
         raise HTTPException(status_code=401, detail="Asclepius authentication required")
+    # Deny-by-default (Data Provider Portal PRD §5, §12): a ``data_partner`` may use
+    # ONLY the locked-down provider portal endpoints (``require_data_partner``). It
+    # must never reach an evaluator / admin / QA path — and since every one of
+    # those depends on ``get_current_user`` (directly or via require_admin /
+    # require_qa), denying the role here excludes it from the entire main API
+    # surface in one place, not by hiding buttons in the UI.
+    if user.get("role") == "data_partner":
+        raise HTTPException(
+            status_code=403,
+            detail="This account can only use the data provider upload portal.",
+        )
+    return user
+
+
+def require_data_partner(
+    user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+) -> Dict[str, Any]:
+    """Gate for the provider portal (Data Provider Portal PRD §5). Admits ONLY a
+    ``data_partner`` — an evaluator/admin/QA token is rejected here, and a
+    ``data_partner`` is rejected everywhere else (see ``get_current_user``)."""
+    if user is None:
+        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+    if user.get("role") != "data_partner":
+        raise HTTPException(status_code=403, detail="Data provider role required")
     return user
 
 

@@ -30,6 +30,7 @@ export filters, datasheet) already handles ``real_deid`` with zero change.
 
 from __future__ import annotations
 
+import importlib
 from typing import Any, Callable, Dict, List, Optional
 
 from asclepius.cases import ClinicalCase, as_dict
@@ -37,7 +38,7 @@ from asclepius.validation import residual_identifiers
 
 # Source formats a real de-identified export can arrive in. ``dicom`` is present
 # only to reject (no imaging). Keep in sync with the adapter registry below.
-CASE_FORMATS = ("lab_csv", "fhir_r4", "hl7v2", "dicom")
+CASE_FORMATS = ("lab_csv", "fhir_r4", "hl7v2", "ccda", "note_text", "dicom")
 
 
 class CaseIngestError(ValueError):
@@ -168,19 +169,47 @@ def _reject_imaging(raw: Any, *, specialty: str = "general") -> Dict[str, Any]:
     )
 
 
-# name → adapter(raw, *, specialty) -> ClinicalCase dict (pre-deidentify).
+def _load_adapter(fmt: str, module_name: str) -> Callable[..., Dict[str, Any]]:
+    """Bind a format to its adapter's ``parse`` function, degrading to the wired
+    ``_not_implemented`` seam if the adapter module is absent or fails to import.
+    An adapter is thus a drop-in: the moment ``asclepius/adapters/<module>.py``
+    exposing ``parse(raw, *, specialty)`` lands, that format goes live — with no
+    change here and no risk of a broken/partial adapter file taking down the whole
+    ``case_formats`` import."""
+    try:
+        mod = importlib.import_module(f"asclepius.adapters.{module_name}")
+        fn = getattr(mod, "parse", None)
+        return fn if callable(fn) else _not_implemented(fmt)
+    except Exception:
+        return _not_implemented(fmt)
+
+
+# name → adapter(raw, *, specialty) -> ClinicalCase fragment dict (pre-timeline,
+# pre-deidentify). ``dicom`` is registered only to reject (no imaging).
 FORMATS: Dict[str, Callable[..., Dict[str, Any]]] = {
-    "lab_csv": _not_implemented("lab_csv"),
-    "fhir_r4": _not_implemented("fhir_r4"),
-    "hl7v2": _not_implemented("hl7v2"),
+    "lab_csv": _load_adapter("lab_csv", "lab_csv"),
+    "fhir_r4": _load_adapter("fhir_r4", "fhir_r4"),
+    "hl7v2": _load_adapter("hl7v2", "hl7v2"),
+    "ccda": _load_adapter("ccda", "ccda"),
+    "note_text": _load_adapter("note_text", "note_text"),
     "dicom": _reject_imaging,
 }
 
 
-def ingest_real_deid(raw: Any, fmt: str, *, specialty: str = "general") -> Dict[str, Any]:
+def ingest_real_deid(
+    raw: Any, fmt: str, *, specialty: str = "general", index_event: Any = None
+) -> Dict[str, Any]:
     """Parse a real de-identified export into a stored-ready ClinicalCase dict:
-    dispatch to the format adapter, run the de-identification guard, coerce
-    through the ClinicalCase model, and stamp ``case_source="real_deid"``.
+    dispatch to the format adapter, **normalize the timeline** (calendar dates →
+    relative integer day offsets — Data Provider Portal PRD §2 B1), run the
+    de-identification guard, coerce through the ClinicalCase model, and stamp
+    ``case_source="real_deid"``.
+
+    The timeline step is what makes a real, date-shifted export pass ``deidentify``
+    at all: the adapter emits raw ``collected_at`` dates + dates inside note text,
+    and this converts every one to a relative offset/token before the date-
+    rejecting guard runs. For a multi-file bundle assembled per patient, use
+    ``asclepius.ingestion`` instead (it also verifies de-id + routes to quarantine).
 
     Raises ``CaseIngestError`` for an unknown format, a not-yet-implemented
     adapter, an imaging export, or a case that fails de-identification."""
@@ -190,6 +219,10 @@ def ingest_real_deid(raw: Any, fmt: str, *, specialty: str = "general") -> Dict[
             f"unknown case format {fmt!r}; supported: {', '.join(CASE_FORMATS)}."
         )
     parsed = adapter(raw, specialty=specialty)
-    safe = deidentify(parsed)
+    # Calendar → relative offsets BEFORE the de-id guard (the B1 fix).
+    from asclepius.timeline import normalize_case_timeline
+
+    normalized, _ = normalize_case_timeline(parsed, index_event=index_event)
+    safe = deidentify(normalized)
     case = ClinicalCase(**{**safe, "case_source": "real_deid", "specialty": safe.get("specialty") or specialty})
     return case.model_dump()

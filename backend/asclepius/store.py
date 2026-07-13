@@ -353,6 +353,103 @@ class AsclepiusStore:
                     created_at    TEXT NOT NULL,
                     PRIMARY KEY (task_id, evaluator_id)
                 );
+
+                -- ── Data Provider Portal (Data Provider Portal PRD §3–§9) ──
+                -- One row per invited data provider (a ``data_partner`` account).
+                -- The account itself lives in ``users``; this carries the invite /
+                -- upload lifecycle + relationship metadata the admin sees.
+                CREATE TABLE IF NOT EXISTS data_providers (
+                    provider_id       TEXT PRIMARY KEY,   -- = users.id
+                    email             TEXT NOT NULL UNIQUE,
+                    org_name          TEXT,
+                    specialty         TEXT,
+                    note              TEXT,
+                    status            TEXT NOT NULL DEFAULT 'invited', -- invited|active|revoked
+                    must_reset_password INTEGER NOT NULL DEFAULT 1,
+                    invited_by        TEXT,
+                    invited_at        TEXT,
+                    invite_expires_at TEXT,
+                    last_upload_at    TEXT,
+                    upload_count      INTEGER NOT NULL DEFAULT 0,
+                    created_at        TEXT NOT NULL,
+                    updated_at        TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_dp_status ON data_providers(status);
+
+                -- One row per upload bundle a provider drops in (the "data
+                -- reappears" inbox, PRD §6). Raw files are stored in an encrypted
+                -- quarantine dir and auto-purged after ASCLEPIUS_RAW_RETENTION_DAYS
+                -- (PRD §9) — we keep the derived case, never the raw PHI-adjacent
+                -- file.
+                CREATE TABLE IF NOT EXISTS ingest_uploads (
+                    upload_id       TEXT PRIMARY KEY,
+                    provider_id     TEXT NOT NULL,
+                    provider_email  TEXT,
+                    received_at     TEXT NOT NULL,
+                    status          TEXT NOT NULL DEFAULT 'received',
+                    file_count      INTEGER NOT NULL DEFAULT 0,
+                    total_bytes     INTEGER NOT NULL DEFAULT 0,
+                    checksum        TEXT,
+                    reason          TEXT,               -- provider-facing status reason (masked)
+                    meta_json       TEXT NOT NULL DEFAULT '{}',
+                    purged          INTEGER NOT NULL DEFAULT 0,
+                    created_at      TEXT NOT NULL,
+                    updated_at      TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_ingest_uploads_provider ON ingest_uploads(provider_id);
+                CREATE INDEX IF NOT EXISTS idx_ingest_uploads_status ON ingest_uploads(status);
+
+                -- One row per file inside an upload: detected type, adapter, and
+                -- per-file outcome (PRD §5 matrix, §6 upload detail).
+                CREATE TABLE IF NOT EXISTS ingest_files (
+                    file_id         TEXT PRIMARY KEY,
+                    upload_id       TEXT NOT NULL,
+                    filename        TEXT NOT NULL,
+                    detected_type   TEXT,
+                    adapter         TEXT,
+                    size_bytes      INTEGER NOT NULL DEFAULT 0,
+                    sha256          TEXT,
+                    status          TEXT NOT NULL DEFAULT 'received',
+                    outcome         TEXT,
+                    stored_path     TEXT,
+                    created_at      TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_ingest_files_upload ON ingest_files(upload_id);
+
+                -- One row per assembled ClinicalCase preview (PRD §6 detail, §7).
+                -- Promotion stamps ``task_id`` and status='promoted' (-> V4 queue).
+                CREATE TABLE IF NOT EXISTS ingest_cases (
+                    ic_id           TEXT PRIMARY KEY,
+                    upload_id       TEXT NOT NULL,
+                    patient_key     TEXT,
+                    case_json       TEXT NOT NULL DEFAULT '{}',
+                    status          TEXT NOT NULL DEFAULT 'preview', -- preview|promoted|rejected
+                    task_id         TEXT,
+                    quality_json    TEXT NOT NULL DEFAULT '{}',
+                    created_at      TEXT NOT NULL,
+                    updated_at      TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_ingest_cases_upload ON ingest_cases(upload_id);
+                CREATE INDEX IF NOT EXISTS idx_ingest_cases_status ON ingest_cases(status);
+
+                -- Quarantine queue (PRD §6): anything that failed de-id verification
+                -- or couldn't be typed. Findings are stored as MASKED kinds only —
+                -- never a suspected identifier in cleartext.
+                CREATE TABLE IF NOT EXISTS ingest_quarantine (
+                    q_id            TEXT PRIMARY KEY,
+                    upload_id       TEXT NOT NULL,
+                    file_id         TEXT,
+                    kind            TEXT NOT NULL,      -- deid_failed|untyped|imaging|parse_error
+                    masked_findings_json TEXT NOT NULL DEFAULT '[]',
+                    detail          TEXT,
+                    status          TEXT NOT NULL DEFAULT 'open', -- open|rejected|remapped|scrubbed|overridden
+                    resolution      TEXT,
+                    resolved_by     TEXT,
+                    created_at      TEXT NOT NULL,
+                    updated_at      TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_ingest_quarantine_upload ON ingest_quarantine(upload_id);
+                CREATE INDEX IF NOT EXISTS idx_ingest_quarantine_status ON ingest_quarantine(status);
                 """
             )
         self._migrate()
@@ -597,12 +694,383 @@ class AsclepiusStore:
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
             return dict(row) if row else None
 
+    def set_user_password(self, user_id: str, new_password: str) -> None:
+        """Set a user's password hash (used by the provider forced-reset, PRD §5)."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (hash_password(new_password), user_id),
+            )
+
     def get_user_by_id_hashed(self, id_hashed: str) -> Optional[Dict[str, Any]]:
         """Resolve the user (incl. onboarding-collected credential fields) from the
         hashed annotator id that stamps every record."""
         with self._conn() as conn:
             row = conn.execute("SELECT * FROM users WHERE id_hashed = ?", (id_hashed,)).fetchone()
             return dict(row) if row else None
+
+    # ── Data Provider Portal — providers ────────────────────────────────────
+    @staticmethod
+    def _data_provider_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["must_reset_password"] = bool(rec.get("must_reset_password"))
+        rec["upload_count"] = int(rec.get("upload_count") or 0)
+        return rec
+
+    def provision_data_provider(
+        self, *, email: str, password: str, org_name: Optional[str] = None,
+        specialty: Optional[str] = None, note: Optional[str] = None,
+        invited_by: Optional[str] = None, invite_expires_at: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create (or rotate) a ``data_partner`` account + its provider record.
+
+        Idempotent (PRD §3): an existing provider gets a fresh password, is
+        re-activated, ``must_reset_password`` is re-armed, and the invite window
+        resets — so "resend invite" rotates credentials rather than duplicating.
+        The account itself is provisioned via the shared ``provision_user`` path
+        (same hashing) with ``role='data_partner'``."""
+        user = self.provision_user(
+            email=email, password=password, role="data_partner",
+            org_name=org_name, specialty=specialty,
+        )
+        pid = user["id"]
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            existing = conn.execute(
+                "SELECT provider_id FROM data_providers WHERE provider_id = ?", (pid,)
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    """UPDATE data_providers SET status='invited', must_reset_password=1,
+                       org_name=COALESCE(?, org_name), specialty=COALESCE(?, specialty),
+                       note=COALESCE(?, note), invited_by=?, invited_at=?,
+                       invite_expires_at=?, updated_at=? WHERE provider_id=?""",
+                    (org_name, specialty, note, invited_by, now, invite_expires_at, now, pid),
+                )
+            else:
+                conn.execute(
+                    """INSERT INTO data_providers
+                       (provider_id, email, org_name, specialty, note, status,
+                        must_reset_password, invited_by, invited_at, invite_expires_at,
+                        upload_count, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, 'invited', 1, ?, ?, ?, 0, ?, ?)""",
+                    (pid, email.lower().strip(), org_name, specialty, note,
+                     invited_by, now, invite_expires_at, now, now),
+                )
+        return self.get_data_provider(pid)  # type: ignore[return-value]
+
+    def get_data_provider(self, provider_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM data_providers WHERE provider_id = ?", (provider_id,)
+            ).fetchone()
+        return self._data_provider_row(row) if row else None
+
+    def get_data_provider_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM data_providers WHERE email = ?", (email.lower().strip(),)
+            ).fetchone()
+        return self._data_provider_row(row) if row else None
+
+    def list_data_providers(self) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM data_providers ORDER BY created_at DESC"
+            ).fetchall()
+        return [self._data_provider_row(r) for r in rows]
+
+    def update_data_provider(self, provider_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
+        allowed = {
+            "status", "must_reset_password", "org_name", "specialty", "note",
+            "invite_expires_at", "last_upload_at", "upload_count",
+        }
+        sets, params = [], []
+        for k, v in fields.items():
+            if k not in allowed:
+                continue
+            sets.append(f"{k} = ?")
+            params.append(int(v) if isinstance(v, bool) else v)
+        if not sets:
+            return self.get_data_provider(provider_id)
+        sets.append("updated_at = ?")
+        params.extend([_utcnow_iso(), provider_id])
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE data_providers SET {', '.join(sets)} WHERE provider_id = ?",
+                tuple(params),
+            )
+        return self.get_data_provider(provider_id)
+
+    def revoke_data_provider(self, provider_id: str) -> Optional[Dict[str, Any]]:
+        """Revoke access: mark the provider revoked AND deactivate the underlying
+        account so its token stops authenticating (deny-by-default, PRD §3)."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE data_providers SET status='revoked', updated_at=? WHERE provider_id=?",
+                (_utcnow_iso(), provider_id),
+            )
+            conn.execute("UPDATE users SET active = 0 WHERE id = ?", (provider_id,))
+        return self.get_data_provider(provider_id)
+
+    def clear_provider_password_reset(self, provider_id: str) -> None:
+        """First-login forced reset done (PRD §5): drop the reset flag + activate."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE data_providers SET must_reset_password=0, status='active', updated_at=? "
+                "WHERE provider_id=?",
+                (_utcnow_iso(), provider_id),
+            )
+
+    # ── Data Provider Portal — uploads / files ──────────────────────────────
+    @staticmethod
+    def _upload_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["meta"] = json.loads(rec.pop("meta_json", "{}") or "{}")
+        rec["file_count"] = int(rec.get("file_count") or 0)
+        rec["total_bytes"] = int(rec.get("total_bytes") or 0)
+        rec["purged"] = bool(rec.get("purged"))
+        return rec
+
+    def create_upload(
+        self, *, provider_id: str, provider_email: Optional[str] = None,
+        checksum: Optional[str] = None, meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        uid = _new_id("up")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO ingest_uploads
+                   (upload_id, provider_id, provider_email, received_at, status,
+                    file_count, total_bytes, checksum, meta_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, 'received', 0, 0, ?, ?, ?, ?)""",
+                (uid, provider_id, provider_email, now, checksum,
+                 json.dumps(meta or {}), now, now),
+            )
+            conn.execute(
+                "UPDATE data_providers SET last_upload_at=?, upload_count=upload_count+1, "
+                "updated_at=? WHERE provider_id=?",
+                (now, now, provider_id),
+            )
+        return self.get_upload(uid)  # type: ignore[return-value]
+
+    def update_upload(self, upload_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
+        allowed = {"status", "file_count", "total_bytes", "checksum", "reason", "purged"}
+        sets, params = [], []
+        for k, v in fields.items():
+            if k == "meta":
+                sets.append("meta_json = ?")
+                params.append(json.dumps(v or {}))
+                continue
+            if k not in allowed:
+                continue
+            sets.append(f"{k} = ?")
+            params.append(int(v) if isinstance(v, bool) else v)
+        if not sets:
+            return self.get_upload(upload_id)
+        sets.append("updated_at = ?")
+        params.extend([_utcnow_iso(), upload_id])
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE ingest_uploads SET {', '.join(sets)} WHERE upload_id = ?",
+                tuple(params),
+            )
+        return self.get_upload(upload_id)
+
+    def get_upload(self, upload_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ingest_uploads WHERE upload_id = ?", (upload_id,)
+            ).fetchone()
+        return self._upload_row(row) if row else None
+
+    def list_uploads(self, *, provider_id: Optional[str] = None, limit: int = 500) -> List[Dict[str, Any]]:
+        clause, params = "", []
+        if provider_id:
+            clause = "WHERE provider_id = ?"
+            params.append(provider_id)
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM ingest_uploads {clause} ORDER BY received_at DESC LIMIT ?",
+                tuple(params),
+            ).fetchall()
+        return [self._upload_row(r) for r in rows]
+
+    def add_ingest_file(
+        self, *, upload_id: str, filename: str, detected_type: Optional[str] = None,
+        adapter: Optional[str] = None, size_bytes: int = 0, sha256: Optional[str] = None,
+        status: str = "received", outcome: Optional[str] = None,
+        stored_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        fid = _new_id("f")
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO ingest_files
+                   (file_id, upload_id, filename, detected_type, adapter, size_bytes,
+                    sha256, status, outcome, stored_path, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (fid, upload_id, filename, detected_type, adapter, int(size_bytes or 0),
+                 sha256, status, outcome, stored_path, _utcnow_iso()),
+            )
+            row = conn.execute("SELECT * FROM ingest_files WHERE file_id = ?", (fid,)).fetchone()
+        return dict(row)
+
+    def update_ingest_file(self, file_id: str, **fields: Any) -> None:
+        allowed = {"detected_type", "adapter", "status", "outcome", "stored_path", "sha256"}
+        sets, params = [], []
+        for k, v in fields.items():
+            if k in allowed:
+                sets.append(f"{k} = ?")
+                params.append(v)
+        if not sets:
+            return
+        params.append(file_id)
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE ingest_files SET {', '.join(sets)} WHERE file_id = ?", tuple(params)
+            )
+
+    def list_ingest_files(self, upload_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ingest_files WHERE upload_id = ? ORDER BY created_at ASC",
+                (upload_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ── Data Provider Portal — assembled cases + quarantine ─────────────────
+    @staticmethod
+    def _ingest_case_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["case"] = json.loads(rec.pop("case_json", "{}") or "{}")
+        rec["quality"] = json.loads(rec.pop("quality_json", "{}") or "{}")
+        return rec
+
+    def add_ingest_case(
+        self, *, upload_id: str, case: Dict[str, Any], patient_key: Optional[str] = None,
+        quality: Optional[Dict[str, Any]] = None, status: str = "preview",
+    ) -> Dict[str, Any]:
+        icid = _new_id("ic")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO ingest_cases
+                   (ic_id, upload_id, patient_key, case_json, status, quality_json,
+                    created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (icid, upload_id, patient_key, json.dumps(case), status,
+                 json.dumps(quality or {}), now, now),
+            )
+        return self.get_ingest_case(icid)  # type: ignore[return-value]
+
+    def get_ingest_case(self, ic_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM ingest_cases WHERE ic_id = ?", (ic_id,)).fetchone()
+        return self._ingest_case_row(row) if row else None
+
+    def list_ingest_cases(self, *, upload_id: Optional[str] = None, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if upload_id:
+            clauses.append("upload_id = ?")
+            params.append(upload_id)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM ingest_cases {where} ORDER BY created_at DESC", tuple(params)
+            ).fetchall()
+        return [self._ingest_case_row(r) for r in rows]
+
+    def update_ingest_case(self, ic_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
+        sets, params = [], []
+        for k, v in fields.items():
+            if k == "quality":
+                sets.append("quality_json = ?")
+                params.append(json.dumps(v or {}))
+            elif k in ("status", "task_id", "patient_key"):
+                sets.append(f"{k} = ?")
+                params.append(v)
+        if not sets:
+            return self.get_ingest_case(ic_id)
+        sets.append("updated_at = ?")
+        params.extend([_utcnow_iso(), ic_id])
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE ingest_cases SET {', '.join(sets)} WHERE ic_id = ?", tuple(params)
+            )
+        return self.get_ingest_case(ic_id)
+
+    def add_quarantine(
+        self, *, upload_id: str, kind: str, masked_findings: Optional[List[str]] = None,
+        file_id: Optional[str] = None, detail: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        qid = _new_id("q")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO ingest_quarantine
+                   (q_id, upload_id, file_id, kind, masked_findings_json, detail,
+                    status, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?)""",
+                (qid, upload_id, file_id, kind, json.dumps(masked_findings or []),
+                 detail, now, now),
+            )
+            row = conn.execute("SELECT * FROM ingest_quarantine WHERE q_id = ?", (qid,)).fetchone()
+        return self._quarantine_row(row)
+
+    @staticmethod
+    def _quarantine_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["masked_findings"] = json.loads(rec.pop("masked_findings_json", "[]") or "[]")
+        return rec
+
+    def list_quarantine(self, *, status: Optional[str] = "open", upload_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        if upload_id:
+            clauses.append("upload_id = ?")
+            params.append(upload_id)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM ingest_quarantine {where} ORDER BY created_at DESC", tuple(params)
+            ).fetchall()
+        return [self._quarantine_row(r) for r in rows]
+
+    def get_quarantine(self, q_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM ingest_quarantine WHERE q_id = ?", (q_id,)).fetchone()
+        return self._quarantine_row(row) if row else None
+
+    def resolve_quarantine(self, q_id: str, *, status: str, resolution: Optional[str] = None,
+                           resolved_by: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_quarantine SET status=?, resolution=?, resolved_by=?, updated_at=? "
+                "WHERE q_id=?",
+                (status, resolution, resolved_by, _utcnow_iso(), q_id),
+            )
+        return self.get_quarantine(q_id)
+
+    def provider_quality_score(self, provider_id: str) -> Dict[str, Any]:
+        """% of a provider's upload bundles that ingested clean (PRD §6): the
+        early-warning that a partner's de-id is drifting. Clean = an upload that
+        reached 'ingested' with no quarantine rows."""
+        uploads = self.list_uploads(provider_id=provider_id)
+        total = len(uploads)
+        clean = sum(1 for u in uploads if u.get("status") == "ingested")
+        quarantined = sum(1 for u in uploads if u.get("status") == "quarantined")
+        return {
+            "total_uploads": total,
+            "clean_uploads": clean,
+            "quarantined_uploads": quarantined,
+            "clean_pct": round(100.0 * clean / total, 1) if total else None,
+        }
 
     def list_users(self) -> List[Dict[str, Any]]:
         with self._conn() as conn:

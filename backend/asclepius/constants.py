@@ -19,7 +19,16 @@ ASCLEPIUS_TAXONOMY_VERSION = "2026-06-30.1"
 ASCLEPIUS_CONFIG_VERSION = APP_AI_CONFIG_VERSION
 
 # Asclepius-local roles (NOT the clinical RBAC roles).
-ROLES = ("evaluator", "admin", "qa_reviewer")
+#   ``data_partner`` (Data Provider Portal PRD §5) can do EXACTLY one thing:
+#   upload de-identified data through the locked-down provider portal. It has no
+#   queue, no tasks, no exports, and no read of anyone else's data — enforced
+#   deny-by-default (``require_data_partner`` + exclusion from every other router
+#   path), never merely hidden in the UI.
+ROLES = ("evaluator", "admin", "qa_reviewer", "data_partner")
+
+# The one role that uses the provider portal, kept as a name so router gates and
+# deny-by-default checks reference a single source of truth.
+DATA_PARTNER_ROLE = "data_partner"
 
 # Primary verdict on the A/B comparison.
 VERDICTS = ("A_better", "B_better", "both_inadequate")

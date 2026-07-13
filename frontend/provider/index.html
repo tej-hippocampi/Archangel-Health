@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Provider Portal · Asclepius | Archangel Health</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="Secure data provider portal for submitting de-identified clinical data to Archangel Health." />
+
+  <!-- Fonts + shared Asclepius design system (frontend dir is mounted at /static). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/asclepius/asclepius.css" />
+  <!-- Portal-specific styling (drop zone, status list, secure-login chrome). -->
+  <link rel="stylesheet" href="/static/provider/provider.css" />
+</head>
+<body class="asc-body prv-body">
+
+  <!-- ══════════════════════════════════════════════════════════
+       Header — only shown once authenticated + reset complete.
+       ══════════════════════════════════════════════════════════ -->
+  <header class="asc-header" id="prvHeader" hidden>
+    <div class="asc-header-inner">
+      <a class="asc-logo" href="/provider">
+        <span class="asc-logo-mark" aria-hidden="true">⚕</span>
+        <span class="asc-logo-text">Asclepius<span class="asc-logo-sub">Data Provider Portal</span></span>
+      </a>
+      <div class="asc-header-right">
+        <div class="asc-user-badge" id="prvUserBadge"></div>
+        <button type="button" class="asc-btn asc-btn-ghost asc-btn-sm" id="prvLogoutBtn">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════════════════
+       Root — JS swaps between: loading / login / reset / upload.
+       aria-live announces screen changes to assistive tech.
+       ══════════════════════════════════════════════════════════ -->
+  <main class="prv-main" id="prvRoot" aria-live="polite">
+    <div class="asc-loading-screen">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p>Loading secure portal…</p>
+    </div>
+  </main>
+
+  <!-- ─── SCREEN TEMPLATES ─────────────────────────────────────
+       Kept as inert <template> nodes and cloned by provider.js so
+       the markup stays declarative and easy to audit. All dynamic,
+       server-provided text is injected via textContent (never
+       innerHTML) inside provider.js. -->
+
+  <!-- 1) LOGIN -->
+  <template id="tplLogin">
+    <div class="prv-auth-wrap">
+      <div class="asc-login-card prv-auth-card">
+        <div class="asc-login-head">
+          <div class="asc-login-mark" aria-hidden="true">⚕</div>
+          <h1>Data Provider Portal</h1>
+          <p>Secure clinical data submission for Archangel Health</p>
+        </div>
+        <div class="asc-login-body">
+          <p class="prv-lead">
+            Welcome. Sign in with the email and temporary password from your
+            invitation to begin a secure, encrypted data handover.
+          </p>
+          <div class="asc-login-error" id="prvLoginError" role="alert" hidden></div>
+          <form id="prvLoginForm" novalidate>
+            <div class="asc-field">
+              <label class="asc-label" for="prvEmail">Email</label>
+              <input class="asc-input" id="prvEmail" name="email" type="email"
+                     autocomplete="username" spellcheck="false" required />
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="prvPassword">Password</label>
+              <input class="asc-input" id="prvPassword" name="password" type="password"
+                     autocomplete="current-password" required />
+            </div>
+            <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg asc-btn-block" id="prvLoginBtn">
+              Sign in securely
+            </button>
+          </form>
+          <p class="asc-login-hint">
+            🔒 This portal is for authorized data-sharing partners only. Access is
+            logged. If you did not request an invitation, please disregard the email.
+          </p>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- 2) FORCED PASSWORD RESET -->
+  <template id="tplReset">
+    <div class="prv-auth-wrap">
+      <div class="asc-login-card prv-auth-card">
+        <div class="asc-login-head">
+          <div class="asc-login-mark" aria-hidden="true">🔑</div>
+          <h1>Set your password</h1>
+          <p>Required before your first upload</p>
+        </div>
+        <div class="asc-login-body">
+          <p class="prv-lead">
+            For your security, please replace the temporary password from your
+            invitation with a private password of your own.
+          </p>
+          <div class="asc-login-error" id="prvResetError" role="alert" hidden></div>
+          <div class="asc-inline-ok" id="prvResetOk" hidden></div>
+          <form id="prvResetForm" novalidate>
+            <div class="asc-field">
+              <label class="asc-label" for="prvNewPw">New password
+                <span class="asc-label-hint">— at least 12 characters</span></label>
+              <input class="asc-input" id="prvNewPw" name="new_password" type="password"
+                     autocomplete="new-password" minlength="12" required />
+              <div class="prv-strength" id="prvStrength" aria-live="polite"></div>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="prvConfirmPw">Confirm new password</label>
+              <input class="asc-input" id="prvConfirmPw" name="confirm_password" type="password"
+                     autocomplete="new-password" minlength="12" required />
+            </div>
+            <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg asc-btn-block" id="prvResetBtn">
+              Save password &amp; continue
+            </button>
+          </form>
+          <p class="asc-login-hint">
+            Choose something memorable to you but hard to guess. A short passphrase
+            of a few words works well.
+          </p>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- 3) UPLOAD (the only screen once authed + reset done) -->
+  <template id="tplUpload">
+    <div class="asc-wrap asc-wrap-narrow prv-upload">
+
+      <!-- Reassuring intro banner -->
+      <section class="asc-card prv-intro">
+        <div class="asc-card-pad">
+          <h1 class="prv-intro-title">Share your data securely</h1>
+          <p class="prv-intro-sub" id="prvIntroSub">
+            Thank you for partnering with Archangel Health. Drop your files below —
+            everything is transmitted over an encrypted connection and only ever
+            visible to you and our ingestion team.
+          </p>
+        </div>
+      </section>
+
+      <div class="prv-grid">
+        <!-- Drop zone column -->
+        <section class="asc-card">
+          <div class="asc-card-head">
+            <div>
+              <div class="asc-card-title">📤 Upload files</div>
+              <div class="asc-card-sub">Multiple files or a single .zip are welcome.</div>
+            </div>
+          </div>
+          <div class="asc-card-pad">
+            <!-- Keyboard-usable drop zone. It is a real button that opens the
+                 hidden file input; the input itself is the accessible control. -->
+            <button type="button" class="prv-drop" id="prvDrop"
+                    aria-describedby="prvDropHelp">
+              <div class="prv-drop-icon" aria-hidden="true">⤓</div>
+              <div class="prv-drop-title">Place your data right here</div>
+              <div class="prv-drop-sub">Drag &amp; drop files or a .zip, or click to browse</div>
+            </button>
+            <p id="prvDropHelp" class="asc-help prv-drop-help">
+              Accepted: FHIR / HL7 / CSV exports, lab results, clinical notes,
+              medication &amp; problem lists, and an optional manifest.json.
+            </p>
+            <input type="file" id="prvFileInput" multiple
+                   accept=".zip,.csv,.json,.txt,.xml,.hl7,.ndjson,application/zip,application/json,text/csv,text/plain"
+                   class="prv-visually-hidden" aria-label="Choose files to upload" />
+
+            <!-- Live progress + per-file results for the current batch -->
+            <div class="prv-progress" id="prvProgress" aria-live="polite" hidden>
+              <div class="prv-progress-label" id="prvProgressLabel">Uploading…</div>
+              <div class="prv-progress-track" role="progressbar" aria-valuemin="0"
+                   aria-valuemax="100" aria-valuenow="0" id="prvProgressBar">
+                <span class="prv-progress-fill" id="prvProgressFill"></span>
+              </div>
+            </div>
+            <ul class="prv-results" id="prvResults" aria-live="polite"></ul>
+          </div>
+        </section>
+
+        <!-- "What to send" helper column -->
+        <aside class="asc-card prv-helper">
+          <div class="asc-card-head">
+            <div class="asc-card-title">✅ What to send</div>
+          </div>
+          <div class="asc-card-pad">
+            <ul class="prv-checklist">
+              <li>Structured EHR export — <strong>FHIR, HL7, or CSV</strong></li>
+              <li>Lab results</li>
+              <li>Clinical notes</li>
+              <li>Medication &amp; problem lists</li>
+              <li>Optional <code>manifest.json</code> describing the contents</li>
+            </ul>
+            <div class="asc-inline-warn prv-note">
+              Please ensure data is <strong>already de-identified and date-shifted</strong>
+              before sending. <strong>No imaging.</strong>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- History (own uploads only) -->
+      <section class="asc-card">
+        <div class="asc-card-head">
+          <div>
+            <div class="asc-card-title">🗂️ Your uploads</div>
+            <div class="asc-card-sub">A record of everything you have submitted.</div>
+          </div>
+          <button type="button" class="asc-btn asc-btn-ghost asc-btn-sm" id="prvRefreshBtn">↻ Refresh</button>
+        </div>
+        <div class="asc-table-wrap">
+          <table class="asc-table prv-history-table">
+            <thead>
+              <tr>
+                <th scope="col">Received</th>
+                <th scope="col">Files</th>
+                <th scope="col">Status</th>
+                <th scope="col">Details</th>
+              </tr>
+            </thead>
+            <tbody id="prvHistoryBody"></tbody>
+          </table>
+        </div>
+        <div class="prv-history-empty" id="prvHistoryEmpty" hidden>
+          <div class="asc-empty-icon" aria-hidden="true">📭</div>
+          <p>No uploads yet. Your submissions will appear here.</p>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <!-- Toast region for lightweight confirmations / errors -->
+  <div class="asc-toast-region" id="prvToasts" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="/static/provider/provider.js" defer></script>
+</body>
+</html>

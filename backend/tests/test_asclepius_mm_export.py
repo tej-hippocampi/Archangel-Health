@@ -170,14 +170,18 @@ def test_deidentify_scans_all_string_fields_not_just_note_text():
                                        "results": [{"analyte": "Na drawn 03/14/2024", "value": 112}]}]})
 
 
-def test_format_registry_dicom_rejected_others_seamed():
+def test_format_registry_dicom_rejected_others_implemented():
     from asclepius import case_formats as cf
     assert set(cf.FORMATS) == set(cf.CASE_FORMATS)
+    # Imaging is always rejected.
     with pytest.raises(cf.ImagingRejected):
         cf.ingest_real_deid(b"DICM", "dicom")
-    for fmt in ("lab_csv", "fhir_r4", "hl7v2"):
-        with pytest.raises(cf.CaseFormatNotImplemented):
+    # The structured adapters are now implemented (Data Provider Portal PRD §5):
+    # junk input raises CaseIngestError (the base), not the "not implemented" seam.
+    for fmt in ("lab_csv", "fhir_r4", "hl7v2", "ccda"):
+        with pytest.raises(cf.CaseIngestError):
             cf.ingest_real_deid("raw", fmt)
+    # An unknown format is still a CaseIngestError.
     with pytest.raises(cf.CaseIngestError):
         cf.ingest_real_deid("raw", "unknown_format")
 
