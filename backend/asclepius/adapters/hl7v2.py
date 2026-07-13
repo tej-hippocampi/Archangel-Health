@@ -60,11 +60,16 @@ def _ref_range(raw: str) -> tuple:
 
 
 def _num(raw: str) -> Any:
+    import math
     s = (raw or "").strip()
     if not s:
         return None
     try:
-        return int(s) if s.lstrip("+-").isdigit() else float(s)
+        if s.lstrip("+-").isdigit():
+            return int(s)
+        v = float(s)
+        # Non-finite floats break JSON serialization downstream (review finding).
+        return v if math.isfinite(v) else s
     except ValueError:
         return s
 
@@ -94,7 +99,11 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
             # A patient GROUPING key only — an opaque per-bundle key, never shipped.
             pid3 = _comp(f[3]) if len(f) > 3 else ""
             if pid3:
-                frag["_patient_keys"].append(f"hl7-{abs(hash(pid3)) % 10**10}")
+                # SHA-256 (not Python hash()): stable across processes and not
+                # brute-forceable from an enumerable MRN space without the input.
+                import hashlib as _hashlib
+                frag["_patient_keys"].append(
+                    "hl7-" + _hashlib.sha256(pid3.encode("utf-8")).hexdigest()[:12])
             if len(f) > 7 and f[7]:
                 birth_date = parse_datetime(f[7])
             if len(f) > 8:

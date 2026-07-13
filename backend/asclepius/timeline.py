@@ -56,9 +56,26 @@ _MONTHNAME_RE = re.compile(
     r"\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b",
     re.IGNORECASE,
 )
-# Date-LIKE shapes we deliberately do NOT guess at (ambiguous / partial): if one
-# survives the confident passes above, it is reported unresolved for quarantine.
-_DATELIKE_RE = re.compile(r"(?<!\d)\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?(?!\d)")
+# Month/YEAR partials (review finding: these leaked through every layer —
+# neither the full-date rewriters nor the PHI scanners match "12/2024",
+# "12-2024", or "March 2024"). Safe Harbor allows the YEAR alone, so these
+# rewrite to just the year (temporal context survives, the month leaves).
+_MONTHYEAR_NUM_RE = re.compile(r"(?<!\d)(0?[1-9]|1[0-2])[/-](\d{4})(?!\d)")
+_MONTHYEAR_NAME_RE = re.compile(
+    r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|"
+    r"aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+    r"\.?,?\s+(\d{4})\b",
+    re.IGNORECASE,
+)
+# Date-LIKE shapes we deliberately do NOT guess at (ambiguous partials like
+# "3/14" with no year): flagged unresolved for quarantine. Plausibility-gated
+# (review finding: the old \d{1,2}[/-]\d{1,2} flagged "BP 90/60" and
+# "1-2 weeks", quarantining ordinary clinical notes): slash form requires a
+# valid month and an unambiguous day (13–31, so "1/2 tablet" fractions pass);
+# dash partials are only date-like WITH a year (handled above) — bare "1-2"
+# ranges are prose. Residual risk (e.g. "3/5" month+day both ≤12) is accepted
+# and documented; the hard deidentify() guard is unchanged.
+_DATELIKE_RE = re.compile(r"(?<!\d)(0?[1-9]|1[0-2])/(1[3-9]|2\d|3[01])(?:/\d{2,4})?(?!\d)")
 
 # Ages ≥90 collapse to the Safe-Harbor bucket (HIPAA §164.514(b)(2)(i)(C)).
 _AGE90_RE = re.compile(r"\b(9\d|1[0-1]\d)([\s-]*(?:years?[\s-]*old|y[/.]?o\b))", re.IGNORECASE)
@@ -94,8 +111,9 @@ def parse_datetime(value: Any) -> Optional[date]:
             return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
         except ValueError:
             return None
-    # HL7 TS: YYYYMMDD[HHMM[SS]]
-    m2 = re.match(r"^(\d{4})(\d{2})(\d{2})(?:\d{2,6})?$", s)
+    # HL7 TS: YYYYMMDD[HHMM[SS[.ssss]]][±ZZZZ] — real OBR-7/PID-7 values carry
+    # timezone offsets and fractional seconds (review finding).
+    m2 = re.match(r"^(\d{4})(\d{2})(\d{2})(?:\d{2,6})?(?:\.\d+)?(?:[+-]\d{4})?$", s)
     if m2:
         try:
             return date(int(m2.group(1)), int(m2.group(2)), int(m2.group(3)))
@@ -166,19 +184,44 @@ def rewrite_note_dates(text: str, index: date) -> Tuple[str, int, List[str]]:
         return _offset_token(d, index)
 
     def _sub_month(m: "re.Match[str]") -> str:
-        # A month-name date WITHOUT a year anchors to the index year — the
-        # partner's shift keeps intra-case dates in one window, so this is the
-        # only safe default; a wrong-year guess would shift ±365 and read as
-        # incoherent to the clinician at the Stage-1 gate (flagged, not shipped).
-        d = _monthname_to_date(m, default_year=index.year)
+        # Lowercase bare "may" without a year is almost always the MODAL VERB
+        # ("patient may 5 days later…") — rewriting it corrupts the note (review
+        # finding). Only treat "may" as a month when capitalized or dated.
+        if m.group(1) == "may" and not m.group(3):
+            return m.group(0)
+        if m.group(3):
+            d = _monthname_to_date(m, default_year=None)
+        else:
+            # Year-less month-name date: pick the candidate year (index±1) with
+            # the SMALLEST |offset| — a Dec note against a Jan index anchors to
+            # the prior year, not +357 days into the future (review finding).
+            candidates = [
+                _monthname_to_date(m, default_year=y)
+                for y in (index.year - 1, index.year, index.year + 1)
+            ]
+            candidates = [c for c in candidates if c is not None]
+            d = min(candidates, key=lambda c: abs((c - index).days)) if candidates else None
         if d is None:
             return m.group(0)
         n["count"] += 1
         return _offset_token(d, index)
 
+    def _sub_monthyear_num(m: "re.Match[str]") -> str:
+        # "12/2024" → "2024": Safe Harbor permits the year; the month leaves.
+        n["count"] += 1
+        return m.group(2)
+
+    def _sub_monthyear_name(m: "re.Match[str]") -> str:
+        n["count"] += 1
+        return m.group(2)
+
     out = _ISO_RE.sub(_sub_iso, text)
     out = _MDY_RE.sub(_sub_mdy, out)
     out = _MONTHNAME_RE.sub(_sub_month, out)
+    # AFTER the full-date passes (a "March 14, 2031" already rewrote); what's
+    # left as month+year partials generalizes to the year.
+    out = _MONTHYEAR_NUM_RE.sub(_sub_monthyear_num, out)
+    out = _MONTHYEAR_NAME_RE.sub(_sub_monthyear_name, out)
 
     # Ages ≥90 → the Safe-Harbor bucket.
     out = _AGE90_RE.sub(lambda m: "90+" + m.group(2), out)
@@ -302,9 +345,33 @@ def normalize_timeline(
         # No anchor: only acceptable when nothing carries a date at all. If any
         # date-like token exists in the notes, we cannot rewrite → unresolved.
         for n in case.get("notes") or []:
-            for m in _DATELIKE_RE.finditer(n.get("text") or ""):
-                report["unresolved"].append(_mask(m.group(0)))
-            for m in _ISO_RE.finditer(n.get("text") or ""):
-                report["unresolved"].append(_mask(m.group(0)))
+            report["unresolved"].extend(datelike_leftovers_in_text(n.get("text") or ""))
 
     return case, report
+
+
+def datelike_leftovers_in_text(text: str) -> List[str]:
+    """MASKED date/date-like tokens still present in a text — every shape the
+    rewriter knows (full dates, month/year partials, ambiguous partials)."""
+    out: List[str] = []
+    for pat in (_ISO_RE, _MDY_RE, _MONTHYEAR_NUM_RE, _DATELIKE_RE):
+        out.extend(_mask(m.group(0)) for m in pat.finditer(text or ""))
+    return out
+
+
+def datelike_leftovers(case: Dict[str, Any]) -> List[str]:
+    """MASKED date-like tokens anywhere in a case's free text (notes + string
+    vitals + problem 'since'). Used by the quarantine SCRUB re-check (review
+    finding: a timeline-unresolved quarantine must not flip to ingested while
+    the ambiguous tokens are still in the text — scrub can't fix what only a
+    human or a better manifest anchor can resolve)."""
+    out: List[str] = []
+    for n_ in (case or {}).get("notes") or []:
+        out.extend(datelike_leftovers_in_text(n_.get("text") or ""))
+    for v in ((case or {}).get("vitals") or {}).values():
+        if isinstance(v, str):
+            out.extend(datelike_leftovers_in_text(v))
+    for p in (case or {}).get("problem_list") or []:
+        if p.get("since") and parse_datetime(p["since"]) is not None:
+            out.append(_mask(str(p["since"])))
+    return out

@@ -2288,12 +2288,28 @@ async def partner_upload(
     Caps + magic-byte check + SHA-256 + encrypted quarantine write happen inline;
     unpack/parse/verify run in the background (never in the request path)."""
     store = _store()
+    # FAIL CLOSED in production (security review): the raw partner bundle is the
+    # most sensitive artifact in the pipeline — we refuse to accept it at all if
+    # it cannot be encrypted at rest (DATA_ENCRYPTION_KEY unset).
+    if (os.getenv("ENV") or "").strip().lower() == "production":
+        import field_crypto
+        if not field_crypto.is_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="Ingestion is disabled: DATA_ENCRYPTION_KEY is not configured, "
+                       "so the upload cannot be encrypted at rest.",
+            )
     link = _validate_upload_token(store, t)
     data = await file.read()
     if len(data) > int(link.get("max_bytes") or asc_ingestion.max_zip_bytes()):
         raise HTTPException(status_code=413, detail="Upload exceeds the link's size cap")
     if data[:2] != b"PK":
         raise HTTPException(status_code=400, detail="Only .zip bundles are accepted")
+    # ATOMIC one-time claim (closes the TOCTOU race where two concurrent uploads
+    # both pass the used_count==0 validation read). After the cheap validations,
+    # so an innocent oversized/wrong-type attempt doesn't burn the link.
+    if not store.consume_upload_link(link["link_id"], one_time=bool(link.get("one_time"))):
+        raise HTTPException(status_code=410, detail="This upload link was already used")
     digest = asc_ingestion.sha256_hex(data)
     upload = store.insert_ingest_upload(
         link_id=link["link_id"], partner_id=link["partner_id"],
@@ -2303,7 +2319,6 @@ async def partner_upload(
     )
     raw_path = asc_ingestion.store_raw(upload["upload_id"], data)
     store.update_ingest_upload(upload["upload_id"], raw_path=raw_path)
-    store.mark_upload_link_used(link["link_id"])
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
                     event_type="upload_received",
                     payload={"partner_id": link["partner_id"], "sha256": digest,
@@ -2424,6 +2439,20 @@ async def quarantine_scrub(
         raise HTTPException(status_code=404, detail="Quarantined case not found")
     findings = ((ic.get("report") or {}).get("verification") or {}).get("findings") or []
     scrubbed = asc_deid_verify.apply_targeted_scrub(ic.get("case") or {}, findings)
+    # Review finding: a TIMELINE-unresolved quarantine (ambiguous date tokens the
+    # normalizer refused to guess) has no verifier findings to scrub — it must
+    # NOT flip to ingested while those tokens are still in the text. Only a
+    # better manifest index_event (re-upload/retry) or rejection resolves it.
+    from asclepius.timeline import datelike_leftovers
+    leftovers = datelike_leftovers(scrubbed)
+    if leftovers:
+        report0 = dict(ic.get("report") or {})
+        report0["unresolved_after_scrub"] = leftovers[:10]
+        store.update_ingest_case(ingest_case_id, report_json=report0)
+        return {"status": "quarantined",
+                "reason": "unresolved date-like tokens remain (" + ", ".join(leftovers[:3]) +
+                          "); scrub cannot fix an ambiguous timeline — re-upload with a "
+                          "manifest index_event, or reject."}
     verification = asc_deid_verify.verify_deid(scrubbed)
     report = dict(ic.get("report") or {})
     report["verification"] = verification
@@ -2538,6 +2567,15 @@ async def promote_ingest_case(
         generation["hardness"] = {"score": hj.get("hardness_score"),
                                   "axes": hj.get("hardness_axes") or []}
     cj = await run_case_judge(case, case_source="real_deid")
+    if cj.get("skipped"):
+        # FAIL CLOSED for real data (review finding): the synthetic pipeline's
+        # "skipped never drops" degrade contract is not appropriate here — a V4
+        # task must not enter the queue ungated. Candidates just generated, so
+        # the LLM is demonstrably up; a skipped judge is transient. Retry.
+        raise HTTPException(
+            status_code=503,
+            detail="Case judge unavailable — promotion requires the real-case gate; try again.",
+        )
     if not cj.get("skipped"):
         generation["case_judge"] = {k: cj.get(k) for k in (
             "coherence", "multimodal_necessity", "reasoning_divergence_potential")}

@@ -737,6 +737,26 @@ class AsclepiusStore:
                 (link_id,),
             )
 
+    def consume_upload_link(self, link_id: str, *, one_time: bool) -> bool:
+        """ATOMIC use-claim (security review: closes the one-time TOCTOU race —
+        two concurrent uploads both passing the used_count==0 read). For a
+        one-time link the conditional UPDATE succeeds for exactly one caller;
+        multi-use links just increment. Returns False when the claim lost."""
+        with self._conn() as conn:
+            if one_time:
+                cur = conn.execute(
+                    "UPDATE ingest_upload_links SET used_count = used_count + 1 "
+                    "WHERE link_id = ? AND used_count = 0 AND revoked = 0",
+                    (link_id,),
+                )
+            else:
+                cur = conn.execute(
+                    "UPDATE ingest_upload_links SET used_count = used_count + 1 "
+                    "WHERE link_id = ? AND revoked = 0",
+                    (link_id,),
+                )
+            return cur.rowcount == 1
+
     def revoke_upload_link(self, link_id: str) -> None:
         with self._conn() as conn:
             conn.execute("UPDATE ingest_upload_links SET revoked = 1 WHERE link_id = ?", (link_id,))
@@ -899,13 +919,20 @@ class AsclepiusStore:
         board_cert: Optional[str] = None,
         years_experience: Optional[int] = None,
         organization: Optional[str] = None,
+        real_data_approved: bool = False,
     ) -> Dict[str, Any]:
         """Idempotently guarantee the mock/sandbox contributor exists (internal demo
         tool). Runs on every boot: creates the account if missing, else forces it to
         role='evaluator', active, is_mock=1, and resets the password to match the
         configured value (so an operator can always regain the sandbox login). Only
-        touches this one account."""
+        touches this one account.
+
+        ``real_data_approved`` is DECIDED BY THE CALLER (auth.ensure_mock_contributor):
+        the sandbox may demo V4 real cases only when its password is NOT the known
+        default in production — a default-credential account must never grant read
+        access to real patient data (security review finding)."""
         email = email.lower().strip()
+        approved = 1 if real_data_approved else 0
         existing = self.get_user_by_email(email)
         if not existing:
             u = self.create_user(
@@ -914,22 +941,19 @@ class AsclepiusStore:
                 years_experience=years_experience, organization=organization,
                 is_mock=True,
             )
-            # The sandbox account may demo V4 (real cases): its submissions are
-            # hard-excluded from exports anyway, so unlocking the V4 box for the
-            # demo login is safe by construction (EHR PRD §9.5).
-            self.set_real_data_approved(u["id"], True)
+            self.set_real_data_approved(u["id"], bool(real_data_approved))
             return self.get_user_by_id(u["id"])  # type: ignore[return-value]
         with self._conn() as conn:
             conn.execute(
                 """UPDATE users SET password_hash = ?, role = 'evaluator', active = 1,
-                       is_mock = 1, real_data_approved = 1,
+                       is_mock = 1, real_data_approved = ?,
                        specialty = COALESCE(specialty, ?),
                        board_cert = COALESCE(board_cert, ?),
                        years_experience = COALESCE(years_experience, ?),
                        organization = COALESCE(organization, ?)
                    WHERE email = ?""",
-                (hash_password(password), specialty, board_cert, years_experience,
-                 organization, email),
+                (hash_password(password), approved, specialty, board_cert,
+                 years_experience, organization, email),
             )
         return self.get_user_by_email(email)  # type: ignore[return-value]
 

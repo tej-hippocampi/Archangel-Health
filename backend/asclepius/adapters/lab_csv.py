@@ -70,12 +70,19 @@ def _norm_flag(raw: Any) -> str:
 
 
 def _num(raw: Any) -> Any:
-    """Numeric when it parses, else the original string (e.g. 'muddy-brown casts')."""
+    """Numeric when it parses, else the original string (e.g. 'muddy-brown casts').
+    Non-finite floats ("nan"/"inf") stay strings — NaN survives json round-trips
+    into case_json and then 500s every API response that serializes the case
+    (review finding)."""
+    import math
     s = str(raw).strip() if raw is not None else ""
     if not s:
         return None
     try:
-        return int(s) if s.lstrip("+-").isdigit() else float(s)
+        if s.lstrip("+-").isdigit():
+            return int(s)
+        v = float(s)
+        return v if math.isfinite(v) else s
     except ValueError:
         return s
 
@@ -139,4 +146,12 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
 
     if rows_used == 0:
         raise LabCsvError("no usable lab rows (every row missing analyte or value)")
-    return {"lab_panels": list(panels.values()), "_patient_keys": patient_keys}
+    # The grouping key must NOT survive inside the panel (review finding: a
+    # numeric pseudonymous key would false-trip the deidentify long-number scan
+    # and kill the whole case). It lives only in the top-level _patient_keys.
+    out_panels = []
+    for panel in panels.values():
+        panel = dict(panel)
+        panel.pop("_patient_key", None)
+        out_panels.append(panel)
+    return {"lab_panels": out_panels, "_patient_keys": patient_keys}

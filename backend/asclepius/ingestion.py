@@ -248,6 +248,15 @@ def _patient_key_of(fragment: Dict[str, Any], entry_name: str, manifest: Dict[st
     return "default"
 
 
+def opaque_patient_key(raw_key: str) -> str:
+    """The PERSISTED/LOGGED form of a grouping key (security review): a partner
+    may put an MRN or a name in the CSV/manifest ``patient_key`` — which never
+    passes through the case-body PHI scan — so anything stored in ingest_cases
+    or emitted to the audit log is an opaque SHA-256 tag, never the raw key. The
+    raw key exists only in-memory for grouping within one ingest run."""
+    return "pk-" + hashlib.sha256((raw_key or "default").encode("utf-8")).hexdigest()[:12]
+
+
 # ─── The orchestration (PRD §3) ───────────────────────────────────────────────
 def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     """Run the full pipeline for a received upload. Never raises — every outcome
@@ -280,8 +289,9 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
         return _fail(f"could not read/unpack the upload: {exc}")
 
     manifest = bundle["manifest"]
-    specialty = (manifest.get("specialty") or upload.get("specialty")
-                 or store.get_upload_link(upload["link_id"]).get("specialty") or "nephrology")
+    specialty = (manifest.get("specialty")
+                 or (store.get_upload_link(upload["link_id"]) or {}).get("specialty")
+                 or "nephrology")
 
     # Adapter pass: entry → fragments, grouped per patient.
     per_patient: Dict[str, List[Dict[str, Any]]] = {}
@@ -308,7 +318,8 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
             parsed_any = True
             pk = _patient_key_of(frag, name, manifest)
             per_patient.setdefault(pk, []).append(frag)
-            file_outcomes.append({"name": name, "kind": kind, "outcome": "parsed", "patient_key": pk})
+            file_outcomes.append({"name": name, "kind": kind, "outcome": "parsed",
+                                  "patient_key": opaque_patient_key(pk)})
         except Exception as exc:
             file_outcomes.append({"name": name, "kind": kind, "outcome": f"parse_failed: {exc}"})
 
@@ -324,7 +335,7 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     ingested, quarantined = 0, 0
     for pk, parts in per_patient.items():
         merged = _merge_fragments(parts)
-        report: Dict[str, Any] = {"patient_key": pk}
+        report: Dict[str, Any] = {"patient_key": opaque_patient_key(pk)}
         # The quarantined body must be EXACTLY the object the findings describe
         # (spans are offsets into it) — the normalized case once normalization
         # succeeds, the raw merge only when normalization itself failed.
@@ -347,25 +358,28 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
             safe = cf.deidentify(normalized)
             case = ClinicalCase(**{**safe, "case_source": "real_deid",
                                    "specialty": safe.get("specialty") or specialty}).model_dump()
-            ic = store.insert_ingest_case(upload_id=upload_id, patient_key=pk,
+            ic = store.insert_ingest_case(upload_id=upload_id,
+                                          patient_key=opaque_patient_key(pk),
                                           specialty=specialty, case=case,
                                           status="ingested", report=report)
             ingested += 1
             store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
                             event_type="case_ingested",
-                            payload={"upload_id": upload_id, "patient_key": pk,
+                            payload={"upload_id": upload_id,
+                                     "patient_key": opaque_patient_key(pk),
                                      "panels": len(case.get("lab_panels") or []),
                                      "notes": len(case.get("notes") or [])})
         except (cf.CaseIngestError, TimelineError) as exc:
             report["quarantine_reason"] = str(exc)
             ic = store.insert_ingest_case(
-                upload_id=upload_id, patient_key=pk, specialty=specialty,
-                case=quarantine_body,
+                upload_id=upload_id, patient_key=opaque_patient_key(pk),
+                specialty=specialty, case=quarantine_body,
                 status="quarantined", report=report)
             quarantined += 1
             store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
                             event_type="case_quarantined",
-                            payload={"upload_id": upload_id, "patient_key": pk,
+                            payload={"upload_id": upload_id,
+                                     "patient_key": opaque_patient_key(pk),
                                      "reason": str(exc)})
 
     status = "ingested" if ingested else ("quarantined" if quarantined else "rejected")

@@ -255,3 +255,17 @@ def test_mock_contributor_is_v4_approved():
     from asclepius import auth as asc_auth
     u = asc_auth.ensure_mock_contributor(_store())
     assert u["real_data_approved"] == 1
+
+
+def test_mock_v4_locked_in_prod_with_default_password(monkeypatch):
+    """Security review: a known-default-credential sandbox must never grant read
+    access to real patient cases in production. V4 unlocks only when the operator
+    set a private ASCLEPIUS_MOCK_PASSWORD."""
+    from asclepius import auth as asc_auth
+    monkeypatch.setenv("ENV", "production")
+    monkeypatch.delenv("ASCLEPIUS_MOCK_PASSWORD", raising=False)
+    u = asc_auth.ensure_mock_contributor(_store())
+    assert u["real_data_approved"] == 0          # default creds in prod → locked
+    monkeypatch.setenv("ASCLEPIUS_MOCK_PASSWORD", "a-private-prod-password")
+    u2 = asc_auth.ensure_mock_contributor(_store())
+    assert u2["real_data_approved"] == 1         # custom password → unlocked

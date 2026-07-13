@@ -149,6 +149,32 @@ def test_expired_and_revoked_links_rejected():
     assert bad.status_code == 401
 
 
+def test_one_time_claim_is_atomic():
+    """Security review (TOCTOU): the one-time claim is a conditional UPDATE that
+    succeeds exactly once — two racers can't both pass a used_count==0 read."""
+    st = _store()
+    link = _mint(_admin_h())
+    assert st.consume_upload_link(link["link_id"], one_time=True) is True
+    assert st.consume_upload_link(link["link_id"], one_time=True) is False
+
+
+def test_patient_key_opaque_in_storage_and_logs():
+    """Security review: a partner may put an MRN/name in the CSV/manifest
+    patient_key (which never passes the case-body PHI scan) — the persisted and
+    logged form must be the opaque hash, never the raw key."""
+    link = _mint(_admin_h())
+    zb = _zip({"manifest.json": _manifest(patient_key="MRN-99887766"), "labs.csv": _CSV})
+    res = _upload(link["token"], zb)
+    cases = _store().list_ingest_cases(upload_id=res["upload_id"])
+    assert cases and cases[0]["patient_key"].startswith("pk-")
+    assert "MRN-99887766" not in json.dumps(cases[0]["patient_key"])
+    events = _store().list_events(entity_type="ingest_case", limit=50)
+    assert events and all("MRN-99887766" not in json.dumps(e) for e in events)
+    detail = client.get(f"/api/asclepius/ingestion/uploads/{res['upload_id']}",
+                        headers=_admin_h()).json()
+    assert "MRN-99887766" not in json.dumps(detail["files"])
+
+
 def test_raw_token_never_stored():
     link = _mint(_admin_h())
     rows = _store().list_upload_links()
@@ -237,6 +263,65 @@ def test_quarantine_override_cannot_bypass_hard_guard():
     r2 = client.post(f"/api/asclepius/ingestion/quarantine/{qcase['ingest_case_id']}/reject",
                      headers=admin_h)
     assert r2.status_code == 200
+
+
+def test_scrub_refuses_timeline_unresolved_quarantine():
+    """Review HIGH finding: a case quarantined for UNRESOLVED date tokens (no
+    verifier findings to scrub) must not flip to 'ingested' via scrub — the
+    ambiguous tokens are still in the text."""
+    admin_h = _admin_h()
+    link = _mint(admin_h)
+    # No manifest index_event; the note carries an ambiguous partial date.
+    zb = _zip({"manifest.json": json.dumps({"patient_key": "p1", "specialty": "nephrology"}),
+               "labs.csv": _CSV,
+               "note.txt": "Dialysis started 3/14, held 3/16 per family."})
+    res = _upload(link["token"], zb)
+    q = _store().list_ingest_cases(status="quarantined")
+    assert q, _store().list_ingest_cases(upload_id=res["upload_id"])
+    r = client.post(f"/api/asclepius/ingestion/quarantine/{q[0]['ingest_case_id']}/scrub",
+                    headers=admin_h)
+    assert r.status_code == 200
+    assert r.json()["status"] == "quarantined"          # NOT ingested
+    assert "unresolved" in (r.json().get("reason") or "")
+    assert _store().get_ingest_case(q[0]["ingest_case_id"])["status"] == "quarantined"
+
+
+def test_scrub_handles_field_keys_with_dots_and_brackets():
+    """Review finding: FHIR vitals keys like 'Oxygen saturation [%]' crashed the
+    scrub path (string-path parsing). Segment paths navigate them correctly."""
+    from asclepius import deid_verify as dv
+    case = {"vitals": {"Oxygen saturation [%]": "97 — call 555-123-4567 with changes",
+                       "Temp. oral": "37.1"}}
+    rep = dv.verify_deid(case)
+    assert rep["status"] == "flagged"
+    scrubbed = dv.apply_targeted_scrub(case, rep["findings"])
+    assert "555-123-4567" not in json.dumps(scrubbed)
+    assert "[redacted]" in scrubbed["vitals"]["Oxygen saturation [%]"]
+    assert scrubbed["vitals"]["Temp. oral"] == "37.1"   # untouched
+
+
+def test_nan_lab_value_stays_string():
+    """Review finding: a 'nan' CSV value became float NaN and 500'd every JSON
+    response containing the case."""
+    from asclepius.adapters import lab_csv
+    csv_text = "analyte,value\nSodium,nan\nPotassium,5.1\n"
+    frag = lab_csv.parse(csv_text)
+    vals = [r["value"] for p in frag["lab_panels"] for r in p["results"]]
+    assert "nan" in vals and 5.1 in vals
+    json.dumps(frag, allow_nan=False)   # must not raise
+
+
+def test_numeric_patient_key_does_not_kill_case():
+    """Review finding: a numeric pseudonymous patient_key leaked into the panel
+    body and false-tripped the long-number scan, rejecting the whole case."""
+    link = _mint(_admin_h())
+    csv_text = _CSV.replace("p1", "5551234567")
+    zb = _zip({"manifest.json": json.dumps(
+        {"patient_key": "5551234567", "specialty": "nephrology", "index_event": "2031-03-19"}),
+        "labs.csv": csv_text})
+    res = _upload(link["token"], zb)
+    st = client.get(f"/api/asclepius/partner/uploads/{res['upload_id']}?t={link['token']}").json()
+    assert st["status"] == "ingested", st
 
 
 # ─── Imaging policy (PRD §11 criterion 5) ─────────────────────────────────────

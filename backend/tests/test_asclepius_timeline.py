@@ -144,6 +144,66 @@ def test_b1_unnormalized_case_still_rejected():
         cf.deidentify(frags)
 
 
+# ─── review-round regressions ─────────────────────────────────────────────────
+def test_month_year_partials_generalize_to_year():
+    """Review HIGH finding: '12/2024', '12-2024', 'March 2024' leaked through
+    every rewriter AND both PHI scanners into shipped prompts. They now
+    generalize to the bare year (Safe-Harbor-permitted)."""
+    from datetime import date
+    out, k, unres = rewrite_note_dates(
+        "Diagnosed 12/2031. Declining since March 2031; ESRD since 6-2030.",
+        date(2031, 3, 19))
+    assert "12/2031" not in out and "March 2031" not in out and "6-2030" not in out
+    assert out == "Diagnosed 2031. Declining since 2031; ESRD since 2030."
+    assert unres == []
+
+
+def test_clinical_ratios_and_ranges_not_flagged():
+    """Review finding: 'BP 90/60' and '1-2 weeks' were flagged unresolved and
+    quarantined ordinary notes. Plausibility-gated now."""
+    from datetime import date
+    text = "BP 90/60, follow-up in 1-2 weeks, 1/2 tablet daily."
+    out, k, unres = rewrite_note_dates(text, date(2031, 3, 19))
+    assert unres == [] and out == text
+    # …while a genuine ambiguous partial date still flags:
+    _, _, unres2 = rewrite_note_dates("Symptoms since 3/14.", date(2031, 3, 19))
+    assert unres2
+
+
+def test_lowercase_may_verb_not_mangled():
+    """Review finding: 'patient may 5 days later…' was rewritten as a date."""
+    from datetime import date
+    text = "Patient may 5 days later develop AKI."
+    out, k, _ = rewrite_note_dates(text, date(2031, 5, 5))
+    assert out == text and k == 0
+    # Capitalized month usage still rewrites:
+    out2, k2, _ = rewrite_note_dates("Seen May 5.", date(2031, 5, 5))
+    assert "[day 0]" in out2 and k2 == 1
+
+
+def test_yearless_month_across_year_boundary():
+    """Review finding: index Jan 5, note 'admitted Dec 28' produced +357 instead
+    of −8. The nearest candidate year now wins."""
+    from datetime import date
+    out, k, _ = rewrite_note_dates("Admitted Dec 28, improving.", date(2032, 1, 5))
+    assert "[day -8]" in out
+
+
+def test_hl7_ts_with_timezone_parses():
+    from datetime import date
+    assert parse_datetime("20310319080000-0500") == date(2031, 3, 19)
+    assert parse_datetime("20310319080000.1234+0200") == date(2031, 3, 19)
+
+
+def test_datelike_leftovers_helper():
+    from asclepius.timeline import datelike_leftovers
+    dirty = {"notes": [{"text": "since 3/14 and 2031-01-02"}],
+             "vitals": {"note": "on 4/15/2031"}, "problem_list": [{"since": "2027-06-02"}]}
+    left = datelike_leftovers(dirty)
+    assert len(left) >= 3 and all("•" in t for t in left)
+    assert datelike_leftovers({"notes": [{"text": "BP 120/80, clean"}]}) == []
+
+
 # ─── re-identification safety ─────────────────────────────────────────────────
 def test_report_never_contains_the_index_date():
     """The resolved index date is a re-identification key — it must die with the

@@ -52,25 +52,33 @@ def _mask(s: str) -> str:
     return re.sub(r"[A-Za-z0-9]", "•", s)
 
 
-def _walk_strings(node: Any, path: str = "") -> List[Tuple[str, str]]:
-    """(field_path, string) for every string in the case — same drift-proof walk
-    as the deidentify guard, but path-annotated for actionable findings."""
-    out: List[Tuple[str, str]] = []
+def _walk_strings(node: Any, segs: Tuple = ()) -> List[Tuple[Tuple, str]]:
+    """(path_segments, string) for every string in the case — same drift-proof
+    walk as the deidentify guard, path-annotated for actionable findings.
+
+    Paths are SEGMENT TUPLES (keys/indices), never a dotted string: real field
+    keys contain dots and brackets (FHIR vitals like "Oxygen saturation [%]"),
+    which made string-path parsing crash or silently no-op (review finding)."""
+    out: List[Tuple[Tuple, str]] = []
     if isinstance(node, str):
-        out.append((path or "$", node))
+        out.append((segs, node))
     elif isinstance(node, dict):
         for k, v in node.items():
-            out.extend(_walk_strings(v, f"{path}.{k}" if path else str(k)))
+            out.extend(_walk_strings(v, segs + (k,)))
     elif isinstance(node, (list, tuple)):
         for i, v in enumerate(node):
-            out.extend(_walk_strings(v, f"{path}[{i}]"))
+            out.extend(_walk_strings(v, segs + (i,)))
     return out
+
+
+def _display_path(segs: Tuple) -> str:
+    return ".".join(str(s) for s in segs) or "$"
 
 
 # ─── Backends ─────────────────────────────────────────────────────────────────
 def _baseline_findings(case: Dict[str, Any]) -> List[Dict[str, Any]]:
     findings: List[Dict[str, Any]] = []
-    for path, text in _walk_strings(case):
+    for segs, text in _walk_strings(case):
         if not text:
             continue
         # Fast pre-check with the shared scanner (incl. gold.deid when present)…
@@ -81,7 +89,8 @@ def _baseline_findings(case: Dict[str, Any]) -> List[Dict[str, Any]]:
         if span_hits:
             for kind, m in span_hits:
                 findings.append({
-                    "kind": kind, "field_path": path,
+                    "kind": kind, "field_path": _display_path(segs),
+                    "path_segments": list(segs),
                     "snippet_masked": _mask(m.group(0)),
                     "span": [m.start(), m.end()],
                     "confidence": 0.9,
@@ -91,7 +100,8 @@ def _baseline_findings(case: Dict[str, Any]) -> List[Dict[str, Any]]:
             # report the whole field (masked) so it still quarantines visibly.
             for kind in kinds:
                 findings.append({
-                    "kind": kind, "field_path": path,
+                    "kind": kind, "field_path": _display_path(segs),
+                    "path_segments": list(segs),
                     "snippet_masked": _mask(text[:60]),
                     "span": [0, len(text)],
                     "confidence": 0.7,
@@ -108,12 +118,13 @@ def _presidio_findings(case: Dict[str, Any]) -> List[Dict[str, Any]]:
         return _baseline_findings(case)
     engine = AnalyzerEngine()
     findings: List[Dict[str, Any]] = []
-    for path, text in _walk_strings(case):
+    for segs, text in _walk_strings(case):
         if not text:
             continue
         for res in engine.analyze(text=text, language="en"):
             findings.append({
-                "kind": str(res.entity_type).lower(), "field_path": path,
+                "kind": str(res.entity_type).lower(), "field_path": _display_path(segs),
+                "path_segments": list(segs),
                 "snippet_masked": _mask(text[res.start:res.end]),
                 "span": [res.start, res.end],
                 "confidence": round(float(res.score), 3),
@@ -130,7 +141,7 @@ def _comprehend_findings(case: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "are unavailable; falling back to the baseline scanner.")
         return _baseline_findings(case)
     findings: List[Dict[str, Any]] = []
-    for path, text in _walk_strings(case):
+    for segs, text in _walk_strings(case):
         if not text:
             continue
         try:
@@ -141,7 +152,8 @@ def _comprehend_findings(case: Dict[str, Any]) -> List[Dict[str, Any]]:
         for ent in resp.get("Entities") or []:
             b, e = int(ent.get("BeginOffset", 0)), int(ent.get("EndOffset", 0))
             findings.append({
-                "kind": str(ent.get("Type", "phi")).lower(), "field_path": path,
+                "kind": str(ent.get("Type", "phi")).lower(), "field_path": _display_path(segs),
+                "path_segments": list(segs),
                 "snippet_masked": _mask(text[b:e]),
                 "span": [b, e],
                 "confidence": round(float(ent.get("Score", 0.0)), 3),
@@ -177,44 +189,46 @@ def verify_deid(case: Dict[str, Any]) -> Dict[str, Any]:
 def apply_targeted_scrub(case: Dict[str, Any], findings: List[Dict[str, Any]]) -> Dict[str, Any]:
     """The quarantine "scrub" action (PRD §8): redact EXACTLY the flagged spans
     (``[redacted]``), touching nothing else — an explicit, logged human action,
-    never automatic. Spans are applied right-to-left per field so earlier
-    replacements don't shift later offsets."""
+    never automatic. Navigation is by the finding's ``path_segments`` (keys /
+    indices), so field keys containing dots or brackets (FHIR vitals like
+    "Oxygen saturation [%]") scrub correctly instead of crashing (review
+    finding). Spans apply right-to-left per field so earlier replacements don't
+    shift later offsets."""
     import copy
     out = copy.deepcopy(case or {})
 
-    by_path: Dict[str, List[List[int]]] = {}
+    by_path: Dict[tuple, List[List[int]]] = {}
     for f in findings or []:
+        segs = f.get("path_segments")
         span = f.get("span")
-        if f.get("field_path") and isinstance(span, (list, tuple)) and len(span) == 2:
-            by_path.setdefault(f["field_path"], []).append([int(span[0]), int(span[1])])
+        if segs and isinstance(span, (list, tuple)) and len(span) == 2:
+            by_path.setdefault(tuple(segs), []).append([int(span[0]), int(span[1])])
 
-    def _set(node: Any, parts: List[str], spans: List[List[int]]) -> None:
-        if not parts:
-            return
-        head, rest = parts[0], parts[1:]
-        idx = None
-        if "[" in head:
-            head, _, i = head.partition("[")
-            idx = int(i.rstrip("]"))
-        child = node.get(head) if isinstance(node, dict) else None
-        if idx is not None and isinstance(child, list) and 0 <= idx < len(child):
-            child_container, key = child, idx
-            target = child[idx]
-        else:
-            child_container, key = node, head
-            target = child
-        if rest:
-            _set(target, rest, spans)
-        elif isinstance(target, str):
-            s = target
-            for start, end in sorted(spans, key=lambda x: -x[0]):
-                if 0 <= start < end <= len(s):
-                    s = s[:start] + "[redacted]" + s[end:]
-            if isinstance(child_container, dict):
-                child_container[key] = s
-            elif isinstance(child_container, list):
-                child_container[key] = s
-
-    for path, spans in by_path.items():
-        _set(out, path.split("."), spans)
+    for segs, spans in by_path.items():
+        # Walk to the PARENT container of the string leaf.
+        node: Any = out
+        ok = True
+        for s in segs[:-1]:
+            if isinstance(node, dict) and s in node:
+                node = node[s]
+            elif isinstance(node, list) and isinstance(s, int) and 0 <= s < len(node):
+                node = node[s]
+            else:
+                ok = False
+                break
+        if not ok:
+            continue
+        leaf = segs[-1]
+        container_ok = (
+            (isinstance(node, dict) and leaf in node and isinstance(node[leaf], str))
+            or (isinstance(node, list) and isinstance(leaf, int)
+                and 0 <= leaf < len(node) and isinstance(node[leaf], str))
+        )
+        if not container_ok:
+            continue
+        s = node[leaf]
+        for start_i, end_i in sorted(spans, key=lambda x: -x[0]):
+            if 0 <= start_i < end_i <= len(s):
+                s = s[:start_i] + "[redacted]" + s[end_i:]
+        node[leaf] = s
     return out
