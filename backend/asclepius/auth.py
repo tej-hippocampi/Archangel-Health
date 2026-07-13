@@ -9,6 +9,7 @@ Reuses ``PyJWT`` + ``passlib`` (already in requirements) — no new auth library
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import secrets
@@ -94,6 +95,35 @@ def authenticate(store: AsclepiusStore, email: str, password: str) -> Optional[D
     return user
 
 
+def real_data_approved(user: Dict[str, Any]) -> bool:
+    """Whether a contributor may take V4 real-patient-case tasks (Data Provider
+    Portal PRD §8 contributor gate: BAA + training done). Admin/QA are implicitly
+    approved; an evaluator needs a truthy ``real_data_approved`` attestation. A dev
+    escape hatch (``ASCLEPIUS_REAL_DATA_APPROVED_ALL=1``) approves everyone so the
+    V4 box is testable without a BAA workflow."""
+    if (os.getenv("ASCLEPIUS_REAL_DATA_APPROVED_ALL") or "").strip() in ("1", "true", "yes"):
+        return True
+    if user.get("role") in ("admin", "qa_reviewer"):
+        return True
+    att = user.get("attestations")
+    if isinstance(att, str):
+        try:
+            att = json.loads(att)
+        except (ValueError, TypeError):
+            att = {}
+    if isinstance(att, dict) and att.get("real_data_approved"):
+        return True
+    # a column/JSON blob on the row (attestations_json) may carry it too
+    raw = user.get("attestations_json")
+    if isinstance(raw, str):
+        try:
+            if (json.loads(raw) or {}).get("real_data_approved"):
+                return True
+        except (ValueError, TypeError):
+            pass
+    return bool(user.get("real_data_approved"))
+
+
 def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "id": user["id"],
@@ -102,6 +132,9 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         "specialty": user.get("specialty"),
         "board_cert": user.get("board_cert"),
         "years_experience": user.get("years_experience"),
+        # V4 contributor gate (Data Provider Portal PRD §8): the frontend locks the
+        # "V4 · Real Cases" box unless this is true.
+        "real_data_approved": real_data_approved(user),
     }
 
 

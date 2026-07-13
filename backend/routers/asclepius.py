@@ -797,6 +797,12 @@ async def next_task(
     user: Dict[str, Any] = Depends(asc_auth.get_current_user),
 ):
     store = _store()
+    # V4 contributor gate (Data Provider Portal PRD §8): real-patient cases serve
+    # ONLY to contributors flagged real_data_approved (BAA/training done). Others
+    # get a locked signal — enforced server-side, not just hidden in the UI.
+    if portal_version == "v4" and not asc_auth.real_data_approved(user):
+        return {"task": None, "v4_locked": True,
+                "reason": "V4 real-patient cases require real-data approval (BAA + training)."}
     task = _query_next(store, user, portal_version=portal_version)
     if not task:
         # Empty queue -> auto-generate a fresh batch via the engine, then serve.

@@ -132,6 +132,7 @@ def test_promote_to_v4_and_wall(monkeypatch):
     monkeypatch.setattr(rp, "generate_candidates_ex", _fake_candidates)
     monkeypatch.setattr(rp, "run_hardness_judge", _skip_hard)
     monkeypatch.setattr(rp, "run_case_judge", _skip_case)
+    monkeypatch.setenv("ASCLEPIUS_REAL_DATA_APPROVED_ALL", "1")  # BAA gate open for the test
 
     store = A.fresh_store()
     admin = _admin(store)
@@ -161,3 +162,13 @@ def test_promote_to_v4_and_wall(monkeypatch):
     assert v4["task"] and v4["task"]["task_id"] == task_id
     v3 = client.get("/api/asclepius/tasks/next?portal_version=v3", headers=A.headers_for(ev)).json()
     assert (v3["task"] or {}).get("task_id") != task_id  # real case never in a v3 session
+
+
+def test_v4_locked_for_unapproved_contributor(monkeypatch):
+    """The V4 contributor gate (PRD §8): an evaluator without real-data approval
+    gets a locked signal, not a real case — enforced server-side."""
+    monkeypatch.delenv("ASCLEPIUS_REAL_DATA_APPROVED_ALL", raising=False)
+    store = A.fresh_store()
+    ev = A.make_user(store, role="evaluator", specialty="nephrology")
+    r = client.get("/api/asclepius/tasks/next?portal_version=v4", headers=A.headers_for(ev)).json()
+    assert r.get("v4_locked") is True and r.get("task") is None
