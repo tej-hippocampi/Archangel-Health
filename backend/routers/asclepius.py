@@ -108,6 +108,7 @@ from asclepius.schemas import (
 )
 from asclepius.store import get_store
 from asclepius.validation import compute_dedupe_hash, grounding_status, is_grounded, residual_identifiers
+from ratelimit import rate_limiter
 
 log = logging.getLogger("asclepius.router")
 
@@ -200,7 +201,7 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
 
 
 # ─── Auth ─────────────────────────────────────────────────────────────────────
-@router.post("/auth/login")
+@router.post("/auth/login", dependencies=[Depends(rate_limiter("asclepius_login", 10, 60))])
 async def login(body: LoginRequest):
     store = _store()
     user = asc_auth.authenticate(store, body.email, body.password)

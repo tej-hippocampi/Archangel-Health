@@ -22,6 +22,8 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
+from ratelimit import rate_limiter
+
 from asclepius import auth as asc_auth
 from asclepius import cases as asc_cases
 from asclepius import ingestion as asc_ingestion
@@ -195,7 +197,8 @@ async def provider_me(provider_user: Dict[str, Any] = Depends(asc_auth.require_d
     }
 
 
-@router.post("/provider/password")
+@router.post("/provider/password",
+             dependencies=[Depends(rate_limiter("provider_password", 10, 60))])
 async def provider_password(
     body: ProviderPasswordRequest,
     provider_user: Dict[str, Any] = Depends(asc_auth.require_data_partner),
@@ -219,7 +222,8 @@ async def provider_password(
     return {"ok": True}
 
 
-@router.post("/provider/uploads")
+@router.post("/provider/uploads",
+             dependencies=[Depends(rate_limiter("provider_upload", 30, 60))])
 async def provider_upload(
     files: List[UploadFile] = File(...),
     provider_user: Dict[str, Any] = Depends(asc_auth.require_data_partner),
@@ -237,12 +241,17 @@ async def provider_upload(
 
     raw_files: List[Dict[str, Any]] = []
     total = 0
+    per_file_cap = asc_ingestion.max_file_bytes()
+    total_cap = asc_ingestion.max_total_bytes()
     for uf in files:
-        content = await uf.read()
-        if len(content) > asc_ingestion.max_file_bytes():
+        # Bounded read: never pull more than the per-file cap (+1 sentinel) into
+        # memory, so a hostile/huge file can't OOM the worker before the size
+        # check runs. UploadFile.read(n) reads at most n bytes from the spool.
+        content = await uf.read(per_file_cap + 1)
+        if len(content) > per_file_cap:
             raise HTTPException(status_code=413, detail=f"{uf.filename} exceeds the per-file size limit.")
         total += len(content)
-        if total > asc_ingestion.max_total_bytes():
+        if total > total_cap:
             raise HTTPException(status_code=413, detail="Upload exceeds the total size limit.")
         raw_files.append({"filename": uf.filename or "file", "content": content})
 

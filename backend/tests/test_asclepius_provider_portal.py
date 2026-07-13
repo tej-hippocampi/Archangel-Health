@@ -164,6 +164,22 @@ def test_promote_to_v4_and_wall(monkeypatch):
     assert (v3["task"] or {}).get("task_id") != task_id  # real case never in a v3 session
 
 
+def test_login_is_rate_limited(monkeypatch):
+    """PRD §4 security: provider/evaluator login is rate-limited (brute-force
+    defense). With throttling on, a burst of bad logins eventually gets 429."""
+    import ratelimit
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "1")
+    ratelimit.reset()
+    try:
+        codes = [client.post("/api/asclepius/auth/login",
+                             json={"email": "nobody@x.org", "password": "wrong"}).status_code
+                 for _ in range(13)]
+        assert 429 in codes  # the limiter kicks in within the burst
+    finally:
+        monkeypatch.setenv("RATE_LIMIT_ENABLED", "0")
+        ratelimit.reset()
+
+
 def test_v4_locked_for_unapproved_contributor(monkeypatch):
     """The V4 contributor gate (PRD §8): an evaluator without real-data approval
     gets a locked signal, not a real case — enforced server-side."""

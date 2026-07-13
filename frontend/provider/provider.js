@@ -123,7 +123,14 @@
     quarantined:  { label: "Held for safety", badge: "asc-badge-amber",   icon: "🛑",
                     help: "Set aside pending a safety check." },
     failed:       { label: "Could not process", badge: "asc-badge-red",   icon: "⚠️",
-                    help: "We were unable to process this. See the reason below." }
+                    help: "We were unable to process this. See the reason below." },
+    // per-file outcomes emitted by the ingestion pipeline
+    parsed:       { label: "Read",             badge: "asc-badge-green",   icon: "✅",
+                    help: "Read successfully and folded into your case." },
+    rejected:     { label: "Not accepted",     badge: "asc-badge-red",     icon: "🚫",
+                    help: "This file type isn't accepted (e.g. an executable or script)." },
+    excluded:     { label: "Excluded",         badge: "asc-badge-gray",    icon: "🖼️",
+                    help: "Imaging can't be graded and was left out — the rest of your bundle is unaffected." }
   };
 
   function statusMeta(status) {

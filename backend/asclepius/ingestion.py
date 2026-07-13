@@ -220,7 +220,17 @@ def store_raw(upload_id: str, filename: str, content: bytes) -> str:
                 blob, enc = sealed, True
     except Exception:
         log.warning("raw upload encryption failed; storing with restricted perms", exc_info=True)
-    path = os.path.join(up_dir, safe_name + (".enc" if enc else ""))
+    # Avoid silently overwriting a same-basename sibling in the same bundle
+    # (e.g. two "labs.csv" from different zip folders) — that would lose a file on
+    # retry. Disambiguate with a counter before the extension.
+    base = safe_name + (".enc" if enc else "")
+    path = os.path.join(up_dir, base)
+    if os.path.exists(path):
+        stem, ext = os.path.splitext(safe_name)
+        n = 1
+        while os.path.exists(path):
+            path = os.path.join(up_dir, f"{stem}__{n}{ext}" + (".enc" if enc else ""))
+            n += 1
     with open(path, "wb") as fh:
         fh.write(blob)
     try:
