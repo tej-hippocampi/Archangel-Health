@@ -368,6 +368,10 @@ GENERATION_DROP_REASONS = (
     "multimodal_not_necessary",    # answer derivable from the stem alone (decorative labs)
     "low_reasoning_divergence",    # no sound-vs-shortcut path (right-answer-wrong-reason)
     "case_gen_failed",         # case generation unavailable / unparseable / PHI-flagged
+    # ── Multimodal non-skippable gates + content assertion (BUG-1 §2, §4) ──
+    "insufficient_case_content",   # case lacks the mandatory labs/note/problem/med content
+    "case_judge_unavailable",      # multimodal: case judge degraded to skipped → drop (never pass ungated)
+    "hardness_unavailable",        # multimodal: hardness judge degraded to skipped → drop (never pass ungated)
 )
 
 # ─── Hard-Case Engine (Seamless PRD WS2) ──────────────────────────────────────
@@ -388,8 +392,11 @@ HARDNESS_AXES = (
 
 def hardness_min() -> float:
     """Minimum hardness score (0–1) a generated candidate must reach to be served
-    as a hard case. Env-overridable so the floor can be tuned to judge behavior."""
-    return _env_float("ASCLEPIUS_HARDNESS_MIN", 0.7)
+    as a hard case. Env-overridable so the floor can be tuned to judge behavior.
+
+    Raised to 0.75 (BUG-1): the multimodal product's whole value is that the cases
+    are genuinely hard — a 0.7 floor let borderline cases through."""
+    return _env_float("ASCLEPIUS_HARDNESS_MIN", 0.75)
 
 
 def hard_only_generation() -> bool:
@@ -410,8 +417,11 @@ def case_coherence_min() -> float:
 
 def case_mm_necessity_min() -> float:
     """The answer must REQUIRE integrating ≥1 lab panel and/or the note — not be
-    derivable from the question stem alone (the anti-"decorative labs" gate)."""
-    return _env_float("ASCLEPIUS_CASE_MM_NECESSITY_MIN", 0.7)
+    derivable from the question stem alone (the anti-"decorative labs" gate).
+
+    Raised to 0.8 (BUG-1): decorative labs are the #1 way a "multimodal" case is
+    really a text case wearing a lab table — hold the necessity bar high."""
+    return _env_float("ASCLEPIUS_CASE_MM_NECESSITY_MIN", 0.8)
 
 
 # An objectively correct, guideline/lab-anchorable answer must exist; and the case
@@ -592,6 +602,12 @@ CONTRIBUTOR_ROLE_TITLES = (
     "Pharmacist",
     "Other",
 )
+
+# The bucket a contributor with no resolvable organization lands in (BUG-6). A
+# record that exists but appears in NO org grouping is the worst admin failure
+# mode; every ungrouped contributor is collected here so nothing is ever
+# invisible. Kept as one constant so exports + metrics + directory agree.
+UNASSIGNED_ORG = "(unassigned)"
 
 # Practice-setting categories — the ONLY practice descriptor that ships. Never a
 # named institution (that is Tier B).

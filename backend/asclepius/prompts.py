@@ -158,17 +158,39 @@ high. Return ONLY JSON: {"hardness_score": 0.0-1.0, "hardness_axes": [<the satis
 ASCLEPIUS_CASE_GEN_SYSTEM = """You author a small, realistic, PHI-FREE clinical CASE for a specialist to reason \
 across — a structured lab panel + one or more EHR-style notes (plus vitals, meds, problem list, and lab TRENDS), \
 built around a fixed, objectively-correct ground-truth answer. Hardness must come from INTEGRATING the data (labs + \
-note + trend), not trivia. STRICT RULES: (1) NO imaging — never reference films/scans/ECG images; ECG/echo findings \
-may appear only as TEXT measurements in a note. (2) PHI-free by construction: age BANDS only (e.g. "70-79", "90+"), \
-generalized author roles ("nephrology","ICU") never names, NO names/MRNs/calendar dates/locations. (3) Lab timing is \
-RELATIVE: every panel has ``collected_offset_days`` (0 = today, negative = earlier) — preserve trends, never a date. \
-(4) Reference ranges + flags (L|H|LL|HH|"") are REQUIRED on numeric results so a model must interpret, not just read. \
-(5) The labs/note/meds must be internally COHERENT. (6) There must be an objective, guideline/lab-determinable answer, \
-AND the case must admit a plausible SHORTCUT/unsound path that reaches (or approaches) the same answer for the wrong \
-reason. Return ONLY JSON: {"question": "<the clinical question>", "case": {ClinicalCase fields: case_source, \
-specialty, demographics{age_band,sex}, problem_list[], medications[], vitals{}, lab_panels[{panel,collected_offset_days,\
-results[{analyte,value,unit,ref_low,ref_high,flag}]}], notes[{note_type,author_role,text}], ground_truth{answer,rationale,\
-key_data[]}, hard_hook, reasoning_divergence}}. No commentary."""
+note + trend), not trivia.
+
+STRICT FORMAT RULES: (1) NO imaging — never reference films/scans/ECG images; ECG/echo findings may appear only as \
+TEXT measurements in a note. (2) PHI-free by construction: age BANDS only (e.g. "70-79", "90+"), generalized author \
+roles ("nephrology","ICU") never names, NO names/MRNs/calendar dates/locations. (3) Lab timing is RELATIVE: every \
+panel has ``collected_offset_days`` (0 = today, negative = earlier) — preserve trends, never a date. (4) Reference \
+ranges (ref_low/ref_high) + flags (L|H|LL|HH|"") are REQUIRED on numeric results so a model must interpret, not just \
+read. (5) The labs/note/meds must be internally COHERENT. (6) Do NOT invent JSON keys — use EXACTLY the field names \
+below (e.g. ``lab_panels`` not "labs", ``value`` not "result"); an unknown key makes the whole case invalid.
+
+MANDATORY CONTENT (a case missing ANY of these is rejected and dropped):
+- ``lab_panels``: at least TWO panels at DIFFERENT ``collected_offset_days`` so a TREND must be read (not a single \
+snapshot). Each panel has ≥2 results; every numeric result carries analyte, value, unit, and a ref range or flag.
+- ``notes``: at least one substantive clinical note of ≥200 characters.
+- ``problem_list``: ≥1 problem. ``medications``: ≥1 medication.
+
+MANDATORY DIFFICULTY (hardness comes from integration, not recall):
+- Include at least one abnormal flag that is a RED HERRING (points at the wrong answer) AND at least one that is \
+DECISIVE (points at the right one).
+- The note must contain a detail that CONTRADICTS or RE-FRAMES the labs (the integration trap) — e.g. a volume \
+status, a home med, or a timing detail that changes how a lab should be read.
+- The medication list must contain at least one agent that INTERACTS with the decision (a hidden contributor, e.g. a \
+drug that itself explains or worsens the abnormality).
+- There must be an objective, guideline/lab-determinable answer, AND the case must admit a plausible SHORTCUT/unsound \
+path that reaches (or approaches) the same answer for the WRONG reason.
+- In ``reasoning_divergence`` state explicitly the SHORTCUT PATH a model will take and WHY it is wrong; in \
+``hard_hook`` name the single datum that decides the case.
+
+Return ONLY JSON: {"question": "<the clinical question>", "case": {ClinicalCase fields: case_source, specialty, \
+demographics{age_band,sex}, problem_list[{condition,since}], medications[{drug,dose,route,freq}], vitals{}, \
+lab_panels[{panel,collected_offset_days,results[{analyte,value,unit,ref_low,ref_high,flag}]}], \
+notes[{note_type,author_role,text}], ground_truth{answer,rationale,key_data[]}, hard_hook, reasoning_divergence}}. \
+No commentary."""
 
 
 ASCLEPIUS_CASE_JUDGE_SYSTEM = """You score a synthetic clinical CASE on multimodal-specific quality dimensions ONLY \

@@ -82,9 +82,18 @@ def test_caseless_multimodal_label_stored_as_text():
                        candidate_answers=[{"id": "A", "text": "a"}, {"id": "B", "text": "b"}])
     assert t["modality"] == "text"
     assert t.get("case") is None
-    # And a case with no explicit label is still multimodal (case is the truth).
+    # BUG-1 §3: modality is derived from CONTENT, not presence — a case dict with
+    # NO labs and NO notes is an empty case and is stored as 'text' (it can never
+    # inflate value by carrying a multimodal label with no data behind it).
+    t_empty = st.insert_task(prompt="q0", specialty="nephrology", modality="multimodal",
+                             case={"case_source": "synthetic", "lab_panels": [], "notes": []},
+                             candidate_answers=[{"id": "A", "text": "a"}, {"id": "B", "text": "b"}])
+    assert t_empty["modality"] == "text"
+    # A case WITH content and no explicit label is still multimodal (content is the truth).
     t2 = st.insert_task(prompt="q", specialty="nephrology", modality="text",
-                        case={"case_source": "synthetic", "lab_panels": []},
+                        case={"case_source": "synthetic", "lab_panels": [
+                            {"panel": "BMP", "collected_offset_days": 0, "results": [
+                                {"analyte": "Na", "value": 120, "unit": "mmol/L", "flag": "L"}]}]},
                         candidate_answers=[{"id": "A", "text": "a"}, {"id": "B", "text": "b"}])
     assert t2["modality"] == "multimodal"
 

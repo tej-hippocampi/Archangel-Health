@@ -33,7 +33,7 @@ from asclepius.constants import (
     default_license,
     label_for_correction_reason,
 )
-from asclepius.validation import is_valid_anchor
+from asclepius.validation import all_anchors, has_valid_anchor, is_valid_anchor
 
 
 def _candidate_text(task: Dict[str, Any], cid: Optional[str]) -> str:
@@ -83,6 +83,19 @@ def _anchor(a: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if a.get("citation_confirmed") is not None:
         out["citation_confirmed"] = bool(a.get("citation_confirmed"))
     return out
+
+
+def _anchors(obj: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalize EVERY evidence anchor on an object into the canonical shape,
+    merging singular + multi-anchor fields (BUG-3b). Drops empties."""
+    return [na for na in (_anchor(a) for a in all_anchors(obj)) if na]
+
+
+def _first_anchor(obj: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The back-compat SINGULAR anchor for a record: the first normalized anchor
+    (so existing exports/buyer profiles that read ``evidence_anchor`` still work)."""
+    anchors = _anchors(obj)
+    return anchors[0] if anchors else None
 
 
 def _generation_provenance(task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -178,7 +191,9 @@ def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "step_reward": s.get("step_reward"),
                 # One-line "what's off?" critique on graded steps (Eval Flow Upgrade §4).
                 "critique": s.get("critique"),
-                "evidence_anchor": _anchor(s.get("evidence_anchor")),
+                # Multi-anchor (BUG-3b): the full list + a singular back-compat alias.
+                "evidence_anchor": _first_anchor(s),
+                "evidence_anchors": _anchors(s),
             }
         )
     return out
@@ -203,7 +218,9 @@ def _step_pairs(steps: List[Dict[str, Any]], prompt: str) -> List[Dict[str, Any]
 
 
 def _steps_grounded(steps: List[Dict[str, Any]]) -> bool:
-    return bool(steps) and all(is_valid_anchor(s.get("evidence_anchor")) for s in steps)
+    # A step is grounded if it carries ≥1 valid anchor across singular + plural
+    # (BUG-3b). A packaged step already exposes both fields.
+    return bool(steps) and all(has_valid_anchor(s) for s in steps)
 
 
 def _chat(prompt: str, completion: str) -> List[Dict[str, str]]:
@@ -295,15 +312,17 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
             critique.get("why_worse") or ""
         ).strip()
 
-        rationale_anchor = _anchor(revision.get("evidence_anchor"))
+        rationale_anchor = _first_anchor(revision)
+        rationale_anchors = _anchors(revision)
         # Per-error-tag evidence anchors (opt §1.2).
         tag_anchors_raw = critique.get("error_tag_anchors") or {}
         error_tag_anchors = {
             tag: _anchor(anc) for tag, anc in tag_anchors_raw.items() if _anchor(anc)
         }
-        # Premium-tier grounded flag counts a valid anchor on the rationale OR on
-        # any error tag, so the grounded count is not undercounted (FIX 5).
-        grounded = is_valid_anchor(revision.get("evidence_anchor")) or any(
+        # Premium-tier grounded flag counts a valid anchor on the rationale (across
+        # singular + multi-anchor, BUG-3b) OR on any error tag, so the grounded
+        # count is not undercounted (FIX 5).
+        grounded = has_valid_anchor(revision) or any(
             is_valid_anchor(anc) for anc in tag_anchors_raw.values()
         )
 
@@ -327,6 +346,7 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
             "context": _context(task),
             "rationale": rationale,
             "evidence_anchor": rationale_anchor,
+            "evidence_anchors": rationale_anchors,
             "why_better_tags": list(revision.get("why_better_tags") or []),
             "error_tags_on_rejected": error_tags,
             "error_tag_anchors": error_tag_anchors,
@@ -359,6 +379,7 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
                     "messages": _chat(prompt, revised_text),
                     "approach_notes": (revision.get("why_better_notes") or "").strip(),
                     "evidence_anchor": rationale_anchor,
+                    "evidence_anchors": rationale_anchors,
                     "context": _context(task),
                     "confidence": submission.get("confidence"),
                     "grounded": grounded,
@@ -370,8 +391,9 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
         fs = payload.get("from_scratch") or {}
         ideal = (fs.get("ideal_answer") or "").strip()
         approach = (fs.get("approach_notes") or "").strip()
-        rationale_anchor = _anchor(fs.get("evidence_anchor"))
-        grounded = is_valid_anchor(fs.get("evidence_anchor"))
+        rationale_anchor = _first_anchor(fs)
+        rationale_anchors = _anchors(fs)
+        grounded = has_valid_anchor(fs)
         records.append(
             {
                 "type": "ideal_answer",
@@ -381,6 +403,7 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
                 "messages": _chat(prompt, ideal),
                 "approach_notes": approach,
                 "evidence_anchor": rationale_anchor,
+                "evidence_anchors": rationale_anchors,
                 "context": _context(task),
                 # Pre-reveal quick stance rides the primary record (Speed Opt §1).
                 "stance": stance_text,
@@ -422,10 +445,11 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
                 "completion": ia_text,  # SFT {prompt, completion} alias
                 "messages": _chat(prompt, ia_text),
                 "independent": True,  # written BEFORE seeing A/B (premium SFT)
-                "evidence_anchor": _anchor(ia.get("evidence_anchor")),
+                "evidence_anchor": _first_anchor(ia),
+                "evidence_anchors": _anchors(ia),
                 "context": _context(task),
                 "confidence": submission.get("confidence"),
-                "grounded": is_valid_anchor(ia.get("evidence_anchor")),
+                "grounded": has_valid_anchor(ia),
                 **prov,
             }
         )

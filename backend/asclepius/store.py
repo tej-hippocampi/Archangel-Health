@@ -498,6 +498,11 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE submissions ADD COLUMN value_estimate_projected_usd REAL")
             if "clinician_review_seconds" not in sub_cols:
                 conn.execute("ALTER TABLE submissions ADD COLUMN clinician_review_seconds INTEGER")
+            if "progress_json" not in sub_cols:
+                # Real submit progress (BUG-5): the backend stamps {phase, pct,
+                # detail} onto the row as each pipeline stage ACTUALLY starts, so
+                # the client polls a truthful phase — never an invented percentage.
+                conn.execute("ALTER TABLE submissions ADD COLUMN progress_json TEXT")
 
             if "value_tier" not in task_cols:
                 # Optional admin routing hint (Value-per-Minute PRD B3). Additive;
@@ -544,6 +549,32 @@ class AsclepiusStore:
             ):
                 if col not in user_cols:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
+
+            # ── Organization backfill (BUG-6) ────────────────────────────────
+            # A contributor whose ``organization`` is NULL fell out of EVERY org
+            # grouping in Exports/Metrics — their labeled records existed but
+            # appeared nowhere (the worst admin failure mode). Backfill a stable
+            # org for every existing contributor so their historical submissions
+            # (resolved via this users row at read time) group correctly:
+            #   * the mock/demo account collapses to 'mockadmin';
+            #   * else the onboarding-collected org_name;
+            #   * else the account email's local-part (a stable, non-null bucket).
+            # Idempotent: only touches NULL/blank organizations, so it no-ops on
+            # every boot after the first.
+            conn.execute(
+                "UPDATE users SET organization = 'mockadmin' "
+                "WHERE is_mock = 1 AND (organization IS NULL OR TRIM(organization) = '')"
+            )
+            conn.execute(
+                """
+                UPDATE users SET organization = CASE
+                    WHEN org_name IS NOT NULL AND TRIM(org_name) != '' THEN org_name
+                    WHEN instr(email, '@') > 1 THEN substr(email, 1, instr(email, '@') - 1)
+                    ELSE email
+                END
+                WHERE organization IS NULL OR TRIM(organization) = ''
+                """
+            )
 
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
@@ -1132,7 +1163,11 @@ class AsclepiusStore:
         # of truth; the ``modality`` param is advisory. The FULL case (incl. internal
         # ground_truth) is stored server-side; blinding/packaging strip the answer
         # key downstream — the same contract as the server-side ``intended_flawed_id``.
-        md = "multimodal" if case else "text"
+        # Modality is derived from CONTENT, not presence (BUG-1 §3): a case dict
+        # that carries no labs AND no notes is an empty case and can never be
+        # stamped multimodal (which would grant the value premium + a multimodal
+        # label with no data behind it). An empty ``case={}`` is treated as text.
+        md = "multimodal" if (case and (case.get("lab_panels") or case.get("notes"))) else "text"
         # case_source is DERIVED from the case (EHR PRD §9.5): 'real_deid' only
         # when the case itself says so; any other case is 'synthetic'; a text
         # task has none. First-class column so the V4 routing wall is pure SQL.
@@ -1415,7 +1450,21 @@ class AsclepiusStore:
         rec["critic"] = json.loads(rec.pop("critic_json", "null") or "null")
         rec["qa"] = json.loads(rec.pop("qa_json", "null") or "null")
         rec["annotator"] = json.loads(rec.pop("annotator_json", "null") or "null")
+        rec["progress"] = json.loads(rec.pop("progress_json", "null") or "null")
         return rec
+
+    def set_submission_progress(
+        self, submission_id: str, *, phase: str, pct: int, detail: Optional[str] = None
+    ) -> None:
+        """Stamp the real, backend-observed pipeline phase onto a submission (BUG-5).
+        Called by the pipeline when each stage ACTUALLY starts — the client polls
+        ``GET /submissions/{id}/status`` and shows this exact phase + pct."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE submissions SET progress_json = ?, updated_at = ? WHERE submission_id = ?",
+                (json.dumps({"phase": phase, "pct": int(pct), "detail": detail}),
+                 _utcnow_iso(), submission_id),
+            )
 
     def insert_submission(
         self,
@@ -2252,10 +2301,11 @@ class AsclepiusStore:
             if submission_count == 0 and not has_cred:
                 continue
             ship = (cred or {}).get("ship") or {}
+            from asclepius.constants import UNASSIGNED_ORG
             organization = (
                 (cred or {}).get("organization")
                 or r["user_org"]
-                or "Unaffiliated"
+                or UNASSIGNED_ORG
             )
             primary_specialty = ship.get("primary_specialty") or r["specialty"]
             out.append(
@@ -2291,9 +2341,10 @@ class AsclepiusStore:
     def organization_directory(self) -> List[Dict[str, Any]]:
         """Aggregate the contributor directory by organization for the top-level
         Contributors view (list by org, click in)."""
+        from asclepius.constants import UNASSIGNED_ORG
         orgs: Dict[str, Dict[str, Any]] = {}
         for c in self.contributor_directory():
-            org = c["organization"] or "Unaffiliated"
+            org = c["organization"] or UNASSIGNED_ORG
             agg = orgs.setdefault(
                 org,
                 {
@@ -2315,10 +2366,11 @@ class AsclepiusStore:
         return sorted(orgs.values(), key=lambda o: o["organization"].lower())
 
     def hashed_ids_for_organization(self, organization: str) -> List[str]:
+        from asclepius.constants import UNASSIGNED_ORG
         return [
             c["id_hashed"]
             for c in self.contributor_directory()
-            if (c["organization"] or "Unaffiliated") == organization and c["id_hashed"]
+            if (c["organization"] or UNASSIGNED_ORG) == organization and c["id_hashed"]
         ]
 
     # ─── Contributor record diagnostics & re-attribution (ops tooling) ────────

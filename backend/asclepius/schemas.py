@@ -231,8 +231,11 @@ class ReasoningStep(BaseModel):
     # Optional numeric reward accompanying the label.
     step_reward: Optional[float] = None
     # Per-step evidence anchor (opt §1.2) — required for each step in
-    # grounding_mode=required reasoning tasks.
+    # grounding_mode=required reasoning tasks. Kept as the back-compat SINGULAR
+    # alias for ``evidence_anchors[0]`` (BUG-3b); ``evidence_anchors`` is the
+    # multi-citation list the UI now writes ("+ Add another citation").
     evidence_anchor: Optional[EvidenceAnchor] = None
+    evidence_anchors: List[EvidenceAnchor] = Field(default_factory=list)
     # One-line "what's off?" critique on a non-good step (Eval Flow Upgrade §4) —
     # the premium per-step error signal for PRM training.
     critique: Optional[str] = None
@@ -252,8 +255,10 @@ class ChosenRevision(BaseModel):
     revised_text: Optional[str] = None
     why_better_tags: List[str] = Field(default_factory=list)
     why_better_notes: Optional[str] = None
-    # Evidence anchor on the "why it's better" rationale (opt §1.2).
+    # Evidence anchor on the "why it's better" rationale (opt §1.2). Singular is
+    # the back-compat alias for ``evidence_anchors[0]`` (BUG-3b).
     evidence_anchor: Optional[EvidenceAnchor] = None
+    evidence_anchors: List[EvidenceAnchor] = Field(default_factory=list)
 
 
 class RejectedCritique(BaseModel):
@@ -272,8 +277,10 @@ class FromScratch(BaseModel):
     ideal_answer: str = ""
     approach_notes: Optional[str] = None
     reasoning_steps: List[ReasoningStep] = Field(default_factory=list)
-    # Evidence anchor on the approach/ideal-answer rationale (opt §1.2).
+    # Evidence anchor on the approach/ideal-answer rationale (opt §1.2). Singular
+    # is the back-compat alias for ``evidence_anchors[0]`` (BUG-3b).
     evidence_anchor: Optional[EvidenceAnchor] = None
+    evidence_anchors: List[EvidenceAnchor] = Field(default_factory=list)
 
 
 class PromptReview(BaseModel):
@@ -307,7 +314,9 @@ class IndependentAnswer(BaseModel):
     # "v2" assisted. Sent at reveal so the server can stamp the capture kind
     # (V1 always writes the full blind answer, even on stance-default tasks).
     portal_version: Optional[str] = None
+    # Singular is the back-compat alias for ``evidence_anchors[0]`` (BUG-3b).
     evidence_anchor: Optional[EvidenceAnchor] = None
+    evidence_anchors: List[EvidenceAnchor] = Field(default_factory=list)
     captured_at: Optional[str] = None
 
 

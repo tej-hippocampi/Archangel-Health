@@ -41,7 +41,11 @@ from asclepius.constants import (
     hard_only_generation,
     hardness_min,
 )
-from asclepius.cases import render_case_prompt
+from asclepius.cases import (
+    MultimodalContentError,
+    assert_multimodal_content,
+    render_case_prompt,
+)
 from asclepius.corpus import failure_domain_names, load_hardness_config
 from asclepius.critic import (
     generate_candidates_ex,
@@ -380,11 +384,21 @@ async def generate_tasks(
             # difficulty_mix_skew.
             hardness = None
             insert_difficulty = difficulty
-            if hard_only_generation():
+            # Multimodal cases ALWAYS run the hardness judge (a case is a hard case
+            # or it is not a case); text generation runs it only under hard_only.
+            if hard_only_generation() or case is not None:
                 hj = await run_hardness_judge(
                     prompt, candidates, failure_domains=failure_domain_names(specialty)
                 )
-                if not hj.get("skipped"):
+                if hj.get("skipped"):
+                    # Non-skippable multimodal gate (BUG-1 §4): an ungated case must
+                    # never enter the queue — drop rather than pass. For TEXT
+                    # generation a skipped hardness judge still degrades safely
+                    # (offline generation unaffected; difficulty untouched).
+                    if case is not None:
+                        dropped["hardness_unavailable"] += 1
+                        continue
+                else:
                     hs = hj.get("hardness_score")
                     if hs is None or hs < hardness_min():
                         dropped["below_hardness_floor"] += 1
@@ -404,29 +418,42 @@ async def generate_tasks(
             # drops, same contract as run_hardness_judge).
             case_judge = None
             if case is not None:
+                # Belt-and-braces content assertion (BUG-1 §2): generate_case
+                # already asserts, but re-check here right before insert so a case
+                # that lost content on the wire can never be stored as multimodal.
+                try:
+                    assert_multimodal_content(case)
+                except MultimodalContentError:
+                    dropped["insufficient_case_content"] += 1
+                    continue
                 cj = await run_case_judge(case)
-                if not cj.get("skipped"):
-                    if (cj.get("coherence") or 0.0) < case_coherence_min():
-                        dropped["case_incoherent"] += 1
-                        continue
-                    if (cj.get("ground_truth_determinable") or 0.0) < case_ground_truth_min():
-                        dropped["ground_truth_indeterminate"] += 1
-                        continue
-                    if (cj.get("multimodal_necessity") or 0.0) < case_mm_necessity_min():
-                        dropped["multimodal_not_necessary"] += 1
-                        continue
-                    if (cj.get("reasoning_divergence_potential") or 0.0) < case_divergence_min():
-                        dropped["low_reasoning_divergence"] += 1
-                        continue
-                    case_judge = {
-                        k: cj.get(k) for k in (
-                            "coherence", "ground_truth_determinable",
-                            "multimodal_necessity", "reasoning_divergence_potential")
-                    }
-                    case_judge["explanation"] = cj.get("explanation", "")
-                    case_judge["judge_model"] = cj.get("model")
+                # Non-skippable multimodal gate (BUG-1 §4): a skipped case judge
+                # means the case is UNGATED — drop it, never pass. (Ungated
+                # synthetic cases must never enter the queue.)
+                if cj.get("skipped"):
+                    dropped["case_judge_unavailable"] += 1
+                    continue
+                if (cj.get("coherence") or 0.0) < case_coherence_min():
+                    dropped["case_incoherent"] += 1
+                    continue
+                if (cj.get("ground_truth_determinable") or 0.0) < case_ground_truth_min():
+                    dropped["ground_truth_indeterminate"] += 1
+                    continue
+                if (cj.get("multimodal_necessity") or 0.0) < case_mm_necessity_min():
+                    dropped["multimodal_not_necessary"] += 1
+                    continue
+                if (cj.get("reasoning_divergence_potential") or 0.0) < case_divergence_min():
+                    dropped["low_reasoning_divergence"] += 1
+                    continue
+                case_judge = {
+                    k: cj.get(k) for k in (
+                        "coherence", "ground_truth_determinable",
+                        "multimodal_necessity", "reasoning_divergence_potential")
+                }
+                case_judge["explanation"] = cj.get("explanation", "")
+                case_judge["judge_model"] = cj.get("model")
                 # A multimodal item always ships difficulty=hard (the case is the
-                # hard case) even if the hardness judge degraded to skipped.
+                # hard case).
                 insert_difficulty = "hard"
 
             # Accept: stamp provenance + insert as an ordinary internal-bank task.

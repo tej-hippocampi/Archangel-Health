@@ -252,6 +252,39 @@ def test_empty_queue_no_llm_returns_empty_not_error(monkeypatch):
 
 
 # ─── Full lifecycle ───────────────────────────────────────────────────────────
+def test_async_submit_returns_202_and_status_reports_real_phase():
+    """BUG-5: with ?async_pipeline=1 the submit returns 202 + submission_id
+    immediately and the pipeline runs as a background job; the status endpoint
+    reports the real backend-stamped phase and reaches done/complete."""
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)
+    client.get("/api/asclepius/tasks/next", headers=ev_h)
+    sid = "s-" + uuid.uuid4().hex[:12]
+    body = {
+        "submission_id": sid, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "confidence": "high", "time_spent_sec": 140,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": _IDEAL,
+        "chosen_revision": {"edited": False, "why_better_notes": "B over-lowers K+", "why_better_tags": ["safer"]},
+        "rejected_critique": {"error_tags": ["dosing_error"], "severities": {}, "why_worse": "too aggressive"},
+    }
+    r = client.post("/api/asclepius/submissions?async_pipeline=1", json=body, headers=ev_h)
+    assert r.status_code == 202, r.text
+    assert r.json()["submission_id"] == sid and r.json()["status"] == "processing"
+
+    # TestClient runs the background task after the response; poll the real status.
+    st = client.get(f"/api/asclepius/submissions/{sid}/status", headers=ev_h)
+    assert st.status_code == 200, st.text
+    body_st = st.json()
+    assert body_st["done"] is True
+    assert body_st["status"] == "export_ready"
+    assert body_st["phase"] == "complete" and body_st["pct"] == 100
+    # A different evaluator cannot poll someone else's submission.
+    other_h = A.headers_for(_seed())
+    assert client.get(f"/api/asclepius/submissions/{sid}/status", headers=other_h).status_code == 403
+
+
 def test_full_lifecycle_submitted_to_exported():
     admin_h = A.headers_for(_admin())
     ev_user = _seed()

@@ -100,11 +100,36 @@ def is_valid_anchor(anchor: Optional[Dict[str, Any]]) -> bool:
     return True
 
 
-def _rationale_anchor(payload: Dict[str, Any], verdict: Optional[str]) -> Optional[Dict[str, Any]]:
+def all_anchors(obj: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Every evidence anchor carried by an object (a chosen_revision, from_scratch,
+    reasoning step, or independent_answer), MERGING the multi-citation
+    ``evidence_anchors`` list with the back-compat SINGULAR ``evidence_anchor``
+    (BUG-3b). Order preserved; the singular is appended only if it is not already
+    present in the list, so a payload that carries both doesn't double-count."""
+    if not obj or not isinstance(obj, dict):
+        return []
+    out: List[Dict[str, Any]] = []
+    plural = obj.get("evidence_anchors")
+    if isinstance(plural, list):
+        out.extend(a for a in plural if isinstance(a, dict))
+    single = obj.get("evidence_anchor")
+    if isinstance(single, dict) and single not in out:
+        out.append(single)
+    return out
+
+
+def has_valid_anchor(obj: Optional[Dict[str, Any]]) -> bool:
+    """True when the object carries ≥1 VALID evidence anchor across the singular +
+    plural fields (BUG-3b list-aware grounding)."""
+    return any(is_valid_anchor(a) for a in all_anchors(obj))
+
+
+def _rationale_obj(payload: Dict[str, Any], verdict: Optional[str]) -> Optional[Dict[str, Any]]:
+    """The object whose anchors ground the rationale (list-aware, BUG-3b)."""
     if verdict in ("A_better", "B_better"):
-        return (payload.get("chosen_revision") or {}).get("evidence_anchor")
+        return payload.get("chosen_revision") or {}
     if verdict == "both_inadequate":
-        return (payload.get("from_scratch") or {}).get("evidence_anchor")
+        return payload.get("from_scratch") or {}
     return None
 
 
@@ -124,22 +149,23 @@ def grounding_status(task: Dict[str, Any], payload: Dict[str, Any]) -> Tuple[boo
     a valid anchor on every reasoning step (opt §1.2)."""
     verdict = payload.get("verdict")
     reasons: List[str] = []
-    if not is_valid_anchor(_rationale_anchor(payload, verdict)):
+    if not has_valid_anchor(_rationale_obj(payload, verdict)):
         reasons.append("missing_rationale_anchor")
     steps = _reasoning_steps(payload, verdict)
     is_reasoning_task = bool(task.get("capture_reasoning")) or bool(steps)
     if is_reasoning_task and steps:
         for s in steps:
-            if not is_valid_anchor(s.get("evidence_anchor")):
+            if not has_valid_anchor(s):
                 reasons.append("missing_step_anchor")
                 break
     return (len(reasons) == 0, reasons)
 
 
 def is_grounded(task: Dict[str, Any], payload: Dict[str, Any]) -> bool:
-    """Premium-tier flag: at least the rationale carries a valid evidence anchor."""
+    """Premium-tier flag: at least the rationale carries a valid evidence anchor
+    (across the singular + multi-anchor fields, BUG-3b)."""
     verdict = payload.get("verdict")
-    return is_valid_anchor(_rationale_anchor(payload, verdict))
+    return has_valid_anchor(_rationale_obj(payload, verdict))
 
 
 # ─── Contamination check (opt §1.5) ───────────────────────────────────────────
