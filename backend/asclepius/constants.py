@@ -405,6 +405,20 @@ def hardness_min() -> float:
     return _env_float("ASCLEPIUS_HARDNESS_MIN", 0.75)
 
 
+def v3_multimodal_only() -> bool:
+    """Whether the V3 (seamless) queue serves MULTIMODAL cases ONLY — i.e. the
+    default V3 experience is a structured clinical case (demographics + lab panels
+    with trends + EHR notes + meds), never a bare text prompt. Default ON.
+
+    Requires synthetic multimodal generation, which needs an LLM key (the case-gen
+    model synthesizes the labs/notes; an empty case is dropped by the BUG-1 content
+    gate, so there is no offline fallback). With no LLM the V3 queue is EMPTY rather
+    than silently serving a text prompt — set ASCLEPIUS_V3_MULTIMODAL_ONLY=0 for a
+    text/hard V3 queue (offline demos, no-LLM deployments)."""
+    return (os.getenv("ASCLEPIUS_V3_MULTIMODAL_ONLY", "1").strip().lower()
+            in ("1", "true", "yes", "on"))
+
+
 def hard_only_generation() -> bool:
     """Whether the generator gates on hardness (drops below the floor + forces
     difficulty=hard). Default ON — the engine's purpose is hard cases — but the

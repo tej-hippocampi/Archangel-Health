@@ -1292,7 +1292,7 @@ class AsclepiusStore:
 
     def next_task_for_evaluator(
         self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
-        real_only: bool = False,
+        real_only: bool = False, multimodal_only: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Oldest open task in the evaluator's specialty that (a) they have not
         already submitted and (b) still has label capacity (max_labels).
@@ -1314,6 +1314,9 @@ class AsclepiusStore:
             params.append(specialty)
         if hard_only:
             clauses.append("t.difficulty = 'hard'")
+        # V3 multimodal-only queue (default): serve structured cases only.
+        if multimodal_only:
+            clauses.append("t.modality = 'multimodal'")
         clauses.append(
             "t.case_source = 'real_deid'" if real_only
             else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
@@ -1345,7 +1348,7 @@ class AsclepiusStore:
 
     def eligible_tasks_for_evaluator(
         self, *, evaluator_id: str, specialty: Optional[str], limit: Optional[int] = None,
-        hard_only: bool = False, real_only: bool = False,
+        hard_only: bool = False, real_only: bool = False, multimodal_only: bool = False,
     ) -> List[Dict[str, Any]]:
         """All open tasks this evaluator may take (not already theirs + still has
         label capacity), oldest first — the candidate set value-aware routing
@@ -1367,6 +1370,9 @@ class AsclepiusStore:
             params.append(specialty)
         if hard_only:
             clauses.append("t.difficulty = 'hard'")
+        # V3 multimodal-only queue (default): structured cases only.
+        if multimodal_only:
+            clauses.append("t.modality = 'multimodal'")
         # The V4 wall (EHR PRD §9.5) — same rule as next_task_for_evaluator.
         clauses.append(
             "t.case_source = 'real_deid'" if real_only

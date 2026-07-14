@@ -168,6 +168,52 @@ def _mk_task(admin_h, difficulty):
     return r.json()["created"][0]
 
 
+def _mk_multimodal_task(admin_h):
+    """A hard MULTIMODAL task (structured case with labs + note) via the admin
+    upload path — modality is derived from the case content."""
+    case = {
+        "case_source": "synthetic", "specialty": "nephrology",
+        "demographics": {"age_band": "70-79", "sex": "M"},
+        "problem_list": [{"condition": "CKD"}],
+        "medications": [{"drug": "Tacrolimus"}],
+        "lab_panels": [{"panel": "BMP", "collected_offset_days": 0, "results": [
+            {"analyte": "Na", "value": 120, "unit": "mmol/L", "ref_low": 135, "ref_high": 145, "flag": "L"}]}],
+        "notes": [{"note_type": "Consult", "author_role": "nephrology", "text": "Euvolemic on tacrolimus."}],
+    }
+    r = client.post("/api/asclepius/tasks", json={"tasks": [{
+        "specialty": "nephrology", "difficulty": "hard", "source": "lab_supplied",
+        "prompt": f"multimodal {uuid.uuid4().hex[:6]}", "case": case,
+        "candidate_answers": [{"id": "A", "text": "a"}, {"id": "B", "text": "b"}],
+    }]}, headers=admin_h)
+    return r.json()["created"][0]
+
+
+def test_v3_multimodal_only_serves_only_structured_cases(monkeypatch):
+    """V3 multimodal-by-default (ASCLEPIUS_V3_MULTIMODAL_ONLY): the seamless queue
+    serves ONLY structured cases (labs + EHR), never a bare text prompt — every V3
+    case is a multimodal case. Autofill is disabled here so we assert pure serving."""
+    monkeypatch.setenv("ASCLEPIUS_V3_MULTIMODAL_ONLY", "1")
+    monkeypatch.setenv("ASCLEPIUS_AUTOFILL", "0")
+    A.fresh_store()
+    admin_h = _admin_h()
+    ev_h = _ev_h()
+    text_hard = _mk_task(admin_h, "hard")           # a hard TEXT task
+    mm = _mk_multimodal_task(admin_h)               # a hard MULTIMODAL case
+    served = []
+    for _ in range(4):
+        t = client.get("/api/asclepius/tasks/next?portal_version=v3", headers=ev_h).json()["task"]
+        if t:
+            served.append(t["task_id"])
+    assert mm in served                             # the structured case is served
+    assert text_hard not in served                 # the bare text prompt never is
+    # And the served V3 task actually carries the case (labs + notes) for the panel.
+    t = client.get(f"/api/asclepius/tasks/{mm}?portal_version=v3", headers=ev_h).json()["task"]
+    assert t["modality"] == "multimodal" and t["case"]["lab_panels"] and t["case"]["notes"]
+    # V2 (not multimodal-only) still serves the text task.
+    v2 = client.get("/api/asclepius/tasks/next?portal_version=v2", headers=ev_h).json()["task"]
+    assert v2 is not None
+
+
 def test_v3_serves_only_hard_tasks():
     A.fresh_store()
     admin_h = _admin_h()
