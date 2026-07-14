@@ -1252,36 +1252,68 @@ async def _finalize_submission(
     task = store.get_task(task_id)
     submission = store.get_submission(sid)
     if not task or not submission:
+        # Stamp a TERMINAL progress even on this narrow "row vanished" case so an
+        # async poller never hangs waiting for a submission that can't finish.
+        try:
+            store.set_submission_progress(sid, phase="error", pct=100, detail="Submission or task missing")
+        except Exception:
+            pass
         return {"submission_id": sid, "status": "error", "issues": ["submission_or_task_missing"],
                 "record_count": 0}
 
-    result = await asc_pipeline.process_submission(store, task, submission)
+    try:
+        result = await asc_pipeline.process_submission(store, task, submission)
 
-    # If another clinician already flagged this prompt as invalid, a grading that
-    # races in afterward must not silently export (Eval Flow Upgrade §2). Route it
-    # to QA instead of auto-export — never lose the work, never ship a flagged
-    # prompt's records. Re-read the task so a flag committed during processing is
-    # seen. (refresh_task_status leaves the prompt_flagged task as-is.)
-    _cur = store.get_task(task_id) or {}
-    if _cur.get("status") == PROMPT_FLAGGED_TASK_STATUS and result.get("status") in ("auto_validated", "export_ready"):
-        store.update_submission(sid, status="needs_qa", qa_reason="prompt_flagged")
-        store.update_records_status_for_submission(sid, "needs_qa")
-        store.set_submission_progress(sid, phase="needs_qa", pct=100, detail="Routed to QA review")
-        store.log_event(
-            entity_type="submission", entity_id=sid, event_type="routed_to_qa",
-            actor=actor_id, payload={"reason": "prompt_flagged", "task_id": task_id},
-        )
-        result["status"] = "needs_qa"
-        result["issues"] = sorted(set((result.get("issues") or []) + ["prompt_flagged"]))
+        # If another clinician already flagged this prompt as invalid, a grading that
+        # races in afterward must not silently export (Eval Flow Upgrade §2). Route it
+        # to QA instead of auto-export — never lose the work, never ship a flagged
+        # prompt's records. Re-read the task so a flag committed during processing is
+        # seen. (refresh_task_status leaves the prompt_flagged task as-is.)
+        _cur = store.get_task(task_id) or {}
+        if _cur.get("status") == PROMPT_FLAGGED_TASK_STATUS and result.get("status") in ("auto_validated", "export_ready"):
+            store.update_submission(sid, status="needs_qa", qa_reason="prompt_flagged")
+            store.update_records_status_for_submission(sid, "needs_qa")
+            store.set_submission_progress(sid, phase="needs_qa", pct=100, detail="Routed to QA review")
+            store.log_event(
+                entity_type="submission", entity_id=sid, event_type="routed_to_qa",
+                actor=actor_id, payload={"reason": "prompt_flagged", "task_id": task_id},
+            )
+            result["status"] = "needs_qa"
+            result["issues"] = sorted(set((result.get("issues") or []) + ["prompt_flagged"]))
 
-    # Frontier-model failure capture (FEAT-1): if this task's A/B pair was real
-    # frontier answers, persist the per-model failure record (which model was
-    # rejected + the expert correction). No-op for a normal generated pair.
-    from asclepius import baselines as asc_baselines
-    asc_baselines.record_model_failure(store, task_id, sid)
+        # Frontier-model failure capture (FEAT-1): if this task's A/B pair was real
+        # frontier answers, persist the per-model failure record (which model was
+        # rejected + the expert correction). No-op for a normal generated pair.
+        from asclepius import baselines as asc_baselines
+        asc_baselines.record_model_failure(store, task_id, sid)
 
-    store.refresh_task_status(task_id)
-    return result
+        store.refresh_task_status(task_id)
+        return result
+    except Exception:
+        # BUG-5 review (3b): the pipeline runs as a BACKGROUND job in the async
+        # path, so an unexpected exception here would die silently and strand the
+        # submission at a NON-terminal status ('submitted'/'auto_validated') — the
+        # poller would hang forever. Route to QA (no lost submissions — the core
+        # invariant) and stamp a TERMINAL phase so the poller always resolves. The
+        # synchronous path returns this same needs_qa result instead of a 500,
+        # which is strictly better: the work is captured, not lost.
+        log.exception("asclepius: submission pipeline failed for %s", sid)
+        try:
+            store.update_submission(sid, status="needs_qa", qa_reason="pipeline_error")
+            store.update_records_status_for_submission(sid, "needs_qa")
+            store.set_submission_progress(sid, phase="needs_qa", pct=100, detail="Routed to QA (pipeline error)")
+            store.log_event(
+                entity_type="submission", entity_id=sid, event_type="routed_to_qa",
+                actor=actor_id, payload={"reason": "pipeline_error", "task_id": task_id},
+            )
+            store.refresh_task_status(task_id)
+        except Exception:
+            log.exception("asclepius: could not stamp terminal state for %s", sid)
+        return {
+            "submission_id": sid, "status": "needs_qa", "issues": ["pipeline_error"],
+            "record_count": len(store.records_for_submission(sid)),
+            "critic": None, "agreement_score": None,
+        }
 
 
 # Terminal submission statuses — the poller stops once the row reaches one of

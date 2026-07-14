@@ -32,6 +32,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
 
+from pydantic import ValidationError
+
 from asclepius.cases import ClinicalCase, as_dict
 from asclepius.validation import residual_identifiers
 
@@ -236,5 +238,13 @@ def ingest_real_deid(
             + "); refusing to guess — review in quarantine."
         )
     safe = deidentify(normalized)
-    case = ClinicalCase(**{**safe, "case_source": "real_deid", "specialty": safe.get("specialty") or specialty})
+    try:
+        case = ClinicalCase(**{**safe, "case_source": "real_deid",
+                               "specialty": safe.get("specialty") or specialty})
+    except ValidationError as exc:
+        # extra="forbid" (BUG-1): a real export whose structure drifts from the
+        # ClinicalCase schema surfaces as ONE clean, quarantinable ingest error —
+        # never an uncaught 500 and never a silent extra="ignore" data drop. This
+        # matches the guard on the bundle path in ingestion.py.
+        raise CaseIngestError(f"case failed the ClinicalCase schema: {exc}") from exc
     return case.model_dump()
