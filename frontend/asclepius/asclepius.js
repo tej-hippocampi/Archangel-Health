@@ -1446,6 +1446,9 @@
       body: {
         text: (ia.text || '').trim(),
         evidence_anchor: cleanAnchor(ia.evidence_anchor),
+        // Multi-anchor (BUG-3b): the committed answer is authoritative at
+        // packaging, so send the full citation list here too.
+        evidence_anchors: anchorsForSubmit(ia.evidence_anchor),
         // Pins the flow server-side: V1 commits a full blind ideal answer,
         // V2 a stance (unless the task is premium/eval full-mode).
         portal_version: draftVersion(),
@@ -1598,43 +1601,11 @@
     const host = h('div', { class: 'asc-card asc-card-pad', id: 'ascRubricCard', style: 'margin-top:18px' });
     const listHost = h('div', { id: 'ascRubricList' });
 
-    const paint = () => {
-      clear(listHost);
-      if (!d.rubric.length) {
-        listHost.appendChild(h('div', { class: 'asc-label-hint' },
-          'No criteria yet — confirm the seeded ones or add your own.'));
-      }
-      d.rubric.forEach((c, i) => {
-        const pos = (c.points || 0) >= 0;
-        const ptsLabel = h('span', { class: 'asc-rubric-pts ' + (pos ? 'pos' : 'neg') },
-          (pos ? '+' : '') + (c.points || 0));
-        const slider = h('input', { type: 'range', min: '-10', max: '10', step: '1',
-          value: String(c.points || 0), style: 'width:120px' });
-        slider.addEventListener('input', () => {
-          c.points = parseInt(slider.value, 10);
-          ptsLabel.textContent = (c.points >= 0 ? '+' : '') + c.points;
-          ptsLabel.className = 'asc-rubric-pts ' + (c.points >= 0 ? 'pos' : 'neg');
-          saveDraft();
-        });
-        const textInput = h('input', { class: 'asc-input asc-rubric-text', value: c.text || '' });
-        textInput.addEventListener('input', () => { c.text = textInput.value; saveDraft(); });
-        const axisSel = h('select', { class: 'asc-select', style: 'max-width:150px' },
-          ...(state.taxonomy.rubric_axes || ['accuracy', 'completeness', 'safety', 'reasoning', 'grounding', 'communication'])
-            .map((ax) => h('option', { value: ax, selected: c.axis === ax ? 'selected' : null }, ax)));
-        axisSel.value = c.axis || 'accuracy';
-        axisSel.addEventListener('change', () => { c.axis = axisSel.value; saveDraft(); });
-        const del = h('button', { class: 'asc-btn-link', type: 'button',
-          onClick: () => { d.rubric.splice(i, 1); saveDraft(); paint(); } }, 'remove');
-        listHost.appendChild(h('div', { class: 'asc-rubric-row' }, ptsLabel, slider, textInput, axisSel, del));
-      });
-    };
-    paint();
-
     const addBtn = h('button', { class: 'asc-btn-link', type: 'button', style: 'margin-top:8px',
-      onClick: () => { d.rubric.push({ text: '', points: 5, axis: 'accuracy', source: 'manual' }); saveDraft(); paint(); } },
+      onClick: () => { d.rubric.push({ text: '', points: 5, axis: 'accuracy', source: 'manual' }); saveDraft(); paintRubricList(); } },
       '+ Add a criterion');
     const seedBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
-      onClick: () => seedRubric(true, paint) }, '✨ Re-seed from my tags');
+      onClick: () => seedRubric(true) }, '✨ Re-seed from my tags');
 
     host.appendChild(h('div', { class: 'asc-card-title' }, '📋 Scoring rubric', h('span', { class: 'asc-badge', style: 'margin-left:8px' }, 'optional')));
     host.appendChild(h('div', { class: 'asc-card-sub', style: 'margin-bottom:12px' },
@@ -1642,19 +1613,61 @@
     host.appendChild(listHost);
     host.appendChild(h('div', { style: 'display:flex;gap:12px;align-items:center;margin-top:6px' }, addBtn, seedBtn));
 
+    // Populate the list from the current draft AFTER the node is attached to the
+    // card (paintRubricList finds it by id, so it is resilient to the card being
+    // rebuilt while an async seed is in flight — the fix for the mid-seed rebuild).
+    paintRubricList();
     // Seed once when the card first appears (fire-and-forget).
-    if (!d.rubricSeeded) seedRubric(false, paint);
+    if (!d.rubricSeeded) seedRubric(false);
     return host;
   }
 
-  async function seedRubric(force, paint) {
+  // Repaint the rubric list by finding the LIVE #ascRubricList (never a captured
+  // closure over a possibly-detached node). Safe to call anytime — no-op if the
+  // card isn't mounted.
+  function paintRubricList() {
+    const listHost = document.getElementById('ascRubricList');
+    if (!listHost) return;
+    const d = state.draft;
+    clear(listHost);
+    if (!d.rubric.length) {
+      listHost.appendChild(h('div', { class: 'asc-label-hint' },
+        'No criteria yet — confirm the seeded ones or add your own.'));
+      return;
+    }
+    d.rubric.forEach((c, i) => {
+      const pos = (c.points || 0) >= 0;
+      const ptsLabel = h('span', { class: 'asc-rubric-pts ' + (pos ? 'pos' : 'neg') },
+        (pos ? '+' : '') + (c.points || 0));
+      const slider = h('input', { type: 'range', min: '-10', max: '10', step: '1',
+        value: String(c.points || 0), style: 'width:120px' });
+      slider.addEventListener('input', () => {
+        c.points = parseInt(slider.value, 10);
+        ptsLabel.textContent = (c.points >= 0 ? '+' : '') + c.points;
+        ptsLabel.className = 'asc-rubric-pts ' + (c.points >= 0 ? 'pos' : 'neg');
+        saveDraft();
+      });
+      const textInput = h('input', { class: 'asc-input asc-rubric-text', value: c.text || '' });
+      textInput.addEventListener('input', () => { c.text = textInput.value; saveDraft(); });
+      const axisSel = h('select', { class: 'asc-select', style: 'max-width:150px' },
+        ...(state.taxonomy.rubric_axes || ['accuracy', 'completeness', 'safety', 'reasoning', 'grounding', 'communication'])
+          .map((ax) => h('option', { value: ax, selected: c.axis === ax ? 'selected' : null }, ax)));
+      axisSel.value = c.axis || 'accuracy';
+      axisSel.addEventListener('change', () => { c.axis = axisSel.value; saveDraft(); });
+      const del = h('button', { class: 'asc-btn-link', type: 'button',
+        onClick: () => { d.rubric.splice(i, 1); saveDraft(); paintRubricList(); } }, 'remove');
+      listHost.appendChild(h('div', { class: 'asc-rubric-row' }, ptsLabel, slider, textInput, axisSel, del));
+    });
+  }
+
+  async function seedRubric(force) {
     const d = state.draft;
     if (d.rubricSeeded && !force) return;
     d.rubricSeeded = true;
     try {
       const res = await api('/rubric/suggest', { method: 'POST', body: buildSubmissionPayload() });
       const seeded = (res && res.criteria) || [];
-      if (!seeded.length) { if (paint) paint(); return; }
+      if (!seeded.length) { paintRubricList(); return; }
       if (force) {
         // Re-seed: append only criteria not already present (by text).
         const have = new Set(d.rubric.map((c) => (c.text || '').trim().toLowerCase()));
@@ -1663,7 +1676,8 @@
         d.rubric = seeded;
       }
       saveDraft();
-      if (paint) paint();
+      // Repaint the LIVE list (resilient if the card was rebuilt during the await).
+      paintRubricList();
     } catch (e) { /* seeding is a convenience — never surface an error */ }
   }
 
@@ -2664,15 +2678,20 @@
       const res = await api('/submissions?async_pipeline=1', { method: 'POST', body: payload });
       let finalStatus = res.status;
       let recordCount = res.record_count;
+      let timedOut = false;
       if (res.accepted && res.submission_id) {
         const done = await pollSubmissionStatus(res.submission_id, progressHost);
         finalStatus = done.status; recordCount = done.record_count;
-        if (!done.done) throw { message: 'Submission timed out — check the QA queue.', status: 0 };
+        timedOut = !done.done;
       }
       const n = recordCount != null ? recordCount : 0;
+      // The submission is committed server-side the moment we got the 202, so a
+      // poll timeout is "still finalizing", NOT a failure — never lose the work.
       clearDraft(taskId);
       stopTimer();
-      if (finalStatus === 'needs_qa') {
+      if (timedOut) {
+        toast('Submitted — still finalizing in the background. It will appear once the pipeline completes.', 'success');
+      } else if (finalStatus === 'needs_qa') {
         toast('Submitted — routed to QA review (' + n + ' record' + (n === 1 ? '' : 's') + ').', 'success');
       } else {
         toast('Submitted — packaged ' + n + ' record' + (n === 1 ? '' : 's'), 'success');

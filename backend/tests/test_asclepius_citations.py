@@ -87,6 +87,30 @@ def test_multi_anchor_grounds_and_packages():
     assert pref["evidence_anchor"]["identifier"] == "KDIGO 2024 CKD"  # [0] alias
 
 
+def test_multi_anchor_on_independent_answer_survives_packaging():
+    """BUG-3b review: the FULL blind ideal answer's multi-citation list must ride
+    the packaged record (the independent answer is authoritative at packaging, so
+    its evidence_anchors must be read, not just the singular alias)."""
+    a1 = {"citation_text": "KDIGO 2024 CKD §3", "source_type": "guideline", "identifier": "KDIGO 2024 CKD"}
+    a2 = {"citation_text": "STOP-ACEi", "source_type": "primary_literature", "identifier": "NEJM 2022;387:2021"}
+    task = {"task_id": "t", "specialty": "nephrology", "difficulty": "hard", "source": "lab_supplied",
+            "prompt": "Continue RASi in advanced CKD?", "independent_mode": "full",
+            "candidate_answers": [{"id": "A", "text": "continue"}, {"id": "B", "text": "stop"}]}
+    submission = {"submission_id": "s", "task_id": "t", "verdict": "A_better", "chosen_id": "A",
+                  "rejected_id": "B", "confidence": "high", "created_at": "2026-07-07T00:00:00",
+                  "portal_version": "v1",  # v1 → full blind ideal is packaged
+                  "annotator": {"id_hashed": "x", "credentials": "board_certified_nephrology"},
+                  "payload": {"verdict": "A_better", "chosen_id": "A", "rejected_id": "B", "portal_version": "v1",
+                              "independent_answer": {"text": "Continue RAS inhibition; STOP-ACEi showed no benefit to stopping.",
+                                                     "kind": "full", "evidence_anchors": [a1, a2]},
+                              "chosen_revision": {"edited": False}, "rejected_critique": {"error_tags": []}}}
+    recs = package_submission(task, submission)
+    indep = [r for r in recs if r["type"] == "ideal_answer" and r.get("independent")]
+    assert indep, "full blind independent answer should package an ideal_answer record"
+    assert len(indep[0]["evidence_anchors"]) == 2
+    assert indep[0]["grounded"] is True
+
+
 @pytest.mark.parametrize("text,expected_id_fragment", [
     ("finerenone starting dose with eGFR 40 and potassium 4.8", "KERENDIA"),
     ("apixaban dose reduction in CKD stage 4 for atrial fibrillation", "ELIQUIS"),

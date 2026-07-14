@@ -259,6 +259,11 @@ async def sso(body: SsoRequest):
             email=email,
             password=_secrets.token_urlsafe(32),
             role="evaluator",
+            # BUG-6: stamp a stable organization at provisioning (email local-part
+            # fallback) so an SSO-provisioned clinician groups immediately in
+            # Exports/Metrics instead of sitting in the (unassigned) bucket until
+            # the next boot-time backfill.
+            organization=(email.split("@", 1)[0] if "@" in email else email),
         )
         provisioned = True
     if not user.get("active"):
@@ -902,6 +907,10 @@ async def reveal_task_answers(
             "kind": kind,
             "portal_version": pv,
             "evidence_anchor": body.evidence_anchor.model_dump() if body.evidence_anchor else None,
+            # Multi-anchor (BUG-3b): persist the full citation list on the committed
+            # answer too, else packaging (which reads the AUTHORITATIVE commit, not
+            # the post-reveal submission) would silently drop the extra citations.
+            "evidence_anchors": [a.model_dump() for a in (body.evidence_anchors or [])],
         },
     )
     store.log_event(
@@ -1275,9 +1284,13 @@ async def _finalize_submission(
     return result
 
 
-# Terminal submission statuses — the poller stops once the row reaches one of these.
+# Terminal submission statuses — the poller stops once the row reaches one of
+# these. NOTE: ``auto_validated`` is deliberately EXCLUDED — it is a TRANSIENT
+# status the pipeline sets before running the LLM consistency + grounding checks
+# (seconds of work in production). Treating it as terminal would let the client
+# stop polling mid-pipeline and report the wrong final status (BUG-5 review).
 _SUBMISSION_DONE_STATUSES = (
-    "export_ready", "exported", "needs_qa", "rejected", "auto_validated",
+    "export_ready", "exported", "needs_qa", "rejected",
     "prompt_flagged", "not_hard", "case_incoherent",
 )
 
@@ -1379,7 +1392,12 @@ async def grade_real_models(
     updated = store.set_task_candidates(
         task_id, candidates,
         generation_patch={"mode": "grade_real_models",
-                          "baseline_models": [c.get("baseline_model") for c in candidates]},
+                          "baseline_models": [c.get("baseline_model") for c in candidates],
+                          # Clear any stale intended_flawed_id from the ORIGINAL
+                          # generated pair — the A/B ids were just reassigned, so the
+                          # old flawed id no longer maps to a candidate and would
+                          # pollute the flaw-catch-rate stat.
+                          "intended_flawed_id": None},
     )
     store.log_event(entity_type="task", entity_id=task_id, event_type="grade_real_models",
                     actor=admin["id"], payload={"models": [c.get("baseline_model") for c in candidates]})
