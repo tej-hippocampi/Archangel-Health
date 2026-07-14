@@ -5,59 +5,31 @@
  * Self-contained: brings its own fixed nav and footer; do not render SiteHeader with it.
  */
 
-import { useEffect, useRef, useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useEffect, useRef } from "react";
 import { SignInDialog } from "@/app/components/SignInDialog";
 import { SignUpDialog } from "@/app/components/SignUpDialog";
-import * as authApi from "@/lib/auth-api";
+import { useLandingAuth } from "@/app/hooks/useLandingAuth";
 import "@/styles/clinical-fonts.css";
 
 const MAIL = "aryaabhatia@berkeley.edu";
 const mailto = (subject: string) => `mailto:${MAIL}?subject=${encodeURIComponent(subject)}`;
 
 export default function ClinicalDataLanding() {
-  const { user, loading, logout, token } = useAuth();
-  const [signInOpen, setSignInOpen] = useState(false);
-  const [signUpOpen, setSignUpOpen] = useState(false);
-  const [signUpInitialStep, setSignUpInitialStep] = useState<"role" | "patient-codes">("role");
+  const {
+    user,
+    loading,
+    logout,
+    signInOpen,
+    setSignInOpen,
+    signUpOpen,
+    setSignUpOpen,
+    signUpInitialStep,
+    openSignUp,
+    doctorPortalUrl,
+    doctorPortalLabel,
+  } = useLandingAuth();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!user || !token) return;
-    let cancelled = false;
-    authApi.getDoctorProfile(token).then((profile) => {
-      if (!cancelled && profile) {
-        void authApi.redirectToDoctorPortal(token);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [user, token]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const isSignoutQuery = params.get("signout") === "1";
-    const isSignoutPath = window.location.pathname === "/auth/signout";
-    if (isSignoutQuery || isSignoutPath) {
-      logout();
-      params.delete("signout");
-      const newSearch = params.toString();
-      const newUrl = (isSignoutPath ? "/" : window.location.pathname) + (newSearch ? "?" + newSearch : "") + window.location.hash;
-      window.history.replaceState(null, "", newUrl);
-    }
-  }, [logout]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.location.hash === "#recovery-plan") {
-      setSignUpInitialStep("patient-codes");
-      setSignUpOpen(true);
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
-    }
-  }, []);
 
   /* ---------- scroll reveals ---------- */
   useEffect(() => {
@@ -207,6 +179,53 @@ export default function ClinicalDataLanding() {
 
     let rafId: number | null = null;
 
+    // Draw one trace up to x-position `head` at the given alpha. Single source
+    // of truth for both the animated frame and the reduced-motion static frame,
+    // so the divergence node and model-failure mark stay in sync.
+    function drawTrace(tr: Trace, head: number, alpha: number) {
+      if (!ctx) return;
+      ctx.globalAlpha = alpha;
+
+      let sharedEnd = 0;
+      while (sharedEnd < tr.shared.length && tr.shared[sharedEnd][0] < head) sharedEnd++;
+      drawPoly(tr.shared, 0, sharedEnd, BONE, 1.6, 0);
+
+      if (head > tr.xDiv) {
+        let gEnd = 0;
+        while (gEnd < tr.gold.length && tr.gold[gEnd][0] < head) gEnd++;
+        drawPoly(tr.gold, 0, gEnd, GOLD, 2, 10);
+
+        let cEnd = 0;
+        while (cEnd < tr.cyan.length && tr.cyan[cEnd][0] < head) cEnd++;
+        ctx.setLineDash([6, 5]);
+        drawPoly(tr.cyan, 0, cEnd, CYAN, 1.6, 8);
+        ctx.setLineDash([]);
+
+        // divergence node
+        ctx.beginPath();
+        ctx.arc(tr.xDiv, tr.yDiv, 4, 0, Math.PI * 2);
+        ctx.fillStyle = "#0a0e12";
+        ctx.strokeStyle = BONE;
+        ctx.lineWidth = 1.6;
+        ctx.fill();
+        ctx.stroke();
+
+        // model-failure mark where the cyan path ends
+        if (cEnd >= tr.cyan.length && tr.cyan.length) {
+          const last = tr.cyan[tr.cyan.length - 1];
+          ctx.strokeStyle = "rgba(226,96,78,0.9)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(last[0] - 5, last[1] - 5);
+          ctx.lineTo(last[0] + 5, last[1] + 5);
+          ctx.moveTo(last[0] + 5, last[1] - 5);
+          ctx.lineTo(last[0] - 5, last[1] + 5);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
     function frame(now: number) {
       if (!ctx) return;
       ctx.clearRect(0, 0, W, H);
@@ -218,47 +237,7 @@ export default function ClinicalDataLanding() {
         let alpha = tr.opacity;
         // fade the whole trace out at the end of its sweep
         if (p > 1.0) alpha *= Math.max(0, 1 - (p - 1.0) / 0.15);
-
-        ctx.globalAlpha = alpha;
-
-        let sharedEnd = 0;
-        while (sharedEnd < tr.shared.length && tr.shared[sharedEnd][0] < head) sharedEnd++;
-        drawPoly(tr.shared, 0, sharedEnd, BONE, 1.6, 0);
-
-        if (head > tr.xDiv) {
-          let gEnd = 0;
-          while (gEnd < tr.gold.length && tr.gold[gEnd][0] < head) gEnd++;
-          drawPoly(tr.gold, 0, gEnd, GOLD, 2, 10);
-
-          let cEnd = 0;
-          while (cEnd < tr.cyan.length && tr.cyan[cEnd][0] < head) cEnd++;
-          ctx.setLineDash([6, 5]);
-          drawPoly(tr.cyan, 0, cEnd, CYAN, 1.6, 8);
-          ctx.setLineDash([]);
-
-          // divergence node
-          ctx.beginPath();
-          ctx.arc(tr.xDiv, tr.yDiv, 4, 0, Math.PI * 2);
-          ctx.fillStyle = "#0a0e12";
-          ctx.strokeStyle = BONE;
-          ctx.lineWidth = 1.6;
-          ctx.fill();
-          ctx.stroke();
-
-          // model-failure mark where the cyan path ends
-          if (cEnd >= tr.cyan.length && tr.cyan.length) {
-            const last = tr.cyan[tr.cyan.length - 1];
-            ctx.strokeStyle = "rgba(226,96,78,0.9)";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(last[0] - 5, last[1] - 5);
-            ctx.lineTo(last[0] + 5, last[1] + 5);
-            ctx.moveTo(last[0] + 5, last[1] - 5);
-            ctx.lineTo(last[0] - 5, last[1] + 5);
-            ctx.stroke();
-          }
-        }
-        ctx.globalAlpha = 1;
+        drawTrace(tr, head, alpha);
       });
       fadeLeft();
       rafId = requestAnimationFrame(frame);
@@ -268,35 +247,32 @@ export default function ClinicalDataLanding() {
       if (!ctx) return;
       ctx.clearRect(0, 0, W, H);
       drawGrid();
-      traces.forEach((tr) => {
-        ctx.globalAlpha = tr.opacity;
-        drawPoly(tr.shared, 0, tr.shared.length, BONE, 1.6, 0);
-        drawPoly(tr.gold, 0, tr.gold.length, GOLD, 2, 10);
-        ctx.setLineDash([6, 5]);
-        drawPoly(tr.cyan, 0, tr.cyan.length, CYAN, 1.6, 8);
-        ctx.setLineDash([]);
-        ctx.beginPath();
-        ctx.arc(tr.xDiv, tr.yDiv, 4, 0, Math.PI * 2);
-        ctx.fillStyle = "#0a0e12";
-        ctx.strokeStyle = BONE;
-        ctx.lineWidth = 1.6;
-        ctx.fill();
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      });
+      traces.forEach((tr) => drawTrace(tr, W + 80, tr.opacity));
       fadeLeft();
     }
 
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let visible = true;
+
+    function play() {
+      if (reduceMotion) {
+        staticFrame();
+      } else if (rafId === null) {
+        rafId = requestAnimationFrame(frame);
+      }
+    }
+
+    function pause() {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
 
     function start() {
       build();
-      if (reduceMotion) {
-        staticFrame();
-      } else {
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = requestAnimationFrame(frame);
-      }
+      pause();
+      if (visible) play();
     }
 
     function onResize() {
@@ -304,12 +280,28 @@ export default function ClinicalDataLanding() {
       resizeTimer = setTimeout(start, 150);
     }
 
+    // Stop the RAF loop while the hero is scrolled out of view — no point
+    // redrawing 60fps of canvas the user can't see.
+    let vio: IntersectionObserver | null = null;
+    if ("IntersectionObserver" in window) {
+      vio = new IntersectionObserver(
+        (entries) => {
+          visible = entries[0]?.isIntersecting ?? true;
+          if (visible) play();
+          else pause();
+        },
+        { threshold: 0 }
+      );
+      vio.observe(canvas);
+    }
+
     window.addEventListener("resize", onResize);
     start();
 
     return () => {
       window.removeEventListener("resize", onResize);
-      if (rafId) cancelAnimationFrame(rafId);
+      if (vio) vio.disconnect();
+      pause();
       if (resizeTimer) clearTimeout(resizeTimer);
     };
   }, []);
@@ -324,15 +316,17 @@ export default function ClinicalDataLanding() {
           <span>Archangel&nbsp;Health</span>
         </a>
         <nav className="nav-links" aria-label="Primary">
-          <a href="#findings">The data</a>
-          <a href="#consults">Contributors</a>
+          <a className="nav-section-link" href="#findings">The data</a>
+          <a className="nav-section-link" href="#consults">Contributors</a>
           {!loading &&
             (user ? (
               <>
                 <span className="nav-email">{user.email}</span>
-                <a className="nav-auth" href={authApi.doctorAppUrl()}>
-                  {user.name ? user.name.trim().split(" ").slice(0, 2).join(" ") : "Doctor Portal"}
-                </a>
+                {doctorPortalUrl && (
+                  <a className="nav-auth" href={doctorPortalUrl}>
+                    {doctorPortalLabel}
+                  </a>
+                )}
                 <button type="button" className="nav-auth" onClick={logout}>
                   Sign out
                 </button>
@@ -342,14 +336,7 @@ export default function ClinicalDataLanding() {
                 <button type="button" className="nav-auth" onClick={() => setSignInOpen(true)}>
                   Sign in
                 </button>
-                <button
-                  type="button"
-                  className="nav-auth"
-                  onClick={() => {
-                    setSignUpInitialStep("role");
-                    setSignUpOpen(true);
-                  }}
-                >
+                <button type="button" className="nav-auth" onClick={() => openSignUp("role")}>
                   Sign up
                 </button>
               </>
@@ -730,7 +717,6 @@ body {
 
 .clinical-landing .nav-links a { color: var(--slate); transition: color 0.2s; }
 .clinical-landing .nav-links a:hover { color: var(--bone); }
-.clinical-landing .nav-links a[aria-current="page"] { color: var(--bone); }
 
 .clinical-landing .nav-auth {
   font-family: var(--sans);
@@ -1399,6 +1385,8 @@ body {
   .clinical-landing .nav-cta { padding: 7px 12px; }
   .clinical-landing .wordmark span { display: none; }
   .clinical-landing .nav-email { display: none; }
+  /* Drop the in-page anchors on narrow screens so auth + CTA fit the bar. */
+  .clinical-landing .nav-section-link { display: none; }
   .clinical-landing .hero { padding-top: 100px; }
   .clinical-landing .hero-ctas .btn { width: 100%; text-align: center; }
   .clinical-landing .case-id { gap: 12px; }

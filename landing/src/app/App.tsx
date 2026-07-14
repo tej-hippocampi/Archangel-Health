@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import RecoveryResourcesEmailPreview from "@/app/components/RecoveryResourcesEmailPreview";
 import TeamCalculator from "@/app/components/TeamCalculator";
@@ -6,7 +7,10 @@ import PodcastAndBlogsPage from "@/app/components/PodcastAndBlogsPage";
 import { SiteHeader, parseLandingView } from "@/app/components/SiteHeader";
 import OnboardingWizard from "@/app/components/OnboardingWizard";
 import TenantSignIn from "@/app/components/TenantSignIn";
-import ClinicalDataLanding from "@/app/components/ClinicalDataLanding";
+
+// Lazy so the home page's ~535KB of embedded-font CSS becomes a home-only
+// chunk instead of render-blocking every other route (calculator, onboarding…).
+const ClinicalDataLanding = lazy(() => import("@/app/components/ClinicalDataLanding"));
 
 export default function App() {
   const isEmailPreviewRoute =
@@ -50,7 +54,9 @@ export default function App() {
   if (view === "home") {
     return (
       <AuthProvider>
-        <ClinicalDataLanding />
+        <Suspense fallback={<div style={{ minHeight: "100vh", background: "#0a0e12" }} />}>
+          <ClinicalDataLanding />
+        </Suspense>
       </AuthProvider>
     );
   }
