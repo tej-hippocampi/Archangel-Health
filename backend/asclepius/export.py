@@ -41,6 +41,10 @@ MANIFEST_NAME = "batch.json"
 DICTIONARY_NAME = "data_dictionary.md"
 DATASHEET_NAME = "datasheet.md"
 QUALITY_NAME = "quality_report.md"
+# Grader export (FEAT-2): shipped alongside the data when the batch carries rubric
+# records, so a buyer can run rubric-based LLM-as-judge scoring out of the box.
+GRADER_PROMPT_NAME = "grader_prompt.txt"
+SCORE_PY_NAME = "score.py"
 
 _COMPANION_FILES = [JSONL_NAME, MANIFEST_NAME, DICTIONARY_NAME, DATASHEET_NAME, QUALITY_NAME]
 
@@ -570,6 +574,118 @@ def _flag_counts(store: Any) -> Dict[str, int]:
     return counts
 
 
+_GRADER_PROMPT = """You are grading a candidate clinical answer against a set of \
+PHYSICIAN-AUTHORED, weighted rubric criteria (HealthBench-shaped). Each criterion has:
+  - text:   what a correct answer must include (positive points) or must never say (negative points)
+  - points: signed weight — award POSITIVE points if the answer satisfies a positive criterion; \
+subtract (award the negative) if the answer commits a negative criterion
+  - axis:   accuracy | completeness | safety | reasoning | grounding | communication
+
+Rules:
+- Judge ONLY against the listed criteria; do not invent criteria or use outside preferences.
+- A positive criterion is met only if the answer clearly satisfies it. A negative criterion is \
+triggered only if the answer clearly commits it.
+- Be conservative and cite the exact span of the answer that satisfies/violates each criterion.
+
+Return ONLY JSON:
+{
+  "per_criterion": [ {"text": "<criterion text>", "points": <signed>, "met": true|false, "awarded": <points if met else 0>, "evidence": "<span or ''>"} ],
+  "score": <sum of awarded>,
+  "max_points": <sum of positive criterion points>,
+  "normalized": <score / max_points, 0..1>
+}
+"""
+
+_SCORE_PY = '''#!/usr/bin/env python3
+"""Rubric-based LLM-as-judge scorer for an Asclepius export (FEAT-2).
+
+Reads the rubric records from ``records.jsonl`` and scores a candidate answer
+against each rubric\'s weighted criteria using an LLM judge with ``grader_prompt.txt``.
+
+Usage:
+    export ANTHROPIC_API_KEY=...           # or OPENAI_API_KEY with --provider openai
+    python score.py --answer "the candidate answer text" [--task-id T] [--provider anthropic]
+    python score.py --answers-file answers.jsonl   # {"task_id":..., "answer":...} per line
+
+With no API key it prints the rubric(s) it WOULD score so the pipeline is inspectable offline.
+This file is a runnable scaffold — adapt the model id / provider to your stack.
+"""
+import argparse, json, os, sys, pathlib
+
+HERE = pathlib.Path(__file__).parent
+PROMPT = (HERE / "grader_prompt.txt").read_text(encoding="utf-8")
+
+
+def load_rubrics():
+    rubrics = []
+    with open(HERE / "records.jsonl", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            if rec.get("type") == "rubric":
+                rubrics.append(rec)
+    return rubrics
+
+
+def grade(answer, rubric, provider="anthropic"):
+    user = ("PROMPT:\\n" + (rubric.get("prompt") or "") + "\\n\\nRUBRIC CRITERIA:\\n"
+            + json.dumps(rubric.get("criteria") or [], indent=2)
+            + "\\n\\nCANDIDATE ANSWER:\\n" + answer)
+    key = os.getenv("ANTHROPIC_API_KEY") if provider == "anthropic" else os.getenv("OPENAI_API_KEY")
+    if not key:
+        return {"skipped": "no_api_key", "max_points": rubric.get("max_points"),
+                "criteria": rubric.get("criteria")}
+    if provider == "anthropic":
+        import anthropic  # pip install anthropic
+        client = anthropic.Anthropic(api_key=key)
+        resp = client.messages.create(model=os.getenv("GRADER_MODEL", "claude-sonnet-4-5"),
+                                       max_tokens=1500, system=PROMPT,
+                                       messages=[{"role": "user", "content": user}])
+        text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+    else:
+        from openai import OpenAI  # pip install openai
+        client = OpenAI(api_key=key)
+        resp = client.chat.completions.create(model=os.getenv("GRADER_MODEL", "gpt-4o"),
+                                              messages=[{"role": "system", "content": PROMPT},
+                                                        {"role": "user", "content": user}])
+        text = resp.choices[0].message.content
+    start, end = text.find("{"), text.rfind("}")
+    return json.loads(text[start:end + 1]) if start != -1 else {"raw": text}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--answer")
+    ap.add_argument("--answers-file")
+    ap.add_argument("--task-id")
+    ap.add_argument("--provider", default="anthropic", choices=["anthropic", "openai"])
+    args = ap.parse_args()
+    rubrics = load_rubrics()
+    if args.task_id:
+        rubrics = [r for r in rubrics if (r.get("task_id") or r.get("prompt")) == args.task_id]
+    if not rubrics:
+        print("No rubric records found in records.jsonl", file=sys.stderr)
+        return
+    if args.answers_file:
+        answers = [json.loads(l) for l in open(args.answers_file) if l.strip()]
+    elif args.answer is not None:
+        answers = [{"answer": args.answer}]
+    else:
+        # No answer given: print the rubrics so the buyer can see the scoring function.
+        print(json.dumps(rubrics, indent=2)); return
+    for a in answers:
+        for r in rubrics:
+            print(json.dumps({"task_id": r.get("task_id"),
+                              "result": grade(a["answer"], r, provider=args.provider)}, indent=2))
+
+
+if __name__ == "__main__":
+    main()
+'''
+
+
 def build_export(
     store: Any,
     *,
@@ -770,6 +886,15 @@ def build_export(
         encoding="utf-8",
     )
 
+    # Grader export (FEAT-2): when the batch carries rubric records, ship a
+    # ready-to-run rubric-based LLM-as-judge scorer (grader_prompt.txt + score.py)
+    # — the "eval alongside dataset" a buyer can run out of the box.
+    companion_files = list(_COMPANION_FILES)
+    if any(r.get("type") == "rubric" for r in emitted):
+        (out_dir / GRADER_PROMPT_NAME).write_text(_GRADER_PROMPT, encoding="utf-8")
+        (out_dir / SCORE_PY_NAME).write_text(_SCORE_PY, encoding="utf-8")
+        companion_files += [GRADER_PROMPT_NAME, SCORE_PY_NAME]
+
     # 5. manifest with content hashes (opt §1.4, §5)
     filters = {
         "profile": profile_name,
@@ -793,7 +918,9 @@ def build_export(
         "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
     }
     content_hashes = {JSONL_NAME: _sha256_text(jsonl_text)}
-    for name in (DICTIONARY_NAME, DATASHEET_NAME, QUALITY_NAME):
+    for name in companion_files:
+        if name in (JSONL_NAME, MANIFEST_NAME):
+            continue
         content_hashes[name] = _sha256_text((out_dir / name).read_text(encoding="utf-8"))
     manifest = {
         "export_id": export_id,
@@ -815,8 +942,9 @@ def build_export(
         "note": note,
         "scope": scope,
         "tier_b_leak_gate": "passed",
-        "files": _COMPANION_FILES,
+        "files": companion_files,
         "content_hashes": content_hashes,
+        "rubric_count": sum(1 for r in emitted if r.get("type") == "rubric"),
         "dir_path": str(out_dir),
         "destination": "local_disk",  # future seam: a cloud writer pushes here.
     }
@@ -853,10 +981,13 @@ def build_export(
 def zip_export(export: Dict[str, Any]) -> bytes:
     """Zip an export directory into an in-memory archive for download."""
     dir_path = Path(export.get("dir_path") or "")
+    # Use the manifest's actual file list (may include the FEAT-2 grader files);
+    # fall back to the base companions for older manifests.
+    files = ((export.get("manifest") or {}).get("files")) or _COMPANION_FILES
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         if dir_path.is_dir():
-            for name in _COMPANION_FILES:
+            for name in files:
                 fp = dir_path / name
                 if fp.exists():
                     zf.write(fp, arcname=name)

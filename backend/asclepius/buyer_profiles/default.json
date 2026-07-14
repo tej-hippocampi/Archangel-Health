@@ -5,7 +5,8 @@
   "record_types": [
     "preference",
     "ideal_answer",
-    "reasoning_trace"
+    "reasoning_trace",
+    "rubric"
   ],
   "field_maps": {
     "preference": {
@@ -116,6 +117,32 @@
       "final_answer": "final_answer",
       "context": "context",
       "grounded": "grounded",
+      "annotator_credential": "annotator_credential",
+      "annotator_specialty": "annotator_specialty",
+      "annotator_years_experience": "annotator_years_experience",
+      "annotator_id_hashed": "annotator_id_hashed",
+      "submission_id": "submission_id",
+      "task_id": "task_id",
+      "source": "source",
+      "buyer_request_id": "buyer_request_id",
+      "taxonomy_version": "taxonomy_version",
+      "config_version": "config_version",
+      "license": "license",
+      "ip_cleared": "ip_cleared",
+      "contains_phi": "contains_phi",
+      "captured_at": "captured_at",
+      "portal_version": "portal_version"
+    },
+    "rubric": {
+      "type": "type",
+      "prompt": "prompt",
+      "criteria": "criteria",
+      "max_points": "max_points",
+      "n_positive": "n_positive",
+      "n_negative": "n_negative",
+      "axes": "axes",
+      "context": "context",
+      "confidence": "confidence",
       "annotator_credential": "annotator_credential",
       "annotator_specialty": "annotator_specialty",
       "annotator_years_experience": "annotator_years_experience",
@@ -291,6 +318,47 @@
         },
         "grounded": {
           "type": "boolean"
+        },
+        "ip_cleared": {
+          "type": "boolean"
+        },
+        "contains_phi": {
+          "type": "boolean"
+        },
+        "license": {
+          "type": "string"
+        },
+        "annotator_credential": {
+          "type": "string"
+        }
+      }
+    },
+    "rubric": {
+      "type": "object",
+      "required": [
+        "type",
+        "prompt",
+        "criteria",
+        "max_points",
+        "annotator_credential",
+        "license",
+        "ip_cleared",
+        "contains_phi"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "rubric"
+          ]
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "criteria": {
+          "type": "array"
+        },
+        "max_points": {
+          "type": "number"
         },
         "ip_cleared": {
           "type": "boolean"

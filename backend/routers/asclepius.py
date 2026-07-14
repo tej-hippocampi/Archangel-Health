@@ -66,6 +66,7 @@ from asclepius.constants import (
     PROMPT_FLAGGED_TASK_STATUS,
     PROMPT_REVIEW_VERDICTS,
     REASONING_STEP_LABELS,
+    RUBRIC_AXES,
     STEP_CORRECTION_REASONS,
     ASSISTED_PORTAL_VERSIONS,
     TASK_SOURCES,
@@ -203,6 +204,7 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
         "reasoning_step_labels": list(REASONING_STEP_LABELS),
         "step_correction_reasons": list(STEP_CORRECTION_REASONS),
         "error_tag_reasons": list(ERROR_TAG_REASONS),
+        "rubric_axes": list(RUBRIC_AXES),
         "independent_modes": list(INDEPENDENT_MODES),
         "portal_versions": list(PORTAL_VERSIONS),
         "value_tiers": list(VALUE_TIERS),
@@ -1263,6 +1265,12 @@ async def _finalize_submission(
         result["status"] = "needs_qa"
         result["issues"] = sorted(set((result.get("issues") or []) + ["prompt_flagged"]))
 
+    # Frontier-model failure capture (FEAT-1): if this task's A/B pair was real
+    # frontier answers, persist the per-model failure record (which model was
+    # rejected + the expert correction). No-op for a normal generated pair.
+    from asclepius import baselines as asc_baselines
+    asc_baselines.record_model_failure(store, task_id, sid)
+
     store.refresh_task_status(task_id)
     return result
 
@@ -1314,6 +1322,87 @@ async def submission_status(
     }
 
 
+# ─── Frontier-model failure capture (FEAT-1) ──────────────────────────────────
+@router.post("/tasks/{task_id}/baselines")
+async def run_task_baselines(
+    task_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """Answer this task's rendered case COLD with each configured frontier model
+    (ASCLEPIUS_BASELINE_MODELS) and store the verbatim responses (FEAT-1). The
+    on-policy artifact that proves the case is hard."""
+    from asclepius import baselines as asc_baselines
+
+    store = _store()
+    task = store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    runs = await asc_baselines.run_baselines(store, task)
+    store.log_event(entity_type="task", entity_id=task_id, event_type="baselines_run",
+                    actor=admin["id"], payload={"models": [r.get("model") for r in runs]})
+    # Never leak raw baseline text into logs; the response is admin-only anyway.
+    return {"task_id": task_id, "runs": runs}
+
+
+@router.get("/tasks/{task_id}/baselines")
+async def list_task_baselines(
+    task_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    return {"task_id": task_id, "runs": _store().list_baseline_runs(task_id=task_id)}
+
+
+@router.post("/tasks/{task_id}/grade-real-models")
+async def grade_real_models(
+    task_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """"Grade the real models" mode (FEAT-1): run baselines if needed, then swap
+    the task's A/B pair to TWO real frontier answers (blinded, source='baseline',
+    50/50 randomized) so the specialist grades real models instead of two
+    generated answers. On submission a per-model failure record is computed."""
+    from asclepius import baselines as asc_baselines
+
+    store = _store()
+    task = store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    runs = store.list_baseline_runs(task_id=task_id)
+    ok_runs = [r for r in runs if (r.get("response_text") or "").strip()]
+    if len(ok_runs) < 2:
+        runs = await asc_baselines.run_baselines(store, task)
+        ok_runs = [r for r in runs if (r.get("response_text") or "").strip()]
+    candidates = asc_baselines.build_baseline_candidates(ok_runs)
+    if len(candidates) < 2:
+        raise HTTPException(
+            status_code=503,
+            detail="Need at least two successful baseline answers to grade real models "
+                   "(check ANTHROPIC_API_KEY and ASCLEPIUS_BASELINE_MODELS).",
+        )
+    updated = store.set_task_candidates(
+        task_id, candidates,
+        generation_patch={"mode": "grade_real_models",
+                          "baseline_models": [c.get("baseline_model") for c in candidates]},
+    )
+    store.log_event(entity_type="task", entity_id=task_id, event_type="grade_real_models",
+                    actor=admin["id"], payload={"models": [c.get("baseline_model") for c in candidates]})
+    return {"task_id": task_id, "modality": updated.get("modality"),
+            "candidate_count": len(candidates)}
+
+
+@router.get("/baselines/model-failures")
+async def model_failures(
+    model: Optional[str] = None,
+    error_tag: Optional[str] = None,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """The Model-Failure artifact (FEAT-1): "cases where model X failed, with the
+    expert correction", filterable by model + error tag. This is what you put in
+    front of a lab."""
+    store = _store()
+    return {
+        "failures": store.list_model_failures(model=model, error_tag=error_tag),
+        "summary": store.model_failure_summary(),
+    }
+
+
 @router.post("/reasoning/split")
 async def reasoning_split(
     body: ReasoningSplitRequest, _user: Dict[str, Any] = Depends(asc_auth.get_current_user)
@@ -1341,6 +1430,29 @@ async def reasoning_pregrade(
         "source": res.get("source"),
         "skipped": bool(res.get("skipped")),
     }
+
+
+# ─── Rubric capture (FEAT-2) ──────────────────────────────────────────────────
+@router.post("/rubric/suggest")
+async def rubric_suggest(
+    body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Auto-seed proposed rubric criteria from the doctor's already-captured tags
+    (FEAT-2). The client sends the in-progress draft (error tags + reasons,
+    why-better tags, graded/corrected steps); we return pre-filled, editable
+    ``{text, points, axis, source}`` chips. NOTHING is applied — the doctor
+    confirms/edits/deletes before the rubric ships (same anti-rubber-stamp rule as
+    everywhere else). Post-reveal + on the doctor's own tags, so no anti-peeking
+    gate; the answer key stays server-side."""
+    store = _store()
+    task = store.get_task(body.task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)
+    from asclepius.rubric import propose_rubric
+
+    criteria = propose_rubric(task, body.model_dump())
+    return {"criteria": criteria, "axes": list(RUBRIC_AXES)}
 
 
 # ─── Model-assisted pre-labeling (Speed Optimization §2) ─────────────────────

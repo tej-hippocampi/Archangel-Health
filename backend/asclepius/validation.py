@@ -26,6 +26,7 @@ from asclepius.constants import (
     ERROR_TAG_REASONS,
     ERROR_TAXONOMY,
     EVIDENCE_SOURCE_TYPES,
+    RUBRIC_AXES,
     STEP_CORRECTION_REASONS,
     VERDICTS,
     WHY_BETTER_TAGS,
@@ -287,6 +288,20 @@ def validate_submission(
             elif reason not in STEP_CORRECTION_REASONS:
                 issues.append("unknown_correction_reason")
 
+    # 1d. Rubric capture (FEAT-2): a confirmed criterion must sit on a known axis
+    # and carry a non-zero weight. Off-vocabulary values route to QA (never a hard
+    # reject — no lost submissions) so the sellable scoring function stays clean.
+    for c in payload.get("rubric") or []:
+        if not isinstance(c, dict) or not (c.get("text") or "").strip():
+            continue
+        if c.get("axis") is not None and c.get("axis") not in RUBRIC_AXES:
+            issues.append("unknown_rubric_axis")
+        try:
+            if float(c.get("points") or 0.0) == 0.0:
+                issues.append("rubric_criterion_zero_points")
+        except (TypeError, ValueError):
+            issues.append("rubric_criterion_bad_points")
+
     # 2. packaged records present + required fields non-empty
     if not records:
         issues.append("no_records_packaged")
@@ -336,6 +351,9 @@ def validate_submission(
             # §4 / Speed Optimization §2) — critiques can carry PHI like the body.
             scan_targets.extend([step.get("text"), step.get("critique"),
                                  step.get("suggested_critique")])
+        # Rubric criteria are free text the doctor authored (FEAT-2) — scan them too.
+        for crit in r.get("criteria") or []:
+            scan_targets.append((crit or {}).get("text"))
     # A PHI scanner must always be available; a missing scanner is a validation
     # FAILURE, never a silent pass (BLOCKER 3).
     if not PHI_SCANNER:

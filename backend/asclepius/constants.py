@@ -202,8 +202,14 @@ SUBMISSION_STATUSES = (
     "case_incoherent",
 )
 
-# Packaged training-record types (PRD §6.3).
-RECORD_TYPES = ("preference", "ideal_answer", "reasoning_trace")
+# Packaged training-record types (PRD §6.3). ``rubric`` (FEAT-2) is a standalone,
+# sellable, HealthBench-shaped scoring function derived from the doctor's tags.
+RECORD_TYPES = ("preference", "ideal_answer", "reasoning_trace", "rubric")
+
+# Rubric criterion axes (FEAT-2). Every criterion is scored on exactly one axis so
+# a buyer can weight/filter by dimension (a reward model, an RL run, and a
+# benchmark all consume these).
+RUBRIC_AXES = ("accuracy", "completeness", "safety", "reasoning", "grounding", "communication")
 
 # Difficulty hints (free-form is tolerated, these are the canonical buckets).
 DIFFICULTIES = ("easy", "medium", "hard")
@@ -498,6 +504,23 @@ def value_ideal_answer_marginal() -> float:
 def value_reasoning_trace_marginal() -> float:
     """PRM step-level trace — a distinct training use from the preference pair."""
     return _env_float("ASCLEPIUS_VALUE_REASONING_TRACE_MARGINAL", 13.0)
+
+
+def baseline_models() -> list:
+    """The frontier models to answer a case COLD for failure capture (FEAT-1).
+    Comma-separated ``ASCLEPIUS_BASELINE_MODELS`` (e.g.
+    ``claude-opus-4-8,claude-sonnet-4-6``). These route through the shared
+    ``ai.llm_client`` (Anthropic-backed here); a model id the backend can't reach
+    is recorded as an errored run, never a crash."""
+    raw = os.getenv("ASCLEPIUS_BASELINE_MODELS", "claude-opus-4-8")
+    return [m.strip() for m in raw.split(",") if m.strip()]
+
+
+def value_rubric_marginal() -> float:
+    """A confirmed rubric (FEAT-2) is a reusable SCORING FUNCTION (a grader), not a
+    single label — priced above a label. Marginal add-on over the judgment it was
+    seeded from."""
+    return _env_float("ASCLEPIUS_VALUE_RUBRIC_MARGINAL", 25.0)
 
 
 def value_step_pair_each() -> float:

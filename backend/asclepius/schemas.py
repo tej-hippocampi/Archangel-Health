@@ -141,6 +141,12 @@ class CandidateAnswer(BaseModel):
     # generator_model is stored server-side only and NEVER serialized to the
     # blinded eval screen (PRD §4.1, §6.1).
     generator_model: Optional[str] = None
+    # Candidate source (FEAT-1): "generated" (our engine) | "baseline" (a real
+    # frontier model's verbatim cold answer). ``baseline_model`` names it. BOTH are
+    # SERVER-SIDE ONLY — never sent to the blinded evaluator screen, same rule as
+    # generator_model, so the A/B stays blind.
+    source: Optional[str] = None            # "generated" | "baseline"
+    baseline_model: Optional[str] = None
 
 
 class TaskIn(BaseModel):
@@ -283,6 +289,22 @@ class FromScratch(BaseModel):
     evidence_anchors: List[EvidenceAnchor] = Field(default_factory=list)
 
 
+class RubricCriterion(BaseModel):
+    """One weighted criterion of a HealthBench-shaped scoring rubric (FEAT-2).
+
+    ``points`` is signed: POSITIVE for "a correct answer must include this",
+    NEGATIVE for "a correct answer must never say this". ``axis`` is one of
+    RUBRIC_AXES. ``source`` records how the criterion was seeded (e.g.
+    ``error_tag:dosing_error``, ``why_better:safer``, ``good_step``,
+    ``corrected_step``, or ``manual``) so a buyer can trace provenance. Nothing is
+    auto-applied — the doctor confirms/edits every criterion before it ships."""
+
+    text: str = ""
+    points: float = 0.0
+    axis: Optional[str] = None
+    source: Optional[str] = None
+
+
 class PromptReview(BaseModel):
     """Stage-1 clinician sign-off on the prompt itself (Eval Flow Upgrade §2).
 
@@ -336,6 +358,10 @@ class SubmissionIn(BaseModel):
     rejected_critique: Optional[RejectedCritique] = None
     from_scratch: Optional[FromScratch] = None
     reasoning_steps: List[ReasoningStep] = Field(default_factory=list)
+    # Rubric capture (FEAT-2): the weighted +/− criteria the doctor CONFIRMED
+    # (auto-seeded from their tags, then edited). Optional + free-text-tolerant;
+    # an empty list means no rubric was captured for this judgment.
+    rubric: List[RubricCriterion] = Field(default_factory=list)
     confidence: str = "medium"
     time_spent_sec: int = 0
     # Which portal flow produced this submission ("v1" classic | "v2"

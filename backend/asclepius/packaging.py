@@ -478,4 +478,29 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
             }
         )
 
+    # Rubric record (FEAT-2): a standalone, sellable, HealthBench-shaped scoring
+    # function — the weighted +/− criteria the doctor CONFIRMED. Emitted only when
+    # the submission carries a non-empty confirmed rubric (nothing auto-applied).
+    from asclepius.rubric import normalize_rubric, rubric_max_points
+
+    criteria = normalize_rubric(payload.get("rubric"))
+    if criteria:
+        axes: Dict[str, int] = {}
+        for c in criteria:
+            axes[c["axis"]] = axes.get(c["axis"], 0) + 1
+        records.append(
+            {
+                "type": "rubric",
+                "prompt": prompt,
+                "criteria": criteria,
+                "max_points": rubric_max_points(criteria),
+                "n_positive": sum(1 for c in criteria if c["points"] > 0),
+                "n_negative": sum(1 for c in criteria if c["points"] < 0),
+                "axes": axes,
+                "context": _context(task),
+                "confidence": submission.get("confidence"),
+                **prov,
+            }
+        )
+
     return records

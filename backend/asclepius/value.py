@@ -31,15 +31,19 @@ def _difficulty_mult(difficulty: Optional[str]) -> float:
     return table.get((difficulty or "medium").strip().lower(), table.get("medium", 1.0))
 
 
-def _content_value(*, has_ideal: bool, has_reasoning: bool, num_step_pairs: int) -> float:
+def _content_value(
+    *, has_ideal: bool, has_reasoning: bool, num_step_pairs: int, has_rubric: bool = False
+) -> float:
     """§A1: PREFERENCE_BASE is unconditional (every completed judgment is at least
     a preference-grade signal); ideal + reasoning are marginal add-ons; capped
-    step-pairs each add a step-level preference pair."""
+    step-pairs each add a step-level preference pair; a confirmed rubric (FEAT-2)
+    is a reusable scoring function priced above a label."""
     pairs = max(0, min(int(num_step_pairs or 0), C.value_step_pair_max()))
     return (
         C.value_preference_base()
         + (C.value_ideal_answer_marginal() if has_ideal else 0.0)
         + (C.value_reasoning_trace_marginal() if has_reasoning else 0.0)
+        + (C.value_rubric_marginal() if has_rubric else 0.0)
         + pairs * C.value_step_pair_each()
     )
 
@@ -153,10 +157,12 @@ def estimate_value(
 
     has_ideal = any(r.get("type") == "ideal_answer" for r in records)
     has_reasoning = any(r.get("type") == "reasoning_trace" for r in records)
+    has_rubric = any(r.get("type") == "rubric" for r in records)
     num_pairs = _num_step_pairs(records)
 
     content = _content_value(
-        has_ideal=has_ideal, has_reasoning=has_reasoning, num_step_pairs=num_pairs
+        has_ideal=has_ideal, has_reasoning=has_reasoning, num_step_pairs=num_pairs,
+        has_rubric=has_rubric,
     )
 
     is_grounded = _records_grounded(records, submission)
@@ -188,6 +194,7 @@ def estimate_value(
             "has_preference": any(r.get("type") == "preference" for r in records),
             "has_ideal_answer": has_ideal,
             "has_reasoning_trace": has_reasoning,
+            "has_rubric": has_rubric,
             "num_step_pairs": num_pairs,
             "is_grounded": is_grounded,
             "difficulty": task.get("difficulty"),
