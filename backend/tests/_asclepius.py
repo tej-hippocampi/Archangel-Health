@@ -28,6 +28,11 @@ os.environ.setdefault("ASCLEPIUS_AUTH_SECRET", "asclepius-test-secret-0123456789
 # path itself is exercised explicitly where needed via
 # ``monkeypatch.setattr(pipeline, "_should_sample", lambda: True)``.
 os.environ["ASCLEPIUS_QA_SAMPLE_PCT"] = "0"
+# V3 multimodal-by-default is ON in production, but the existing V3 serving tests
+# use TEXT hard tasks (multimodal generation needs an LLM the suite doesn't have).
+# Hard-assign OFF so those stay valid; the multimodal-only behavior is exercised
+# explicitly where needed via monkeypatch (mirrors the QA-sampling pattern above).
+os.environ["ASCLEPIUS_V3_MULTIMODAL_ONLY"] = "0"
 os.environ.setdefault("ASCLEPIUS_TIME_FLOOR_SEC", "20")
 os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
 # Seedmaker generation: deterministic thresholds + small bounds for fast tests.

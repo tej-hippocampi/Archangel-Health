@@ -90,6 +90,7 @@ from asclepius.critic import (
 from asclepius.constants import (
     company_name as _company_name,
     hard_only_generation,
+    v3_multimodal_only,
     non_circumvention_notice as _non_circumvention_notice,
 )
 from asclepius.schemas import (
@@ -610,17 +611,18 @@ def _autofill_specialty(user: Dict[str, Any]) -> str:
 
 def _value_aware_next(
     store: Any, user: Dict[str, Any], specialty: Optional[str], *, hard_only: bool = False,
-    real_only: bool = False,
+    real_only: bool = False, multimodal_only: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """Value-aware routing (Value-per-Minute PRD B3) — assisted flows. Serves the
     eligible task with the highest expected value-per-minute for THIS contributor
     (their rolling median speed × each task's expected realized value). Ties break
     on the oldest task, preserving FIFO fairness within an equal-value cohort.
     ``hard_only`` (WS2) restricts the candidate set to hard cases (the V3 queue);
-    ``real_only`` is the V4 wall (EHR PRD §9.5)."""
+    ``real_only`` is the V4 wall (EHR PRD §9.5); ``multimodal_only`` restricts V3
+    to structured cases (the multimodal-by-default queue)."""
     candidates = store.eligible_tasks_for_evaluator(
         evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
-        real_only=real_only,
+        real_only=real_only, multimodal_only=multimodal_only,
     )
     if not candidates:
         return None
@@ -659,15 +661,22 @@ def _query_next(
     real_only = portal_version == REAL_CASE_PORTAL_VERSION
     if real_only and not user.get("real_data_approved"):
         return None
+    # V3 multimodal-by-default (ASCLEPIUS_V3_MULTIMODAL_ONLY, default on): the
+    # seamless queue serves STRUCTURED CASES only — labs + EHR notes — never a bare
+    # text prompt, so every V3 case is a multimodal case. Requires synthetic
+    # multimodal generation (an LLM key); with none the queue is empty rather than
+    # falling back to a text prompt. Set the env to 0 for a text/hard V3 queue.
+    multimodal_only = portal_version == "v3" and v3_multimodal_only()
 
     def _classic(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
         return store.next_task_for_evaluator(
             evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
-            real_only=real_only,
+            real_only=real_only, multimodal_only=multimodal_only,
         )
 
     def _pick(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
-        return (_value_aware_next(store, user, specialty, hard_only=hard_only, real_only=real_only)
+        return (_value_aware_next(store, user, specialty, hard_only=hard_only,
+                                  real_only=real_only, multimodal_only=multimodal_only)
                 if value_aware else _classic(specialty))
 
     pick = _pick(user.get("specialty"))
@@ -779,13 +788,16 @@ async def _autofill_queue(
         if time.monotonic() - _autofill_last_attempt.get(specialty, 0.0) < cooldown:
             return None
         _autofill_last_attempt[specialty] = time.monotonic()
+        # V3 multimodal-by-default: the queue serves ONLY structured cases, so the
+        # autofill must GENERATE multimodal cases and must NOT fall back to text
+        # seeding (a text task would never be served to a V3 doctor — it would just
+        # sit in the queue). For any other flow, keep the opt-in env + text fallback.
+        mm_only = portal_version == "v3" and v3_multimodal_only()
         try:
             created = 0
-            # Multimodal autofill (Multimodal Debug PRD P0.2): when opted in, try a
-            # full multimodal batch FIRST (case-gen → case-judge → hardness, all the
-            # normal gates). Any failure or zero yield falls through to the fast
-            # text corpus seeding below, so enabling this can never starve the queue.
-            if _autofill_multimodal():
+            # Multimodal autofill (Multimodal Debug PRD P0.2): a full multimodal
+            # batch FIRST (case-gen → case-judge → hardness, all the normal gates).
+            if mm_only or _autofill_multimodal():
                 try:
                     mm = await asc_generation.generate_tasks(
                         store, specialty=specialty, n=_autofill_batch(),
@@ -799,14 +811,26 @@ async def _autofill_queue(
                         )
                     elif mm.get("dropped"):
                         log.warning(
-                            "asclepius autofill: multimodal batch yielded 0 for %s (dropped: %s); "
-                            "falling back to text seeding", specialty, mm.get("dropped"),
+                            "asclepius autofill: multimodal batch yielded 0 for %s (dropped: %s)%s",
+                            specialty, mm.get("dropped"),
+                            "" if mm_only else "; falling back to text seeding",
                         )
                 except asc_generation.GenerationDisabled:
-                    pass  # no LLM — the text path below logs the actionable warning
+                    # No LLM. For multimodal-only V3 this means an empty queue (by
+                    # design — never serve a text prompt as the "case" experience);
+                    # the actionable warning fires here so an operator knows why.
+                    if mm_only:
+                        log.warning(
+                            "asclepius autofill: V3 is multimodal-only but multimodal "
+                            "generation is unavailable (no LLM key). The V3 queue will be "
+                            "empty until ANTHROPIC_API_KEY is set (or set "
+                            "ASCLEPIUS_V3_MULTIMODAL_ONLY=0 for a text queue)."
+                        )
                 except Exception:
-                    log.exception("asclepius autofill: multimodal generation failed; falling back to text")
-            if created == 0:
+                    log.exception("asclepius autofill: multimodal generation failed")
+            # Text corpus seeding — the fast fallback, but NEVER for multimodal-only
+            # V3 (those text tasks would be unservable to the V3 doctor).
+            if created == 0 and not mm_only:
                 created = await _seed_tasks_from_corpus(
                     store, specialty, _autofill_batch(),
                     hard_only=(portal_version == "v3" and hard_only_generation()),
