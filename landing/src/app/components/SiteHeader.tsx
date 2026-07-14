@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useEffect } from "react";
 import { SignInDialog } from "@/app/components/SignInDialog";
 import { SignUpDialog } from "@/app/components/SignUpDialog";
 import ArchangelHealthLogo from "@/app/components/ArchangelHealthLogo";
-import * as authApi from "@/lib/auth-api";
+import { useLandingAuth } from "@/app/hooks/useLandingAuth";
 
 export type LandingView = "home" | "whitepaper" | "calculator" | "podcastBlogs";
 
@@ -26,46 +25,19 @@ interface SiteHeaderProps {
 }
 
 export function SiteHeader({ activeView }: SiteHeaderProps) {
-  const { user, loading, logout, token } = useAuth();
-  const [signInOpen, setSignInOpen] = useState(false);
-  const [signUpOpen, setSignUpOpen] = useState(false);
-  const [signUpInitialStep, setSignUpInitialStep] = useState<"role" | "patient-codes">("role");
-
-  useEffect(() => {
-    if (!user || !token) return;
-    let cancelled = false;
-    authApi.getDoctorProfile(token).then((profile) => {
-      if (!cancelled && profile) {
-        void authApi.redirectToDoctorPortal(token);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [user, token]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const isSignoutQuery = params.get("signout") === "1";
-    const isSignoutPath = window.location.pathname === "/auth/signout";
-    if (isSignoutQuery || isSignoutPath) {
-      logout();
-      params.delete("signout");
-      const newSearch = params.toString();
-      const newUrl = (isSignoutPath ? "/" : window.location.pathname) + (newSearch ? "?" + newSearch : "") + window.location.hash;
-      window.history.replaceState(null, "", newUrl);
-    }
-  }, [logout]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.location.hash === "#recovery-plan") {
-      setSignUpInitialStep("patient-codes");
-      setSignUpOpen(true);
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
-    }
-  }, []);
+  const {
+    user,
+    loading,
+    logout,
+    signInOpen,
+    setSignInOpen,
+    signUpOpen,
+    setSignUpOpen,
+    signUpInitialStep,
+    openSignUp,
+    doctorPortalUrl,
+    doctorPortalLabel,
+  } = useLandingAuth();
 
   const tabClass = (view: LandingView) => {
     const on = activeView === view;
