@@ -252,6 +252,78 @@ def test_empty_queue_no_llm_returns_empty_not_error(monkeypatch):
 
 
 # ─── Full lifecycle ───────────────────────────────────────────────────────────
+def test_async_submit_returns_202_and_status_reports_real_phase():
+    """BUG-5: with ?async_pipeline=1 the submit returns 202 + submission_id
+    immediately and the pipeline runs as a background job; the status endpoint
+    reports the real backend-stamped phase and reaches done/complete."""
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)
+    client.get("/api/asclepius/tasks/next", headers=ev_h)
+    sid = "s-" + uuid.uuid4().hex[:12]
+    body = {
+        "submission_id": sid, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "confidence": "high", "time_spent_sec": 140,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": _IDEAL,
+        "chosen_revision": {"edited": False, "why_better_notes": "B over-lowers K+", "why_better_tags": ["safer"]},
+        "rejected_critique": {"error_tags": ["dosing_error"], "severities": {}, "why_worse": "too aggressive"},
+    }
+    r = client.post("/api/asclepius/submissions?async_pipeline=1", json=body, headers=ev_h)
+    assert r.status_code == 202, r.text
+    assert r.json()["submission_id"] == sid and r.json()["status"] == "processing"
+
+    # TestClient runs the background task after the response; poll the real status.
+    st = client.get(f"/api/asclepius/submissions/{sid}/status", headers=ev_h)
+    assert st.status_code == 200, st.text
+    body_st = st.json()
+    assert body_st["done"] is True
+    assert body_st["status"] == "export_ready"
+    assert body_st["phase"] == "complete" and body_st["pct"] == 100
+    # A different evaluator cannot poll someone else's submission.
+    other_h = A.headers_for(_seed())
+    assert client.get(f"/api/asclepius/submissions/{sid}/status", headers=other_h).status_code == 403
+
+
+def test_pipeline_exception_routes_to_qa_never_strands(monkeypatch):
+    """BUG-5 review (3b): if the pipeline raises (a real bug in packaging/validate/
+    a store write), the submission must NOT be stranded at a non-terminal status
+    with the async poller hanging forever. It routes to needs_qa (no lost work)
+    and the status endpoint reports a terminal, done state."""
+    admin_h = A.headers_for(_admin())
+    ev_h = A.headers_for(_seed())
+    tid = _upload_task(admin_h)
+    client.get("/api/asclepius/tasks/next", headers=ev_h)
+
+    async def _boom(store, task, submission):
+        raise RuntimeError("simulated pipeline failure")
+
+    monkeypatch.setattr(asc_pipeline, "process_submission", _boom)
+    sid = "s-" + uuid.uuid4().hex[:12]
+    body = {
+        "submission_id": sid, "task_id": tid, "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "confidence": "high", "time_spent_sec": 140,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": _IDEAL,
+        "chosen_revision": {"edited": False, "why_better_notes": "B over-lowers K+"},
+        "rejected_critique": {"error_tags": ["dosing_error"]},
+    }
+    # Async path: 202, then the background job catches the exception and routes to QA.
+    r = client.post("/api/asclepius/submissions?async_pipeline=1", json=body, headers=ev_h)
+    assert r.status_code == 202, r.text
+    st = client.get(f"/api/asclepius/submissions/{sid}/status", headers=ev_h).json()
+    assert st["done"] is True, st
+    assert st["status"] == "needs_qa"
+    assert "pipeline_error" in st["issues"]
+
+    # Sync path: the same failure returns needs_qa (200), never a 500 / lost work.
+    sid2 = "s-" + uuid.uuid4().hex[:12]
+    body2 = dict(body, submission_id=sid2)
+    r2 = client.post("/api/asclepius/submissions", json=body2, headers=ev_h)
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["status"] == "needs_qa"
+
+
 def test_full_lifecycle_submitted_to_exported():
     admin_h = A.headers_for(_admin())
     ev_user = _seed()

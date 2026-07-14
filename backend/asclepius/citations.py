@@ -96,15 +96,39 @@ def _citation_terms(c: Dict[str, Any]) -> Dict[str, float]:
     return terms
 
 
-def _score(query_tokens: List[str], c: Dict[str, Any]) -> float:
+def cite_min_score() -> float:
+    """Minimum ENTITY-weighted score (raw, un-normalized) a citation must reach to
+    be SUGGESTED (BUG-3c). The default 3.0 = at least one clinical-entity (keyword)
+    overlap — a drug name, lab analyte, or guideline term the doctor's text and the
+    source share. Below it we show NOTHING: a wrong citation the doctor must fight
+    is worse than no citation. Env-tunable (``ASCLEPIUS_CITE_MIN_SCORE``)."""
+    try:
+        return float(os.getenv("ASCLEPIUS_CITE_MIN_SCORE", "3.0"))
+    except (TypeError, ValueError):
+        return 3.0
+
+
+def _score_detail(query_tokens: List[str], c: Dict[str, Any]) -> Dict[str, Any]:
+    """Entity-aware relevance of a citation to the query (BUG-3c). Returns:
+      * ``raw``       — the un-normalized weighted overlap (the SUGGEST gate);
+      * ``rank``      — ``raw`` normalized by query breadth (the ORDERING key);
+      * ``entities``  — count of KEYWORD-level (specific clinical entity) hits.
+    We score on the specific clinical entities the source declares (drug names,
+    lab analytes, guideline terms as ``keywords``, weight 3), not bag-of-words —
+    so a longer rationale that merely shares glue words never wins."""
     if not query_tokens:
-        return 0.0
+        return {"raw": 0.0, "rank": 0.0, "entities": 0}
     terms = _citation_terms(c)
     qset = set(query_tokens)
-    score = sum(w for t, w in terms.items() if t in qset)
-    # Light normalization by query breadth so a longer rationale doesn't
-    # mechanically outscore a short step for the same overlap.
-    return score / (1.0 + 0.02 * len(qset))
+    raw = 0.0
+    entities = 0
+    for t, w in terms.items():
+        if t in qset:
+            raw += w
+            if w >= 3.0:  # a keyword = a specific clinical entity
+                entities += 1
+    rank = raw / (1.0 + 0.02 * len(qset))
+    return {"raw": raw, "rank": rank, "entities": entities}
 
 
 def _public(c: Dict[str, Any]) -> Dict[str, Any]:
@@ -112,18 +136,44 @@ def _public(c: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def suggest_citations(text: str, specialty: str = "nephrology", k: int = 3) -> List[Dict[str, Any]]:
-    """Deterministic keyword/token retrieval — the always-available core. Returns
-    up to ``k`` citation dicts ranked by relevance to ``text`` (only positive
-    scores). Empty when the library exists but nothing matches; also empty when
-    there is no library (callers distinguish via ``load_library``)."""
+    """Deterministic ENTITY-aware retrieval — the always-available core (BUG-3c).
+    Returns up to ``k`` citation dicts, but ONLY those clearing the relevance bar:
+    at least one clinical-entity (keyword) overlap AND a raw score ≥
+    ``cite_min_score()``. Empty when nothing clears the bar (show nothing rather
+    than a wrong citation) or when there is no library for the specialty."""
     lib = load_library(specialty)
     if not lib:
         return []
     qt = _tokens(text)
-    scored = [(c, _score(qt, c)) for c in lib]
-    scored = [(c, s) for c, s in scored if s > 0]
+    thr = cite_min_score()
+    scored = []
+    for c in lib:
+        d = _score_detail(qt, c)
+        # Entity-aware precision gate: require a real clinical-entity overlap AND
+        # a minimum relevance — better NOTHING than a wrong suggestion.
+        if d["entities"] < 1 or d["raw"] < thr:
+            continue
+        scored.append((c, d["rank"]))
     scored.sort(key=lambda cs: cs[1], reverse=True)
     return [_public(c) for c, _s in scored[: max(1, k)]]
+
+
+def search_library(text: str, specialty: str = "nephrology", k: int = 10) -> List[Dict[str, Any]]:
+    """The explicit "Search the library" box (BUG-3c escape hatch). The doctor
+    typed this query on purpose, so it is MORE permissive than the auto-suggest:
+    any positive token overlap matches (no entity/min-score gate), ranked by
+    relevance. Falls back to returning the library head for a blank query so the
+    box is never a dead end. Empty only when there is no library."""
+    lib = load_library(specialty)
+    if not lib:
+        return []
+    qt = _tokens(text)
+    if not qt:
+        return [_public(c) for c in lib[: max(1, k)]]
+    scored = [(c, _score_detail(qt, c)) for c in lib]
+    scored = [(c, d) for c, d in scored if d["raw"] > 0]
+    scored.sort(key=lambda cd: cd[1]["rank"], reverse=True)
+    return [_public(c) for c, _d in scored[: max(1, k)]]
 
 
 async def _rerank_llm(text: str, candidates: List[Dict[str, Any]], k: int) -> Optional[List[Dict[str, Any]]]:

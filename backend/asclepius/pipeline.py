@@ -168,7 +168,16 @@ async def process_submission(
     result dict {submission_id, status, issues, record_count, critic, agreement_score}."""
     sid = submission["submission_id"]
 
+    def _progress(phase: str, pct: int, detail: Optional[str] = None) -> None:
+        # Real submit progress (BUG-5): stamp the phase the moment it starts, so a
+        # polling client shows a truthful phase name — never an invented percentage.
+        try:
+            store.set_submission_progress(sid, phase=phase, pct=pct, detail=detail)
+        except Exception:  # progress is best-effort; never fail capture on it
+            pass
+
     # 1. Package
+    _progress("packaging", 20, "Packaging training records")
     packaged = package_submission(task, submission)
     record_ids: List[str] = []
     for rec in packaged:
@@ -210,6 +219,7 @@ async def process_submission(
                 break
 
     # 3. Auto-validate
+    _progress("validating", 40, "Validating completeness, PHI, duplicates")
     vres = validate_submission(task, submission, packaged, is_duplicate=is_dup)
     store.update_submission(sid, validation=vres)
 
@@ -225,6 +235,7 @@ async def process_submission(
     value_fields = estimate_and_store_value(store, task, sid)
 
     if not vres["valid"]:
+        _progress("needs_qa", 100, "Routed to QA review")
         store.update_submission(sid, status="needs_qa", qa_reason=",".join(vres["issues"]))
         store.update_records_status_for_submission(sid, "needs_qa")
         store.log_event(
@@ -251,7 +262,9 @@ async def process_submission(
     )
 
     # 4. LLM consistency critic (double-check) + optional evidence-grounding check
+    _progress("consistency_check", 60, "LLM consistency critic")
     critic = await run_critic(task, submission)
+    _progress("grounding_check", 80, "Evidence grounding check")
     grounding = await run_grounding_check(task, submission)
     store.update_submission(sid, critic={"consistency": critic, "grounding": grounding})
 
@@ -262,6 +275,7 @@ async def process_submission(
     sampled = _should_sample()
 
     if critic_flagged or grounding_flagged or low_agreement or sampled:
+        _progress("qa_routing", 95, "Routing to QA review")
         if critic_flagged:
             reason = "critic_inconsistent"
         elif grounding_flagged:
@@ -289,6 +303,7 @@ async def process_submission(
         }
 
     # 5. Passed validation + critic + grounding, agreed, not sampled -> export-ready.
+    _progress("complete", 100, "Complete — export-ready")
     store.update_submission(sid, status="export_ready")
     store.update_records_status_for_submission(sid, "export_ready")
     store.log_event(

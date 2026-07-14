@@ -215,6 +215,30 @@ def test_mixed_bundle_assembles_one_case_with_all_sections():
     assert "upload_received" in events and "upload_processed" in events and "malware_scan" in events
 
 
+def test_schema_drift_bundle_quarantines_not_crashes(monkeypatch):
+    """BUG-1 hardening review: now that ClinicalCase is extra='forbid', a real
+    bundle whose structure drifts from the schema must QUARANTINE (loud,
+    recoverable) — never silently drop the field (old data loss) and never crash
+    the background ingest job with an uncaught ValidationError."""
+    from asclepius import case_formats as cf
+    real = cf.deidentify
+
+    def drifted(case):
+        safe = real(case)
+        safe["unexpected_field"] = "schema drift"  # not a ClinicalCase field
+        return safe
+
+    monkeypatch.setattr(cf, "deidentify", drifted)
+    link = _mint(_admin_h())
+    zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV})
+    res = _upload(link["token"], zb)
+    st = client.get(f"/api/asclepius/partner/uploads/{res['upload_id']}?t={link['token']}").json()
+    assert st["status"] == "quarantined", st
+    cases = _store().list_ingest_cases(upload_id=res["upload_id"])
+    assert cases and cases[0]["status"] == "quarantined"
+    assert (cases[0]["report"].get("quarantine_reason") or "")  # a readable reason, not a crash
+
+
 # ─── Quarantine (PRD §11 criterion 4) + triage actions ────────────────────────
 def test_planted_identifier_quarantines_with_masked_finding():
     link = _mint(_admin_h())

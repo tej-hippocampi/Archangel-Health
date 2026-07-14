@@ -28,7 +28,7 @@ from asclepius.prompts import (
     ASCLEPIUS_REASONING_PREGRADE_SYSTEM,
     ASCLEPIUS_REASONING_SPLIT_SYSTEM,
 )
-from asclepius.validation import is_valid_anchor
+from asclepius.validation import all_anchors, is_valid_anchor
 
 log = logging.getLogger("asclepius.critic")
 
@@ -119,13 +119,15 @@ def _collect_anchored_claims(task: Dict[str, Any], submission: Dict[str, Any]) -
     verdict = submission.get("verdict")
     claims: List[Dict[str, Any]] = []
 
+    # Multi-anchor (BUG-3b): a claim may carry N citations — check every one.
     if verdict in ("A_better", "B_better"):
         revision = payload.get("chosen_revision") or {}
-        if is_valid_anchor(revision.get("evidence_anchor")):
-            claims.append(
-                {"claim": (revision.get("why_better_notes") or "the chosen answer is better"),
-                 "anchor": revision.get("evidence_anchor")}
-            )
+        for anc in all_anchors(revision):
+            if is_valid_anchor(anc):
+                claims.append(
+                    {"claim": (revision.get("why_better_notes") or "the chosen answer is better"),
+                     "anchor": anc}
+                )
         critique = payload.get("rejected_critique") or {}
         for tag, anc in (critique.get("error_tag_anchors") or {}).items():
             if is_valid_anchor(anc):
@@ -133,17 +135,19 @@ def _collect_anchored_claims(task: Dict[str, Any], submission: Dict[str, Any]) -
         steps = payload.get("reasoning_steps") or []
     elif verdict == "both_inadequate":
         fs = payload.get("from_scratch") or {}
-        if is_valid_anchor(fs.get("evidence_anchor")):
-            claims.append(
-                {"claim": (fs.get("approach_notes") or "the ideal answer"), "anchor": fs.get("evidence_anchor")}
-            )
+        for anc in all_anchors(fs):
+            if is_valid_anchor(anc):
+                claims.append(
+                    {"claim": (fs.get("approach_notes") or "the ideal answer"), "anchor": anc}
+                )
         steps = fs.get("reasoning_steps") or []
     else:
         steps = []
 
     for s in steps:
-        if is_valid_anchor(s.get("evidence_anchor")):
-            claims.append({"claim": s.get("text") or "reasoning step", "anchor": s.get("evidence_anchor")})
+        for anc in all_anchors(s):
+            if is_valid_anchor(anc):
+                claims.append({"claim": s.get("text") or "reasoning step", "anchor": anc})
 
     return claims
 
@@ -601,7 +605,11 @@ async def generate_case(archetype: Dict[str, Any], *, specialty: str = "general"
         from ai.llm_client import call_llm, first_text
     except Exception as exc:  # pragma: no cover
         return {**empty, "error": f"import:{exc}"}
-    from asclepius.cases import ClinicalCase
+    from asclepius.cases import (
+        ClinicalCase,
+        MultimodalContentError,
+        assert_multimodal_content,
+    )
 
     mm = (archetype or {}).get("multimodal") or {}
     ctx = [f"Specialty: {specialty}", f"Archetype topic: {archetype.get('topic', '')}"]
@@ -617,37 +625,75 @@ async def generate_case(archetype: Dict[str, Any], *, specialty: str = "general"
         ctx.append("Ground-truth spec (the objectively correct answer): " + str(mm["ground_truth_spec"]))
     if mm.get("reasoning_divergence"):
         ctx.append("Reasoning divergence (sound vs shortcut path): " + str(mm["reasoning_divergence"]))
-    try:
-        resp, rec = await call_llm(
+
+    # Retry-once corrective (BUG-1 §5): if the first attempt fails the content
+    # assertion, re-ask the archetype ONCE with an explicit correction before
+    # dropping — a fixable omission shouldn't cost a whole archetype.
+    _CORRECTIVE = (
+        "\n\nYOUR PREVIOUS OUTPUT WAS REJECTED for missing required content. Return the FULL case with: "
+        "at least TWO lab_panels at DIFFERENT collected_offset_days (each with ≥2 results carrying "
+        "analyte, value, unit, and a ref range or flag); at least one clinical note of ≥200 characters; "
+        "a non-empty problem_list and a non-empty medications list. Use the EXACT field names "
+        "(lab_panels, results, value, ref_low, ref_high, flag, notes, problem_list, medications)."
+    )
+
+    async def _attempt(extra: str):
+        return await call_llm(
             role="asclepius_case_gen",
             system=ASCLEPIUS_CASE_GEN_SYSTEM,
-            messages=[{"role": "user", "content": "\n".join(ctx)}],
+            messages=[{"role": "user", "content": "\n".join(ctx) + extra}],
             prompt_id="asclepius_case_gen",
             purpose="asclepius_case_generation",
         )
-    except Exception as exc:
-        log.info("asclepius case-gen unavailable: %s", exc)
-        return empty
-    # The LLM answered — from here a failure is a BAD CASE (drop this one item),
-    # NOT "no LLM" (which is skipped=True and stops the whole run). Return
-    # skipped=False + case=None so the caller counts case_gen_failed and continues
-    # to the next archetype instead of aborting the batch as "no LLM configured".
-    bad = {"case": None, "question": None, "model": (rec or {}).get("model"), "skipped": False}
-    parsed = _extract_json(first_text(resp))
-    if not isinstance(parsed, dict):
-        return {**bad, "error": "unparseable_case"}
-    question = (parsed.get("question") or "").strip()
-    raw_case = parsed.get("case")
-    if not question or not isinstance(raw_case, dict):
-        return {**bad, "error": "incomplete_case"}
-    try:
-        case = ClinicalCase(**raw_case).model_dump()
-    except Exception as exc:  # schema mismatch → drop this item
-        log.info("asclepius case-gen schema error: %s", exc)
-        return {**bad, "error": "case_schema"}
-    case["case_source"] = "synthetic"
-    case.setdefault("specialty", specialty)
-    return {"case": case, "question": question, "model": (rec or {}).get("model"), "skipped": False}
+
+    llm_up = False
+    last_error = "case_gen_failed"
+    last_model = None
+    for attempt in range(2):
+        try:
+            resp, rec = await _attempt("" if attempt == 0 else _CORRECTIVE)
+        except Exception as exc:
+            # A call failure on the FIRST attempt is "no LLM" (skipped=True stops
+            # the whole run). On a RETRY the LLM was demonstrably up a moment ago,
+            # so a transient failure just drops THIS item (skipped=False).
+            if not llm_up:
+                log.info("asclepius case-gen unavailable: %s", exc)
+                return empty
+            log.info("asclepius case-gen retry failed: %s", exc)
+            break
+        llm_up = True
+        last_model = (rec or {}).get("model") or last_model
+        parsed = _extract_json(first_text(resp))
+        if not isinstance(parsed, dict):
+            last_error = "unparseable_case"
+            continue
+        question = (parsed.get("question") or "").strip()
+        raw_case = parsed.get("case")
+        if not question or not isinstance(raw_case, dict):
+            last_error = "incomplete_case"
+            continue
+        try:
+            case = ClinicalCase(**raw_case).model_dump()
+        except Exception as exc:  # schema mismatch / forbidden extra key → drop
+            log.info("asclepius case-gen schema error: %s", exc)
+            last_error = "case_schema"
+            continue
+        case["case_source"] = "synthetic"
+        case.setdefault("specialty", specialty)
+        # Hard content assertion (BUG-1 §2): a multimodal case that has no labs is
+        # not a multimodal case. Fail → retry once, then drop as case_gen_failed.
+        try:
+            assert_multimodal_content(case)
+        except MultimodalContentError as exc:
+            log.info("asclepius case-gen insufficient content: %s", exc)
+            last_error = f"insufficient_content:{exc}"
+            continue
+        return {"case": case, "question": question, "model": last_model, "skipped": False}
+
+    # LLM answered but produced no usable case after the retry — drop this ONE
+    # item (skipped=False) so the caller counts case_gen_failed and continues to
+    # the next archetype, NOT abort the batch as "no LLM configured".
+    return {"case": None, "question": None, "model": last_model, "skipped": False, "error": last_error}
 
 
 async def run_case_judge(case: Dict[str, Any], case_source: str = "synthetic") -> Dict[str, Any]:

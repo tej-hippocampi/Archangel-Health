@@ -28,7 +28,7 @@ from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request,
     UploadFile,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from asclepius import agreement as asc_agreement
 from asclepius import auth as asc_auth
@@ -66,6 +66,7 @@ from asclepius.constants import (
     PROMPT_FLAGGED_TASK_STATUS,
     PROMPT_REVIEW_VERDICTS,
     REASONING_STEP_LABELS,
+    RUBRIC_AXES,
     STEP_CORRECTION_REASONS,
     ASSISTED_PORTAL_VERSIONS,
     TASK_SOURCES,
@@ -203,6 +204,7 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
         "reasoning_step_labels": list(REASONING_STEP_LABELS),
         "step_correction_reasons": list(STEP_CORRECTION_REASONS),
         "error_tag_reasons": list(ERROR_TAG_REASONS),
+        "rubric_axes": list(RUBRIC_AXES),
         "independent_modes": list(INDEPENDENT_MODES),
         "portal_versions": list(PORTAL_VERSIONS),
         "value_tiers": list(VALUE_TIERS),
@@ -257,6 +259,11 @@ async def sso(body: SsoRequest):
             email=email,
             password=_secrets.token_urlsafe(32),
             role="evaluator",
+            # BUG-6: stamp a stable organization at provisioning (email local-part
+            # fallback) so an SSO-provisioned clinician groups immediately in
+            # Exports/Metrics instead of sitting in the (unassigned) bucket until
+            # the next boot-time backfill.
+            organization=(email.split("@", 1)[0] if "@" in email else email),
         )
         provisioned = True
     if not user.get("active"):
@@ -900,6 +907,10 @@ async def reveal_task_answers(
             "kind": kind,
             "portal_version": pv,
             "evidence_anchor": body.evidence_anchor.model_dump() if body.evidence_anchor else None,
+            # Multi-anchor (BUG-3b): persist the full citation list on the committed
+            # answer too, else packaging (which reads the AUTHORITATIVE commit, not
+            # the post-reveal submission) would silently drop the extra citations.
+            "evidence_anchors": [a.model_dump() for a in (body.evidence_anchors or [])],
         },
     )
     store.log_event(
@@ -973,7 +984,16 @@ async def get_task_answers(task_id: str, user: Dict[str, Any] = Depends(asc_auth
 # ─── Submissions ──────────────────────────────────────────────────────────────
 @router.post("/submissions")
 async def submit(
-    body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: SubmissionIn,
+    background: BackgroundTasks,
+    async_pipeline: bool = Query(
+        False,
+        description="Real submit progress (BUG-5): when true, return 202 + "
+        "submission_id immediately and run the pipeline as a background job; poll "
+        "GET /submissions/{id}/status for backend-stamped phases. Default false "
+        "keeps the synchronous 200 + result behavior.",
+    ),
+    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
 ):
     store = _store()
     sid = body.submission_id or f"s-{uuid.uuid4().hex[:12]}"
@@ -1204,26 +1224,233 @@ async def submit(
         payload={"task_id": body.task_id, "verdict": body.verdict, "time_spent_sec": body.time_spent_sec},
     )
 
-    result = await asc_pipeline.process_submission(store, task, submission)
-
-    # If another clinician already flagged this prompt as invalid, a grading that
-    # races in afterward must not silently export (Eval Flow Upgrade §2). Route it
-    # to QA instead of auto-export — never lose the work, never ship a flagged
-    # prompt's records. Re-read the task so a flag committed during processing is
-    # seen. (refresh_task_status leaves the prompt_flagged task as-is.)
-    _cur = store.get_task(body.task_id) or {}
-    if _cur.get("status") == PROMPT_FLAGGED_TASK_STATUS and result.get("status") in ("auto_validated", "export_ready"):
-        store.update_submission(sid, status="needs_qa", qa_reason="prompt_flagged")
-        store.update_records_status_for_submission(sid, "needs_qa")
-        store.log_event(
-            entity_type="submission", entity_id=sid, event_type="routed_to_qa",
-            actor=user["id"], payload={"reason": "prompt_flagged", "task_id": body.task_id},
+    # Real submit progress (BUG-5): run the genuinely-slow multi-stage pipeline
+    # (validate → package → LLM consistency → LLM grounding → agreement → store)
+    # as a BACKGROUND job when the client opts in, returning 202 + submission_id
+    # immediately so the UI can poll GET /submissions/{id}/status for real,
+    # backend-stamped phases. The default path stays synchronous (200 + result)
+    # so existing API clients are unchanged.
+    if async_pipeline:
+        store.set_submission_progress(sid, phase="queued", pct=5, detail="Queued for processing")
+        background.add_task(_finalize_submission, store, body.task_id, sid, user["id"])
+        return JSONResponse(
+            status_code=202,
+            content={"submission_id": sid, "status": "processing", "accepted": True},
         )
-        result["status"] = "needs_qa"
-        result["issues"] = sorted(set((result.get("issues") or []) + ["prompt_flagged"]))
 
-    store.refresh_task_status(body.task_id)
+    result = await _finalize_submission(store, body.task_id, sid, user["id"])
     return result
+
+
+async def _finalize_submission(
+    store: Any, task_id: str, sid: str, actor_id: str
+) -> Dict[str, Any]:
+    """Run the full submission pipeline + post-processing for a captured submission
+    row. Shared by the synchronous submit path and the background job (BUG-5), so
+    the two can never drift. Re-reads the task/submission fresh (safe for a
+    background run that starts after the HTTP response)."""
+    task = store.get_task(task_id)
+    submission = store.get_submission(sid)
+    if not task or not submission:
+        # Stamp a TERMINAL progress even on this narrow "row vanished" case so an
+        # async poller never hangs waiting for a submission that can't finish.
+        try:
+            store.set_submission_progress(sid, phase="error", pct=100, detail="Submission or task missing")
+        except Exception:
+            pass
+        return {"submission_id": sid, "status": "error", "issues": ["submission_or_task_missing"],
+                "record_count": 0}
+
+    try:
+        result = await asc_pipeline.process_submission(store, task, submission)
+
+        # If another clinician already flagged this prompt as invalid, a grading that
+        # races in afterward must not silently export (Eval Flow Upgrade §2). Route it
+        # to QA instead of auto-export — never lose the work, never ship a flagged
+        # prompt's records. Re-read the task so a flag committed during processing is
+        # seen. (refresh_task_status leaves the prompt_flagged task as-is.)
+        _cur = store.get_task(task_id) or {}
+        if _cur.get("status") == PROMPT_FLAGGED_TASK_STATUS and result.get("status") in ("auto_validated", "export_ready"):
+            store.update_submission(sid, status="needs_qa", qa_reason="prompt_flagged")
+            store.update_records_status_for_submission(sid, "needs_qa")
+            store.set_submission_progress(sid, phase="needs_qa", pct=100, detail="Routed to QA review")
+            store.log_event(
+                entity_type="submission", entity_id=sid, event_type="routed_to_qa",
+                actor=actor_id, payload={"reason": "prompt_flagged", "task_id": task_id},
+            )
+            result["status"] = "needs_qa"
+            result["issues"] = sorted(set((result.get("issues") or []) + ["prompt_flagged"]))
+
+        # Frontier-model failure capture (FEAT-1): if this task's A/B pair was real
+        # frontier answers, persist the per-model failure record (which model was
+        # rejected + the expert correction). No-op for a normal generated pair.
+        from asclepius import baselines as asc_baselines
+        asc_baselines.record_model_failure(store, task_id, sid)
+
+        store.refresh_task_status(task_id)
+        return result
+    except Exception:
+        # BUG-5 review (3b): the pipeline runs as a BACKGROUND job in the async
+        # path, so an unexpected exception here would die silently and strand the
+        # submission at a NON-terminal status ('submitted'/'auto_validated') — the
+        # poller would hang forever. Route to QA (no lost submissions — the core
+        # invariant) and stamp a TERMINAL phase so the poller always resolves. The
+        # synchronous path returns this same needs_qa result instead of a 500,
+        # which is strictly better: the work is captured, not lost.
+        log.exception("asclepius: submission pipeline failed for %s", sid)
+        try:
+            store.update_submission(sid, status="needs_qa", qa_reason="pipeline_error")
+            store.update_records_status_for_submission(sid, "needs_qa")
+            store.set_submission_progress(sid, phase="needs_qa", pct=100, detail="Routed to QA (pipeline error)")
+            store.log_event(
+                entity_type="submission", entity_id=sid, event_type="routed_to_qa",
+                actor=actor_id, payload={"reason": "pipeline_error", "task_id": task_id},
+            )
+            store.refresh_task_status(task_id)
+        except Exception:
+            log.exception("asclepius: could not stamp terminal state for %s", sid)
+        return {
+            "submission_id": sid, "status": "needs_qa", "issues": ["pipeline_error"],
+            "record_count": len(store.records_for_submission(sid)),
+            "critic": None, "agreement_score": None,
+        }
+
+
+# Terminal submission statuses — the poller stops once the row reaches one of
+# these. NOTE: ``auto_validated`` is deliberately EXCLUDED — it is a TRANSIENT
+# status the pipeline sets before running the LLM consistency + grounding checks
+# (seconds of work in production). Treating it as terminal would let the client
+# stop polling mid-pipeline and report the wrong final status (BUG-5 review).
+_SUBMISSION_DONE_STATUSES = (
+    "export_ready", "exported", "needs_qa", "rejected",
+    "prompt_flagged", "not_hard", "case_incoherent",
+)
+
+
+@router.get("/submissions/{submission_id}/status")
+async def submission_status(
+    submission_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Real submit progress (BUG-5): the phase + pct the backend STAMPED as each
+    pipeline stage actually started — never an invented percentage. Pollable by
+    the submitting evaluator (or admin/QA). Returns ``done=true`` once the row
+    reaches a terminal status, with the final status + issues so the client can
+    take the existing success / needs-QA path."""
+    store = _store()
+    sub = store.get_submission(submission_id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    # Only the owning evaluator (or admin/QA) may poll a submission's progress.
+    if sub.get("evaluator_id") != user["id"] and user.get("role") not in ("admin", "qa_reviewer"):
+        raise HTTPException(status_code=403, detail="Not your submission")
+    status = sub.get("status")
+    progress = sub.get("progress") or {}
+    done = status in _SUBMISSION_DONE_STATUSES
+    # A phase not yet stamped (row just inserted) reads as "queued"; a terminal
+    # status without a 100% stamp still reports done so the client never hangs.
+    phase = progress.get("phase") or ("complete" if done else "queued")
+    pct = progress.get("pct")
+    if pct is None:
+        pct = 100 if done else 5
+    issues = (sub.get("qa_reason") or "").split(",") if sub.get("qa_reason") else []
+    return {
+        "submission_id": submission_id,
+        "status": status,
+        "phase": phase,
+        "pct": pct,
+        "detail": progress.get("detail"),
+        "done": done,
+        "issues": [i for i in issues if i],
+        "record_count": len(store.records_for_submission(submission_id)),
+        "critic": sub.get("critic"),
+        "agreement_score": sub.get("agreement_score"),
+    }
+
+
+# ─── Frontier-model failure capture (FEAT-1) ──────────────────────────────────
+@router.post("/tasks/{task_id}/baselines")
+async def run_task_baselines(
+    task_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """Answer this task's rendered case COLD with each configured frontier model
+    (ASCLEPIUS_BASELINE_MODELS) and store the verbatim responses (FEAT-1). The
+    on-policy artifact that proves the case is hard."""
+    from asclepius import baselines as asc_baselines
+
+    store = _store()
+    task = store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    runs = await asc_baselines.run_baselines(store, task)
+    store.log_event(entity_type="task", entity_id=task_id, event_type="baselines_run",
+                    actor=admin["id"], payload={"models": [r.get("model") for r in runs]})
+    # Never leak raw baseline text into logs; the response is admin-only anyway.
+    return {"task_id": task_id, "runs": runs}
+
+
+@router.get("/tasks/{task_id}/baselines")
+async def list_task_baselines(
+    task_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    return {"task_id": task_id, "runs": _store().list_baseline_runs(task_id=task_id)}
+
+
+@router.post("/tasks/{task_id}/grade-real-models")
+async def grade_real_models(
+    task_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """"Grade the real models" mode (FEAT-1): run baselines if needed, then swap
+    the task's A/B pair to TWO real frontier answers (blinded, source='baseline',
+    50/50 randomized) so the specialist grades real models instead of two
+    generated answers. On submission a per-model failure record is computed."""
+    from asclepius import baselines as asc_baselines
+
+    store = _store()
+    task = store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    runs = store.list_baseline_runs(task_id=task_id)
+    ok_runs = [r for r in runs if (r.get("response_text") or "").strip()]
+    if len(ok_runs) < 2:
+        runs = await asc_baselines.run_baselines(store, task)
+        ok_runs = [r for r in runs if (r.get("response_text") or "").strip()]
+    candidates = asc_baselines.build_baseline_candidates(ok_runs)
+    if len(candidates) < 2:
+        raise HTTPException(
+            status_code=503,
+            detail="Need at least two successful baseline answers to grade real models "
+                   "(check ANTHROPIC_API_KEY and ASCLEPIUS_BASELINE_MODELS).",
+        )
+    updated = store.set_task_candidates(
+        task_id, candidates,
+        generation_patch={"mode": "grade_real_models",
+                          "baseline_models": [c.get("baseline_model") for c in candidates],
+                          # Clear any stale intended_flawed_id from the ORIGINAL
+                          # generated pair — the A/B ids were just reassigned, so the
+                          # old flawed id no longer maps to a candidate and would
+                          # pollute the flaw-catch-rate stat.
+                          "intended_flawed_id": None},
+    )
+    store.log_event(entity_type="task", entity_id=task_id, event_type="grade_real_models",
+                    actor=admin["id"], payload={"models": [c.get("baseline_model") for c in candidates]})
+    return {"task_id": task_id, "modality": updated.get("modality"),
+            "candidate_count": len(candidates)}
+
+
+@router.get("/baselines/model-failures")
+async def model_failures(
+    model: Optional[str] = None,
+    error_tag: Optional[str] = None,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """The Model-Failure artifact (FEAT-1): "cases where model X failed, with the
+    expert correction", filterable by model + error tag. This is what you put in
+    front of a lab."""
+    store = _store()
+    return {
+        "failures": store.list_model_failures(model=model, error_tag=error_tag),
+        "summary": store.model_failure_summary(),
+    }
 
 
 @router.post("/reasoning/split")
@@ -1253,6 +1480,29 @@ async def reasoning_pregrade(
         "source": res.get("source"),
         "skipped": bool(res.get("skipped")),
     }
+
+
+# ─── Rubric capture (FEAT-2) ──────────────────────────────────────────────────
+@router.post("/rubric/suggest")
+async def rubric_suggest(
+    body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Auto-seed proposed rubric criteria from the doctor's already-captured tags
+    (FEAT-2). The client sends the in-progress draft (error tags + reasons,
+    why-better tags, graded/corrected steps); we return pre-filled, editable
+    ``{text, points, axis, source}`` chips. NOTHING is applied — the doctor
+    confirms/edits/deletes before the rubric ships (same anti-rubber-stamp rule as
+    everywhere else). Post-reveal + on the doctor's own tags, so no anti-peeking
+    gate; the answer key stays server-side."""
+    store = _store()
+    task = store.get_task(body.task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)
+    from asclepius.rubric import propose_rubric
+
+    criteria = propose_rubric(task, body.model_dump())
+    return {"criteria": criteria, "axes": list(RUBRIC_AXES)}
 
 
 # ─── Model-assisted pre-labeling (Speed Optimization §2) ─────────────────────
@@ -1339,6 +1589,25 @@ async def assist_cite(
                      "top": (res["suggestions"][0] or {}).get("identifier")},
         )
     return {"skipped": False, "suggestions": res.get("suggestions") or [], "source": res.get("source")}
+
+
+@router.post("/citations/search")
+async def citations_search(
+    body: CiteRequest, _user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """The explicit "Search the library" box (BUG-3c escape hatch): the doctor
+    typed a query on purpose, so this is more permissive than the auto-suggest —
+    any token overlap matches, ranked by relevance. A blank query returns the
+    library head so the box is never a dead end. ``skipped`` when the specialty
+    has no library. Never gated on the independent commit (the doctor is grounding
+    their OWN text, post-reveal), like ``/assist/cite``."""
+    specialty = (body.specialty or "nephrology")
+    if asc_citations.load_library(specialty) is None:
+        return {"skipped": True, "suggestions": [], "reason": "no_citation_library"}
+    results = asc_citations.search_library(
+        body.text or "", specialty=specialty, k=max(1, min(int(body.k or 10), 25))
+    )
+    return {"skipped": False, "suggestions": results, "source": "search"}
 
 
 # ─── Voice dictation (Speed Optimization §4) ──────────────────────────────────
@@ -1543,10 +1812,13 @@ def _contributor_metrics(store: Any) -> List[Dict[str, Any]]:
 
 
 def _organization_metrics(store: Any) -> List[Dict[str, Any]]:
+    from asclepius.constants import UNASSIGNED_ORG
     contribs = _contributor_metrics(store)
     orgs: Dict[str, Dict[str, Any]] = {}
     for c in contribs:
-        org = c.get("organization") or "Unaffiliated"
+        # Never drop the ungrouped (BUG-6): a contributor with no resolvable org
+        # is collected in the (unassigned) bucket so no labeled record is invisible.
+        org = c.get("organization") or UNASSIGNED_ORG
         agg = orgs.setdefault(
             org,
             {
@@ -1588,9 +1860,10 @@ async def list_contributors(
 ):
     """Every contributor (optionally within one organization): internal display
     name, hashed id, primary specialty, # records labeled, verified status."""
+    from asclepius.constants import UNASSIGNED_ORG
     contributors = _store().contributor_directory()
     if organization:
-        contributors = [c for c in contributors if (c["organization"] or "Unaffiliated") == organization]
+        contributors = [c for c in contributors if (c["organization"] or UNASSIGNED_ORG) == organization]
     return {"contributors": contributors, "organization": organization}
 
 
@@ -1917,9 +2190,10 @@ async def metrics_contributors(
     organization: Optional[str] = None,
     _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
+    from asclepius.constants import UNASSIGNED_ORG
     rows = _contributor_metrics(_store())
     if organization:
-        rows = [r for r in rows if (r.get("organization") or "Unaffiliated") == organization]
+        rows = [r for r in rows if (r.get("organization") or UNASSIGNED_ORG) == organization]
     return {"contributors": rows, "organization": organization}
 
 

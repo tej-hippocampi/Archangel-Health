@@ -24,13 +24,35 @@ def _store():
     return get_store()
 
 
+# A content-complete note ≥200 chars (BUG-1 content assertion floor).
+_LONG_NOTE = (
+    "Nephrology consult. Patient euvolemic on exam with no edema or orthostasis, on a chronic "
+    "thiazide for hypertension and reporting poor oral intake over the weekend. Urine studies were "
+    "sent to distinguish a hypovolemic from an SIADH picture; the thiazide is the likely driver and "
+    "must be held before any correction is attempted to avoid overcorrection."
+)
+
+
+def _content_complete_labs(na=112):
+    """Two panels at DIFFERENT offsets, each ≥2 well-formed results (BUG-1 §2)."""
+    return [
+        {"panel": "BMP", "collected_offset_days": -2, "results": [
+            {"analyte": "Sodium", "value": na + 4, "unit": "mmol/L", "ref_low": 135, "ref_high": 145, "flag": "L"},
+            {"analyte": "Potassium", "value": 3.9, "unit": "mmol/L", "ref_low": 3.5, "ref_high": 5.0, "flag": ""}]},
+        {"panel": "BMP", "collected_offset_days": 0, "results": [
+            {"analyte": "Sodium", "value": na, "unit": "mmol/L", "ref_low": 135, "ref_high": 145, "flag": "LL"},
+            {"analyte": "Urine osmolality", "value": 620, "unit": "mOsm/kg", "ref_low": 300, "ref_high": 900, "flag": "H"}]},
+    ]
+
+
 def _case(**over):
     base = dict(
         case_source="synthetic", specialty="nephrology",
         demographics={"age_band": "70-79", "sex": "M"},
-        lab_panels=[{"panel": "BMP", "collected_offset_days": 0, "results": [
-            {"analyte": "Sodium", "value": 112, "unit": "mmol/L", "ref_low": 135, "ref_high": 145, "flag": "LL"}]}],
-        notes=[{"note_type": "Consult", "author_role": "nephrology", "text": "Euvolemic; on thiazide."}],
+        problem_list=[{"condition": "Hypertension", "since": "chronic"}],
+        medications=[{"drug": "Hydrochlorothiazide", "dose": "25 mg", "route": "PO", "freq": "daily"}],
+        lab_panels=_content_complete_labs(),
+        notes=[{"note_type": "Consult", "author_role": "nephrology", "text": _LONG_NOTE}],
         ground_truth={"answer": "Thiazide-associated hyponatremia", "key_data": ["urine osm"]},
         hard_hook="urine studies decide", reasoning_divergence="SIADH shortcut ignores thiazide",
     )
@@ -87,14 +109,14 @@ def _install(monkeypatch, *, case_scores=None, hardness=0.85):
     """Stub the whole multimodal chain: one archetype, one case, passing judges."""
     counter = {"i": 0}
 
-    # Distinct note narratives so cases aren't collapsed by the exact/near-dup
-    # gates (real generation varies substantially per case).
+    # Distinct note narratives (each ≥200 chars, BUG-1 content floor) so cases
+    # aren't collapsed by the exact/near-dup gates (real generation varies).
     _narratives = [
-        "Euvolemic on chronic thiazide; poor oral intake reported over the weekend.",
-        "Hypervolemic with peripheral edema; heart failure exacerbation, diuretics held.",
-        "Postoperative, hypotonic fluids running; nausea and headache described.",
-        "Marathon runner, collapse after race; excessive free water intake noted.",
-        "Cirrhosis with ascites; recent large-volume paracentesis and albumin given.",
+        "Euvolemic on chronic thiazide with no edema; poor oral intake reported over the weekend. Urine studies pending to separate hypovolemia from SIADH; the thiazide is the likely driver and should be held before any correction.",
+        "Hypervolemic with 3+ peripheral edema; a heart failure exacerbation with diuretics recently held. Free water retention is worsening the hyponatremia and gentle decongestion with careful sodium tracking is the priority here.",
+        "Postoperative day two with hypotonic maintenance fluids still running; nausea and a dull headache described. The iatrogenic free water load is the reversible contributor and the fluids should be changed before anything else.",
+        "Marathon runner brought in after collapse at the finish; excessive free water intake during the race noted by companions. Exercise-associated hyponatremia is acute and hypertonic saline is warranted for the neurologic symptoms.",
+        "Cirrhosis with tense ascites; a recent large-volume paracentesis with albumin given. The hypervolemic hyponatremia reflects impaired free water excretion and free water restriction rather than aggressive correction is indicated.",
     ]
 
     async def fake_generate_case(archetype, *, specialty="general"):
@@ -102,8 +124,7 @@ def _install(monkeypatch, *, case_scores=None, hardness=0.85):
         na = 106 + counter["i"]
         note = _narratives[counter["i"] % len(_narratives)]
         case = _case(
-            lab_panels=[{"panel": "BMP", "collected_offset_days": 0, "results": [
-                {"analyte": "Sodium", "value": na, "unit": "mmol/L", "ref_low": 135, "ref_high": 145, "flag": "LL"}]}],
+            lab_panels=_content_complete_labs(na),
             notes=[{"note_type": "Consult", "author_role": "nephrology", "text": note}])
         return {"case": case, "question": f"Classify this hyponatremia presentation ({counter['i']}) and set a safe correction rate.",
                 "model": "cg", "skipped": False}
@@ -171,7 +192,10 @@ def test_case_judge_gates_drop_as_specified(monkeypatch):
         assert res["dropped"].get(reason, 0) >= 1, (field, reason, res["dropped"])
 
 
-def test_multimodal_does_not_drop_when_case_judge_skipped(monkeypatch):
+def test_multimodal_drops_when_case_judge_skipped(monkeypatch):
+    """BUG-1 §4: the multimodal gates are NON-SKIPPABLE. A skipped case judge
+    means the case is UNGATED, so it must be DROPPED (case_judge_unavailable),
+    never passed — an ungated synthetic case must never enter the queue."""
     A.fresh_store()
     _install(monkeypatch)
 
@@ -180,8 +204,23 @@ def test_multimodal_does_not_drop_when_case_judge_skipped(monkeypatch):
 
     monkeypatch.setattr(gen, "run_case_judge", skipped_case_judge)
     res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=1, multimodal=True))
-    assert res["accepted"] >= 1
-    assert res["dropped"].get("case_incoherent", 0) == 0
+    assert res["accepted"] == 0
+    assert res["dropped"].get("case_judge_unavailable", 0) >= 1, res["dropped"]
+
+
+def test_multimodal_drops_when_hardness_judge_skipped(monkeypatch):
+    """BUG-1 §4: a skipped HARDNESS judge on a multimodal item is also a
+    non-skippable gate — drop as hardness_unavailable, never pass ungated."""
+    A.fresh_store()
+    _install(monkeypatch)
+
+    async def skipped_hardness(prompt, candidates=None, **k):
+        return {"skipped": True, "error": "no key"}
+
+    monkeypatch.setattr(gen, "run_hardness_judge", skipped_hardness)
+    res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=1, multimodal=True))
+    assert res["accepted"] == 0
+    assert res["dropped"].get("hardness_unavailable", 0) >= 1, res["dropped"]
 
 
 def test_multimodal_with_no_archetypes_creates_nothing(monkeypatch):
@@ -207,9 +246,11 @@ def test_bad_case_counts_case_gen_failed_not_disabled(monkeypatch):
         if bad_first_then_good.n == 1:
             return {"case": None, "question": None, "model": "cg", "skipped": False}
         na = 108 + bad_first_then_good.n
-        case = _case(lab_panels=[{"panel": "BMP", "collected_offset_days": 0, "results": [
-            {"analyte": "Sodium", "value": na, "unit": "mmol/L", "ref_low": 135, "ref_high": 145, "flag": "LL"}]}],
-            notes=[{"note_type": "Consult", "author_role": "nephrology", "text": f"case {na} distinct narrative"}])
+        note = (f"Case {na}: euvolemic patient on a chronic thiazide with poor oral intake; urine "
+                "studies pending to separate hypovolemia from SIADH, and the thiazide must be held "
+                "before any correction to avoid overcorrection of the sodium in this presentation.")
+        case = _case(lab_panels=_content_complete_labs(na),
+                     notes=[{"note_type": "Consult", "author_role": "nephrology", "text": note}])
         return {"case": case, "question": f"Classify hyponatremia {na}.", "model": "cg", "skipped": False}
     bad_first_then_good.n = 0
 
@@ -247,3 +288,72 @@ def test_multimodal_ignores_difficulty_mix(monkeypatch):
         difficulty_mix={"easy": 1.0}))
     assert res["accepted"] == 2, res["dropped"]
     assert res["dropped"].get("difficulty_mix_skew", 0) == 0
+
+
+# ─── BUG-1 acceptance: schema drift + empty content are DROPPED, not stored ────
+def test_schema_drift_labs_key_is_dropped(monkeypatch):
+    """Acceptance criterion: feed the generator a response using ``labs`` instead
+    of ``lab_panels`` → extra='forbid' raises → the item is dropped (case_gen_
+    failed), never stored as a silent empty case."""
+    import ai.llm_client as llm
+    import json as _json
+    from asclepius import critic
+
+    async def fake_call(**kw):
+        return ({}, {"model": "cg"})
+
+    drifted = _case()
+    drifted["labs"] = drifted.pop("lab_panels")  # wrong key name
+    monkeypatch.setattr(llm, "call_llm", fake_call)
+    monkeypatch.setattr(llm, "first_text", lambda resp: _json.dumps(
+        {"question": "Classify.", "case": drifted}))
+    res = asyncio.run(critic.generate_case({"topic": "x", "multimodal": {}}, specialty="nephrology"))
+    assert res["skipped"] is False       # LLM worked
+    assert res["case"] is None           # but the drifted case was rejected
+    assert res["error"] == "case_schema"
+
+
+def test_empty_labs_case_fails_content_assertion(monkeypatch):
+    """A structurally-valid case with NO labs is rejected by the content
+    assertion (a multimodal case with no labs is not a multimodal case)."""
+    import ai.llm_client as llm
+    import json as _json
+    from asclepius import critic
+
+    async def fake_call(**kw):
+        return ({}, {"model": "cg"})
+
+    empty_labs = _case(lab_panels=[])
+    monkeypatch.setattr(llm, "call_llm", fake_call)
+    monkeypatch.setattr(llm, "first_text", lambda resp: _json.dumps(
+        {"question": "Classify.", "case": empty_labs}))
+    res = asyncio.run(critic.generate_case({"topic": "x", "multimodal": {}}, specialty="nephrology"))
+    assert res["case"] is None
+    assert res["error"].startswith("insufficient_content")
+
+
+def test_generate_case_retries_once_then_succeeds(monkeypatch):
+    """BUG-1 §5: a first response missing content triggers ONE corrective retry;
+    if the retry is content-complete, the case is returned."""
+    import ai.llm_client as llm
+    import json as _json
+    from asclepius import critic
+
+    calls = {"n": 0}
+
+    async def fake_call(**kw):
+        calls["n"] += 1
+        return ({}, {"model": "cg"})
+
+    def fake_first_text(resp):
+        # First attempt: no meds/problems (fails content). Retry: complete.
+        if calls["n"] <= 1:
+            bad = _case(problem_list=[], medications=[])
+            return _json.dumps({"question": "Classify.", "case": bad})
+        return _json.dumps({"question": "Classify.", "case": _case()})
+
+    monkeypatch.setattr(llm, "call_llm", fake_call)
+    monkeypatch.setattr(llm, "first_text", fake_first_text)
+    res = asyncio.run(critic.generate_case({"topic": "x", "multimodal": {}}, specialty="nephrology"))
+    assert calls["n"] == 2               # retried exactly once
+    assert res["case"] is not None and res["skipped"] is False

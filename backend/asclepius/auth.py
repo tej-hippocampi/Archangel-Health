@@ -236,7 +236,10 @@ def mock_credentials() -> Dict[str, Any]:
         "specialty": (os.getenv("ASCLEPIUS_MOCK_SPECIALTY") or "nephrology").strip().lower(),
         "board_cert": os.getenv("ASCLEPIUS_MOCK_BOARD_CERT") or "board_certified_nephrology",
         "years_experience": _mock_years(),
-        "organization": os.getenv("ASCLEPIUS_MOCK_ORG") or "Archangel Health (Sandbox)",
+        # BUG-6: the mock/demo account's organization is explicitly "mockadmin"
+        # (env-overridable) so its labeled records group under a real org name in
+        # Exports/Metrics instead of falling into the ungrouped bucket.
+        "organization": os.getenv("ASCLEPIUS_MOCK_ORG") or "mockadmin",
     }
 
 

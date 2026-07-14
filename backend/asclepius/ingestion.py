@@ -32,6 +32,8 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from pydantic import ValidationError
+
 from asclepius import case_formats as cf
 from asclepius import deid_verify
 from asclepius.cases import ClinicalCase
@@ -369,7 +371,12 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                                      "patient_key": opaque_patient_key(pk),
                                      "panels": len(case.get("lab_panels") or []),
                                      "notes": len(case.get("notes") or [])})
-        except (cf.CaseIngestError, TimelineError) as exc:
+        except (cf.CaseIngestError, TimelineError, ValidationError) as exc:
+            # ValidationError (BUG-1 hardening): a real bundle whose structure
+            # drifts from the ClinicalCase schema — now that the case models are
+            # extra="forbid" — quarantines with a readable reason instead of
+            # silently dropping the stray field (the old extra="ignore" data loss)
+            # OR crashing the background ingest job. Loud, recoverable, never silent.
             report["quarantine_reason"] = str(exc)
             ic = store.insert_ingest_case(
                 upload_id=upload_id, patient_key=opaque_patient_key(pk),

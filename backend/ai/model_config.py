@@ -44,6 +44,11 @@ MODEL_REGISTRY: dict[str, dict[str, Any]] = {
     # current/non-max model so realistic, revisable errors are more likely (PRD §7.2).
     "asclepius_prompt_gen": {"model": "claude-opus-4-8", "temperature": 0.7, "max_tokens": 2000},
     "asclepius_prompt_judge": {"model": "claude-opus-4-8", "temperature": 0.0, "max_tokens": 800},
+    # Frontier-model failure capture (FEAT-1): answer the rendered case COLD with a
+    # configured frontier model, verbatim. The specific model is chosen per call
+    # (model override) from ASCLEPIUS_BASELINE_MODELS; this registry entry only
+    # supplies defaults (temperature/max_tokens) and the audit role.
+    "asclepius_baseline": {"model": "claude-opus-4-8", "temperature": 0.2, "max_tokens": 2000},
 }
 
 _LEGACY_ENV = {"intraop_extract": "INTRAOP_EXTRACTOR_MODEL"}

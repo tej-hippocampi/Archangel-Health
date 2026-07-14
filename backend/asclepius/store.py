@@ -446,6 +446,48 @@ class AsclepiusStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_upload ON ingest_cases(upload_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_status ON ingest_cases(status)")
 
+            # ── Frontier-model failure capture (FEAT-1) ──────────────────────
+            # ``baseline_runs``: a frontier model's VERBATIM cold answer to a case,
+            # the on-policy artifact that proves a case is hard.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS baseline_runs (
+                    run_id        TEXT PRIMARY KEY,
+                    task_id       TEXT NOT NULL,
+                    model         TEXT NOT NULL,
+                    response_text TEXT,
+                    error         TEXT,
+                    latency_ms    INTEGER,
+                    tokens_in     INTEGER,
+                    tokens_out    INTEGER,
+                    created_at    TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_baseline_runs_task ON baseline_runs(task_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_baseline_runs_model ON baseline_runs(model)")
+            # ``model_failures``: the per-model failure record computed AFTER a
+            # specialist grades a real-model A/B pair — which model was rejected,
+            # which error tags applied, which steps were wrong, + the correction.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS model_failures (
+                    failure_id      TEXT PRIMARY KEY,
+                    task_id         TEXT NOT NULL,
+                    submission_id   TEXT NOT NULL,
+                    model           TEXT NOT NULL,
+                    verdict         TEXT,
+                    error_tags_json TEXT NOT NULL DEFAULT '[]',
+                    corrected_steps_json TEXT NOT NULL DEFAULT '[]',
+                    expert_correction    TEXT,
+                    prompt          TEXT,
+                    created_at      TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_model_failures_model ON model_failures(model)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_model_failures_task ON model_failures(task_id)")
+
             task_cols = cols("tasks")
             if "grounding_mode" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN grounding_mode TEXT NOT NULL DEFAULT 'optional'")
@@ -498,6 +540,11 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE submissions ADD COLUMN value_estimate_projected_usd REAL")
             if "clinician_review_seconds" not in sub_cols:
                 conn.execute("ALTER TABLE submissions ADD COLUMN clinician_review_seconds INTEGER")
+            if "progress_json" not in sub_cols:
+                # Real submit progress (BUG-5): the backend stamps {phase, pct,
+                # detail} onto the row as each pipeline stage ACTUALLY starts, so
+                # the client polls a truthful phase — never an invented percentage.
+                conn.execute("ALTER TABLE submissions ADD COLUMN progress_json TEXT")
 
             if "value_tier" not in task_cols:
                 # Optional admin routing hint (Value-per-Minute PRD B3). Additive;
@@ -544,6 +591,32 @@ class AsclepiusStore:
             ):
                 if col not in user_cols:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
+
+            # ── Organization backfill (BUG-6) ────────────────────────────────
+            # A contributor whose ``organization`` is NULL fell out of EVERY org
+            # grouping in Exports/Metrics — their labeled records existed but
+            # appeared nowhere (the worst admin failure mode). Backfill a stable
+            # org for every existing contributor so their historical submissions
+            # (resolved via this users row at read time) group correctly:
+            #   * the mock/demo account collapses to 'mockadmin';
+            #   * else the onboarding-collected org_name;
+            #   * else the account email's local-part (a stable, non-null bucket).
+            # Idempotent: only touches NULL/blank organizations, so it no-ops on
+            # every boot after the first.
+            conn.execute(
+                "UPDATE users SET organization = 'mockadmin' "
+                "WHERE is_mock = 1 AND (organization IS NULL OR TRIM(organization) = '')"
+            )
+            conn.execute(
+                """
+                UPDATE users SET organization = CASE
+                    WHEN org_name IS NOT NULL AND TRIM(org_name) != '' THEN org_name
+                    WHEN instr(email, '@') > 1 THEN substr(email, 1, instr(email, '@') - 1)
+                    ELSE email
+                END
+                WHERE organization IS NULL OR TRIM(organization) = ''
+                """
+            )
 
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
@@ -1132,7 +1205,11 @@ class AsclepiusStore:
         # of truth; the ``modality`` param is advisory. The FULL case (incl. internal
         # ground_truth) is stored server-side; blinding/packaging strip the answer
         # key downstream — the same contract as the server-side ``intended_flawed_id``.
-        md = "multimodal" if case else "text"
+        # Modality is derived from CONTENT, not presence (BUG-1 §3): a case dict
+        # that carries no labs AND no notes is an empty case and can never be
+        # stamped multimodal (which would grant the value premium + a multimodal
+        # label with no data behind it). An empty ``case={}`` is treated as text.
+        md = "multimodal" if (case and (case.get("lab_panels") or case.get("notes"))) else "text"
         # case_source is DERIVED from the case (EHR PRD §9.5): 'real_deid' only
         # when the case itself says so; any other case is 'synthetic'; a text
         # task has none. First-class column so the V4 routing wall is pure SQL.
@@ -1344,6 +1421,25 @@ class AsclepiusStore:
         with self._conn() as conn:
             conn.execute("UPDATE tasks SET status = ? WHERE task_id = ?", (status, task_id))
 
+    def set_task_candidates(
+        self, task_id: str, candidates: List[Dict[str, Any]], *, generation_patch: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Replace a task's candidate answers in place (FEAT-1 "grade the real
+        models" mode swaps in a baseline A/B pair). Optionally merge a patch into
+        the task's generation provenance block. Does not touch status/created_at."""
+        task = self.get_task(task_id)
+        if not task:
+            return None
+        gen = task.get("generation") or {}
+        if generation_patch:
+            gen = {**gen, **generation_patch}
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE tasks SET candidate_answers_json = ?, generation_json = ? WHERE task_id = ?",
+                (json.dumps(candidates or []), json.dumps(gen) if gen else None, task_id),
+            )
+        return self.get_task(task_id)
+
     def refresh_task_status(self, task_id: str) -> None:
         """Close a task once it has reached its label capacity.
 
@@ -1415,7 +1511,21 @@ class AsclepiusStore:
         rec["critic"] = json.loads(rec.pop("critic_json", "null") or "null")
         rec["qa"] = json.loads(rec.pop("qa_json", "null") or "null")
         rec["annotator"] = json.loads(rec.pop("annotator_json", "null") or "null")
+        rec["progress"] = json.loads(rec.pop("progress_json", "null") or "null")
         return rec
+
+    def set_submission_progress(
+        self, submission_id: str, *, phase: str, pct: int, detail: Optional[str] = None
+    ) -> None:
+        """Stamp the real, backend-observed pipeline phase onto a submission (BUG-5).
+        Called by the pipeline when each stage ACTUALLY starts — the client polls
+        ``GET /submissions/{id}/status`` and shows this exact phase + pct."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE submissions SET progress_json = ?, updated_at = ? WHERE submission_id = ?",
+                (json.dumps({"phase": phase, "pct": int(pct), "detail": detail}),
+                 _utcnow_iso(), submission_id),
+            )
 
     def insert_submission(
         self,
@@ -2252,10 +2362,11 @@ class AsclepiusStore:
             if submission_count == 0 and not has_cred:
                 continue
             ship = (cred or {}).get("ship") or {}
+            from asclepius.constants import UNASSIGNED_ORG
             organization = (
                 (cred or {}).get("organization")
                 or r["user_org"]
-                or "Unaffiliated"
+                or UNASSIGNED_ORG
             )
             primary_specialty = ship.get("primary_specialty") or r["specialty"]
             out.append(
@@ -2291,9 +2402,10 @@ class AsclepiusStore:
     def organization_directory(self) -> List[Dict[str, Any]]:
         """Aggregate the contributor directory by organization for the top-level
         Contributors view (list by org, click in)."""
+        from asclepius.constants import UNASSIGNED_ORG
         orgs: Dict[str, Dict[str, Any]] = {}
         for c in self.contributor_directory():
-            org = c["organization"] or "Unaffiliated"
+            org = c["organization"] or UNASSIGNED_ORG
             agg = orgs.setdefault(
                 org,
                 {
@@ -2315,10 +2427,11 @@ class AsclepiusStore:
         return sorted(orgs.values(), key=lambda o: o["organization"].lower())
 
     def hashed_ids_for_organization(self, organization: str) -> List[str]:
+        from asclepius.constants import UNASSIGNED_ORG
         return [
             c["id_hashed"]
             for c in self.contributor_directory()
-            if (c["organization"] or "Unaffiliated") == organization and c["id_hashed"]
+            if (c["organization"] or UNASSIGNED_ORG) == organization and c["id_hashed"]
         ]
 
     # ─── Contributor record diagnostics & re-attribution (ops tooling) ────────
@@ -2532,6 +2645,102 @@ class AsclepiusStore:
                 tuple(params),
             ).fetchall()
         return [self._generation_job_row(r) for r in rows]
+
+    # ─── Frontier-model baselines + failure capture (FEAT-1) ─────────────────
+    def insert_baseline_run(
+        self, *, task_id: str, model: str, response_text: Optional[str],
+        error: Optional[str] = None, latency_ms: Optional[int] = None,
+        tokens_in: Optional[int] = None, tokens_out: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        rid = _new_id("bl")
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO baseline_runs
+                   (run_id, task_id, model, response_text, error, latency_ms,
+                    tokens_in, tokens_out, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (rid, task_id, model, response_text, error, latency_ms,
+                 tokens_in, tokens_out, _utcnow_iso()),
+            )
+        return self.get_baseline_run(rid)  # type: ignore[return-value]
+
+    def get_baseline_run(self, run_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM baseline_runs WHERE run_id = ?", (run_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_baseline_runs(
+        self, *, task_id: Optional[str] = None, model: Optional[str] = None, limit: int = 1000
+    ) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if task_id:
+            clauses.append("task_id = ?"); params.append(task_id)
+        if model:
+            clauses.append("model = ?"); params.append(model)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM baseline_runs {where} ORDER BY created_at DESC LIMIT ?", tuple(params)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def insert_model_failure(
+        self, *, task_id: str, submission_id: str, model: str, verdict: Optional[str],
+        error_tags: List[str], corrected_steps: List[Dict[str, Any]],
+        expert_correction: Optional[str], prompt: Optional[str],
+    ) -> str:
+        fid = _new_id("mf")
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO model_failures
+                   (failure_id, task_id, submission_id, model, verdict, error_tags_json,
+                    corrected_steps_json, expert_correction, prompt, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (fid, task_id, submission_id, model, verdict, json.dumps(error_tags or []),
+                 json.dumps(corrected_steps or []), expert_correction, prompt, _utcnow_iso()),
+            )
+        return fid
+
+    @staticmethod
+    def _model_failure_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["error_tags"] = json.loads(rec.pop("error_tags_json", "[]") or "[]")
+        rec["corrected_steps"] = json.loads(rec.pop("corrected_steps_json", "[]") or "[]")
+        return rec
+
+    def list_model_failures(
+        self, *, model: Optional[str] = None, error_tag: Optional[str] = None, limit: int = 1000
+    ) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if model:
+            clauses.append("model = ?"); params.append(model)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM model_failures {where} ORDER BY created_at DESC LIMIT ?", tuple(params)
+            ).fetchall()
+        out = [self._model_failure_row(r) for r in rows]
+        if error_tag:
+            out = [f for f in out if error_tag in (f.get("error_tags") or [])]
+        return out
+
+    def model_failure_summary(self) -> List[Dict[str, Any]]:
+        """Per-model failure counts + the error-tag mix — the datasheet/admin
+        headline ("GPT-5.5 failed N cases; top tags …")."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT model, COUNT(*) AS n FROM model_failures GROUP BY model ORDER BY n DESC"
+            ).fetchall()
+        out = []
+        for r in rows:
+            tags: Dict[str, int] = {}
+            for f in self.list_model_failures(model=r["model"]):
+                for t in f.get("error_tags") or []:
+                    tags[t] = tags.get(t, 0) + 1
+            out.append({"model": r["model"], "failures": int(r["n"]), "error_tags": tags})
+        return out
 
     def flaw_catch_rate(self) -> Dict[str, Any]:
         """How often evaluators reject the intended-flawed candidate on generated

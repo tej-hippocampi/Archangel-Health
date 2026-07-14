@@ -11,7 +11,21 @@
       "identifier": "KDIGO 2024 CKD",
       "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
       "snippet": "Stage CKD by cause, GFR (G1–G5) and albuminuria (A1–A3); use the KFRE for risk. RAS inhibition and an SGLT2 inhibitor are foundational for albuminuric CKD to slow progression.",
-      "keywords": ["ckd", "egfr", "gfr", "albuminuria", "proteinuria", "kfre", "progression", "staging", "sglt2", "ras", "acei", "arb", "risk"]
+      "keywords": [
+        "ckd",
+        "egfr",
+        "gfr",
+        "albuminuria",
+        "proteinuria",
+        "kfre",
+        "progression",
+        "staging",
+        "sglt2",
+        "ras",
+        "acei",
+        "arb",
+        "risk"
+      ]
     },
     {
       "id": "kdigo-diabetes-ckd-2022",
@@ -21,7 +35,18 @@
       "identifier": "KDIGO 2022 Diabetes-CKD",
       "url": "https://kdigo.org/guidelines/diabetes-ckd/",
       "snippet": "For T2D + CKD: metformin + an SGLT2 inhibitor as first-line where eGFR permits; add finerenone for residual albuminuria on a maximally tolerated RAS inhibitor with acceptable potassium. Metformin: reassess dose at eGFR <45, stop <30.",
-      "keywords": ["diabetes", "t2d", "ckd", "metformin", "sglt2", "finerenone", "albuminuria", "dosing", "egfr", "potassium"]
+      "keywords": [
+        "diabetes",
+        "t2d",
+        "ckd",
+        "metformin",
+        "sglt2",
+        "finerenone",
+        "albuminuria",
+        "dosing",
+        "egfr",
+        "potassium"
+      ]
     },
     {
       "id": "kdigo-gn-2021",
@@ -31,7 +56,24 @@
       "identifier": "KDIGO 2021 GN",
       "url": "https://kdigo.org/guidelines/gd/",
       "snippet": "IgAN: optimize supportive care (RAS blockade ± SGLT2i) before immunosuppression. RPGN: do not delay biopsy or empiric therapy; ANCA and anti-GBM require prompt immunosuppression, with plasma exchange for anti-GBM and selected severe ANCA.",
-      "keywords": ["glomerular", "gn", "iga", "igan", "membranous", "pla2r", "rpgn", "anca", "anti-gbm", "plasmapheresis", "plasma exchange", "fsgs", "lupus", "biopsy", "nephrotic", "proteinuria"]
+      "keywords": [
+        "glomerular",
+        "gn",
+        "iga",
+        "igan",
+        "membranous",
+        "pla2r",
+        "rpgn",
+        "anca",
+        "anti-gbm",
+        "plasmapheresis",
+        "plasma exchange",
+        "fsgs",
+        "lupus",
+        "biopsy",
+        "nephrotic",
+        "proteinuria"
+      ]
     },
     {
       "id": "kdigo-ckd-mbd-2017",
@@ -41,7 +83,22 @@
       "identifier": "KDIGO 2017 CKD-MBD",
       "url": "https://kdigo.org/guidelines/ckd-mbd/",
       "snippet": "Lower elevated phosphate toward normal, avoiding hypercalcemia; prefer non-calcium binders when calcium load is a concern. For high PTH on dialysis, calcimimetics, calcitriol/analogs, or a combination — individualized to calcium and phosphate.",
-      "keywords": ["ckd-mbd", "mbd", "phosphate", "phosphorus", "binder", "pth", "hyperparathyroidism", "calcium", "calcimimetic", "cinacalcet", "etelcalcetide", "vitamin d", "calcitriol", "dialysis"]
+      "keywords": [
+        "ckd-mbd",
+        "mbd",
+        "phosphate",
+        "phosphorus",
+        "binder",
+        "pth",
+        "hyperparathyroidism",
+        "calcium",
+        "calcimimetic",
+        "cinacalcet",
+        "etelcalcetide",
+        "vitamin d",
+        "calcitriol",
+        "dialysis"
+      ]
     },
     {
       "id": "fidelio-dkd-2020",
@@ -51,7 +108,18 @@
       "identifier": "NEJM 2020;383:2219 (FIDELIO-DKD)",
       "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2025845",
       "snippet": "In T2D + CKD on a maximally tolerated RAS inhibitor, finerenone reduced CKD progression and cardiovascular events versus placebo; hyperkalemia was more frequent, mandating potassium monitoring and eGFR-guided starting dose.",
-      "keywords": ["finerenone", "fidelio", "diabetes", "ckd", "albuminuria", "hyperkalemia", "potassium", "ras", "mra", "progression"]
+      "keywords": [
+        "finerenone",
+        "fidelio",
+        "diabetes",
+        "ckd",
+        "albuminuria",
+        "hyperkalemia",
+        "potassium",
+        "ras",
+        "mra",
+        "progression"
+      ]
     },
     {
       "id": "figaro-dkd-2021",
@@ -61,7 +129,16 @@
       "identifier": "NEJM 2021;385:2252 (FIGARO-DKD)",
       "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2110956",
       "snippet": "Finerenone reduced cardiovascular outcomes across a broader, earlier CKD + T2D population, complementing FIDELIO's kidney findings; the pooled FIDELITY analysis supports kidney and CV benefit.",
-      "keywords": ["finerenone", "figaro", "fidelity", "cardiovascular", "diabetes", "ckd", "albuminuria", "mra"]
+      "keywords": [
+        "finerenone",
+        "figaro",
+        "fidelity",
+        "cardiovascular",
+        "diabetes",
+        "ckd",
+        "albuminuria",
+        "mra"
+      ]
     },
     {
       "id": "dapa-ckd-2020",
@@ -71,7 +148,17 @@
       "identifier": "NEJM 2020;383:1436 (DAPA-CKD)",
       "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2024816",
       "snippet": "Dapagliflozin reduced the composite of sustained eGFR decline, ESKD, and death in CKD with or without type 2 diabetes, including IgA nephropathy, down to an eGFR of 25.",
-      "keywords": ["dapagliflozin", "sglt2", "dapa-ckd", "ckd", "egfr", "proteinuria", "iga", "progression", "non-diabetic"]
+      "keywords": [
+        "dapagliflozin",
+        "sglt2",
+        "dapa-ckd",
+        "ckd",
+        "egfr",
+        "proteinuria",
+        "iga",
+        "progression",
+        "non-diabetic"
+      ]
     },
     {
       "id": "credence-2019",
@@ -81,7 +168,16 @@
       "identifier": "NEJM 2019;380:2295 (CREDENCE)",
       "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1811744",
       "snippet": "In T2D with albuminuric CKD, canagliflozin lowered the risk of kidney failure and cardiovascular events; established SGLT2 inhibition as kidney-protective beyond glycemic control.",
-      "keywords": ["canagliflozin", "sglt2", "credence", "diabetes", "ckd", "albuminuria", "kidney failure", "cardiovascular"]
+      "keywords": [
+        "canagliflozin",
+        "sglt2",
+        "credence",
+        "diabetes",
+        "ckd",
+        "albuminuria",
+        "kidney failure",
+        "cardiovascular"
+      ]
     },
     {
       "id": "empa-kidney-2023",
@@ -91,7 +187,15 @@
       "identifier": "NEJM 2023;388:117 (EMPA-KIDNEY)",
       "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2204233",
       "snippet": "Empagliflozin reduced progression of kidney disease or cardiovascular death across a broad CKD population, including lower eGFR and non-diabetic causes, broadening SGLT2i eligibility.",
-      "keywords": ["empagliflozin", "sglt2", "empa-kidney", "ckd", "egfr", "non-diabetic", "progression"]
+      "keywords": [
+        "empagliflozin",
+        "sglt2",
+        "empa-kidney",
+        "ckd",
+        "egfr",
+        "non-diabetic",
+        "progression"
+      ]
     },
     {
       "id": "kerendia-fda-label",
@@ -101,7 +205,19 @@
       "identifier": "FDA Label — KERENDIA (finerenone)",
       "url": "https://www.accessdata.fda.gov/drugsatfda_docs/label/2021/215341s000lbl.pdf",
       "snippet": "Start finerenone 10 mg (eGFR 25–<60) or 20 mg (eGFR ≥60); do not start if serum potassium >5.0 mmol/L. Check potassium at ~4 weeks and adjust; contraindicated with strong CYP3A4 inhibitors and adrenal insufficiency.",
-      "keywords": ["finerenone", "kerendia", "fda", "label", "dosing", "egfr", "potassium", "hyperkalemia", "cyp3a4", "contraindication", "starting dose"]
+      "keywords": [
+        "finerenone",
+        "kerendia",
+        "fda",
+        "label",
+        "dosing",
+        "egfr",
+        "potassium",
+        "hyperkalemia",
+        "cyp3a4",
+        "contraindication",
+        "starting dose"
+      ]
     },
     {
       "id": "eliquis-fda-label",
@@ -111,7 +227,21 @@
       "identifier": "FDA Label — ELIQUIS (apixaban)",
       "url": "https://www.accessdata.fda.gov/drugsatfda_docs/label/2021/202155s029lbl.pdf",
       "snippet": "For nonvalvular AF, reduce apixaban to 2.5 mg BID when ≥2 of: age ≥80, weight ≤60 kg, serum creatinine ≥1.5 mg/dL. Note eGFR is NOT one of the three criteria; the label addresses use across renal function including dialysis.",
-      "keywords": ["apixaban", "eliquis", "fda", "label", "dose reduction", "atrial fibrillation", "af", "creatinine", "weight", "age", "dialysis", "ckd", "anticoagulation"]
+      "keywords": [
+        "apixaban",
+        "eliquis",
+        "fda",
+        "label",
+        "dose reduction",
+        "atrial fibrillation",
+        "af",
+        "creatinine",
+        "weight",
+        "age",
+        "dialysis",
+        "ckd",
+        "anticoagulation"
+      ]
     },
     {
       "id": "protect-sparsentan-2023",
@@ -121,7 +251,16 @@
       "identifier": "Lancet 2023;402:2077 (PROTECT)",
       "url": "https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(23)02302-4/fulltext",
       "snippet": "Sparsentan reduced proteinuria versus irbesartan in IgA nephropathy with a manageable safety profile, supporting a targeted option beyond RAS blockade for high-risk IgAN.",
-      "keywords": ["sparsentan", "protect", "iga", "igan", "proteinuria", "endothelin", "irbesartan", "ras"]
+      "keywords": [
+        "sparsentan",
+        "protect",
+        "iga",
+        "igan",
+        "proteinuria",
+        "endothelin",
+        "irbesartan",
+        "ras"
+      ]
     },
     {
       "id": "nefigard-budesonide-2023",
@@ -131,7 +270,16 @@
       "identifier": "Lancet 2023;402:859 (NefIgArd)",
       "url": "https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(23)01554-4/fulltext",
       "snippet": "Targeted-release budesonide (Nefecon) reduced proteinuria and preserved eGFR over two years in primary IgA nephropathy at risk of progression, a mucosal-immunity–directed therapy.",
-      "keywords": ["budesonide", "nefecon", "nefigard", "iga", "igan", "proteinuria", "egfr", "immunosuppression"]
+      "keywords": [
+        "budesonide",
+        "nefecon",
+        "nefigard",
+        "iga",
+        "igan",
+        "proteinuria",
+        "egfr",
+        "immunosuppression"
+      ]
     },
     {
       "id": "ispd-peritonitis-2022",
@@ -141,7 +289,19 @@
       "identifier": "ISPD Peritonitis Guideline 2022",
       "url": "https://journals.sagepub.com/doi/10.1177/08968608221080586",
       "snippet": "For PD peritonitis with cloudy effluent, start empiric intraperitoneal antibiotics covering gram-positive (vancomycin or cefazolin) and gram-negative (aminoglycoside or ceftazidime) organisms after cultures; remove the catheter for refractory, relapsing, or fungal peritonitis.",
-      "keywords": ["peritonitis", "pd", "peritoneal dialysis", "cloudy effluent", "intraperitoneal", "antibiotics", "vancomycin", "cefazolin", "catheter removal", "fungal", "ispd"]
+      "keywords": [
+        "peritonitis",
+        "pd",
+        "peritoneal dialysis",
+        "cloudy effluent",
+        "intraperitoneal",
+        "antibiotics",
+        "vancomycin",
+        "cefazolin",
+        "catheter removal",
+        "fungal",
+        "ispd"
+      ]
     },
     {
       "id": "hyponatremia-guideline-2014",
@@ -151,7 +311,21 @@
       "identifier": "Eur J Endocrinol 2014;170:G1 (Hyponatraemia CPG)",
       "url": "https://academic.oup.com/ejendo/article/170/3/G1/6659548",
       "snippet": "Limit sodium correction to ~10 mmol/L in the first 24 h (lower in high-risk chronic hyponatremia) to avoid osmotic demyelination; for overcorrection, re-lower with electrolyte-free water ± desmopressin. Severe symptomatic hyponatremia: 3% saline boluses.",
-      "keywords": ["hyponatremia", "hyponatraemia", "sodium", "correction", "overcorrection", "osmotic demyelination", "ods", "desmopressin", "ddavp", "siadh", "3% saline", "hypertonic", "seizure"]
+      "keywords": [
+        "hyponatremia",
+        "hyponatraemia",
+        "sodium",
+        "correction",
+        "overcorrection",
+        "osmotic demyelination",
+        "ods",
+        "desmopressin",
+        "ddavp",
+        "siadh",
+        "3% saline",
+        "hypertonic",
+        "seizure"
+      ]
     },
     {
       "id": "kdigo-hyperkalemia-mgmt",
@@ -161,7 +335,2676 @@
       "identifier": "Expert consensus (acute hyperkalemia)",
       "url": "https://kdigo.org/guidelines/",
       "snippet": "For hyperkalemia with ECG changes, give IV calcium to stabilize the myocardium (does NOT lower potassium), shift with insulin+dextrose ± beta-agonist, then remove via dialysis in ESRD. On HD, avoid an abrupt 1K bath because a steep K+ gradient is arrhythmogenic.",
-      "keywords": ["hyperkalemia", "potassium", "peaked t-waves", "ecg", "calcium gluconate", "insulin", "dextrose", "dialysis", "dialysate", "1k bath", "arrhythmia", "hd", "esrd"]
+      "keywords": [
+        "hyperkalemia",
+        "potassium",
+        "peaked t-waves",
+        "ecg",
+        "calcium gluconate",
+        "insulin",
+        "dextrose",
+        "dialysis",
+        "dialysate",
+        "1k bath",
+        "arrhythmia",
+        "hd",
+        "esrd"
+      ]
+    },
+    {
+      "id": "kdigo-ckd-2024-staging",
+      "title": "KDIGO 2024 CKD — Definition & staging (CGA)",
+      "section": "Chapter 1–2: CKD definition, cause-GFR-albuminuria (CGA) staging",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2024 CKD §1–2",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Define CKD as abnormalities of kidney structure or function present >3 months. Stage by Cause, GFR category (G1–G5), and Albuminuria category (A1–A3); the CGA heatmap grades risk of progression, AKI, and CV events.",
+      "keywords": [
+        "ckd",
+        "staging",
+        "cga",
+        "gfr",
+        "egfr",
+        "albuminuria",
+        "acr",
+        "g1",
+        "g5",
+        "a1",
+        "a3",
+        "chronic kidney disease",
+        "definition",
+        "risk heatmap"
+      ]
+    },
+    {
+      "id": "kdigo-ckd-2024-kfre",
+      "title": "KDIGO 2024 CKD — Kidney Failure Risk Equation (KFRE)",
+      "section": "Chapter 2: risk prediction and referral thresholds",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2024 CKD — KFRE",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Use the validated Kidney Failure Risk Equation to estimate 2- and 5-year risk of kidney failure; a 5-year risk >3–5% informs nephrology referral and multidisciplinary care planning.",
+      "keywords": [
+        "kfre",
+        "kidney failure risk",
+        "risk equation",
+        "referral",
+        "prognosis",
+        "ckd",
+        "tangri",
+        "2-year",
+        "5-year"
+      ]
+    },
+    {
+      "id": "kdigo-ckd-2024-sglt2",
+      "title": "KDIGO 2024 CKD — SGLT2 inhibitors",
+      "section": "Chapter 3: SGLT2i as foundational therapy",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2024 CKD — SGLT2i",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Recommend an SGLT2 inhibitor for adults with CKD and eGFR ≥20 with albuminuria, with or without diabetes; continue until dialysis/transplant. Expect an initial reversible eGFR dip; do not stop for that dip.",
+      "keywords": [
+        "sglt2",
+        "dapagliflozin",
+        "empagliflozin",
+        "ckd",
+        "egfr",
+        "albuminuria",
+        "initial dip",
+        "foundational",
+        "gliflozin",
+        "non-diabetic"
+      ]
+    },
+    {
+      "id": "kdigo-ckd-2024-rasi",
+      "title": "KDIGO 2024 CKD — RAS inhibition",
+      "section": "Chapter 3: ACEi/ARB titration and monitoring",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2024 CKD — RASi",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Use ACEi or ARB (not both) titrated to the maximum tolerated dose for albuminuric CKD; tolerate a creatinine rise up to ~30% and monitor potassium. Do not routinely stop RASi at low eGFR solely to defer dialysis.",
+      "keywords": [
+        "acei",
+        "arb",
+        "ras",
+        "rasi",
+        "albuminuria",
+        "creatinine rise",
+        "potassium",
+        "hyperkalemia",
+        "stop-acei",
+        "titration",
+        "proteinuria"
+      ]
+    },
+    {
+      "id": "kdigo-ckd-2024-bp",
+      "title": "KDIGO 2024 CKD — Blood pressure target",
+      "section": "Chapter 3: SBP <120 mmHg (standardized)",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2024 CKD — BP",
+      "url": "https://kdigo.org/guidelines/blood-pressure/",
+      "snippet": "Target a standardized office systolic blood pressure <120 mmHg in most adults with CKD when tolerated, using proper standardized measurement; individualize for frailty, orthostasis, and polypharmacy.",
+      "keywords": [
+        "blood pressure",
+        "hypertension",
+        "sbp",
+        "120",
+        "target",
+        "standardized measurement",
+        "ckd",
+        "sprint"
+      ]
+    },
+    {
+      "id": "kdigo-ckd-2024-statin",
+      "title": "KDIGO 2024 CKD — Lipid management",
+      "section": "Chapter 3: statin-based therapy by age",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2024 CKD — Lipids",
+      "url": "https://kdigo.org/guidelines/lipids/",
+      "snippet": "Start statin or statin/ezetimibe in adults ≥50 with CKD not on dialysis; do not initiate statins de novo in dialysis-dependent patients but continue if already tolerated (fire-and-forget, no LDL target).",
+      "keywords": [
+        "statin",
+        "lipids",
+        "ldl",
+        "ezetimibe",
+        "cholesterol",
+        "dialysis",
+        "cardiovascular",
+        "fire and forget",
+        "sharp"
+      ]
+    },
+    {
+      "id": "kdigo-ckd-2024-nutrition",
+      "title": "KDIGO 2024 CKD — Protein & sodium",
+      "section": "Chapter 3: dietary protein and sodium",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2024 CKD — Nutrition",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Suggest protein intake ~0.8 g/kg/day in adults with CKD (avoid high protein), and sodium <2 g/day (<5 g NaCl) to help control blood pressure and volume; individualize with dietitian support.",
+      "keywords": [
+        "protein",
+        "sodium",
+        "diet",
+        "nutrition",
+        "0.8 g/kg",
+        "salt restriction",
+        "dietitian",
+        "ckd"
+      ]
+    },
+    {
+      "id": "kdigo-ckd-2024-metformin",
+      "title": "KDIGO 2024 CKD — Metformin dosing by eGFR",
+      "section": "Chapter 4: metformin in reduced eGFR",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2024 CKD — Metformin",
+      "url": "https://kdigo.org/guidelines/diabetes-ckd/",
+      "snippet": "Metformin is appropriate in CKD; reassess dose at eGFR <45 and monitor; discontinue when eGFR <30 given lactic-acidosis risk. Hold around iodinated contrast and acute illness.",
+      "keywords": [
+        "metformin",
+        "egfr",
+        "dosing",
+        "lactic acidosis",
+        "diabetes",
+        "ckd",
+        "30",
+        "45",
+        "contrast"
+      ]
+    },
+    {
+      "id": "kdigo-dm-ckd-2022-finerenone",
+      "title": "KDIGO 2022 Diabetes-CKD — Finerenone",
+      "section": "Nonsteroidal MRA for residual albuminuria",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2022 Diabetes-CKD — Finerenone",
+      "url": "https://kdigo.org/guidelines/diabetes-ckd/",
+      "snippet": "Add finerenone (a nonsteroidal MRA) for T2D + CKD with residual albuminuria on a maximally tolerated RASi and normal-ish potassium; monitor potassium and eGFR after initiation.",
+      "keywords": [
+        "finerenone",
+        "mra",
+        "diabetes",
+        "albuminuria",
+        "potassium",
+        "ras",
+        "t2d",
+        "ckd",
+        "nonsteroidal"
+      ]
+    },
+    {
+      "id": "kdigo-dm-ckd-2022-glp1",
+      "title": "KDIGO 2022 Diabetes-CKD — GLP-1 RA",
+      "section": "GLP-1 receptor agonists for glycemia + weight",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2022 Diabetes-CKD — GLP-1 RA",
+      "url": "https://kdigo.org/guidelines/diabetes-ckd/",
+      "snippet": "Prefer a long-acting GLP-1 receptor agonist when additional glucose lowering is needed in T2D + CKD, for glycemic control, weight, and cardiovascular benefit; it can be used at low eGFR.",
+      "keywords": [
+        "glp-1",
+        "glp1",
+        "semaglutide",
+        "dulaglutide",
+        "liraglutide",
+        "diabetes",
+        "ckd",
+        "weight",
+        "cardiovascular",
+        "glycemia"
+      ]
+    },
+    {
+      "id": "kdigo-dm-ckd-2022-a1c",
+      "title": "KDIGO 2022 Diabetes-CKD — Glycemic targets",
+      "section": "Individualized HbA1c targets",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2022 Diabetes-CKD — HbA1c",
+      "url": "https://kdigo.org/guidelines/diabetes-ckd/",
+      "snippet": "Individualize HbA1c targets from <6.5% to <8.0% based on hypoglycemia risk, comorbidity, life expectancy, and CKD severity; HbA1c is less reliable at low eGFR and on dialysis.",
+      "keywords": [
+        "hba1c",
+        "glycemic target",
+        "diabetes",
+        "hypoglycemia",
+        "ckd",
+        "dialysis",
+        "individualized"
+      ]
+    },
+    {
+      "id": "kdigo-gn-2021-igan",
+      "title": "KDIGO 2021 GN — IgA nephropathy",
+      "section": "Supportive care first; immunosuppression by risk",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2021 GN — IgAN",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "Optimize supportive care (max-tolerated RASi ± SGLT2i, BP control) for ≥3 months before considering glucocorticoids in high-risk IgAN; weigh systemic steroid toxicity and consider gut-directed budesonide.",
+      "keywords": [
+        "iga",
+        "igan",
+        "iga nephropathy",
+        "supportive care",
+        "ras",
+        "sglt2",
+        "proteinuria",
+        "budesonide",
+        "steroids",
+        "immunosuppression"
+      ]
+    },
+    {
+      "id": "kdigo-gn-2021-membranous",
+      "title": "KDIGO 2021 GN — Membranous nephropathy",
+      "section": "PLA2R, risk stratification, rituximab",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2021 GN — MN",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "Risk-stratify primary membranous nephropathy by proteinuria, eGFR trajectory, and anti-PLA2R titer; treat moderate/high risk with rituximab, cyclophosphamide-based, or CNI regimens rather than immediate immunosuppression in low risk.",
+      "keywords": [
+        "membranous",
+        "mn",
+        "pla2r",
+        "thsd7a",
+        "rituximab",
+        "cyclophosphamide",
+        "cni",
+        "nephrotic",
+        "proteinuria"
+      ]
+    },
+    {
+      "id": "kdigo-gn-2021-fsgs",
+      "title": "KDIGO 2021 GN — FSGS",
+      "section": "Primary vs secondary; steroids for primary",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2021 GN — FSGS",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "Distinguish primary (diffuse foot-process effacement, nephrotic) from secondary/genetic FSGS; treat primary FSGS with high-dose glucocorticoids and CNI for steroid resistance; secondary forms get RAS blockade, not immunosuppression.",
+      "keywords": [
+        "fsgs",
+        "focal segmental",
+        "nephrotic",
+        "steroids",
+        "cni",
+        "tacrolimus",
+        "cyclosporine",
+        "secondary fsgs",
+        "genetic"
+      ]
+    },
+    {
+      "id": "kdigo-gn-2021-mcd",
+      "title": "KDIGO 2021 GN — Minimal change disease",
+      "section": "Steroid-responsive nephrotic syndrome",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2021 GN — MCD",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "Treat adult minimal change disease with high-dose glucocorticoids; use CNI, cyclophosphamide, or rituximab for frequent relapse or steroid dependence.",
+      "keywords": [
+        "minimal change",
+        "mcd",
+        "nephrotic",
+        "steroids",
+        "relapse",
+        "rituximab",
+        "calcineurin",
+        "cyclophosphamide"
+      ]
+    },
+    {
+      "id": "kdigo-gn-2021-lupus",
+      "title": "KDIGO 2021 GN — Lupus nephritis",
+      "section": "Class III/IV/V induction & maintenance",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2021 GN — Lupus",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "For active class III/IV lupus nephritis, induce with MMF or low-dose IV cyclophosphamide plus glucocorticoids, increasingly with belimumab or a CNI (voclosporin) added; maintain with MMF or azathioprine.",
+      "keywords": [
+        "lupus",
+        "lupus nephritis",
+        "sle",
+        "mmf",
+        "mycophenolate",
+        "cyclophosphamide",
+        "belimumab",
+        "voclosporin",
+        "class iv",
+        "hydroxychloroquine"
+      ]
+    },
+    {
+      "id": "kdigo-gn-2021-anca",
+      "title": "KDIGO 2021 GN — ANCA vasculitis",
+      "section": "RPGN induction: steroids + rituximab/cyclophosphamide",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2021 GN — ANCA",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "Treat ANCA-associated GN promptly with glucocorticoids plus rituximab or cyclophosphamide; consider plasma exchange for severe kidney disease or diffuse alveolar hemorrhage. Reduced-dose steroid regimens (PEXIVAS) limit toxicity.",
+      "keywords": [
+        "anca",
+        "vasculitis",
+        "rpgn",
+        "crescentic",
+        "rituximab",
+        "cyclophosphamide",
+        "plasma exchange",
+        "pexivas",
+        "avacopan",
+        "gpa",
+        "mpa"
+      ]
+    },
+    {
+      "id": "kdigo-gn-2021-antigbm",
+      "title": "KDIGO 2021 GN — Anti-GBM disease",
+      "section": "Urgent plasma exchange + immunosuppression",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2021 GN — Anti-GBM",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "Anti-GBM (Goodpasture) disease is an emergency: start plasma exchange plus glucocorticoids and cyclophosphamide without delay; dialysis-dependence at presentation with 100% crescents portends poor renal recovery.",
+      "keywords": [
+        "anti-gbm",
+        "goodpasture",
+        "plasma exchange",
+        "plasmapheresis",
+        "crescents",
+        "pulmonary hemorrhage",
+        "cyclophosphamide",
+        "emergency"
+      ]
+    },
+    {
+      "id": "kdigo-gn-2021-c3g",
+      "title": "KDIGO 2021 GN — C3 glomerulopathy / MPGN",
+      "section": "Complement-mediated GN workup",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2021 GN — C3G/MPGN",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "Evaluate MPGN pattern for infection, monoclonal gammopathy, and complement dysregulation; C3 glomerulopathy warrants a complement workup, and treatment ranges from RAS blockade to immunosuppression and emerging complement inhibitors.",
+      "keywords": [
+        "mpgn",
+        "c3 glomerulopathy",
+        "c3g",
+        "complement",
+        "dense deposit",
+        "monoclonal",
+        "membranoproliferative",
+        "eculizumab"
+      ]
+    },
+    {
+      "id": "kdigo-gn-2021-infection",
+      "title": "KDIGO 2021 GN — Infection-related GN",
+      "section": "Post-infectious and IE-associated GN",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2021 GN — Infection-related",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "Manage infection-related glomerulonephritis by treating the underlying infection (including endocarditis and shunt infections); immunosuppression is generally avoided unless a separate primary GN is proven.",
+      "keywords": [
+        "post-infectious",
+        "infection-related",
+        "endocarditis",
+        "psgn",
+        "staphylococcus",
+        "glomerulonephritis",
+        "hematuria"
+      ]
+    },
+    {
+      "id": "kdigo-mbd-2017-phosphate",
+      "title": "KDIGO 2017 CKD-MBD — Phosphate",
+      "section": "Lowering elevated phosphate; binder choice",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2017 CKD-MBD — Phosphate",
+      "url": "https://kdigo.org/guidelines/ckd-mbd/",
+      "snippet": "Lower elevated serum phosphate toward the normal range; restrict dietary phosphate and use binders, limiting calcium-based binders when hypercalcemia, vascular calcification, or adynamic bone are concerns.",
+      "keywords": [
+        "phosphate",
+        "phosphorus",
+        "binder",
+        "sevelamer",
+        "lanthanum",
+        "calcium acetate",
+        "hyperphosphatemia",
+        "ckd-mbd",
+        "dialysis"
+      ]
+    },
+    {
+      "id": "kdigo-mbd-2017-pth",
+      "title": "KDIGO 2017 CKD-MBD — PTH / SHPT",
+      "section": "Secondary hyperparathyroidism therapy",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2017 CKD-MBD — PTH",
+      "url": "https://kdigo.org/guidelines/ckd-mbd/",
+      "snippet": "For rising or persistently high PTH on dialysis, use calcimimetics (cinacalcet, etelcalcetide), calcitriol/analogs, or combinations; avoid oversuppression causing adynamic bone.",
+      "keywords": [
+        "pth",
+        "parathyroid",
+        "hyperparathyroidism",
+        "shpt",
+        "cinacalcet",
+        "etelcalcetide",
+        "calcitriol",
+        "paricalcitol",
+        "calcimimetic",
+        "adynamic bone"
+      ]
+    },
+    {
+      "id": "kdigo-bp-2021",
+      "title": "KDIGO 2021 Blood Pressure in CKD",
+      "section": "SBP <120 by standardized measurement",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2021 BP",
+      "url": "https://kdigo.org/guidelines/blood-pressure/",
+      "snippet": "Target standardized office SBP <120 mmHg in CKD not on dialysis when tolerated; RAS inhibitors are preferred for albuminuric CKD and diabetic kidney disease.",
+      "keywords": [
+        "blood pressure",
+        "hypertension",
+        "bp",
+        "sbp",
+        "120",
+        "ckd",
+        "ras",
+        "standardized",
+        "albuminuria"
+      ]
+    },
+    {
+      "id": "kdigo-aki-2012",
+      "title": "KDIGO 2012 Acute Kidney Injury",
+      "section": "AKI staging, prevention, RRT timing",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2012 AKI",
+      "url": "https://kdigo.org/guidelines/acute-kidney-injury/",
+      "snippet": "Stage AKI by serum creatinine rise and urine output; prevent with volume optimization and nephrotoxin avoidance; there is no benefit to routine early dialysis — start RRT for refractory volume, electrolyte, or uremic indications.",
+      "keywords": [
+        "aki",
+        "acute kidney injury",
+        "staging",
+        "creatinine",
+        "urine output",
+        "rrt",
+        "dialysis timing",
+        "nephrotoxin",
+        "contrast",
+        "oliguria"
+      ]
+    },
+    {
+      "id": "kdigo-anemia-2012",
+      "title": "KDIGO 2012 Anemia in CKD",
+      "section": "ESA use, Hb targets, iron",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2012 Anemia",
+      "url": "https://kdigo.org/guidelines/anemia/",
+      "snippet": "Do not target normal hemoglobin with ESAs; individualize, generally not exceeding Hb 11.5 g/dL, and address iron deficiency first. Higher Hb targets increase stroke and thrombosis risk (TREAT, CHOIR, CREATE).",
+      "keywords": [
+        "anemia",
+        "esa",
+        "erythropoietin",
+        "hemoglobin",
+        "hb",
+        "iron",
+        "tsat",
+        "ferritin",
+        "treat",
+        "choir",
+        "create",
+        "11.5"
+      ]
+    },
+    {
+      "id": "kdigo-transplant-candidate-2020",
+      "title": "KDIGO 2020 Transplant Candidate Evaluation",
+      "section": "Evaluation & management of KT candidates",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2020 KT Candidate",
+      "url": "https://kdigo.org/guidelines/transplant-candidate/",
+      "snippet": "Evaluate transplant candidates for cardiovascular risk, malignancy, infection, and immunologic risk; most patients with ESKD benefit from transplantation, including preemptive listing at eGFR <20.",
+      "keywords": [
+        "transplant",
+        "candidate",
+        "evaluation",
+        "listing",
+        "preemptive",
+        "eskd",
+        "immunologic risk",
+        "cardiovascular",
+        "waitlist"
+      ]
+    },
+    {
+      "id": "kdigo-transplant-recipient-2009",
+      "title": "KDIGO Kidney Transplant Recipient Care",
+      "section": "Immunosuppression & long-term care",
+      "source_type": "guideline",
+      "identifier": "KDIGO KTR Care",
+      "url": "https://kdigo.org/guidelines/transplant-recipient/",
+      "snippet": "Maintain most kidney transplant recipients on a CNI (tacrolimus) plus mycophenolate ± steroids; monitor drug levels, screen for infection (CMV, BK) and malignancy, and manage cardiovascular and metabolic complications.",
+      "keywords": [
+        "transplant",
+        "recipient",
+        "tacrolimus",
+        "mycophenolate",
+        "immunosuppression",
+        "cmv",
+        "bk virus",
+        "rejection",
+        "drug level",
+        "calcineurin"
+      ]
+    },
+    {
+      "id": "kdigo-hepc-2018",
+      "title": "KDIGO 2018 Hepatitis C in CKD",
+      "section": "DAA therapy in CKD/dialysis/transplant",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2018 HCV",
+      "url": "https://kdigo.org/guidelines/hepatitis-c/",
+      "snippet": "Treat hepatitis C with direct-acting antivirals in CKD; pangenotypic regimens (glecaprevir/pibrentasvir) are safe across eGFR including dialysis, enabling HCV-positive donor-to-recipient transplantation.",
+      "keywords": [
+        "hepatitis c",
+        "hcv",
+        "daa",
+        "glecaprevir",
+        "pibrentasvir",
+        "sofosbuvir",
+        "dialysis",
+        "transplant",
+        "cryoglobulinemia"
+      ]
+    },
+    {
+      "id": "kdigo-donor-2017",
+      "title": "KDIGO 2017 Living Kidney Donor Evaluation",
+      "section": "Donor risk assessment & selection",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2017 Living Donor",
+      "url": "https://kdigo.org/guidelines/living-kidney-donor/",
+      "snippet": "Assess living donor candidates for individualized lifetime kidney-failure risk (age, GFR, albuminuria, BP, BMI, family history) rather than fixed thresholds; ensure informed consent about long-term risk.",
+      "keywords": [
+        "living donor",
+        "donor evaluation",
+        "donation",
+        "lifetime risk",
+        "gfr",
+        "albuminuria",
+        "selection",
+        "informed consent"
+      ]
+    },
+    {
+      "id": "kdigo-bpressure-diabetes",
+      "title": "KDIGO Diabetes-CKD — Blood pressure & RAS",
+      "section": "BP control with RAS inhibition in DKD",
+      "source_type": "guideline",
+      "identifier": "KDIGO Diabetes-CKD — BP/RAS",
+      "url": "https://kdigo.org/guidelines/diabetes-ckd/",
+      "snippet": "In diabetic kidney disease with albuminuria, use a RAS inhibitor titrated to maximum tolerated dose as the antihypertensive backbone; combine with SGLT2i and finerenone for kidney and CV protection.",
+      "keywords": [
+        "diabetes",
+        "dkd",
+        "blood pressure",
+        "ras",
+        "acei",
+        "arb",
+        "albuminuria",
+        "sglt2",
+        "finerenone"
+      ]
+    },
+    {
+      "id": "dapa-hf-2019",
+      "title": "DAPA-HF: Dapagliflozin in Heart Failure",
+      "section": "SGLT2i in HFrEF incl. reduced eGFR",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2019;381:1995 (DAPA-HF)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1911303",
+      "snippet": "Dapagliflozin reduced worsening heart failure and cardiovascular death in HFrEF regardless of diabetes, with benefit preserved down to eGFR 30 — relevant to cardiorenal patients on nephrology service.",
+      "keywords": [
+        "dapagliflozin",
+        "sglt2",
+        "heart failure",
+        "hfref",
+        "dapa-hf",
+        "cardiorenal",
+        "egfr",
+        "ejection fraction"
+      ]
+    },
+    {
+      "id": "emperor-kidney-cv",
+      "title": "EMPEROR-Reduced: Empagliflozin in HFrEF",
+      "section": "SGLT2i CV + renal outcomes",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2020;383:1413 (EMPEROR-Reduced)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2022190",
+      "snippet": "Empagliflozin reduced heart-failure hospitalization and slowed eGFR decline in HFrEF, reinforcing SGLT2 inhibition across the cardiorenal spectrum.",
+      "keywords": [
+        "empagliflozin",
+        "sglt2",
+        "heart failure",
+        "hfref",
+        "emperor",
+        "egfr decline",
+        "cardiorenal"
+      ]
+    },
+    {
+      "id": "sprint-2015",
+      "title": "SPRINT: Intensive vs Standard BP Control",
+      "section": "SBP <120 target, CKD subgroup",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2015;373:2103 (SPRINT)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1511939",
+      "snippet": "Intensive systolic BP control (<120 mmHg) reduced cardiovascular events and mortality versus <140, including in the CKD subgroup, at the cost of more AKI and electrolyte abnormalities.",
+      "keywords": [
+        "sprint",
+        "blood pressure",
+        "intensive",
+        "sbp",
+        "120",
+        "ckd",
+        "cardiovascular",
+        "aki",
+        "hypertension"
+      ]
+    },
+    {
+      "id": "idnt-2001",
+      "title": "IDNT: Irbesartan in Diabetic Nephropathy",
+      "section": "ARB renoprotection in T2D nephropathy",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2001;345:851 (IDNT)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa011303",
+      "snippet": "Irbesartan slowed progression of type 2 diabetic nephropathy independent of blood pressure, establishing ARB renoprotection in albuminuric diabetic CKD.",
+      "keywords": [
+        "irbesartan",
+        "arb",
+        "idnt",
+        "diabetic nephropathy",
+        "proteinuria",
+        "renoprotection",
+        "type 2 diabetes"
+      ]
+    },
+    {
+      "id": "renaal-2001",
+      "title": "RENAAL: Losartan in Type 2 Diabetic Nephropathy",
+      "section": "ARB reduces ESKD in DKD",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2001;345:861 (RENAAL)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa011161",
+      "snippet": "Losartan reduced the doubling of creatinine and progression to end-stage kidney disease in type 2 diabetic nephropathy, independent of blood-pressure effects.",
+      "keywords": [
+        "losartan",
+        "arb",
+        "renaal",
+        "diabetic nephropathy",
+        "eskd",
+        "creatinine",
+        "proteinuria"
+      ]
+    },
+    {
+      "id": "altitude-2012",
+      "title": "ALTITUDE: Aliskiren added to RAS blockade",
+      "section": "Dual RAS blockade harm signal",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2012;367:2204 (ALTITUDE)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1208799",
+      "snippet": "Adding aliskiren to an ACEi or ARB in type 2 diabetes increased hyperkalemia, hypotension, and adverse events without benefit — evidence against dual RAS blockade.",
+      "keywords": [
+        "aliskiren",
+        "dual ras blockade",
+        "altitude",
+        "hyperkalemia",
+        "acei",
+        "arb",
+        "diabetes",
+        "contraindication"
+      ]
+    },
+    {
+      "id": "ontarget-2008",
+      "title": "ONTARGET: Telmisartan, Ramipril, or Both",
+      "section": "Combination ACEi+ARB worsens renal outcomes",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2008;358:1547 (ONTARGET)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa0801317",
+      "snippet": "Combined ACEi plus ARB increased hypotension, hyperkalemia, and renal dysfunction without cardiovascular benefit versus monotherapy — do not routinely combine RAS blockers.",
+      "keywords": [
+        "ontarget",
+        "telmisartan",
+        "ramipril",
+        "combination",
+        "acei",
+        "arb",
+        "hyperkalemia",
+        "dual blockade",
+        "renal dysfunction"
+      ]
+    },
+    {
+      "id": "stop-acei-2022",
+      "title": "STOP-ACEi: Continuing vs Stopping RASi in Advanced CKD",
+      "section": "RASi continuation in eGFR <30",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2022;387:2021 (STOP-ACEi)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2210639",
+      "snippet": "Stopping ACEi/ARB in advanced CKD did not preserve eGFR or delay kidney failure versus continuing — do not routinely withdraw RAS inhibition solely because eGFR is low.",
+      "keywords": [
+        "stop-acei",
+        "rasi",
+        "acei",
+        "arb",
+        "advanced ckd",
+        "egfr",
+        "continuation",
+        "withdrawal",
+        "kidney failure"
+      ]
+    },
+    {
+      "id": "sharp-2011",
+      "title": "SHARP: Simvastatin/Ezetimibe in CKD",
+      "section": "Lipid lowering reduces atherosclerotic events",
+      "source_type": "primary_literature",
+      "identifier": "Lancet 2011;377:2181 (SHARP)",
+      "url": "https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(11)60739-3/fulltext",
+      "snippet": "Simvastatin plus ezetimibe reduced major atherosclerotic events in CKD including dialysis patients, with the largest relative benefit in non-dialysis CKD.",
+      "keywords": [
+        "sharp",
+        "simvastatin",
+        "ezetimibe",
+        "lipids",
+        "ldl",
+        "ckd",
+        "dialysis",
+        "atherosclerotic",
+        "cardiovascular"
+      ]
+    },
+    {
+      "id": "treat-2009",
+      "title": "TREAT: Darbepoetin in Diabetic CKD Anemia",
+      "section": "Higher Hb target increases stroke",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2009;361:2019 (TREAT)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa0907845",
+      "snippet": "Targeting near-normal hemoglobin with darbepoetin in diabetic CKD did not reduce death or CV/renal events and nearly doubled stroke risk — supporting conservative ESA Hb targets.",
+      "keywords": [
+        "treat",
+        "darbepoetin",
+        "esa",
+        "anemia",
+        "hemoglobin",
+        "stroke",
+        "diabetes",
+        "ckd",
+        "hb target"
+      ]
+    },
+    {
+      "id": "choir-2006",
+      "title": "CHOIR: Higher vs Lower Hb Target with Epoetin",
+      "section": "Higher Hb target harms in CKD",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2006;355:2085 (CHOIR)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa065485",
+      "snippet": "Targeting Hb 13.5 vs 11.3 g/dL with epoetin alfa in non-dialysis CKD increased composite death and CV events — one basis for conservative anemia targets.",
+      "keywords": [
+        "choir",
+        "epoetin",
+        "esa",
+        "anemia",
+        "hemoglobin",
+        "cardiovascular",
+        "ckd",
+        "hb target"
+      ]
+    },
+    {
+      "id": "canvas-2017",
+      "title": "CANVAS: Canagliflozin CV & Renal Outcomes",
+      "section": "SGLT2i CV benefit, amputation signal",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2017;377:644 (CANVAS)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1611925",
+      "snippet": "Canagliflozin reduced cardiovascular events and slowed albuminuria progression in type 2 diabetes but carried an amputation and fracture signal in this program.",
+      "keywords": [
+        "canagliflozin",
+        "canvas",
+        "sglt2",
+        "cardiovascular",
+        "albuminuria",
+        "amputation",
+        "diabetes"
+      ]
+    },
+    {
+      "id": "declare-2019",
+      "title": "DECLARE-TIMI 58: Dapagliflozin CV Outcomes",
+      "section": "SGLT2i HF and renal composite",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2019;380:347 (DECLARE-TIMI 58)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1812389",
+      "snippet": "Dapagliflozin reduced heart-failure hospitalization and a renal composite across a broad type 2 diabetes population, including primary-prevention patients.",
+      "keywords": [
+        "dapagliflozin",
+        "declare",
+        "sglt2",
+        "cardiovascular",
+        "heart failure",
+        "renal",
+        "diabetes"
+      ]
+    },
+    {
+      "id": "credence-recall",
+      "title": "CREDENCE (kidney primary endpoint)",
+      "section": "Canagliflozin in albuminuric diabetic CKD",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2019;380:2295 (CREDENCE)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1811744",
+      "snippet": "In type 2 diabetes with albuminuric CKD, canagliflozin lowered kidney failure and CV events — the first dedicated SGLT2i renal-outcome trial with a kidney primary endpoint.",
+      "keywords": [
+        "canagliflozin",
+        "credence",
+        "sglt2",
+        "albuminuria",
+        "diabetic ckd",
+        "kidney failure",
+        "primary endpoint"
+      ]
+    },
+    {
+      "id": "flow-semaglutide-2024",
+      "title": "FLOW: Semaglutide in Diabetic CKD",
+      "section": "GLP-1 RA kidney-outcome trial",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2024 (FLOW, semaglutide)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2403347",
+      "snippet": "Semaglutide reduced major kidney disease events and cardiovascular death in type 2 diabetes with CKD, extending GLP-1 receptor agonist benefit to kidney outcomes.",
+      "keywords": [
+        "semaglutide",
+        "glp-1",
+        "glp1",
+        "flow",
+        "diabetic ckd",
+        "kidney outcome",
+        "albuminuria",
+        "cardiovascular"
+      ]
+    },
+    {
+      "id": "pexivas-2020",
+      "title": "PEXIVAS: Plasma Exchange & Steroid Dosing in ANCA",
+      "section": "Reduced-dose steroids; PLEX not routine",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2020;382:622 (PEXIVAS)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1803537",
+      "snippet": "In severe ANCA vasculitis, plasma exchange did not reduce death or ESKD, and a reduced-dose glucocorticoid regimen was noninferior for these outcomes with less infection.",
+      "keywords": [
+        "pexivas",
+        "anca",
+        "plasma exchange",
+        "plex",
+        "glucocorticoid",
+        "reduced dose",
+        "vasculitis",
+        "eskd"
+      ]
+    },
+    {
+      "id": "advocate-avacopan-2021",
+      "title": "ADVOCATE: Avacopan in ANCA Vasculitis",
+      "section": "C5a receptor inhibitor, steroid-sparing",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2021;384:599 (ADVOCATE)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2023386",
+      "snippet": "Avacopan, an oral C5a receptor antagonist, was superior for sustained remission at week 52 and enabled glucocorticoid sparing in ANCA-associated vasculitis.",
+      "keywords": [
+        "avacopan",
+        "advocate",
+        "anca",
+        "c5a",
+        "complement",
+        "glucocorticoid sparing",
+        "vasculitis",
+        "remission"
+      ]
+    },
+    {
+      "id": "empa-kidney-recall",
+      "title": "EMPA-KIDNEY (broad CKD)",
+      "section": "Empagliflozin across broad CKD",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2023;388:117 (EMPA-KIDNEY)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2204233",
+      "snippet": "Empagliflozin reduced kidney disease progression or CV death across a broad CKD population including low eGFR and non-diabetic causes.",
+      "keywords": [
+        "empagliflozin",
+        "empa-kidney",
+        "sglt2",
+        "ckd",
+        "egfr",
+        "non-diabetic",
+        "progression"
+      ]
+    },
+    {
+      "id": "dupro-sparsentan-2024",
+      "title": "DUPLEX: Sparsentan in FSGS",
+      "section": "Dual endothelin/angiotensin blockade in FSGS",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2024 (DUPLEX, sparsentan FSGS)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2308550",
+      "snippet": "Sparsentan reduced proteinuria versus irbesartan in focal segmental glomerulosclerosis, though the eGFR-slope primary endpoint was not statistically met.",
+      "keywords": [
+        "sparsentan",
+        "duplex",
+        "fsgs",
+        "endothelin",
+        "proteinuria",
+        "irbesartan",
+        "egfr slope"
+      ]
+    },
+    {
+      "id": "applause-iptacopan-2024",
+      "title": "APPLAUSE-IgAN: Iptacopan in IgA Nephropathy",
+      "section": "Factor B inhibitor, proteinuria reduction",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2024 (APPLAUSE-IgAN, iptacopan)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2410316",
+      "snippet": "Iptacopan, an oral factor B inhibitor of the alternative complement pathway, reduced proteinuria in primary IgA nephropathy — a complement-targeted option.",
+      "keywords": [
+        "iptacopan",
+        "applause",
+        "iga",
+        "igan",
+        "complement",
+        "factor b",
+        "alternative pathway",
+        "proteinuria"
+      ]
+    },
+    {
+      "id": "jardiance-fda-label",
+      "title": "JARDIANCE (empagliflozin) FDA Label",
+      "section": "Renal use, eGYFR thresholds, DKA",
+      "source_type": "fda_label",
+      "identifier": "FDA Label — JARDIANCE (empagliflozin)",
+      "url": "https://www.accessdata.fda.gov/scripts/cder/daf/",
+      "snippet": "Empagliflozin is indicated to reduce CKD progression; initiation guidance spans low eGFR. Counsel on volume depletion, genital mycotic infection, euglycemic DKA, and holding around surgery/acute illness.",
+      "keywords": [
+        "empagliflozin",
+        "jardiance",
+        "sglt2",
+        "fda",
+        "label",
+        "egfr",
+        "dka",
+        "euglycemic",
+        "volume",
+        "mycotic"
+      ]
+    },
+    {
+      "id": "farxiga-fda-label",
+      "title": "FARXIGA (dapagliflozin) FDA Label",
+      "section": "CKD and HF indications",
+      "source_type": "fda_label",
+      "identifier": "FDA Label — FARXIGA (dapagliflozin)",
+      "url": "https://www.accessdata.fda.gov/scripts/cder/daf/",
+      "snippet": "Dapagliflozin is indicated to reduce risk of eGFR decline, ESKD, CV death, and HF hospitalization in CKD; not for initiation with an eGFR below the labeled threshold for glycemic indication. Watch euglycemic DKA.",
+      "keywords": [
+        "dapagliflozin",
+        "farxiga",
+        "sglt2",
+        "fda",
+        "label",
+        "ckd",
+        "heart failure",
+        "egfr",
+        "dka"
+      ]
+    },
+    {
+      "id": "lokelma-fda-label",
+      "title": "LOKELMA (sodium zirconium cyclosilicate) FDA Label",
+      "section": "Chronic hyperkalemia binder",
+      "source_type": "fda_label",
+      "identifier": "FDA Label — LOKELMA (SZC)",
+      "url": "https://www.accessdata.fda.gov/scripts/cder/daf/",
+      "snippet": "Sodium zirconium cyclosilicate lowers serum potassium in hyperkalemia; not for emergency life-threatening hyperkalemia. Separate dosing from other oral drugs by hours and monitor for edema from sodium load.",
+      "keywords": [
+        "sodium zirconium",
+        "szc",
+        "lokelma",
+        "hyperkalemia",
+        "potassium binder",
+        "edema",
+        "sodium",
+        "chronic",
+        "spacing"
+      ]
+    },
+    {
+      "id": "veltassa-fda-label",
+      "title": "VELTASSA (patiromer) FDA Label",
+      "section": "Chronic hyperkalemia binder",
+      "source_type": "fda_label",
+      "identifier": "FDA Label — VELTASSA (patiromer)",
+      "url": "https://www.accessdata.fda.gov/scripts/cder/daf/",
+      "snippet": "Patiromer binds potassium in the GI tract for chronic hyperkalemia; delayed onset (not for emergencies), separate from other oral medications by ≥3 hours, and monitor magnesium.",
+      "keywords": [
+        "patiromer",
+        "veltassa",
+        "hyperkalemia",
+        "potassium binder",
+        "chronic",
+        "magnesium",
+        "spacing",
+        "gi"
+      ]
+    },
+    {
+      "id": "tacrolimus-fda-label",
+      "title": "PROGRAF (tacrolimus) FDA Label",
+      "section": "Transplant immunosuppression, levels",
+      "source_type": "fda_label",
+      "identifier": "FDA Label — PROGRAF (tacrolimus)",
+      "url": "https://www.accessdata.fda.gov/scripts/cder/daf/",
+      "snippet": "Tacrolimus is a calcineurin inhibitor for transplant rejection prophylaxis; narrow therapeutic index requires trough monitoring, with nephrotoxicity, neurotoxicity, hyperglycemia, and CYP3A drug interactions.",
+      "keywords": [
+        "tacrolimus",
+        "prograf",
+        "calcineurin",
+        "transplant",
+        "trough",
+        "level",
+        "nephrotoxicity",
+        "cyp3a",
+        "immunosuppression"
+      ]
+    },
+    {
+      "id": "cellcept-fda-label",
+      "title": "CELLCEPT (mycophenolate) FDA Label",
+      "section": "Antiproliferative immunosuppressant",
+      "source_type": "fda_label",
+      "identifier": "FDA Label — CELLCEPT (mycophenolate)",
+      "url": "https://www.accessdata.fda.gov/scripts/cder/daf/",
+      "snippet": "Mycophenolate mofetil prevents transplant rejection and treats several glomerular diseases; teratogenic (REMS/pregnancy prevention), with GI intolerance and cytopenias.",
+      "keywords": [
+        "mycophenolate",
+        "cellcept",
+        "mmf",
+        "transplant",
+        "lupus",
+        "teratogenic",
+        "rems",
+        "cytopenia",
+        "gi"
+      ]
+    },
+    {
+      "id": "kayexalate-fda-label",
+      "title": "SPS (sodium polystyrene sulfonate) FDA Label",
+      "section": "Hyperkalemia cation-exchange resin",
+      "source_type": "fda_label",
+      "identifier": "FDA Label — SPS (Kayexalate)",
+      "url": "https://www.accessdata.fda.gov/scripts/cder/daf/",
+      "snippet": "Sodium polystyrene sulfonate lowers potassium slowly; boxed concern for intestinal necrosis, avoid with sorbitol and in bowel dysmotility/post-op ileus — not first-line for acute hyperkalemia.",
+      "keywords": [
+        "sodium polystyrene",
+        "kayexalate",
+        "sps",
+        "hyperkalemia",
+        "resin",
+        "intestinal necrosis",
+        "sorbitol",
+        "ileus"
+      ]
+    },
+    {
+      "id": "apixaban-crcl-dialysis",
+      "title": "Apixaban in Advanced CKD & Dialysis",
+      "section": "Renal dosing nuance beyond the label",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — apixaban in ESKD",
+      "url": "https://www.accessdata.fda.gov/drugsatfda_docs/label/2021/202155s029lbl.pdf",
+      "snippet": "For NVAF, apixaban 2.5 mg BID requires ≥2 of: age ≥80, weight ≤60 kg, creatinine ≥1.5 mg/dL — eGFR is NOT a criterion. Use in dialysis is guided by label pharmacokinetics and limited outcome data.",
+      "keywords": [
+        "apixaban",
+        "eliquis",
+        "dialysis",
+        "eskd",
+        "atrial fibrillation",
+        "dose reduction",
+        "creatinine",
+        "anticoagulation",
+        "doac"
+      ]
+    },
+    {
+      "id": "hyperkalemia-acute-steps",
+      "title": "Acute Hyperkalemia — Emergency Management",
+      "section": "Stabilize, shift, remove",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — acute hyperkalemia",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "With ECG changes or K+ >6.5, give IV calcium to stabilize the myocardium (does NOT lower K+), shift with insulin+dextrose ± nebulized beta-agonist, then remove via dialysis in ESKD; binders are for chronic control, not emergencies.",
+      "keywords": [
+        "hyperkalemia",
+        "potassium",
+        "peaked t-waves",
+        "ecg",
+        "calcium gluconate",
+        "insulin",
+        "dextrose",
+        "dialysis",
+        "beta-agonist",
+        "emergency",
+        "6.5"
+      ]
+    },
+    {
+      "id": "hyponatremia-chronic-siadh",
+      "title": "Chronic Hyponatremia & SIADH",
+      "section": "Diagnosis and safe correction",
+      "source_type": "guideline",
+      "identifier": "Hyponatraemia CPG — SIADH",
+      "url": "https://academic.oup.com/ejendo/article/170/3/G1/6659548",
+      "snippet": "Confirm true hypotonic hyponatremia, assess volume status and urine osmolality/sodium; SIADH is euvolemic with concentrated urine. Correct chronic hyponatremia ≤8 mmol/L per 24 h to avoid osmotic demyelination.",
+      "keywords": [
+        "hyponatremia",
+        "siadh",
+        "urine osmolality",
+        "urine sodium",
+        "euvolemic",
+        "correction limit",
+        "osmotic demyelination",
+        "desmopressin",
+        "chronic",
+        "8 mmol"
+      ]
+    },
+    {
+      "id": "hypernatremia-mgmt",
+      "title": "Hypernatremia — Free Water Deficit",
+      "section": "Correction rate and free-water calc",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — hypernatremia",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Correct hypernatremia by replacing the calculated free-water deficit, lowering sodium ≤10–12 mmol/L per 24 h to avoid cerebral edema; treat the underlying cause (diabetes insipidus, insensible losses, hypertonic gains).",
+      "keywords": [
+        "hypernatremia",
+        "free water deficit",
+        "sodium",
+        "correction rate",
+        "diabetes insipidus",
+        "desmopressin",
+        "cerebral edema"
+      ]
+    },
+    {
+      "id": "metabolic-acidosis-ckd",
+      "title": "Metabolic Acidosis in CKD",
+      "section": "Bicarbonate therapy to slow progression",
+      "source_type": "guideline",
+      "identifier": "KDIGO CKD — Metabolic acidosis",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Treat metabolic acidosis in CKD (serum bicarbonate <22 mmol/L) with oral alkali to maintain bicarbonate in the normal range; correcting acidosis may slow CKD progression and preserve muscle/bone.",
+      "keywords": [
+        "metabolic acidosis",
+        "bicarbonate",
+        "alkali",
+        "sodium bicarbonate",
+        "ckd",
+        "anion gap",
+        "progression",
+        "22"
+      ]
+    },
+    {
+      "id": "ttkg-and-rta",
+      "title": "Renal Tubular Acidosis — Typing",
+      "section": "Distinguishing type 1, 2, and 4 RTA",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — RTA typing",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Classify RTA by serum potassium and urine pH: distal (type 1) with high urine pH and hypokalemia; proximal (type 2) with bicarbonate wasting; type 4 (hyperkalemic) from aldosterone deficiency/resistance, common in diabetic CKD.",
+      "keywords": [
+        "rta",
+        "renal tubular acidosis",
+        "type 1",
+        "type 2",
+        "type 4",
+        "urine ph",
+        "hypokalemia",
+        "hyperkalemia",
+        "aldosterone",
+        "fanconi"
+      ]
+    },
+    {
+      "id": "dka-mgmt-nephro",
+      "title": "Diabetic Ketoacidosis — Fluids & Potassium",
+      "section": "Electrolyte pitfalls in DKA",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — DKA electrolytes",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "In DKA, restore volume, give insulin, and track potassium closely: total-body potassium is depleted even when serum is normal/high, so replace potassium before/with insulin once K+ <5.2 to avoid dangerous hypokalemia.",
+      "keywords": [
+        "dka",
+        "ketoacidosis",
+        "potassium",
+        "insulin",
+        "fluids",
+        "anion gap",
+        "hypokalemia",
+        "diabetes"
+      ]
+    },
+    {
+      "id": "cardiorenal-decongestion",
+      "title": "Cardiorenal Syndrome — Decongestion",
+      "section": "Diuresis despite rising creatinine",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — cardiorenal",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "In acute cardiorenal syndrome, effective decongestion often transiently raises creatinine (hemoconcentration) without true injury; continue loop diuretics with adequate dosing and sequential nephron blockade rather than stopping for the creatinine bump.",
+      "keywords": [
+        "cardiorenal",
+        "decongestion",
+        "diuretic",
+        "loop",
+        "furosemide",
+        "creatinine",
+        "competing risks",
+        "heart failure",
+        "hemoconcentration",
+        "volume"
+      ]
+    },
+    {
+      "id": "contrast-nephropathy",
+      "title": "Contrast-Associated AKI",
+      "section": "Risk and prevention",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — contrast-associated AKI",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Contrast-associated AKI risk is lower than historically feared; for higher-risk patients (low eGFR, volume depletion) provide IV isotonic fluid, avoid volume depletion, and do not withhold clearly indicated contrast studies.",
+      "keywords": [
+        "contrast",
+        "contrast nephropathy",
+        "ca-aki",
+        "iodinated",
+        "hydration",
+        "isotonic",
+        "egfr",
+        "prevention"
+      ]
+    },
+    {
+      "id": "rhabdo-aki",
+      "title": "Rhabdomyolysis-Associated AKI",
+      "section": "Pigment nephropathy management",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — rhabdomyolysis AKI",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Treat rhabdomyolysis with early aggressive isotonic fluids to maintain urine output; monitor creatine kinase, potassium, phosphate, and calcium — hypocalcemia early and hypercalcemia during recovery.",
+      "keywords": [
+        "rhabdomyolysis",
+        "pigment nephropathy",
+        "creatine kinase",
+        "aki",
+        "fluids",
+        "potassium",
+        "hypocalcemia",
+        "myoglobin"
+      ]
+    },
+    {
+      "id": "tumor-lysis",
+      "title": "Tumor Lysis Syndrome",
+      "section": "Prevention and urate management",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — tumor lysis",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Prevent tumor lysis syndrome with hydration and urate-lowering (allopurinol prophylaxis, rasburicase for high risk); manage hyperkalemia, hyperphosphatemia, and hypocalcemia; avoid alkalinization when phosphate is high.",
+      "keywords": [
+        "tumor lysis",
+        "tls",
+        "uric acid",
+        "rasburicase",
+        "allopurinol",
+        "hyperphosphatemia",
+        "hyperkalemia",
+        "hypocalcemia",
+        "hydration"
+      ]
+    },
+    {
+      "id": "adpkd-tolvaptan",
+      "title": "ADPKD — Tolvaptan",
+      "section": "Slowing cyst growth in ADPKD",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2012;367:2407 (TEMPO 3:4, tolvaptan)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1205511",
+      "snippet": "Tolvaptan slows eGFR decline and total kidney volume growth in rapidly progressing ADPKD; requires monitoring for hepatotoxicity and managing aquaresis (thirst, polyuria).",
+      "keywords": [
+        "adpkd",
+        "polycystic",
+        "tolvaptan",
+        "tempo",
+        "cyst",
+        "total kidney volume",
+        "hepatotoxicity",
+        "aquaresis",
+        "vasopressin"
+      ]
+    },
+    {
+      "id": "mgus-mgrs",
+      "title": "Monoclonal Gammopathy of Renal Significance",
+      "section": "MGRS workup and clone-directed therapy",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — MGRS",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "A monoclonal gammopathy causing kidney disease (MGRS) warrants hematologic evaluation and clone-directed therapy even without meeting myeloma criteria; kidney biopsy defines the lesion (e.g., amyloid, MIDD, proliferative GN with deposits).",
+      "keywords": [
+        "mgrs",
+        "monoclonal",
+        "gammopathy",
+        "amyloid",
+        "light chain",
+        "midd",
+        "myeloma",
+        "biopsy",
+        "clone-directed"
+      ]
+    },
+    {
+      "id": "cast-nephropathy",
+      "title": "Myeloma Cast Nephropathy — AKI",
+      "section": "Light-chain AKI management",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — cast nephropathy",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "In myeloma with AKI from cast nephropathy, start clone-directed therapy urgently (bortezomib-based) and hydrate; the role of extracorporeal light-chain removal is uncertain and not routinely recommended.",
+      "keywords": [
+        "cast nephropathy",
+        "myeloma",
+        "light chain",
+        "aki",
+        "bortezomib",
+        "free light chain",
+        "hydration"
+      ]
+    },
+    {
+      "id": "dialysis-adequacy-hd",
+      "title": "Hemodialysis Adequacy (Kt/V)",
+      "section": "Dose targets and schedule",
+      "source_type": "guideline",
+      "identifier": "KDOQI HD Adequacy",
+      "url": "https://www.kidney.org/professionals/guidelines",
+      "snippet": "Target a single-pool Kt/V of ~1.4 (minimum 1.2) per session for thrice-weekly hemodialysis; individualize with residual kidney function, and avoid large ultrafiltration rates that cause intradialytic hypotension.",
+      "keywords": [
+        "hemodialysis",
+        "kt/v",
+        "adequacy",
+        "urea reduction",
+        "ultrafiltration",
+        "intradialytic hypotension",
+        "kdoqi",
+        "dialysis dose"
+      ]
+    },
+    {
+      "id": "ispd-pd-adequacy",
+      "title": "ISPD PD Adequacy",
+      "section": "Peritoneal dialysis prescription",
+      "source_type": "guideline",
+      "identifier": "ISPD PD Adequacy",
+      "url": "https://ispd.org/guidelines/",
+      "snippet": "Prescribe peritoneal dialysis to achieve adequate solute clearance and volume control while preserving residual kidney function; a fixed Kt/V target is less emphasized than symptoms, volume, and quality of life.",
+      "keywords": [
+        "peritoneal dialysis",
+        "pd",
+        "adequacy",
+        "kt/v",
+        "residual function",
+        "ispd",
+        "ultrafiltration",
+        "icodextrin"
+      ]
+    },
+    {
+      "id": "vascular-access-guideline",
+      "title": "Vascular Access for Hemodialysis",
+      "section": "Fistula-first, catheter avoidance",
+      "source_type": "guideline",
+      "identifier": "KDOQI Vascular Access",
+      "url": "https://www.kidney.org/professionals/guidelines",
+      "snippet": "Favor an arteriovenous fistula for durable hemodialysis access using a patient-centered ESKD Life-Plan; minimize tunneled catheters given infection and central-stenosis risk.",
+      "keywords": [
+        "vascular access",
+        "fistula",
+        "avf",
+        "graft",
+        "catheter",
+        "kdoqi",
+        "life-plan",
+        "access",
+        "hemodialysis"
+      ]
+    },
+    {
+      "id": "kidney-stone-metabolic",
+      "title": "Nephrolithiasis — Metabolic Prevention",
+      "section": "Stone recurrence prevention",
+      "source_type": "guideline",
+      "identifier": "AUA/ACP Stone Prevention",
+      "url": "https://www.auanet.org/guidelines-and-quality/guidelines",
+      "snippet": "Prevent recurrent kidney stones with high fluid intake (urine output >2.5 L/day), dietary sodium restriction, adequate dietary calcium, and thiazides/citrate guided by 24-hour urine metabolic profiling.",
+      "keywords": [
+        "nephrolithiasis",
+        "kidney stone",
+        "calcium oxalate",
+        "citrate",
+        "thiazide",
+        "24-hour urine",
+        "hypercalciuria",
+        "hyperoxaluria",
+        "fluid"
+      ]
+    },
+    {
+      "id": "gout-ckd-urate",
+      "title": "Gout in CKD — Urate Lowering",
+      "section": "Allopurinol dosing in reduced eGFR",
+      "source_type": "guideline",
+      "identifier": "ACR Gout — CKD",
+      "url": "https://www.rheumatology.org/Practice-Quality/Clinical-Support/Clinical-Practice-Guidelines",
+      "snippet": "Treat-to-target urate <6 mg/dL with allopurinol as first-line even in CKD, starting low and titrating (do not fix the dose by creatinine clearance); febuxostat is an alternative with a CV caution.",
+      "keywords": [
+        "gout",
+        "urate",
+        "uric acid",
+        "allopurinol",
+        "febuxostat",
+        "ckd",
+        "treat to target",
+        "hla-b58",
+        "xanthine oxidase"
+      ]
+    },
+    {
+      "id": "preg-ckd-hypertension",
+      "title": "Hypertension & CKD in Pregnancy",
+      "section": "Antihypertensive selection",
+      "source_type": "guideline",
+      "identifier": "Society guidance — CKD in pregnancy",
+      "url": "https://www.kidney.org/professionals/guidelines",
+      "snippet": "In pregnancy, avoid ACEi/ARB/direct renin inhibitors and SGLT2i; use labetalol, nifedipine, or methyldopa. Manage CKD and preeclampsia risk with low-dose aspirin and close BP and proteinuria monitoring.",
+      "keywords": [
+        "pregnancy",
+        "ckd",
+        "preeclampsia",
+        "acei",
+        "arb",
+        "contraindicated",
+        "labetalol",
+        "nifedipine",
+        "methyldopa",
+        "aspirin",
+        "proteinuria"
+      ]
+    },
+    {
+      "id": "aki-nephrotoxin-stewardship",
+      "title": "Nephrotoxin Stewardship in AKI",
+      "section": "Drug-induced AKI prevention",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — nephrotoxin stewardship",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Reduce AKI by holding nephrotoxins (NSAIDs, aminoglycosides, high-dose vancomycin with piperacillin-tazobactam, RAS inhibitors during acute illness) and adjusting renally-cleared drug doses; review the medication list at each eGFR change.",
+      "keywords": [
+        "nephrotoxin",
+        "aki",
+        "nsaid",
+        "aminoglycoside",
+        "vancomycin",
+        "piperacillin",
+        "drug dosing",
+        "stewardship",
+        "medication review"
+      ]
+    },
+    {
+      "id": "uti-pyelonephritis-ckd",
+      "title": "Complicated UTI / Pyelonephritis",
+      "section": "Antimicrobial choice and renal dosing",
+      "source_type": "guideline",
+      "identifier": "IDSA Complicated UTI",
+      "url": "https://www.idsociety.org/practice-guideline/",
+      "snippet": "Treat complicated UTI/pyelonephritis with agents active against likely uropathogens, adjusting doses for eGFR; avoid nitrofurantoin at low eGFR and image for obstruction in the setting of AKI or sepsis.",
+      "keywords": [
+        "uti",
+        "pyelonephritis",
+        "complicated",
+        "nitrofurantoin",
+        "egfr",
+        "dosing",
+        "obstruction",
+        "urosepsis",
+        "antibiotics"
+      ]
+    },
+    {
+      "id": "hrs-terlipressin",
+      "title": "Hepatorenal Syndrome — Terlipressin",
+      "section": "AKI-HRS pharmacotherapy",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2021;384:818 (CONFIRM, terlipressin)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2008290",
+      "snippet": "Terlipressin with albumin improves reversal of hepatorenal syndrome-AKI versus albumin alone, at a cost of respiratory and ischemic adverse events; select patients carefully and monitor volume status.",
+      "keywords": [
+        "hepatorenal",
+        "hrs",
+        "terlipressin",
+        "albumin",
+        "cirrhosis",
+        "aki",
+        "confirm",
+        "vasoconstrictor"
+      ]
+    },
+    {
+      "id": "resistant-htn-spironolactone",
+      "title": "Resistant Hypertension — Spironolactone",
+      "section": "4th-line MRA add-on",
+      "source_type": "primary_literature",
+      "identifier": "Lancet 2015;386:2059 (PATHWAY-2)",
+      "url": "https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(15)00257-3/fulltext",
+      "snippet": "Spironolactone is the most effective add-on for resistant hypertension (PATHWAY-2); monitor potassium and eGFR, using caution/ dose reduction in CKD given hyperkalemia risk.",
+      "keywords": [
+        "resistant hypertension",
+        "spironolactone",
+        "mra",
+        "pathway-2",
+        "potassium",
+        "hyperkalemia",
+        "ckd",
+        "fourth-line",
+        "aldosterone"
+      ]
+    },
+    {
+      "id": "sodium-bicarbonate-aki",
+      "title": "Bicarbonate in Severe Metabolic Acidosis (AKI)",
+      "section": "When to give IV bicarbonate",
+      "source_type": "primary_literature",
+      "identifier": "Lancet 2018;392:31 (BICAR-ICU)",
+      "url": "https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(18)31080-8/fulltext",
+      "snippet": "In severe metabolic acidemia with AKI (AKIN 2–3), IV sodium bicarbonate reduced the need for dialysis and improved outcomes in a subgroup (BICAR-ICU) — consider it for severe acidosis with kidney injury.",
+      "keywords": [
+        "bicarbonate",
+        "metabolic acidosis",
+        "aki",
+        "bicar-icu",
+        "dialysis",
+        "acidemia",
+        "icu",
+        "ph"
+      ]
+    },
+    {
+      "id": "phos-binder-choice",
+      "title": "Phosphate Binder Selection",
+      "section": "Calcium vs non-calcium binders",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — phosphate binders",
+      "url": "https://kdigo.org/guidelines/ckd-mbd/",
+      "snippet": "Prefer non-calcium phosphate binders (sevelamer, lanthanum, iron-based) when vascular calcification, hypercalcemia, or adynamic bone are concerns; balance pill burden, cost, and GI tolerability.",
+      "keywords": [
+        "phosphate binder",
+        "sevelamer",
+        "lanthanum",
+        "ferric citrate",
+        "sucroferric",
+        "calcium acetate",
+        "vascular calcification",
+        "hyperphosphatemia"
+      ]
+    },
+    {
+      "id": "iron-ckd-management",
+      "title": "Iron Therapy in CKD Anemia",
+      "section": "IV vs oral iron targets",
+      "source_type": "guideline",
+      "identifier": "KDIGO Anemia — Iron",
+      "url": "https://kdigo.org/guidelines/anemia/",
+      "snippet": "Correct iron deficiency in CKD anemia before or alongside ESAs; IV iron is often preferred in dialysis. Use TSAT and ferritin to guide, avoiding iron when TSAT and ferritin are already high (PIVOTAL supports proactive IV iron in HD).",
+      "keywords": [
+        "iron",
+        "iv iron",
+        "ferritin",
+        "tsat",
+        "anemia",
+        "ckd",
+        "dialysis",
+        "pivotal",
+        "ferric carboxymaltose",
+        "esa"
+      ]
+    },
+    {
+      "id": "dose-rasi-hyperkalemia",
+      "title": "RASi & Hyperkalemia Management",
+      "section": "Keeping patients on RASi",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — RASi + K+ binders",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "To maintain guideline RAS inhibition in CKD/HF despite hyperkalemia, add a potassium binder (patiromer, SZC), review dietary potassium and other K-raising drugs, rather than reflexively down-titrating RASi.",
+      "keywords": [
+        "rasi",
+        "hyperkalemia",
+        "potassium binder",
+        "patiromer",
+        "szc",
+        "acei",
+        "arb",
+        "mra",
+        "diet",
+        "heart failure"
+      ]
+    },
+    {
+      "id": "uacr-screening",
+      "title": "Albuminuria Screening (UACR)",
+      "section": "Quantifying and confirming albuminuria",
+      "source_type": "guideline",
+      "identifier": "KDIGO CKD — UACR",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Quantify albuminuria with a urine albumin-to-creatinine ratio on an early-morning sample; confirm a positive result and use albuminuria category (A1–A3) alongside eGFR for risk staging and therapy decisions.",
+      "keywords": [
+        "uacr",
+        "albumin creatinine ratio",
+        "albuminuria",
+        "proteinuria",
+        "screening",
+        "a1",
+        "a3",
+        "early morning",
+        "ckd"
+      ]
+    },
+    {
+      "id": "egfr-cystatin",
+      "title": "eGFR Estimation & Cystatin C",
+      "section": "Race-free eGFR and confirmatory testing",
+      "source_type": "guideline",
+      "identifier": "KDIGO/NKF eGFR (CKD-EPI 2021)",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Use the race-free 2021 CKD-EPI creatinine equation; confirm with cystatin C (eGFRcr-cys) when a precise estimate affects drug dosing or eligibility, or when creatinine is unreliable (low/high muscle mass).",
+      "keywords": [
+        "egfr",
+        "ckd-epi",
+        "cystatin c",
+        "creatinine",
+        "race-free",
+        "2021",
+        "estimation",
+        "drug dosing",
+        "muscle mass"
+      ]
+    },
+    {
+      "id": "kdigo-ckd-2024-referral",
+      "title": "KDIGO 2024 CKD — Nephrology referral criteria",
+      "section": "When to refer to nephrology",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2024 CKD — Referral",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Refer to nephrology for eGFR <30, sustained UACR ≥300 mg/g, rapid eGFR decline, refractory hypertension or hyperkalemia, recurrent stones, or hereditary kidney disease; earlier referral improves preparation for kidney replacement.",
+      "keywords": [
+        "referral",
+        "nephrology",
+        "egfr",
+        "uacr",
+        "rapid decline",
+        "refractory",
+        "ckd",
+        "when to refer",
+        "kidney replacement"
+      ]
+    },
+    {
+      "id": "kdigo-ckd-2024-potassium",
+      "title": "KDIGO 2024 CKD — Potassium management",
+      "section": "Balancing RASi benefit and hyperkalemia",
+      "source_type": "guideline",
+      "identifier": "KDIGO 2024 CKD — Potassium",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Manage hyperkalemia in CKD with diet counseling, review of K-raising drugs, loop diuretics, and potassium binders so that guideline RAS inhibition can continue rather than being down-titrated or stopped.",
+      "keywords": [
+        "potassium",
+        "hyperkalemia",
+        "ckd",
+        "diet",
+        "binder",
+        "rasi",
+        "loop diuretic",
+        "management"
+      ]
+    },
+    {
+      "id": "dckd-blood-glucose-monitoring",
+      "title": "KDIGO Diabetes-CKD — Self-monitoring & CGM",
+      "section": "Glucose monitoring in CKD/dialysis",
+      "source_type": "guideline",
+      "identifier": "KDIGO Diabetes-CKD — Monitoring",
+      "url": "https://kdigo.org/guidelines/diabetes-ckd/",
+      "snippet": "Use continuous glucose monitoring or structured self-monitoring in insulin-treated diabetes with CKD, since HbA1c underestimates glycemia at low eGFR and on dialysis where red-cell turnover is altered.",
+      "keywords": [
+        "cgm",
+        "glucose monitoring",
+        "hba1c",
+        "diabetes",
+        "ckd",
+        "dialysis",
+        "insulin",
+        "self-monitoring"
+      ]
+    },
+    {
+      "id": "igan-kdigo-risk-tools",
+      "title": "IgAN — International Risk Prediction Tool",
+      "section": "Risk-stratifying IgA nephropathy",
+      "source_type": "expert_consensus",
+      "identifier": "IIgAN Prediction Tool",
+      "url": "https://qxmd.com/calculate",
+      "snippet": "Combine clinical (eGFR, BP, proteinuria) and MEST-C histology to estimate IgA nephropathy progression risk; persistent proteinuria >1 g/day despite optimized supportive care marks high risk.",
+      "keywords": [
+        "iga",
+        "igan",
+        "mest-c",
+        "risk",
+        "proteinuria",
+        "prediction",
+        "histology",
+        "progression",
+        "oxford"
+      ]
+    },
+    {
+      "id": "membranous-anti-pla2r-monitoring",
+      "title": "Membranous — Anti-PLA2R Monitoring",
+      "section": "Serology-guided therapy",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — anti-PLA2R monitoring",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "Track anti-PLA2R antibody titers to guide and monitor treatment response in primary membranous nephropathy; immunologic remission (falling titer) precedes proteinuria remission and informs therapy duration.",
+      "keywords": [
+        "pla2r",
+        "membranous",
+        "antibody",
+        "titer",
+        "serology",
+        "immunologic remission",
+        "monitoring",
+        "proteinuria"
+      ]
+    },
+    {
+      "id": "nephrotic-thrombosis-prophylaxis",
+      "title": "Nephrotic Syndrome — VTE Prophylaxis",
+      "section": "Anticoagulation in heavy proteinuria",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — nephrotic VTE",
+      "url": "https://kdigo.org/guidelines/gd/",
+      "snippet": "Consider prophylactic anticoagulation in nephrotic syndrome with severe hypoalbuminemia (albumin <2–2.5 g/dL), especially membranous nephropathy, weighing the elevated venous thromboembolism risk against bleeding.",
+      "keywords": [
+        "nephrotic",
+        "thrombosis",
+        "vte",
+        "anticoagulation",
+        "hypoalbuminemia",
+        "membranous",
+        "renal vein thrombosis",
+        "albumin"
+      ]
+    },
+    {
+      "id": "transplant-bk-nephropathy",
+      "title": "Transplant — BK Virus Nephropathy",
+      "section": "Screening and immunosuppression reduction",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — BK nephropathy",
+      "url": "https://kdigo.org/guidelines/transplant-recipient/",
+      "snippet": "Screen kidney transplant recipients for BK viremia; rising viral load prompts reduction of immunosuppression as first-line management to prevent BK nephropathy and graft loss.",
+      "keywords": [
+        "bk virus",
+        "polyomavirus",
+        "transplant",
+        "viremia",
+        "immunosuppression reduction",
+        "nephropathy",
+        "graft",
+        "screening"
+      ]
+    },
+    {
+      "id": "transplant-cmv-prophylaxis",
+      "title": "Transplant — CMV Prevention",
+      "section": "Prophylaxis vs preemptive therapy",
+      "source_type": "guideline",
+      "identifier": "AST/KDIGO — CMV",
+      "url": "https://kdigo.org/guidelines/transplant-recipient/",
+      "snippet": "Prevent CMV disease in kidney transplant recipients with valganciclovir prophylaxis or preemptive monitoring based on donor/recipient serostatus; D+/R- is the highest-risk mismatch.",
+      "keywords": [
+        "cmv",
+        "valganciclovir",
+        "prophylaxis",
+        "preemptive",
+        "transplant",
+        "serostatus",
+        "d+/r-",
+        "ganciclovir"
+      ]
+    },
+    {
+      "id": "transplant-rejection-types",
+      "title": "Transplant — Acute Rejection",
+      "section": "T-cell vs antibody-mediated rejection",
+      "source_type": "expert_consensus",
+      "identifier": "Banff/KDIGO — Rejection",
+      "url": "https://kdigo.org/guidelines/transplant-recipient/",
+      "snippet": "Distinguish T-cell-mediated rejection (treated with steroids ± thymoglobulin) from antibody-mediated rejection (donor-specific antibodies, C4d, microvascular inflammation) needing plasma exchange, IVIG, and adjuncts.",
+      "keywords": [
+        "rejection",
+        "tcmr",
+        "amr",
+        "antibody-mediated",
+        "dsa",
+        "c4d",
+        "banff",
+        "thymoglobulin",
+        "plasma exchange",
+        "ivig",
+        "transplant"
+      ]
+    },
+    {
+      "id": "transplant-recurrent-fsgs",
+      "title": "Transplant — Recurrent FSGS",
+      "section": "Post-transplant proteinuria recurrence",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — recurrent FSGS",
+      "url": "https://kdigo.org/guidelines/transplant-recipient/",
+      "snippet": "Primary FSGS can recur early post-transplant with heavy proteinuria; plasmapheresis and rituximab are used, and a circulating permeability factor is implicated. Distinguish from de novo or secondary FSGS.",
+      "keywords": [
+        "recurrent fsgs",
+        "transplant",
+        "proteinuria",
+        "plasmapheresis",
+        "rituximab",
+        "permeability factor",
+        "recurrence"
+      ]
+    },
+    {
+      "id": "ahus-eculizumab",
+      "title": "Atypical HUS — Complement Inhibition",
+      "section": "Eculizumab for aHUS/TMA",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2013;368:2169 (eculizumab aHUS)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1208981",
+      "snippet": "Eculizumab controls complement-mediated thrombotic microangiopathy (atypical HUS), improving hematologic and renal outcomes; distinguish aHUS from TTP (ADAMTS13) and shiga-toxin HUS.",
+      "keywords": [
+        "ahus",
+        "atypical hus",
+        "tma",
+        "eculizumab",
+        "complement",
+        "thrombotic microangiopathy",
+        "adamts13",
+        "ttp",
+        "ravulizumab"
+      ]
+    },
+    {
+      "id": "ttp-caplacizumab",
+      "title": "TTP — ADAMTS13 & Plasma Exchange",
+      "section": "Thrombotic thrombocytopenic purpura",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2019;380:335 (HERCULES, caplacizumab)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1806311",
+      "snippet": "Suspected TTP (severe ADAMTS13 deficiency) needs urgent plasma exchange plus immunosuppression; caplacizumab shortens time to platelet recovery. Do not delay PLEX awaiting confirmation in a TMA with organ injury.",
+      "keywords": [
+        "ttp",
+        "adamts13",
+        "plasma exchange",
+        "caplacizumab",
+        "thrombotic",
+        "microangiopathy",
+        "hercules",
+        "platelets",
+        "rituximab"
+      ]
+    },
+    {
+      "id": "scleroderma-renal-crisis",
+      "title": "Scleroderma Renal Crisis",
+      "section": "ACEi is the treatment, not the risk",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — scleroderma renal crisis",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Scleroderma renal crisis presents with accelerated hypertension and AKI/MAHA; ACE inhibitors are the cornerstone treatment (captopril titrated) and should NOT be withheld — a key exception to holding RASi in AKI.",
+      "keywords": [
+        "scleroderma",
+        "renal crisis",
+        "acei",
+        "captopril",
+        "hypertension",
+        "maha",
+        "aki",
+        "systemic sclerosis"
+      ]
+    },
+    {
+      "id": "lithium-nephropathy",
+      "title": "Lithium-Induced Kidney Disease",
+      "section": "Nephrogenic DI and CKD",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — lithium nephrotoxicity",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Chronic lithium causes nephrogenic diabetes insipidus and slowly progressive CKD; monitor eGFR and consider amiloride for lithium-induced NDI, coordinating with psychiatry before changing therapy.",
+      "keywords": [
+        "lithium",
+        "nephrogenic diabetes insipidus",
+        "ndi",
+        "ckd",
+        "amiloride",
+        "polyuria",
+        "nephrotoxicity",
+        "tubulointerstitial"
+      ]
+    },
+    {
+      "id": "pigment-crystalline-aki",
+      "title": "Crystalline Nephropathies",
+      "section": "Drug and metabolite crystal AKI",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — crystal nephropathy",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Crystalline nephropathy (acyclovir, methotrexate, sulfadiazine, atazanavir, oxalate, urate) causes AKI via tubular crystal deposition; prevent with hydration, urine flow, and drug/dose adjustment.",
+      "keywords": [
+        "crystalline",
+        "crystal nephropathy",
+        "acyclovir",
+        "methotrexate",
+        "sulfadiazine",
+        "oxalate",
+        "urate",
+        "aki",
+        "hydration"
+      ]
+    },
+    {
+      "id": "ain-drug-induced",
+      "title": "Acute Interstitial Nephritis",
+      "section": "Drug-induced AIN diagnosis",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — acute interstitial nephritis",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Suspect acute interstitial nephritis with AKI, sterile pyuria, and eosinophiluria after culprit drugs (PPIs, antibiotics, NSAIDs, checkpoint inhibitors); stop the culprit and consider corticosteroids for persistent injury.",
+      "keywords": [
+        "ain",
+        "interstitial nephritis",
+        "aki",
+        "eosinophiluria",
+        "ppi",
+        "nsaid",
+        "checkpoint inhibitor",
+        "steroids",
+        "drug-induced"
+      ]
+    },
+    {
+      "id": "checkpoint-inhibitor-aki",
+      "title": "Immune Checkpoint Inhibitor AKI",
+      "section": "ICI-associated nephritis",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — ICI nephrotoxicity",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Immune checkpoint inhibitors cause AKI mainly via acute interstitial nephritis; grade the injury, hold the ICI, start corticosteroids for higher grades, and involve oncology about rechallenge.",
+      "keywords": [
+        "checkpoint inhibitor",
+        "ici",
+        "immunotherapy",
+        "interstitial nephritis",
+        "aki",
+        "steroids",
+        "pembrolizumab",
+        "nivolumab",
+        "irae"
+      ]
+    },
+    {
+      "id": "hrs-vs-atn",
+      "title": "Distinguishing HRS from ATN",
+      "section": "AKI in cirrhosis workup",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — AKI in cirrhosis",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "In cirrhosis with AKI, exclude hypovolemia (albumin challenge), obstruction, and ATN (granular casts, high urine sodium/FENa) before diagnosing hepatorenal syndrome, which is a functional, diagnosis of exclusion.",
+      "keywords": [
+        "hepatorenal",
+        "atn",
+        "cirrhosis",
+        "aki",
+        "fena",
+        "urine sodium",
+        "albumin challenge",
+        "granular casts",
+        "diagnosis"
+      ]
+    },
+    {
+      "id": "uosm-fena-aki",
+      "title": "Urinary Indices in AKI",
+      "section": "FENa, FEUrea, urine microscopy",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — AKI urinary indices",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Use urine microscopy and indices to phenotype AKI: FENa <1% and bland sediment suggest prerenal; granular/muddy-brown casts and FENa >2% suggest ATN. Diuretics confound FENa — use FEUrea instead.",
+      "keywords": [
+        "fena",
+        "feurea",
+        "urine microscopy",
+        "muddy brown casts",
+        "prerenal",
+        "atn",
+        "aki",
+        "urinary indices",
+        "sediment"
+      ]
+    },
+    {
+      "id": "obstructive-uropathy",
+      "title": "Obstructive Uropathy — AKI",
+      "section": "Post-renal AKI relief",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — obstructive uropathy",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Relieve post-renal obstruction promptly (catheter, nephrostomy, stent) in AKI; anticipate post-obstructive diuresis with volume and electrolyte losses requiring monitoring and replacement.",
+      "keywords": [
+        "obstruction",
+        "post-renal",
+        "hydronephrosis",
+        "nephrostomy",
+        "stent",
+        "post-obstructive diuresis",
+        "aki",
+        "uropathy"
+      ]
+    },
+    {
+      "id": "crrt-modality",
+      "title": "CRRT vs Intermittent HD in AKI",
+      "section": "RRT modality selection in the ICU",
+      "source_type": "guideline",
+      "identifier": "KDIGO AKI — RRT modality",
+      "url": "https://kdigo.org/guidelines/acute-kidney-injury/",
+      "snippet": "Choose continuous renal replacement therapy for hemodynamically unstable ICU patients with AKI; CRRT and intermittent HD have similar survival, so tailor to hemodynamics, fluid goals, and resources.",
+      "keywords": [
+        "crrt",
+        "rrt",
+        "intermittent hemodialysis",
+        "aki",
+        "icu",
+        "hemodynamic",
+        "modality",
+        "cvvh",
+        "cvvhdf"
+      ]
+    },
+    {
+      "id": "rrt-timing-aki",
+      "title": "Timing of RRT in AKI",
+      "section": "Early vs standard initiation",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2020;383:240 (STARRT-AKI)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2000741",
+      "snippet": "Accelerated (early) initiation of renal replacement therapy in AKI did not improve survival versus a standard, indication-based strategy (STARRT-AKI) and increased dialysis dependence — start RRT for clear indications.",
+      "keywords": [
+        "rrt",
+        "dialysis timing",
+        "aki",
+        "starrt-aki",
+        "early",
+        "standard",
+        "initiation",
+        "icu"
+      ]
+    },
+    {
+      "id": "intradialytic-hypotension",
+      "title": "Intradialytic Hypotension",
+      "section": "Prevention on hemodialysis",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — intradialytic hypotension",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Reduce intradialytic hypotension by limiting ultrafiltration rate (<13 mL/kg/h), lengthening/cooling dialysis, reassessing target weight and antihypertensive timing, and avoiding large interdialytic weight gains.",
+      "keywords": [
+        "intradialytic hypotension",
+        "ultrafiltration rate",
+        "target weight",
+        "cooling",
+        "hemodialysis",
+        "weight gain",
+        "idh"
+      ]
+    },
+    {
+      "id": "dialysis-hyperkalemia-bath",
+      "title": "Dialysate Potassium Bath Selection",
+      "section": "Avoiding arrhythmia from steep gradients",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — dialysate potassium",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Avoid a 1 mEq/L (1K) dialysate bath when serum potassium is only modestly elevated: a steep potassium gradient is arrhythmogenic and linked to sudden death; use a 2K bath and reassess pre-dialysis potassium.",
+      "keywords": [
+        "dialysate",
+        "potassium bath",
+        "1k",
+        "2k",
+        "hyperkalemia",
+        "arrhythmia",
+        "sudden death",
+        "gradient",
+        "hemodialysis"
+      ]
+    },
+    {
+      "id": "calciphylaxis",
+      "title": "Calciphylaxis (CUA)",
+      "section": "Calcific uremic arteriolopathy management",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — calciphylaxis",
+      "url": "https://kdigo.org/guidelines/ckd-mbd/",
+      "snippet": "Manage calciphylaxis with wound care, sodium thiosulfate, correcting calcium-phosphate product, stopping warfarin and calcium-based binders/vitamin D, and optimizing dialysis; pain control and multidisciplinary care are essential.",
+      "keywords": [
+        "calciphylaxis",
+        "cua",
+        "sodium thiosulfate",
+        "warfarin",
+        "calcium phosphate",
+        "dialysis",
+        "wound",
+        "skin necrosis",
+        "vitamin k"
+      ]
+    },
+    {
+      "id": "uremic-pericarditis",
+      "title": "Uremic Pericarditis",
+      "section": "Dialysis indication in advanced uremia",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — uremic pericarditis",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Uremic pericarditis is an absolute indication for urgent dialysis; intensify hemodialysis (often daily, minimal heparin due to hemorrhagic risk) and monitor for tamponade.",
+      "keywords": [
+        "uremic pericarditis",
+        "dialysis indication",
+        "uremia",
+        "tamponade",
+        "heparin-free",
+        "pericardial effusion"
+      ]
+    },
+    {
+      "id": "mineralocorticoid-hypertension",
+      "title": "Primary Aldosteronism Screening",
+      "section": "Secondary hypertension workup",
+      "source_type": "guideline",
+      "identifier": "Endocrine Society — Primary Aldosteronism",
+      "url": "https://www.endocrine.org/clinical-practice-guidelines",
+      "snippet": "Screen for primary aldosteronism (aldosterone-to-renin ratio) in resistant hypertension, hypertension with hypokalemia, or an adrenal incidentaloma; confirm with dynamic testing and consider adrenal vein sampling.",
+      "keywords": [
+        "primary aldosteronism",
+        "aldosterone",
+        "renin",
+        "arr",
+        "resistant hypertension",
+        "hypokalemia",
+        "adrenal vein sampling",
+        "secondary hypertension"
+      ]
+    },
+    {
+      "id": "renal-artery-stenosis",
+      "title": "Renovascular Hypertension",
+      "section": "When to intervene on RAS",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2014;370:13 (CORAL)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa1310753",
+      "snippet": "Renal artery stenting did not add benefit to medical therapy for atherosclerotic renovascular disease (CORAL); reserve intervention for flash pulmonary edema, refractory hypertension, or rapidly declining function.",
+      "keywords": [
+        "renal artery stenosis",
+        "renovascular",
+        "coral",
+        "stent",
+        "flash pulmonary edema",
+        "fibromuscular dysplasia",
+        "hypertension"
+      ]
+    },
+    {
+      "id": "pkd-genetics",
+      "title": "ADPKD — Genetics & Screening",
+      "section": "PKD1/PKD2 and family screening",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — ADPKD genetics",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "ADPKD is usually caused by PKD1 (more severe) or PKD2 variants; use imaging (age-adjusted cyst criteria) or genetic testing for diagnosis and Mayo imaging classification to identify rapid progressors for tolvaptan.",
+      "keywords": [
+        "adpkd",
+        "pkd1",
+        "pkd2",
+        "genetics",
+        "mayo classification",
+        "cyst",
+        "screening",
+        "total kidney volume",
+        "tolvaptan"
+      ]
+    },
+    {
+      "id": "alport-syndrome",
+      "title": "Alport Syndrome",
+      "section": "Type IV collagen hereditary nephritis",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — Alport",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Alport syndrome (COL4A3/4/5) causes hematuria, progressive CKD, sensorineural hearing loss, and lenticonus; early RAS inhibition slows progression, and family/genetic evaluation is recommended.",
+      "keywords": [
+        "alport",
+        "col4a5",
+        "type iv collagen",
+        "hematuria",
+        "hearing loss",
+        "lenticonus",
+        "ras",
+        "hereditary nephritis"
+      ]
+    },
+    {
+      "id": "thin-basement-membrane",
+      "title": "Thin Basement Membrane / Isolated Hematuria",
+      "section": "Benign familial hematuria",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — hematuria evaluation",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Evaluate persistent glomerular hematuria (dysmorphic RBCs, acanthocytes) for IgAN, Alport, and thin basement membrane disease; isolated hematuria with normal function and no proteinuria is often benign but warrants monitoring.",
+      "keywords": [
+        "hematuria",
+        "thin basement membrane",
+        "dysmorphic",
+        "acanthocytes",
+        "iga",
+        "alport",
+        "proteinuria",
+        "microscopic"
+      ]
+    },
+    {
+      "id": "fabry-nephropathy",
+      "title": "Fabry Disease Nephropathy",
+      "section": "Enzyme replacement in Fabry",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — Fabry nephropathy",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Fabry disease (alpha-galactosidase A deficiency) causes proteinuric CKD with characteristic podocyte inclusions; enzyme replacement or chaperone therapy plus RAS blockade addresses renal involvement.",
+      "keywords": [
+        "fabry",
+        "alpha-galactosidase",
+        "enzyme replacement",
+        "migalastat",
+        "proteinuria",
+        "podocyte",
+        "lysosomal",
+        "ckd"
+      ]
+    },
+    {
+      "id": "diabetic-kidney-quad",
+      "title": "Diabetic Kidney Disease — Four-Pillar Therapy",
+      "section": "RASi + SGLT2i + finerenone + GLP-1",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — DKD pillars",
+      "url": "https://kdigo.org/guidelines/diabetes-ckd/",
+      "snippet": "Layer the four pillars of diabetic kidney disease therapy — maximally tolerated RAS inhibitor, SGLT2 inhibitor, nonsteroidal MRA (finerenone), and GLP-1 receptor agonist — for additive kidney and cardiovascular protection.",
+      "keywords": [
+        "dkd",
+        "diabetic kidney disease",
+        "pillars",
+        "ras",
+        "sglt2",
+        "finerenone",
+        "glp-1",
+        "combination",
+        "cardiorenal"
+      ]
+    },
+    {
+      "id": "hypomagnesemia-ckd",
+      "title": "Hypomagnesemia — Causes & Repletion",
+      "section": "Drug and tubular magnesium wasting",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — hypomagnesemia",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Evaluate hypomagnesemia for GI losses, PPIs, diuretics, calcineurin inhibitors, and EGFR-antibody or cisplatin tubular wasting; repletion aids refractory hypokalemia and hypocalcemia.",
+      "keywords": [
+        "hypomagnesemia",
+        "magnesium",
+        "ppi",
+        "diuretic",
+        "calcineurin",
+        "cisplatin",
+        "tubular wasting",
+        "hypokalemia",
+        "repletion"
+      ]
+    },
+    {
+      "id": "hypercalcemia-mgmt",
+      "title": "Hypercalcemia — Acute Management",
+      "section": "Volume, calciuresis, antiresorptives",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — hypercalcemia",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Treat significant hypercalcemia with isotonic saline volume repletion, then bisphosphonate or denosumab; add calcitonin for rapid short-term lowering and treat the cause (PTH-driven vs malignancy vs granulomatous).",
+      "keywords": [
+        "hypercalcemia",
+        "calcium",
+        "saline",
+        "bisphosphonate",
+        "denosumab",
+        "calcitonin",
+        "pth",
+        "malignancy",
+        "volume"
+      ]
+    },
+    {
+      "id": "hypophosphatemia-refeeding",
+      "title": "Hypophosphatemia & Refeeding",
+      "section": "Phosphate in critical illness",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — hypophosphatemia",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Severe hypophosphatemia (refeeding, DKA recovery, alcohol use, proximal tubulopathy) risks respiratory and cardiac dysfunction; replete IV phosphate for symptomatic or very low levels and treat the cause.",
+      "keywords": [
+        "hypophosphatemia",
+        "phosphate",
+        "refeeding",
+        "dka",
+        "fanconi",
+        "proximal tubule",
+        "repletion",
+        "critical illness"
+      ]
+    },
+    {
+      "id": "sglt2-euglycemic-dka",
+      "title": "SGLT2 Inhibitors — Euglycemic DKA",
+      "section": "Recognizing a normal-glucose ketoacidosis",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — euglycemic DKA (SGLT2i)",
+      "url": "https://kdigo.org/guidelines/diabetes-ckd/",
+      "snippet": "SGLT2 inhibitors can cause euglycemic diabetic ketoacidosis (near-normal glucose); check ketones with acidosis, hold the drug during acute illness/surgery/low intake, and counsel patients on sick-day rules.",
+      "keywords": [
+        "sglt2",
+        "euglycemic dka",
+        "ketoacidosis",
+        "ketones",
+        "sick day",
+        "surgery",
+        "hold",
+        "anion gap",
+        "diabetes"
+      ]
+    },
+    {
+      "id": "gadolinium-nsf",
+      "title": "Gadolinium & NSF Risk",
+      "section": "Contrast MRI in advanced CKD",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — gadolinium/NSF",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Nephrogenic systemic fibrosis risk from gadolinium is very low with newer group II macrocyclic agents even at low eGFR/dialysis; use the lowest necessary dose and shared decision-making rather than blanket avoidance.",
+      "keywords": [
+        "gadolinium",
+        "nsf",
+        "nephrogenic systemic fibrosis",
+        "mri",
+        "contrast",
+        "macrocyclic",
+        "group ii",
+        "egfr",
+        "dialysis"
+      ]
+    },
+    {
+      "id": "nephrocalcinosis-hyperoxaluria",
+      "title": "Primary Hyperoxaluria",
+      "section": "Oxalate overproduction and RNA therapy",
+      "source_type": "primary_literature",
+      "identifier": "NEJM 2021;384:1216 (ILLUMINATE-A, lumasiran)",
+      "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa2021712",
+      "snippet": "Primary hyperoxaluria type 1 causes recurrent stones, nephrocalcinosis, and oxalate nephropathy; lumasiran (an RNAi against glycolate oxidase) lowers urinary oxalate substantially.",
+      "keywords": [
+        "primary hyperoxaluria",
+        "oxalate",
+        "lumasiran",
+        "rnai",
+        "nephrocalcinosis",
+        "stones",
+        "illuminate",
+        "ph1",
+        "glycolate"
+      ]
+    },
+    {
+      "id": "cardio-kidney-metabolic",
+      "title": "Cardiovascular-Kidney-Metabolic (CKM) Syndrome",
+      "section": "AHA CKM staging & risk",
+      "source_type": "guideline",
+      "identifier": "AHA 2023 CKM Advisory",
+      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001184",
+      "snippet": "The AHA cardiovascular-kidney-metabolic (CKM) framework stages overlapping obesity, diabetes, CKD, and CVD risk and promotes coordinated therapy (SGLT2i, GLP-1, RASi, statins) across the continuum.",
+      "keywords": [
+        "ckm",
+        "cardiovascular kidney metabolic",
+        "aha",
+        "obesity",
+        "diabetes",
+        "ckd",
+        "risk",
+        "staging",
+        "sglt2",
+        "glp-1"
+      ]
+    },
+    {
+      "id": "acei-cough-angioedema",
+      "title": "ACEi Adverse Effects",
+      "section": "Cough, angioedema, and switching to ARB",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — ACEi adverse effects",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "ACE inhibitor cough and angioedema stem from bradykinin; switch to an ARB for cough (ARBs rarely cause angioedema) and never rechallenge ACEi after angioedema. Both raise potassium and creatinine expectedly.",
+      "keywords": [
+        "acei",
+        "cough",
+        "angioedema",
+        "bradykinin",
+        "arb",
+        "switch",
+        "potassium",
+        "adverse effect"
+      ]
+    },
+    {
+      "id": "volume-assessment-hd",
+      "title": "Volume Status & Target Weight",
+      "section": "Assessing euvolemia on dialysis",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — dry weight assessment",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Assess dialysis dry weight clinically (edema, BP, intradialytic symptoms) supplemented by bioimpedance or lung ultrasound; both over- and under-filling drive morbidity, so probe target weight gradually.",
+      "keywords": [
+        "dry weight",
+        "target weight",
+        "volume status",
+        "euvolemia",
+        "bioimpedance",
+        "lung ultrasound",
+        "edema",
+        "dialysis"
+      ]
+    },
+    {
+      "id": "secondary-fsgs-obesity",
+      "title": "Obesity-Related Glomerulopathy",
+      "section": "Secondary FSGS from hyperfiltration",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — obesity glomerulopathy",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Obesity-related glomerulopathy is a secondary FSGS from glomerular hyperfiltration presenting with subnephrotic proteinuria; treat with weight loss, RAS blockade, and SGLT2i rather than immunosuppression.",
+      "keywords": [
+        "obesity",
+        "glomerulopathy",
+        "secondary fsgs",
+        "hyperfiltration",
+        "proteinuria",
+        "weight loss",
+        "ras",
+        "sglt2"
+      ]
+    },
+    {
+      "id": "hiv-associated-nephropathy",
+      "title": "HIV-Associated Nephropathy",
+      "section": "HIVAN and ART",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — HIVAN",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "HIV-associated nephropathy (collapsing FSGS, more common with APOL1 risk variants) responds to antiretroviral therapy plus RAS blockade; consider biopsy to distinguish HIVAN from immune-complex disease.",
+      "keywords": [
+        "hivan",
+        "hiv",
+        "collapsing fsgs",
+        "apol1",
+        "antiretroviral",
+        "art",
+        "proteinuria",
+        "biopsy"
+      ]
+    },
+    {
+      "id": "apol1-kidney-disease",
+      "title": "APOL1-Mediated Kidney Disease",
+      "section": "Genetic risk and emerging therapy",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — APOL1 nephropathy",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Two APOL1 risk alleles substantially raise risk of FSGS, HIVAN, and hypertension-attributed CKD in people of recent African ancestry; APOL1 inhibitors are in development and testing informs risk and donor evaluation.",
+      "keywords": [
+        "apol1",
+        "genetic",
+        "fsgs",
+        "hivan",
+        "african ancestry",
+        "risk allele",
+        "ckd",
+        "inaxaplin",
+        "donor"
+      ]
+    },
+    {
+      "id": "cin-vs-hypoperfusion",
+      "title": "AKI Phenotyping in the Hospital",
+      "section": "Prerenal vs intrinsic vs postrenal",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — inpatient AKI",
+      "url": "https://kdigo.org/guidelines/acute-kidney-injury/",
+      "snippet": "Approach inpatient AKI systematically: assess volume/perfusion (prerenal), review nephrotoxins and sepsis (ATN/AIN), examine urine, and rule out obstruction — most hospital AKI is multifactorial ATN and prerenal.",
+      "keywords": [
+        "aki",
+        "prerenal",
+        "intrinsic",
+        "postrenal",
+        "atn",
+        "sepsis",
+        "nephrotoxin",
+        "phenotyping",
+        "inpatient"
+      ]
+    },
+    {
+      "id": "proteinuria-workup",
+      "title": "Proteinuria Evaluation",
+      "section": "Quantifying and localizing proteinuria",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — proteinuria workup",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "snippet": "Quantify proteinuria (UACR/UPCR), distinguish glomerular from tubular/overflow patterns, and pursue serologies and biopsy when nephrotic-range or unexplained; nephrotic-range proteinuria signals glomerular disease.",
+      "keywords": [
+        "proteinuria",
+        "upcr",
+        "uacr",
+        "nephrotic",
+        "glomerular",
+        "tubular",
+        "overflow",
+        "biopsy",
+        "serology"
+      ]
+    },
+    {
+      "id": "kidney-biopsy-indications",
+      "title": "Kidney Biopsy — Indications",
+      "section": "When to biopsy the native kidney",
+      "source_type": "expert_consensus",
+      "identifier": "Expert consensus — biopsy indications",
+      "url": "https://kdigo.org/guidelines/",
+      "snippet": "Consider native kidney biopsy for unexplained AKI, nephrotic syndrome, glomerular hematuria with proteinuria, or suspected systemic disease with renal involvement, weighing bleeding risk and whether results will change management.",
+      "keywords": [
+        "biopsy",
+        "indication",
+        "aki",
+        "nephrotic",
+        "hematuria",
+        "glomerular",
+        "bleeding risk",
+        "native kidney"
+      ]
     }
   ]
 }

@@ -141,6 +141,12 @@ class CandidateAnswer(BaseModel):
     # generator_model is stored server-side only and NEVER serialized to the
     # blinded eval screen (PRD §4.1, §6.1).
     generator_model: Optional[str] = None
+    # Candidate source (FEAT-1): "generated" (our engine) | "baseline" (a real
+    # frontier model's verbatim cold answer). ``baseline_model`` names it. BOTH are
+    # SERVER-SIDE ONLY — never sent to the blinded evaluator screen, same rule as
+    # generator_model, so the A/B stays blind.
+    source: Optional[str] = None            # "generated" | "baseline"
+    baseline_model: Optional[str] = None
 
 
 class TaskIn(BaseModel):
@@ -231,8 +237,11 @@ class ReasoningStep(BaseModel):
     # Optional numeric reward accompanying the label.
     step_reward: Optional[float] = None
     # Per-step evidence anchor (opt §1.2) — required for each step in
-    # grounding_mode=required reasoning tasks.
+    # grounding_mode=required reasoning tasks. Kept as the back-compat SINGULAR
+    # alias for ``evidence_anchors[0]`` (BUG-3b); ``evidence_anchors`` is the
+    # multi-citation list the UI now writes ("+ Add another citation").
     evidence_anchor: Optional[EvidenceAnchor] = None
+    evidence_anchors: List[EvidenceAnchor] = Field(default_factory=list)
     # One-line "what's off?" critique on a non-good step (Eval Flow Upgrade §4) —
     # the premium per-step error signal for PRM training.
     critique: Optional[str] = None
@@ -252,8 +261,10 @@ class ChosenRevision(BaseModel):
     revised_text: Optional[str] = None
     why_better_tags: List[str] = Field(default_factory=list)
     why_better_notes: Optional[str] = None
-    # Evidence anchor on the "why it's better" rationale (opt §1.2).
+    # Evidence anchor on the "why it's better" rationale (opt §1.2). Singular is
+    # the back-compat alias for ``evidence_anchors[0]`` (BUG-3b).
     evidence_anchor: Optional[EvidenceAnchor] = None
+    evidence_anchors: List[EvidenceAnchor] = Field(default_factory=list)
 
 
 class RejectedCritique(BaseModel):
@@ -272,8 +283,26 @@ class FromScratch(BaseModel):
     ideal_answer: str = ""
     approach_notes: Optional[str] = None
     reasoning_steps: List[ReasoningStep] = Field(default_factory=list)
-    # Evidence anchor on the approach/ideal-answer rationale (opt §1.2).
+    # Evidence anchor on the approach/ideal-answer rationale (opt §1.2). Singular
+    # is the back-compat alias for ``evidence_anchors[0]`` (BUG-3b).
     evidence_anchor: Optional[EvidenceAnchor] = None
+    evidence_anchors: List[EvidenceAnchor] = Field(default_factory=list)
+
+
+class RubricCriterion(BaseModel):
+    """One weighted criterion of a HealthBench-shaped scoring rubric (FEAT-2).
+
+    ``points`` is signed: POSITIVE for "a correct answer must include this",
+    NEGATIVE for "a correct answer must never say this". ``axis`` is one of
+    RUBRIC_AXES. ``source`` records how the criterion was seeded (e.g.
+    ``error_tag:dosing_error``, ``why_better:safer``, ``good_step``,
+    ``corrected_step``, or ``manual``) so a buyer can trace provenance. Nothing is
+    auto-applied — the doctor confirms/edits every criterion before it ships."""
+
+    text: str = ""
+    points: float = 0.0
+    axis: Optional[str] = None
+    source: Optional[str] = None
 
 
 class PromptReview(BaseModel):
@@ -307,7 +336,9 @@ class IndependentAnswer(BaseModel):
     # "v2" assisted. Sent at reveal so the server can stamp the capture kind
     # (V1 always writes the full blind answer, even on stance-default tasks).
     portal_version: Optional[str] = None
+    # Singular is the back-compat alias for ``evidence_anchors[0]`` (BUG-3b).
     evidence_anchor: Optional[EvidenceAnchor] = None
+    evidence_anchors: List[EvidenceAnchor] = Field(default_factory=list)
     captured_at: Optional[str] = None
 
 
@@ -327,6 +358,10 @@ class SubmissionIn(BaseModel):
     rejected_critique: Optional[RejectedCritique] = None
     from_scratch: Optional[FromScratch] = None
     reasoning_steps: List[ReasoningStep] = Field(default_factory=list)
+    # Rubric capture (FEAT-2): the weighted +/− criteria the doctor CONFIRMED
+    # (auto-seeded from their tags, then edited). Optional + free-text-tolerant;
+    # an empty list means no rubric was captured for this judgment.
+    rubric: List[RubricCriterion] = Field(default_factory=list)
     confidence: str = "medium"
     time_spent_sec: int = 0
     # Which portal flow produced this submission ("v1" classic | "v2"
