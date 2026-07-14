@@ -435,6 +435,10 @@
       rejected_critique: { error_tags: [], severities: {}, why_worse: '', error_tag_anchors: {}, error_tag_reasons: {} },
       from_scratch: { ideal_answer: '', approach_notes: '', reasoning_steps: [], evidence_anchor: emptyAnchor() },
       reasoning_steps: [],
+      // Rubric capture (FEAT-2): the weighted +/− criteria the doctor confirms.
+      // ``rubricSeeded`` guards the one-time auto-seed from the doctor's tags.
+      rubric: [],
+      rubricSeeded: false,
       confidence: 'medium',
       // Model-assist suggestions (Speed Optimization §2), cached on the draft so a
       // refresh never re-bills the LLM. {fetched, skipped, suggested_weaker, ...}
@@ -456,6 +460,8 @@
     if (!draft.prompt_review) draft.prompt_review = { reviewed: false, verdict: null, note: '', reviewed_at: null };
     if (!draft.independent_answer) draft.independent_answer = { text: '', evidence_anchor: emptyAnchor(), captured_at: null };
     if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
+    if (!Array.isArray(draft.rubric)) draft.rubric = [];
+    if (draft.rubricSeeded === undefined) draft.rubricSeeded = false;
     if (!draft.stage) draft.stage = 'prompt_review';
     state.draft = draft;
     startTimer(draft.elapsedSec || 0);
@@ -938,16 +944,22 @@
       if (state.assistLoadingFor === d.task_id) state.assistLoadingFor = null;
     }
   }
-  // Surface freshly-arrived suggestions: update the verdict hint, then the
-  // answer highlighting + rationale cards only when there is actually a
-  // suggestion to show — and never while the doctor is typing in the rationale
-  // (a rebuild would steal focus mid-keystroke; the chips appear on the next
-  // natural re-render instead).
+  // Surface freshly-arrived suggestions (BUG-4 — decoupled from the diff):
+  //   * The A/B diff is painted SYNCHRONOUSLY on reveal (renderCompareStage) and
+  //     memoized per task_id (computeAnswerDiff), so it never waits on the LLM.
+  //   * When the assist arrives LATER, we patch it in ADDITIVELY: update the
+  //     verdict hint, and only touch the answer cards when there are actually
+  //     error spans to highlight (nothing else about the cards changes on assist).
+  //   * Never rebuild while the doctor is typing in the rationale (would steal
+  //     focus); the chips appear on the next natural re-render instead.
   function renderAssistUI() {
     if (!isAssisted()) return;
     renderAssistHint();
-    if (!assistData()) return;
-    renderAnswersInto(document.getElementById('ascAnswers'));
+    const a = assistData();
+    if (!a) return;
+    // Only re-render the answer cards if the suggestion carries error spans to
+    // mark — otherwise the already-painted diff is unchanged, so leave it be.
+    if ((a.error_spans || []).length) renderAnswersInto(document.getElementById('ascAnswers'));
     const active = document.activeElement;
     const rationale = document.getElementById('ascRationale');
     const typing = active && rationale && rationale.contains(active)
@@ -1571,7 +1583,88 @@
       box.appendChild(renderFromScratchCard());
       box.appendChild(renderStepsCard(true));
     }
+    // Rubric capture (FEAT-2): one compact card after the verdict (V3 + V4 —
+    // isV3() covers both), the criteria auto-seeded from the doctor's tags.
+    if (isV3()) box.appendChild(renderRubricCard());
     container.appendChild(box);
+  }
+
+  // ─── Rubric card (FEAT-2) ───────────────────────────────────────────────────
+  // "What must a correct answer include / never say?" — auto-seeded criteria as
+  // editable chips with point sliders; the doctor confirms, edits, deletes, or
+  // adds. Nothing is auto-applied. Target ≤60 seconds.
+  function renderRubricCard() {
+    const d = state.draft;
+    const host = h('div', { class: 'asc-card asc-card-pad', id: 'ascRubricCard', style: 'margin-top:18px' });
+    const listHost = h('div', { id: 'ascRubricList' });
+
+    const paint = () => {
+      clear(listHost);
+      if (!d.rubric.length) {
+        listHost.appendChild(h('div', { class: 'asc-label-hint' },
+          'No criteria yet — confirm the seeded ones or add your own.'));
+      }
+      d.rubric.forEach((c, i) => {
+        const pos = (c.points || 0) >= 0;
+        const ptsLabel = h('span', { class: 'asc-rubric-pts ' + (pos ? 'pos' : 'neg') },
+          (pos ? '+' : '') + (c.points || 0));
+        const slider = h('input', { type: 'range', min: '-10', max: '10', step: '1',
+          value: String(c.points || 0), style: 'width:120px' });
+        slider.addEventListener('input', () => {
+          c.points = parseInt(slider.value, 10);
+          ptsLabel.textContent = (c.points >= 0 ? '+' : '') + c.points;
+          ptsLabel.className = 'asc-rubric-pts ' + (c.points >= 0 ? 'pos' : 'neg');
+          saveDraft();
+        });
+        const textInput = h('input', { class: 'asc-input asc-rubric-text', value: c.text || '' });
+        textInput.addEventListener('input', () => { c.text = textInput.value; saveDraft(); });
+        const axisSel = h('select', { class: 'asc-select', style: 'max-width:150px' },
+          ...(state.taxonomy.rubric_axes || ['accuracy', 'completeness', 'safety', 'reasoning', 'grounding', 'communication'])
+            .map((ax) => h('option', { value: ax, selected: c.axis === ax ? 'selected' : null }, ax)));
+        axisSel.value = c.axis || 'accuracy';
+        axisSel.addEventListener('change', () => { c.axis = axisSel.value; saveDraft(); });
+        const del = h('button', { class: 'asc-btn-link', type: 'button',
+          onClick: () => { d.rubric.splice(i, 1); saveDraft(); paint(); } }, 'remove');
+        listHost.appendChild(h('div', { class: 'asc-rubric-row' }, ptsLabel, slider, textInput, axisSel, del));
+      });
+    };
+    paint();
+
+    const addBtn = h('button', { class: 'asc-btn-link', type: 'button', style: 'margin-top:8px',
+      onClick: () => { d.rubric.push({ text: '', points: 5, axis: 'accuracy', source: 'manual' }); saveDraft(); paint(); } },
+      '+ Add a criterion');
+    const seedBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
+      onClick: () => seedRubric(true, paint) }, '✨ Re-seed from my tags');
+
+    host.appendChild(h('div', { class: 'asc-card-title' }, '📋 Scoring rubric', h('span', { class: 'asc-badge', style: 'margin-left:8px' }, 'optional')));
+    host.appendChild(h('div', { class: 'asc-card-sub', style: 'margin-bottom:12px' },
+      'What must a correct answer include (positive points) or never say (negative points)? Auto-seeded from your tags — confirm, edit, or delete. This ships as a reusable scoring function.'));
+    host.appendChild(listHost);
+    host.appendChild(h('div', { style: 'display:flex;gap:12px;align-items:center;margin-top:6px' }, addBtn, seedBtn));
+
+    // Seed once when the card first appears (fire-and-forget).
+    if (!d.rubricSeeded) seedRubric(false, paint);
+    return host;
+  }
+
+  async function seedRubric(force, paint) {
+    const d = state.draft;
+    if (d.rubricSeeded && !force) return;
+    d.rubricSeeded = true;
+    try {
+      const res = await api('/rubric/suggest', { method: 'POST', body: buildSubmissionPayload() });
+      const seeded = (res && res.criteria) || [];
+      if (!seeded.length) { if (paint) paint(); return; }
+      if (force) {
+        // Re-seed: append only criteria not already present (by text).
+        const have = new Set(d.rubric.map((c) => (c.text || '').trim().toLowerCase()));
+        seeded.forEach((c) => { if (!have.has((c.text || '').trim().toLowerCase())) d.rubric.push(c); });
+      } else if (!d.rubric.length) {
+        d.rubric = seeded;
+      }
+      saveDraft();
+      if (paint) paint();
+    } catch (e) { /* seeding is a convenience — never surface an error */ }
   }
 
   function chosenText() {
@@ -2198,6 +2291,8 @@
             onClick: () => { if (snippet.hasAttribute('hidden')) snippet.removeAttribute('hidden'); else snippet.setAttribute('hidden', ''); } },
             h('strong', {}, s.identifier || s.title || 'Source'),
             s.section ? h('span', { class: 'asc-cite-sec' }, ' · ' + s.section) : null),
+          // Click through to ground truth in one tap (BUG-3a).
+          s.url ? h('a', { class: 'asc-cite-link', href: s.url, target: '_blank', rel: 'noopener noreferrer', style: 'margin:0 8px' }, 'Open source ↗') : null,
           h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
             onClick: () => {
               anchor.citation_text = (s.snippet || s.title || s.identifier || '').trim();
@@ -2273,6 +2368,32 @@
     if (!required && !isValidAnchor(anchor) && !(anchor.citation_text || '').trim()) body.setAttribute('hidden', '');
     body.appendChild(anchorFields(anchor));
 
+    // Escape hatch: search the library (BUG-3c) — always one tap away.
+    const search = renderLibrarySearch(anchor, () => { block._rebuild(); });
+    const searchBtn = h('button', { class: 'asc-btn-link', type: 'button', onClick: () => search._toggle() }, '🔍 Search the library');
+    body.appendChild(h('div', { style: 'margin:8px 0' }, searchBtn));
+    body.appendChild(search);
+
+    // Multi-anchor (BUG-3b): "+ Add another citation" appends extra anchor
+    // editors bound to anchor._extra[]. All valid anchors ship as evidence_anchors.
+    anchor._extra = anchor._extra || [];
+    const extraHost = h('div', { class: 'asc-extra-anchors' });
+    const renderExtra = () => {
+      clear(extraHost);
+      anchor._extra.forEach((ea, i) => {
+        const row = h('div', { class: 'asc-extra-anchor', style: 'border-top:1px dashed var(--asc-line,#e5e7eb);padding-top:10px;margin-top:10px' });
+        row.appendChild(h('div', { class: 'asc-label', style: 'display:flex;justify-content:space-between' },
+          'Additional citation ' + (i + 1),
+          h('button', { class: 'asc-btn-link', type: 'button', onClick: () => { anchor._extra.splice(i, 1); saveDraft(); renderExtra(); updateSubmitState(); } }, 'remove')));
+        row.appendChild(anchorFields(ea));
+        extraHost.appendChild(row);
+      });
+    };
+    renderExtra();
+    body.appendChild(extraHost);
+    body.appendChild(h('button', { class: 'asc-btn-link', type: 'button', style: 'margin-top:8px',
+      onClick: () => { anchor._extra.push(emptyAnchor()); saveDraft(); renderExtra(); } }, '+ Add another citation'));
+
     const status = h('span', { class: 'asc-anchor-valid' });
     const toggle = h('button', {
       class: 'asc-disclosure-toggle', type: 'button',
@@ -2284,6 +2405,14 @@
 
     const block = h('div', { class: 'asc-disclosure' }, toggle, body);
     block._status = status;
+    // Rebuild the primary fields when the library search fills the anchor, so the
+    // inputs + the "Open source ↗" link reflect the picked source immediately.
+    block._rebuild = () => {
+      const first = body.firstChild;
+      const fresh = anchorFields(anchor);
+      if (first) body.replaceChild(fresh, first); else body.insertBefore(fresh, body.firstChild);
+      refreshAnchorStatus(block, anchor, required);
+    };
     refreshAnchorStatus(block, anchor, required);
     // keep status synced when fields change
     const sync = () => refreshAnchorStatus(block, anchor, required);
@@ -2292,12 +2421,36 @@
     return block;
   }
 
+  // Every valid anchor on a section (primary + extras) for the multi-anchor
+  // payload (BUG-3b). The first is also emitted as the singular ``evidence_anchor``.
+  function anchorsForSubmit(anchor) {
+    if (!anchor) return [];
+    const all = [cleanAnchor(anchor)].concat((anchor._extra || []).map(cleanAnchor));
+    return all.filter(Boolean);
+  }
+
   function refreshAnchorStatus(block, anchor, required) {
     const status = block._status;
     if (!status) return;
     if (isValidAnchor(anchor)) { status.textContent = '✓ cited'; status.classList.remove('asc-anchor-invalid'); }
     else if (required) { status.textContent = '· citation needed'; status.classList.add('asc-anchor-invalid'); }
     else { status.textContent = ''; }
+  }
+
+  // A live "Open source ↗" link that appears whenever an anchor carries a URL
+  // (BUG-3a): the doctor can click through to ground truth in one tap.
+  function openSourceLink(anchor) {
+    const span = h('span', { class: 'asc-open-source' });
+    const sync = () => {
+      clear(span);
+      const url = (anchor.url || '').trim();
+      if (url && /^https?:\/\//i.test(url)) {
+        span.appendChild(h('a', { class: 'asc-cite-link', href: url, target: '_blank', rel: 'noopener noreferrer' }, 'Open source ↗'));
+      }
+    };
+    sync();
+    span._sync = sync;
+    return span;
   }
 
   function anchorFields(anchor) {
@@ -2311,11 +2464,67 @@
     sourceSel.addEventListener('change', () => { anchor.source_type = sourceSel.value; saveDraft(); updateSubmitState(); });
     const identifier = h('input', { class: 'asc-input', placeholder: 'Identifier — PMID:…, DOI:…, KDIGO 2024', value: anchor.identifier || '' });
     identifier.addEventListener('input', () => { anchor.identifier = identifier.value; saveDraft(); updateSubmitState(); });
+    // Paste-your-own URL (BUG-3c escape hatch): a link the doctor pastes rides the
+    // anchor + is clickable. Pasting a URL with no source type defaults to "other".
+    const openLink = openSourceLink(anchor);
+    const url = h('input', { class: 'asc-input', placeholder: 'Paste a source URL (optional) — https://…', value: anchor.url || '' });
+    url.addEventListener('input', () => {
+      anchor.url = url.value.trim();
+      if (anchor.url && !anchor.source_type) { anchor.source_type = 'other'; sourceSel.value = 'other'; }
+      openLink._sync(); saveDraft(); updateSubmitState();
+    });
     return h('div', {},
-      h('div', { class: 'asc-field', style: 'margin-bottom:10px' }, h('label', { class: 'asc-label' }, 'Citation'), citation),
-      h('div', { class: 'asc-form-row', style: 'margin-bottom:0' },
+      h('div', { class: 'asc-field', style: 'margin-bottom:10px' },
+        h('label', { class: 'asc-label' }, 'Citation', openLink), citation),
+      h('div', { class: 'asc-form-row', style: 'margin-bottom:10px' },
         h('div', { class: 'asc-field', style: 'margin-bottom:0' }, h('label', { class: 'asc-label' }, 'Source type'), sourceSel),
-        h('div', { class: 'asc-field', style: 'margin-bottom:0' }, h('label', { class: 'asc-label' }, 'Identifier'), identifier)));
+        h('div', { class: 'asc-field', style: 'margin-bottom:0' }, h('label', { class: 'asc-label' }, 'Identifier'), identifier)),
+      h('div', { class: 'asc-field', style: 'margin-bottom:0' }, h('label', { class: 'asc-label' }, 'Source link'), url));
+  }
+
+  // ── Library search box + multi-anchor (BUG-3b/c) ────────────────────────────
+  // "Search the library" is always one tap away — the doctor types a query and
+  // picks a source (fills the anchor). An escape hatch when the auto-suggest is
+  // wrong (it is better to show nothing than a wrong citation, so search is
+  // deliberately more permissive than the suggestion).
+  function renderLibrarySearch(anchor, onPick) {
+    const box = h('div', { class: 'asc-lib-search', hidden: true });
+    const input = h('input', { class: 'asc-input', placeholder: 'Search the citation library — drug, analyte, guideline…' });
+    const results = h('div', { class: 'asc-lib-results' });
+    let t = null;
+    const run = async () => {
+      clear(results);
+      try {
+        const res = await api('/citations/search', { method: 'POST',
+          body: { text: input.value.trim(), specialty: (state.task && state.task.specialty) || 'nephrology', k: 12 } });
+        const list = (res && res.suggestions) || [];
+        if (res.skipped) { results.appendChild(h('div', { class: 'asc-label-hint' }, 'No citation library for this specialty — type or paste your own.')); return; }
+        if (!list.length) { results.appendChild(h('div', { class: 'asc-label-hint' }, 'No matches — try a drug name or lab analyte.')); return; }
+        list.forEach((s) => {
+          results.appendChild(h('div', { class: 'asc-lib-row' },
+            h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
+              onClick: () => {
+                anchor.citation_text = (s.snippet || s.title || s.identifier || '').trim();
+                const types = (state.taxonomy && state.taxonomy.evidence_source_types) || [];
+                anchor.source_type = types.indexOf(s.source_type) !== -1 ? s.source_type : '';
+                anchor.identifier = (s.identifier || s.title || '').trim();
+                anchor.url = s.url || '';
+                anchor.citation_confirmed = true;
+                saveDraft();
+                box.setAttribute('hidden', '');
+                if (onPick) onPick();
+              } }, 'Use'),
+            h('span', {}, h('strong', {}, s.identifier || s.title || 'Source'),
+              s.url ? h('a', { class: 'asc-cite-link', href: s.url, target: '_blank', rel: 'noopener noreferrer', style: 'margin-left:8px' }, '↗') : null,
+              h('div', { class: 'asc-label-hint' }, s.snippet || s.section || ''))));
+        });
+      } catch (e) { clear(results); }
+    };
+    input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(run, 300); });
+    box.appendChild(input);
+    box.appendChild(results);
+    box._toggle = () => { if (box.hasAttribute('hidden')) { box.removeAttribute('hidden'); input.focus(); if (input.value) run(); } else box.setAttribute('hidden', ''); };
+    return box;
   }
 
   function discloseToggle(label, body) {
@@ -2403,6 +2612,29 @@
     hint.textContent = ok ? '' : msg;
   }
 
+  // Human-readable label per backend-stamped phase (BUG-5). The percentages are
+  // the backend's — we only translate the phase name; a phase without a pct shows
+  // an indeterminate spinner (honest "we don't know how long this takes").
+  const _PHASE_LABEL = {
+    queued: 'Queued…', packaging: 'Packaging training records…',
+    validating: 'Validating (PHI, completeness, duplicates)…',
+    consistency_check: 'Running the consistency critic…',
+    grounding_check: 'Checking evidence grounding…',
+    qa_routing: 'Routing to QA review…', needs_qa: 'Sent to QA review',
+    complete: 'Complete',
+  };
+
+  function _renderProgress(host, phase, pct) {
+    clear(host);
+    const track = h('div', { class: 'asc-progress-track' });
+    const bar = h('div', { class: 'asc-progress-bar' + (pct == null ? ' indeterminate' : '') });
+    if (pct != null) bar.style.width = Math.max(4, Math.min(100, pct)) + '%';
+    track.appendChild(bar);
+    host.appendChild(track);
+    host.appendChild(h('div', { class: 'asc-progress-label' },
+      (_PHASE_LABEL[phase] || phase || 'Submitting…') + (pct != null ? '  ' + pct + '%' : '')));
+  }
+
   async function submitEvaluation() {
     if (state.submitting) return;
     saveDraft();
@@ -2412,19 +2644,44 @@
     if (!sr.ok) { updateSubmitState(); return; }
     state.submitting = true;
     const btn = document.getElementById('ascSubmit');
+    const hint = document.getElementById('ascSubmitHint');
     if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+    // Mount a real progress bar in place of the hint (BUG-5).
+    let progressHost = null;
+    if (hint) {
+      hint.textContent = '';
+      progressHost = h('div', { class: 'asc-progress-wrap', id: 'ascSubmitProgress' });
+      hint.appendChild(progressHost);
+      _renderProgress(progressHost, 'queued', 5);
+    }
+    const taskId = state.draft.task_id;
 
     const payload = buildSubmissionPayload();
     try {
-      const res = await api('/submissions', { method: 'POST', body: payload });
-      const n = res.record_count != null ? res.record_count : 0;
-      clearDraft(state.draft.task_id);
+      // Real submit progress (BUG-5): opt into the async pipeline (202 +
+      // submission_id) and poll the backend-stamped phases. If the server doesn't
+      // support it (older backend returns 200 + result), fall through to success.
+      const res = await api('/submissions?async_pipeline=1', { method: 'POST', body: payload });
+      let finalStatus = res.status;
+      let recordCount = res.record_count;
+      if (res.accepted && res.submission_id) {
+        const done = await pollSubmissionStatus(res.submission_id, progressHost);
+        finalStatus = done.status; recordCount = done.record_count;
+        if (!done.done) throw { message: 'Submission timed out — check the QA queue.', status: 0 };
+      }
+      const n = recordCount != null ? recordCount : 0;
+      clearDraft(taskId);
       stopTimer();
-      toast('Submitted — packaged ' + n + ' record' + (n === 1 ? '' : 's'), 'success');
+      if (finalStatus === 'needs_qa') {
+        toast('Submitted — routed to QA review (' + n + ' record' + (n === 1 ? '' : 's') + ').', 'success');
+      } else {
+        toast('Submitted — packaged ' + n + ' record' + (n === 1 ? '' : 's'), 'success');
+      }
       renderEvalView();
     } catch (e) {
       state.submitting = false;
       if (btn) { btn.textContent = 'Submit evaluation'; }
+      if (progressHost) clear(progressHost);
       if (e.status === 400 && e.detail && e.detail.error === 'grounding_required') {
         toast(e.detail.message || 'A citation is required before submitting.', 'error');
         updateSubmitState();
@@ -2435,6 +2692,25 @@
     } finally {
       state.submitting = false;
     }
+  }
+
+  // Poll GET /submissions/{id}/status until the backend reports a terminal phase.
+  // Shows the real, backend-stamped phase — never an invented percentage.
+  async function pollSubmissionStatus(sid, progressHost) {
+    const deadline = Date.now() + 60000;  // safety cap
+    let last = null;
+    while (Date.now() < deadline) {
+      try {
+        last = await api('/submissions/' + sid + '/status');
+      } catch (e) {
+        if (e.status === 401) throw e;
+        // transient — keep polling until the deadline
+      }
+      if (last && progressHost) _renderProgress(progressHost, last.phase, last.pct);
+      if (last && last.done) return last;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    return last || { done: false, status: 'unknown', record_count: 0 };
   }
 
   function cleanAnchor(a) {
@@ -2463,6 +2739,7 @@
       suggested_label: s.suggested_label || null,
       suggested_critique: (s.suggested_critique || '').trim() || null,
       evidence_anchor: cleanAnchor(s.evidence_anchor),
+      evidence_anchors: anchorsForSubmit(s.evidence_anchor),
     }));
   }
 
@@ -2488,12 +2765,18 @@
       independent_answer: {
         text: (d.independent_answer.text || '').trim(),
         evidence_anchor: cleanAnchor(d.independent_answer.evidence_anchor),
+        evidence_anchors: anchorsForSubmit(d.independent_answer.evidence_anchor),
         captured_at: d.independent_answer.captured_at,
       },
       // Which evaluator flow produced this submission (Asclepius V2). The server
       // treats the reveal-commit's version as authoritative; this is the value
       // for the flagged-prompt path (no commit) and direct submits.
       portal_version: draftVersion(),
+      // Rubric capture (FEAT-2): the confirmed weighted criteria (empty when the
+      // doctor didn't capture a rubric). Zero-point/empty rows are dropped server-side.
+      rubric: (d.rubric || []).filter((c) => (c.text || '').trim()).map((c) => ({
+        text: (c.text || '').trim(), points: c.points || 0, axis: c.axis || null, source: c.source || 'manual',
+      })),
     };
     // Model-assist audit block (Speed Optimization §2): the suggestions that
     // were SHOWN, stored next to the human finals so override rate is
@@ -2518,6 +2801,7 @@
         why_better_tags: d.chosen_revision.why_better_tags.slice(),
         why_better_notes: d.chosen_revision.why_better_notes || '',
         evidence_anchor: cleanAnchor(d.chosen_revision.evidence_anchor),
+        evidence_anchors: anchorsForSubmit(d.chosen_revision.evidence_anchor),
       };
       const tagAnchors = {};
       Object.keys(d.rejected_critique.error_tag_anchors || {}).forEach((tag) => {
@@ -2545,6 +2829,7 @@
         approach_notes: d.from_scratch.approach_notes || '',
         reasoning_steps: cleanSteps(d.from_scratch.reasoning_steps),
         evidence_anchor: cleanAnchor(d.from_scratch.evidence_anchor),
+        evidence_anchors: anchorsForSubmit(d.from_scratch.evidence_anchor),
       };
       payload.reasoning_steps = payload.from_scratch.reasoning_steps;
     }
@@ -2558,27 +2843,222 @@
     stopTimer();
     const tabs = [
       ['tasks', 'Tasks'],
+      ['qa', 'QA'],
       ['ingestion', '🏥 Ingestion'],
       ['buyers', 'Buyers & Requests'],
       ['exports', 'Exports'],
       ['metrics', 'Metrics'],
     ];
-    // QA Queue was removed from the nav; bounce any stale selection.
-    if (state.adminTab === 'qa') state.adminTab = 'exports';
     const subnav = h('div', { class: 'asc-subnav' },
-      tabs.map(([id, label]) => h('button', {
-        class: 'asc-subnav-btn' + (state.adminTab === id ? ' active' : ''),
-        onClick: () => { state.adminTab = id; renderAdminView(); },
-      }, label)));
+      tabs.map(([id, label]) => {
+        const btn = h('button', {
+          class: 'asc-subnav-btn' + (state.adminTab === id ? ' active' : ''),
+          onClick: () => { state.adminTab = id; renderAdminView(); },
+        }, label);
+        // QA (BUG-2): a live pending-count badge so the backlog is never invisible.
+        if (id === 'qa') btn.appendChild(h('span', { class: 'asc-badge asc-badge-count', id: 'ascQaBadge', style: 'margin-left:6px', hidden: true }));
+        return btn;
+      }));
 
     const body = h('div', { id: 'ascAdminBody' });
     setRoot(h('div', { class: 'asc-wrap' }, subnav, body));
+    refreshQaBadge();
 
     if (state.adminTab === 'tasks') renderAdminTasks(body);
+    else if (state.adminTab === 'qa') renderAdminQA(body);
     else if (state.adminTab === 'ingestion') renderAdminIngestion(body);
     else if (state.adminTab === 'buyers') renderAdminBuyers(body);
     else if (state.adminTab === 'exports') renderAdminExports(body);
     else if (state.adminTab === 'metrics') renderAdminMetrics(body);
+  }
+
+  async function refreshQaBadge() {
+    const badge = document.getElementById('ascQaBadge');
+    if (!badge) return;
+    try {
+      const data = await api('/qa/queue');
+      const n = (data.submissions || []).length;
+      if (n > 0) { badge.textContent = String(n); badge.removeAttribute('hidden'); }
+      else { badge.setAttribute('hidden', ''); }
+    } catch (e) { /* leave the badge hidden on error */ }
+  }
+
+  // ─── Admin: QA queue (BUG-2) ────────────────────────────────────────────────
+  // The backend (/qa/queue, /qa/approve-all, /qa/{id}/decision) was always there;
+  // this is the missing UI. Shows the queue with the reason each submission needs
+  // review, a diff-style detail view, and Approve / Reject (with reason).
+  function renderAdminQA(body) {
+    clear(body);
+    const headBar = h('div', { style: 'display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:6px' });
+    const approveAllBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '✓ Approve all pending');
+    const approveAllStatus = h('span', { class: 'asc-label-hint' });
+    approveAllBtn.addEventListener('click', async () => {
+      if (!window.confirm('Approve EVERY pending submission and move it to export-ready?')) return;
+      approveAllBtn.setAttribute('disabled', ''); approveAllBtn.textContent = 'Approving…';
+      try {
+        const res = await api('/qa/approve-all', { method: 'POST' });
+        toast('Approved ' + (res.approved || 0) + ' submission(s).', 'success');
+        renderAdminQA(body); refreshQaBadge();
+      } catch (e) {
+        clear(approveAllStatus); approveAllStatus.appendChild(h('span', { class: 'asc-inline-error' }, e.message));
+        approveAllBtn.removeAttribute('disabled'); approveAllBtn.textContent = '✓ Approve all pending';
+      }
+    });
+    headBar.appendChild(approveAllBtn);
+    headBar.appendChild(approveAllStatus);
+
+    const listCard = h('div', { class: 'asc-card', id: 'ascQaList' }, loadingCard('Loading QA queue…'));
+    const detailCard = h('div', { class: 'asc-card', id: 'ascQaDetail', hidden: true });
+    body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-card-title' }, 'Quality review queue'),
+      h('div', { class: 'asc-card-sub', style: 'margin-bottom:12px' },
+        'Submissions the pipeline routed to human review (sampled, flagged by the LLM critic, low inter-annotator agreement, or a validation issue). Approve to release to export, or reject with a reason.'),
+      headBar));
+    body.appendChild(listCard);
+    body.appendChild(detailCard);
+    loadQaQueue();
+  }
+
+  async function loadQaQueue() {
+    const listCard = document.getElementById('ascQaList');
+    if (!listCard) return;
+    try {
+      const data = await api('/qa/queue');
+      const subs = data.submissions || [];
+      clear(listCard);
+      listCard.appendChild(h('div', { class: 'asc-card-head' },
+        h('div', { class: 'asc-card-title' }, 'Pending (' + subs.length + ')')));
+      if (!subs.length) {
+        listCard.appendChild(h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-card-sub' }, 'Queue is clear — nothing needs QA right now. 🎉')));
+        return;
+      }
+      const table = h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {},
+          h('th', {}, 'Submission'), h('th', {}, 'Contributor'), h('th', {}, 'Verdict'),
+          h('th', {}, 'Why flagged'), h('th', {}, 'Time'), h('th', {}, ''))));
+      const tbody = h('tbody', {});
+      subs.forEach((s) => {
+        const ann = s.annotator || {};
+        const reasons = (s.qa_reason || '').split(',').filter(Boolean);
+        tbody.appendChild(h('tr', {},
+          h('td', { class: 'asc-mono' }, (s.submission_id || '').slice(0, 12)),
+          h('td', {}, ann.credentials || ann.specialty || '—'),
+          h('td', {}, s.verdict || '—'),
+          h('td', {}, reasons.length
+            ? reasons.map((r) => h('span', { class: 'asc-chip asc-chip-warn', style: 'margin:2px' }, r))
+            : h('span', { class: 'asc-label-hint' }, '—')),
+          h('td', {}, (s.time_spent_sec || 0) + 's'),
+          h('td', {}, h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+            onClick: () => openQaDetail(s.submission_id) }, 'Review'))));
+      });
+      table.appendChild(tbody);
+      listCard.appendChild(h('div', { class: 'asc-card-pad' }, table));
+    } catch (e) {
+      clear(listCard);
+      listCard.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
+    }
+  }
+
+  async function openQaDetail(sid) {
+    const detail = document.getElementById('ascQaDetail');
+    if (!detail) return;
+    detail.removeAttribute('hidden');
+    clear(detail); detail.appendChild(loadingCard('Loading submission…'));
+    detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    try {
+      const sub = await api('/submissions/' + sid);
+      const task = sub.task || {};
+      const payload = sub.payload || {};
+      clear(detail);
+      const head = h('div', { class: 'asc-card-head' },
+        h('div', {},
+          h('div', { class: 'asc-card-title' }, 'Review submission'),
+          h('div', { class: 'asc-card-sub asc-mono' }, sid)));
+      detail.appendChild(head);
+
+      const pad = h('div', { class: 'asc-card-pad' });
+      pad.appendChild(h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Prompt'),
+        h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, task.prompt || '—')));
+
+      // Verdict + the doctor's chosen/rejected + rationale (diff-style).
+      const verdict = sub.verdict || payload.verdict;
+      const cands = {};
+      (task.candidate_answers || []).forEach((c) => { cands[c.id] = c.text; });
+      if (verdict === 'A_better' || verdict === 'B_better') {
+        const rev = payload.chosen_revision || {};
+        const crit = payload.rejected_critique || {};
+        pad.appendChild(qaDiffBlock('Chosen (' + (sub.chosen_id || '') + ')',
+          cands[sub.chosen_id] || '', rev.edited ? rev.revised_text : null));
+        pad.appendChild(qaField('Rejected (' + (sub.rejected_id || '') + ')', cands[sub.rejected_id] || ''));
+        pad.appendChild(qaField('Why worse', crit.why_worse || '—'));
+        if ((crit.error_tags || []).length) {
+          pad.appendChild(h('div', { class: 'asc-field' },
+            h('label', { class: 'asc-label' }, 'Error tags on rejected'),
+            h('div', {}, crit.error_tags.map((t) => h('span', { class: 'asc-chip', style: 'margin:2px' }, t)))));
+        }
+      } else if (verdict === 'both_inadequate') {
+        const fs = payload.from_scratch || {};
+        pad.appendChild(qaField('Ideal answer (from scratch)', fs.ideal_answer || '—'));
+      }
+      const critic = (sub.critic || {}).consistency || {};
+      if (critic && critic.consistent === false) {
+        pad.appendChild(h('div', { class: 'asc-inline-warn' },
+          '⚠ Consistency critic flagged: ' + (critic.explanation || (critic.issues || []).join(', '))));
+      }
+
+      // Approve / Reject (with reason).
+      const rejReason = h('input', { class: 'asc-input', placeholder: 'Reason for rejection (required)' });
+      const rejBox = h('div', { hidden: true, style: 'margin-top:10px' },
+        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Rejection reason'), rejReason));
+      const status = h('div', { style: 'margin-top:10px' });
+      const approveBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '✓ Approve → export-ready');
+      const rejectBtn = h('button', { class: 'asc-btn asc-btn-danger', style: 'margin-left:8px' }, '✕ Reject');
+      approveBtn.addEventListener('click', () => qaDecide(sid, 'approve', null, status, [approveBtn, rejectBtn]));
+      rejectBtn.addEventListener('click', () => {
+        if (rejBox.hasAttribute('hidden')) { rejBox.removeAttribute('hidden'); rejReason.focus(); return; }
+        if (!rejReason.value.trim()) { rejReason.focus(); return; }
+        qaDecide(sid, 'reject', rejReason.value.trim(), status, [approveBtn, rejectBtn]);
+      });
+      pad.appendChild(h('div', { style: 'margin-top:16px' }, approveBtn, rejectBtn));
+      pad.appendChild(rejBox);
+      pad.appendChild(status);
+      detail.appendChild(pad);
+    } catch (e) {
+      clear(detail);
+      detail.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
+    }
+  }
+
+  function qaField(label, value) {
+    return h('div', { class: 'asc-field' },
+      h('label', { class: 'asc-label' }, label),
+      h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, value || '—'));
+  }
+  function qaDiffBlock(label, original, revised) {
+    const field = h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, label));
+    if (revised && revised.trim() && revised.trim() !== (original || '').trim()) {
+      field.appendChild(h('div', { class: 'asc-readbox' }, renderEditDiff(original || '', revised)));
+      field.appendChild(h('div', { class: 'asc-label-hint', style: 'margin-top:4px' }, 'Highlighted sentences were revised by the specialist.'));
+    } else {
+      field.appendChild(h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, original || '—'));
+    }
+    return field;
+  }
+  async function qaDecide(sid, decision, notes, status, buttons) {
+    buttons.forEach((b) => b.setAttribute('disabled', ''));
+    clear(status);
+    try {
+      const res = await api('/qa/' + sid + '/decision', { method: 'POST', body: { decision, notes } });
+      toast('Submission ' + (res.status === 'export_ready' ? 'approved' : 'rejected') + '.', 'success');
+      const detail = document.getElementById('ascQaDetail');
+      if (detail) { clear(detail); detail.setAttribute('hidden', ''); }
+      loadQaQueue(); refreshQaBadge();
+    } catch (e) {
+      status.appendChild(h('div', { class: 'asc-inline-error' }, e.message));
+      buttons.forEach((b) => b.removeAttribute('disabled'));
+    }
   }
 
   // ─── Admin: Real EHR Ingestion (EHR PRD §4, §8, §9) ─────────────────────────
@@ -2948,6 +3428,49 @@
     loadGenerationJobs();
   }
 
+  // Model-Failure view (FEAT-1): per-model failure summary + the individual
+  // "model failed here, expert corrected it" cases, filterable by model.
+  async function loadModelFailures(model) {
+    const card = document.getElementById('ascModelFailures');
+    if (!card) return;
+    try {
+      const q = model ? ('?model=' + encodeURIComponent(model)) : '';
+      const data = await api('/baselines/model-failures' + q);
+      clear(card);
+      const summary = data.summary || [];
+      const failures = data.failures || [];
+      card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, '🎯 Frontier-model failures'),
+        h('div', { class: 'asc-card-sub' }, 'Cases a real frontier model got wrong, with the expert correction — the artifact to put in front of a lab.'))));
+      if (!summary.length && !failures.length) {
+        card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
+          'No model failures captured yet. On a task, admins can "Grade the real models" to A/B two real frontier answers; a rejected model is recorded here.')));
+        return;
+      }
+      const pad = h('div', { class: 'asc-card-pad' });
+      // Summary chips (click to filter).
+      const chipRow = h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px' });
+      chipRow.appendChild(h('button', { class: 'asc-chip' + (model ? '' : ' active'), type: 'button',
+        onClick: () => loadModelFailures(null) }, 'All'));
+      summary.forEach((sm) => {
+        chipRow.appendChild(h('button', { class: 'asc-chip' + (model === sm.model ? ' active' : ''), type: 'button',
+          onClick: () => loadModelFailures(sm.model) }, sm.model + ' (' + sm.failures + ')'));
+      });
+      pad.appendChild(chipRow);
+      failures.slice(0, 40).forEach((f) => {
+        pad.appendChild(h('div', { class: 'asc-readbox', style: 'margin-bottom:10px' },
+          h('div', { style: 'font-weight:700;margin-bottom:4px' }, f.model,
+            (f.error_tags || []).map((t) => h('span', { class: 'asc-chip asc-chip-warn', style: 'margin-left:6px' }, t))),
+          h('div', { class: 'asc-label-hint', style: 'margin-bottom:6px;white-space:pre-wrap' }, (f.prompt || '').slice(0, 400)),
+          h('div', {}, h('strong', {}, 'Expert correction: '), (f.expert_correction || '—'))));
+      });
+      card.appendChild(pad);
+    } catch (e) {
+      clear(card);
+      card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
+    }
+  }
+
   async function loadSeedCorpus() {
     const card = document.getElementById('ascSeedCorpus');
     if (!card) return;
@@ -3049,16 +3572,36 @@
         h('td', {}, String(t.submission_count != null ? t.submission_count : 0)),
         h('td', {}, t.status === 'prompt_flagged'
           ? h('span', { class: 'asc-badge asc-badge-amber' }, '⚑ prompt flagged')
-          : (t.status || '—'))));
+          : (t.status || '—')),
+        // Frontier-model failure capture (FEAT-1): swap this task's A/B pair to two
+        // real frontier answers so a specialist grades the real models.
+        h('td', {}, gradeRealModelsBtn(t))));
       card.appendChild(h('div', { class: 'asc-table-wrap' },
         h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
-            ['ID', 'Specialty', 'Modality', 'Case source', 'Difficulty', 'Prompt', 'Grounding', 'Labels', 'Status'].map((c) => h('th', {}, c)))),
+            ['ID', 'Specialty', 'Modality', 'Case source', 'Difficulty', 'Prompt', 'Grounding', 'Labels', 'Status', 'Baselines'].map((c) => h('th', {}, c)))),
           h('tbody', {}, rows))));
     } catch (e) {
       clear(card);
       card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
     }
+  }
+
+  function gradeRealModelsBtn(t) {
+    const btn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
+      title: 'Answer this case cold with frontier models, then A/B two real answers' },
+      '🎯 Grade real');
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Run the configured frontier models on this case and replace the A/B pair with two REAL model answers?')) return;
+      btn.setAttribute('disabled', ''); btn.textContent = 'Running…';
+      try {
+        const res = await api('/tasks/' + t.task_id + '/grade-real-models', { method: 'POST' });
+        toast('Swapped in ' + (res.candidate_count || 0) + ' real-model answers — this task now grades the real models.', 'success');
+      } catch (e) {
+        toast(e.status === 503 ? (e.message || 'Baseline generation unavailable (no LLM key?).') : e.message, 'error');
+      } finally { btn.removeAttribute('disabled'); btn.textContent = '🎯 Grade real'; }
+    });
+    return btn;
   }
 
   // ─── Admin: Buyers & Requests ──────────────────────────────────────────────
@@ -3814,6 +4357,12 @@
 
     body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Overview'), tiles));
+
+    // Model-Failure view (FEAT-1): "cases where model X failed, with the expert
+    // correction" — the artifact you put in front of a lab.
+    const mfCard = h('div', { class: 'asc-card', id: 'ascModelFailures' }, loadingCard('Loading model failures…'));
+    body.appendChild(mfCard);
+    loadModelFailures();
 
     // Data by product version: how many submissions came from the V1 (classic),
     // V2 (assisted), and V3 (seamless) evaluator flows.
