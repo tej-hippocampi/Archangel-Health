@@ -35,6 +35,9 @@ backend/demo_patient_store.json
 
 # Local SQLite (team / onboarding state — do not commit)
 backend/*.db
+backend/*.db-journal
+backend/*.db-wal
+backend/*.db-shm
 
 # Landing (dependencies and build)
 landing/node_modules/
