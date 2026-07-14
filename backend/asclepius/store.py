@@ -385,6 +385,30 @@ class AsclepiusStore:
             )
             conn.execute(
                 """
+                -- Data-provider ACCOUNTS (email + password door, EHR PRD §4 —
+                -- complementary to the magic-link door). The account itself lives
+                -- in ``users`` (role='data_partner'); this row carries the invite /
+                -- upload lifecycle + relationship metadata the admin sees. Uploads
+                -- still flow through the shared ingest_uploads pipeline (partner_id
+                -- = this provider_id), so there is ONE inbox for both doors.
+                CREATE TABLE IF NOT EXISTS data_providers (
+                    provider_id         TEXT PRIMARY KEY,   -- = users.id
+                    email               TEXT NOT NULL UNIQUE,
+                    org_name            TEXT,
+                    specialty           TEXT,
+                    note                TEXT,
+                    status              TEXT NOT NULL DEFAULT 'invited', -- invited|active|revoked
+                    must_reset_password INTEGER NOT NULL DEFAULT 1,
+                    invited_by          TEXT,
+                    invited_at          TEXT,
+                    invite_expires_at   TEXT,
+                    created_at          TEXT NOT NULL,
+                    updated_at          TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS ingest_uploads (
                     upload_id   TEXT PRIMARY KEY,
                     link_id     TEXT NOT NULL,
@@ -672,6 +696,111 @@ class AsclepiusStore:
         with self._conn() as conn:
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
             return dict(row) if row else None
+
+    def set_user_password(self, user_id: str, new_password: str) -> None:
+        """Set a user's password hash (data-provider forced first-login reset)."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (hash_password(new_password), user_id),
+            )
+
+    # ── Data-provider accounts (email+password door, EHR PRD §4) ────────────
+    @staticmethod
+    def _data_provider_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["must_reset_password"] = bool(rec.get("must_reset_password"))
+        return rec
+
+    def provision_data_provider(
+        self, *, email: str, password: str, org_name: Optional[str] = None,
+        specialty: Optional[str] = None, note: Optional[str] = None,
+        invited_by: Optional[str] = None, invite_expires_at: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create (or rotate) a ``data_partner`` account + its provider record.
+        Idempotent: an existing provider gets a fresh password, is re-activated,
+        ``must_reset_password`` is re-armed, and the invite window resets — so
+        Resend rotates credentials rather than duplicating. The account is
+        provisioned via the shared ``provision_user`` path with role='data_partner'."""
+        user = self.provision_user(
+            email=email, password=password, role="data_partner",
+            org_name=org_name, specialty=specialty,
+        )
+        pid = user["id"]
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            existing = conn.execute(
+                "SELECT provider_id FROM data_providers WHERE provider_id = ?", (pid,)
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    """UPDATE data_providers SET status='invited', must_reset_password=1,
+                       org_name=COALESCE(?, org_name), specialty=COALESCE(?, specialty),
+                       note=COALESCE(?, note), invited_by=?, invited_at=?,
+                       invite_expires_at=?, updated_at=? WHERE provider_id=?""",
+                    (org_name, specialty, note, invited_by, now, invite_expires_at, now, pid),
+                )
+            else:
+                conn.execute(
+                    """INSERT INTO data_providers
+                       (provider_id, email, org_name, specialty, note, status,
+                        must_reset_password, invited_by, invited_at, invite_expires_at,
+                        created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, 'invited', 1, ?, ?, ?, ?, ?)""",
+                    (pid, email.lower().strip(), org_name, specialty, note,
+                     invited_by, now, invite_expires_at, now, now),
+                )
+        return self.get_data_provider(pid)  # type: ignore[return-value]
+
+    def get_data_provider(self, provider_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM data_providers WHERE provider_id = ?", (provider_id,)
+            ).fetchone()
+        return self._data_provider_row(row) if row else None
+
+    def list_data_providers(self) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM data_providers ORDER BY created_at DESC"
+            ).fetchall()
+        return [self._data_provider_row(r) for r in rows]
+
+    def revoke_data_provider(self, provider_id: str) -> Optional[Dict[str, Any]]:
+        """Revoke access: mark revoked AND deactivate the account so its token
+        stops authenticating (deny-by-default)."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE data_providers SET status='revoked', updated_at=? WHERE provider_id=?",
+                (_utcnow_iso(), provider_id),
+            )
+            conn.execute("UPDATE users SET active = 0 WHERE id = ?", (provider_id,))
+        return self.get_data_provider(provider_id)
+
+    def clear_provider_password_reset(self, provider_id: str) -> None:
+        """First-login forced reset done: drop the reset flag + activate."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE data_providers SET must_reset_password=0, status='active', "
+                "updated_at=? WHERE provider_id=?",
+                (_utcnow_iso(), provider_id),
+            )
+
+    def provider_quality_score(self, provider_id: str) -> Dict[str, Any]:
+        """% of a provider's upload bundles that ingested clean — the early-warning
+        that a partner's de-id is drifting. Reads the shared ingest_uploads inbox
+        filtered to this provider (partner_id)."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT status FROM ingest_uploads WHERE partner_id = ?", (provider_id,)
+            ).fetchall()
+        total = len(rows)
+        clean = sum(1 for r in rows if r["status"] == "ingested")
+        return {
+            "total_uploads": total,
+            "clean_uploads": clean,
+            "clean_pct": round(100.0 * clean / total, 1) if total else None,
+        }
 
     def get_user_by_id_hashed(self, id_hashed: str) -> Optional[Dict[str, Any]]:
         """Resolve the user (incl. onboarding-collected credential fields) from the

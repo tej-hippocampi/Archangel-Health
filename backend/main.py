@@ -71,6 +71,7 @@ from routers.triage_explain import router as triage_explain_router
 from routers.messaging import router as messaging_router
 from routers.telehealth import router as telehealth_router
 from routers.asclepius import router as asclepius_router
+from routers.asclepius_provider import router as asclepius_provider_router
 from eligibility import store as elig_store
 import demo_credentials
 import field_crypto
@@ -2419,6 +2420,17 @@ async def partner_upload_page():
     tokenized, expiring link. The token is validated server-side on the POST —
     this shell renders for anyone, uploads only with a valid token."""
     html_path = os.path.join(os.path.dirname(__file__), "../frontend/partner_upload.html")
+    with open(html_path) as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/provider", response_class=HTMLResponse)
+async def data_provider_portal():
+    """Data Provider Portal (EHR PRD §4, email+password door) — a standalone,
+    locked-down page (like /asclepius). Served unauthenticated by design; the page
+    JS gates on an Asclepius data_partner token and shows its own login → forced
+    password reset → single upload screen. Static assets load from /static/provider/."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/provider/index.html")
     with open(html_path) as f:
         return HTMLResponse(content=f.read())
 
@@ -5918,6 +5930,7 @@ app.include_router(triage_explain_router)
 app.include_router(messaging_router)
 app.include_router(telehealth_router)
 app.include_router(asclepius_router)
+app.include_router(asclepius_provider_router)
 
 # Gold Standard — conversation-capture training data (Data Training tab). Mounted
 # defensively: a missing optional dependency disables Gold rather than crashing

@@ -1,0 +1,190 @@
+/* ═══════════════════════════════════════════════════════════
+   Data Provider Portal — provider.css
+   Layered on /static/styles.css + /static/asclepius/asclepius.css.
+   Only adds the portal-specific chrome: auth framing, the drop
+   zone, upload progress/results, and the history table tweaks.
+   ═══════════════════════════════════════════════════════════ */
+
+.prv-body { min-height: 100vh; }
+
+/* Utility: visually hide but keep accessible (the real file input). */
+.prv-visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ─── Main / layout ───────────────────────────────────────── */
+.prv-main { padding: 28px 16px 80px; }
+
+/* ─── Auth screens (login + reset) ────────────────────────── */
+.prv-auth-wrap {
+  min-height: calc(100vh - 8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.prv-auth-card { max-width: 440px; }
+.prv-lead {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--asc-muted, #6b7280);
+  margin-bottom: 18px;
+}
+
+/* Password strength hint under the reset field. */
+.prv-strength {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 6px;
+  min-height: 16px;
+}
+.prv-strength.weak   { color: var(--asc-danger, #ef4444); }
+.prv-strength.fair   { color: var(--asc-warning, #f59e0b); }
+.prv-strength.strong { color: var(--asc-success, #10b981); }
+
+/* ─── Upload screen ───────────────────────────────────────── */
+.prv-upload { gap: 18px; }
+
+.prv-intro-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--asc-text, #111827);
+  margin-bottom: 6px;
+}
+.prv-intro-sub {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--asc-muted, #6b7280);
+  max-width: 62ch;
+}
+
+.prv-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+/* Drop zone — a real <button>, keyboard + pointer usable. */
+.prv-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 190px;
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--asc-text, #111827);
+  background:
+    linear-gradient(0deg, rgba(37, 99, 235, .03), rgba(37, 99, 235, .03));
+  border: 2.5px dashed var(--asc-line-strong, #d1d5db);
+  border-radius: var(--radius-lg, 16px);
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.prv-drop:hover,
+.prv-drop:focus-visible {
+  border-color: var(--asc-primary, #2563eb);
+  background: var(--asc-primary-light, #eff6ff);
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
+}
+.prv-drop.is-dragover {
+  border-color: var(--asc-primary, #2563eb);
+  border-style: solid;
+  background: var(--asc-primary-light, #eff6ff);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .18);
+}
+.prv-drop-icon {
+  font-size: 40px;
+  line-height: 1;
+  color: var(--asc-primary, #2563eb);
+}
+.prv-drop-title { font-size: 17px; font-weight: 700; }
+.prv-drop-sub { font-size: 13px; color: var(--asc-muted, #6b7280); }
+.prv-drop-help { margin-top: 12px; line-height: 1.5; }
+
+/* Batch progress bar. */
+.prv-progress { margin-top: 18px; }
+.prv-progress-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--asc-text, #111827);
+  margin-bottom: 6px;
+}
+.prv-progress-track {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--gray-200, #e5e7eb);
+  overflow: hidden;
+}
+.prv-progress-fill {
+  position: absolute;
+  inset: 0 100% 0 0;
+  right: auto;
+  width: 0%;
+  background: linear-gradient(90deg, #2563eb, #7c3aed);
+  border-radius: 999px;
+  transition: width .2s ease;
+}
+
+/* Per-file result rows (current batch). */
+.prv-results { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.prv-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--asc-line, #e5e7eb);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--gray-50, #f9fafb);
+}
+.prv-result-icon { font-size: 16px; line-height: 1.4; flex: 0 0 auto; }
+.prv-result-main { flex: 1; min-width: 0; }
+.prv-result-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--asc-text, #111827);
+  word-break: break-word;
+}
+.prv-result-msg { font-size: 12.5px; color: var(--asc-muted, #6b7280); margin-top: 2px; line-height: 1.45; }
+.prv-result-type { font-size: 11px; color: var(--asc-muted, #6b7280); }
+
+/* ─── Helper card ─────────────────────────────────────────── */
+.prv-checklist { margin: 0 0 14px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.prv-checklist li { font-size: 13.5px; line-height: 1.5; color: var(--asc-text, #111827); }
+.prv-checklist code {
+  font-size: 12px;
+  background: var(--gray-100, #f3f4f6);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.prv-note { line-height: 1.5; }
+
+/* ─── History ─────────────────────────────────────────────── */
+.prv-history-table td { vertical-align: middle; }
+.prv-hist-detail { color: var(--asc-muted, #6b7280); font-size: 12.5px; line-height: 1.45; }
+.prv-hist-files { font-variant-numeric: tabular-nums; }
+.prv-history-empty {
+  text-align: center;
+  padding: 40px 24px;
+  color: var(--asc-muted, #6b7280);
+}
+.prv-history-empty .asc-empty-icon { font-size: 34px; margin-bottom: 8px; }
+
+/* ─── Responsive ──────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .prv-grid { grid-template-columns: 1fr; }
+  .asc-header-inner { flex-wrap: wrap; gap: 10px; }
+}

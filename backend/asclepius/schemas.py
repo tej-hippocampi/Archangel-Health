@@ -495,3 +495,22 @@ class CredentialSummaryRequest(BaseModel):
 
     recipient: Optional[str] = None
     acknowledged: bool = False
+
+
+# ─── Data Provider Portal — email+password door (EHR PRD §4) ──────────────────
+class DataProviderInviteRequest(BaseModel):
+    """Admin invites a data provider (Exports → Data Providers)."""
+
+    email: EmailLike
+    org_name: Optional[str] = None
+    specialty: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ProviderPasswordRequest(BaseModel):
+    """Provider forced/normal password reset. ``current_password`` is required for a
+    normal change; on the first forced reset the Bearer token is the proof (the
+    temp password was already consumed at login), so it may be blank."""
+
+    new_password: str
+    current_password: str = ""
