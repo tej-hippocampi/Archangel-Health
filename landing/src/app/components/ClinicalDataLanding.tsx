@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { SignInDialog } from "@/app/components/SignInDialog";
+import { SignUpDialog } from "@/app/components/SignUpDialog";
 import * as authApi from "@/lib/auth-api";
 import "@/styles/clinical-fonts.css";
 
@@ -17,6 +18,8 @@ const mailto = (subject: string) => `mailto:${MAIL}?subject=${encodeURIComponent
 export default function ClinicalDataLanding() {
   const { user, loading, logout, token } = useAuth();
   const [signInOpen, setSignInOpen] = useState(false);
+  const [signUpOpen, setSignUpOpen] = useState(false);
+  const [signUpInitialStep, setSignUpInitialStep] = useState<"role" | "patient-codes">("role");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -32,6 +35,29 @@ export default function ClinicalDataLanding() {
       cancelled = true;
     };
   }, [user, token]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const isSignoutQuery = params.get("signout") === "1";
+    const isSignoutPath = window.location.pathname === "/auth/signout";
+    if (isSignoutQuery || isSignoutPath) {
+      logout();
+      params.delete("signout");
+      const newSearch = params.toString();
+      const newUrl = (isSignoutPath ? "/" : window.location.pathname) + (newSearch ? "?" + newSearch : "") + window.location.hash;
+      window.history.replaceState(null, "", newUrl);
+    }
+  }, [logout]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash === "#recovery-plan") {
+      setSignUpInitialStep("patient-codes");
+      setSignUpOpen(true);
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
 
   /* ---------- scroll reveals ---------- */
   useEffect(() => {
@@ -302,13 +328,31 @@ export default function ClinicalDataLanding() {
           <a href="#consults">Contributors</a>
           {!loading &&
             (user ? (
-              <button type="button" className="nav-auth" onClick={logout}>
-                Sign out
-              </button>
+              <>
+                <span className="nav-email">{user.email}</span>
+                <a className="nav-auth" href={authApi.doctorAppUrl()}>
+                  {user.name ? user.name.trim().split(" ").slice(0, 2).join(" ") : "Doctor Portal"}
+                </a>
+                <button type="button" className="nav-auth" onClick={logout}>
+                  Sign out
+                </button>
+              </>
             ) : (
-              <button type="button" className="nav-auth" onClick={() => setSignInOpen(true)}>
-                Sign in
-              </button>
+              <>
+                <button type="button" className="nav-auth" onClick={() => setSignInOpen(true)}>
+                  Sign in
+                </button>
+                <button
+                  type="button"
+                  className="nav-auth"
+                  onClick={() => {
+                    setSignUpInitialStep("role");
+                    setSignUpOpen(true);
+                  }}
+                >
+                  Sign up
+                </button>
+              </>
             ))}
           <a className="nav-cta" href={mailto("Data request — Archangel Health")}>Request data</a>
         </nav>
@@ -569,6 +613,7 @@ export default function ClinicalDataLanding() {
       </footer>
 
       <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
+      <SignUpDialog open={signUpOpen} onOpenChange={setSignUpOpen} initialStep={signUpInitialStep} />
 
       <style>{styles}</style>
     </div>
@@ -699,6 +744,15 @@ body {
   transition: color 0.2s;
 }
 .clinical-landing .nav-auth:hover { color: var(--bone); }
+
+.clinical-landing .nav-email {
+  font-size: 0.8rem;
+  color: var(--slate-dim);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .clinical-landing .nav-cta {
   color: var(--ink) !important;
@@ -1344,6 +1398,7 @@ body {
   .clinical-landing .nav-links { gap: 14px; font-size: 0.8rem; }
   .clinical-landing .nav-cta { padding: 7px 12px; }
   .clinical-landing .wordmark span { display: none; }
+  .clinical-landing .nav-email { display: none; }
   .clinical-landing .hero { padding-top: 100px; }
   .clinical-landing .hero-ctas .btn { width: 100%; text-align: center; }
   .clinical-landing .case-id { gap: 12px; }
