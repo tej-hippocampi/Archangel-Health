@@ -106,6 +106,22 @@ def test_forced_reset_then_upload_ingests_a_real_case():
         assert any((c.get("case") or {}).get("case_source") == "real_deid" for c in recs) or recs
 
 
+def test_single_loose_file_is_wrapped_and_ingested():
+    """A single loose (non-zip) file must be wrapped into a bundle, not rejected."""
+    store = A.fresh_store()
+    _provision(store)
+    h = {"Authorization": f"Bearer {_login()}"}
+    client.post("/api/asclepius/provider/password", headers=h,
+                json={"new_password": "BrandNewPass-456!"})
+    csv = (b"patient_key,panel,analyte,value,unit,collected_at\n"
+           b"p1,BMP,Creatinine,2.4,mg/dL,2025-03-08")
+    up = client.post("/api/asclepius/provider/uploads", headers=h,
+                     files=[("files", ("labs.csv", csv, "text/csv"))])
+    assert up.status_code == 200, up.text
+    row = store.get_ingest_upload(up.json()["upload_id"])
+    assert row["status"] in ("ingested", "quarantined")  # processed, not rejected-as-nonzip
+
+
 def test_revoked_provider_cannot_sign_in():
     store = A.fresh_store()
     p = _provision(store)

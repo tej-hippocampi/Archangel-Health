@@ -227,8 +227,11 @@ def _bundle_zip(files: List[Dict[str, Any]], *, specialty: Optional[str]) -> byt
     single already-zip upload is passed through untouched; loose files are packed
     into a fresh zip (with a manifest.json carrying the provider's specialty when
     the bundle doesn't already include one)."""
-    if len(files) == 1 and (files[0]["content"][:2] == b"PK"
-                            or files[0]["filename"].lower().endswith(".zip")):
+    # Pass a single, genuinely-zip upload through untouched. Key off the real PK
+    # magic bytes — NOT the extension — so a mis-named single file (e.g. a CSV
+    # called "data.zip") is still wrapped into a valid bundle rather than handed to
+    # the unpacker as a non-zip and rejected.
+    if len(files) == 1 and files[0]["content"][:2] == b"PK":
         return files[0]["content"]
     has_manifest = any(os.path.basename(f["filename"]).lower() == "manifest.json" for f in files)
     buf = io.BytesIO()
