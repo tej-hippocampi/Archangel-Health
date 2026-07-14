@@ -1613,20 +1613,23 @@
     host.appendChild(listHost);
     host.appendChild(h('div', { style: 'display:flex;gap:12px;align-items:center;margin-top:6px' }, addBtn, seedBtn));
 
-    // Populate the list from the current draft AFTER the node is attached to the
-    // card (paintRubricList finds it by id, so it is resilient to the card being
-    // rebuilt while an async seed is in flight — the fix for the mid-seed rebuild).
-    paintRubricList();
+    // Paint the list NOW from the current draft. Pass the freshly-created node
+    // explicitly: renderRationale builds this subtree DETACHED and only attaches
+    // it at the end, so a getElementById lookup here would return null and the
+    // list would mount blank (review finding). The async seed below repaints via
+    // getElementById (the card is attached by the time its await resolves), which
+    // is what makes it resilient to a rebuild mid-seed.
+    paintRubricList(listHost);
     // Seed once when the card first appears (fire-and-forget).
     if (!d.rubricSeeded) seedRubric(false);
     return host;
   }
 
-  // Repaint the rubric list by finding the LIVE #ascRubricList (never a captured
-  // closure over a possibly-detached node). Safe to call anytime — no-op if the
-  // card isn't mounted.
-  function paintRubricList() {
-    const listHost = document.getElementById('ascRubricList');
+  // Repaint the rubric list. Pass the node explicitly for the initial (still-
+  // detached) mount; call with no arg from async/live paths to find the LIVE
+  // #ascRubricList (resilient to the card being rebuilt while a seed is in flight).
+  function paintRubricList(listHostArg) {
+    const listHost = listHostArg || document.getElementById('ascRubricList');
     if (!listHost) return;
     const d = state.draft;
     clear(listHost);
@@ -2406,7 +2409,7 @@
     renderExtra();
     body.appendChild(extraHost);
     body.appendChild(h('button', { class: 'asc-btn-link', type: 'button', style: 'margin-top:8px',
-      onClick: () => { anchor._extra.push(emptyAnchor()); saveDraft(); renderExtra(); } }, '+ Add another citation'));
+      onClick: () => { anchor._extra.push(emptyAnchor()); saveDraft(); renderExtra(); updateSubmitState(); } }, '+ Add another citation'));
 
     const status = h('span', { class: 'asc-anchor-valid' });
     const toggle = h('button', {
@@ -2484,7 +2487,16 @@
     const url = h('input', { class: 'asc-input', placeholder: 'Paste a source URL (optional) — https://…', value: anchor.url || '' });
     url.addEventListener('input', () => {
       anchor.url = url.value.trim();
-      if (anchor.url && !anchor.source_type) { anchor.source_type = 'other'; sourceSel.value = 'other'; }
+      // Paste-your-own (BUG-3c): a bare URL should be a usable citation, not
+      // silently dropped for lacking source type/identifier (isValidAnchor needs
+      // both). So a pasted URL back-fills source_type=other + the empty citation/
+      // identifier fields with the URL, making it a valid, grounded anchor. The
+      // doctor can still refine the text; we never overwrite what they typed.
+      if (anchor.url) {
+        if (!anchor.source_type) { anchor.source_type = 'other'; sourceSel.value = 'other'; }
+        if (!(anchor.identifier || '').trim()) { anchor.identifier = anchor.url; identifier.value = anchor.url; }
+        if (!(anchor.citation_text || '').trim()) { anchor.citation_text = anchor.url; citation.value = anchor.url; }
+      }
       openLink._sync(); saveDraft(); updateSubmitState();
     });
     return h('div', {},
