@@ -508,12 +508,19 @@ def value_reasoning_trace_marginal() -> float:
 
 def baseline_models() -> list:
     """The frontier models to answer a case COLD for failure capture (FEAT-1).
-    Comma-separated ``ASCLEPIUS_BASELINE_MODELS`` (e.g.
-    ``claude-opus-4-8,claude-sonnet-4-6``). These route through the shared
-    ``ai.llm_client`` (Anthropic-backed here); a model id the backend can't reach
-    is recorded as an errored run, never a crash."""
-    raw = os.getenv("ASCLEPIUS_BASELINE_MODELS", "claude-opus-4-8")
-    return [m.strip() for m in raw.split(",") if m.strip()]
+    Comma-separated ``ASCLEPIUS_BASELINE_MODELS`` (frontier model ids). These route
+    through the shared ``ai.llm_client``; a model id the backend can't reach is
+    recorded as an errored run, never a crash.
+
+    The DEFAULT is resolved from the ``asclepius_baseline`` role in
+    ``ai/model_config.py`` — the single source of truth for model ids — so no
+    model literal ever lives in this file (repo invariant: model ids only in
+    model_config)."""
+    raw = os.getenv("ASCLEPIUS_BASELINE_MODELS")
+    if raw:
+        return [m.strip() for m in raw.split(",") if m.strip()]
+    from ai.model_config import resolve
+    return [resolve("asclepius_baseline")["model"]]
 
 
 def value_rubric_marginal() -> float:

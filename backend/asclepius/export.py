@@ -637,17 +637,23 @@ def grade(answer, rubric, provider="anthropic"):
     if not key:
         return {"skipped": "no_api_key", "max_points": rubric.get("max_points"),
                 "criteria": rubric.get("criteria")}
+    # Choose your judge model via GRADER_MODEL (this scaffold is model-agnostic on
+    # purpose — pick the frontier model your team scores with).
+    grader_model = os.getenv("GRADER_MODEL")
+    if not grader_model:
+        raise SystemExit("Set GRADER_MODEL to the judge model id for your provider "
+                         "(e.g. a current Anthropic or OpenAI model).")
     if provider == "anthropic":
         import anthropic  # pip install anthropic
         client = anthropic.Anthropic(api_key=key)
-        resp = client.messages.create(model=os.getenv("GRADER_MODEL", "claude-sonnet-4-5"),
+        resp = client.messages.create(model=grader_model,
                                        max_tokens=1500, system=PROMPT,
                                        messages=[{"role": "user", "content": user}])
         text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
     else:
         from openai import OpenAI  # pip install openai
         client = OpenAI(api_key=key)
-        resp = client.chat.completions.create(model=os.getenv("GRADER_MODEL", "gpt-4o"),
+        resp = client.chat.completions.create(model=grader_model,
                                               messages=[{"role": "system", "content": PROMPT},
                                                         {"role": "user", "content": user}])
         text = resp.choices[0].message.content
