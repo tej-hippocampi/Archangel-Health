@@ -197,6 +197,39 @@ def test_buyer_delivery_and_workspace_download(monkeypatch):
                       headers=A.headers_for(other)).status_code == 404
 
 
+def test_buyer_credentials_reissued_until_first_login(monkeypatch):
+    """Credentials are (re)issued on every send until the buyer completes first
+    login (recovers a failed first-delivery email); after they set their own
+    password, a later send keeps it."""
+    monkeypatch.setenv("EMAIL_DEV_MODE", "1")
+    store = _store()
+    admin_h = _admin_h()
+    org = "Riverside Nephrology Associates"
+    ev = _evaluator(org=org)
+    _submit_export_ready(admin_h, A.headers_for(ev))
+    email = f"buyer-{A.uniq(6)}@acme.example.com"
+
+    def send():
+        return client.post(f"{B}/admin/buyer-deliveries", headers=admin_h, json={
+            "buyer_name": "Acme", "buyer_email": email, "organizations": [org],
+        })
+
+    r1 = send()
+    assert r1.status_code == 200 and r1.json()["credentials_issued"] is True
+    # Not yet logged in → a re-send re-issues credentials (recovery path).
+    r2 = send()
+    assert r2.status_code == 200 and r2.json()["credentials_issued"] is True
+    assert r2.json()["first_delivery"] is False
+
+    # Buyer completes first login (sets their own password).
+    buyer = store.get_user_by_email(email)
+    store.clear_buyer_password_reset(buyer["id"])
+    r3 = send()
+    assert r3.status_code == 200 and r3.json()["credentials_issued"] is False
+    # Three deliveries recorded; the buyer sees all three.
+    assert len(store.list_buyer_deliveries(buyer_account_id=buyer["id"])) == 3
+
+
 def test_admin_is_denied_buyer_portal():
     admin_h = _admin_h()
     # An admin token is not a buyer → the buyer portal rejects it.

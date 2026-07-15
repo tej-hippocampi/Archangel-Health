@@ -144,12 +144,17 @@ async def send_buyer_delivery(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    # Provision (or rotate) the buyer account. First delivery mints credentials;
-    # a returning buyer keeps their password (their workspace already exists).
+    # Provision (or rotate) the buyer account. We (re)issue credentials whenever
+    # the buyer has NOT yet completed first login (no account, or an account still
+    # flagged must_reset_password). This makes the flow recover from a failed
+    # first-delivery email: the temp password only ever lives in the email, so if
+    # that email failed, re-sending rotates + re-issues a fresh password rather
+    # than stranding the buyer. A buyer who already set their own password keeps
+    # it (their workspace already exists) and just gets the new dataset.
     existing = store.get_buyer_account_by_email(body.buyer_email)
-    first_delivery = existing is None
+    issue_credentials = existing is None or bool(existing.get("must_reset_password"))
     temp_password = generate_secure_password()
-    if first_delivery:
+    if issue_credentials:
         buyer = store.provision_buyer(
             email=body.buyer_email, password=temp_password, buyer_name=body.buyer_name,
             note=body.note, invited_by=admin["id"], invite_expires_at=_invite_expiry_iso(),
@@ -170,17 +175,19 @@ async def send_buyer_delivery(
         temporary_password=temp_password, buyer_name=body.buyer_name,
         datasets_label=label, data_format=data_format,
         record_count=manifest.get("record_count") or 0, note=body.note or "",
-        invite_ttl_days=_invite_ttl_days(), first_delivery=first_delivery,
+        invite_ttl_days=_invite_ttl_days(), first_delivery=issue_credentials,
     )
     email_ok = await send_html_email(
         body.buyer_email, "Your Archangel Health dataset is ready", html_body,
         importance_headers=True,
     )
+    first_delivery = existing is None
     store.log_event(entity_type="buyer_delivery", entity_id=delivery["delivery_id"],
                     event_type="delivery_sent", actor=admin["id"],
                     payload={"buyer_email": body.buyer_email, "export_id": manifest["export_id"],
                              "organizations": orgs, "record_count": manifest.get("record_count"),
-                             "email_ok": email_ok, "first_delivery": first_delivery})
+                             "email_ok": email_ok, "first_delivery": first_delivery,
+                             "credentials_issued": issue_credentials})
     return {
         "delivery_id": delivery["delivery_id"],
         "export_id": manifest["export_id"],
@@ -188,11 +195,16 @@ async def send_buyer_delivery(
         "buyer_email": body.buyer_email,
         "workspace_url": _workspace_url(),
         "first_delivery": first_delivery,
+        "credentials_issued": issue_credentials,
         "email_sent": email_ok,
         "message": (f"Delivered {manifest.get('record_count') or 0} record(s) to "
                     f"{body.buyer_email} — {'account created and ' if first_delivery else ''}"
                     f"credentials emailed." if email_ok
-                    else "Delivery recorded, but the notification email could not be sent."),
+                    else ("Delivery recorded, but the notification email could not be sent. "
+                          + ("The buyer has no working password yet — re-send to re-issue one "
+                             "once email is working." if issue_credentials
+                             else "The buyer already has workspace access; only the "
+                                  "notification failed."))),
     }
 
 
