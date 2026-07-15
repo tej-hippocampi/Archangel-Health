@@ -93,6 +93,18 @@ async def send_buyer_delivery(
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
     store = _store()
 
+    # Refuse to deliver to an email that already belongs to a NON-buyer account
+    # (evaluator / admin / data_partner). Provisioning would otherwise convert that
+    # real account into a buyer — resetting its password and role. Checked BEFORE
+    # building the export so we never mark records exported for a rejected send.
+    clash = store.get_user_by_email(body.buyer_email)
+    if clash and clash.get("role") != "buyer":
+        raise HTTPException(
+            status_code=409,
+            detail=(f"{body.buyer_email} already belongs to a non-buyer account "
+                    f"({clash.get('role')}). Use a different email for the buyer."),
+        )
+
     orgs = [o for o in (body.organizations or []) if (o or "").strip()]
     if not orgs:
         raise HTTPException(status_code=400, detail="Select at least one organization to send.")
@@ -145,17 +157,18 @@ async def send_buyer_delivery(
     else:
         buyer = existing
 
+    # Exports are always JSONL (one mapped, schema-validated record per line).
+    data_format = "JSONL"
     delivery = store.record_buyer_delivery(
         buyer_account_id=buyer["buyer_account_id"], buyer_email=body.buyer_email,
-        export_id=manifest["export_id"], label=label,
-        data_format=body.data_format or body.profile,
+        export_id=manifest["export_id"], label=label, data_format=data_format,
         record_count=manifest.get("record_count") or 0, note=body.note, sent_by=admin["id"],
     )
 
     html_body = build_buyer_delivery_email(
         workspace_url=_workspace_url(), email=body.buyer_email,
         temporary_password=temp_password, buyer_name=body.buyer_name,
-        datasets_label=label, data_format=(body.data_format or body.profile),
+        datasets_label=label, data_format=data_format,
         record_count=manifest.get("record_count") or 0, note=body.note or "",
         invite_ttl_days=_invite_ttl_days(), first_delivery=first_delivery,
     )

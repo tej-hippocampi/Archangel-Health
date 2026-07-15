@@ -201,3 +201,24 @@ def test_admin_is_denied_buyer_portal():
     admin_h = _admin_h()
     # An admin token is not a buyer → the buyer portal rejects it.
     assert client.get(f"{B}/buyer/me", headers=admin_h).status_code == 403
+
+
+def test_send_to_existing_nonbuyer_email_is_refused(monkeypatch):
+    """Delivering to an email that already belongs to an evaluator/admin must NOT
+    convert that account into a buyer — it is refused and the account is intact."""
+    monkeypatch.setenv("EMAIL_DEV_MODE", "1")
+    store = _store()
+    admin_h = _admin_h()
+    org = "Riverside Nephrology Associates"
+    ev = _evaluator(org=org)
+    _submit_export_ready(admin_h, A.headers_for(ev))
+
+    r = client.post(f"{B}/admin/buyer-deliveries", headers=admin_h, json={
+        "buyer_name": "Acme", "buyer_email": ev["email"], "organizations": [org],
+    })
+    assert r.status_code == 409, r.text
+    # The evaluator's account is untouched (still an evaluator, still active).
+    still = store.get_user_by_email(ev["email"])
+    assert still["role"] == "evaluator" and still["active"]
+    # And no records were consumed / marked exported for the rejected send.
+    assert not store.list_buyer_deliveries()

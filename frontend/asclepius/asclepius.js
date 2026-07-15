@@ -3781,9 +3781,8 @@
           h('span', { class: 'asc-card-sub' }, '  ' + o.contributor_count + ' contributor(s) · ' + o.record_count + ' record(s)')));
     });
 
-    // Time window (Pacific): all time / this week / today.
+    // Time window (Pacific): all time / this week / today. Output is always JSONL.
     const winSel = selectFrom(['all time', 'this week', 'today'], 'all time');
-    const fmtSel = selectFrom(profileNames(), 'default');
     const summary = h('div', { class: 'asc-card-sub', style: 'margin:10px 0' });
     const sendBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '📨 Send to buyer');
     function syncSummary() {
@@ -3798,23 +3797,24 @@
       const scope = {};
       if (winSel.value === 'today') scope.since = windowSinceISO(0);
       else if (winSel.value === 'this week') scope.since = windowSinceISO(6);
-      openSendToBuyerModal(Array.from(selected), scope, fmtSel.value, winSel.value);
+      openSendToBuyerModal(Array.from(selected), scope, winSel.value);
     });
 
     card.appendChild(h('div', { class: 'asc-card-pad' },
       h('div', { class: 'asc-form-row', style: 'align-items:flex-end' },
         h('div', { class: 'asc-field', style: 'margin-bottom:0' }, h('label', { class: 'asc-label' }, 'Time window (Pacific)'), winSel),
-        h('div', { class: 'asc-field', style: 'margin-bottom:0' }, h('label', { class: 'asc-label' }, 'Data format'), fmtSel)),
+        h('div', { class: 'asc-field', style: 'margin-bottom:0' }, h('label', { class: 'asc-label' }, 'Data format'),
+          h('div', { class: 'asc-badge asc-badge-gray', style: 'align-self:start;padding:8px 12px' }, 'JSONL'))),
       h('div', { style: 'margin-top:14px' }, h('label', { class: 'asc-label' }, 'Organizations'), h('div', {}, rows)),
       summary,
       sendBtn));
   }
 
-  function openSendToBuyerModal(orgs, scope, profile, windowLabel) {
+  function openSendToBuyerModal(orgs, scope, windowLabel) {
     const overlay = h('div', { class: 'call-team-overlay is-open', onClick: (e) => { if (e.target === overlay) overlay.remove(); } });
     const name = h('input', { class: 'asc-input', placeholder: 'Acme Frontier Labs' });
     const email = h('input', { class: 'asc-input', type: 'email', placeholder: 'buyer@acme.ai' });
-    const fmt = h('input', { class: 'asc-input', value: profile, readonly: 'readonly' });
+    const fmt = h('input', { class: 'asc-input', value: 'JSONL', readonly: 'readonly' });
     const notes = h('textarea', { class: 'asc-textarea', placeholder: 'Additional notes for the buyer (optional)' });
     const status = h('div', { style: 'margin-top:10px' });
     const sendBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '📨 Send to buyer');
@@ -3826,7 +3826,7 @@
       try {
         const r = await api('/admin/buyer-deliveries', { method: 'POST', body: Object.assign({
           buyer_name: name.value.trim(), buyer_email: email.value.trim(),
-          organizations: orgs, profile: profile, data_format: profile,
+          organizations: orgs, profile: 'default',
           note: notes.value.trim() || null,
         }, scope) });
         overlay.remove();
@@ -3843,7 +3843,7 @@
     });
     const popup = h('div', { class: 'call-team-popup', style: 'max-width:560px', onClick: (e) => e.stopPropagation() },
       h('div', { class: 'call-team-title' }, 'Send to buyer'),
-      h('div', { class: 'call-team-sub' }, orgs.length + ' organization(s) · ' + windowLabel + ' · format ' + profile),
+      h('div', { class: 'call-team-sub' }, orgs.length + ' organization(s) · ' + windowLabel + ' · JSONL'),
       h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Buyer name'), name),
       h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Buyer email'), email),
       h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Data format'), fmt),
