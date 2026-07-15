@@ -44,6 +44,20 @@ MODEL_REGISTRY: dict[str, dict[str, Any]] = {
     # current/non-max model so realistic, revisable errors are more likely (PRD §7.2).
     "asclepius_prompt_gen": {"model": "claude-opus-4-8", "temperature": 0.7, "max_tokens": 2000},
     "asclepius_prompt_judge": {"model": "claude-opus-4-8", "temperature": 0.0, "max_tokens": 800},
+    # Synthetic Multimodal Cases PRD §3 — the V3 (seamless) structured-case pipeline.
+    # ``case_gen`` AUTHORS a full PHI-free ClinicalCase (demographics + ≥2 lab panels
+    # with trends + EHR notes + meds + ground truth) from a hard-case archetype: the
+    # strongest model + generous tokens, since the case IS the product. The two gates
+    # are deterministic scorers. Overridable via MODEL_ASCLEPIUS_CASE_GEN /
+    # _CASE_JUDGE / _HARDNESS_JUDGE. WITHOUT these entries resolve() raises and every
+    # multimodal case is dropped (mis-reported as "no LLM"), so V3 falls back to text.
+    "asclepius_case_gen": {"model": "claude-opus-4-8", "temperature": 0.6, "max_tokens": 4000},
+    "asclepius_case_judge": {"model": "claude-opus-4-8", "temperature": 0.0, "max_tokens": 1200},
+    "asclepius_hardness_judge": {"model": "claude-opus-4-8", "temperature": 0.0, "max_tokens": 1000},
+    # Citation retrieval ranking (BUG-3): score candidate library entries for
+    # relevance to the answer's claims. Deterministic; small output. Overridable via
+    # MODEL_ASCLEPIUS_CITE_RANK.
+    "asclepius_cite_rank": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 800},
     # Frontier-model failure capture (FEAT-1): answer the rendered case COLD with a
     # configured frontier model, verbatim. The specific model is chosen per call
     # (model override) from ASCLEPIUS_BASELINE_MODELS; this registry entry only
