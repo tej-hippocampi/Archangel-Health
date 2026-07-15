@@ -854,9 +854,19 @@ async def _autofill_queue(
                         )
                 except Exception:
                     log.exception("asclepius autofill: multimodal generation failed")
-            # Text corpus seeding — the fast fallback. Runs whenever multimodal
-            # generation produced nothing, INCLUDING for V3, so the seamless queue is
-            # never empty. (Serving prefers any multimodal case over these.)
+            # Fallback when live generation produced nothing (no LLM key, or every
+            # candidate dropped). For V3 nephrology we seed the ratified GOLD
+            # multimodal cases — real labs + EHR notes + an authored A/B pair, and NO
+            # LLM required — so the seamless queue shows genuine structured cases even
+            # with generation unavailable. Every other flow keeps the text corpus seed.
+            if created == 0 and mm_pref and specialty == "nephrology":
+                from asclepius.gold_cases import load_gold_cases
+                res = load_gold_cases(store, specialty=specialty)
+                created = res["loaded"]
+                log.info(
+                    "asclepius autofill: seeded %d GOLD multimodal case(s) for %s (%d already present)",
+                    created, specialty, res["skipped"],
+                )
             if created == 0:
                 created = await _seed_tasks_from_corpus(
                     store, specialty, _autofill_batch(),
@@ -2542,6 +2552,22 @@ async def debug_mm_generate(
     except Exception as exc:  # surface the failure instead of a 500 the operator can't read
         out["error"] = f"{type(exc).__name__}: {exc}"
     return out
+
+
+@router.get("/debug/load-gold-cases")
+async def debug_load_gold_cases(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+    """Load the 10 ratified GOLD nephrology multimodal cases into the queue as
+    ready-to-serve V3 tasks (real labs + EHR + an authored A/B pair, NO LLM needed).
+    Idempotent. Any signed-in evaluator can call it (synthetic data only) so V3 can be
+    populated on demand — independent of the ANTHROPIC_API_KEY state."""
+    from asclepius.gold_cases import load_gold_cases
+
+    res = load_gold_cases(_store())
+    res["multimodal_in_queue"] = len([
+        t for t in _store().list_tasks(specialty="nephrology", limit=50)
+        if t.get("modality") == "multimodal"
+    ])
+    return res
 
 
 @router.get("/stats")

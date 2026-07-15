@@ -676,7 +676,22 @@ async def generate_case(archetype: Dict[str, Any], *, specialty: str = "general"
     )
 
     mm = (archetype or {}).get("multimodal") or {}
-    ctx = [f"Specialty: {specialty}", f"Archetype topic: {archetype.get('topic', '')}"]
+    # Few-shot exemplars (rotated by archetype so calls don't all show the same two):
+    # the ratified GOLD cases teach the EXACT ClinicalCase shape (so the model never
+    # trips extra='forbid') and the difficulty pattern. Injected FIRST, before the
+    # archetype spec. Degrades to no examples if the gold set is unavailable.
+    ctx: List[str] = []
+    try:
+        from asclepius.gold_cases import fewshot_prompt_block, GOLD_NEPHROLOGY_CASES
+
+        _n = len(GOLD_NEPHROLOGY_CASES) or 1
+        _start = (abs(hash(str(archetype.get("topic", "")))) % _n)
+        _fs = fewshot_prompt_block(k=2, start=_start)
+        if _fs:
+            ctx.append(_fs.strip())
+    except Exception:  # never let exemplar loading break generation
+        pass
+    ctx += [f"Specialty: {specialty}", f"Archetype topic: {archetype.get('topic', '')}"]
     if archetype.get("why_hard"):
         ctx.append(f"Why hard: {archetype['why_hard']}")
     if mm.get("panels"):
