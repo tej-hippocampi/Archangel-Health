@@ -406,15 +406,17 @@ def hardness_min() -> float:
 
 
 def v3_multimodal_only() -> bool:
-    """Whether the V3 (seamless) queue serves MULTIMODAL cases ONLY — i.e. the
-    default V3 experience is a structured clinical case (demographics + lab panels
-    with trends + EHR notes + meds), never a bare text prompt. Default ON.
+    """Whether the V3 (seamless) queue PREFERS multimodal cases — i.e. the default
+    V3 experience is a structured clinical case (demographics + lab panels with
+    trends + EHR notes + meds) whenever one is available, served ahead of any bare
+    text prompt. Default ON.
 
-    Requires synthetic multimodal generation, which needs an LLM key (the case-gen
-    model synthesizes the labs/notes; an empty case is dropped by the BUG-1 content
-    gate, so there is no offline fallback). With no LLM the V3 queue is EMPTY rather
-    than silently serving a text prompt — set ASCLEPIUS_V3_MULTIMODAL_ONLY=0 for a
-    text/hard V3 queue (offline demos, no-LLM deployments)."""
+    This is a PREFERENCE, not a hard filter: structured cases require synthetic
+    multimodal generation (an LLM key — the case-gen model synthesizes the
+    labs/notes), so if none have been generated yet the V3 queue falls back to the
+    normal hard queue rather than showing the clinician an empty "queue cleared"
+    screen. Set ASCLEPIUS_V3_MULTIMODAL_ONLY=0 to disable the preference entirely
+    (plain hard/text V3 queue)."""
     return (os.getenv("ASCLEPIUS_V3_MULTIMODAL_ONLY", "1").strip().lower()
             in ("1", "true", "yes", "on"))
 
