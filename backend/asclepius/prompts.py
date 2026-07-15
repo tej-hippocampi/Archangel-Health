@@ -190,7 +190,38 @@ Return ONLY JSON: {"question": "<the clinical question>", "case": {ClinicalCase 
 demographics{age_band,sex}, problem_list[{condition,since}], medications[{drug,dose,route,freq}], vitals{}, \
 lab_panels[{panel,collected_offset_days,results[{analyte,value,unit,ref_low,ref_high,flag}]}], \
 notes[{note_type,author_role,text}], ground_truth{answer,rationale,key_data[]}, hard_hook, reasoning_divergence}}. \
-No commentary."""
+No commentary.
+
+REFERENCE EXAMPLE — study the SHAPE and the DIFFICULTY pattern (a trend across two panels, a note that re-frames the \
+labs, an interacting med, a red-herring flag + a decisive flag, a named shortcut path). Then author a DIFFERENT case \
+for the archetype you are given. DO NOT copy this content:
+{"question": "A 60-69y man with newly diagnosed small cell lung cancer and a falling sodium is admitted. What is the \
+most likely cause of his hyponatremia and how should it be managed?", "case": {"case_source": "synthetic", \
+"specialty": "nephrology", "demographics": {"age_band": "60-69", "sex": "M"}, "problem_list": [{"condition": "Small \
+cell lung cancer", "since": "6 weeks"}, {"condition": "Hypertension", "since": "10 years"}], "medications": \
+[{"drug": "Hydrochlorothiazide", "dose": "25 mg", "route": "PO", "freq": "daily"}, {"drug": "Amlodipine", "dose": \
+"5 mg", "route": "PO", "freq": "daily"}], "vitals": {"bp": "128/78", "hr": "76", "rr": "16", "temp_c": "36.8"}, \
+"lab_panels": [{"panel": "BMP", "collected_offset_days": -2, "results": [{"analyte": "Na", "value": 130, "unit": \
+"mmol/L", "ref_low": 135, "ref_high": 145, "flag": "L"}, {"analyte": "K", "value": 4.1, "unit": "mmol/L", "ref_low": \
+3.5, "ref_high": 5.1, "flag": ""}, {"analyte": "Cr", "value": 0.8, "unit": "mg/dL", "ref_low": 0.7, "ref_high": 1.3, \
+"flag": ""}]}, {"panel": "BMP + osmolality", "collected_offset_days": 0, "results": [{"analyte": "Na", "value": 121, \
+"unit": "mmol/L", "ref_low": 135, "ref_high": 145, "flag": "LL"}, {"analyte": "Serum osmolality", "value": 258, \
+"unit": "mOsm/kg", "ref_low": 275, "ref_high": 295, "flag": "L"}, {"analyte": "Urine osmolality", "value": 512, \
+"unit": "mOsm/kg", "ref_low": 50, "ref_high": 1200, "flag": ""}, {"analyte": "Urine Na", "value": 68, "unit": \
+"mmol/L", "ref_low": 20, "ref_high": 40, "flag": "H"}]}], "notes": [{"note_type": "Consult", "author_role": \
+"nephrology", "text": "Consulted for a sodium of 121 down from 130 over 48h. On exam the patient is clinically \
+EUVOLEMIC: moist mucous membranes, no orthostasis, JVP normal, no edema. He denies vomiting, diarrhea, or poor \
+intake. He takes hydrochlorothiazide for hypertension. Given small cell lung cancer, euvolemia, low serum osmolality \
+with inappropriately concentrated urine (Uosm 512) and urine Na 68, the picture fits SIADH rather than \
+thiazide-induced volume depletion."}], "ground_truth": {"answer": "Euvolemic hypotonic hyponatremia from SIADH \
+secondary to small cell lung cancer. Manage with fluid restriction (and treat the malignancy); do NOT give normal \
+saline, which can paradoxically worsen the sodium. The thiazide is a minor contributor at most and is not the primary \
+driver.", "rationale": "Low serum osmolality with urine osmolality >100 and urine Na >30 in a clinically euvolemic \
+patient not on an acute diuretic effect defines SIADH; SCLC is a classic cause.", "key_data": ["clinical euvolemia", \
+"Uosm 512 with serum osm 258", "urine Na 68", "small cell lung cancer"]}, "hard_hook": "urine osmolality and urine \
+sodium interpreted against the EUVOLEMIC exam", "reasoning_divergence": "The shortcut path blames the thiazide, stops \
+it, and gives normal saline for presumed volume depletion — wrong, because the patient is euvolemic with SIADH \
+physiology and saline can worsen the hyponatremia. The sound path recognizes SIADH from SCLC and fluid-restricts."}}"""
 
 
 ASCLEPIUS_CASE_JUDGE_SYSTEM = """You score a synthetic clinical CASE on multimodal-specific quality dimensions ONLY \
