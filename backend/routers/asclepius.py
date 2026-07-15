@@ -662,27 +662,38 @@ def _query_next(
     if real_only and not user.get("real_data_approved"):
         return None
     # V3 multimodal-by-default (ASCLEPIUS_V3_MULTIMODAL_ONLY, default on): the
-    # seamless queue serves STRUCTURED CASES only — labs + EHR notes — never a bare
-    # text prompt, so every V3 case is a multimodal case. Requires synthetic
-    # multimodal generation (an LLM key); with none the queue is empty rather than
-    # falling back to a text prompt. Set the env to 0 for a text/hard V3 queue.
-    multimodal_only = portal_version == "v3" and v3_multimodal_only()
+    # seamless queue PREFERS structured cases (labs + EHR notes) — so whenever a
+    # multimodal case is available it is served ahead of a bare text prompt. It is a
+    # preference, NOT a hard filter: if no multimodal case is available (e.g. none
+    # have been generated yet), V3 falls back to the normal hard queue rather than
+    # showing the clinician an empty "queue cleared" screen. Set the env to 0 to
+    # disable the preference entirely.
+    multimodal_pref = portal_version == "v3" and v3_multimodal_only()
 
-    def _classic(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
+    def _classic(specialty: Optional[str], mm_only: bool) -> Optional[Dict[str, Any]]:
         return store.next_task_for_evaluator(
             evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
-            real_only=real_only, multimodal_only=multimodal_only,
+            real_only=real_only, multimodal_only=mm_only,
         )
 
-    def _pick(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
+    def _pick(specialty: Optional[str], mm_only: bool) -> Optional[Dict[str, Any]]:
         return (_value_aware_next(store, user, specialty, hard_only=hard_only,
-                                  real_only=real_only, multimodal_only=multimodal_only)
-                if value_aware else _classic(specialty))
+                                  real_only=real_only, multimodal_only=mm_only)
+                if value_aware else _classic(specialty, mm_only))
 
-    pick = _pick(user.get("specialty"))
+    def _pick_pref(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
+        # Prefer a multimodal case; fall back to the normal queue so V3 is never
+        # empty just because no structured case exists yet.
+        if multimodal_pref:
+            got = _pick(specialty, True)
+            if got:
+                return got
+        return _pick(specialty, False)
+
+    pick = _pick_pref(user.get("specialty"))
     if not pick and not user.get("specialty"):
         # admins/QA (and SSO-provisioned clinicians) with no specialty see any queue
-        pick = _pick(None)
+        pick = _pick_pref(None)
     return pick
 
 
@@ -788,16 +799,17 @@ async def _autofill_queue(
         if time.monotonic() - _autofill_last_attempt.get(specialty, 0.0) < cooldown:
             return None
         _autofill_last_attempt[specialty] = time.monotonic()
-        # V3 multimodal-by-default: the queue serves ONLY structured cases, so the
-        # autofill must GENERATE multimodal cases and must NOT fall back to text
-        # seeding (a text task would never be served to a V3 doctor — it would just
-        # sit in the queue). For any other flow, keep the opt-in env + text fallback.
-        mm_only = portal_version == "v3" and v3_multimodal_only()
+        # V3 multimodal-by-default: PREFER generating structured multimodal cases,
+        # but fall back to text seeding if generation is unavailable (no LLM key) so
+        # the V3 clinician is never left with an empty "queue cleared" screen. The
+        # serving side (_query_next) mirrors this — multimodal is a preference, not a
+        # hard filter.
+        mm_pref = portal_version == "v3" and v3_multimodal_only()
         try:
             created = 0
             # Multimodal autofill (Multimodal Debug PRD P0.2): a full multimodal
             # batch FIRST (case-gen → case-judge → hardness, all the normal gates).
-            if mm_only or _autofill_multimodal():
+            if mm_pref or _autofill_multimodal():
                 try:
                     mm = await asc_generation.generate_tasks(
                         store, specialty=specialty, n=_autofill_batch(),
@@ -811,26 +823,28 @@ async def _autofill_queue(
                         )
                     elif mm.get("dropped"):
                         log.warning(
-                            "asclepius autofill: multimodal batch yielded 0 for %s (dropped: %s)%s",
+                            "asclepius autofill: multimodal batch yielded 0 for %s "
+                            "(dropped: %s); falling back to text seeding so V3 is not empty",
                             specialty, mm.get("dropped"),
-                            "" if mm_only else "; falling back to text seeding",
                         )
                 except asc_generation.GenerationDisabled:
-                    # No LLM. For multimodal-only V3 this means an empty queue (by
-                    # design — never serve a text prompt as the "case" experience);
-                    # the actionable warning fires here so an operator knows why.
-                    if mm_only:
+                    # No LLM. Fall through to text seeding below so the V3 clinician
+                    # still gets a case (a bare hard prompt) rather than an empty
+                    # "queue cleared" screen. The actionable warning tells the
+                    # operator that structured multimodal cases need an LLM key.
+                    if mm_pref:
                         log.warning(
-                            "asclepius autofill: V3 is multimodal-only but multimodal "
-                            "generation is unavailable (no LLM key). The V3 queue will be "
-                            "empty until ANTHROPIC_API_KEY is set (or set "
-                            "ASCLEPIUS_V3_MULTIMODAL_ONLY=0 for a text queue)."
+                            "asclepius autofill: V3 prefers multimodal cases but "
+                            "generation is unavailable (no LLM key). Falling back to the "
+                            "text hard queue; set ANTHROPIC_API_KEY to serve structured "
+                            "multimodal cases."
                         )
                 except Exception:
                     log.exception("asclepius autofill: multimodal generation failed")
-            # Text corpus seeding — the fast fallback, but NEVER for multimodal-only
-            # V3 (those text tasks would be unservable to the V3 doctor).
-            if created == 0 and not mm_only:
+            # Text corpus seeding — the fast fallback. Runs whenever multimodal
+            # generation produced nothing, INCLUDING for V3, so the seamless queue is
+            # never empty. (Serving prefers any multimodal case over these.)
+            if created == 0:
                 created = await _seed_tasks_from_corpus(
                     store, specialty, _autofill_batch(),
                     hard_only=(portal_version == "v3" and hard_only_generation()),
