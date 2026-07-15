@@ -409,6 +409,49 @@ class AsclepiusStore:
             )
             conn.execute(
                 """
+                -- Buyer ACCOUNTS for the secure data workspace. The account itself
+                -- lives in ``users`` (role='buyer'); this row carries the invite /
+                -- workspace lifecycle metadata the admin sees. Data delivered to a
+                -- buyer is recorded in ``buyer_deliveries`` and always appears in
+                -- their workspace when they sign in.
+                CREATE TABLE IF NOT EXISTS buyer_accounts (
+                    buyer_account_id    TEXT PRIMARY KEY,   -- = users.id
+                    email               TEXT NOT NULL UNIQUE,
+                    buyer_name          TEXT,
+                    note                TEXT,
+                    status              TEXT NOT NULL DEFAULT 'invited', -- invited|active|revoked
+                    must_reset_password INTEGER NOT NULL DEFAULT 1,
+                    invited_by          TEXT,
+                    invited_at          TEXT,
+                    invite_expires_at   TEXT,
+                    created_at          TEXT NOT NULL,
+                    updated_at          TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                -- One row per dataset delivered to a buyer. Joins a built export
+                -- (exports.export_id) to a buyer account, so "data sent to that
+                -- email always appears in their workspace" falls out of a lookup.
+                CREATE TABLE IF NOT EXISTS buyer_deliveries (
+                    delivery_id       TEXT PRIMARY KEY,
+                    buyer_account_id  TEXT NOT NULL,
+                    buyer_email       TEXT NOT NULL,
+                    export_id         TEXT NOT NULL,
+                    label             TEXT,
+                    data_format       TEXT,
+                    record_count      INTEGER NOT NULL DEFAULT 0,
+                    note              TEXT,
+                    sent_by           TEXT,
+                    sent_at           TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_buyer_deliveries_acct ON buyer_deliveries(buyer_account_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_buyer_deliveries_email ON buyer_deliveries(buyer_email)")
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS ingest_uploads (
                     upload_id   TEXT PRIMARY KEY,
                     link_id     TEXT NOT NULL,
@@ -874,6 +917,123 @@ class AsclepiusStore:
             "clean_uploads": clean,
             "clean_pct": round(100.0 * clean / total, 1) if total else None,
         }
+
+    # ── Buyer accounts + deliveries (secure data workspace) ─────────────────
+    @staticmethod
+    def _buyer_account_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["must_reset_password"] = bool(rec.get("must_reset_password"))
+        return rec
+
+    def provision_buyer(
+        self, *, email: str, password: str, buyer_name: Optional[str] = None,
+        note: Optional[str] = None, invited_by: Optional[str] = None,
+        invite_expires_at: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create (or rotate) a ``buyer`` account + its workspace record. Idempotent:
+        an existing buyer keeps their delivery history but gets a fresh password and
+        a re-armed forced reset when re-provisioned. The login lives in ``users``
+        (role='buyer') via the shared ``provision_user`` path."""
+        user = self.provision_user(
+            email=email, password=password, role="buyer",
+            full_name=buyer_name, org_name=buyer_name,
+        )
+        bid = user["id"]
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            existing = conn.execute(
+                "SELECT buyer_account_id FROM buyer_accounts WHERE buyer_account_id = ?", (bid,)
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    """UPDATE buyer_accounts SET status='invited', must_reset_password=1,
+                       buyer_name=COALESCE(?, buyer_name), note=COALESCE(?, note),
+                       invited_by=?, invited_at=?, invite_expires_at=?, updated_at=?
+                       WHERE buyer_account_id=?""",
+                    (buyer_name, note, invited_by, now, invite_expires_at, now, bid),
+                )
+            else:
+                conn.execute(
+                    """INSERT INTO buyer_accounts
+                       (buyer_account_id, email, buyer_name, note, status,
+                        must_reset_password, invited_by, invited_at, invite_expires_at,
+                        created_at, updated_at)
+                       VALUES (?, ?, ?, ?, 'invited', 1, ?, ?, ?, ?, ?)""",
+                    (bid, email.lower().strip(), buyer_name, note,
+                     invited_by, now, invite_expires_at, now, now),
+                )
+        return self.get_buyer_account(bid)  # type: ignore[return-value]
+
+    def get_buyer_account(self, buyer_account_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM buyer_accounts WHERE buyer_account_id = ?", (buyer_account_id,)
+            ).fetchone()
+        return self._buyer_account_row(row) if row else None
+
+    def get_buyer_account_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM buyer_accounts WHERE email = ?", (email.lower().strip(),)
+            ).fetchone()
+        return self._buyer_account_row(row) if row else None
+
+    def list_buyer_accounts(self) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM buyer_accounts ORDER BY created_at DESC"
+            ).fetchall()
+        return [self._buyer_account_row(r) for r in rows]
+
+    def clear_buyer_password_reset(self, buyer_account_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE buyer_accounts SET must_reset_password=0, status='active', "
+                "updated_at=? WHERE buyer_account_id=?",
+                (_utcnow_iso(), buyer_account_id),
+            )
+
+    def record_buyer_delivery(
+        self, *, buyer_account_id: str, buyer_email: str, export_id: str,
+        label: Optional[str] = None, data_format: Optional[str] = None,
+        record_count: int = 0, note: Optional[str] = None, sent_by: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        did = _new_id("del")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO buyer_deliveries
+                   (delivery_id, buyer_account_id, buyer_email, export_id, label,
+                    data_format, record_count, note, sent_by, sent_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (did, buyer_account_id, buyer_email.lower().strip(), export_id, label,
+                 data_format, int(record_count or 0), note, sent_by, now),
+            )
+        return self.get_buyer_delivery(did)  # type: ignore[return-value]
+
+    def get_buyer_delivery(self, delivery_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM buyer_deliveries WHERE delivery_id = ?", (delivery_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_buyer_deliveries(
+        self, *, buyer_account_id: Optional[str] = None, export_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if buyer_account_id:
+            clauses.append("buyer_account_id = ?")
+            params.append(buyer_account_id)
+        if export_id:
+            clauses.append("export_id = ?")
+            params.append(export_id)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM buyer_deliveries {where} ORDER BY sent_at DESC", tuple(params)
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def get_user_by_id_hashed(self, id_hashed: str) -> Optional[Dict[str, Any]]:
         """Resolve the user (incl. onboarding-collected credential fields) from the

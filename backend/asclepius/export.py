@@ -142,8 +142,14 @@ def _passes_filters(
     portal_version: Optional[str] = None,
     modality: Optional[str] = None,
     case_source: Optional[str] = None,
+    submission_id: Optional[str] = None,
 ) -> bool:
     payload = rec.get("payload") or {}
+    # Single-task scoping (Exports rework): export exactly one submission's
+    # records. The submission id is a top-level record column (and mirrored into
+    # the payload at packaging time) — accept either.
+    if submission_id and rec.get("submission_id") != submission_id and payload.get("submission_id") != submission_id:
+        return False
     if difficulty and (payload.get("context") or {}).get("difficulty") != difficulty:
         return False
     # V1/V2 cohort filter (Asclepius V2): ship or analyze one product version at
@@ -717,6 +723,7 @@ def build_export(
     annotator_ids: Optional[List[str]] = None,
     verify_values: Optional[List[str]] = None,
     scope: Optional[Dict[str, Any]] = None,
+    submission_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Assemble + persist an export batch from export-ready records.
 
@@ -795,6 +802,7 @@ def build_export(
             portal_version=portal_version,
             modality=modality,
             case_source=case_source,
+            submission_id=submission_id,
         )
     ]
     if not records:

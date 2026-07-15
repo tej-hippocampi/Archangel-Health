@@ -114,6 +114,17 @@ class PromoteCaseRequest(BaseModel):
     independent_mode: Optional[str] = None
 
 
+class UploadPromoteRequest(BaseModel):
+    """Upload-scoped promotion (prepare a sample, then promote the rest). The
+    clinical question is OPTIONAL — when blank a sensible per-specialty default is
+    used, so the admin can promote a whole partner file in one click."""
+
+    question: Optional[str] = None
+    max_labels: int = 1
+    grounding_mode: Optional[str] = None
+    independent_mode: Optional[str] = None
+
+
 # ─── Evidence anchors (opt §1.2 — the medical premium) ────────────────────────
 class EvidenceAnchor(BaseModel):
     """A citation grounding a judgment/step in a clinical source.
@@ -522,6 +533,12 @@ class ScopedExportRequest(BaseModel):
     # marked those records exported. Callers can still pass false to scope to
     # only the not-yet-shipped delta.
     include_exported: bool = True
+    # Time-window + single-task scoping (Exports rework): package just one task
+    # the contributor completed (submission_id), or everything in a day / week /
+    # all-time window (since/until, ISO created_at bounds).
+    since: Optional[str] = None
+    until: Optional[str] = None
+    submission_id: Optional[str] = None
 
 
 class CredentialSummaryRequest(BaseModel):
@@ -549,3 +566,19 @@ class ProviderPasswordRequest(BaseModel):
 
     new_password: str
     current_password: str = ""
+
+
+class BuyerDeliveryRequest(BaseModel):
+    """Admin sends a dataset to a buyer's secure workspace. Scope the data by one
+    or more organizations (checkbox multi-select) and/or a time window, package it
+    with the chosen profile/format, and deliver it to the buyer by email."""
+
+    buyer_name: str
+    buyer_email: EmailLike
+    organizations: List[str] = []
+    since: Optional[str] = None
+    until: Optional[str] = None
+    profile: str = "default"
+    data_format: Optional[str] = None
+    note: Optional[str] = None
+    include_exported: bool = True

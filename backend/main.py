@@ -72,6 +72,7 @@ from routers.messaging import router as messaging_router
 from routers.telehealth import router as telehealth_router
 from routers.asclepius import router as asclepius_router
 from routers.asclepius_provider import router as asclepius_provider_router
+from routers.asclepius_buyer import router as asclepius_buyer_router
 from eligibility import store as elig_store
 import demo_credentials
 import field_crypto
@@ -2431,6 +2432,18 @@ async def data_provider_portal():
     JS gates on an Asclepius data_partner token and shows its own login → forced
     password reset → single upload screen. Static assets load from /static/provider/."""
     html_path = os.path.join(os.path.dirname(__file__), "../frontend/provider/index.html")
+    with open(html_path) as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/workspace", response_class=HTMLResponse)
+async def buyer_workspace_portal():
+    """Buyer secure data workspace — a standalone, locked-down page (like
+    /provider). Served unauthenticated by design; the page JS gates on an
+    Asclepius buyer token and shows its own login → forced password reset →
+    deliveries list. Every dataset delivered to the buyer's email appears here.
+    Static assets load from /static/buyer/."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/buyer/index.html")
     with open(html_path) as f:
         return HTMLResponse(content=f.read())
 
@@ -5931,6 +5944,7 @@ app.include_router(messaging_router)
 app.include_router(telehealth_router)
 app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
+app.include_router(asclepius_buyer_router)
 
 # Gold Standard — conversation-capture training data (Data Training tab). Mounted
 # defensively: a missing optional dependency disables Gold rather than crashing

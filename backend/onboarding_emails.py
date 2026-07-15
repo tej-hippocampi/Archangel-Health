@@ -455,6 +455,74 @@ def build_data_provider_invite_email(
     return _shell(subject=subject, body_html=body)
 
 
+def build_buyer_delivery_email(
+    *,
+    workspace_url: str,
+    email: str,
+    temporary_password: str,
+    buyer_name: str = "",
+    datasets_label: str = "",
+    data_format: str = "",
+    record_count: int = 0,
+    note: str = "",
+    invite_ttl_days: int = 14,
+    first_delivery: bool = True,
+) -> str:
+    """Buyer data-delivery email — "Your dataset has been delivered." Carries the
+    secure workspace URL + credentials (email + temporary password). The buyer
+    opens the workspace with these credentials; every dataset sent to this email
+    always appears there. Same brand + security posture as the provider invite
+    (temporary, forced-reset, expiring password)."""
+    rows = [
+        ("Workspace", workspace_url, False),
+        ("Email", email, True),
+    ]
+    if first_delivery:
+        rows.append(("Temporary password", temporary_password, True))
+    if datasets_label:
+        rows.append(("Dataset", datasets_label, False))
+    if data_format:
+        rows.append(("Format", data_format, False))
+    if record_count:
+        rows.append(("Records", str(record_count), False))
+
+    greeting = ("Hi " + _strong(html.escape(buyer_name.strip())) + ", ") if (buyer_name or "").strip() else ""
+    intro = (
+        greeting
+        + "a dataset has been exported to you by " + _strong("Archangel Health")
+        + ". It&rsquo;s waiting in your secure workspace — open it with the "
+        "button below and it will always be there when you sign in."
+    )
+    if note:
+        intro += " " + html.escape(note.strip())
+
+    if first_delivery:
+        security = _p(
+            "For your security this is a " + _strong("temporary password")
+            + f": you&rsquo;ll reset it on first sign-in, and this invite expires in "
+            f"{int(invite_ttl_days)} days. Every future delivery to this email lands "
+            "in the same workspace — no new account needed.",
+            muted=True, small=True,
+        )
+    else:
+        security = _p(
+            "Sign in with your existing workspace password — this new dataset is "
+            "already waiting alongside your previous deliveries.",
+            muted=True, small=True,
+        )
+
+    body = (
+        _eyebrow("Data delivery · Archangel Health")
+        + _h1("Your dataset has been delivered.")
+        + _p(intro)
+        + _inset_card(_detail_rows(rows))
+        + _cta(workspace_url, "Open your secure workspace →")
+        + security
+    )
+    subject = "Your Archangel Health dataset is ready"
+    return _shell(subject=subject, body_html=body)
+
+
 def build_complete_email(
     *,
     director_email: str,

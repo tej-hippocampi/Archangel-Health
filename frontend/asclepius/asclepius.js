@@ -2971,10 +2971,17 @@
       const tbody = h('tbody', {});
       subs.forEach((s) => {
         const ann = s.annotator || {};
+        const ident = s.contributor || {};
         const reasons = (s.qa_reason || '').split(',').filter(Boolean);
+        // Contributor identity is admin-visible (name / org / email) — it never
+        // ships in a data package, but the admin is allowed to see who labelled.
+        const contribCell = h('td', {},
+          h('div', { style: 'font-weight:600' }, ident.name || ann.credentials || ann.specialty || '—'),
+          ident.organization ? h('div', { class: 'asc-card-sub' }, '🏥 ' + ident.organization) : null,
+          ident.email ? h('div', { class: 'asc-card-sub asc-mono' }, ident.email) : null);
         tbody.appendChild(h('tr', {},
           h('td', { class: 'asc-mono' }, (s.submission_id || '').slice(0, 12)),
-          h('td', {}, ann.credentials || ann.specialty || '—'),
+          contribCell,
           h('td', {}, s.verdict || '—'),
           h('td', {}, reasons.length
             ? reasons.map((r) => h('span', { class: 'asc-chip asc-chip-warn', style: 'margin:2px' }, r))
@@ -3144,111 +3151,171 @@
         mintBtn, mintStatus));
 
     const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));
-    const quarCard = h('div', { class: 'asc-card', id: 'ascIngestQuar' }, loadingCard('Loading quarantine…'));
     const casesCard = h('div', { class: 'asc-card', id: 'ascIngestCases' }, loadingCard('Loading ingested cases…'));
     body.appendChild(mintCard);
     body.appendChild(uploadsCard);
-    body.appendChild(quarCard);
     body.appendChild(casesCard);
     loadIngestionLists();
   }
 
+  // Cached uploads (used to filter the promote list by partner/file search).
+  let _ingestUploads = [];
+
   async function loadIngestionLists() {
     const up = document.getElementById('ascIngestUploads');
-    const qc = document.getElementById('ascIngestQuar');
     const cc = document.getElementById('ascIngestCases');
     if (!up) return;
-    // Uploads
+    // Uploads — each row has a Download button for the original partner file.
     try {
       const data = await api('/ingestion/uploads');
+      _ingestUploads = data.uploads || [];
       clear(up);
-      up.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Partner uploads (' + (data.uploads || []).length + ')')));
-      if (!(data.uploads || []).length) { up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No uploads yet — mint a link above and send it to the partner.'))); }
+      up.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Partner uploads (' + _ingestUploads.length + ')')));
+      if (!_ingestUploads.length) { up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No uploads yet — mint a link above and send it to the partner.'))); }
       else {
-        const rows = data.uploads.slice(0, 50).map((u) => h('tr', {},
-          h('td', {}, fmtDate(u.created_at)),
-          h('td', {}, u.partner_id || '—'),
-          h('td', { class: 'asc-mono' }, (u.filename || '') + ' · ' + Math.round((u.size_bytes || 0) / 1024) + 'KB'),
-          h('td', {}, h('span', { class: 'asc-badge ' + (u.status === 'ingested' ? 'asc-badge-green' : (u.status === 'quarantined' ? 'asc-badge-amber' : (u.status === 'rejected' ? 'asc-badge-red' : 'asc-badge-gray'))) }, u.status)),
-          h('td', { class: 'asc-card-sub', style: 'max-width:260px' }, u.reason || '—')));
+        const rows = _ingestUploads.slice(0, 50).map((u) => {
+          const dlBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+            onClick: () => downloadBlob('/ingestion/uploads/' + u.upload_id + '/download', u.filename || (u.upload_id + '.zip')) },
+            '⬇ Download file');
+          return h('tr', {},
+            h('td', {}, fmtDate(u.created_at)),
+            h('td', {}, u.partner_label || u.partner_id || '—'),
+            h('td', { class: 'asc-mono' }, (u.filename || '') + ' · ' + Math.round((u.size_bytes || 0) / 1024) + 'KB'),
+            h('td', {}, h('span', { class: 'asc-badge ' + (u.status === 'ingested' ? 'asc-badge-green' : (u.status === 'quarantined' ? 'asc-badge-amber' : (u.status === 'rejected' ? 'asc-badge-red' : 'asc-badge-gray'))) }, u.status)),
+            h('td', {}, dlBtn));
+        });
         up.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-          h('thead', {}, h('tr', {}, ['When', 'Partner', 'File', 'Status', 'Reason'].map((c) => h('th', {}, c)))),
+          h('thead', {}, h('tr', {}, ['When', 'Partner', 'File', 'Status', ''].map((c) => h('th', {}, c)))),
           h('tbody', {}, rows))));
       }
     } catch (e) { clear(up); up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); }
 
-    // Quarantine
-    try {
-      const data = await api('/ingestion/quarantine');
-      clear(qc);
-      qc.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, '🔒 Quarantine (' + (data.cases || []).length + ')'),
-        h('div', { class: 'asc-card-sub' }, 'Cases the verifier flagged — findings are MASKED (a suspected identifier is never shown). Scrub redacts exactly the flagged spans; override requires a documented reason and still cannot bypass the hard guard.'))));
-      if (!(data.cases || []).length) { qc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'Quarantine is empty. ✅'))); }
-      else {
-        data.cases.forEach((c) => {
-          const findings = ((c.report || {}).verification || {}).findings || [];
-          const fLines = findings.slice(0, 6).map((f) => h('div', { class: 'asc-card-sub asc-mono' },
-            (f.kind || 'finding') + ' @ ' + (f.field_path || '?') + ' → ' + (f.snippet_masked || '')));
-          const st = h('div', {});
-          qc.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
-            h('div', { style: 'display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap' },
-              h('div', {},
-                h('strong', {}, (c.patient_key || 'case') + ' · ' + (c.specialty || '')),
-                h('div', { class: 'asc-card-sub' }, ((c.report || {}).quarantine_reason) || 'flagged')),
-              h('div', { style: 'display:flex;gap:8px' },
-                h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: async () => {
-                  try { const r = await api('/ingestion/quarantine/' + c.ingest_case_id + '/scrub', { method: 'POST' });
-                        toast(r.status === 'ingested' ? 'Scrubbed + ingested.' : ('Still quarantined: ' + (r.remaining_findings || '') + ' finding(s) remain.'), r.status === 'ingested' ? 'success' : 'info');
-                        loadIngestionLists(); }
-                  catch (e) { toast(e.message, 'error'); } } }, '🧹 Scrub flagged spans'),
-                h('button', { class: 'asc-btn asc-btn-danger asc-btn-sm', onClick: async () => {
-                  try { await api('/ingestion/quarantine/' + c.ingest_case_id + '/reject', { method: 'POST' }); toast('Rejected.', 'success'); loadIngestionLists(); }
-                  catch (e) { toast(e.message, 'error'); } } }, 'Reject'))),
-            h('div', { style: 'margin-top:8px' }, fLines), st));
-        });
-      }
-    } catch (e) { clear(qc); qc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); }
+    // Ingested cases → promote, grouped by partner upload, searchable.
+    renderPromoteByUpload(cc, '');
+  }
 
-    // Ingested cases → promote
+  // Group ingested cases by the partner upload they came from, filtered by a
+  // partner/file search box. Promote runs on the WHOLE file: prepare a sample →
+  // review → extend case creation to the rest.
+  function renderPromoteByUpload(cc, query) {
+    if (!cc) return;
+    clear(cc);
+    const search = h('input', { class: 'asc-input', placeholder: 'Search a partner upload (e.g. "Gray Scrubs Lab") or file name…', value: query || '' });
+    search.addEventListener('input', () => renderPromoteByUpload(cc, search.value));
+    cc.appendChild(h('div', { class: 'asc-card-head' }, h('div', { style: 'flex:1' },
+      h('div', { class: 'asc-card-title' }, '✅ Ready to promote — by partner upload'),
+      h('div', { class: 'asc-card-sub' }, 'Pick a partner file and promote it to V4. We convert the real records, run automated tests, and show you one sample case (labs, notes, EHR + candidates) to review — then extend case creation to the rest of the file.'),
+      h('div', { class: 'asc-field', style: 'margin-top:12px;margin-bottom:0' }, search))));
+
+    const q = (query || '').trim().toLowerCase();
+    const eligible = (_ingestUploads || []).filter((u) => (u.ingested_case_count || 0) > 0
+      && (!q || (u.partner_label || '').toLowerCase().includes(q)
+              || (u.partner_id || '').toLowerCase().includes(q)
+              || (u.filename || '').toLowerCase().includes(q)));
+    if (!eligible.length) {
+      cc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
+        q ? 'No partner uploads match "' + query + '" with cases ready to promote.' : 'No uploads have ingested cases awaiting promotion.')));
+      return;
+    }
+    eligible.forEach((u) => {
+      const st = h('div', { style: 'margin-top:10px' });
+      const promoteBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, '⚡ Promote to V4 task');
+      promoteBtn.addEventListener('click', () => openPromoteReview(u, st));
+      cc.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
+        h('div', { style: 'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center' },
+          h('div', {},
+            h('strong', {}, '🏥 ' + (u.partner_label || u.partner_id || 'partner')),
+            h('div', { class: 'asc-card-sub asc-mono' }, u.filename || ''),
+            h('div', { class: 'asc-card-sub' }, (u.ingested_case_count || 0) + ' case(s) ready · uploaded ' + fmtDate(u.created_at))),
+          h('div', { style: 'display:flex;gap:8px;align-items:center' },
+            h('span', { class: 'asc-badge-real' }, '🏥 real · V4'),
+            promoteBtn)),
+        st));
+    });
+  }
+
+  // Prepare + review a sample case for an upload, then promote the rest.
+  async function openPromoteReview(upload, statusBox) {
+    clear(statusBox);
+    statusBox.appendChild(loadingCard('Converting real records and running automated tests on a sample case…'));
+    let prep;
     try {
-      const data = await api('/ingestion/cases?status=ingested');
-      clear(cc);
-      cc.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, '✅ Ingested cases — ready to promote (' + (data.cases || []).length + ')'),
-        h('div', { class: 'asc-card-sub' }, 'Attach the clinical question; candidates are generated ON the real case, gated by the real-case judge (no ground-truth dimension — the specialist is the answer key), and the task enters the V4 queue.'))));
-      if (!(data.cases || []).length) { cc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No cases awaiting promotion.'))); }
-      else {
-        data.cases.forEach((c) => {
-          const q = h('input', { class: 'asc-input', placeholder: 'Clinical question for this case (e.g. "Classify the AKI and set the next step.")' });
-          const st = h('div', {});
-          const btn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, '⚡ Promote to V4 task');
-          btn.addEventListener('click', async () => {
-            clear(st);
-            if (!q.value.trim()) { st.appendChild(h('div', { class: 'asc-inline-error' }, 'A clinical question is required.')); return; }
-            btn.setAttribute('disabled', '');
-            try {
-              const r = await api('/ingestion/cases/' + c.ingest_case_id + '/promote', { method: 'POST', body: { question: q.value.trim() } });
-              st.appendChild(h('div', { class: 'asc-inline-ok' }, 'Promoted → task ' + r.task_id + ' (V4 queue).'));
-              loadIngestionLists();
-            } catch (e) {
-              st.appendChild(h('div', { class: 'asc-inline-error' }, typeof e.message === 'string' ? e.message : 'Promotion gated — see case-judge scores.'));
-            } finally { btn.removeAttribute('disabled'); }
-          });
-          const kase = c.case || {};
-          cc.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
-            h('div', { style: 'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap' },
-              h('div', {},
-                h('strong', {}, (c.patient_key || 'case') + ' · ' + (c.specialty || '')),
-                h('div', { class: 'asc-card-sub' },
-                  (kase.lab_panels || []).length + ' lab panel(s) · ' + (kase.notes || []).length + ' note(s) · ' +
-                  ((kase.demographics || {}).age_band || '?') + ' ' + ((kase.demographics || {}).sex || ''))),
-              h('span', { class: 'asc-badge-real' }, '🏥 real · V4')),
-            h('div', { class: 'asc-field', style: 'margin-top:10px' }, q),
-            btn, st));
-        });
+      prep = await api('/ingestion/uploads/' + upload.upload_id + '/prepare', { method: 'POST', body: {} });
+    } catch (e) {
+      clear(statusBox);
+      statusBox.appendChild(h('div', { class: 'asc-inline-error' }, typeof e.message === 'string' ? e.message : 'Could not prepare a sample.'));
+      return;
+    }
+    clear(statusBox);
+    openSampleReviewModal(upload, prep, statusBox);
+  }
+
+  function openSampleReviewModal(upload, prep, statusBox) {
+    const s = prep.sample || {};
+    const kase = s.case || {};
+    const overlay = h('div', { class: 'call-team-overlay is-open', onClick: (e) => { if (e.target === overlay) overlay.remove(); } });
+
+    // Automated-test result banner.
+    const testBanner = s.tests_passed
+      ? h('div', { class: 'asc-grounding-banner', style: 'margin-bottom:14px' },
+          h('div', { class: 'asc-gb-icon' }, '✅'),
+          h('div', {}, h('div', { class: 'asc-gb-title' }, 'Automated tests passed'),
+            h('div', { class: 'asc-gb-text' }, 'The sample case cleared the real-case gate (coherence, multimodal necessity, reasoning divergence).')))
+      : h('div', { class: 'asc-inline-warn', style: 'margin-bottom:14px' },
+          '⚠ Sample did not pass the automated gate: ' + ((s.failures || []).join('; ') || 'see scores below') +
+          '. You can still promote — cases that fail the gate stay ingested with the reason recorded.');
+
+    // Case panel: labs, notes, meds, problems, demographics.
+    const demo = kase.demographics || {};
+    const labs = (kase.lab_panels || []).map((p) => h('div', { style: 'margin-bottom:8px' },
+      h('div', { style: 'font-weight:600' }, p.panel || 'panel' + (p.collected_offset_days != null ? '  (day ' + p.collected_offset_days + ')' : '')),
+      h('div', { class: 'asc-mono', style: 'font-size:12px;white-space:pre-wrap' },
+        (p.results || []).map((r) => (r.analyte || '?') + ': ' + (r.value != null ? r.value : '') + ' ' + (r.unit || '') + (r.flag ? ' [' + r.flag + ']' : '')).join('\n'))));
+    const notes = (kase.notes || []).map((n) => h('div', { style: 'margin-bottom:8px' },
+      h('div', { style: 'font-weight:600' }, (n.note_type || 'Note') + ' · ' + (n.author_role || '')),
+      h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap;max-height:160px;overflow:auto' }, n.text || '')));
+    const cands = (s.candidates || []).map((c) => h('div', { style: 'margin-bottom:8px' },
+      h('div', { style: 'font-weight:600' }, 'Candidate ' + (c.id || '')),
+      h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap;max-height:160px;overflow:auto' }, c.text || '')));
+
+    const status = h('div', { style: 'margin-top:12px' });
+    const promoteAllBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '✓ Looks good — create the rest (' + (prep.ingested_count || 0) + ')');
+    promoteAllBtn.addEventListener('click', async () => {
+      promoteAllBtn.setAttribute('disabled', ''); promoteAllBtn.textContent = 'Creating cases…';
+      clear(status);
+      try {
+        const r = await api('/ingestion/uploads/' + upload.upload_id + '/promote-all', { method: 'POST', body: {} });
+        overlay.remove();
+        clear(statusBox);
+        statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
+          'Promoted ' + r.promoted + ' case(s) to V4' + (r.gated ? ' · ' + r.gated + ' gated' : '') + (r.failed ? ' · ' + r.failed + ' failed' : '') + '.'));
+        toast('Promoted ' + r.promoted + ' case(s) to the V4 queue.', 'success');
+        loadIngestionLists();
+      } catch (e) {
+        clear(status);
+        status.appendChild(h('div', { class: 'asc-inline-error' }, typeof e.message === 'string' ? e.message : 'Promotion failed.'));
+        promoteAllBtn.removeAttribute('disabled'); promoteAllBtn.textContent = '✓ Looks good — create the rest (' + (prep.ingested_count || 0) + ')';
       }
-    } catch (e) { clear(cc); cc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); }
+    });
+
+    const popup = h('div', { class: 'call-team-popup', style: 'max-width:820px;max-height:90vh;overflow:auto;text-align:left', onClick: (e) => e.stopPropagation() },
+      h('div', { class: 'call-team-title' }, 'Review a sample case — ' + (prep.partner_label || upload.partner_id || 'partner')),
+      h('div', { class: 'call-team-sub' }, (prep.filename || '') + ' · ' + (prep.ingested_count || 0) + ' case(s) in this file'),
+      testBanner,
+      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Clinical question'),
+        h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, s.question || '—')),
+      h('div', { class: 'asc-card-sub', style: 'margin:4px 0 14px' },
+        (s.specialty || '') + ' · ' + (demo.age_band || '?') + ' ' + (demo.sex || '') + ' · ' +
+        (kase.lab_panels || []).length + ' lab panel(s) · ' + (kase.notes || []).length + ' note(s)'),
+      labs.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, '🧪 Lab panels'), h('div', {}, labs)) : null,
+      notes.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, '📝 Notes / EHR records'), h('div', {}, notes)) : null,
+      cands.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, '🤖 Generated candidate answers'), h('div', {}, cands)) : null,
+      status,
+      h('div', { style: 'display:flex;gap:10px;margin-top:16px' },
+        promoteAllBtn,
+        h('button', { class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto', onClick: () => overlay.remove() }, 'Cancel')));
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
   }
 
   function loadingCard(label) {
@@ -3669,6 +3736,12 @@
         }, 'Create buyer'),
         bStatus));
 
+    // ── Primary flow: export selected organizations and send to a buyer ──────
+    const sendCard = h('div', { class: 'asc-card', id: 'ascSendToBuyer' }, loadingCard('Loading organizations…'));
+    const deliveriesCard = h('div', { class: 'asc-card', id: 'ascBuyerDeliveries' }, loadingCard('Loading deliveries…'));
+    body.appendChild(sendCard);
+    body.appendChild(deliveriesCard);
+
     const buyersListCard = h('div', { class: 'asc-card', id: 'ascBuyersList' }, loadingCard('Loading buyers…'));
     const reqCard = h('div', { class: 'asc-card', id: 'ascReqForm' }, loadingCard('Loading…'));
     const reqListCard = h('div', { class: 'asc-card', id: 'ascReqList' }, loadingCard('Loading requests…'));
@@ -3677,7 +3750,137 @@
     body.appendChild(reqCard);
     body.appendChild(reqListCard);
 
+    loadSendToBuyer();
+    loadBuyerDeliveries();
     loadBuyersAndRequests();
+  }
+
+  // Send-to-buyer: pick organizations (checkbox multi-select) + a time window +
+  // a data format, then deliver to a buyer's secure workspace.
+  async function loadSendToBuyer() {
+    const card = document.getElementById('ascSendToBuyer');
+    if (!card) return;
+    let orgs = [];
+    try { orgs = (await api('/organizations')).organizations || []; }
+    catch (e) { clear(card); card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); return; }
+    clear(card);
+    card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+      h('div', { class: 'asc-card-title' }, '📤 Export & send data to a buyer'),
+      h('div', { class: 'asc-card-sub' }, 'Select one or more organizations, choose a time window and format, then deliver the dataset straight to a buyer’s secure workspace.'))));
+
+    if (!orgs.length) { card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No organizations with data yet.'))); return; }
+
+    const selected = new Set();
+    const rows = orgs.map((o) => {
+      const cb = h('input', { type: 'checkbox' });
+      cb.addEventListener('change', () => { if (cb.checked) selected.add(o.organization); else selected.delete(o.organization); syncSummary(); });
+      return h('label', { class: 'asc-checkbox-row', style: 'padding:8px 0;border-bottom:1px solid var(--asc-line)' },
+        cb,
+        h('span', { style: 'flex:1' },
+          h('span', { style: 'font-weight:600' }, '🏥 ' + o.organization),
+          h('span', { class: 'asc-card-sub' }, '  ' + o.contributor_count + ' contributor(s) · ' + o.record_count + ' record(s)')));
+    });
+
+    // Time window (Pacific): all time / this week / today.
+    const winSel = selectFrom(['all time', 'this week', 'today'], 'all time');
+    const fmtSel = selectFrom(profileNames(), 'default');
+    const summary = h('div', { class: 'asc-card-sub', style: 'margin:10px 0' });
+    const sendBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '📨 Send to buyer');
+    function syncSummary() {
+      summary.textContent = selected.size
+        ? (selected.size + ' organization(s) selected: ' + Array.from(selected).join(', '))
+        : 'No organizations selected.';
+      if (selected.size) sendBtn.removeAttribute('disabled'); else sendBtn.setAttribute('disabled', '');
+    }
+    sendBtn.setAttribute('disabled', '');
+    sendBtn.addEventListener('click', () => {
+      if (!selected.size) return;
+      const scope = {};
+      if (winSel.value === 'today') scope.since = windowSinceISO(0);
+      else if (winSel.value === 'this week') scope.since = windowSinceISO(6);
+      openSendToBuyerModal(Array.from(selected), scope, fmtSel.value, winSel.value);
+    });
+
+    card.appendChild(h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-form-row', style: 'align-items:flex-end' },
+        h('div', { class: 'asc-field', style: 'margin-bottom:0' }, h('label', { class: 'asc-label' }, 'Time window (Pacific)'), winSel),
+        h('div', { class: 'asc-field', style: 'margin-bottom:0' }, h('label', { class: 'asc-label' }, 'Data format'), fmtSel)),
+      h('div', { style: 'margin-top:14px' }, h('label', { class: 'asc-label' }, 'Organizations'), h('div', {}, rows)),
+      summary,
+      sendBtn));
+  }
+
+  function openSendToBuyerModal(orgs, scope, profile, windowLabel) {
+    const overlay = h('div', { class: 'call-team-overlay is-open', onClick: (e) => { if (e.target === overlay) overlay.remove(); } });
+    const name = h('input', { class: 'asc-input', placeholder: 'Acme Frontier Labs' });
+    const email = h('input', { class: 'asc-input', type: 'email', placeholder: 'buyer@acme.ai' });
+    const fmt = h('input', { class: 'asc-input', value: profile, readonly: 'readonly' });
+    const notes = h('textarea', { class: 'asc-textarea', placeholder: 'Additional notes for the buyer (optional)' });
+    const status = h('div', { style: 'margin-top:10px' });
+    const sendBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '📨 Send to buyer');
+    sendBtn.addEventListener('click', async () => {
+      clear(status);
+      if (!name.value.trim()) { status.appendChild(h('div', { class: 'asc-inline-error' }, 'Buyer name is required.')); return; }
+      if (!email.value.trim()) { status.appendChild(h('div', { class: 'asc-inline-error' }, 'Buyer email is required.')); return; }
+      sendBtn.setAttribute('disabled', ''); sendBtn.textContent = 'Sending…';
+      try {
+        const r = await api('/admin/buyer-deliveries', { method: 'POST', body: Object.assign({
+          buyer_name: name.value.trim(), buyer_email: email.value.trim(),
+          organizations: orgs, profile: profile, data_format: profile,
+          note: notes.value.trim() || null,
+        }, scope) });
+        overlay.remove();
+        toast('Sent ' + (r.record_count || 0) + ' record(s) to ' + r.buyer_email + (r.email_sent ? ' — email delivered.' : ' — but email failed.'), r.email_sent ? 'success' : 'info');
+        loadBuyerDeliveries();
+      } catch (e) {
+        clear(status);
+        const msg = e.status === 400 ? (e.message || 'Nothing to export for that selection/window.')
+          : (e.status === 503 ? 'Email is not configured — set SendGrid/SMTP (or EMAIL_DEV_MODE=1 for local).'
+          : (e.status === 422 ? 'Export blocked: ' + e.message : (e.message || 'Send failed')));
+        status.appendChild(h('div', { class: 'asc-inline-error' }, msg));
+        sendBtn.removeAttribute('disabled'); sendBtn.textContent = '📨 Send to buyer';
+      }
+    });
+    const popup = h('div', { class: 'call-team-popup', style: 'max-width:560px', onClick: (e) => e.stopPropagation() },
+      h('div', { class: 'call-team-title' }, 'Send to buyer'),
+      h('div', { class: 'call-team-sub' }, orgs.length + ' organization(s) · ' + windowLabel + ' · format ' + profile),
+      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Buyer name'), name),
+      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Buyer email'), email),
+      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Data format'), fmt),
+      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Additional notes'), notes),
+      h('div', { class: 'asc-label-hint' }, 'The buyer receives an email with login credentials and a link to their secure workspace. Every dataset you send to this email appears in that workspace.'),
+      status,
+      h('div', { style: 'display:flex;gap:10px;margin-top:14px' },
+        sendBtn,
+        h('button', { class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto', onClick: () => overlay.remove() }, 'Cancel')));
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+  }
+
+  async function loadBuyerDeliveries() {
+    const card = document.getElementById('ascBuyerDeliveries');
+    if (!card) return;
+    try {
+      const data = await api('/admin/buyer-deliveries');
+      const deliveries = data.deliveries || [];
+      clear(card);
+      card.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Delivery history (' + deliveries.length + ')')));
+      if (!deliveries.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No datasets delivered yet.'))); return; }
+      const verMix = (bpv) => { const keys = Object.keys(bpv || {}); return keys.length ? keys.sort().map((k) => ascVerLabel(k) + ' ' + bpv[k]).join(' · ') : '—'; };
+      const rows = deliveries.map((d) => h('tr', {},
+        h('td', {}, fmtDate(d.sent_at)),
+        h('td', { class: 'asc-mono' }, d.buyer_email),
+        h('td', { style: 'max-width:220px' }, d.label || '—'),
+        h('td', {}, String(d.record_count != null ? d.record_count : '—')),
+        h('td', {}, d.data_format || '—'),
+        h('td', {}, verMix(d.by_portal_version))));
+      card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {}, ['Sent (PT)', 'Buyer', 'Organizations', 'Records', 'Format', 'Version'].map((c) => h('th', {}, c)))),
+        h('tbody', {}, rows))));
+    } catch (e) {
+      clear(card);
+      card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
+    }
   }
 
   async function loadBuyersAndRequests() {
@@ -4133,12 +4336,15 @@
     clear(pad);
     const cr = prof.credentials || {};
     const c = prof.contributor || {};
+    // Admin-visible identity: real name + email (never ships in an export).
+    const displayName = c.full_name || c.display_name || idHashed;
     pad.appendChild(h('div', { class: 'asc-profile-head' },
       h('div', { class: 'asc-profile-avatar' }, '👩‍⚕️'),
       h('div', {},
-        h('div', { class: 'asc-profile-name' }, c.display_name || idHashed,
+        h('div', { class: 'asc-profile-name' }, displayName,
           c.is_mock ? h('span', { class: 'asc-badge asc-badge-amber', style: 'margin-left:10px' }, '🧪 Mock Contributor Account') : null,
           cr.credentials_verified ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:10px' }, 'verified ✓') : null),
+        c.email ? h('div', { class: 'asc-card-sub asc-mono', style: 'margin-top:2px' }, '✉ ' + c.email) : null,
         h('div', { class: 'asc-meta-row', style: 'margin-top:6px' },
           h('span', { class: 'asc-badge asc-badge-primary' }, cr.role_title || '—'),
           h('span', { class: 'asc-badge asc-badge-gray' }, (cr.ship && cr.ship.primary_specialty) || c.primary_specialty || '—'),
@@ -4174,6 +4380,92 @@
     pad.appendChild(h('p', { class: 'asc-label-hint', style: 'margin-top:8px' },
       'Export Data ships credential attributes only (no identifying info). Further Credential Summary releases the full verification dossier under NDA / non-circumvention.'));
     pad.appendChild(statusBox);
+
+    // ── Time-windowed exports (today / this week / all-time, Pacific) ─────────
+    const winStatus = h('div', { style: 'margin-top:10px' });
+    pad.appendChild(h('div', { style: 'margin-top:18px;border-top:1px solid var(--asc-line);padding-top:16px' },
+      h('div', { class: 'asc-card-title', style: 'font-size:15px' }, 'Export by time window'),
+      h('div', { class: 'asc-card-sub', style: 'margin-bottom:10px' }, 'Package just what this contributor labelled in a window (Pacific time).'),
+      h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' },
+        h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+          onClick: (ev) => exportContributorWindow(idHashed, { since: windowSinceISO(0) }, 'today', winStatus, ev.target) }, '⬇ Today'),
+        h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+          onClick: (ev) => exportContributorWindow(idHashed, { since: windowSinceISO(6) }, 'this week', winStatus, ev.target) }, '⬇ This week'),
+        h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+          onClick: (ev) => exportContributorWindow(idHashed, {}, 'all time', winStatus, ev.target) }, '⬇ All time')),
+      winStatus));
+
+    // ── Per-task list: every task the contributor completed (single-file export) ──
+    const tasksCard = h('div', { style: 'margin-top:18px;border-top:1px solid var(--asc-line);padding-top:16px' },
+      h('div', { class: 'asc-card-title', style: 'font-size:15px' }, 'Tasks completed'),
+      h('div', { class: 'asc-card-sub', style: 'margin-bottom:10px' }, 'Each task shows its completion time (Pacific) and the product version it was labelled with. Export any single task as one file.'),
+      h('div', { id: 'ascContribTasks' }, loadingCard('Loading tasks…')));
+    pad.appendChild(tasksCard);
+    loadContributorTasks(idHashed);
+  }
+
+  async function loadContributorTasks(idHashed) {
+    const box = document.getElementById('ascContribTasks');
+    if (!box) return;
+    try {
+      const data = await api('/contributors/' + encodeURIComponent(idHashed) + '/submissions');
+      const subs = data.submissions || [];
+      clear(box);
+      if (!subs.length) { box.appendChild(h('div', { class: 'asc-card-sub' }, 'No completed tasks yet.')); return; }
+      const rows = subs.map((s) => {
+        const st = h('div', {});
+        const btn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+          onClick: (ev) => exportContributorWindow(idHashed, { submission_id: s.submission_id }, 'this task', st, ev.target) }, '⬇ Export this task');
+        return h('tr', {},
+          h('td', {}, fmtDate(s.created_at)),
+          h('td', {}, h('span', { class: 'asc-badge asc-badge-gray' }, ascVerLabel(s.portal_version))),
+          h('td', { style: 'max-width:340px' }, s.prompt_preview || '—'),
+          h('td', {}, btn, st));
+      });
+      box.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {}, ['Completed (PT)', 'Version', 'Task', ''].map((cc) => h('th', {}, cc)))),
+        h('tbody', {}, rows))));
+    } catch (e) {
+      clear(box); box.appendChild(h('div', { class: 'asc-inline-error' }, e.message));
+    }
+  }
+
+  // Scoped contributor export with an optional {submission_id} or {since,until}
+  // window. Reuses the contributor export endpoint (Tier A only, leak-gated).
+  async function exportContributorWindow(idHashed, scopeBody, label, statusBox, btn) {
+    clear(statusBox);
+    if (btn) btn.setAttribute('disabled', '');
+    statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaging ' + label + '…'));
+    try {
+      const manifest = await api('/contributors/' + encodeURIComponent(idHashed) + '/export',
+        { method: 'POST', body: Object.assign({ profile: 'default' }, scopeBody) });
+      clear(statusBox);
+      const n = manifest.record_count || 0;
+      statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' (' + label + ') — downloading…'));
+      await downloadExport(manifest.export_id);
+      loadExportsHistory();
+    } catch (e) {
+      clear(statusBox);
+      const msg = e.status === 400 ? ('No export-ready records for ' + label + '.')
+        : (e.status === 422 ? 'Export blocked: ' + e.message : (e.message || 'Export failed'));
+      statusBox.appendChild(h('div', { class: 'asc-inline-error' }, msg));
+    } finally {
+      if (btn) btn.removeAttribute('disabled');
+    }
+  }
+
+  // Start-of-day in Pacific for (today - daysBack), as a UTC ISO string with the
+  // trailing 'Z' stripped so it lexicographically compares against the naive-UTC
+  // created_at strings the backend stores. daysBack=0 → since midnight today PT.
+  function windowSinceISO(daysBack) {
+    const now = new Date();
+    const [y, m, d] = new Intl.DateTimeFormat('en-CA', { timeZone: ASC_TZ, year: 'numeric', month: '2-digit', day: '2-digit' })
+      .format(now).split('-').map(Number);
+    const guess = new Date(Date.UTC(y, m - 1, d - (daysBack || 0), 0, 0, 0));
+    // Correct the guess by the Pacific offset so the wall-clock is 00:00 PT.
+    const offsetMs = new Date(guess.toLocaleString('en-US', { timeZone: 'UTC' }))
+      - new Date(guess.toLocaleString('en-US', { timeZone: ASC_TZ }));
+    return new Date(guess.getTime() + offsetMs).toISOString().replace('Z', '');
   }
 
   function renderContributorMetrics(pad, c) {
@@ -4313,7 +4605,7 @@
       clear(card);
       card.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Export history (' + exports.length + ')')));
       if (!exports.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No exports yet.'))); return; }
-      const verLabel = (v) => ({ v3: '⚡ V3', v2: '✨ V2', v1: '📝 V1' }[v] || v);
+      const verLabel = (v) => ({ v4: '🏥 V4', v3: '⚡ V3', v2: '✨ V2', v1: '📝 V1' }[v] || v);
       const versionCell = (x) => {
         const m = x.manifest || {};
         const filt = (m.filters || {}).portal_version;
@@ -4538,11 +4830,31 @@
   function sumValues(obj) { return Object.keys(obj || {}).reduce((a, k) => a + (Number(obj[k]) || 0), 0); }
   function fmtNum(n) { return (n == null || isNaN(n)) ? '—' : (Math.round(n * 1000) / 1000).toString(); }
   function trunc(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
+  // All admin timestamps are STORED as naive UTC ISO strings (Python
+  // datetime.utcnow().isoformat() — no trailing 'Z'/offset). new Date() would
+  // otherwise parse them as browser-local time, so we append 'Z' to pin them to
+  // UTC, then render in Pacific (America/Los_Angeles handles PST/PDT itself). One
+  // choke point → every admin wall-clock display reads in Pacific time.
+  const ASC_TZ = 'America/Los_Angeles';
+  function toUtcDate(d) {
+    if (d == null) return null;
+    if (typeof d === 'string') {
+      // Bare 'YYYY-MM-DDTHH:MM:SS(.ffffff)' with no zone → treat as UTC.
+      const s = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(d) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(d)
+        ? d + 'Z' : d;
+      return new Date(s);
+    }
+    return new Date(d);
+  }
   function fmtDate(d) {
     if (!d) return '—';
-    const dt = new Date(d);
+    const dt = toUtcDate(d);
     if (isNaN(dt.getTime())) return String(d);
-    return dt.toLocaleString();
+    return dt.toLocaleString('en-US', { timeZone: ASC_TZ }) + ' PT';
+  }
+  // Product-version label shared by the exports history + per-task version badges.
+  function ascVerLabel(v) {
+    return { v4: '🏥 V4 · Real', v3: '⚡ V3', v2: '✨ V2', v1: '📝 V1' }[v] || (v || '—');
   }
 
   // ─── Keyboard shortcuts (eval view) ────────────────────────────────────────
