@@ -884,6 +884,23 @@ async def _autofill_queue(
     return _query_next(store, user, portal_version=portal_version)
 
 
+def _ensure_gold_cases(store: Any, user: Dict[str, Any]) -> int:
+    """Load the ratified GOLD nephrology multimodal cases so V3 always has real
+    structured cases to serve — independent of the ASCLEPIUS_AUTOFILL flag AND the LLM
+    (these are static, pre-authored, ready-to-serve tasks with an A/B pair). Only loads
+    when the evaluator would be served nephrology (their specialty, or none). Idempotent
+    (already-present cases are skipped). Returns the number newly loaded."""
+    sp = (user.get("specialty") or "").strip().lower()
+    if sp and sp != "nephrology":
+        return 0
+    try:
+        from asclepius.gold_cases import load_gold_cases
+        return int(load_gold_cases(store).get("loaded", 0))
+    except Exception:  # never let seeding break the queue request
+        log.exception("asclepius: gold-case seeding failed")
+        return 0
+
+
 @router.get("/tasks/next")
 async def next_task(
     portal_version: Optional[str] = Query(
@@ -906,6 +923,13 @@ async def next_task(
         task = _query_next(store, user, portal_version=portal_version, fallback=False)
         if not task:
             task = await _autofill_queue(store, user, portal_version=portal_version)
+        if not task:
+            # GUARANTEED structured cases: load the ratified GOLD nephrology cases and
+            # serve one. This does NOT depend on ASCLEPIUS_AUTOFILL or the LLM — the
+            # gold cases are static, pre-authored, ready-to-serve tasks — so V3 shows a
+            # real case even when autofill is off and no API key is configured.
+            _ensure_gold_cases(store, user)
+            task = _query_next(store, user, portal_version=portal_version, fallback=False)
         if not task:
             task = _query_next(store, user, portal_version=portal_version, fallback=True)
     else:

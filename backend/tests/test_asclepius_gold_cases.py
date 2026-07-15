@@ -112,6 +112,22 @@ def test_v3_serves_a_gold_case_with_labs_and_ehr(monkeypatch):
     assert "ground_truth" not in t["case"]
 
 
+def test_v3_serves_gold_even_with_autofill_disabled(monkeypatch):
+    """The production-hardening guarantee: even with ASCLEPIUS_AUTOFILL OFF (so the
+    autofill path returns immediately) AND no LLM, a V3 request still loads and serves a
+    ratified gold case — because gold seeding does not depend on the autofill flag. This
+    is the 'open V3 and see nothing again' failure this prevents."""
+    monkeypatch.setenv("ASCLEPIUS_V3_MULTIMODAL_ONLY", "1")
+    monkeypatch.setenv("ASCLEPIUS_AUTOFILL", "0")   # autofill entirely disabled
+    A.fresh_store()
+    ev_h = _ev_h()
+    t = client.get("/api/asclepius/tasks/next?portal_version=v3", headers=ev_h).json()["task"]
+    assert t is not None, "V3 served nothing with autofill off"
+    assert t["modality"] == "multimodal", f"served non-multimodal: {t.get('modality')}"
+    assert t["case"]["lab_panels"] and t["case"]["notes"]
+    assert len(t["candidate_answers"]) == 2
+
+
 def test_v3_autofill_falls_back_to_gold_when_no_llm(monkeypatch):
     """The end-to-end unblock: with the multimodal preference ON and live generation
     unavailable (no LLM in the suite → GenerationDisabled), a V3 request auto-seeds the
