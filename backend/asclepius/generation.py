@@ -305,11 +305,12 @@ async def generate_tasks(
             # Multimodal: the structured case rides this item; the rendered case IS
             # the prompt (so candidate-gen already conditions on labs + note).
             case = p.get("_case")
+            is_mm = case is not None
 
             # PHI defensive scan on the generated case (PRD §3.1) — synthetic is
             # PHI-free by construction, but drop rather than ship anything the scan
             # flags (never emit a case with a residual identifier).
-            if case is not None and residual_identifiers(prompt):
+            if is_mm and residual_identifiers(prompt):
                 dropped["case_gen_failed"] += 1
                 continue
 
@@ -323,8 +324,13 @@ async def generate_tasks(
                 dropped["duplicate"] += 1
                 continue
             # Gate 2b: fuzzy near-duplicate (token-set Jaccard) on hash survivors.
+            # SKIPPED for multimodal: cases from the same archetype share the panel /
+            # note scaffolding (high token overlap) but carry DIFFERENT synthetic values
+            # — each is a distinct evaluation. The Jaccard gate is calibrated for text
+            # prompts and would collapse a whole archetype to a single case (so V3 runs
+            # dry after the first few). Exact-hash dedup above still blocks true repeats.
             ts = _token_set(prompt)
-            if ts and any(_jaccard(ts, s) >= GENERATION_NEAR_DUP_JACCARD for s in seen_token_sets):
+            if ts and not is_mm and any(_jaccard(ts, s) >= GENERATION_NEAR_DUP_JACCARD for s in seen_token_sets):
                 dropped["near_duplicate"] += 1
                 continue
 
@@ -352,24 +358,39 @@ async def generate_tasks(
                 continue
 
             # Stage 3: quality / error-likelihood judge.
+            #
+            # This judge is calibrated for TEXT prompts ("how likely is a top model to
+            # err on this open question, and how teachable is the correction"). For a
+            # MULTIMODAL case it is the WRONG judge — a structured case with a decisive
+            # ground-truth answer legitimately scores LOW on error_likelihood, so
+            # applying the text floors here silently dropped nearly every case
+            # (low_error_likelihood / low_revision_value) even though the case is
+            # excellent. A multimodal case's quality is gated by the CASE JUDGE
+            # (Stage 3c: coherence, necessity, divergence) instead. So for multimodal
+            # items we keep ONLY the universal safety check and skip the text-prompt
+            # quality floors. Text generation is unchanged.
             judge = await run_prompt_judge(prompt, candidates)
+            # Always defined for the provenance record below (None for multimodal
+            # when the text judge is skipped — the case-judge carries the real scores).
+            el = judge.get("error_likelihood")
+            rv = judge.get("revision_value")
             if judge.get("skipped"):
-                dropped["judge_failed"] += 1
-                continue
+                if not is_mm:
+                    dropped["judge_failed"] += 1
+                    continue
             if not judge.get("safety_ok", True):
                 dropped["unsafe"] += 1
                 continue
-            if not judge.get("on_specialty", True):
-                dropped["off_specialty"] += 1
-                continue
-            el = judge.get("error_likelihood")
-            rv = judge.get("revision_value")
-            if el is None or el < min_err:
-                dropped["low_error_likelihood"] += 1
-                continue
-            if rv is None or rv < min_rev:
-                dropped["low_revision_value"] += 1
-                continue
+            if not is_mm:
+                if not judge.get("on_specialty", True):
+                    dropped["off_specialty"] += 1
+                    continue
+                if el is None or el < min_err:
+                    dropped["low_error_likelihood"] += 1
+                    continue
+                if rv is None or rv < min_rev:
+                    dropped["low_revision_value"] += 1
+                    continue
 
             # Stage 3b: Hard-Case gate (Seamless PRD WS2). Score how genuinely hard
             # the prompt is; drop below the floor (``below_hardness_floor``) and
