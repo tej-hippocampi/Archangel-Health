@@ -229,6 +229,58 @@ def test_v3_falls_back_to_text_when_no_multimodal_case(monkeypatch):
     assert t is not None and t["task_id"] == text_hard  # queue is NOT empty
 
 
+def test_v3_generates_multimodal_instead_of_serving_the_text_seed(monkeypatch):
+    """Regression for the "V3 shows a text case" outage: a hard TEXT seed already in
+    the queue must NOT stop autofill from GENERATING a structured multimodal case.
+    Previously the seed satisfied ``_query_next`` (via the text fallback), so
+    ``next_task`` never triggered autofill and the seed was served forever. Now V3
+    prefers a multimodal case: with none present it fires generation, then serves the
+    generated case — not the seed."""
+    monkeypatch.setenv("ASCLEPIUS_V3_MULTIMODAL_ONLY", "1")
+    monkeypatch.setenv("ASCLEPIUS_AUTOFILL", "1")
+    A.fresh_store()
+    admin_h = _admin_h()
+    ev_h = _ev_h()
+    text_seed = _mk_task(admin_h, "hard")  # a hard TEXT seed sits in the queue
+
+    import routers.asclepius as R
+
+    generated: list[str] = []
+
+    async def fake_generate_tasks(store, *, specialty, n=1, multimodal=False,
+                                  created_by=None, **kw):
+        # Simulate the case-gen pipeline: on the multimodal request, insert ONE
+        # accepted structured case (labs + note → modality derived as multimodal).
+        if not multimodal:
+            return {"accepted": 0, "created": [], "dropped": {}}
+        row = store.insert_task(
+            prompt=f"mm-gen {uuid.uuid4().hex[:6]}", specialty=specialty,
+            difficulty="hard", source="synthetic", created_by="system:autofill",
+            candidate_answers=[{"id": "A", "text": "a"}, {"id": "B", "text": "b"}],
+            case={
+                "case_source": "synthetic",
+                "problem_list": [{"condition": "CKD"}],
+                "medications": [{"drug": "Tacrolimus"}],
+                "lab_panels": [{"panel": "BMP", "collected_offset_days": 0, "results": [
+                    {"analyte": "Na", "value": 120, "unit": "mmol/L",
+                     "ref_low": 135, "ref_high": 145, "flag": "L"}]}],
+                "notes": [{"note_type": "Consult", "author_role": "nephrology",
+                           "text": "Euvolemic on tacrolimus."}],
+            },
+        )
+        generated.append(row["task_id"])
+        return {"accepted": 1, "created": [row["task_id"]], "dropped": {}}
+
+    monkeypatch.setattr(R.asc_generation, "generate_tasks", fake_generate_tasks)
+    R._autofill_last_attempt.clear()  # ensure the cooldown does not suppress generation
+
+    t = client.get("/api/asclepius/tasks/next?portal_version=v3", headers=ev_h).json()["task"]
+    assert t is not None
+    assert generated and t["task_id"] == generated[0]  # served the GENERATED case
+    assert t["task_id"] != text_seed                   # NOT the text seed
+    assert t["modality"] == "multimodal"
+
+
 def test_v3_serves_only_hard_tasks():
     A.fresh_store()
     admin_h = _admin_h()

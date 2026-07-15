@@ -638,7 +638,8 @@ def _value_aware_next(
 
 
 def _query_next(
-    store: Any, user: Dict[str, Any], *, portal_version: Optional[str] = None
+    store: Any, user: Dict[str, Any], *, portal_version: Optional[str] = None,
+    fallback: bool = True,
 ) -> Optional[Dict[str, Any]]:
     # Value-aware routing is an ASSISTED-flow enhancement (V2 + V3). V1 (and any
     # request that does not explicitly declare an assisted flow) keeps the exact
@@ -682,11 +683,15 @@ def _query_next(
                 if value_aware else _classic(specialty, mm_only))
 
     def _pick_pref(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
-        # Prefer a multimodal case; fall back to the normal queue so V3 is never
-        # empty just because no structured case exists yet.
+        # Prefer a multimodal case. With ``fallback`` (the default) a text/hard task
+        # is served when no structured case exists yet, so V3 is never empty. With
+        # ``fallback=False`` the caller wants a multimodal case ONLY (returns None if
+        # none exists) — that's how ``next_task`` decides it must trigger generation
+        # instead of serving the text seed forever (the seed would otherwise satisfy
+        # the queue and generation would never fire).
         if multimodal_pref:
             got = _pick(specialty, True)
-            if got:
+            if got or not fallback:
                 return got
         return _pick(specialty, False)
 
@@ -788,12 +793,20 @@ async def _autofill_queue(
         return None
     specialty = _autofill_specialty(user)
     cooldown = _autofill_cooldown_sec()
+    # V3 multimodal-by-default: a text/hard seed in the queue must NOT count as
+    # "already filled" — otherwise the seed short-circuits the re-check below and a
+    # structured multimodal case is never generated (exactly the V3-shows-text bug).
+    # For the multimodal preference we only treat the queue as filled if a MULTIMODAL
+    # case is already present (fallback=False); every other flow keeps the old
+    # any-task check.
+    mm_pref = portal_version == "v3" and v3_multimodal_only()
     if time.monotonic() - _autofill_last_attempt.get(specialty, 0.0) < cooldown:
         return None
     async with _AUTOFILL_LOCK:
         # Another request may have filled the queue (or just attempted) while we
-        # waited on the lock — re-check both before spending LLM budget.
-        task = _query_next(store, user, portal_version=portal_version)
+        # waited on the lock — re-check before spending LLM budget. Under the
+        # multimodal preference this looks for a multimodal case specifically.
+        task = _query_next(store, user, portal_version=portal_version, fallback=not mm_pref)
         if task:
             return task
         if time.monotonic() - _autofill_last_attempt.get(specialty, 0.0) < cooldown:
@@ -803,8 +816,7 @@ async def _autofill_queue(
         # but fall back to text seeding if generation is unavailable (no LLM key) so
         # the V3 clinician is never left with an empty "queue cleared" screen. The
         # serving side (_query_next) mirrors this — multimodal is a preference, not a
-        # hard filter.
-        mm_pref = portal_version == "v3" and v3_multimodal_only()
+        # hard filter. (``mm_pref`` computed above, before the cooldown gate.)
         try:
             created = 0
             # Multimodal autofill (Multimodal Debug PRD P0.2): a full multimodal
@@ -872,10 +884,24 @@ async def next_task(
     user: Dict[str, Any] = Depends(asc_auth.get_current_user),
 ):
     store = _store()
-    task = _query_next(store, user, portal_version=portal_version)
-    if not task:
-        # Empty queue -> auto-generate a fresh batch via the engine, then serve.
-        task = await _autofill_queue(store, user, portal_version=portal_version)
+    # V3 multimodal-by-default: PREFER a structured case. Critically, a text/hard
+    # seed already in the queue must NOT stop us from generating a multimodal case —
+    # otherwise the seed is served forever and generation never fires (the V3-shows-
+    # text bug). So: (1) serve a multimodal case if one exists; (2) else trigger
+    # autofill to GENERATE one; (3) only if generation yields nothing fall back to
+    # the text queue, so V3 is never empty.
+    mm_pref = portal_version == "v3" and v3_multimodal_only()
+    if mm_pref:
+        task = _query_next(store, user, portal_version=portal_version, fallback=False)
+        if not task:
+            task = await _autofill_queue(store, user, portal_version=portal_version)
+        if not task:
+            task = _query_next(store, user, portal_version=portal_version, fallback=True)
+    else:
+        task = _query_next(store, user, portal_version=portal_version)
+        if not task:
+            # Empty queue -> auto-generate a fresh batch via the engine, then serve.
+            task = await _autofill_queue(store, user, portal_version=portal_version)
     return {"task": _blind_task(task) if task else None}
 
 
