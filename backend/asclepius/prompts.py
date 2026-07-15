@@ -186,6 +186,22 @@ path that reaches (or approaches) the same answer for the WRONG reason.
 - In ``reasoning_divergence`` state explicitly the SHORTCUT PATH a model will take and WHY it is wrong; in \
 ``hard_hook`` name the single datum that decides the case.
 
+ENGINEER AGAINST A DOCUMENTED FAILURE MODE (not merely "made hard"). Every case must weaponize ≥2 of these \
+reproducible ways frontier models fail clinically:
+1. ANCHORING (the dominant one): put a LOUD, WRONG headline at the top (the stem + the most abnormal lab) that points \
+to the common diagnosis, and hide the truth in the urine studies, the med list, and the TREND. The model anchors and \
+never revises.
+2. RIGHT-ANSWER-WRONG-REASON: build a plausible SHORTCUT that reaches an acceptable-sounding answer via unsound logic, \
+while the SOUND path needs a correction (e.g. FeNa 0.8% → "pre-renal", invalid because the patient is on a diuretic).
+3. OVERTREATMENT / POOR CALIBRATION: make the reflexive "treat emergently" move HARMFUL (e.g. IV calcium for a \
+hemolyzed K+ with a normal ECG; stopping diuretics for a permissive creatinine rise).
+4. FAILURE TO SEEK MISSING CONTEXT: sometimes WITHHOLD a datum required to decide — the correct answer is to OBTAIN it \
+or state you cannot safely decide without it, not to confabulate.
+5. GUIDELINE-RECENCY / SEQUENCING: use a decision governed by a recent guideline or a correct ORDER (CKD-MBD binder \
+sequencing, BK-nephropathy immunosuppression REDUCTION) where the model applies stale dogma or the wrong order.
+Prefer cases where the COMMON WRONG answer is dangerous (safety asymmetry) — that is what the labs and a specialist's \
+correction actually reward.
+
 Return ONLY JSON: {"question": "<the clinical question>", "case": {ClinicalCase fields: case_source, specialty, \
 demographics{age_band,sex}, problem_list[{condition,since}], medications[{drug,dose,route,freq}], vitals{}, \
 lab_panels[{panel,collected_offset_days,results[{analyte,value,unit,ref_low,ref_high,flag}]}], \
