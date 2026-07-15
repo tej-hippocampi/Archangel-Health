@@ -281,6 +281,21 @@ def test_v3_generates_multimodal_instead_of_serving_the_text_seed(monkeypatch):
     assert t["modality"] == "multimodal"
 
 
+def test_debug_mm_generate_endpoint_reports_config_and_outcome():
+    """The /debug/mm-generate diagnostic runs the real multimodal pipeline once and
+    reports config + accepted/dropped so an operator can see WHY V3 has no cases.
+    Available to any signed-in evaluator (synthetic data only). With no LLM in the
+    suite it must degrade to a readable error, never a 500."""
+    A.fresh_store()
+    ev_h = _ev_h()
+    r = client.get("/api/asclepius/debug/mm-generate", headers=ev_h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert set(body["config"]) >= {"autofill_enabled", "multimodal_preferred", "gates_relaxed"}
+    # No API key in the suite → generation disabled → a readable error (not a crash).
+    assert "error" in body or "result" in body
+
+
 def test_v3_serves_only_hard_tasks():
     A.fresh_store()
     admin_h = _admin_h()

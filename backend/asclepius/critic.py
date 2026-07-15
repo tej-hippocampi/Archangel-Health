@@ -36,17 +36,81 @@ log = logging.getLogger("asclepius.critic")
 def _extract_json(text: str) -> Optional[Dict[str, Any]]:
     if not text:
         return None
-    # tolerate ```json fences / surrounding prose
-    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.S)
-    candidate = fenced.group(1) if fenced else text
-    start = candidate.find("{")
-    end = candidate.rfind("}")
+    # Tolerate ```json fences / surrounding prose. Strip a leading/trailing code
+    # fence, then take the OUTERMOST braces — a non-greedy inner-brace match would
+    # truncate nested JSON (a real case is deeply nested) and fail to parse.
+    t = text.strip()
+    t = re.sub(r"^```(?:json)?\s*", "", t)
+    t = re.sub(r"\s*```$", "", t)
+    start = t.find("{")
+    end = t.rfind("}")
     if start == -1 or end == -1 or end < start:
         return None
     try:
-        return json.loads(candidate[start : end + 1])
+        return json.loads(t[start : end + 1])
     except json.JSONDecodeError:
         return None
+
+
+# ── Sanitizer for LLM-authored cases (generation path ONLY) ───────────────────
+# The ClinicalCase models are extra='forbid' so REAL-EHR ingestion quarantines on
+# schema drift (data integrity). But an LLM routinely adds a benign extra key
+# ("summary", a lab result with "name"/"reference_range", a note with "date") or a
+# near-miss alias ("labs" for "lab_panels", "result" for "value") — under forbid
+# that nukes an otherwise-valid synthetic case and V3 falls back to text. So in the
+# GENERATION path we first map common aliases and strip unknown keys, so a good case
+# is never dropped over cosmetics. Real ingestion does NOT use this (it stays strict).
+_CASE_KEYS = {"case_id", "case_source", "specialty", "demographics", "problem_list",
+              "medications", "vitals", "lab_panels", "notes", "ground_truth",
+              "hard_hook", "reasoning_divergence"}
+_PANEL_KEYS = {"panel", "collected_offset_days", "results"}
+_RESULT_KEYS = {"analyte", "loinc", "value", "unit", "ref_low", "ref_high", "flag"}
+_NOTE_KEYS = {"note_type", "author_role", "text"}
+_TOP_ALIASES = {"labs": "lab_panels", "laboratory": "lab_panels", "lab_results": "lab_panels",
+                "panels": "lab_panels", "note": "notes", "clinical_notes": "notes",
+                "problems": "problem_list", "meds": "medications"}
+_PANEL_ALIASES = {"name": "panel", "panel_name": "panel", "offset_days": "collected_offset_days",
+                  "day": "collected_offset_days", "collected_day": "collected_offset_days",
+                  "tests": "results", "results_list": "results"}
+_RESULT_ALIASES = {"result": "value", "reference_low": "ref_low", "reference_high": "ref_high",
+                   "ref_range_low": "ref_low", "ref_range_high": "ref_high", "low": "ref_low",
+                   "high": "ref_high", "name": "analyte", "units": "unit"}
+_NOTE_ALIASES = {"content": "text", "body": "text", "narrative": "text", "note": "text",
+                 "type": "note_type", "author": "author_role", "role": "author_role"}
+
+
+def _remap(d: Dict[str, Any], aliases: Dict[str, str], keep: set) -> Dict[str, Any]:
+    out = dict(d)
+    for alias, canonical in aliases.items():
+        if alias in out and canonical not in out:
+            out[canonical] = out.pop(alias)
+    return {k: v for k, v in out.items() if k in keep}
+
+
+def _sanitize_generated_case(raw: Any) -> Any:
+    """Map common LLM key-aliases and drop unknown keys on the case + its lab panels /
+    results / notes, so a benign extra never fails construction. GENERATION ONLY."""
+    if not isinstance(raw, dict):
+        return raw
+    c = _remap(raw, _TOP_ALIASES, _CASE_KEYS)
+    panels = c.get("lab_panels")
+    if isinstance(panels, list):
+        clean_panels = []
+        for p in panels:
+            if not isinstance(p, dict):
+                continue
+            p = _remap(p, _PANEL_ALIASES, _PANEL_KEYS)
+            res = p.get("results")
+            if isinstance(res, list):
+                p["results"] = [_remap(r, _RESULT_ALIASES, _RESULT_KEYS)
+                                for r in res if isinstance(r, dict)]
+            clean_panels.append(p)
+        c["lab_panels"] = clean_panels
+    notes = c.get("notes")
+    if isinstance(notes, list):
+        c["notes"] = [_remap(n, _NOTE_ALIASES, _NOTE_KEYS)
+                      for n in notes if isinstance(n, dict)]
+    return c
 
 
 def _candidate_text(task: Dict[str, Any], cid: Optional[str]) -> str:
@@ -672,10 +736,14 @@ async def generate_case(archetype: Dict[str, Any], *, specialty: str = "general"
         if not question or not isinstance(raw_case, dict):
             last_error = "incomplete_case"
             continue
+        # Map aliases + strip unknown keys so a benign extra from the LLM does not
+        # nuke an otherwise-valid case (the empty-case guard is assert_multimodal_
+        # content below, not extra='forbid'). Real ingestion stays strict.
+        raw_case = _sanitize_generated_case(raw_case)
         try:
             case = ClinicalCase(**raw_case).model_dump()
-        except Exception as exc:  # schema mismatch / forbidden extra key → drop
-            log.info("asclepius case-gen schema error: %s", exc)
+        except Exception as exc:  # a required field is still missing/mistyped → drop
+            log.warning("asclepius case-gen schema error (after sanitize): %s", exc)
             last_error = "case_schema"
             continue
         case["case_source"] = "synthetic"
@@ -685,7 +753,7 @@ async def generate_case(archetype: Dict[str, Any], *, specialty: str = "general"
         try:
             assert_multimodal_content(case)
         except MultimodalContentError as exc:
-            log.info("asclepius case-gen insufficient content: %s", exc)
+            log.warning("asclepius case-gen insufficient content: %s", exc)
             last_error = f"insufficient_content:{exc}"
             continue
         return {"case": case, "question": question, "model": last_model, "skipped": False}

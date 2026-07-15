@@ -91,6 +91,7 @@ from asclepius.constants import (
     company_name as _company_name,
     hard_only_generation,
     v3_multimodal_only,
+    relax_multimodal_gates,
     non_circumvention_notice as _non_circumvention_notice,
 )
 from asclepius.schemas import (
@@ -2471,6 +2472,57 @@ async def batch_from_request(
 
 
 # ─── Dashboard (admin) ────────────────────────────────────────────────────────
+@router.get("/debug/mm-generate")
+async def debug_mm_generate(
+    n: int = Query(1, ge=1, le=3),
+    specialty: Optional[str] = Query(None),
+    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+):
+    """Diagnostic: run the REAL multimodal generation pipeline once and report what
+    happened — the accepted count and the exact per-reason DROP breakdown — so an
+    operator can see precisely why V3 is (or isn't) getting structured cases instead
+    of guessing. Synthetic data only (no PHI), so it is available to any signed-in
+    evaluator. Accepted cases are inserted into the queue (this doubles as a manual
+    'force a case' button)."""
+    store = _store()
+    sp = (specialty or user.get("specialty") or "nephrology").strip().lower()
+    out: Dict[str, Any] = {
+        "specialty": sp,
+        "config": {
+            "autofill_enabled": _autofill_enabled(),
+            "multimodal_preferred": v3_multimodal_only(),
+            "gates_relaxed": relax_multimodal_gates(),
+        },
+    }
+    try:
+        res = await asc_generation.generate_tasks(
+            store, specialty=sp, n=n, multimodal=True,
+            created_by=f"debug:{user.get('email')}",
+        )
+        out["result"] = {
+            "accepted": res.get("accepted"),
+            "dropped": dict(res.get("dropped") or {}),
+            "shortfall": res.get("shortfall"),
+        }
+        mm = [t for t in store.list_tasks(specialty=sp, limit=25)
+              if t.get("modality") == "multimodal"]
+        out["multimodal_in_queue"] = len(mm)
+        if mm:
+            c = mm[-1].get("case") or {}
+            out["sample_case"] = {
+                "task_id": mm[-1]["task_id"],
+                "lab_panels": len(c.get("lab_panels") or []),
+                "notes": len(c.get("notes") or []),
+                "problems": len(c.get("problem_list") or []),
+                "medications": len(c.get("medications") or []),
+            }
+    except asc_generation.GenerationDisabled as exc:
+        out["error"] = f"generation_disabled: {exc} — is ANTHROPIC_API_KEY set?"
+    except Exception as exc:  # surface the failure instead of a 500 the operator can't read
+        out["error"] = f"{type(exc).__name__}: {exc}"
+    return out
+
+
 @router.get("/stats")
 async def stats(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
     store = _store()

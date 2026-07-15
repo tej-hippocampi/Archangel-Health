@@ -374,11 +374,12 @@ def test_multimodal_ignores_difficulty_mix(monkeypatch):
     assert res["dropped"].get("difficulty_mix_skew", 0) == 0
 
 
-# ─── BUG-1 acceptance: schema drift + empty content are DROPPED, not stored ────
-def test_schema_drift_labs_key_is_dropped(monkeypatch):
-    """Acceptance criterion: feed the generator a response using ``labs`` instead
-    of ``lab_panels`` → extra='forbid' raises → the item is dropped (case_gen_
-    failed), never stored as a silent empty case."""
+# ─── Generation robustness: alias drift is RECOVERED; empty content still drops ─
+def test_schema_drift_labs_key_is_recovered(monkeypatch):
+    """A generated response using ``labs`` instead of ``lab_panels`` must NOT be
+    thrown away (that dropped real cases and left V3 on text). The generation-path
+    sanitizer maps the alias back to ``lab_panels`` so the case is recovered and
+    served — while REAL-EHR ingestion stays strict (extra='forbid') elsewhere."""
     import ai.llm_client as llm
     import json as _json
     from asclepius import critic
@@ -387,14 +388,37 @@ def test_schema_drift_labs_key_is_dropped(monkeypatch):
         return ({}, {"model": "cg"})
 
     drifted = _case()
-    drifted["labs"] = drifted.pop("lab_panels")  # wrong key name
+    drifted["labs"] = drifted.pop("lab_panels")  # wrong key name from the LLM
+    drifted["teaching_point"] = "a benign extra key the LLM added"  # must not nuke the case
     monkeypatch.setattr(llm, "call_llm", fake_call)
     monkeypatch.setattr(llm, "first_text", lambda resp: _json.dumps(
         {"question": "Classify.", "case": drifted}))
     res = asyncio.run(critic.generate_case({"topic": "x", "multimodal": {}}, specialty="nephrology"))
-    assert res["skipped"] is False       # LLM worked
-    assert res["case"] is None           # but the drifted case was rejected
-    assert res["error"] == "case_schema"
+    assert res["skipped"] is False
+    assert res["case"] is not None                       # recovered, not dropped
+    assert len(res["case"]["lab_panels"]) == 2           # labs alias mapped back
+    assert "teaching_point" not in res["case"]           # benign extra stripped
+
+
+def test_empty_case_still_dropped_after_sanitize(monkeypatch):
+    """The sanitizer must not become a hole in the empty-case guard: a case whose
+    labs really are absent (here an unmappable key) still fails the content
+    assertion and is dropped — never stored as an empty 'multimodal' case."""
+    import ai.llm_client as llm
+    import json as _json
+    from asclepius import critic
+
+    async def fake_call(**kw):
+        return ({}, {"model": "cg"})
+
+    empty = _case()
+    empty["lab_panels"] = []  # genuinely no labs
+    monkeypatch.setattr(llm, "call_llm", fake_call)
+    monkeypatch.setattr(llm, "first_text", lambda resp: _json.dumps(
+        {"question": "Classify.", "case": empty}))
+    res = asyncio.run(critic.generate_case({"topic": "x", "multimodal": {}}, specialty="nephrology"))
+    assert res["case"] is None
+    assert res["error"].startswith("insufficient_content")
 
 
 def test_empty_labs_case_fails_content_assertion(monkeypatch):
