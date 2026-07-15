@@ -215,18 +215,22 @@ def test_v3_prefers_multimodal_when_available(monkeypatch):
     assert v2 is not None
 
 
-def test_v3_falls_back_to_text_when_no_multimodal_case(monkeypatch):
-    """Regression: the multimodal preference must NOT empty the V3 queue. When no
-    structured case has been generated (e.g. no LLM key in the deployment), V3 must
-    still serve the available hard text task rather than showing a cleared queue."""
+def test_v3_seeds_gold_cases_when_no_multimodal_case(monkeypatch):
+    """Regression: the multimodal preference must NOT empty the V3 queue, and must NOT
+    serve a bare text prompt as the 'case'. When no structured case has been generated
+    (e.g. no LLM key), V3 now seeds the ratified GOLD nephrology cases and serves a real
+    structured case — even with autofill OFF — rather than the hard text task."""
     monkeypatch.setenv("ASCLEPIUS_V3_MULTIMODAL_ONLY", "1")
     monkeypatch.setenv("ASCLEPIUS_AUTOFILL", "0")
     A.fresh_store()
     admin_h = _admin_h()
-    ev_h = _ev_h()
-    text_hard = _mk_task(admin_h, "hard")           # only a hard TEXT task exists
+    ev_h = _ev_h()  # nephrology evaluator
+    text_hard = _mk_task(admin_h, "hard")           # a hard TEXT task also exists
     t = client.get("/api/asclepius/tasks/next?portal_version=v3", headers=ev_h).json()["task"]
-    assert t is not None and t["task_id"] == text_hard  # queue is NOT empty
+    assert t is not None                            # queue is NOT empty
+    assert t["modality"] == "multimodal"            # a real structured case, not the text task
+    assert t["task_id"] != text_hard
+    assert t["case"]["lab_panels"] and t["case"]["notes"]
 
 
 def test_v3_generates_multimodal_instead_of_serving_the_text_seed(monkeypatch):
