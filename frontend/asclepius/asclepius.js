@@ -3200,20 +3200,28 @@
   function renderPromoteByUpload(cc, query) {
     if (!cc) return;
     clear(cc);
+    // Build the header + search input ONCE; typing only re-renders the results
+    // container below (so the input keeps focus + caret between keystrokes).
+    const listBox = h('div', {});
     const search = h('input', { class: 'asc-input', placeholder: 'Search a partner upload (e.g. "Gray Scrubs Lab") or file name…', value: query || '' });
-    search.addEventListener('input', () => renderPromoteByUpload(cc, search.value));
+    search.addEventListener('input', () => renderPromoteList(listBox, search.value));
     cc.appendChild(h('div', { class: 'asc-card-head' }, h('div', { style: 'flex:1' },
       h('div', { class: 'asc-card-title' }, '✅ Ready to promote — by partner upload'),
       h('div', { class: 'asc-card-sub' }, 'Pick a partner file and promote it to V4. We convert the real records, run automated tests, and show you one sample case (labs, notes, EHR + candidates) to review — then extend case creation to the rest of the file.'),
       h('div', { class: 'asc-field', style: 'margin-top:12px;margin-bottom:0' }, search))));
+    cc.appendChild(listBox);
+    renderPromoteList(listBox, query || '');
+  }
 
+  function renderPromoteList(listBox, query) {
+    clear(listBox);
     const q = (query || '').trim().toLowerCase();
     const eligible = (_ingestUploads || []).filter((u) => (u.ingested_case_count || 0) > 0
       && (!q || (u.partner_label || '').toLowerCase().includes(q)
               || (u.partner_id || '').toLowerCase().includes(q)
               || (u.filename || '').toLowerCase().includes(q)));
     if (!eligible.length) {
-      cc.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
+      listBox.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
         q ? 'No partner uploads match "' + query + '" with cases ready to promote.' : 'No uploads have ingested cases awaiting promotion.')));
       return;
     }
@@ -3221,7 +3229,7 @@
       const st = h('div', { style: 'margin-top:10px' });
       const promoteBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, '⚡ Promote to V4 task');
       promoteBtn.addEventListener('click', () => openPromoteReview(u, st));
-      cc.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
+      listBox.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
         h('div', { style: 'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center' },
           h('div', {},
             h('strong', {}, '🏥 ' + (u.partner_label || u.partner_id || 'partner')),
@@ -3268,7 +3276,7 @@
     // Case panel: labs, notes, meds, problems, demographics.
     const demo = kase.demographics || {};
     const labs = (kase.lab_panels || []).map((p) => h('div', { style: 'margin-bottom:8px' },
-      h('div', { style: 'font-weight:600' }, p.panel || 'panel' + (p.collected_offset_days != null ? '  (day ' + p.collected_offset_days + ')' : '')),
+      h('div', { style: 'font-weight:600' }, (p.panel || 'panel') + (p.collected_offset_days != null ? '  (day ' + p.collected_offset_days + ')' : '')),
       h('div', { class: 'asc-mono', style: 'font-size:12px;white-space:pre-wrap' },
         (p.results || []).map((r) => (r.analyte || '?') + ': ' + (r.value != null ? r.value : '') + ' ' + (r.unit || '') + (r.flag ? ' [' + r.flag + ']' : '')).join('\n'))));
     const notes = (kase.notes || []).map((n) => h('div', { style: 'margin-bottom:8px' },
@@ -3808,6 +3816,7 @@
       h('div', { style: 'margin-top:14px' }, h('label', { class: 'asc-label' }, 'Organizations'), h('div', {}, rows)),
       summary,
       sendBtn));
+    syncSummary();
   }
 
   function openSendToBuyerModal(orgs, scope, windowLabel) {
