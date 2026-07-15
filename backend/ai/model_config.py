@@ -51,7 +51,7 @@ MODEL_REGISTRY: dict[str, dict[str, Any]] = {
     # are deterministic scorers. Overridable via MODEL_ASCLEPIUS_CASE_GEN /
     # _CASE_JUDGE / _HARDNESS_JUDGE. WITHOUT these entries resolve() raises and every
     # multimodal case is dropped (mis-reported as "no LLM"), so V3 falls back to text.
-    "asclepius_case_gen": {"model": "claude-opus-4-8", "temperature": 0.6, "max_tokens": 4000},
+    "asclepius_case_gen": {"model": "claude-opus-4-8", "temperature": 0.6, "max_tokens": 6000},
     "asclepius_case_judge": {"model": "claude-opus-4-8", "temperature": 0.0, "max_tokens": 1200},
     "asclepius_hardness_judge": {"model": "claude-opus-4-8", "temperature": 0.0, "max_tokens": 1000},
     # Citation retrieval ranking (BUG-3): score candidate library entries for
