@@ -247,6 +247,64 @@ def test_multimodal_drops_when_hardness_judge_skipped(monkeypatch):
     assert res["dropped"].get("hardness_unavailable", 0) >= 1, res["dropped"]
 
 
+def test_multimodal_survives_low_prompt_judge_score(monkeypatch):
+    """The text prompt-judge (error_likelihood / revision_value, floors 0.5) is the
+    WRONG gate for a structured case: a clean case with a decisive answer legitimately
+    scores LOW, so this gate was silently dropping nearly every multimodal case as
+    low_error_likelihood. A multimodal item must survive a low text-judge score (the
+    case-judge is its quality gate); TEXT prompts still drop below the floor."""
+    A.fresh_store()
+    _install(monkeypatch)
+
+    async def low_judge(prompt, candidates):
+        return {"skipped": False, "error_likelihood": 0.05, "revision_value": 0.05,
+                "on_specialty": True, "safety_ok": True}
+
+    monkeypatch.setattr(gen, "run_prompt_judge", low_judge)
+    res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=1, multimodal=True))
+    assert res["accepted"] == 1, res["dropped"]
+    assert res["dropped"].get("low_error_likelihood", 0) == 0
+
+
+def test_multimodal_still_dropped_when_unsafe(monkeypatch):
+    """The one prompt-judge gate that STAYS active for multimodal is safety — an
+    unsafe case is dropped even under the relaxation."""
+    A.fresh_store()
+    _install(monkeypatch)
+
+    async def unsafe_judge(prompt, candidates):
+        return {"skipped": False, "error_likelihood": 0.9, "revision_value": 0.9,
+                "on_specialty": True, "safety_ok": False}
+
+    monkeypatch.setattr(gen, "run_prompt_judge", unsafe_judge)
+    res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=1, multimodal=True))
+    assert res["accepted"] == 0
+    assert res["dropped"].get("unsafe", 0) >= 1, res["dropped"]
+
+
+def test_multimodal_same_archetype_not_collapsed_by_near_dup(monkeypatch):
+    """Cases from the same archetype share the note/panel scaffolding (very high token
+    overlap) but carry different synthetic values — each is a distinct evaluation. The
+    Jaccard near-dup gate (calibrated for text prompts) must NOT collapse them for
+    multimodal, or V3 runs dry after a couple cases. Here: same note + question, only
+    the sodium differs → distinct hash but Jaccard well above the near-dup threshold."""
+    A.fresh_store()
+    _install(monkeypatch)
+    counter = {"i": 0}
+
+    async def near_dup_case(archetype, *, specialty="general"):
+        counter["i"] += 1
+        case = _case(lab_panels=_content_complete_labs(100 + counter["i"]),  # only Na changes
+                     notes=[{"note_type": "Consult", "author_role": "nephrology", "text": _LONG_NOTE}])
+        return {"case": case, "question": "Classify this hyponatremia presentation.",
+                "model": "cg", "skipped": False}
+
+    monkeypatch.setattr(gen, "generate_case", near_dup_case)
+    res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=3, multimodal=True))
+    assert res["accepted"] >= 2, res["dropped"]           # not collapsed to a single case
+    assert res["dropped"].get("near_duplicate", 0) == 0
+
+
 def test_multimodal_with_no_archetypes_creates_nothing(monkeypatch):
     A.fresh_store()
     _install(monkeypatch)
