@@ -2494,6 +2494,27 @@ async def debug_mm_generate(
             "gates_relaxed": relax_multimodal_gates(),
         },
     }
+    # LLM connectivity probe — the #1 reason generation is "disabled" is that the
+    # ANTHROPIC_API_KEY seen by THIS backend process is missing/empty/invalid (Railway
+    # variables are per-service and require a redeploy to take effect). Report enough
+    # to tell missing vs malformed vs invalid vs network — WITHOUT leaking the key.
+    _key = os.getenv("ANTHROPIC_API_KEY") or ""
+    out["llm"] = {
+        "key_present": bool(_key),
+        "key_length": len(_key),
+        "key_prefix_ok": _key.startswith("sk-ant-"),
+    }
+    try:
+        from ai.llm_client import call_llm as _call_llm, first_text as _first_text
+        resp, _ = await _call_llm(
+            role="asclepius_case_gen",
+            system="Reply with exactly the word OK.",
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=5, purpose="debug_llm_ping",
+        )
+        out["llm"]["ping"] = "ok: " + (_first_text(resp) or "")[:20]
+    except Exception as exc:  # the REAL reason: AuthenticationError / connection / missing key
+        out["llm"]["ping"] = f"FAILED: {type(exc).__name__}: {str(exc)[:240]}"
     try:
         res = await asc_generation.generate_tasks(
             store, specialty=sp, n=n, multimodal=True,
