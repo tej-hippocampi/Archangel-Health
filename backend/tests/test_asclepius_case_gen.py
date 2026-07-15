@@ -24,6 +24,30 @@ def _store():
     return get_store()
 
 
+def test_case_gen_prompt_ships_a_valid_reference_example():
+    """The case-gen system prompt embeds a worked REFERENCE EXAMPLE so Opus learns
+    the exact case shape + difficulty pattern (fewer schema-drift / low-necessity
+    drops). Lock it: the example must be valid JSON AND survive the same
+    ``assert_multimodal_content`` gate a generated case must pass — otherwise we'd be
+    teaching the model a shape our own pipeline rejects."""
+    import json
+    from asclepius.prompts import ASCLEPIUS_CASE_GEN_SYSTEM
+    from asclepius.cases import assert_multimodal_content
+
+    marker = "REFERENCE EXAMPLE"
+    assert marker in ASCLEPIUS_CASE_GEN_SYSTEM, "case-gen prompt lost its worked example"
+    start = ASCLEPIUS_CASE_GEN_SYSTEM.index('{"question', ASCLEPIUS_CASE_GEN_SYSTEM.index(marker))
+    obj = json.loads(ASCLEPIUS_CASE_GEN_SYSTEM[start:])  # raises if the example rots into invalid JSON
+    case = obj["case"]
+    assert_multimodal_content(case)  # the example passes the real content gate
+    # And it demonstrates the difficulty pattern the gates reward: a trend across ≥2
+    # panels at different offsets, plus a decisive flag and a red herring.
+    offsets = {p["collected_offset_days"] for p in case["lab_panels"]}
+    assert len(case["lab_panels"]) >= 2 and len(offsets) >= 2
+    flags = {r.get("flag") for p in case["lab_panels"] for r in p["results"]}
+    assert flags & {"L", "LL", "H", "HH"}  # at least one abnormal flag to interpret
+
+
 # A content-complete note ≥200 chars (BUG-1 content assertion floor).
 _LONG_NOTE = (
     "Nephrology consult. Patient euvolemic on exam with no edema or orthostasis, on a chronic "

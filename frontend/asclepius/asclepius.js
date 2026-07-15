@@ -626,7 +626,7 @@
       tabs.push({ key: 'labs', label: 'Labs', body: h('div', { class: 'asc-case-body' }, renderLabsTrend(c.lab_panels)) });
     }
     if (c.notes && c.notes.length) {
-      tabs.push({ key: 'notes', label: 'Notes' + (c.notes.length > 1 ? ' (' + c.notes.length + ')' : ''),
+      tabs.push({ key: 'notes', label: 'EHR' + (c.notes.length > 1 ? ' (' + c.notes.length + ')' : ''),
         body: h('div', { class: 'asc-case-body' }, ...c.notes.map((n) => h('div', { class: 'asc-case-note' },
           h('div', { class: 'asc-case-note-meta' }, '[' + (n.note_type || 'Note') + ' — ' + (n.author_role || 'clinician') + ']'),
           h('div', { class: 'asc-case-note-text' }, (n.text || '').trim())))) });
