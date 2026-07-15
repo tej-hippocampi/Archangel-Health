@@ -40,6 +40,7 @@ from asclepius.constants import (
     case_mm_necessity_min,
     hard_only_generation,
     hardness_min,
+    relax_multimodal_gates,
 )
 from asclepius.cases import (
     MultimodalContentError,
@@ -384,6 +385,12 @@ async def generate_tasks(
             # difficulty_mix_skew.
             hardness = None
             insert_difficulty = difficulty
+            # Bring-up relaxation (V3 only): for MULTIMODAL cases the strict quality
+            # floors can be relaxed so a structurally-complete case is served even if
+            # its scores are below floor — the judges still run and scores are
+            # recorded. ``relax`` is only ever True for multimodal (case is not None),
+            # so the TEXT path below is byte-for-byte unchanged (V2 unaffected).
+            relax = case is not None and relax_multimodal_gates()
             # Multimodal cases ALWAYS run the hardness judge (a case is a hard case
             # or it is not a case); text generation runs it only under hard_only.
             if hard_only_generation() or case is not None:
@@ -394,23 +401,34 @@ async def generate_tasks(
                     # Non-skippable multimodal gate (BUG-1 §4): an ungated case must
                     # never enter the queue — drop rather than pass. For TEXT
                     # generation a skipped hardness judge still degrades safely
-                    # (offline generation unaffected; difficulty untouched).
-                    if case is not None:
+                    # (offline generation unaffected; difficulty untouched). Under the
+                    # bring-up relaxation a multimodal case is NOT dropped (still hard).
+                    if case is not None and not relax:
                         dropped["hardness_unavailable"] += 1
                         continue
+                    if case is not None:
+                        insert_difficulty = "hard"
                 else:
                     hs = hj.get("hardness_score")
-                    if hs is None or hs < hardness_min():
+                    if (hs is None or hs < hardness_min()) and not relax:
                         dropped["below_hardness_floor"] += 1
                         continue
-                    insert_difficulty = "hard"
-                    hardness = {
-                        "score": hs,
-                        "axes": hj.get("hardness_axes") or [],
-                        "min": hardness_min(),
-                        "explanation": hj.get("explanation", ""),
-                        "judge_model": hj.get("model"),
-                    }
+                    # Passed the floor, OR relaxed through it: multimodal is always
+                    # hard; record whatever score we got (incl. a below-floor score
+                    # under relaxation, so pass-rates stay measurable).
+                    if case is not None:
+                        insert_difficulty = "hard"
+                    elif hs is not None and hs >= hardness_min():
+                        insert_difficulty = "hard"
+                    if hs is not None:
+                        hardness = {
+                            "score": hs,
+                            "axes": hj.get("hardness_axes") or [],
+                            "min": hardness_min(),
+                            "explanation": hj.get("explanation", ""),
+                            "judge_model": hj.get("model"),
+                            "below_floor": hs < hardness_min(),
+                        }
 
             # Stage 3c: multimodal case gate (Synthetic Multimodal Cases PRD §3.2)
             # — case-specific dimensions ONLY (hardness was judged in 3b). Runs only
@@ -429,29 +447,37 @@ async def generate_tasks(
                 cj = await run_case_judge(case)
                 # Non-skippable multimodal gate (BUG-1 §4): a skipped case judge
                 # means the case is UNGATED — drop it, never pass. (Ungated
-                # synthetic cases must never enter the queue.)
+                # synthetic cases must never enter the queue.) Under the bring-up
+                # relaxation we do NOT drop on a skipped judge — the case still ships
+                # (with no case_judge scores recorded).
                 if cj.get("skipped"):
-                    dropped["case_judge_unavailable"] += 1
-                    continue
-                if (cj.get("coherence") or 0.0) < case_coherence_min():
-                    dropped["case_incoherent"] += 1
-                    continue
-                if (cj.get("ground_truth_determinable") or 0.0) < case_ground_truth_min():
-                    dropped["ground_truth_indeterminate"] += 1
-                    continue
-                if (cj.get("multimodal_necessity") or 0.0) < case_mm_necessity_min():
-                    dropped["multimodal_not_necessary"] += 1
-                    continue
-                if (cj.get("reasoning_divergence_potential") or 0.0) < case_divergence_min():
-                    dropped["low_reasoning_divergence"] += 1
-                    continue
-                case_judge = {
-                    k: cj.get(k) for k in (
-                        "coherence", "ground_truth_determinable",
-                        "multimodal_necessity", "reasoning_divergence_potential")
-                }
-                case_judge["explanation"] = cj.get("explanation", "")
-                case_judge["judge_model"] = cj.get("model")
+                    if not relax:
+                        dropped["case_judge_unavailable"] += 1
+                        continue
+                else:
+                    # The four multimodal QUALITY floors. Relaxed (V3 bring-up): the
+                    # scores are still computed and recorded below, but a below-floor
+                    # case is NOT dropped. Strict: drop below any floor as before.
+                    if not relax:
+                        if (cj.get("coherence") or 0.0) < case_coherence_min():
+                            dropped["case_incoherent"] += 1
+                            continue
+                        if (cj.get("ground_truth_determinable") or 0.0) < case_ground_truth_min():
+                            dropped["ground_truth_indeterminate"] += 1
+                            continue
+                        if (cj.get("multimodal_necessity") or 0.0) < case_mm_necessity_min():
+                            dropped["multimodal_not_necessary"] += 1
+                            continue
+                        if (cj.get("reasoning_divergence_potential") or 0.0) < case_divergence_min():
+                            dropped["low_reasoning_divergence"] += 1
+                            continue
+                    case_judge = {
+                        k: cj.get(k) for k in (
+                            "coherence", "ground_truth_determinable",
+                            "multimodal_necessity", "reasoning_divergence_potential")
+                    }
+                    case_judge["explanation"] = cj.get("explanation", "")
+                    case_judge["judge_model"] = cj.get("model")
                 # A multimodal item always ships difficulty=hard (the case is the
                 # hard case).
                 insert_difficulty = "hard"
@@ -489,6 +515,10 @@ async def generate_tasks(
                 generation["case_id"] = case.get("case_id")
                 generation["seed_archetype_id"] = p.get("_archetype_id")
                 generation["modality"] = "multimodal"
+                # Bring-up audit trail: record whether this case was accepted under the
+                # relaxed gates (so exports can separate "shipped for demo" from
+                # "cleared the full quality bar" once we re-tighten).
+                generation["gates_relaxed"] = bool(relax)
                 if case_judge is not None:
                     generation["case_judge"] = case_judge
             cap = bool(capture_reasoning) or bool(p.get("capture_reasoning_recommended"))

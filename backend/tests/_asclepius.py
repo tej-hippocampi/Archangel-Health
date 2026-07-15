@@ -34,6 +34,11 @@ os.environ["ASCLEPIUS_QA_SAMPLE_PCT"] = "0"
 # deterministic baseline. The preference + its no-empty-queue fallback are exercised
 # explicitly via monkeypatch (mirrors the QA-sampling pattern above).
 os.environ["ASCLEPIUS_V3_MULTIMODAL_ONLY"] = "0"
+# The V3 bring-up relaxation of the multimodal QUALITY gates ships ON in production
+# (so V3 can show a case before real generation quality is dialed in), but the
+# generation suite asserts the STRICT gate drops. Hard-assign OFF for a deterministic
+# strict baseline; the relaxed behavior is exercised explicitly via monkeypatch.
+os.environ["ASCLEPIUS_V3_RELAX_MM_GATES"] = "0"
 os.environ.setdefault("ASCLEPIUS_TIME_FLOOR_SEC", "20")
 os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
 # Seedmaker generation: deterministic thresholds + small bounds for fast tests.

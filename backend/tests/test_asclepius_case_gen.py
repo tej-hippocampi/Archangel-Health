@@ -255,6 +255,66 @@ def test_multimodal_with_no_archetypes_creates_nothing(monkeypatch):
     assert res["accepted"] == 0
 
 
+# ─── V3 bring-up relaxation (ASCLEPIUS_V3_RELAX_MM_GATES) ──────────────────────
+def test_relaxed_gates_accept_low_score_multimodal_case(monkeypatch):
+    """Bring-up: with the relaxation ON, a structurally-complete multimodal case is
+    ACCEPTED even when every case-judge quality score is below floor — so V3 can
+    show a case now. The scores are still RECORDED (for later re-tightening) and the
+    task is flagged gates_relaxed."""
+    monkeypatch.setenv("ASCLEPIUS_V3_RELAX_MM_GATES", "1")
+    A.fresh_store()
+    _install(monkeypatch, case_scores={
+        "coherence": 0.1, "ground_truth_determinable": 0.1,
+        "multimodal_necessity": 0.1, "reasoning_divergence_potential": 0.1},
+        hardness=0.2)  # everything below floor
+    res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=1, multimodal=True))
+    assert res["accepted"] == 1, res["dropped"]
+    t = [x for x in _store().list_tasks(specialty="nephrology", limit=10)
+         if x["modality"] == "multimodal"][0]
+    assert t["difficulty"] == "hard"                       # multimodal is always hard
+    assert t["case"]["lab_panels"] and t["case"]["notes"]  # the structured case is there
+    g = t["generation"]
+    assert g["gates_relaxed"] is True                      # audit trail
+    assert g["case_judge"]["multimodal_necessity"] == 0.1  # score still recorded
+
+
+def test_relaxed_gates_accept_when_judges_unavailable(monkeypatch):
+    """Bring-up: with the relaxation ON, a skipped case/hardness judge no longer
+    drops the case (it ships without those scores) — so a transient judge outage
+    doesn't empty V3."""
+    monkeypatch.setenv("ASCLEPIUS_V3_RELAX_MM_GATES", "1")
+    A.fresh_store()
+    _install(monkeypatch)
+
+    async def skipped(*a, **k):
+        return {"skipped": True, "error": "no key"}
+
+    monkeypatch.setattr(gen, "run_case_judge", skipped)
+    monkeypatch.setattr(gen, "run_hardness_judge", skipped)
+    res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=1, multimodal=True))
+    assert res["accepted"] == 1, res["dropped"]
+
+
+def test_relaxed_gates_still_enforce_content_assertion(monkeypatch):
+    """Bring-up relaxation loosens the QUALITY gates only — the STRUCTURAL content
+    floor is NOT relaxed: a case that carries no labs AND no notes is still dropped
+    (insufficient_case_content), never served as an empty 'multimodal' case."""
+    monkeypatch.setenv("ASCLEPIUS_V3_RELAX_MM_GATES", "1")
+    A.fresh_store()
+    _install(monkeypatch)
+
+    async def empty_case(archetype, *, specialty="general"):
+        # A case with no labs and no notes — the exact empty-case failure BUG-1 fixed.
+        return {"case": {"case_source": "synthetic", "specialty": specialty,
+                         "problem_list": [{"condition": "CKD"}], "medications": [{"drug": "x"}]},
+                "question": "q", "model": "cg", "skipped": False}
+
+    monkeypatch.setattr(gen, "generate_case", empty_case)
+    res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=1, multimodal=True))
+    assert res["accepted"] == 0
+    assert res["dropped"].get("insufficient_case_content", 0) >= 1, res["dropped"]
+
+
 # ─── Regression: a bad case must not be misreported as "no LLM" (review Finding 1)
 def test_bad_case_counts_case_gen_failed_not_disabled(monkeypatch):
     """A returned-but-unparseable case (LLM working, this case bad) must count as

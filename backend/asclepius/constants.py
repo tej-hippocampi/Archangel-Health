@@ -421,6 +421,23 @@ def v3_multimodal_only() -> bool:
             in ("1", "true", "yes", "on"))
 
 
+def relax_multimodal_gates() -> bool:
+    """Whether the STRICT multimodal QUALITY gates are relaxed for synthetic case
+    generation. Default ON (bring-up phase): a structurally-complete case (labs +
+    EHR note + problem/med lists — the ``assert_multimodal_content`` floor still
+    applies) is accepted even if the case-judge/hardness scores fall below the
+    quality floors (necessity >= 0.8, hardness >= 0.75, coherence, ground-truth,
+    reasoning divergence). The judges STILL RUN and their scores are recorded on the
+    task, so we can measure real pass-rates and re-tighten later.
+
+    Scoped to MULTIMODAL cases only, which are served solely on V3 — V2/V1 serve text
+    tasks through a different path and are unaffected. Its whole purpose is to let V3
+    actually SHOW a structured case now, then harden once real generation quality is
+    understood. Set ASCLEPIUS_V3_RELAX_MM_GATES=0 to restore the full strict gates."""
+    return (os.getenv("ASCLEPIUS_V3_RELAX_MM_GATES", "1").strip().lower()
+            in ("1", "true", "yes", "on"))
+
+
 def hard_only_generation() -> bool:
     """Whether the generator gates on hardness (drops below the floor + forces
     difficulty=hard). Default ON — the engine's purpose is hard cases — but the
