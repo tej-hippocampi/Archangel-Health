@@ -54,7 +54,7 @@ export default function App() {
   if (view === "home") {
     return (
       <AuthProvider>
-        <Suspense fallback={<div style={{ minHeight: "100vh", background: "#0a0e12" }} />}>
+        <Suspense fallback={<div style={{ minHeight: "100vh", background: "#eef0ef" }} />}>
           <ClinicalDataLanding />
         </Suspense>
       </AuthProvider>
