@@ -161,6 +161,32 @@ def compute_and_store_agreement(store: AsclepiusStore, task: Dict[str, Any]) -> 
     return {"agree": agree, "flagged": flagged, "kappa": pair_kappa, "jaccard": jac, "n": len(subs)}
 
 
+async def _augment_rubric_record(
+    packaged: List[Dict[str, Any]], task: Dict[str, Any], submission: Dict[str, Any]
+) -> None:
+    """Rubric Rigor FIX-2/FIX-8: patch the rubric record with the package-time grader
+    meta-eval (validity/reliability/hackability). V3/V4 only; degrades to skipped with
+    no LLM key; never raises. In-place mutation of the record in ``packaged``."""
+    from asclepius.constants import rubric_probes_enabled
+    if not rubric_probes_enabled():
+        return
+    payload = submission.get("payload") or {}
+    pv = payload.get("portal_version")
+    if pv not in ("v3", "v4"):          # gate on v3/v4 — never V1/V2
+        return
+    rubric_rec = next((r for r in packaged if r.get("type") == "rubric"), None)
+    if not rubric_rec:
+        return
+    try:
+        from asclepius.grader_eval import run_rubric_probes
+        patch = await run_rubric_probes(rubric_rec, task, submission)
+    except Exception:  # pragma: no cover - meta-eval must never break submit
+        log.exception("asclepius: rubric probe augmentation failed")
+        return
+    if patch:
+        rubric_rec.update(patch)
+
+
 async def process_submission(
     store: AsclepiusStore, task: Dict[str, Any], submission: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -179,6 +205,12 @@ async def process_submission(
     # 1. Package
     _progress("packaging", 20, "Packaging training records")
     packaged = package_submission(task, submission)
+
+    # Rubric Rigor FIX-2/FIX-8 (V3/V4 only): run the package-time grader META-EVAL
+    # (validity + reliability + hackability) and patch the rubric record before storage.
+    # Degrades to skipped with no LLM key; never blocks or breaks the submit.
+    await _augment_rubric_record(packaged, task, submission)
+
     record_ids: List[str] = []
     for rec in packaged:
         rid = store.insert_record(

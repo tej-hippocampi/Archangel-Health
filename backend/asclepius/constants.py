@@ -579,6 +579,33 @@ def target_pool_size() -> int:
     return max(0, _env_int("ASCLEPIUS_TARGET_POOL_SIZE", 25))
 
 
+# ─── Rubric Rigor grader meta-eval (Companion PRD FIX-2 / FIX-8) ──────────────
+def rubric_probes_enabled() -> bool:
+    """Run the package-time grader probes (validity/reliability/hackability) on a V3/V4
+    rubric. Each degrades to ``skipped`` with no LLM key. Costs a handful of grader
+    calls per submission, so it is env-toggleable. ``ASCLEPIUS_RUBRIC_PROBES`` (default on)."""
+    return (os.getenv("ASCLEPIUS_RUBRIC_PROBES", "1").strip().lower() in ("1", "true", "yes", "on"))
+
+
+def grader_min_separation() -> float:
+    """Minimum chosen−rejected normalized separation for a rubric's grader to be
+    considered VALID (FIX-2). Below this → ``needs_review`` (criteria don't discriminate).
+    ``ASCLEPIUS_GRADER_MIN_SEPARATION`` (default 0.30)."""
+    return _env_float("ASCLEPIUS_GRADER_MIN_SEPARATION", 0.30)
+
+
+def grader_reliability_runs() -> int:
+    """How many times the grader re-scores the chosen answer to measure reliability
+    (FIX-2). ``ASCLEPIUS_GRADER_RELIABILITY_RUNS`` (default 3)."""
+    return max(2, _env_int("ASCLEPIUS_GRADER_RELIABILITY_RUNS", 3))
+
+
+def grader_max_variance() -> float:
+    """Max normalized-score variance across identical grader runs for ``consistent``
+    (FIX-2). ``ASCLEPIUS_GRADER_MAX_VARIANCE`` (default 0.02)."""
+    return _env_float("ASCLEPIUS_GRADER_MAX_VARIANCE", 0.02)
+
+
 # ─── Value model (Value-per-Minute PRD, Part A) ───────────────────────────────
 # north-star = value ÷ time = dollars of sellable data value produced per minute
 # of clinician time. Every coefficient is env-overridable so the model can be

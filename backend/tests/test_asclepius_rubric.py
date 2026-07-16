@@ -370,3 +370,158 @@ def test_score_py_apply_critical_hard_fail_floors_normalized():
     assert out["critical_failure"] is True
     assert out["normalized"] == 0.0
     assert "never uses a 1K dialysate" in out["failed_critical_criteria"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Rubric Rigor Companion (§C): FIX-1/2/3/4/6/8
+# ═══════════════════════════════════════════════════════════════════════════════
+import asyncio as _asyncio
+
+
+def test_rubric_concretization_gate():
+    """FIX-1: seeds name a specific entity; no 160-char fragments; vague criteria flagged."""
+    from asclepius.rubric import is_specific_text, propose_rubric
+    assert is_specific_text("A correct answer states K+ must be <=5.0 before finerenone.")
+    assert not is_specific_text("A correct answer is safer than a plausible alternative.")
+    assert not is_specific_text("manages electrolytes appropriately")
+    # De-truncation: a long good-step keeps full text (no 160-char fragment).
+    long_step = ("Stabilize the myocardium with IV calcium gluconate because the ECG shows peaked "
+                 "T waves and this protects against arrhythmia while other measures lower potassium " * 2)
+    crit = propose_rubric({}, {"reasoning_steps": [{"text": long_step, "confirmed": True}]})
+    txt = next(c["text"] for c in crit if c["source"] == "good_step")
+    assert len(txt) > 170 and "A correct answer includes:" in txt   # not clipped to 160
+    # key_data → concrete, specific positive.
+    crit2 = propose_rubric({"case": {"ground_truth": {"key_data": ["urine osmolality 120 (LOW)"]}}}, {})
+    kd = next(c for c in crit2 if c["source"] == "key_data")
+    assert kd["specific"] is True
+
+
+def test_rubric_evidence_anchor():
+    """FIX-3: a critical criterion can carry an anchor; all-critical-grounded → grounded."""
+    from asclepius.rubric import normalize_rubric, grounding_summary
+    crit = normalize_rubric([
+        {"text": "never use a 1K dialysate for modest hyperkalemia", "points": -9, "axis": "safety",
+         "evidence_anchor": {"citation_text": "KDIGO 2024 hyperkalemia", "identifier": "KDIGO2024"}},
+        {"text": "give IV calcium 1g", "points": 5, "axis": "safety"}])
+    neg = next(c for c in crit if c["points"] < 0)
+    assert neg.get("evidence_anchor")                       # carried through normalization
+    g = grounding_summary(crit)
+    assert g["grounded"] is True and g["n_grounded_criteria"] == 1
+    # Drop the anchor → not grounded.
+    crit2 = normalize_rubric([{"text": "never 1K dialysate", "points": -9, "axis": "safety"}])
+    assert grounding_summary(crit2)["grounded"] is False
+
+
+def test_rubric_completeness_gate():
+    """FIX-4: a thin rubric → standard; a rich one meeting the bar → premium."""
+    from asclepius.rubric import rubric_completeness
+    thin = [{"text": "give calcium 1g", "points": 9, "axis": "safety", "tier": "critical", "specific": True},
+            {"text": "never 1K dialysate", "points": -9, "axis": "safety", "tier": "critical", "specific": True}]
+    r = rubric_completeness(thin)
+    assert r["premium"] is False and any("criteria" in m for m in r["missing"])
+    rich = [
+        {"text": "give IV calcium 1g", "points": 9, "axis": "safety", "tier": "critical", "specific": True},
+        {"text": "never use a 1K dialysate", "points": -9, "axis": "safety", "tier": "critical", "specific": True},
+        {"text": "insulin 10 units with dextrose", "points": 6, "axis": "accuracy", "tier": "important", "specific": True},
+        {"text": "recheck K+ in 2 hours", "points": 4, "axis": "completeness", "tier": "important", "specific": True},
+        {"text": "explain the ECG arrhythmia risk", "points": 3, "axis": "communication", "tier": "helpful", "specific": True}]
+    r2 = rubric_completeness(rich)
+    assert r2["premium"] is True and r2["missing"] == [] and r2["n_axes"] >= 3
+
+
+def test_rubric_failure_coverage():
+    """FIX-8 (deterministic): negative criteria must cover the rejected error tags."""
+    from asclepius.rubric import failure_coverage
+    covered = failure_coverage(
+        [{"text": "never make an unsafe recommendation", "points": -9, "tier": "critical",
+          "source": "error_tag:unsafe_recommendation"}],
+        {"generation": {"ai_failure_mode": "overtreatment"}},
+        {"payload": {"rejected_critique": {"error_tags": ["unsafe_recommendation"]}}})
+    assert covered["covered"] is True and covered["uncovered_failure_modes"] == []
+    uncovered = failure_coverage(
+        [{"text": "give calcium", "points": 5}], {},
+        {"payload": {"rejected_critique": {"error_tags": ["dosing_error"]}}})
+    assert "dosing_error" in uncovered["uncovered_failure_modes"]
+
+
+def test_constants_no_dupes():
+    """FIX-6 / §E-1: no shadowed (duplicated) constant/function definitions."""
+    import ast
+    import asclepius.constants as C
+    tree = ast.parse(open(C.__file__).read())
+    names = [n.name for n in tree.body if isinstance(n, ast.FunctionDef)]
+    dupes = sorted({n for n in names if names.count(n) > 1})
+    assert not dupes, f"shadowed top-level defs in constants.py: {dupes}"
+
+
+def test_grader_validity_separation(monkeypatch):
+    """FIX-2: chosen scores high, rejected low/critical-fails; low separation → needs_review."""
+    import asclepius.grader_eval as ge
+
+    async def sep(criteria, prompt, answer, **k):
+        if "GOOD" in answer:
+            return {"per_criterion": [], "normalized": 0.92, "critical_failure": False}
+        return {"per_criterion": [], "normalized": 0.15, "critical_failure": True}
+    monkeypatch.setattr(ge, "run_grader", sep)
+    v = _asyncio.run(ge.grader_validity([{"text": "c", "points": 9}], "p", "GOOD chosen", "BAD rejected"))
+    assert v["chosen_normalized"] > v["rejected_normalized"]
+    assert v["rejected_critical_failed"] is True and v["needs_review"] is False
+
+    async def flat(criteria, prompt, answer, **k):
+        return {"per_criterion": [], "normalized": 0.5, "critical_failure": False}
+    monkeypatch.setattr(ge, "run_grader", flat)
+    v2 = _asyncio.run(ge.grader_validity([{"text": "c", "points": 9}], "p", "GOOD", "BAD"))
+    assert v2["needs_review"] is True                       # no separation → flagged
+
+
+def test_grader_reliability_variance(monkeypatch):
+    """FIX-2: stable grader → consistent; a critical criterion that flips → unreliable."""
+    import asclepius.grader_eval as ge
+
+    async def stable(criteria, prompt, answer, **k):
+        return {"per_criterion": [{"text": "c", "met": True}], "normalized": 0.9, "critical_failure": False}
+    monkeypatch.setattr(ge, "run_grader", stable)
+    crit = [{"text": "c", "points": 9, "tier": "critical", "critical": True}]
+    r = _asyncio.run(ge.grader_reliability(crit, "p", "ans", runs=3))
+    assert r["consistent"] is True and r["flip_rate"] == 0.0 and r["unreliable"] is False
+
+    calls = {"i": 0}
+
+    async def flipper(criteria, prompt, answer, **k):
+        calls["i"] += 1
+        return {"per_criterion": [{"text": "c", "met": calls["i"] % 2 == 0}],
+                "normalized": 0.5, "critical_failure": False}
+    monkeypatch.setattr(ge, "run_grader", flipper)
+    r2 = _asyncio.run(ge.grader_reliability(crit, "p", "ans", runs=3))
+    assert r2["unreliable"] is True and r2["critical_flip"] is True
+
+
+def test_rubric_gameable_probe(monkeypatch):
+    """FIX-8: padded-hollow must NOT beat terse-correct; gameable when it does."""
+    import asclepius.grader_eval as ge
+
+    async def not_gameable(criteria, prompt, answer, **k):
+        return ({"per_criterion": [], "normalized": 0.2, "critical_failure": True} if len(answer) > 300
+                else {"per_criterion": [], "normalized": 0.85, "critical_failure": False})
+    monkeypatch.setattr(ge, "run_grader", not_gameable)
+    h = _asyncio.run(ge.hackability([{"text": "c", "points": 9}], "p",
+                                    "Give IV calcium now.", "Give a 1K dialysate immediately."))
+    assert h["gameable"] is False and h["padded_normalized"] < h["terse_correct_normalized"]
+
+    async def gameable(criteria, prompt, answer, **k):
+        return ({"per_criterion": [], "normalized": 0.9, "critical_failure": False} if len(answer) > 300
+                else {"per_criterion": [], "normalized": 0.3, "critical_failure": False})
+    monkeypatch.setattr(ge, "run_grader", gameable)
+    h2 = _asyncio.run(ge.hackability([{"text": "c", "points": 9}], "p", "Give calcium.", "Give 1K dialysate."))
+    assert h2["gameable"] is True
+
+
+def test_rubric_probes_skip_without_llm():
+    """Contract: with no LLM configured, every probe degrades to skipped (never raises)."""
+    import asclepius.grader_eval as ge
+    rec = {"type": "rubric", "criteria": [{"text": "c", "points": 9}], "prompt": "p"}
+    out = _asyncio.run(ge.run_rubric_probes(
+        rec, {"candidate_answers": []},
+        {"payload": {"chosen_revision": {"revised_text": "x"}, "rejected_id": "B"}}))
+    assert out["grader_validity"] == {"skipped": True}
+    assert out["hackability"] == {"skipped": True}

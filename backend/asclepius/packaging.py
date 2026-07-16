@@ -487,7 +487,10 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
     # Rubric record (FEAT-2): a standalone, sellable, HealthBench-shaped scoring
     # function — the weighted +/− criteria the doctor CONFIRMED. Emitted only when
     # the submission carries a non-empty confirmed rubric (nothing auto-applied).
-    from asclepius.rubric import has_critical_negative, normalize_rubric, rubric_max_points
+    from asclepius.rubric import (
+        failure_coverage, grounding_summary, has_critical_negative, normalize_rubric,
+        rubric_completeness, rubric_max_points,
+    )
 
     criteria = normalize_rubric(payload.get("rubric"))
     if criteria:
@@ -496,6 +499,9 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
         for c in criteria:
             axes[c["axis"]] = axes.get(c["axis"], 0) + 1
             tiers[c["tier"]] = tiers.get(c["tier"], 0) + 1
+        grounding = grounding_summary(criteria)          # FIX-3
+        completeness = rubric_completeness(criteria)     # FIX-4
+        coverage = failure_coverage(criteria, task, submission)  # FIX-8 (deterministic half)
         records.append(
             {
                 "type": "rubric",
@@ -510,6 +516,16 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
                 "tiers": tiers,
                 "n_critical": tiers.get("critical", 0),
                 "has_critical_negative": has_critical_negative(criteria),
+                # Rubric Rigor: FIX-1 concreteness, FIX-3 grounding, FIX-4 completeness/
+                # premium, FIX-8 failure-surface coverage. The FIX-2 (validity/reliability)
+                # and FIX-8 hackability LLM probes are added asynchronously by the pipeline
+                # (grader_eval) and degrade to skipped without a key.
+                "n_specific": sum(1 for c in criteria if c.get("specific")),
+                "grounded": grounding["grounded"],
+                "n_grounded_criteria": grounding["n_grounded_criteria"],
+                "completeness": completeness,
+                "premium": completeness["premium"],
+                "uncovered_failure_modes": coverage["uncovered_failure_modes"],
                 "context": _context(task),
                 "confidence": submission.get("confidence"),
                 **prov,

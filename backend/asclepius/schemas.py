@@ -324,6 +324,15 @@ class RubricCriterion(BaseModel):
     tier: Optional[str] = None
     # Derived: True when tier == "critical". Never trusted from the wire (recomputed).
     critical: bool = False
+    # Rubric Rigor FIX-3: an optional per-criterion evidence anchor (citation). A
+    # grounded criterion is defensible, not an opinion; a rubric whose every CRITICAL
+    # criterion is anchored is ``grounded`` (prices higher).
+    evidence_anchor: Optional[EvidenceAnchor] = None
+    # Rubric Rigor FIX-1: is the criterion machine-checkable (names a specific fact,
+    # drug, dose, threshold), not vague ("appropriately", "safer than an alternative")?
+    # Derived in the validator; a non-specific critical/important criterion does not
+    # count toward "premium".
+    specific: Optional[bool] = None
 
     @model_validator(mode="after")
     def _derive_tier(self) -> "RubricCriterion":
@@ -332,8 +341,11 @@ class RubricCriterion(BaseModel):
         # unconditionally so tier/critical can't drift from the weight, matching
         # rubric.normalize_rubric / has_critical_negative / the exported score.py.
         from asclepius.constants import tier_for_points
+        from asclepius.rubric import is_specific_text
         self.tier = tier_for_points(self.points)
         self.critical = self.tier == "critical"
+        # Recompute concreteness from the (possibly edited) text — never trust the wire.
+        self.specific = is_specific_text(self.text)
         return self
 
 
