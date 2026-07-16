@@ -73,6 +73,7 @@ from routers.telehealth import router as telehealth_router
 from routers.asclepius import router as asclepius_router
 from routers.asclepius_provider import router as asclepius_provider_router
 from routers.asclepius_buyer import router as asclepius_buyer_router
+from routers.leads import router as leads_router
 from eligibility import store as elig_store
 import demo_credentials
 import field_crypto
@@ -5945,6 +5946,7 @@ app.include_router(telehealth_router)
 app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
 app.include_router(asclepius_buyer_router)
+app.include_router(leads_router)
 
 # Gold Standard — conversation-capture training data (Data Training tab). Mounted
 # defensively: a missing optional dependency disables Gold rather than crashing

@@ -292,6 +292,33 @@ export async function getDoctorProfile(token: string): Promise<DoctorProfile | n
   return res.json();
 }
 
+export type LeadSource = "request_data" | "provide_data";
+
+/**
+ * Submit a landing lead-capture form ("Request data" / "Provide data"). The
+ * backend stores the row and emails the configured recipient. Throws an
+ * actionable error on failure so the form can show its "or email us" fallback.
+ */
+export async function submitLead(payload: {
+  source: LeadSource;
+  email: string;
+  message: string;
+}): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/leads`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw networkError();
+  }
+  if (!res.ok) {
+    throw new Error(await errorDetail(res, "Could not send"));
+  }
+}
+
 export async function getPatientByCodes(
   healthSystemCode: string,
   resourceCode: string

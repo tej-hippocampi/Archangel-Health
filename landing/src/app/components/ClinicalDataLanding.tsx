@@ -12,6 +12,10 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { SignInDialog } from "@/app/components/SignInDialog";
+import { SignUpDialog } from "@/app/components/SignUpDialog";
+import { LeadFormModal, ContributorChooser, type LeadKind } from "@/app/components/LandingContactModals";
+import { useLandingAuth } from "@/app/hooks/useLandingAuth";
 import "@/styles/clinical-fonts.css";
 
 const MAIL = "aryaabhatia@berkeley.edu";
@@ -21,6 +25,22 @@ export default function ClinicalDataLanding() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const {
+    user,
+    loading,
+    logout,
+    signInOpen,
+    setSignInOpen,
+    signUpOpen,
+    setSignUpOpen,
+    signUpInitialStep,
+    openSignUp,
+    doctorPortalUrl,
+    doctorPortalLabel,
+  } = useLandingAuth();
+  const [leadModal, setLeadModal] = useState<LeadKind | null>(null);
+  const [contributorOpen, setContributorOpen] = useState(false);
 
   /* ---------- scroll reveals ---------- */
   useEffect(() => {
@@ -85,9 +105,23 @@ export default function ClinicalDataLanding() {
         <nav className="nav-links" aria-label="Primary">
           <a className="chrome chrome-box hide-sm" href="#findings">The data</a>
           <a className="chrome chrome-box hide-sm" href="#consults">Contributors</a>
-          <a className="chrome chrome-box solid" href={mailto("Data request — Archangel Health")} onClick={handleMailto}>
+          {!loading &&
+            (user ? (
+              <>
+                {doctorPortalUrl && (
+                  <a className="chrome chrome-box hide-sm" href={doctorPortalUrl}>{doctorPortalLabel}</a>
+                )}
+                <button type="button" className="chrome chrome-box" onClick={logout}>Sign out</button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="chrome chrome-box" onClick={() => setSignInOpen(true)}>Sign in</button>
+                <button type="button" className="chrome chrome-box hide-sm" onClick={() => openSignUp("role")}>Sign up</button>
+              </>
+            ))}
+          <button type="button" className="chrome chrome-box solid" onClick={() => setLeadModal("request_data")}>
             Request data
-          </a>
+          </button>
         </nav>
       </header>
 
@@ -117,8 +151,8 @@ export default function ClinicalDataLanding() {
               and step-level reasoning traces.
             </p>
             <div className="hero-ctas">
-              <a className="btn btn-primary" href={mailto("Data request — Archangel Health")} onClick={handleMailto}>Request data</a>
-              <a className="btn" href={mailto("Becoming a contributor — Archangel Health")} onClick={handleMailto}>Become a contributor</a>
+              <button type="button" className="btn btn-primary" onClick={() => setLeadModal("request_data")}>Request data</button>
+              <button type="button" className="btn" onClick={() => setContributorOpen(true)}>Become a contributor</button>
             </div>
           </div>
 
@@ -326,24 +360,24 @@ export default function ClinicalDataLanding() {
           <p className="crumb chrome reveal"><span className="root">Archangel</span><span className="sep">/</span><span className="here">05 · Plan</span></p>
           <div className="reveal"><h2>Three ways in.</h2></div>
           <div className="doors reveal">
-            <a className="door" href={mailto("Becoming a contributor — Archangel Health")} onClick={handleMailto}>
+            <button type="button" className="door" onClick={() => setContributorOpen(true)}>
               <span className="door-for"><span className="dot dot-green" /><span className="chrome">Physicians</span></span>
               <span className="door-title">Become a contributor</span>
               <span className="door-sub">Reason through hard cases. Get paid for your judgment.</span>
               <span className="door-arrow" aria-hidden="true">→</span>
-            </a>
-            <a className="door" href={mailto("Data request — Archangel Health")} onClick={handleMailto}>
+            </button>
+            <button type="button" className="door" onClick={() => setLeadModal("request_data")}>
               <span className="door-for"><span className="dot dot-orange" /><span className="chrome">Labs &amp; health-AI teams</span></span>
               <span className="door-title">Request data</span>
               <span className="door-sub">Scoped samples, fitted pilots, bespoke datasets.</span>
               <span className="door-arrow" aria-hidden="true">→</span>
-            </a>
-            <a className="door" href={mailto("Providing de-identified data — Archangel Health")} onClick={handleMailto}>
+            </button>
+            <button type="button" className="door" onClick={() => setLeadModal("provide_data")}>
               <span className="door-for"><span className="dot dot-pink" /><span className="chrome">Health systems &amp; software</span></span>
               <span className="door-title">Provide your data</span>
               <span className="door-sub">We buy de-identified clinical data from the organizations and software that hold it.</span>
               <span className="door-arrow" aria-hidden="true">→</span>
-            </a>
+            </button>
           </div>
           <p className="doors-note reveal">Something else in mind? <a href={mailto("Partnership — Archangel Health")} onClick={handleMailto}>Other partnerships &amp; collaborations →</a></p>
         </section>
@@ -361,6 +395,28 @@ export default function ClinicalDataLanding() {
       </footer>
 
       <div className={`toast${toast ? " show" : ""}`} role="status">{toast}</div>
+
+      {/* Auth (unchanged flows): Sign in → portal handoff, Sign up → onboarding. */}
+      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
+      <SignUpDialog open={signUpOpen} onOpenChange={setSignUpOpen} initialStep={signUpInitialStep} />
+
+      {/* Lead-capture forms → backend /api/leads → emails the configured recipient. */}
+      <LeadFormModal kind="request_data" open={leadModal === "request_data"} onClose={() => setLeadModal(null)} />
+      <LeadFormModal kind="provide_data" open={leadModal === "provide_data"} onClose={() => setLeadModal(null)} />
+
+      {/* "Become a contributor" → medical annotator (sign-up/onboarding) or data contributor (Provide data). */}
+      <ContributorChooser
+        open={contributorOpen}
+        onClose={() => setContributorOpen(false)}
+        onAnnotator={() => {
+          setContributorOpen(false);
+          openSignUp("role");
+        }}
+        onDataContributor={() => {
+          setContributorOpen(false);
+          setLeadModal("provide_data");
+        }}
+      />
 
       <style>{styles}</style>
     </div>
@@ -433,6 +489,19 @@ html { scroll-behavior: smooth; }
 
 .arch-landing a { color: inherit; text-decoration: none; }
 .arch-landing p a, .arch-landing .foot-right a { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--hairline); }
+
+/* CTAs rendered as <button> — strip native chrome so the .btn/.door/.chrome-box
+   classes below supply all visual styling (identical to the anchor variants). */
+.arch-landing button {
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+}
+.arch-landing .btn, .arch-landing .door, .arch-landing .chrome-box, .arch-landing .nav-cta { cursor: pointer; }
+.arch-landing button.door { text-align: left; }
 
 .arch-landing ::selection { background: var(--lime); color: var(--ink); }
 

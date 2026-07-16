@@ -153,6 +153,20 @@ class TeamStore:
                 CREATE INDEX IF NOT EXISTS idx_escalations_created ON escalations(created_at);
                 CREATE INDEX IF NOT EXISTS idx_preop_intake_patient ON preop_intake_submissions(patient_id);
 
+                -- Landing lead-capture forms: "Request data" (buyers) and
+                -- "Provide data" (data providers). Public, no PHI.
+                CREATE TABLE IF NOT EXISTS lead_submissions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source TEXT NOT NULL,            -- request_data | provide_data
+                    email TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    user_agent TEXT,
+                    client_ip TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_lead_submissions_created ON lead_submissions(created_at);
+
                 -- Intra-Op Reassessment (PRD v1.0) ────────────────────────────
                 CREATE TABLE IF NOT EXISTS intraop_forms (
                     id TEXT PRIMARY KEY,
@@ -2090,6 +2104,29 @@ class TeamStore:
                 VALUES (?, ?, ?, ?, ?)
                 """,
                 (patient_id, specialty, form_template_name, json.dumps(form_data or {}), ts),
+            )
+            return int(cur.lastrowid)
+
+    def record_lead_submission(
+        self,
+        source: str,
+        email: str,
+        message: str,
+        *,
+        user_agent: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        created_at: Optional[str] = None,
+    ) -> int:
+        """Append a landing lead-capture submission ("Request data" / "Provide
+        data"). Public form data, no PHI. Returns the new row id."""
+        ts = created_at or _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO lead_submissions (source, email, message, user_agent, client_ip, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (source, email, message, user_agent, client_ip, ts),
             )
             return int(cur.lastrowid)
 
