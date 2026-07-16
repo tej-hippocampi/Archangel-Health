@@ -306,6 +306,39 @@ def test_v1_v2_submit_unaffected_by_critical_negative_gate():
         assert r.status_code == 200, (pv, r.text)
 
 
+def test_omitted_portal_version_on_synthetic_task_not_gated():
+    """Review fix (B#1): portal_version DEFAULTS to v3 when omitted, so a legacy /
+    direct API client that omits the field and posts a rubric WITHOUT a critical
+    negative must NOT newly 400 (that would be a wire-contract regression). The gate
+    fires only when v3/v4 is UNAMBIGUOUS — an explicit claim or a real (v4) task."""
+    admin_h, ev_h = _admin_h(), _ev_h()
+    tid = _v_task(admin_h, ev_h)
+    body = _submit_body(tid, portal_version=None, rubric=_IMPORTANT_ONLY)  # no critical negative
+    body.pop("portal_version")                                            # OMIT entirely
+    r = client.post("/api/asclepius/submissions", json=body, headers=ev_h)
+    assert r.status_code == 200, r.text          # not gated — regression fixed
+
+
+def test_empty_text_rubric_rows_do_not_trip_gate():
+    """Review fix (B#4): the gate tests the NORMALIZED rubric, so empty-text /
+    zero-point rows (which package to nothing) don't trip the critical-negative 400."""
+    admin_h, ev_h = _admin_h(), _ev_h()
+    tid = _v_task(admin_h, ev_h)
+    junk = [{"text": "", "points": 0}, {"text": "   ", "points": -9}]
+    r = client.post("/api/asclepius/submissions", json=_submit_body(tid, portal_version="v3", rubric=junk), headers=ev_h)
+    assert r.status_code == 200, r.text          # normalized rubric is empty → not gated
+
+
+def test_rubric_criterion_validator_always_recomputes_tier():
+    """Review fix (B#2): the schema validator ALWAYS derives tier from |points| — a
+    valid-but-mismatched wire tier can never drift the stored critical flag."""
+    from asclepius.schemas import RubricCriterion
+    c = RubricCriterion(text="never do X", points=-9, tier="helpful")   # lies: -9 is critical
+    assert c.tier == "critical" and c.critical is True
+    c2 = RubricCriterion(text="include Y", points=5, tier="critical")   # lies: 5 is important
+    assert c2.tier == "important" and c2.critical is False
+
+
 def test_grader_prompt_and_score_py_carry_critical_hard_fail():
     from asclepius.export import _GRADER_PROMPT, _SCORE_PY
     assert "CRITICAL-NEGATIVE HARD FAIL" in _GRADER_PROMPT

@@ -327,9 +327,12 @@ class RubricCriterion(BaseModel):
 
     @model_validator(mode="after")
     def _derive_tier(self) -> "RubricCriterion":
-        from asclepius.constants import RUBRIC_TIERS, tier_for_points
-        if self.tier not in RUBRIC_TIERS:
-            self.tier = tier_for_points(self.points)
+        # Tier ALWAYS follows |points| — the wire ``tier`` is only a hint and is never
+        # trusted (a client could send points=-9 with tier="helpful"). Recompute
+        # unconditionally so tier/critical can't drift from the weight, matching
+        # rubric.normalize_rubric / has_critical_negative / the exported score.py.
+        from asclepius.constants import tier_for_points
+        self.tier = tier_for_points(self.points)
         self.critical = self.tier == "critical"
         return self
 

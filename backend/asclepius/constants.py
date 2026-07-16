@@ -536,9 +536,17 @@ def case_novelty_max() -> float:
     multimodal. Instead we compute a semantic CASE SIGNATURE — the normalized
     question + ground-truth answer + the sorted set of analyte names — and drop a
     new case as ``case_near_duplicate`` when its signature token-set Jaccard against
-    any existing case signature is >= this ceiling. Default 0.80; env-overridable
-    for tuning (a lower value is stricter / demands more novelty)."""
-    return _env_float("ASCLEPIUS_CASE_NOVELTY_MAX", 0.80)
+    any existing case signature is >= this ceiling.
+
+    Default 0.90 (not 0.80): within ONE multimodal archetype the analyte set and the
+    ground-truth answer FRAMEWORK are largely fixed, so two genuinely-DISTINCT
+    etiologies still share substantial signature vocabulary (~0.75 Jaccard measured
+    for potomania-vs-SIADH under the hyponatremia archetype). A 0.80 ceiling leaves
+    almost no margin and would drop distinct cases — the exact 'V3 runs dry' failure
+    this must avoid. 0.90 still catches true re-skins (near-identical signatures,
+    ~1.0) while leaving distinct siblings safely below the line. Env-overridable for
+    tuning (a lower value is stricter / demands more novelty)."""
+    return _env_float("ASCLEPIUS_CASE_NOVELTY_MAX", 0.90)
 
 
 def _env_int(name: str, default: int) -> int:

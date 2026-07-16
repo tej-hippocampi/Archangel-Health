@@ -172,3 +172,18 @@ def test_admin_load_gold_endpoint_is_admin_only_and_idempotent():
     # Idempotent: a second call adds nothing.
     r2 = client.post("/api/asclepius/generation/nephrology/load-gold", headers=admin_h)
     assert r2.json()["loaded"] == 0 and r2.json()["skipped"] == 10
+
+
+def test_load_gold_for_other_specialty_is_a_noop():
+    """Review fix (C#4): the gold set is nephrology-only, so loading it for another
+    specialty must be a clean no-op (load nothing, tag nothing under that specialty)
+    rather than inserting nephrology cases mislabeled."""
+    A.fresh_store()
+    admin_h = _admin_h()
+    r = client.post("/api/asclepius/generation/cardiology/load-gold", headers=admin_h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["loaded"] == 0 and body["total"] == 0
+    # Nephrology still loads normally afterward.
+    rn = client.post("/api/asclepius/generation/nephrology/load-gold", headers=admin_h)
+    assert rn.json()["loaded"] == 10

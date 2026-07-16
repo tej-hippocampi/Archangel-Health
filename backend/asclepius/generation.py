@@ -95,11 +95,22 @@ def _jaccard(a: frozenset, b: frozenset) -> float:
 
 def _analyte_names(case: Optional[Dict[str, Any]]) -> set:
     """The set of normalized analyte names across every lab panel in a case — the
-    'which measurements does this case turn on' fingerprint (Two-Model PRD WS-C)."""
+    'which measurements does this case turn on' fingerprint (Two-Model PRD WS-C).
+
+    Fully defensive: a STORED case may be a legacy/ingested/real-de-id row whose
+    shape drifted (results not a list, analyte a number/None, a panel that is not a
+    dict). Novelty must never crash the whole generation batch on one bad row — skip
+    what doesn't parse and fingerprint the rest."""
     names: set = set()
-    for panel in (case or {}).get("lab_panels") or []:
+    if not isinstance(case, dict):
+        return names
+    for panel in case.get("lab_panels") or []:
+        if not isinstance(panel, dict):
+            continue
         for r in panel.get("results") or []:
-            a = _norm(r.get("analyte"))
+            if not isinstance(r, dict):
+                continue
+            a = _norm(str(r.get("analyte") or ""))
             if a:
                 names.add(a)
     return names
@@ -112,8 +123,22 @@ def _case_signature_tokens(case: Optional[Dict[str, Any]], question: Optional[st
     panel/note scaffolding across an archetype), the signature is dominated by the
     distinctive question, the correct answer, and the specific measurements the case
     hinges on — so two genuinely different cases from the same archetype do NOT
-    collide, while a re-skin of the same clinical decision does."""
-    gt = ((case or {}).get("ground_truth") or {}).get("answer") or ""
+    collide, while a re-skin of the same clinical decision does.
+
+    Never raises: a malformed ground_truth (not a dict) or non-string answer degrades
+    to an empty contribution rather than throwing (see _analyte_names).
+
+    Returns an EMPTY set when the case has no ground-truth answer. The answer is the
+    signature's discriminating component; without it the signature would be just
+    question + analytes, which are archetype-fixed and would collapse genuinely
+    DISTINCT siblings (e.g. two different etiologies under one archetype) into a
+    false duplicate. An empty signature is skipped by both the gate and the
+    existing-signature scan (each guards with ``if sig:``), so a case with no answer
+    is simply not subject to — and not part of — novelty dedup."""
+    gt_block = case.get("ground_truth") if isinstance(case, dict) else None
+    gt = str((gt_block.get("answer") if isinstance(gt_block, dict) else None) or "").strip()
+    if not gt:
+        return frozenset()
     analytes = " ".join(sorted(_analyte_names(case)))
     return _token_set(f"{question or ''} {gt} {analytes}")
 
@@ -134,12 +159,17 @@ def _existing_case_signatures(store: Any, specialty: str) -> List[frozenset]:
         pass
     # Prior multimodal tasks (question is stamped into the generation block on insert;
     # legacy rows without it still contribute their answer + analyte fingerprint).
+    # Per-row guard: a single malformed stored case (legacy / external ingest) must
+    # NEVER abort the whole generation batch — skip it and fingerprint the rest.
     for t in store.list_tasks(specialty=specialty, limit=100000):
         case = t.get("case")
         if not case:
             continue
-        q = (t.get("generation") or {}).get("question")
-        sig = _case_signature_tokens(case, q)
+        try:
+            q = (t.get("generation") or {}).get("question")
+            sig = _case_signature_tokens(case, q)
+        except Exception:  # noqa: BLE001 — dedup must survive one bad row
+            continue
         if sig:
             sigs.append(sig)
     return sigs

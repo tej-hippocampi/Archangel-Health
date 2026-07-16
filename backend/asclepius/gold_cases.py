@@ -751,11 +751,19 @@ def load_gold_cases(store: Any, *, specialty: str = "nephrology") -> Dict[str, A
     """Insert the gold cases as ready-to-serve multimodal tasks, idempotently (a
     stable ``gold-<case_id>`` task id is skipped if already present). Each ships with
     its authored A/B candidate pair, so it is a complete V3 task with NO LLM needed.
-    Returns ``{loaded, skipped, total, task_ids}``."""
+    Returns ``{loaded, skipped, total, task_ids}``.
+
+    ``specialty`` filters WHICH gold cases load (the gold set is nephrology-only
+    today): a mismatched specialty loads nothing rather than mis-tagging nephrology
+    cases under it, so ``POST /generation/<other>/load-gold`` is a correct no-op."""
     from asclepius.cases import render_case_prompt
 
+    # Only cases whose own specialty matches the request (the set is authored per
+    # specialty; the case's specialty is authoritative, never the path param).
+    eligible = [e for e in _validated() if (e.get("case") or {}).get("specialty", "nephrology") == specialty]
+
     loaded, skipped, task_ids = 0, 0, []
-    for entry in _validated():
+    for entry in eligible:
         tid = "gold-" + entry["case_id"]
         if store.get_task(tid):
             skipped += 1
@@ -785,4 +793,4 @@ def load_gold_cases(store: Any, *, specialty: str = "nephrology") -> Dict[str, A
         )
         loaded += 1
         task_ids.append(tid)
-    return {"loaded": loaded, "skipped": skipped, "total": len(GOLD_NEPHROLOGY_CASES), "task_ids": task_ids}
+    return {"loaded": loaded, "skipped": skipped, "total": len(eligible), "task_ids": task_ids}

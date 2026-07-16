@@ -581,3 +581,61 @@ def test_generate_case_retries_once_then_succeeds(monkeypatch):
     res = asyncio.run(critic.generate_case({"topic": "x", "multimodal": {}}, specialty="nephrology"))
     assert calls["n"] == 2               # retried exactly once
     assert res["case"] is not None and res["skipped"] is False
+
+
+# ─── Workstream C review fixes (novelty robustness) ───────────────────────────
+def test_signature_empty_without_ground_truth_answer():
+    """Review fix (C#2): a case with no ground-truth answer has NO reliable
+    signature (question + analytes alone are archetype-fixed and would collapse
+    distinct siblings), so the signature is empty and such a case is never subject
+    to — nor part of — novelty dedup."""
+    case_no_gt = {"lab_panels": [{"results": [{"analyte": "Sodium"}, {"analyte": "Potassium"}]}]}
+    assert gen._case_signature_tokens(case_no_gt, "Classify this.") == frozenset()
+    case_gt = {"ground_truth": {"answer": "Thiazide-associated hyponatremia; hold it."},
+               "lab_panels": [{"results": [{"analyte": "Sodium"}]}]}
+    assert gen._case_signature_tokens(case_gt, "Classify this.")  # non-empty
+
+
+def test_signature_never_raises_on_malformed_case():
+    """Review fix (C#3): a legacy / externally-ingested stored case with a drifted
+    shape (results not a list, ground_truth not a dict, a non-string analyte, a
+    non-dict panel) must NEVER crash the signature (which runs over EVERY stored case
+    on every generation batch)."""
+    malformed = [
+        {"lab_panels": [{"results": "oops"}], "ground_truth": {"answer": "a"}},
+        {"lab_panels": [{"results": [{"analyte": 123}]}], "ground_truth": {"answer": "a"}},
+        {"ground_truth": "not-a-dict", "lab_panels": []},
+        {"lab_panels": [None, {"results": [None, {"analyte": "K"}]}], "ground_truth": {"answer": "a"}},
+        None, "not-a-case", 42,
+    ]
+    for case in malformed:
+        gen._case_signature_tokens(case, "q")   # must not raise
+    # _existing_case_signatures must survive a malformed stored case too.
+    class _Store:
+        def list_tasks(self, **k):
+            return [{"case": {"lab_panels": [{"results": "oops"}], "ground_truth": {"answer": "x"}},
+                     "generation": {"question": "q"}}]
+    sigs = gen._existing_case_signatures(_Store(), "nephrology")
+    assert isinstance(sigs, list)   # did not raise; bad row skipped
+
+
+def test_novelty_gate_skipped_for_cases_without_ground_truth(monkeypatch):
+    """Review fix (C#2, end-to-end): sibling cases that omit ground_truth are NOT
+    collapsed as case_near_duplicate (their signature is empty), so V3 does not run
+    dry when the model omits the answer key."""
+    A.fresh_store()
+    _install(monkeypatch)
+    counter = {"i": 0}
+
+    async def no_gt_case(archetype, *, specialty="general"):
+        counter["i"] += 1
+        # Distinct prompts (so exact-hash dedup doesn't fire) but NO answer key, so
+        # the novelty signature is empty and the gate never drops them.
+        case = _case(ground_truth=None, lab_panels=_content_complete_labs(100 + counter["i"]))
+        return {"case": case, "question": f"Classify hyponatremia case {counter['i']}.",
+                "model": "cg", "skipped": False}
+
+    monkeypatch.setattr(gen, "generate_case", no_gt_case)
+    res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=3, multimodal=True))
+    assert res["dropped"].get("case_near_duplicate", 0) == 0
+    assert res["accepted"] >= 2

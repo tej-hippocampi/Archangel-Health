@@ -18,10 +18,13 @@ _event_store: Optional[TeamStore] = None
 
 
 def _llm_timeout_sec() -> float:
+    # 180s default: the heaviest legitimate call (opus case-gen, 6000 tokens) can
+    # exceed 90s; a too-tight timeout would abort a call that was about to succeed and
+    # (before the retry fix below) re-run it at 2× cost. Env-overridable.
     try:
-        return float(os.getenv("ASCLEPIUS_LLM_TIMEOUT_SEC", "90"))
+        return float(os.getenv("ASCLEPIUS_LLM_TIMEOUT_SEC", "180"))
     except (TypeError, ValueError):
-        return 90.0
+        return 180.0
 
 
 def _aclient() -> AsyncAnthropic:
@@ -134,6 +137,28 @@ def _is_openai_reasoning(model: str) -> bool:
     return m.startswith(("o1", "o3", "o4", "gpt-5", "gpt5"))
 
 
+def _openai_output_cap(max_tokens: Optional[int], reasoning: bool) -> int:
+    """Effective ``max_output_tokens`` for OpenAI.
+
+    For REASONING models (o1/o3/o4/gpt-5) the hidden reasoning tokens are drawn from
+    the SAME ``max_output_tokens`` budget as the visible answer. A small cap (e.g. the
+    2000-token baseline role) is routinely consumed ENTIRELY by reasoning on a hard
+    multi-panel clinical case, so the API returns ``status="incomplete"`` with an
+    EMPTY ``output_text`` — which would silently make every two-frontier pair fail and
+    mark every task ``needs_baseline`` (the whole feature yields no data). So for
+    reasoning models we add a generous reasoning reserve on top of the requested
+    answer budget. Env-overridable via ``LLM_OPENAI_REASONING_RESERVE`` (default
+    12000). Non-reasoning models are unchanged."""
+    base = int(max_tokens or 0) or 2000
+    if not reasoning:
+        return base
+    try:
+        reserve = int(os.getenv("LLM_OPENAI_REASONING_RESERVE", "12000"))
+    except (TypeError, ValueError):
+        reserve = 12000
+    return base + max(0, reserve)
+
+
 def _build_kwargs(role: str, system: str, messages: list[dict[str, Any]], overrides: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     cfg = resolve(role)
     if "model" in overrides:  # explicit per-call model (e.g. a baseline id) wins
@@ -166,7 +191,14 @@ def _record(
     if prompt_id:
         from prompts.registry import prompt_meta
 
-        prompt = prompt_meta(prompt_id)
+        # An unregistered prompt_id must not sink the whole audit record (which now
+        # carries provider/request_id/usage for the two-frontier trail). Degrade the
+        # prompt-meta field alone rather than losing every other field to the
+        # call_llm fallback rec.
+        try:
+            prompt = prompt_meta(prompt_id)
+        except Exception:  # noqa: BLE001 — telemetry must never break a call
+            prompt = {"prompt_id": prompt_id}
     req_id = getattr(resp, "_request_id", None) or getattr(resp, "id", None)
     return {
         "role": role,
@@ -203,11 +235,12 @@ async def _openai_create_async(model: str, system: str, messages: list[dict[str,
     model = api_model_id(model)
     user_text = _user_text(messages)
     reasoning = _is_openai_reasoning(model)
+    out_cap = _openai_output_cap(max_tokens, reasoning)
     # Prefer the Responses API (uniform across reasoning + non-reasoning models);
     # fall back to chat.completions if the installed SDK lacks it.
     try:
         params: dict[str, Any] = {"model": model, "instructions": system, "input": user_text,
-                                  "max_output_tokens": max_tokens}
+                                  "max_output_tokens": out_cap}
         if temperature is not None and not reasoning:
             params["temperature"] = temperature
         resp = await client.responses.create(**params)
@@ -223,9 +256,9 @@ async def _openai_create_async(model: str, system: str, messages: list[dict[str,
                   "messages": [{"role": "system", "content": system},
                                {"role": "user", "content": user_text}]}
         if reasoning:
-            params["max_completion_tokens"] = max_tokens
+            params["max_completion_tokens"] = out_cap
         else:
-            params["max_tokens"] = max_tokens
+            params["max_tokens"] = out_cap
             if temperature is not None:
                 params["temperature"] = temperature
         resp = await client.chat.completions.create(**params)
@@ -264,13 +297,19 @@ async def call_llm(
                                               kwargs.get("max_tokens"), kwargs.get("temperature"))
         return await _anthropic_create_async(kwargs)
 
-    last_exc: Optional[Exception] = None
-    for attempt in range(2):  # one retry on transient errors / timeout
+    for attempt in range(2):  # one retry on TRANSIENT errors only
         try:
             resp = await asyncio.wait_for(_do(), timeout=timeout)
             break
+        except asyncio.TimeoutError:
+            # A timeout means the call was genuinely slow (or hung). Re-running an
+            # expensive generation is costly and unlikely to be faster, and would
+            # double the worst-case latency of in-request callers — so do NOT retry a
+            # timeout; fail fast and let the caller degrade.
+            import sys
+            print(f"[llm_client] {provider} call timed out after {timeout}s ({cfg['model']})", file=sys.stderr)
+            raise
         except Exception as exc:  # noqa: BLE001 — graceful-degrade, never crash the pipeline
-            last_exc = exc
             if attempt == 0:
                 await asyncio.sleep(0.6)
                 continue
@@ -293,9 +332,10 @@ def _openai_create_sync(model: str, system: str, messages: list[dict[str, Any]],
     model = api_model_id(model)
     user_text = _user_text(messages)
     reasoning = _is_openai_reasoning(model)
+    out_cap = _openai_output_cap(max_tokens, reasoning)
     try:
         params: dict[str, Any] = {"model": model, "instructions": system, "input": user_text,
-                                  "max_output_tokens": max_tokens}
+                                  "max_output_tokens": out_cap}
         if temperature is not None and not reasoning:
             params["temperature"] = temperature
         resp = client.responses.create(**params)
@@ -309,9 +349,9 @@ def _openai_create_sync(model: str, system: str, messages: list[dict[str, Any]],
                   "messages": [{"role": "system", "content": system},
                                {"role": "user", "content": user_text}]}
         if reasoning:
-            params["max_completion_tokens"] = max_tokens
+            params["max_completion_tokens"] = out_cap
         else:
-            params["max_tokens"] = max_tokens
+            params["max_tokens"] = out_cap
             if temperature is not None:
                 params["temperature"] = temperature
         resp = client.chat.completions.create(**params)

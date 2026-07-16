@@ -550,7 +550,10 @@ async def load_gold_specialty_cases(
     from asclepius.gold_cases import load_gold_cases
 
     store = _store()
-    res = load_gold_cases(store, specialty=specialty)
+    try:
+        res = load_gold_cases(store, specialty=specialty)
+    except Exception as exc:  # a broken gold entry must return a clear error, not a bare 500
+        raise HTTPException(status_code=500, detail=f"Could not load gold cases: {exc}")
     res["multimodal_in_queue"] = len([
         t for t in store.list_tasks(specialty=specialty, limit=1000)
         if t.get("modality") == "multimodal"
@@ -1333,11 +1336,19 @@ async def submit(
     # Critical-negative gate (Two-Model PRD Workstream B): on V3/V4, a captured
     # rubric MUST name at least one CRITICAL NEGATIVE — the one thing a correct
     # answer must never do. Scoped to portal_version ∈ {v3,v4} (NOT isAssisted(),
-    # which also matches v2) so V1/V2 stay byte-for-byte unchanged. An empty rubric
-    # is still allowed (rubric capture is optional); the gate fires only once the
-    # doctor has started building one, mirroring the frontend submit-gating.
-    if portal_version in ("v3", "v4") and (payload.get("rubric") or []):
-        from asclepius.rubric import has_critical_negative
+    # which also matches v2) so V1/V2 stay byte-for-byte unchanged.
+    #
+    # GUARDRAIL: ``portal_version`` DEFAULTS to v3 when omitted, so gating on the
+    # DERIVED value alone would newly 400 a legacy/direct API client that omits the
+    # field and posts a rubric — a wire-contract regression. So we gate only when v3/v4
+    # is UNAMBIGUOUS: either the client EXPLICITLY claimed v3/v4, or the task is a real
+    # de-identified case (which can only ever be v4). An omitted-version submit on a
+    # synthetic task is never gated. And we test the NORMALIZED rubric so empty-text /
+    # zero-point rows (which package to nothing) don't trip the gate.
+    claimed_pv = (_commit or {}).get("payload", {}).get("portal_version") or body.portal_version
+    v34_unambiguous = claimed_pv in ("v3", "v4") or task.get("case_source") == "real_deid"
+    from asclepius.rubric import has_critical_negative, normalize_rubric
+    if v34_unambiguous and normalize_rubric(payload.get("rubric")):
         if not has_critical_negative(payload.get("rubric")):
             raise HTTPException(
                 status_code=400,

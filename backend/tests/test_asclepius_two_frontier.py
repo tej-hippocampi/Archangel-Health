@@ -50,6 +50,46 @@ def test_first_text_normalizes_both_shapes():
     assert c.first_text(_Resp()) == "anthropic text"
 
 
+def test_openai_reasoning_output_cap_adds_headroom(monkeypatch):
+    """Review fix (A#1): OpenAI REASONING models draw hidden reasoning tokens from
+    max_output_tokens, so a small answer cap (2000) would be consumed entirely by
+    reasoning and return an EMPTY answer — silently zeroing the two-frontier feature.
+    The cap must add a reasoning reserve for reasoning ids and leave others alone."""
+    from ai import llm_client as c
+    monkeypatch.delenv("LLM_OPENAI_REASONING_RESERVE", raising=False)
+    # Non-reasoning: unchanged.
+    assert c._openai_output_cap(2000, reasoning=False) == 2000
+    # Reasoning: answer budget PLUS a generous reserve (default 12000).
+    assert c._openai_output_cap(2000, reasoning=True) == 2000 + 12000
+    # gpt-5 is classified as reasoning; a plain gpt-4o is not.
+    assert c._is_openai_reasoning("gpt-5") and c._is_openai_reasoning("o3-mini")
+    assert not c._is_openai_reasoning("gpt-4o")
+    # Env override respected.
+    monkeypatch.setenv("LLM_OPENAI_REASONING_RESERVE", "5000")
+    assert c._openai_output_cap(1000, reasoning=True) == 1000 + 5000
+
+
+def test_llm_timeout_does_not_retry(monkeypatch):
+    """Review fix (A#2): a timeout must NOT re-run an expensive call (2× cost); it
+    fails fast so the caller degrades. A non-timeout transient error still retries."""
+    import asyncio
+    import ai.llm_client as c
+    monkeypatch.setattr(c, "_llm_timeout_sec", lambda: 0.05)
+    monkeypatch.setattr(c, "resolve_provider", lambda m: "anthropic")
+
+    calls = {"n": 0}
+
+    async def slow_create(kwargs):
+        calls["n"] += 1
+        await asyncio.sleep(1.0)  # exceeds the 0.05s timeout
+
+    monkeypatch.setattr(c, "_anthropic_create_async", slow_create)
+    with pytest.raises(asyncio.TimeoutError):
+        asyncio.run(c.call_llm(role="asclepius_critic", system="s",
+                               messages=[{"role": "user", "content": "q"}]))
+    assert calls["n"] == 1  # timed out once, NOT retried
+
+
 # ── A-2 + A-3: the pair is one OpenAI + one Anthropic; slot rate → 0.5 ────────
 def test_pair_is_one_per_provider_and_balanced():
     B.reset_ab_state()
