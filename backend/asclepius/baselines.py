@@ -29,7 +29,14 @@ import logging
 import random
 from typing import Any, Dict, List, Optional
 
-from asclepius.constants import baseline_models, ab_source
+from asclepius.constants import (
+    baseline_models,
+    ab_source,
+    fallback_window,
+    legacy_baseline_models,
+    max_fallback_rate,
+    two_frontier_v4_enabled,
+)
 from ai.model_config import resolve_provider, UnknownProvider
 
 log = logging.getLogger("asclepius.baselines")
@@ -48,12 +55,20 @@ def _prompt_hash(system: str, user: str) -> str:
     return hashlib.sha256((system + "\n" + user).encode("utf-8")).hexdigest()
 
 
-# ── Batch-balanced A/B placement (A3) ────────────────────────────────────────
-# The old per-pair random.shuffle is unbiased per pair but drifts on small N. This
-# nudges P(OpenAI = slot A) toward 0.5 across a batch/session. State is in-memory per
-# process (fine for a batch); the durable QC metric is computed from the stored
-# candidates' server-side `provider` field.
+# ── Batch-balanced A/B placement (PRD §A2) ───────────────────────────────────
+# Slot assignment must be TRULY RANDOM — a doctor must never be able to learn "A is
+# always OpenAI." Every pair draws from a CSPRNG (`SystemRandom`); we only *softly*
+# bias the probability to correct batch drift toward 50/50, never a deterministic
+# A,B,A,B alternation (which a doctor could learn). State is in-memory per process
+# (fine for a batch); the durable QC metric is recomputed from the stored candidates'
+# server-side `provider` field (`store.ab_slot_balance`).
 _AB_STATE: Dict[str, int] = {"n_pairs": 0, "openai_in_A": 0}
+_SYSRAND = random.SystemRandom()
+
+# Never let the drift-correction push the probability past these bounds — keeps every
+# single assignment substantially random (defeats a runs-test for alternation) while
+# still pulling a drifted batch back toward balance.
+_AB_P_MIN, _AB_P_MAX = 0.15, 0.85
 
 
 def reset_ab_state() -> None:
@@ -68,14 +83,20 @@ def openai_as_A_rate() -> Optional[float]:
 
 def place_AB(openai_ans: Dict[str, Any], anthropic_ans: Dict[str, Any],
              state: Optional[Dict[str, int]] = None) -> List[Dict[str, Any]]:
-    """Place the OpenAI and Anthropic answers into slots A/B, nudging P(OpenAI=A)→0.5."""
+    """Place the OpenAI and Anthropic answers into slots A/B with a CSPRNG-random
+    orientation, softly nudged toward P(OpenAI=A)=0.5 across the batch (PRD §A2).
+
+    Both providers can land in A or in B on any pair; the assignment is never a fixed
+    alternation. The nudge only shifts the *probability* (clamped to [0.15, 0.85])
+    based on the running slot rate, so a drifted batch self-corrects without becoming
+    predictable."""
     st = state if state is not None else _AB_STATE
-    target = 0.5
-    cur = (st["openai_in_A"] / st["n_pairs"]) if st["n_pairs"] else 0.5
-    if abs(cur - target) < 0.02:
-        openai_is_A = random.random() < 0.5          # near balance → pure coin
-    else:
-        openai_is_A = cur < target                   # drifted → nudge back toward 0.5
+    n = st["n_pairs"]
+    cur = (st["openai_in_A"] / n) if n else 0.5
+    # cur high (OpenAI has been landing in A too often) → lower p(OpenAI=A), and vice
+    # versa. Gentle gain (0.5) so it corrects over a few pairs, never in one deterministic flip.
+    p = min(_AB_P_MAX, max(_AB_P_MIN, 0.5 + 0.5 * (0.5 - cur)))
+    openai_is_A = _SYSRAND.random() < p
     st["n_pairs"] += 1
     if openai_is_A:
         st["openai_in_A"] += 1
@@ -191,15 +212,23 @@ def build_baseline_candidates(
                 "provider": r.get("provider") or _provider_of(r.get("model"))}
 
     if mode == "two_frontier":
-        oa = next((_ans(r) for r in (runs or [])
-                   if (r.get("response_text") or "").strip()
-                   and (r.get("provider") or _provider_of(r.get("model"))) == "openai"), None)
-        an = next((_ans(r) for r in (runs or [])
-                   if (r.get("response_text") or "").strip()
-                   and (r.get("provider") or _provider_of(r.get("model"))) == "anthropic"), None)
-        if not oa or not an:
-            return []  # one provider missing → caller sets needs_baseline (no gold stand-in)
-        return place_AB(oa, an)
+        def _pick(provider: str) -> Optional[Dict[str, Any]]:
+            return next((r for r in (runs or [])
+                         if (r.get("response_text") or "").strip()
+                         and (r.get("provider") or _provider_of(r.get("model"))) == provider), None)
+        oa_run, an_run = _pick("openai"), _pick("anthropic")
+        if not oa_run or not an_run:
+            return []  # one provider missing → caller runs the fallback ladder (§A3)
+        # PRD §A1 — both answers MUST come from byte-identical input. ``prompt_hash`` is
+        # sha(system + rendered case), computed once and stamped on every run; a mismatch
+        # means the pair is comparing PROMPTS, not MODELS — the data is corrupt, so
+        # DISCARD the pair (never let a divergent pair reach a doctor).
+        h_oa, h_an = oa_run.get("prompt_hash"), an_run.get("prompt_hash")
+        if h_oa and h_an and h_oa != h_an:
+            log.error("asclepius: pair_prompt_divergence — openai=%s anthropic=%s; pair discarded",
+                      str(h_oa)[:12], str(h_an)[:12])
+            return []
+        return place_AB(_ans(oa_run), _ans(an_run))
 
     # ── legacy mode (explicit opt-in): one-frontier + gold, or first two ──
     answers: List[Dict[str, Any]] = []
@@ -215,6 +244,130 @@ def build_baseline_candidates(
     answers = answers[:2]
     random.shuffle(answers)
     return [{"id": "A" if i == 0 else "B", **a} for i, a in enumerate(answers)]
+
+
+# ── The A/B assembly ladder (PRD §A3 + §A7) ──────────────────────────────────
+def _classify_error(err: Optional[str]) -> str:
+    """Coarse-classify a baseline run error string into a stable reason token."""
+    e = (err or "").lower()
+    if not e:
+        return "empty"
+    if "timed out" in e or "timeout" in e:
+        return "timeout"
+    if "empty/incomplete" in e:
+        return "empty"
+    if "429" in e or "rate limit" in e or "ratelimit" in e:
+        return "rate_limit"
+    if any(s in e for s in ("401", "403", "404", "authentication", "invalid x-api-key",
+                            "permission", "not found", "no access", "does not exist")):
+        return "4xx"
+    return "error"
+
+
+def _fallback_reason(runs: List[Dict[str, Any]]) -> str:
+    """Why did two-frontier fail to form a pair? A stable, provider-tagged token like
+    ``openai_timeout`` / ``openai_4xx`` / ``anthropic_empty`` (PRD §A3 Rung 2)."""
+    parts: List[str] = []
+    for r in runs or []:
+        if (r.get("response_text") or "").strip():
+            continue
+        prov = r.get("provider") or _provider_of(r.get("model")) or "unknown"
+        parts.append(f"{prov}_{_classify_error(r.get('error'))}")
+    return ",".join(parts) if parts else "shortfall"
+
+
+def _is_anthropic_ok(r: Dict[str, Any]) -> bool:
+    return bool((r.get("response_text") or "").strip()) and \
+        (r.get("provider") or _provider_of(r.get("model"))) == "anthropic"
+
+
+async def _anthropic_only_pair(
+    store: Any, task: Dict[str, Any], *, existing_runs: Optional[List[Dict[str, Any]]] = None,
+) -> tuple:
+    """Assemble a legacy same-provider A/B pair from **two DISTINCT Anthropic** answers
+    (all BAA-covered). Used both for the OLD-method fallback (§A3 Rung 2) and as the
+    intended V4 path when two-frontier is disabled for V4 (§A7).
+
+    Reuses any surviving Anthropic run from ``existing_runs`` (never re-calls a model
+    that already answered) and tops up with additional Anthropic models until it has two
+    distinct-model answers. Returns ``(candidates, reason|None)``. Never raises."""
+    have = [r for r in (existing_runs or []) if _is_anthropic_ok(r)]
+    # Distinct Anthropic models we haven't already used, in configured order.
+    used = {r.get("model") for r in have}
+    topup = [m for m in legacy_baseline_models() if _provider_of(m) == "anthropic" and m not in used]
+    i = 0
+    while len({r.get("model") for r in have}) < 2 and i < len(topup):
+        new = await run_baselines(store, task, models=[topup[i]])
+        have += [r for r in new if _is_anthropic_ok(r)]
+        i += 1
+    # Keep two runs from DISTINCT models (two answers from one model would be a
+    # degenerate "pair"); order-preserving dedup.
+    seen, distinct = set(), []
+    for r in have:
+        m = r.get("model")
+        if m in seen:
+            continue
+        seen.add(m)
+        distinct.append(r)
+        if len(distinct) == 2:
+            break
+    if len(distinct) < 2:
+        return [], "anthropic_unavailable"
+    return build_baseline_candidates(distinct, mode="legacy"), None
+
+
+async def assemble_ab_pair(store: Any, task: Dict[str, Any]) -> tuple:
+    """The full A/B assembly ladder (PRD §A3 + §A7). Returns ``(candidates, meta)``.
+    Never raises. ``meta = {ab_source, fallback_reason, alert, fallback_rate}``.
+
+    Ladder:
+      * **Rung 0 — V4 BAA gate (§A7):** a V4 real case with two-frontier disabled uses
+        the Anthropic-only path by design (``anthropic_only_v4``) — not a fallback incident.
+      * **Rung 1 — two-frontier, hard (§A3):** one OpenAI + one Anthropic, concurrent,
+        each already retried once inside ``call_llm`` on a transient error. The ~always path.
+      * **Rung 3 — guard (§A3):** if the rolling fallback rate already exceeds the ceiling,
+        SUPPRESS Rung 2 and raise the alert (``needs_baseline``) so an operator fixes the
+        provider — Rung 1 is still attempted every request, so recovery is automatic.
+      * **Rung 2 — OLD-method fallback (§A3):** two distinct Anthropic answers, tagged
+        ``legacy_fallback`` + ``fallback_reason``. Reuses the surviving Anthropic answer.
+      * **Shortfall:** ``[]`` → caller marks ``needs_baseline``. NEVER a gold stand-in."""
+    is_v4 = (task or {}).get("case_source") == "real_deid"
+
+    # Rung 0 — V4 BAA gate (§A7).
+    if is_v4 and not two_frontier_v4_enabled():
+        pair, why = await _anthropic_only_pair(store, task)
+        return pair, {"ab_source": "anthropic_only_v4" if pair else None,
+                      "fallback_reason": None if pair else (why or "anthropic_unavailable"),
+                      "alert": False, "fallback_rate": None}
+
+    # Rung 1 — two-frontier.
+    runs = await run_baselines(store, task, models=baseline_models())
+    pair = build_baseline_candidates(runs, mode="two_frontier")
+    if pair:
+        return pair, {"ab_source": "two_frontier", "fallback_reason": None,
+                      "alert": False, "fallback_rate": None}
+
+    reason = _fallback_reason(runs)
+
+    # Rung 3 — fallback-rate guard (suppress Rung 2 when fallback is already an incident).
+    rate = None
+    try:
+        rate = store.ab_fallback_rate(window=fallback_window())
+    except Exception:  # pragma: no cover - a metric read must never break assembly
+        rate = None
+    if rate is not None and rate > max_fallback_rate():
+        return [], {"ab_source": None, "fallback_reason": "fallback_rate_exceeded",
+                    "alert": True, "fallback_rate": rate}
+
+    # Rung 2 — OLD-method Anthropic-only fallback (reuse the surviving Anthropic answer).
+    pair, why = await _anthropic_only_pair(store, task, existing_runs=runs)
+    if pair:
+        return pair, {"ab_source": "legacy_fallback", "fallback_reason": reason,
+                      "alert": False, "fallback_rate": rate}
+
+    # Rung 2 failed too (Anthropic itself unavailable) → needs_baseline.
+    return [], {"ab_source": None, "fallback_reason": reason or why or "both_failed",
+                "alert": False, "fallback_rate": rate}
 
 
 def record_model_failure(store: Any, task_id: str, submission_id: str) -> Optional[str]:

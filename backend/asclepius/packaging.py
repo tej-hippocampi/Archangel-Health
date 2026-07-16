@@ -139,6 +139,12 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, A
         "task_id": task.get("task_id"),
         "source": task.get("source"),
         "buyer_request_id": task.get("buyer_request_id"),
+        # Two-frontier provenance (PRD §A3 / §E-2): HOW the A/B pair was assembled —
+        # ``two_frontier`` (cross-frontier, full value) | ``legacy_fallback``
+        # (same-provider fallback, worth less) | ``anthropic_only_v4`` — so a buyer can
+        # separate or discount same-model pairs. ``None`` for generated (non-baseline) pairs.
+        "ab_source": (task.get("generation") or {}).get("ab_source"),
+        "fallback_reason": (task.get("generation") or {}).get("fallback_reason"),
         # versioning
         "taxonomy_version": ASCLEPIUS_TAXONOMY_VERSION,
         "config_version": ASCLEPIUS_CONFIG_VERSION,

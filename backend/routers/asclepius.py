@@ -76,8 +76,11 @@ from asclepius.constants import (
     VERDICTS,
     WHY_BETTER_TAGS,
     assist_min_confidence,
+    fallback_window,
     independent_capture_kind,
+    max_fallback_rate,
     normalize_portal_version,
+    target_pool_size,
     value_per_minute_target,
 )
 from asclepius import stt as asc_stt
@@ -135,6 +138,15 @@ router = APIRouter(prefix="/api/asclepius", tags=["asclepius"])
 
 def _store():
     return get_store()
+
+
+def _ab_fallback_health(store) -> Dict[str, Any]:
+    """Two-frontier fallback health for /stats (PRD §A3 Rung 3): the rolling
+    legacy-fallback rate, the ceiling, and a RED alert flag when the rate exceeds it
+    (a provider is likely down and new pairs are being held as ``needs_baseline``)."""
+    ceiling = max_fallback_rate()
+    rate = store.ab_fallback_rate(window=fallback_window())
+    return {"rate": rate, "ceiling": ceiling, "alert": rate is not None and rate > ceiling}
 
 
 def _withhold_answers() -> bool:
@@ -533,6 +545,46 @@ async def generate_specialty_tasks(
     except asc_corpus.CorpusError as exc:
         raise HTTPException(status_code=500, detail=f"Seed corpus error: {exc}")
     return result
+
+
+@router.post("/generation/{specialty}/topup")
+async def topup_generation(
+    specialty: str,
+    target: Optional[int] = Query(None, ge=0, le=500,
+        description="Desired open V3 pool size; defaults to ASCLEPIUS_TARGET_POOL_SIZE."),
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Continuous supply (PRD §B4): generate NOVEL V3 multimodal cases until the OPEN
+    (unlabeled) pool for this specialty reaches ``target`` (default
+    ``ASCLEPIUS_TARGET_POOL_SIZE``). A no-op when the pool is already at/above target.
+    Respects the same novelty + hardness + structure gates as ``/generation`` and
+    reports the drop-reason counts so a shortfall ('why only 3?') is answerable."""
+    store = _store()
+    tgt = target if target is not None else target_pool_size()
+    before = store.open_multimodal_count(specialty)
+    deficit = max(0, tgt - before)
+    if deficit == 0:
+        return {"specialty": specialty, "target": tgt, "pool_before": before, "pool_after": before,
+                "requested": 0, "accepted": 0, "dropped": {}, "topped_up": False}
+    try:
+        result = await asc_generation.generate_tasks(
+            store, specialty=specialty, n=deficit, multimodal=True, created_by=admin["id"],
+        )
+    except asc_specialties.SpecialtyNotEnabled as exc:
+        raise HTTPException(status_code=400, detail={"error": "specialty_not_enabled", "message": str(exc)})
+    except asc_generation.GenerationDisabled as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except asc_corpus.CorpusError as exc:
+        raise HTTPException(status_code=500, detail=f"Seed corpus error: {exc}")
+    after = store.open_multimodal_count(specialty)
+    store.log_event(entity_type="generation_job", entity_id=result.get("job_id") or ("topup:" + specialty),
+                    event_type="generation_topup", actor=admin["id"],
+                    payload={"target": tgt, "pool_before": before, "pool_after": after,
+                             "accepted": result.get("accepted"), "dropped": result.get("dropped")})
+    return {"specialty": specialty, "target": tgt, "pool_before": before, "pool_after": after,
+            "requested": deficit, "accepted": result.get("accepted", 0),
+            "dropped": result.get("dropped", {}), "shortfall": max(0, tgt - after),
+            "topped_up": after > before}
 
 
 @router.post("/generation/{specialty}/load-gold")
@@ -1564,39 +1616,58 @@ async def list_task_baselines(
 async def grade_real_models(
     task_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
 ):
-    """"Grade the real models" mode (FEAT-1): run baselines if needed, then swap
-    the task's A/B pair to TWO real frontier answers (blinded, source='baseline',
-    50/50 randomized) so the specialist grades real models instead of two
-    generated answers. On submission a per-model failure record is computed."""
+    """"Grade the real models" mode (FEAT-1 / PRD §A): swap the task's A/B pair to two
+    real frontier answers (blinded, source='baseline', truly-random slots) via the
+    assembly ladder (§A3 + §A7):
+
+      * two-frontier (one OpenAI + one Anthropic) is the strong default;
+      * on a genuine single-provider failure it reverts to the OLD Anthropic-only
+        method so annotation continues (tagged ``legacy_fallback``, counted);
+      * a sustained high fallback rate is treated as an incident → ``503 needs_baseline``
+        + admin alert, never mostly-legacy data shipped silently;
+      * V4 real cases stay Anthropic-only unless ``ASCLEPIUS_TWO_FRONTIER_V4`` is on (§A7);
+      * NEVER a gold stand-in for a failed model answer.
+
+    On submission a per-model failure record is computed."""
     from asclepius import baselines as asc_baselines
 
     store = _store()
     task = store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    runs = store.list_baseline_runs(task_id=task_id)
-    ok_runs = [r for r in runs if (r.get("response_text") or "").strip()]
-    if len(ok_runs) < 2:
-        runs = await asc_baselines.run_baselines(store, task)
-        ok_runs = [r for r in runs if (r.get("response_text") or "").strip()]
-    candidates = asc_baselines.build_baseline_candidates(ok_runs)
+
+    candidates, meta = await asc_baselines.assemble_ab_pair(store, task)
+
     if len(candidates) < 2:
-        # two_frontier requires exactly one OpenAI + one Anthropic answer. Mark the
-        # task needs_baseline (surfaced in admin) — NEVER a silent gold stand-in.
+        # No pair could be assembled. Mark needs_baseline (never a gold stand-in) and
+        # 503 with an actionable message. If the fallback-rate guard tripped, this is an
+        # INCIDENT (sustained provider failure), surfaced as an alert on /stats.
         store.set_task_candidates(
             task_id, task.get("candidate_answers") or [],
-            generation_patch={"needs_baseline": True, "ab_source": ab_source()},
+            generation_patch={"needs_baseline": True, "ab_source": None,
+                              "fallback_reason": meta.get("fallback_reason"),
+                              "fallback_alert": bool(meta.get("alert"))},
         )
-        provs = sorted({r.get("provider") for r in ok_runs if r.get("provider")})
-        raise HTTPException(
-            status_code=503,
-            detail=(f"two-frontier A/B needs one OpenAI + one Anthropic answer; got provider(s) "
-                    f"{provs or 'none'}. Task marked needs_baseline. Check OPENAI_API_KEY / "
-                    "ANTHROPIC_API_KEY and ASCLEPIUS_BASELINE_MODELS (must be one id per provider)."),
-        )
+        store.log_event(entity_type="task", entity_id=task_id, event_type="grade_real_models_shortfall",
+                        actor=admin["id"], payload={k: meta.get(k) for k in
+                                                    ("fallback_reason", "alert", "fallback_rate")})
+        if meta.get("alert"):
+            detail = (f"Two-frontier fallback rate {meta.get('fallback_rate')} exceeds the ceiling — "
+                      "a provider looks down. New pairs are held (needs_baseline) so mostly-legacy "
+                      "data is not shipped. Fix OPENAI_API_KEY / the provider, then retry.")
+        else:
+            detail = (f"Could not assemble an A/B pair ({meta.get('fallback_reason')}). Task marked "
+                      "needs_baseline. Check OPENAI_API_KEY / ANTHROPIC_API_KEY and "
+                      "ASCLEPIUS_BASELINE_MODELS (must be one id per provider).")
+        raise HTTPException(status_code=503, detail=detail)
+
     updated = store.set_task_candidates(
         task_id, candidates,
-        generation_patch={"mode": "grade_real_models", "ab_source": ab_source(),
+        generation_patch={"mode": "grade_real_models",
+                          # The REAL, honest source of this pair (§A3): two_frontier |
+                          # legacy_fallback | anthropic_only_v4. Never relabelled.
+                          "ab_source": meta.get("ab_source"),
+                          "fallback_reason": meta.get("fallback_reason"),
                           "needs_baseline": False,
                           "baseline_models": [c.get("baseline_model") for c in candidates],
                           "baseline_providers": [c.get("provider") for c in candidates],
@@ -1605,10 +1676,12 @@ async def grade_real_models(
                           "intended_flawed_id": None},
     )
     store.log_event(entity_type="task", entity_id=task_id, event_type="grade_real_models",
-                    actor=admin["id"], payload={"models": [c.get("baseline_model") for c in candidates],
+                    actor=admin["id"], payload={"ab_source": meta.get("ab_source"),
+                                                "fallback_reason": meta.get("fallback_reason"),
+                                                "models": [c.get("baseline_model") for c in candidates],
                                                 "providers": [c.get("provider") for c in candidates]})
     return {"task_id": task_id, "modality": updated.get("modality"),
-            "candidate_count": len(candidates)}
+            "candidate_count": len(candidates), "ab_source": meta.get("ab_source")}
 
 
 @router.get("/baselines/model-failures")
@@ -2776,6 +2849,10 @@ async def stats(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
         "ab_balance": store.ab_balance_stats(),
         # Two-frontier slot balance (A3): OpenAI-in-slot-A rate over built pairs (~0.5).
         "ab_slot_balance": store.ab_slot_balance(),
+        # Two-frontier fallback health (PRD §A3 Rung 3): rolling legacy_fallback rate +
+        # a RED alert when it exceeds the ceiling (a provider is likely down and new
+        # pairs are being held). ``rate`` is None on a cold start (no pairing history).
+        "ab_fallback": _ab_fallback_health(store),
         "qa_pass_rate": store.qa_pass_rate(),
         "average_agreement": store.average_agreement(),
         "kappa": asc_agreement.aggregate_kappa(store.list_agreement_observations()),

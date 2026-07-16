@@ -639,3 +639,26 @@ def test_novelty_gate_skipped_for_cases_without_ground_truth(monkeypatch):
     res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=3, multimodal=True))
     assert res["dropped"].get("case_near_duplicate", 0) == 0
     assert res["accepted"] >= 2
+
+
+# ─── B4: continuous supply / top-up ───────────────────────────────────────────
+def test_generation_topup(monkeypatch):
+    """Top-up fills the OPEN V3 pool to target (PRD §B4), then is a no-op once at target.
+    Reuses the multimodal generation stub so no LLM key is needed."""
+    from fastapi.testclient import TestClient
+    import uuid as _uuid
+    A.fresh_store()
+    _install(monkeypatch)
+    client = TestClient(A.app)
+    admin_h = A.headers_for(A.make_user(_store(), role="admin",
+                                        email=f"a-{_uuid.uuid4().hex[:6]}@x.example"))
+    # Pool starts empty → top up to 3.
+    r = client.post("/api/asclepius/generation/nephrology/topup?target=3", headers=admin_h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["pool_before"] == 0 and body["pool_after"] >= 2 and body["topped_up"] is True
+    assert "dropped" in body                       # drop-reason counts surfaced
+    # Already at/above target → no-op (no further generation).
+    at = _store().open_multimodal_count("nephrology")
+    r2 = client.post(f"/api/asclepius/generation/nephrology/topup?target={at}", headers=admin_h)
+    assert r2.status_code == 200 and r2.json()["requested"] == 0 and r2.json()["topped_up"] is False

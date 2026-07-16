@@ -4823,6 +4823,19 @@
           return stat(r == null ? '—' : Math.round(r * 100) + '%',
             (ok ? '' : '⚠️ ') + 'OpenAI-as-A rate',
             'target ~50% · n=' + (sb.pairs || 0) + ' (two-frontier QC)');
+        })(),
+        (function () {
+          // Two-frontier fallback health (PRD §A3 Rung 3): a RED chip when the rolling
+          // legacy-fallback rate exceeds the ceiling — a provider is likely down and new
+          // pairs are being held (needs_baseline) instead of shipping mostly-legacy data.
+          const fb = s.ab_fallback || {};
+          const r = fb.rate;
+          const alert = !!fb.alert;
+          return stat(r == null ? '—' : Math.round(r * 100) + '%',
+            (alert ? '🔴 ' : '') + 'Legacy-fallback rate',
+            alert
+              ? 'ABOVE ceiling ' + Math.round((fb.ceiling || 0) * 100) + '% — a provider looks down; new pairs held. Fix OPENAI_API_KEY / the provider.'
+              : 'ceiling ' + Math.round((fb.ceiling || 0) * 100) + '% · two-frontier fallback health');
         })()),
       h('p', { class: 'asc-help', style: 'margin-top:10px' },
         'All three flows capture the same judgment and produce the same record types; every record is stamped with its source version. '

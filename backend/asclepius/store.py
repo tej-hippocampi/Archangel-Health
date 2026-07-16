@@ -2212,6 +2212,21 @@ class AsclepiusStore:
             ).fetchall()
         return {(r["portal_version"] or "v2"): int(r["n"]) for r in rows}
 
+    def open_multimodal_count(self, specialty: Optional[str] = None) -> int:
+        """Count OPEN (servable, not-yet-fully-labeled) V3 multimodal cases — the
+        unlabeled pool a top-up fills to ``target_pool_size`` (PRD §B4). Optionally
+        scoped to a specialty."""
+        clauses = ["status = 'open'", "COALESCE(modality, 'text') = 'multimodal'"]
+        params: List[Any] = []
+        if specialty:
+            clauses.append("specialty = ?")
+            params.append(specialty)
+        with self._conn() as conn:
+            row = conn.execute(
+                f"SELECT COUNT(*) AS n FROM tasks WHERE {' AND '.join(clauses)}", tuple(params)
+            ).fetchone()
+        return int(row["n"] or 0)
+
     def open_modality_counts(self) -> Dict[str, int]:
         """OPEN (servable) tasks by modality (Multimodal Debug PRD P3.11) — the
         admin dashboard shows "multimodal in queue: N" so an operator always knows
@@ -2948,6 +2963,43 @@ class AsclepiusStore:
                 openai_in_A += 1
         rate = round(openai_in_A / n_pairs, 3) if n_pairs else None
         return {"pairs": n_pairs, "openai_in_A": openai_in_A, "openai_as_A_rate": rate}
+
+    def ab_fallback_rate(self, *, window: int = 50) -> Optional[float]:
+        """Rolling ``legacy_fallback / (two_frontier + legacy_fallback)`` over the last
+        ``window`` assembled A/B pairs (PRD §A3 Rung 3). Reads the durable ``ab_source``
+        stamped onto each task's generation block, newest first, so it survives restart
+        and is worker-independent. ``anthropic_only_v4`` (the intended V4 path) is NOT a
+        fallback and is excluded. Returns ``None`` when there is no pairing history yet
+        (so a cold start never trips the guard)."""
+        counted = ("two_frontier", "legacy_fallback")
+        want = max(1, int(window))
+        total = 0
+        fallback = 0
+        with self._conn() as conn:
+            # Fetch generously (window may be diluted by interleaved anthropic_only_v4 /
+            # needs_baseline rows) and take the newest ``want`` COUNTED pairs in Python.
+            rows = conn.execute(
+                "SELECT generation_json FROM tasks "
+                "WHERE generation_json LIKE '%\"ab_source\"%' "
+                "ORDER BY created_at DESC LIMIT ?",
+                (want * 5,),
+            ).fetchall()
+        for row in rows:
+            try:
+                gen = json.loads(row["generation_json"] or "null") or {}
+            except (ValueError, TypeError):
+                continue
+            src = gen.get("ab_source")
+            if src not in counted:
+                continue
+            total += 1
+            if src == "legacy_fallback":
+                fallback += 1
+            if total >= want:
+                break
+        if not total:
+            return None
+        return round(fallback / total, 3)
 
     def flaw_catch_rate(self) -> Dict[str, Any]:
         """How often evaluators reject the intended-flawed candidate on generated

@@ -572,6 +572,13 @@ def gen_fewshot_k() -> int:
     return max(1, _env_int("ASCLEPIUS_GEN_FEWSHOT_K", 6))
 
 
+def target_pool_size() -> int:
+    """Target number of OPEN (unlabeled) V3 multimodal cases to keep in the queue
+    (PRD §B4 — continuous supply, not one-click-one-case). A top-up generates until the
+    pool reaches this. ``ASCLEPIUS_TARGET_POOL_SIZE`` (default 25)."""
+    return max(0, _env_int("ASCLEPIUS_TARGET_POOL_SIZE", 25))
+
+
 # ─── Value model (Value-per-Minute PRD, Part A) ───────────────────────────────
 # north-star = value ÷ time = dollars of sellable data value produced per minute
 # of clinician time. Every coefficient is env-overridable so the model can be
@@ -646,17 +653,55 @@ def baseline_pairing_ok() -> tuple:
     return (True, f"two-frontier A/B: {models[0]} ({provs[0]}) vs {models[1]} ({provs[1]})")
 
 
-def value_rubric_marginal() -> float:
-    """A confirmed rubric (FEAT-2) is a reusable SCORING FUNCTION (a grader), not a
-    single label — priced above a label. Marginal add-on over the judgment it was
-    seeded from."""
-    return _env_float("ASCLEPIUS_VALUE_RUBRIC_MARGINAL", 25.0)
+# ─── Fallback ladder (PRD §A3) ────────────────────────────────────────────────
+# Two-frontier has vehement priority (Rung 1). On a genuine single-provider failure
+# the system reverts to the OLD Anthropic-only method (Rung 2, tagged
+# ``legacy_fallback``) so annotation continues — but a sustained high fallback rate is
+# treated as an incident (Rung 3), not a steady state.
+def legacy_baseline_models() -> list:
+    """The Anthropic-only model pair used for the OLD-method fallback (PRD §A3 Rung 2)
+    — two DIFFERENT Anthropic models so the pair is two genuinely-distinct answers, all
+    BAA-covered. ``ASCLEPIUS_LEGACY_BASELINE_MODELS`` (comma-separated) overrides.
+    Defaults to the two current Anthropic ids (opus + sonnet), both from
+    ``ai/model_config`` (repo invariant: model ids only live there)."""
+    raw = os.getenv("ASCLEPIUS_LEGACY_BASELINE_MODELS")
+    if raw:
+        return [m.strip() for m in raw.split(",") if m.strip()]
+    from ai.model_config import resolve
+    return [resolve("asclepius_baseline")["model"], resolve("asclepius_critic")["model"]]
+
+
+def max_fallback_rate() -> float:
+    """Rolling ``legacy_fallback / total`` ceiling (PRD §A3 Rung 3). Above this, stop
+    silently shipping mostly-legacy data: Rung 2 is suppressed (new shortfalls become
+    ``needs_baseline``) and the admin alert is raised so an operator fixes the provider.
+    Self-healing: Rung 1 (two-frontier) is always still attempted, so once the provider
+    recovers the rate falls and fallback re-enables. ``ASCLEPIUS_MAX_FALLBACK_RATE``."""
+    return _env_float("ASCLEPIUS_MAX_FALLBACK_RATE", 0.20)
+
+
+def fallback_window() -> int:
+    """How many recent pairs the rolling fallback rate is computed over (PRD §A3 Rung 3).
+    ``ASCLEPIUS_FALLBACK_WINDOW`` (default 50)."""
+    return max(1, _env_int("ASCLEPIUS_FALLBACK_WINDOW", 50))
+
+
+def two_frontier_v4_enabled() -> bool:
+    """Whether two-frontier is allowed for V4 REAL de-identified cases (PRD §A7).
+
+    Default **OFF**: two-frontier sends the rendered case to OpenAI, which is NOT
+    BAA-covered like Anthropic — so for V4 (real de-identified patient data) the safe
+    default is the OLD Anthropic-only path (BAA-covered end to end). This is the
+    INTENDED V4 path, NOT a fallback incident. V3 (synthetic, PHI-free) is unaffected
+    and always uses two-frontier. Set ``ASCLEPIUS_TWO_FRONTIER_V4=1`` to opt in once an
+    OpenAI BAA / zero-retention arrangement is in place."""
+    return (os.getenv("ASCLEPIUS_TWO_FRONTIER_V4", "0").strip().lower() in ("1", "true", "yes", "on"))
 
 
 def value_rubric_marginal() -> float:
     """A confirmed rubric (FEAT-2) is a reusable SCORING FUNCTION (a grader), not a
     single label — priced above a label. Marginal add-on over the judgment it was
-    seeded from."""
+    seeded from. (De-duplicated — this was defined twice; PRD §E-1 / FIX-6.)"""
     return _env_float("ASCLEPIUS_VALUE_RUBRIC_MARGINAL", 25.0)
 
 
