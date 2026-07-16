@@ -1240,6 +1240,24 @@
 .asc-rubric-tier.tier-helpful { color: #475569; background: #f1f5f9; border-color: #e2e8f0; }
 .asc-rubric-tier.crit-neg { color: #fff; background: #b91c1c; border-color: #b91c1c; }
 .asc-rubric-text { flex: 1 1 320px; }
+/* Rubric Rigor §C: concreteness chip (FIX-1), per-criterion cite (FIX-3), completeness meter (FIX-4). */
+.asc-rubric-spec {
+  font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+  border-radius: 999px; padding: 2px 7px; white-space: nowrap; border: 1px solid transparent;
+}
+.asc-rubric-spec.ok { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
+.asc-rubric-spec.warn { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+.asc-rubric-spec.soft { color: #94a3b8; background: transparent; border-color: #e2e8f0; }
+.asc-rubric-cite { flex-basis: 100%; margin: 4px 0 8px 46px; }
+.asc-rubric-meter { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--asc-line, #e5e7eb); }
+.asc-rubric-meter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.asc-rubric-premium {
+  font-size: 11px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
+  border-radius: 999px; padding: 3px 10px; white-space: nowrap;
+}
+.asc-rubric-premium.premium { color: #7c3aed; background: #f5f3ff; border: 1px solid #ddd6fe; }
+.asc-rubric-premium.standard { color: #64748b; background: #f1f5f9; border: 1px solid #e2e8f0; }
+.asc-chip-failure.active { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
 .asc-cite-link { font-weight: 600; color: var(--asc-primary, #2563eb); text-decoration: none; }
 .asc-cite-link:hover { text-decoration: underline; }
 /* Library search + multi-anchor (BUG-3) */

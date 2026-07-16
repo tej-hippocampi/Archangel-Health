@@ -432,7 +432,7 @@
       chosen_id: null,
       rejected_id: null,
       chosen_revision: { edited: false, revised_text: null, why_better_tags: [], why_better_notes: '', evidence_anchor: emptyAnchor() },
-      rejected_critique: { error_tags: [], severities: {}, why_worse: '', error_tag_anchors: {}, error_tag_reasons: {} },
+      rejected_critique: { error_tags: [], severities: {}, why_worse: '', error_tag_anchors: {}, error_tag_reasons: {}, failure_tags: [] },
       from_scratch: { ideal_answer: '', approach_notes: '', reasoning_steps: [], evidence_anchor: emptyAnchor() },
       reasoning_steps: [],
       // Rubric capture (FEAT-2): the weighted +/− criteria the doctor confirms.
@@ -455,6 +455,7 @@
     if (!draft.from_scratch.evidence_anchor) draft.from_scratch.evidence_anchor = emptyAnchor();
     if (!draft.rejected_critique.error_tag_anchors) draft.rejected_critique.error_tag_anchors = {};
     if (!draft.rejected_critique.error_tag_reasons) draft.rejected_critique.error_tag_reasons = {};
+    if (!Array.isArray(draft.rejected_critique.failure_tags)) draft.rejected_critique.failure_tags = [];
     if (draft.assist === undefined) draft.assist = null;
     if (!draft.portal_version) draft.portal_version = getPortalVersion();
     if (!draft.prompt_review) draft.prompt_review = { reviewed: false, verdict: null, note: '', reviewed_at: null };
@@ -741,6 +742,70 @@
     if (!rubric.length) return { ok: true };
     if (hasCriticalNegative(rubric)) return { ok: true };
     return { ok: false, msg: 'mark one critical “never” criterion (−8 to −10) to continue' };
+  }
+
+  // ─── Rubric Rigor (§C) + Model-Failure Taxonomy (§D) — V3/V4 only ──────────
+  // FIX-1 concreteness. PORTED VERBATIM from backend asclepius/rubric.py so the UI
+  // NEVER disagrees with the server about "specific" (a mismatch would mislabel a
+  // rubric premium/standard). Kept in lock-step by test/rubric_ui_parity.
+  const _VAGUE_MARKERS = [
+    'better than', 'safer than', 'clearer than', 'more accurate than', 'plausible alternative',
+    'appropriately', 'as appropriate', 'as needed', 'as indicated', 'adequately', 'properly',
+    'correctly manage', 'manages appropriately', 'reasonable', 'good clinical', 'high quality',
+  ];
+  const _UNIT_RE = /\b(mg|mcg|g|mmol|meq|ml|l|mmhg|mg\/dl|mmol\/l|meq\/l|g\/dl|ml\/min|ml\/kg|units?|%|mosm|mosm\/kg)\b/;
+  const _CLINICAL_RE = /\b(calcium|potassium|sodium|magnesium|phosphate|bicarbonate|chloride|insulin|dextrose|dialysate|dialysis|hemodialysis|thiazide|hydrochlorothiazide|loop diuretic|furosemide|finerenone|spironolactone|amiloride|eplerenone|kayexalate|patiromer|osmolality|osmolarity|creatinine|egfr|fena|feurea|urine|urea|guideline|kdigo|contraindicat|acei|arb|nsaid|sglt2|hyperkalemia|hypokalemia|hyponatremia|hypernatremia|acidosis|alkalosis|volume|ddavp|hypertonic saline|normal saline|fluid restriction|peaked t|ecg|ekg)\b/;
+  function isSpecificText(text) {
+    const t = String(text || '').trim().toLowerCase();
+    if (!t) return false;
+    if (_VAGUE_MARKERS.some((m) => t.indexOf(m) !== -1)) return false;
+    if (/\d/.test(t)) return true;
+    if (_UNIT_RE.test(t)) return true;
+    if (_CLINICAL_RE.test(t)) return true;
+    return false;
+  }
+
+  // FIX-4 completeness/premium — mirrors backend rubric.rubric_completeness exactly.
+  const _PREMIUM_MIN_CRITERIA = 5;
+  const _PREMIUM_MIN_AXES = 3;
+  function rubricCompleteness(criteria) {
+    const crit = (criteria || []).filter((c) => (c.text || '').trim());
+    const n = crit.length;
+    const nPos = crit.filter((c) => (Number(c.points) || 0) > 0).length;
+    const nNeg = crit.filter((c) => (Number(c.points) || 0) < 0).length;
+    const axes = new Set(crit.map((c) => c.axis).filter(Boolean));
+    const hasCritNeg = hasCriticalNegative(crit);
+    const keyCriteria = crit.filter((c) => { const tr = tierForPoints(c.points); return tr === 'critical' || tr === 'important'; });
+    const allKeySpecific = keyCriteria.length ? keyCriteria.every((c) => isSpecificText(c.text)) : false;
+    const missing = [];
+    if (n < _PREMIUM_MIN_CRITERIA) missing.push('add ' + (_PREMIUM_MIN_CRITERIA - n) + ' more criteria (≥' + _PREMIUM_MIN_CRITERIA + ' total)');
+    if (nPos < 1) missing.push('add ≥1 positive criterion');
+    if (nNeg < 1) missing.push('add ≥1 negative criterion');
+    if (!hasCritNeg) missing.push('name ≥1 CRITICAL negative (−8 to −10)');
+    if (axes.size < _PREMIUM_MIN_AXES) missing.push('cover ≥' + _PREMIUM_MIN_AXES + ' axes (have ' + axes.size + ')');
+    if (!allKeySpecific) missing.push('make every critical/important criterion specific (name the fact/drug/dose/threshold)');
+    return { premium: missing.length === 0, tier: missing.length === 0 ? 'premium' : 'standard',
+      n_criteria: n, n_axes: axes.size, missing };
+  }
+
+  // Is this task a REAL-MODEL (baseline) A/B pair? (needed for the §D failure-tag gate)
+  function isBaselinePair() {
+    return ((state.task && state.task.candidate_answers) || []).some((c) => c && c.source === 'baseline');
+  }
+
+  // §D-2: on V3/V4, when the rubric names a critical negative AND this is a real-model
+  // pair, require ≥1 physician failure tag on the rejected answer. Mirrors the backend
+  // submit gate (400 failure_tag_required) exactly, so submit never surprises the doctor.
+  function failureTagGate() {
+    if (!isV3()) return { ok: true };
+    const v = state.draft.verdict;
+    if (v !== 'A_better' && v !== 'B_better') return { ok: true };
+    const rubric = (state.draft.rubric || []).filter((c) => (c.text || '').trim());
+    if (!rubric.length || !hasCriticalNegative(rubric)) return { ok: true };
+    if (!isBaselinePair()) return { ok: true };
+    const tags = ((state.draft.rejected_critique || {}).failure_tags) || [];
+    if (tags.length) return { ok: true };
+    return { ok: false, msg: 'tag ≥1 failure mode on the rejected answer to continue' };
   }
 
   // ─── Workspace render (3 gated stages) ─────────────────────────────────────
@@ -1662,6 +1727,19 @@
         'No criteria yet — confirm the seeded ones or add your own.'));
       return;
     }
+    // FIX-4 completeness meter (defined here so row handlers can repaint it live).
+    const meter = h('div', { class: 'asc-rubric-meter' });
+    function paintMeter() {
+      clear(meter);
+      const rc = rubricCompleteness(d.rubric);
+      const pill = h('span', { class: 'asc-rubric-premium ' + (rc.premium ? 'premium' : 'standard') },
+        rc.premium ? '★ premium' : 'standard');
+      const detail = rc.premium
+        ? h('span', { class: 'asc-label-hint' }, rc.n_criteria + ' criteria · ' + rc.n_axes + ' axes — meets the premium bar')
+        : h('span', { class: 'asc-label-hint' }, 'to reach premium: ' + rc.missing.join('; '));
+      meter.appendChild(h('div', { class: 'asc-rubric-meter-row' }, pill, detail));
+    }
+
     d.rubric.forEach((c, i) => {
       const pos = (c.points || 0) >= 0;
       const ptsLabel = h('span', { class: 'asc-rubric-pts ' + (pos ? 'pos' : 'neg') },
@@ -1679,6 +1757,19 @@
           ? 'Critical negative — the thing a correct answer must never do (grader hard-fails on it).'
           : c.tier + ' criterion (|points| ' + (c.tier === 'critical' ? '8–10' : c.tier === 'important' ? '4–7' : '1–3') + ')';
       }
+      // FIX-1 concreteness chip: nudges the doctor to name a specific fact/drug/dose/
+      // threshold. A vague CRITICAL/IMPORTANT criterion doesn't count toward premium.
+      const specChip = h('span', { class: 'asc-rubric-spec' });
+      function paintSpec() {
+        const sp = isSpecificText(c.text);
+        c.specific = sp;
+        const keyTier = c.tier === 'critical' || c.tier === 'important';
+        specChip.textContent = sp ? 'specific' : 'vague';
+        specChip.className = 'asc-rubric-spec ' + (sp ? 'ok' : (keyTier ? 'warn' : 'soft'));
+        specChip.title = sp
+          ? 'Machine-checkable — names a concrete fact/drug/dose/threshold.'
+          : 'Vague — name the specific fact, drug, dose, or threshold so the grader can check it.';
+      }
       const slider = h('input', { type: 'range', min: '-10', max: '10', step: '1',
         value: String(c.points || 0), style: 'width:120px' });
       slider.addEventListener('input', () => {
@@ -1686,21 +1777,46 @@
         ptsLabel.textContent = (c.points >= 0 ? '+' : '') + c.points;
         ptsLabel.className = 'asc-rubric-pts ' + (c.points >= 0 ? 'pos' : 'neg');
         paintTier();
+        paintSpec();
+        paintMeter();
         saveDraft();
         updateSubmitState();
       });
       const textInput = h('input', { class: 'asc-input asc-rubric-text', value: c.text || '' });
-      textInput.addEventListener('input', () => { c.text = textInput.value; saveDraft(); updateSubmitState(); });
+      textInput.addEventListener('input', () => {
+        c.text = textInput.value; paintSpec(); paintMeter(); saveDraft(); updateSubmitState();
+      });
       const axisSel = h('select', { class: 'asc-select', style: 'max-width:150px' },
         ...(state.taxonomy.rubric_axes || ['accuracy', 'completeness', 'safety', 'reasoning', 'grounding', 'communication'])
           .map((ax) => h('option', { value: ax, selected: c.axis === ax ? 'selected' : null }, ax)));
       axisSel.value = c.axis || 'accuracy';
-      axisSel.addEventListener('change', () => { c.axis = axisSel.value; saveDraft(); });
+      axisSel.addEventListener('change', () => { c.axis = axisSel.value; paintMeter(); saveDraft(); });
+      // FIX-3 per-criterion citation (grounded = premium). Reuses the one-click /cite
+      // anchor editor; the anchor area toggles below the row.
+      const citeArea = h('div', { class: 'asc-rubric-cite', hidden: 'hidden' });
+      const citeBtn = h('button', { class: 'asc-btn-link', type: 'button',
+        onClick: () => {
+          if (!c.evidence_anchor) c.evidence_anchor = emptyAnchor();
+          const showing = citeArea.hasAttribute('hidden');
+          if (showing) {
+            clear(citeArea);
+            citeArea.appendChild(renderAnchorBlock(c.evidence_anchor,
+              { label: 'citation for this criterion', required: false }));
+            citeArea.removeAttribute('hidden');
+          } else {
+            citeArea.setAttribute('hidden', '');
+          }
+        } }, '🔗 cite');
       const del = h('button', { class: 'asc-btn-link', type: 'button',
         onClick: () => { d.rubric.splice(i, 1); saveDraft(); paintRubricList(); updateSubmitState(); } }, 'remove');
       paintTier();
-      listHost.appendChild(h('div', { class: 'asc-rubric-row' }, ptsLabel, tierChip, slider, textInput, axisSel, del));
+      paintSpec();
+      listHost.appendChild(h('div', {},
+        h('div', { class: 'asc-rubric-row' }, ptsLabel, tierChip, specChip, slider, textInput, axisSel, citeBtn, del),
+        citeArea));
     });
+    listHost.appendChild(meter);
+    paintMeter();
   }
 
   async function seedRubric(force) {
@@ -1834,6 +1950,19 @@
     const whyWorse = h('input', { class: 'asc-input', placeholder: 'One line on the key problem (optional)…', value: crit.why_worse || '' });
     whyWorse.addEventListener('input', () => { crit.why_worse = whyWorse.value; saveDraft(); });
 
+    // Model-Failure Taxonomy capture (§D-2): failure-mode chips, shown only on V3/V4
+    // for a REAL-MODEL (baseline) pair — the taxonomy attributes provider failures, so
+    // it's meaningless on a generated pair. Physician-verified; multi-select, ~10s.
+    const failureField = h('div', {});
+    if (isV3() && isBaselinePair() && (state.taxonomy.failure_modes || []).length) {
+      const fmContainer = h('div', { id: 'ascFailureModes' });
+      failureField.appendChild(h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'How did it fail? ',
+          h('span', { class: 'asc-label-hint' }, '(model-failure taxonomy — select all that apply)')),
+        fmContainer));
+      renderFailureTags(fmContainer);
+    }
+
     const card = h('div', { class: 'asc-subcard' },
       h('div', { class: 'asc-subcard-head rejected' }, '✕ Rejected answer (' + d.rejected_id + ') — what went wrong'),
       h('div', { class: 'asc-subcard-body' },
@@ -1843,6 +1972,7 @@
           chips),
         reasonContainer,
         sevContainer,
+        failureField,
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Why it\'s worse ', h('span', { class: 'asc-label-hint' }, '(optional nuance)')),
           withMic(whyWorse)),
@@ -1855,6 +1985,42 @@
     renderSeverities(sevContainer);
     renderTagAnchors(anchorContainer, true);
     return card;
+  }
+
+  // §D-2: failure-mode chips + an optional one-line note per selected mode. The chip
+  // uses the controlled-vocab id but shows the human label + definition tooltip. Stores
+  // ``rejected_critique.failure_tags = [{mode, note}]``.
+  function renderFailureTags(container) {
+    if (!container) return;
+    clear(container);
+    const modes = (state.taxonomy.failure_modes || []);
+    const tags = state.draft.rejected_critique.failure_tags;
+    const selected = {};
+    tags.forEach((t) => { selected[t.mode] = true; });
+    const chips = h('div', { class: 'asc-chips' });
+    modes.forEach((m) => {
+      const chip = h('button', {
+        class: 'asc-chip asc-chip-failure' + (selected[m.id] ? ' active' : ''),
+        type: 'button', title: m.definition,
+        onClick: () => {
+          const idx = tags.findIndex((t) => t.mode === m.id);
+          if (idx === -1) tags.push({ mode: m.id, note: '' });
+          else tags.splice(idx, 1);
+          saveDraft();
+          renderFailureTags(container);
+          updateSubmitState();
+        },
+      }, m.label);
+      chips.appendChild(chip);
+    });
+    container.appendChild(chips);
+    tags.forEach((t) => {
+      const meta = modes.find((m) => m.id === t.mode);
+      const note = h('input', { class: 'asc-input', style: 'margin-top:6px',
+        placeholder: (meta ? meta.label : t.mode) + ' — one line of specifics (optional)', value: t.note || '' });
+      note.addEventListener('input', () => { t.note = note.value; saveDraft(); });
+      container.appendChild(note);
+    });
   }
 
   // Model-suggested error tags + draft rationale (Speed Optimization §2):
@@ -2675,7 +2841,9 @@
           : 'review each reasoning step (confirm or correct)';
       } else {
         const rg = rubricGate();
+        const fg = failureTagGate();
         if (!rg.ok) { ok = false; msg = rg.msg; }
+        else if (!fg.ok) { ok = false; msg = fg.msg; }
       }
     }
     btn.disabled = !ok || state.submitting;
@@ -2713,6 +2881,7 @@
     const sr = stepsReview();
     if (!sr.ok) { updateSubmitState(); return; }
     if (!rubricGate().ok) { updateSubmitState(); return; }
+    if (!failureTagGate().ok) { updateSubmitState(); return; }
     state.submitting = true;
     const btn = document.getElementById('ascSubmit');
     const hint = document.getElementById('ascSubmitHint');
@@ -2763,6 +2932,9 @@
         updateSubmitState();
       } else if (e.status === 400 && e.detail && e.detail.error === 'critical_negative_required') {
         toast(e.detail.message || 'Your rubric must include at least one critical negative criterion.', 'error');
+        updateSubmitState();
+      } else if (e.status === 400 && e.detail && e.detail.error === 'failure_tag_required') {
+        toast(e.detail.message || 'Tag at least one failure mode on the rejected answer.', 'error');
         updateSubmitState();
       } else if (e.status !== 401) {
         toast('Submit failed: ' + e.message, 'error');
@@ -2853,12 +3025,20 @@
       portal_version: draftVersion(),
       // Rubric capture (FEAT-2): the confirmed weighted criteria (empty when the
       // doctor didn't capture a rubric). Zero-point/empty rows are dropped server-side.
-      rubric: (d.rubric || []).filter((c) => (c.text || '').trim()).map((c) => ({
-        text: (c.text || '').trim(), points: c.points || 0, axis: c.axis || null, source: c.source || 'manual',
-        // Tier (Two-Model PRD WS-B) — the server re-derives from |points| when it
-        // doesn't match, so this is a hint, never authoritative.
-        tier: tierForPoints(c.points),
-      })),
+      rubric: (d.rubric || []).filter((c) => (c.text || '').trim()).map((c) => {
+        const entry = {
+          text: (c.text || '').trim(), points: c.points || 0, axis: c.axis || null, source: c.source || 'manual',
+          // Tier (Two-Model PRD WS-B) — the server re-derives from |points| when it
+          // doesn't match, so this is a hint, never authoritative.
+          tier: tierForPoints(c.points),
+          // FIX-1 concreteness hint (server recomputes from the final text).
+          specific: isSpecificText(c.text),
+        };
+        // FIX-3 per-criterion evidence anchor (only when the doctor actually cited).
+        const anch = cleanAnchor(c.evidence_anchor);
+        if (anch) entry.evidence_anchor = anch;
+        return entry;
+      }),
     };
     // Model-assist audit block (Speed Optimization §2): the suggestions that
     // were SHOWN, stored next to the human finals so override rate is
@@ -2902,6 +3082,12 @@
         why_worse: d.rejected_critique.why_worse || '',
         error_tag_anchors: tagAnchors,
         error_tag_reasons: tagReasons,
+        // Model-Failure Taxonomy (§D-2): physician failure-mode tags on the rejected
+        // answer. Only well-formed {mode, note} rows; the server enforces the vocab.
+        failure_tags: (d.rejected_critique.failure_tags || [])
+          .filter((t) => t && t.mode)
+          .map((t) => ({ mode: t.mode, note: (t.note || '').trim(),
+            criterion_id: t.criterion_id || null, evidence_step_id: t.evidence_step_id || null })),
       };
       payload.reasoning_steps = cleanSteps(d.reasoning_steps);
       payload.from_scratch = null;

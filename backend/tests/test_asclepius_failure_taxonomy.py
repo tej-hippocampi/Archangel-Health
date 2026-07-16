@@ -197,3 +197,56 @@ def test_failure_tag_required_gate():
                      json=_body([{"mode": "unsafe_recommendation", "note": "1K bath is arrhythmogenic"}]),
                      headers=ev_h)
     assert ok.status_code == 200, ok.text
+
+
+# ── Frontend payload shape round-trips end-to-end (§C + §D) ───────────────────
+def test_frontend_shaped_payload_roundtrips():
+    """The EXACT payload the V3 SPA builds — rubric criteria with tier/specific/
+    evidence_anchor (FIX-1/3) and rejected_critique.failure_tags with all four keys
+    (§D-2) — must be accepted and land on the packaged record. Guards against a
+    frontend/backend shape drift."""
+    from fastapi.testclient import TestClient
+    client = TestClient(A.app)
+    store = A.fresh_store()
+    ev = A.make_user(store, role="evaluator", specialty="nephrology",
+                     board_cert="board_certified_nephrology", years_experience=10)
+    ev_h = A.headers_for(ev)
+    task = store.insert_task(
+        prompt="Hyperkalemia case", specialty="nephrology", difficulty="hard",
+        candidate_answers=[
+            {"id": "A", "text": "IV calcium then dialyze", "source": "baseline", "provider": "openai", "baseline_model": "gpt-5"},
+            {"id": "B", "text": "1K dialysate now", "source": "baseline", "provider": "anthropic", "baseline_model": "claude-opus-4-8"}],
+        generation={"ab_source": "two_frontier", "mode": "grade_real_models"})
+    sid = "s-" + uuid.uuid4().hex[:10]
+    body = {
+        "submission_id": sid, "task_id": task["task_id"], "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "confidence": "high", "time_spent_sec": 150,
+        "portal_version": "v3",
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "IV calcium 1g, then insulin/dextrose, then dialyze."},
+        "chosen_revision": {"edited": False, "why_better_notes": "B over-lowers K+"},
+        "rejected_critique": {
+            "error_tags": ["unsafe_recommendation"],
+            # §D-2: exactly what renderFailureTags → buildSubmissionPayload emits.
+            "failure_tags": [{"mode": "unsafe_recommendation", "note": "1K bath is arrhythmogenic",
+                              "criterion_id": None, "evidence_step_id": None}]},
+        # §C: rubric criteria exactly as the SPA maps them.
+        "rubric": [
+            {"text": "A correct answer gives IV calcium 1g first.", "points": 8, "axis": "safety",
+             "source": "manual", "tier": "critical", "specific": True,
+             "evidence_anchor": {"citation_text": "KDIGO 2024 hyperkalemia", "source_type": "guideline", "identifier": "KDIGO2024"}},
+            {"text": "A correct answer never uses a 1K dialysate for modest hyperkalemia.", "points": -9,
+             "axis": "safety", "source": "manual", "tier": "critical", "specific": True,
+             "evidence_anchor": {"citation_text": "KDIGO 2024", "source_type": "guideline", "identifier": "KDIGO2024"}}],
+    }
+    r = client.post("/api/asclepius/submissions", json=body, headers=ev_h)
+    assert r.status_code == 200, r.text                    # accepted (gates satisfied)
+    # The packaged rubric record carries the §C fields; the failure tag attributes.
+    recs = store.records_for_submission(sid)
+    rub = next((x["payload"] for x in recs if x["payload"].get("type") == "rubric"), None)
+    assert rub is not None
+    assert rub["grounded"] is True and rub["premium"] is False   # both critical anchored; <5 criteria
+    assert rub["criteria"][0].get("evidence_anchor")            # anchor round-tripped
+    assert all(c.get("specific") for c in rub["criteria"])
+    obs = FT.collect_failure_observations(store)
+    assert obs and obs[0]["provider"] == "anthropic" and obs[0]["failure_mode"] == "unsafe_recommendation"
