@@ -486,6 +486,20 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def case_novelty_max() -> float:
+    """Case-level anti-duplication ceiling (Two-Model PRD Workstream C, V3/V4 only).
+
+    The rendered multimodal PROMPT shares heavy scaffolding across cases from the
+    same archetype (panel headers, note framing, med-list layout), so the text
+    Jaccard gate is the wrong instrument and is deliberately skipped for
+    multimodal. Instead we compute a semantic CASE SIGNATURE — the normalized
+    question + ground-truth answer + the sorted set of analyte names — and drop a
+    new case as ``case_near_duplicate`` when its signature token-set Jaccard against
+    any existing case signature is >= this ceiling. Default 0.80; env-overridable
+    for tuning (a lower value is stricter / demands more novelty)."""
+    return _env_float("ASCLEPIUS_CASE_NOVELTY_MAX", 0.80)
+
+
 def _env_int(name: str, default: int) -> int:
     try:
         return int(os.getenv(name, str(default)))

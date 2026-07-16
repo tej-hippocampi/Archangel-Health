@@ -529,6 +529,34 @@ async def generate_specialty_tasks(
     return result
 
 
+@router.post("/generation/{specialty}/load-gold")
+async def load_gold_specialty_cases(
+    specialty: str,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Load the ratified GOLD multimodal cases for a specialty (Two-Model PRD
+    Workstream C — the "load gold" half of the load-vs-generate split).
+
+    Unlike ``POST /generation/{specialty}`` (which synthesizes NOVEL cases via the
+    LLM and needs a key), this inserts the hand-authored, clinician-ratified seed
+    cases — real labs + EHR + an authored A/B pair — with NO LLM required. Idempotent
+    (stable ``gold-<case_id>`` task ids are skipped if already present)."""
+    from asclepius.gold_cases import load_gold_cases
+
+    store = _store()
+    res = load_gold_cases(store, specialty=specialty)
+    res["multimodal_in_queue"] = len([
+        t for t in store.list_tasks(specialty=specialty, limit=1000)
+        if t.get("modality") == "multimodal"
+    ])
+    store.log_event(
+        entity_type="generation_job", entity_id="gold_seed:" + specialty,
+        event_type="gold_load", actor=admin["id"],
+        payload={"loaded": res.get("loaded", 0), "skipped": res.get("skipped", 0)},
+    )
+    return res
+
+
 @router.get("/generation/jobs")
 async def list_generation_jobs(
     specialty: Optional[str] = None, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)

@@ -143,13 +143,30 @@ def _install(monkeypatch, *, case_scores=None, hardness=0.85):
         "Cirrhosis with tense ascites; a recent large-volume paracentesis with albumin given. The hypervolemic hyponatremia reflects impaired free water excretion and free water restriction rather than aggressive correction is indicated.",
     ]
 
+    # Distinct clinical answers + discriminating analytes per case, so each case is a
+    # genuinely different evaluation (not a re-skin) and clears the Workstream C
+    # case-signature novelty gate — exactly what real generation produces.
+    _answers = [
+        "Thiazide-associated hyponatremia; hold the thiazide before any correction.",
+        "Hypervolemic hyponatremia from a heart-failure exacerbation; gentle decongestion with sodium tracking.",
+        "Iatrogenic hyponatremia from hypotonic maintenance fluids; change the fluids first.",
+        "Exercise-associated hyponatremia; hypertonic saline for the neurologic symptoms.",
+        "Cirrhosis with hypervolemic hyponatremia; free-water restriction rather than aggressive correction.",
+    ]
+    _extra_analyte = ["Urine sodium", "BNP", "Urine osmolality", "Creatine kinase", "Albumin"]
+
     async def fake_generate_case(archetype, *, specialty="general"):
         counter["i"] += 1
         na = 106 + counter["i"]
         note = _narratives[counter["i"] % len(_narratives)]
+        panels = _content_complete_labs(na)
+        panels[1]["results"].append(
+            {"analyte": _extra_analyte[counter["i"] % len(_extra_analyte)],
+             "value": 10 + counter["i"], "unit": "", "ref_low": None, "ref_high": None, "flag": ""})
         case = _case(
-            lab_panels=_content_complete_labs(na),
-            notes=[{"note_type": "Consult", "author_role": "nephrology", "text": note}])
+            lab_panels=panels,
+            notes=[{"note_type": "Consult", "author_role": "nephrology", "text": note}],
+            ground_truth={"answer": _answers[counter["i"] % len(_answers)], "key_data": ["urine osm"]})
         return {"case": case, "question": f"Classify this hyponatremia presentation ({counter['i']}) and set a safe correction rate.",
                 "model": "cg", "skipped": False}
 
@@ -282,27 +299,68 @@ def test_multimodal_still_dropped_when_unsafe(monkeypatch):
     assert res["dropped"].get("unsafe", 0) >= 1, res["dropped"]
 
 
-def test_multimodal_same_archetype_not_collapsed_by_near_dup(monkeypatch):
-    """Cases from the same archetype share the note/panel scaffolding (very high token
-    overlap) but carry different synthetic values — each is a distinct evaluation. The
-    Jaccard near-dup gate (calibrated for text prompts) must NOT collapse them for
-    multimodal, or V3 runs dry after a couple cases. Here: same note + question, only
-    the sodium differs → distinct hash but Jaccard well above the near-dup threshold."""
+def test_multimodal_distinct_cases_not_collapsed_by_prompt_jaccard(monkeypatch):
+    """Genuinely distinct cases from the same archetype share the note/panel
+    scaffolding (very high PROMPT token overlap) but carry a different question,
+    answer, and discriminating analytes — each is a distinct evaluation. The prompt
+    Jaccard near-dup gate (calibrated for text) must NOT collapse them for multimodal
+    (or V3 runs dry), and their distinct SIGNATURES clear the Workstream C case-novelty
+    gate. ``_install`` already emits distinct answers/analytes, so this exercises the
+    real path end-to-end."""
+    A.fresh_store()
+    _install(monkeypatch)
+    res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=3, multimodal=True))
+    assert res["accepted"] >= 2, res["dropped"]           # not collapsed to a single case
+    assert res["dropped"].get("near_duplicate", 0) == 0
+    assert res["dropped"].get("case_near_duplicate", 0) == 0
+
+
+def test_multimodal_case_signature_drops_reskins(monkeypatch):
+    """Workstream C: a case that RE-SKINS an existing clinical decision — same
+    question, same ground-truth answer, same analyte set, only a lab VALUE differs —
+    is dropped as ``case_near_duplicate``. The signature (question + answer + analytes)
+    deliberately excludes the values, so a numeric tweak cannot masquerade as novelty.
+    First case is accepted; every subsequent re-skin is dropped."""
     A.fresh_store()
     _install(monkeypatch)
     counter = {"i": 0}
 
-    async def near_dup_case(archetype, *, specialty="general"):
+    async def reskin_case(archetype, *, specialty="general"):
         counter["i"] += 1
-        case = _case(lab_panels=_content_complete_labs(100 + counter["i"]),  # only Na changes
+        # Identical question/answer/analytes; ONLY the sodium value changes.
+        case = _case(lab_panels=_content_complete_labs(100 + counter["i"]),
                      notes=[{"note_type": "Consult", "author_role": "nephrology", "text": _LONG_NOTE}])
         return {"case": case, "question": "Classify this hyponatremia presentation.",
                 "model": "cg", "skipped": False}
 
-    monkeypatch.setattr(gen, "generate_case", near_dup_case)
+    monkeypatch.setattr(gen, "generate_case", reskin_case)
     res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=3, multimodal=True))
-    assert res["accepted"] >= 2, res["dropped"]           # not collapsed to a single case
+    assert res["accepted"] == 1, res["dropped"]            # only the first survives
+    assert res["dropped"].get("case_near_duplicate", 0) >= 2
+    # The value-only difference must NOT be caught by the text prompt gate — the
+    # case-signature gate is what does the work here.
     assert res["dropped"].get("near_duplicate", 0) == 0
+
+
+def test_multimodal_case_signature_drops_reskin_of_gold(monkeypatch):
+    """Workstream C: novelty is enforced against the GOLD seed set too — a freshly
+    generated case that re-skins a loaded gold case is dropped as ``case_near_duplicate``
+    even in an otherwise empty queue."""
+    from asclepius.gold_cases import GOLD_NEPHROLOGY_CASES
+    A.fresh_store()
+    _install(monkeypatch)
+    gold = GOLD_NEPHROLOGY_CASES[0]
+
+    async def gold_reskin(archetype, *, specialty="general"):
+        # Same question + ground-truth answer + analytes as a gold case → same signature.
+        import copy
+        case = copy.deepcopy(gold["case"])
+        return {"case": case, "question": gold["question"], "model": "cg", "skipped": False}
+
+    monkeypatch.setattr(gen, "generate_case", gold_reskin)
+    res = asyncio.run(gen.generate_tasks(_store(), specialty="nephrology", n=2, multimodal=True))
+    assert res["accepted"] == 0, res["dropped"]
+    assert res["dropped"].get("case_near_duplicate", 0) >= 1
 
 
 def test_multimodal_with_no_archetypes_creates_nothing(monkeypatch):

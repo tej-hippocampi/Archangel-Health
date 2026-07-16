@@ -3520,6 +3520,43 @@
       }
     });
 
+    // Load GOLD cases (Two-Model PRD Workstream C — the "load gold" half of the
+    // load-vs-generate split). Distinct from auto-generate: inserts the ratified,
+    // hand-authored seed cases with NO LLM required — the reliable way to populate
+    // the V3 queue immediately, independent of the LLM key.
+    const goldSpecialty = selectFrom(['nephrology'], 'nephrology');
+    const goldStatus = h('div', {});
+    const goldBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Load gold cases');
+    goldBtn.addEventListener('click', async () => {
+      clear(goldStatus);
+      goldBtn.setAttribute('disabled', '');
+      goldStatus.appendChild(loadingCard('Loading ratified gold cases…'));
+      try {
+        const res = await api('/generation/' + encodeURIComponent(goldSpecialty.value) + '/load-gold', { method: 'POST' });
+        clear(goldStatus);
+        goldStatus.appendChild(h('div', { class: 'asc-inline-ok' },
+          'Loaded ' + (res.loaded || 0) + ' new, skipped ' + (res.skipped || 0) + ' existing'
+          + ' (' + (res.total || 0) + ' gold total). Multimodal in queue: ' + (res.multimodal_in_queue || 0) + '.'));
+        loadTasksTable();
+        loadGenerationJobs();
+      } catch (e) {
+        clear(goldStatus);
+        goldStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Could not load gold cases.'));
+      } finally {
+        goldBtn.removeAttribute('disabled');
+      }
+    });
+    const goldCard = h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Load gold cases (RATIFIED — no LLM needed)'),
+        h('div', { class: 'asc-card-sub' }, 'Insert the hand-authored, clinician-ratified multimodal seed cases (real labs + EHR + an authored A/B pair) straight into the V3 queue. Idempotent — safe to click repeatedly. Use this to populate V3 without an LLM key; use "Auto-generate" above for NOVEL cases.'))),
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-form-row-3' },
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), goldSpecialty),
+          h('div', {}), h('div', {})),
+        goldBtn,
+        goldStatus));
+
     const corpusCard = h('div', { class: 'asc-card', id: 'ascSeedCorpus' }, loadingCard('Loading seed corpus…'));
     const jobsCard = h('div', { class: 'asc-card', id: 'ascGenJobs' }, loadingCard('Loading generation jobs…'));
     const tableCard = h('div', { class: 'asc-card', id: 'ascTasksTable' }, loadingCard('Loading tasks…'));
@@ -3527,6 +3564,7 @@
     body.appendChild(h('div', { class: 'asc-cols-2' }, pasteCard, fileCard));
     body.appendChild(genCard);
     body.appendChild(autoGenCard);
+    body.appendChild(goldCard);
     body.appendChild(h('div', { class: 'asc-cols-2' }, corpusCard, jobsCard));
     body.appendChild(tableCard);
     loadTasksTable();

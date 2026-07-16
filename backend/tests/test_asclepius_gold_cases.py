@@ -153,3 +153,22 @@ def test_debug_load_gold_cases_endpoint(monkeypatch):
     body = r.json()
     assert body["loaded"] == 10
     assert body["multimodal_in_queue"] >= 10
+
+
+# ─── Admin load-gold endpoint (Two-Model PRD Workstream C: load-vs-generate) ───
+def test_admin_load_gold_endpoint_is_admin_only_and_idempotent():
+    A.fresh_store()
+    admin_h = _admin_h()
+    ev_h = _ev_h()
+    # Evaluators cannot load gold via the admin split endpoint.
+    forbidden = client.post("/api/asclepius/generation/nephrology/load-gold", headers=ev_h)
+    assert forbidden.status_code in (401, 403), forbidden.text
+    # Admin loads the ratified gold set with NO LLM key required.
+    r = client.post("/api/asclepius/generation/nephrology/load-gold", headers=admin_h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["loaded"] == 10 and body["skipped"] == 0
+    assert body["multimodal_in_queue"] >= 10
+    # Idempotent: a second call adds nothing.
+    r2 = client.post("/api/asclepius/generation/nephrology/load-gold", headers=admin_h)
+    assert r2.json()["loaded"] == 0 and r2.json()["skipped"] == 10

@@ -30,6 +30,7 @@ from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
     ASCLEPIUS_ENGINE,
     GENERATION_NEAR_DUP_JACCARD,
+    case_novelty_max,
     gen_fewshot_k,
     gen_max_attempts_per_task,
     gen_min_error_likelihood,
@@ -90,6 +91,58 @@ def _jaccard(a: frozenset, b: frozenset) -> float:
     if not inter:
         return 0.0
     return inter / len(a | b)
+
+
+def _analyte_names(case: Optional[Dict[str, Any]]) -> set:
+    """The set of normalized analyte names across every lab panel in a case — the
+    'which measurements does this case turn on' fingerprint (Two-Model PRD WS-C)."""
+    names: set = set()
+    for panel in (case or {}).get("lab_panels") or []:
+        for r in panel.get("results") or []:
+            a = _norm(r.get("analyte"))
+            if a:
+                names.add(a)
+    return names
+
+
+def _case_signature_tokens(case: Optional[Dict[str, Any]], question: Optional[str]) -> frozenset:
+    """Semantic case signature token-set = normalized(question + ground_truth.answer
+    + sorted analyte names) (Two-Model PRD Workstream C). This is the anti-duplication
+    fingerprint for MULTIMODAL cases: unlike the rendered prompt (which shares heavy
+    panel/note scaffolding across an archetype), the signature is dominated by the
+    distinctive question, the correct answer, and the specific measurements the case
+    hinges on — so two genuinely different cases from the same archetype do NOT
+    collide, while a re-skin of the same clinical decision does."""
+    gt = ((case or {}).get("ground_truth") or {}).get("answer") or ""
+    analytes = " ".join(sorted(_analyte_names(case)))
+    return _token_set(f"{question or ''} {gt} {analytes}")
+
+
+def _existing_case_signatures(store: Any, specialty: str) -> List[frozenset]:
+    """Signature token-sets of every existing multimodal case — the gold seed set
+    plus every prior generated/loaded multimodal task — for case-level dedupe."""
+    sigs: List[frozenset] = []
+    # Gold seed set (authored question + case).
+    try:
+        from asclepius.gold_cases import GOLD_NEPHROLOGY_CASES
+        for entry in GOLD_NEPHROLOGY_CASES:
+            if (entry.get("case") or {}).get("specialty", specialty) == specialty:
+                sig = _case_signature_tokens(entry.get("case"), entry.get("question"))
+                if sig:
+                    sigs.append(sig)
+    except Exception:  # pragma: no cover - gold set is optional
+        pass
+    # Prior multimodal tasks (question is stamped into the generation block on insert;
+    # legacy rows without it still contribute their answer + analyte fingerprint).
+    for t in store.list_tasks(specialty=specialty, limit=100000):
+        case = t.get("case")
+        if not case:
+            continue
+        q = (t.get("generation") or {}).get("question")
+        sig = _case_signature_tokens(case, q)
+        if sig:
+            sigs.append(sig)
+    return sigs
 
 
 def _existing_prompt_hashes(store: Any, specialty: str) -> set:
@@ -221,6 +274,11 @@ async def generate_tasks(
     dropped: Counter = Counter()
     seen = _existing_prompt_hashes(store, specialty)
     seen_token_sets = _existing_token_sets(store, specialty)
+    # Case-level anti-duplication (Two-Model PRD Workstream C): signatures of every
+    # existing multimodal case, so a newly generated case that re-skins an existing
+    # clinical decision is dropped as ``case_near_duplicate``. Built once per batch.
+    seen_case_sigs = _existing_case_signatures(store, specialty) if multimodal else []
+    novelty_max = case_novelty_max()
     ratified = bool(meta.get("ratified"))
 
     min_err = gen_min_error_likelihood()
@@ -333,6 +391,19 @@ async def generate_tasks(
             if ts and not is_mm and any(_jaccard(ts, s) >= GENERATION_NEAR_DUP_JACCARD for s in seen_token_sets):
                 dropped["near_duplicate"] += 1
                 continue
+
+            # Gate 2c: case-level anti-duplication (Two-Model PRD Workstream C, V3/V4).
+            # For MULTIMODAL cases the prompt Jaccard gate above is skipped (shared
+            # scaffolding), so novelty is enforced on the semantic case SIGNATURE
+            # (question + ground-truth answer + analyte set). Drop as
+            # ``case_near_duplicate`` when the signature is >= novelty_max similar to
+            # any existing case — before spending candidate-gen / judge budget.
+            case_sig = frozenset()
+            if is_mm:
+                case_sig = _case_signature_tokens(case, p.get("_question"))
+                if case_sig and any(_jaccard(case_sig, s) >= novelty_max for s in seen_case_sigs):
+                    dropped["case_near_duplicate"] += 1
+                    continue
 
             # Gate 3: difficulty floor — drop prompts easier than the bucket's
             # min_difficulty BEFORE spending candidate-gen/judge budget (P2-A).
@@ -536,6 +607,9 @@ async def generate_tasks(
                 generation["case_id"] = case.get("case_id")
                 generation["seed_archetype_id"] = p.get("_archetype_id")
                 generation["modality"] = "multimodal"
+                # Persist the question so future runs can rebuild this case's novelty
+                # signature (Two-Model PRD WS-C) without re-parsing the rendered prompt.
+                generation["question"] = p.get("_question")
                 # Bring-up audit trail: record whether this case was accepted under the
                 # relaxed gates (so exports can separate "shipped for demo" from
                 # "cleared the full quality bar" once we re-tighten).
@@ -562,6 +636,9 @@ async def generate_tasks(
             created.append(task["task_id"])
             seen.add(ph)
             seen_token_sets.append(ts)
+            # Within-batch case dedupe: a later case cannot re-skin this one.
+            if case_sig:
+                seen_case_sigs.append(case_sig)
             if quota and difficulty in remaining and remaining[difficulty] > 0:
                 remaining[difficulty] -= 1
 
