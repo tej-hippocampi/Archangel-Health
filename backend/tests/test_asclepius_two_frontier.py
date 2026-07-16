@@ -166,3 +166,37 @@ def test_run_baselines_stamps_shared_prompt_hash(monkeypatch):
     assert {r["provider"] for r in runs} == {"openai", "anthropic"}
     pair = B.build_baseline_candidates(runs)
     assert {c["provider"] for c in pair} == {"openai", "anthropic"}
+
+
+def test_empty_openai_response_recorded_as_error_not_blank_success(monkeypatch):
+    """Review fix (Risk 2): a reasoning model that returns an EMPTY answer (output
+    budget consumed by reasoning) must be stored as an ERRORED run with an actionable
+    message — not a blank 'successful' run with error=None — and the pair must drop to
+    []/needs_baseline (never a silent gold stand-in)."""
+    store = A.fresh_store()
+    import ai.llm_client as llm
+
+    class _Blk:
+        type = "text"
+        def __init__(self, t): self.text = t
+
+    class _Resp:
+        def __init__(self, t):
+            self.content = [_Blk(t)]
+            self.usage = type("U", (), {"input_tokens": 5, "output_tokens": 9})()
+            self._request_id = "r"
+
+    async def fake_call(*, model, **kw):
+        # OpenAI returns empty (incomplete), Anthropic returns a real answer.
+        text = "" if resolve_provider(model) == "openai" else "real anthropic answer"
+        return _Resp(text), {"provider": resolve_provider(model), "latency_ms": 3}
+
+    monkeypatch.setattr(llm, "call_llm", fake_call)
+    import asyncio
+    runs = asyncio.run(B.run_baselines(store, {"task_id": "t-e", "prompt": "hard case"},
+                                       models=["gpt-5", "claude-opus-4-8"]))
+    oa = next(r for r in runs if r["provider"] == "openai")
+    assert not (oa.get("response_text") or "")            # no blank 'success'
+    assert oa.get("error") and "reasoning" in oa["error"].lower()   # actionable signal
+    # One provider missing → no pair (caller marks needs_baseline; never a gold fallback).
+    assert B.build_baseline_candidates(runs) == []

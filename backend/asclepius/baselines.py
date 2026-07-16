@@ -23,6 +23,7 @@ never a crash.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import random
@@ -112,7 +113,12 @@ async def run_baselines(
                                                   error=f"import:{exc}", provider=_provider_of(m),
                                                   prompt_hash=prompt_hash))
         return runs
-    for model in models:
+    # Call the frontier models CONCURRENTLY (they are independent; sequential
+    # in-request calls stacked their latencies and risked a gateway timeout on the
+    # admin's grade-real-models request). Each _one() degrades to an error dict — the
+    # gather never raises. DB writes happen AFTER the gather, in model order, so the
+    # synchronous SQLite store is never written from two coroutines at once.
+    async def _one(model: str) -> Dict[str, Any]:
         try:
             resp, rec = await call_llm(
                 role="asclepius_baseline",
@@ -122,16 +128,38 @@ async def run_baselines(
                 purpose="asclepius_baseline_capture",
                 model=model,  # per-model override → router picks the provider by id
             )
+            return {"model": model, "resp": resp, "rec": rec, "error": None}
         except Exception as exc:
             log.info("asclepius baseline %s failed: %s", model, exc)
-            runs.append(store.insert_baseline_run(task_id=task_id, model=model,
-                                                  response_text=None, error=str(exc),
+            return {"model": model, "resp": None, "rec": None, "error": str(exc)}
+
+    results = await asyncio.gather(*[_one(m) for m in models])
+    for r in results:
+        model = r["model"]
+        if r["error"] is not None or r["resp"] is None:
+            runs.append(store.insert_baseline_run(task_id=task_id, model=model, response_text=None,
+                                                  error=r["error"] or "no response",
                                                   provider=_provider_of(model), prompt_hash=prompt_hash))
+            continue
+        resp, rec = r["resp"], r["rec"]
+        text = (first_text(resp) or "").strip()
+        if not text:
+            # Empty/incomplete answer (e.g. a reasoning model consumed its whole
+            # output budget on hidden reasoning → status="incomplete", output_text="").
+            # Record it as an ERRORED run with an actionable message rather than a
+            # blank "successful" run — so the admin sees WHY and build_baseline_candidates
+            # correctly treats this provider as missing.
+            runs.append(store.insert_baseline_run(
+                task_id=task_id, model=model, response_text=None,
+                error="empty/incomplete response (a reasoning model may have exhausted its "
+                      "output budget on reasoning — raise LLM_OPENAI_REASONING_RESERVE or "
+                      "asclepius_baseline max_tokens)",
+                provider=(rec or {}).get("provider") or _provider_of(model), prompt_hash=prompt_hash))
             continue
         usage = (getattr(resp, "usage", None) or None)
         runs.append(store.insert_baseline_run(
             task_id=task_id, model=model,
-            response_text=first_text(resp) or "",
+            response_text=text,
             latency_ms=(rec or {}).get("latency_ms"),
             tokens_in=getattr(usage, "input_tokens", None) if usage else None,
             tokens_out=getattr(usage, "output_tokens", None) if usage else None,

@@ -310,7 +310,15 @@ async def call_llm(
             print(f"[llm_client] {provider} call timed out after {timeout}s ({cfg['model']})", file=sys.stderr)
             raise
         except Exception as exc:  # noqa: BLE001 — graceful-degrade, never crash the pipeline
-            if attempt == 0:
+            # Do NOT retry PERMANENT client errors — a bad/again-bad API key (401),
+            # forbidden (403), an unknown/no-access model (404), or a malformed request
+            # (400) will fail identically on a retry, so a retry only wastes a round-trip
+            # and doubles the failure latency. Retry only transient classes (429 rate
+            # limit, 5xx, network) once. Both the OpenAI and Anthropic SDK errors expose
+            # ``status_code``; absence (a raw network error) is treated as transient.
+            status = getattr(exc, "status_code", None)
+            permanent = status in (400, 401, 403, 404)
+            if attempt == 0 and not permanent:
                 await asyncio.sleep(0.6)
                 continue
             import sys

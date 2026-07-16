@@ -38,7 +38,12 @@ def _iso(monkeypatch):
 
 
 def _stub_llm(monkeypatch, answers):
-    """Stub ai.llm_client so each baseline model returns a canned answer."""
+    """Stub ai.llm_client so each baseline model returns a canned answer.
+
+    The answer is bound to the RESPONSE object at call time (not read from a shared
+    counter at first_text time), so this is robust to the models being called
+    CONCURRENTLY (run_baselines now gathers them) — both call_llm invocations may run
+    before either first_text, which would otherwise hand both the same answer."""
     import ai.llm_client as llm
     calls = {"n": 0}
 
@@ -48,12 +53,14 @@ def _stub_llm(monkeypatch, answers):
             output_tokens = 50
 
     async def fake_call(**kw):
+        idx = calls["n"] % len(answers)   # synchronous: no await before the increment
         calls["n"] += 1
-        model = kw.get("model")
-        return _Resp(), {"model": model, "latency_ms": 42}
+        r = _Resp()
+        r._answer = answers[idx]
+        return r, {"model": kw.get("model"), "latency_ms": 42}
 
     monkeypatch.setattr(llm, "call_llm", fake_call)
-    monkeypatch.setattr(llm, "first_text", lambda resp: answers[(calls["n"] - 1) % len(answers)])
+    monkeypatch.setattr(llm, "first_text", lambda resp: getattr(resp, "_answer", ""))
     return calls
 
 
