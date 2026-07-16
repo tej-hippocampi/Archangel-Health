@@ -8,6 +8,7 @@ unambiguous and easy to bump (mirrors ``APP_AI_CONFIG_VERSION`` in
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from ai.model_config import APP_AI_CONFIG_VERSION
 
@@ -210,6 +211,46 @@ RECORD_TYPES = ("preference", "ideal_answer", "reasoning_trace", "rubric")
 # a buyer can weight/filter by dimension (a reward model, an RL run, and a
 # benchmark all consume these).
 RUBRIC_AXES = ("accuracy", "completeness", "safety", "reasoning", "grounding", "communication")
+
+# ─── Refined tiered rubric (Two-Model PRD Workstream B, V3/V4 only) ────────────
+# Every criterion carries a criticality TIER, derived from the absolute magnitude
+# of its signed weight: critical |8-10|, important |4-7|, helpful |1-3|. A
+# "critical negative" (tier=critical, points<0) is the one thing a correct answer
+# must NEVER do — a v3/v4 rubric must name at least one, and the grader hard-fails
+# an answer that commits any critical negative.
+RUBRIC_TIERS = ("critical", "important", "helpful")
+
+# Inclusive |points| bands per tier. Ordered high→low; first match wins.
+RUBRIC_TIER_BANDS = (
+    ("critical", 8, 10),
+    ("important", 4, 7),
+    ("helpful", 1, 3),
+)
+
+
+def tier_for_points(points: Any) -> str:
+    """Map a signed criterion weight to its criticality tier by |points| (Two-Model
+    PRD WS-B): critical 8-10, important 4-7, helpful 1-3. |points|>10 clamps to
+    critical; a non-zero |points|<1 clamps to helpful. 0 → helpful (defensive; a
+    zero-point criterion is dropped before this matters)."""
+    try:
+        mag = abs(float(points or 0.0))
+    except (TypeError, ValueError):
+        return "helpful"
+    if mag >= 8:
+        return "critical"
+    if mag >= 4:
+        return "important"
+    return "helpful"
+
+
+def points_for_tier(tier: str, *, negative: bool = False) -> float:
+    """A canonical mid-band magnitude for a tier, for tier-first editing (the
+    doctor picks a tier and we seed a sensible weight): critical 9, important 5,
+    helpful 2. Signed negative when ``negative``."""
+    mag = {"critical": 9.0, "important": 5.0, "helpful": 2.0}.get(tier, 5.0)
+    return -mag if negative else mag
+
 
 # Difficulty hints (free-form is tolerated, these are the canonical buckets).
 DIFFICULTIES = ("easy", "medium", "hard")

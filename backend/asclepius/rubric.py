@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from asclepius.constants import RUBRIC_AXES
+from asclepius.constants import RUBRIC_AXES, RUBRIC_TIERS, tier_for_points
 
 # Map each error tag to the axis its NEGATIVE criterion scores on.
 _ERROR_TAG_AXIS = {
@@ -130,7 +130,10 @@ def propose_rubric(task: Dict[str, Any], payload: Dict[str, Any]) -> List[Dict[s
                 "source": "good_step",
             })
 
-    # Dedup by (text) keeping the first (strongest-signal) occurrence.
+    # Dedup by (text) keeping the first (strongest-signal) occurrence, and stamp the
+    # criticality tier (Two-Model PRD WS-B) from |points| so the UI shows it
+    # pre-filled. The existing severity magnitudes (8/5/3) already land on
+    # critical/important/helpful, so the seed is tier-consistent by construction.
     seen: set = set()
     deduped: List[Dict[str, Any]] = []
     for c in out:
@@ -138,6 +141,8 @@ def propose_rubric(task: Dict[str, Any], payload: Dict[str, Any]) -> List[Dict[s
         if key in seen:
             continue
         seen.add(key)
+        c["tier"] = tier_for_points(c["points"])
+        c["critical"] = c["tier"] == "critical"
         deduped.append(c)
     return deduped
 
@@ -145,7 +150,13 @@ def propose_rubric(task: Dict[str, Any], payload: Dict[str, Any]) -> List[Dict[s
 def normalize_rubric(criteria: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
     """Coerce a confirmed rubric to the canonical packaged shape (FEAT-2): a valid
     axis, a signed float ``points`` (0 dropped — a criterion worth nothing is not
-    a criterion), non-empty text. Order preserved. Never raises."""
+    a criterion), non-empty text, plus the criticality ``tier`` + derived
+    ``critical`` flag (Two-Model PRD WS-B). Order preserved. Never raises.
+
+    The tier is trusted from the client only when it is a valid tier AND its band
+    matches |points| (so a stale/mismatched tier can't survive an edited weight);
+    otherwise it is recomputed from |points|. This keeps tier and points always
+    consistent in the packaged, sellable record."""
     out: List[Dict[str, Any]] = []
     for c in criteria or []:
         if not isinstance(c, dict):
@@ -159,13 +170,39 @@ def normalize_rubric(criteria: Optional[List[Dict[str, Any]]]) -> List[Dict[str,
             pts = 0.0
         if pts == 0.0:
             continue
+        derived = tier_for_points(pts)
+        claimed = c.get("tier")
+        tier = claimed if (claimed in RUBRIC_TIERS and claimed == derived) else derived
         out.append({
             "text": text,
             "points": round(pts, 2),
             "axis": _axis(c.get("axis")),
             "source": c.get("source") or "manual",
+            "tier": tier,
+            "critical": tier == "critical",
         })
     return out
+
+
+def has_critical_negative(criteria: Optional[List[Dict[str, Any]]]) -> bool:
+    """True when the (normalized or raw) rubric contains at least one CRITICAL
+    NEGATIVE criterion — tier=critical with points<0, i.e. a failure a correct
+    answer must never commit (Two-Model PRD WS-B). Tolerant of un-normalized input:
+    the tier is recomputed from |points| when absent/mismatched."""
+    for c in criteria or []:
+        if not isinstance(c, dict):
+            continue
+        try:
+            pts = float(c.get("points") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if pts >= 0:
+            continue
+        claimed = c.get("tier")
+        tier = claimed if (claimed in RUBRIC_TIERS and claimed == tier_for_points(pts)) else tier_for_points(pts)
+        if tier == "critical":
+            return True
+    return False
 
 
 def rubric_max_points(criteria: List[Dict[str, Any]]) -> float:

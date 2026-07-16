@@ -586,19 +586,28 @@ PHYSICIAN-AUTHORED, weighted rubric criteria (HealthBench-shaped). Each criterio
   - points: signed weight — award POSITIVE points if the answer satisfies a positive criterion; \
 subtract (award the negative) if the answer commits a negative criterion
   - axis:   accuracy | completeness | safety | reasoning | grounding | communication
+  - tier:   critical | important | helpful — the criticality band (|points|: critical 8-10, \
+important 4-7, helpful 1-3)
 
 Rules:
 - Judge ONLY against the listed criteria; do not invent criteria or use outside preferences.
 - A positive criterion is met only if the answer clearly satisfies it. A negative criterion is \
 triggered only if the answer clearly commits it.
 - Be conservative and cite the exact span of the answer that satisfies/violates each criterion.
+- CRITICAL-NEGATIVE HARD FAIL: a criterion with tier="critical" and negative points names a thing a \
+correct answer must NEVER do. If the answer commits ANY critical negative, the answer HARD-FAILS: set \
+"critical_failure" true, list the failed criteria, and report "normalized": 0.0 regardless of how many \
+positive points it also earned. Still fill "score"/"max_points" with the raw weighted arithmetic for \
+transparency.
 
 Return ONLY JSON:
 {
-  "per_criterion": [ {"text": "<criterion text>", "points": <signed>, "met": true|false, "awarded": <points if met else 0>, "evidence": "<span or ''>"} ],
+  "per_criterion": [ {"text": "<criterion text>", "points": <signed>, "tier": "<tier>", "met": true|false, "awarded": <points if met else 0>, "evidence": "<span or ''>"} ],
   "score": <sum of awarded>,
   "max_points": <sum of positive criterion points>,
-  "normalized": <score / max_points, 0..1>
+  "critical_failure": true|false,
+  "failed_critical_criteria": [ "<criterion text>", ... ],
+  "normalized": <0.0 if critical_failure else score / max_points, 0..1>
 }
 """
 
@@ -635,6 +644,45 @@ def load_rubrics():
     return rubrics
 
 
+def _tier_of(c):
+    """Criticality tier of a criterion by |points| (critical 8-10, important 4-7,
+    helpful 1-3); trusts an explicit matching ``tier`` when present."""
+    try:
+        mag = abs(float(c.get("points") or 0.0))
+    except (TypeError, ValueError):
+        mag = 0.0
+    derived = "critical" if mag >= 8 else "important" if mag >= 4 else "helpful"
+    t = c.get("tier")
+    return t if t in ("critical", "important", "helpful") and t == derived else derived
+
+
+def apply_critical_hard_fail(result, rubric):
+    """Deterministic backstop for the CRITICAL-NEGATIVE HARD FAIL rule: if the judge
+    marked any critical-negative criterion as committed (met), floor normalized to 0
+    and stamp critical_failure — regardless of what the model wrote for normalized."""
+    crit_texts = {(_norm(c.get("text"))): c for c in (rubric.get("criteria") or [])
+                  if float(c.get("points") or 0) < 0 and _tier_of(c) == "critical"}
+    failed = []
+    for pc in (result.get("per_criterion") or []):
+        if not pc.get("met"):
+            continue
+        c = crit_texts.get(_norm(pc.get("text")))
+        if c is not None:
+            failed.append(pc.get("text"))
+    if failed:
+        result["critical_failure"] = True
+        result["failed_critical_criteria"] = failed
+        result["normalized"] = 0.0
+    else:
+        result.setdefault("critical_failure", False)
+    return result
+
+
+def _norm(s):
+    import re
+    return re.sub(r"\\s+", " ", (s or "").strip().lower())
+
+
 def grade(answer, rubric, provider="anthropic"):
     user = ("PROMPT:\\n" + (rubric.get("prompt") or "") + "\\n\\nRUBRIC CRITERIA:\\n"
             + json.dumps(rubric.get("criteria") or [], indent=2)
@@ -664,7 +712,8 @@ def grade(answer, rubric, provider="anthropic"):
                                                         {"role": "user", "content": user}])
         text = resp.choices[0].message.content
     start, end = text.find("{"), text.rfind("}")
-    return json.loads(text[start:end + 1]) if start != -1 else {"raw": text}
+    result = json.loads(text[start:end + 1]) if start != -1 else {"raw": text}
+    return apply_critical_hard_fail(result, rubric) if isinstance(result, dict) and "per_criterion" in result else result
 
 
 def main():

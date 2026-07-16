@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Annotated, Any, Dict, List, Optional
 
-from pydantic import AfterValidator, BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field, model_validator
 
 from asclepius.cases import ClinicalCase
 
@@ -308,12 +308,30 @@ class RubricCriterion(BaseModel):
     RUBRIC_AXES. ``source`` records how the criterion was seeded (e.g.
     ``error_tag:dosing_error``, ``why_better:safer``, ``good_step``,
     ``corrected_step``, or ``manual``) so a buyer can trace provenance. Nothing is
-    auto-applied — the doctor confirms/edits every criterion before it ships."""
+    auto-applied — the doctor confirms/edits every criterion before it ships.
+
+    ``tier`` (Two-Model PRD Workstream B, V3/V4) is the criticality band —
+    critical | important | helpful — derived from |points| when not supplied by the
+    client. ``critical`` is the derived convenience flag (tier == "critical"); a
+    "critical negative" (critical + points<0) is the failure a correct answer must
+    never commit, and the grader hard-fails on it."""
 
     text: str = ""
     points: float = 0.0
     axis: Optional[str] = None
     source: Optional[str] = None
+    # Criticality tier — filled from |points| in the validator when absent.
+    tier: Optional[str] = None
+    # Derived: True when tier == "critical". Never trusted from the wire (recomputed).
+    critical: bool = False
+
+    @model_validator(mode="after")
+    def _derive_tier(self) -> "RubricCriterion":
+        from asclepius.constants import RUBRIC_TIERS, tier_for_points
+        if self.tier not in RUBRIC_TIERS:
+            self.tier = tier_for_points(self.points)
+        self.critical = self.tier == "critical"
+        return self
 
 
 class PromptReview(BaseModel):

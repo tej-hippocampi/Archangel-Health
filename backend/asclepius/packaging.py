@@ -481,13 +481,15 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
     # Rubric record (FEAT-2): a standalone, sellable, HealthBench-shaped scoring
     # function — the weighted +/− criteria the doctor CONFIRMED. Emitted only when
     # the submission carries a non-empty confirmed rubric (nothing auto-applied).
-    from asclepius.rubric import normalize_rubric, rubric_max_points
+    from asclepius.rubric import has_critical_negative, normalize_rubric, rubric_max_points
 
     criteria = normalize_rubric(payload.get("rubric"))
     if criteria:
         axes: Dict[str, int] = {}
+        tiers: Dict[str, int] = {}
         for c in criteria:
             axes[c["axis"]] = axes.get(c["axis"], 0) + 1
+            tiers[c["tier"]] = tiers.get(c["tier"], 0) + 1
         records.append(
             {
                 "type": "rubric",
@@ -497,6 +499,11 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
                 "n_positive": sum(1 for c in criteria if c["points"] > 0),
                 "n_negative": sum(1 for c in criteria if c["points"] < 0),
                 "axes": axes,
+                # Tiered rubric (Two-Model PRD WS-B): tier histogram + critical rollup
+                # so a buyer can filter on rubrics that name a critical failure.
+                "tiers": tiers,
+                "n_critical": tiers.get("critical", 0),
+                "has_critical_negative": has_critical_negative(criteria),
                 "context": _context(task),
                 "confidence": submission.get("confidence"),
                 **prov,

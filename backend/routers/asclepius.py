@@ -67,6 +67,8 @@ from asclepius.constants import (
     PROMPT_REVIEW_VERDICTS,
     REASONING_STEP_LABELS,
     RUBRIC_AXES,
+    RUBRIC_TIERS,
+    RUBRIC_TIER_BANDS,
     STEP_CORRECTION_REASONS,
     ASSISTED_PORTAL_VERSIONS,
     TASK_SOURCES,
@@ -209,6 +211,10 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
         "step_correction_reasons": list(STEP_CORRECTION_REASONS),
         "error_tag_reasons": list(ERROR_TAG_REASONS),
         "rubric_axes": list(RUBRIC_AXES),
+        # Tiered rubric (Two-Model PRD WS-B): tiers + their |points| bands so the
+        # V3/V4 tier picker labels each band consistently with the backend.
+        "rubric_tiers": list(RUBRIC_TIERS),
+        "rubric_tier_bands": [{"tier": t, "min": lo, "max": hi} for (t, lo, hi) in RUBRIC_TIER_BANDS],
         "independent_modes": list(INDEPENDENT_MODES),
         "portal_versions": list(PORTAL_VERSIONS),
         "value_tiers": list(VALUE_TIERS),
@@ -1321,6 +1327,25 @@ async def submit(
                     "message": "This premium task requires at least one valid evidence anchor (citation) "
                                "on your rationale" + (" and on each reasoning step" if "missing_step_anchor" in reasons else "") + " before submitting.",
                     "reasons": reasons,
+                },
+            )
+
+    # Critical-negative gate (Two-Model PRD Workstream B): on V3/V4, a captured
+    # rubric MUST name at least one CRITICAL NEGATIVE — the one thing a correct
+    # answer must never do. Scoped to portal_version ∈ {v3,v4} (NOT isAssisted(),
+    # which also matches v2) so V1/V2 stay byte-for-byte unchanged. An empty rubric
+    # is still allowed (rubric capture is optional); the gate fires only once the
+    # doctor has started building one, mirroring the frontend submit-gating.
+    if portal_version in ("v3", "v4") and (payload.get("rubric") or []):
+        from asclepius.rubric import has_critical_negative
+        if not has_critical_negative(payload.get("rubric")):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "critical_negative_required",
+                    "message": "Your scoring rubric must include at least one CRITICAL negative "
+                               "criterion (points −8 to −10) — the single thing a correct answer "
+                               "must never do. Mark your most serious 'never' criterion as critical.",
                 },
             )
 

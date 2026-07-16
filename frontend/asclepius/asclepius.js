@@ -719,6 +719,30 @@
     return { ok: reasons.length === 0, reasons };
   }
 
+  // ─── Tiered rubric (Two-Model PRD Workstream B, V3/V4) ─────────────────────
+  // Criticality tier from |points|: critical 8-10, important 4-7, helpful 1-3.
+  function tierForPoints(points) {
+    const mag = Math.abs(Number(points) || 0);
+    if (mag >= 8) return 'critical';
+    if (mag >= 4) return 'important';
+    return 'helpful';
+  }
+  function hasCriticalNegative(rubric) {
+    return (rubric || []).some((c) => (Number(c.points) || 0) < 0
+      && tierForPoints(c.points) === 'critical' && (c.text || '').trim());
+  }
+  // On V3/V4, a captured rubric must name at least one CRITICAL negative — the one
+  // thing a correct answer must never do. An empty rubric is allowed (optional); the
+  // gate fires only once criteria exist. Scoped to isV3() (v3+v4), so V1/V2 are
+  // unaffected.
+  function rubricGate() {
+    if (!isV3()) return { ok: true };
+    const rubric = (state.draft.rubric || []).filter((c) => (c.text || '').trim());
+    if (!rubric.length) return { ok: true };
+    if (hasCriticalNegative(rubric)) return { ok: true };
+    return { ok: false, msg: 'mark one critical “never” criterion (−8 to −10) to continue' };
+  }
+
   // ─── Workspace render (3 gated stages) ─────────────────────────────────────
   // Stage 1 prompt_review + Stage 2 independent_answer NEVER render the candidate
   // answer text into the DOM (anti-peeking, Eval Flow Upgrade §1). Only the
@@ -1609,7 +1633,7 @@
 
     host.appendChild(h('div', { class: 'asc-card-title' }, '📋 Scoring rubric', h('span', { class: 'asc-badge', style: 'margin-left:8px' }, 'optional')));
     host.appendChild(h('div', { class: 'asc-card-sub', style: 'margin-bottom:12px' },
-      'What must a correct answer include (positive points) or never say (negative points)? Auto-seeded from your tags — confirm, edit, or delete. This ships as a reusable scoring function.'));
+      'What must a correct answer include (positive points) or never say (negative points)? Auto-seeded from your tags — confirm, edit, or delete. Each criterion is tiered by weight — critical (±8–10), important (±4–7), helpful (±1–3). If you build a rubric, name at least one CRITICAL negative: the single thing a correct answer must never do (the grader hard-fails on it). This ships as a reusable scoring function.'));
     host.appendChild(listHost);
     host.appendChild(h('div', { style: 'display:flex;gap:12px;align-items:center;margin-top:6px' }, addBtn, seedBtn));
 
@@ -1642,24 +1666,40 @@
       const pos = (c.points || 0) >= 0;
       const ptsLabel = h('span', { class: 'asc-rubric-pts ' + (pos ? 'pos' : 'neg') },
         (pos ? '+' : '') + (c.points || 0));
+      // Tier chip (Two-Model PRD WS-B): derived live from |points|; a critical
+      // NEGATIVE is highlighted because a v3/v4 rubric must include at least one.
+      const tierChip = h('span', { class: 'asc-rubric-tier' });
+      function paintTier() {
+        c.tier = tierForPoints(c.points);
+        c.critical = c.tier === 'critical';
+        const isCritNeg = c.critical && (c.points || 0) < 0;
+        tierChip.textContent = c.tier + (isCritNeg ? ' ✓' : '');
+        tierChip.className = 'asc-rubric-tier tier-' + c.tier + (isCritNeg ? ' crit-neg' : '');
+        tierChip.title = isCritNeg
+          ? 'Critical negative — the thing a correct answer must never do (grader hard-fails on it).'
+          : c.tier + ' criterion (|points| ' + (c.tier === 'critical' ? '8–10' : c.tier === 'important' ? '4–7' : '1–3') + ')';
+      }
       const slider = h('input', { type: 'range', min: '-10', max: '10', step: '1',
         value: String(c.points || 0), style: 'width:120px' });
       slider.addEventListener('input', () => {
         c.points = parseInt(slider.value, 10);
         ptsLabel.textContent = (c.points >= 0 ? '+' : '') + c.points;
         ptsLabel.className = 'asc-rubric-pts ' + (c.points >= 0 ? 'pos' : 'neg');
+        paintTier();
         saveDraft();
+        updateSubmitState();
       });
       const textInput = h('input', { class: 'asc-input asc-rubric-text', value: c.text || '' });
-      textInput.addEventListener('input', () => { c.text = textInput.value; saveDraft(); });
+      textInput.addEventListener('input', () => { c.text = textInput.value; saveDraft(); updateSubmitState(); });
       const axisSel = h('select', { class: 'asc-select', style: 'max-width:150px' },
         ...(state.taxonomy.rubric_axes || ['accuracy', 'completeness', 'safety', 'reasoning', 'grounding', 'communication'])
           .map((ax) => h('option', { value: ax, selected: c.axis === ax ? 'selected' : null }, ax)));
       axisSel.value = c.axis || 'accuracy';
       axisSel.addEventListener('change', () => { c.axis = axisSel.value; saveDraft(); });
       const del = h('button', { class: 'asc-btn-link', type: 'button',
-        onClick: () => { d.rubric.splice(i, 1); saveDraft(); paintRubricList(); } }, 'remove');
-      listHost.appendChild(h('div', { class: 'asc-rubric-row' }, ptsLabel, slider, textInput, axisSel, del));
+        onClick: () => { d.rubric.splice(i, 1); saveDraft(); paintRubricList(); updateSubmitState(); } }, 'remove');
+      paintTier();
+      listHost.appendChild(h('div', { class: 'asc-rubric-row' }, ptsLabel, tierChip, slider, textInput, axisSel, del));
     });
   }
 
@@ -1681,6 +1721,7 @@
       saveDraft();
       // Repaint the LIVE list (resilient if the card was rebuilt during the await).
       paintRubricList();
+      updateSubmitState();
     } catch (e) { /* seeding is a convenience — never surface an error */ }
   }
 
@@ -2632,6 +2673,9 @@
         msg = sr.reasons.indexOf('missing_correction_reason') !== -1
           ? 'pick what was wrong on the edited step'
           : 'review each reasoning step (confirm or correct)';
+      } else {
+        const rg = rubricGate();
+        if (!rg.ok) { ok = false; msg = rg.msg; }
       }
     }
     btn.disabled = !ok || state.submitting;
@@ -2668,6 +2712,7 @@
     if (!g.ok) { updateSubmitState(); return; }
     const sr = stepsReview();
     if (!sr.ok) { updateSubmitState(); return; }
+    if (!rubricGate().ok) { updateSubmitState(); return; }
     state.submitting = true;
     const btn = document.getElementById('ascSubmit');
     const hint = document.getElementById('ascSubmitHint');
@@ -2715,6 +2760,9 @@
       if (progressHost) clear(progressHost);
       if (e.status === 400 && e.detail && e.detail.error === 'grounding_required') {
         toast(e.detail.message || 'A citation is required before submitting.', 'error');
+        updateSubmitState();
+      } else if (e.status === 400 && e.detail && e.detail.error === 'critical_negative_required') {
+        toast(e.detail.message || 'Your rubric must include at least one critical negative criterion.', 'error');
         updateSubmitState();
       } else if (e.status !== 401) {
         toast('Submit failed: ' + e.message, 'error');
@@ -2807,6 +2855,9 @@
       // doctor didn't capture a rubric). Zero-point/empty rows are dropped server-side.
       rubric: (d.rubric || []).filter((c) => (c.text || '').trim()).map((c) => ({
         text: (c.text || '').trim(), points: c.points || 0, axis: c.axis || null, source: c.source || 'manual',
+        // Tier (Two-Model PRD WS-B) — the server re-derives from |points| when it
+        // doesn't match, so this is a hint, never authoritative.
+        tier: tierForPoints(c.points),
       })),
     };
     // Model-assist audit block (Speed Optimization §2): the suggestions that
