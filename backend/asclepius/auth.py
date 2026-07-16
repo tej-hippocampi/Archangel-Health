@@ -145,6 +145,14 @@ def get_current_user(
             status_code=403,
             detail="This account can only use the data provider upload portal.",
         )
+    # A ``buyer`` may use ONLY the locked-down buyer workspace endpoints
+    # (``require_buyer``). Denying it here excludes it from the entire evaluator /
+    # admin / QA surface in one place (deny-by-default, same as data_partner).
+    if user.get("role") == "buyer":
+        raise HTTPException(
+            status_code=403,
+            detail="This account can only use the buyer data workspace.",
+        )
     return user
 
 
@@ -158,6 +166,19 @@ def require_data_partner(
         raise HTTPException(status_code=401, detail="Asclepius authentication required")
     if user.get("role") != "data_partner":
         raise HTTPException(status_code=403, detail="Data provider role required")
+    return user
+
+
+def require_buyer(
+    user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+) -> Dict[str, Any]:
+    """Gate for the buyer data workspace. Admits ONLY a ``buyer`` — an
+    evaluator/admin/QA/data_partner token is rejected here, and a ``buyer`` is
+    rejected everywhere else (see ``get_current_user``)."""
+    if user is None:
+        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+    if user.get("role") != "buyer":
+        raise HTTPException(status_code=403, detail="Buyer role required")
     return user
 
 

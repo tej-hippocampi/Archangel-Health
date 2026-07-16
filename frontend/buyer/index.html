@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Secure Data Workspace · Asclepius | Archangel Health</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="Secure workspace for accessing datasets delivered by Archangel Health." />
+
+  <!-- Fonts + shared Asclepius design system (frontend dir is mounted at /static). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/asclepius/asclepius.css" />
+  <!-- Reuse the provider portal chrome (secure-login card, auth wrap). -->
+  <link rel="stylesheet" href="/static/provider/provider.css" />
+</head>
+<body class="asc-body prv-body">
+
+  <!-- Header — only shown once authenticated + reset complete. -->
+  <header class="asc-header" id="bwHeader" hidden>
+    <div class="asc-header-inner">
+      <a class="asc-logo" href="/workspace">
+        <span class="asc-logo-mark" aria-hidden="true">⚕</span>
+        <span class="asc-logo-text">Asclepius<span class="asc-logo-sub">Secure Data Workspace</span></span>
+      </a>
+      <div class="asc-header-right">
+        <div class="asc-user-badge" id="bwUserBadge"></div>
+        <button type="button" class="asc-btn asc-btn-ghost asc-btn-sm" id="bwLogoutBtn">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Root — JS swaps between: loading / login / reset / workspace. -->
+  <main class="prv-main" id="bwRoot" aria-live="polite">
+    <div class="asc-loading-screen">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p>Loading secure workspace…</p>
+    </div>
+  </main>
+
+  <!-- 1) LOGIN -->
+  <template id="tplLogin">
+    <div class="prv-auth-wrap">
+      <div class="asc-login-card prv-auth-card">
+        <div class="asc-login-head">
+          <div class="asc-login-mark" aria-hidden="true">⚕</div>
+          <h1>Secure Data Workspace</h1>
+          <p>Access your datasets from Archangel Health</p>
+        </div>
+        <div class="asc-login-body">
+          <p class="prv-lead">
+            Sign in with the email and temporary password from your delivery
+            notification. Every dataset sent to you appears here.
+          </p>
+          <div class="asc-login-error" id="bwLoginError" role="alert" hidden></div>
+          <form id="bwLoginForm" novalidate>
+            <div class="asc-field">
+              <label class="asc-label" for="bwEmail">Email</label>
+              <input class="asc-input" id="bwEmail" name="email" type="email"
+                     autocomplete="username" spellcheck="false" required />
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="bwPassword">Password</label>
+              <input class="asc-input" id="bwPassword" name="password" type="password"
+                     autocomplete="current-password" required />
+            </div>
+            <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg asc-btn-block" id="bwLoginBtn">
+              Sign in securely
+            </button>
+          </form>
+          <p class="asc-login-hint">
+            🔒 This workspace is for authorized data buyers only. Access is logged.
+            Datasets are provided under your NDA / non-circumvention agreement.
+          </p>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- 2) FORCED PASSWORD RESET -->
+  <template id="tplReset">
+    <div class="prv-auth-wrap">
+      <div class="asc-login-card prv-auth-card">
+        <div class="asc-login-head">
+          <div class="asc-login-mark" aria-hidden="true">🔑</div>
+          <h1>Set your password</h1>
+          <p>Required before opening your workspace</p>
+        </div>
+        <div class="asc-login-body">
+          <p class="prv-lead">
+            For your security, please replace the temporary password from your
+            delivery notification with a private password of your own.
+          </p>
+          <div class="asc-login-error" id="bwResetError" role="alert" hidden></div>
+          <div class="asc-inline-ok" id="bwResetOk" hidden></div>
+          <form id="bwResetForm" novalidate>
+            <div class="asc-field">
+              <label class="asc-label" for="bwNewPw">New password
+                <span class="asc-label-hint">— at least 12 characters</span></label>
+              <input class="asc-input" id="bwNewPw" name="new_password" type="password"
+                     autocomplete="new-password" minlength="12" required />
+              <div class="prv-strength" id="bwStrength" aria-live="polite"></div>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="bwConfirmPw">Confirm new password</label>
+              <input class="asc-input" id="bwConfirmPw" name="confirm_password" type="password"
+                     autocomplete="new-password" minlength="12" required />
+            </div>
+            <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg asc-btn-block" id="bwResetBtn">
+              Save password &amp; continue
+            </button>
+          </form>
+          <p class="asc-login-hint">
+            Choose something memorable to you but hard to guess. A short passphrase
+            of a few words works well.
+          </p>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- 3) WORKSPACE (the only screen once authed + reset done) -->
+  <template id="tplWorkspace">
+    <div class="asc-wrap asc-wrap-narrow prv-upload">
+      <section class="asc-card prv-intro">
+        <div class="asc-card-pad">
+          <h1 class="prv-intro-title">Your datasets</h1>
+          <p class="prv-intro-sub" id="bwIntroSub">
+            Every dataset delivered to you by Archangel Health is available below.
+            New deliveries appear here automatically.
+          </p>
+        </div>
+      </section>
+
+      <section class="asc-card">
+        <div class="asc-card-head">
+          <div>
+            <div class="asc-card-title">📦 Delivered datasets</div>
+            <div class="asc-card-sub">Download any dataset delivered to your account.</div>
+          </div>
+          <button type="button" class="asc-btn asc-btn-ghost asc-btn-sm" id="bwRefreshBtn">↻ Refresh</button>
+        </div>
+        <div class="asc-table-wrap">
+          <table class="asc-table">
+            <thead>
+              <tr>
+                <th scope="col">Delivered</th>
+                <th scope="col">Dataset</th>
+                <th scope="col">Format</th>
+                <th scope="col">Records</th>
+                <th scope="col"></th>
+              </tr>
+            </thead>
+            <tbody id="bwDeliveriesBody"></tbody>
+          </table>
+        </div>
+        <div class="prv-history-empty" id="bwDeliveriesEmpty" hidden>
+          <div class="asc-empty-icon" aria-hidden="true">📭</div>
+          <p>No datasets yet. Deliveries will appear here.</p>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <div class="asc-toast-region" id="bwToasts" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="/static/buyer/buyer.js" defer></script>
+</body>
+</html>

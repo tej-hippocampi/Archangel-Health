@@ -105,6 +105,7 @@ from asclepius.schemas import (
     ContributorCredentialsIn,
     CreateUserRequest,
     PromoteCaseRequest,
+    UploadPromoteRequest,
     QuarantineOverrideRequest,
     RealDataApprovalRequest,
     UploadLinkRequest,
@@ -1779,9 +1780,37 @@ async def get_submission(
 
 
 # ─── QA ─────────────────────────────────────────────────────────────────────--
+def _contributor_identity(store: Any, sub: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve the labelling contributor's real NAME, ORGANIZATION, and EMAIL for
+    an admin/QA view. This is admin-only display data — it is NEVER copied onto a
+    record or into an export (the export leak gate forbids full_name/org_name/etc.
+    by field-name and by value). Sourced live from the ``users`` row via the
+    submission's evaluator id (fallback: the annotator's hashed id)."""
+    ident = {"name": None, "organization": None, "email": None}
+    user = None
+    if sub.get("evaluator_id"):
+        user = store.get_user_by_id(sub["evaluator_id"])
+    if not user:
+        idh = (sub.get("annotator") or {}).get("id_hashed")
+        if idh:
+            user = store.get_user_by_id_hashed(idh)
+    if user:
+        ident["name"] = (user.get("full_name") or "").strip() or None
+        ident["organization"] = (
+            (user.get("organization") or user.get("org_name") or "").strip() or None
+        )
+        ident["email"] = user.get("email")
+    return ident
+
+
 @router.get("/qa/queue")
 async def qa_queue(_qa: Dict[str, Any] = Depends(asc_auth.require_qa)):
-    return {"submissions": _store().list_submissions(status="needs_qa")}
+    store = _store()
+    subs = store.list_submissions(status="needs_qa")
+    for s in subs:
+        # Admin/QA-only identity block (name/org/email). Not persisted, not exported.
+        s["contributor"] = _contributor_identity(store, s)
+    return {"submissions": subs}
 
 
 @router.post("/qa/approve-all")
@@ -1999,6 +2028,13 @@ async def get_contributor(
     contributor = store.get_contributor(id_hashed)
     if not contributor:
         raise HTTPException(status_code=404, detail="Contributor not found")
+    # Admin-only identity: surface the contributor's real NAME + email alongside
+    # the hashed id. This is display truth for the admin console — it never ships
+    # in an export (the leak gate forbids full_name/email by field-name and value).
+    user = store.get_user_by_id_hashed(id_hashed) or {}
+    contributor = dict(contributor)
+    contributor["full_name"] = (user.get("full_name") or "").strip() or None
+    contributor["email"] = user.get("email") or contributor.get("email")
     cred = store.get_contributor_credentials(id_hashed, include_verify=include_verify)
     ship = (cred or {}).get("ship") or {}
     verify = (cred or {}).get("verify") or {}
@@ -2020,6 +2056,35 @@ async def get_contributor(
         "credentials": credentials_block,
         "buttons": ["export_data", "further_credential_summary"],
     }
+
+
+@router.get("/contributors/{id_hashed}/submissions")
+async def list_contributor_submissions(
+    id_hashed: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """Every task this contributor completed, newest first — with the completion
+    time (rendered Pacific client-side) and the product version they labelled
+    with. Powers the per-task / per-day / per-week export controls."""
+    store = _store()
+    contributor = store.get_contributor(id_hashed)
+    if not contributor:
+        raise HTTPException(status_code=404, detail="Contributor not found")
+    subs = store.list_submissions(evaluator_id=contributor["user_id"], limit=1000)
+    out: List[Dict[str, Any]] = []
+    for s in subs:
+        task = store.get_task(s.get("task_id")) or {}
+        prompt = (task.get("prompt") or "").strip().replace("\n", " ")
+        out.append({
+            "submission_id": s.get("submission_id"),
+            "task_id": s.get("task_id"),
+            "created_at": s.get("created_at"),
+            "portal_version": s.get("portal_version"),
+            "status": s.get("status"),
+            "verdict": s.get("verdict"),
+            "specialty": task.get("specialty"),
+            "prompt_preview": (prompt[:120] + "…") if len(prompt) > 120 else prompt,
+        })
+    return {"submissions": out, "id_hashed": id_hashed}
 
 
 @router.put("/contributors/{id_hashed}")
@@ -2162,6 +2227,9 @@ def _build_scoped_export(
             annotator_ids=annotator_ids,
             verify_values=verify_values,
             scope=scope,
+            since=getattr(body, "since", None),
+            until=getattr(body, "until", None),
+            submission_id=getattr(body, "submission_id", None),
         )
     except asc_export.ExportValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
@@ -2848,9 +2916,62 @@ def _validate_upload_token_lenient(store: Any, token: Optional[str]) -> Dict[str
 
 
 # ─── Admin: ingestion review ──────────────────────────────────────────────────
+def _partner_label_for_upload(store: Any, upload: Dict[str, Any]) -> Optional[str]:
+    """The human-readable partner label ('Gray Scrubs Lab'). Magic-link uploads
+    carry it on the link row; account-door uploads carry it as the provider's
+    org_name. Falls back to the raw partner_id."""
+    link_id = upload.get("link_id")
+    if link_id and link_id != "account":
+        link = store.get_upload_link(link_id)
+        if link and (link.get("partner_label") or "").strip():
+            return link["partner_label"].strip()
+    prov = store.get_data_provider(upload.get("partner_id") or "")
+    if prov and (prov.get("org_name") or "").strip():
+        return prov["org_name"].strip()
+    return None
+
+
 @router.get("/ingestion/uploads")
 async def list_ingestion_uploads(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
-    return {"uploads": _store().list_ingest_uploads()}
+    store = _store()
+    uploads = store.list_ingest_uploads()
+    for u in uploads:
+        u["partner_label"] = _partner_label_for_upload(store, u)
+        # How many ingested cases are ready to promote from THIS upload file —
+        # drives the upload-scoped promote UI.
+        cases = store.list_ingest_cases(upload_id=u["upload_id"])
+        u["ingested_case_count"] = sum(1 for c in cases if c.get("status") == "ingested")
+        u["case_count"] = len(cases)
+        u.pop("raw_path", None)  # server-side path is not admin-relevant
+    return {"uploads": uploads}
+
+
+@router.get("/ingestion/uploads/{upload_id}/download")
+async def download_ingestion_upload(
+    upload_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """Admin download of the ORIGINAL partner-uploaded bundle (decrypted at rest).
+    Available until the raw blob is purged (ASCLEPIUS_RAW_RETENTION_DAYS)."""
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    raw_path = upload.get("raw_path")
+    if not raw_path or not os.path.exists(raw_path):
+        raise HTTPException(
+            status_code=410,
+            detail="The raw upload has been purged (retention window elapsed) — "
+                   "only the derived cases remain.",
+        )
+    try:
+        data = asc_ingestion.load_raw(raw_path)
+    except Exception as exc:  # pragma: no cover - decrypt failure is exceptional
+        raise HTTPException(status_code=500, detail=f"Could not read the upload: {exc}")
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="upload_downloaded", actor=_admin["id"])
+    fname = (upload.get("filename") or f"{upload_id}.zip")
+    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    return StreamingResponse(io.BytesIO(data), media_type="application/zip", headers=headers)
 
 
 @router.get("/ingestion/uploads/{upload_id}")
@@ -3007,6 +3128,107 @@ async def list_ingestion_cases(
     return {"cases": _store().list_ingest_cases(status=status)}
 
 
+_DEFAULT_CLINICAL_QUESTIONS = {
+    "nephrology": "Assess this patient's renal status: classify the primary kidney "
+                  "problem, identify its most likely cause, and recommend the single "
+                  "most important next step in management.",
+    "cardiology": "Assess this patient's cardiac status: identify the primary problem, "
+                  "its most likely cause, and recommend the single most important next "
+                  "step in management.",
+}
+
+
+def _default_clinical_question(specialty: Optional[str]) -> str:
+    return _DEFAULT_CLINICAL_QUESTIONS.get(
+        (specialty or "").strip().lower(),
+        "Review this case, state the primary clinical problem and its most likely "
+        "cause, and recommend the single most important next step in management.",
+    )
+
+
+async def _convert_and_gate(store: Any, ic: Dict[str, Any], question: str) -> Dict[str, Any]:
+    """Run the FULL real-case → V4 conversion + automated tests on ONE ingested
+    case WITHOUT committing: render the case prompt, generate candidates
+    conditioned on the real case, and run the hardness + real-variant case-judge
+    gate. Returns a structured result the caller can preview or commit. Never
+    inserts a task or mutates the case — that is the caller's decision."""
+    case = ic.get("case") or {}
+    specialty = ic.get("specialty") or case.get("specialty") or "nephrology"
+    prompt = asc_cases.render_case_prompt(case, question)
+    out: Dict[str, Any] = {
+        "ingest_case_id": ic.get("ingest_case_id"),
+        "patient_key": ic.get("patient_key"),
+        "specialty": specialty, "question": question, "prompt": prompt,
+        "case": case, "candidates": [], "generation": None, "judges": {},
+        "ok": False, "failures": [], "error": None, "http_status": 200,
+    }
+    cg = await generate_candidates_ex(prompt, specialty=specialty)
+    candidates = cg.get("candidates") or []
+    if len(candidates) < 2:
+        out["error"] = "Candidate generation unavailable (no LLM key configured?)."
+        out["http_status"] = 503
+        return out
+    from asclepius.critic import run_case_judge, run_hardness_judge
+    generation: Dict[str, Any] = {
+        "mode": "real_case_promote", "ingest_case_id": ic.get("ingest_case_id"),
+        "upload_id": ic.get("upload_id"), "case_source": "real_deid",
+        "modality": "multimodal", "candidate_gen_model": cg.get("model"),
+        "intended_flawed_id": cg.get("intended_flawed_id"),
+    }
+    hj = await run_hardness_judge(prompt, candidates)
+    if not hj.get("skipped"):
+        generation["hardness"] = {"score": hj.get("hardness_score"),
+                                  "axes": hj.get("hardness_axes") or []}
+        out["judges"]["hardness"] = generation["hardness"]
+    cj = await run_case_judge(case, case_source="real_deid")
+    if cj.get("skipped"):
+        # FAIL CLOSED for real data: a V4 task must never enter the queue ungated.
+        out["error"] = "Case judge unavailable — the real-case gate requires it; try again."
+        out["http_status"] = 503
+        return out
+    generation["case_judge"] = {k: cj.get(k) for k in (
+        "coherence", "multimodal_necessity", "reasoning_divergence_potential")}
+    out["judges"]["case_judge"] = generation["case_judge"]
+    from asclepius.constants import (
+        case_coherence_min, case_divergence_min, case_mm_necessity_min,
+    )
+    failures: List[str] = []
+    if (cj.get("coherence") or 0.0) < case_coherence_min():
+        failures.append(f"coherence {cj.get('coherence')} < {case_coherence_min()}")
+    if (cj.get("multimodal_necessity") or 0.0) < case_mm_necessity_min():
+        failures.append(f"multimodal_necessity {cj.get('multimodal_necessity')} < {case_mm_necessity_min()}")
+    if (cj.get("reasoning_divergence_potential") or 0.0) < case_divergence_min():
+        failures.append(
+            f"reasoning_divergence_potential {cj.get('reasoning_divergence_potential')} < {case_divergence_min()}")
+    out["candidates"] = candidates
+    out["generation"] = generation
+    out["failures"] = failures
+    out["ok"] = not failures
+    if failures:
+        out["http_status"] = 422
+    return out
+
+
+def _commit_promoted_task(
+    store: Any, ic: Dict[str, Any], conv: Dict[str, Any], admin: Dict[str, Any], *,
+    max_labels: int, grounding_mode: Optional[str], independent_mode: Optional[str],
+) -> Dict[str, Any]:
+    """Insert the gated conversion as a partner_ehr V4 task + mark the case promoted."""
+    task = store.insert_task(
+        prompt=conv["prompt"], specialty=conv["specialty"], difficulty="hard",
+        capture_reasoning=True, source="partner_ehr",
+        candidate_answers=conv["candidates"], max_labels=max(1, int(max_labels or 1)),
+        grounding_mode=grounding_mode or DEFAULT_GROUNDING_MODE,
+        independent_mode=independent_mode or DEFAULT_INDEPENDENT_MODE,
+        case=conv["case"], generation=conv["generation"], created_by=admin["id"],
+    )
+    store.update_ingest_case(ic["ingest_case_id"], status="promoted", task_id=task["task_id"])
+    store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
+                    event_type="case_promoted", actor=admin["id"],
+                    payload={"task_id": task["task_id"]})
+    return task
+
+
 @router.post("/ingestion/cases/{ingest_case_id}/promote")
 async def promote_ingest_case(
     ingest_case_id: str, body: PromoteCaseRequest,
@@ -3025,77 +3247,126 @@ async def promote_ingest_case(
     question = (body.question or "").strip()
     if not question:
         raise HTTPException(status_code=400, detail="A clinical question is required to promote")
-    case = ic.get("case") or {}
-    specialty = ic.get("specialty") or case.get("specialty") or "nephrology"
-    prompt = asc_cases.render_case_prompt(case, question)
-
-    cg = await generate_candidates_ex(prompt, specialty=specialty)
-    candidates = cg.get("candidates") or []
-    if len(candidates) < 2:
-        raise HTTPException(
-            status_code=503,
-            detail="Candidate generation unavailable (no LLM key configured?) — cannot promote.",
-        )
-    from asclepius.critic import run_case_judge, run_hardness_judge
-    generation: Dict[str, Any] = {
-        "mode": "real_case_promote",
-        "ingest_case_id": ingest_case_id,
-        "upload_id": ic.get("upload_id"),
-        "case_source": "real_deid",
-        "modality": "multimodal",
-        "candidate_gen_model": cg.get("model"),
-        "intended_flawed_id": cg.get("intended_flawed_id"),
-    }
-    hj = await run_hardness_judge(prompt, candidates)
-    if not hj.get("skipped"):
-        generation["hardness"] = {"score": hj.get("hardness_score"),
-                                  "axes": hj.get("hardness_axes") or []}
-    cj = await run_case_judge(case, case_source="real_deid")
-    if cj.get("skipped"):
-        # FAIL CLOSED for real data (review finding): the synthetic pipeline's
-        # "skipped never drops" degrade contract is not appropriate here — a V4
-        # task must not enter the queue ungated. Candidates just generated, so
-        # the LLM is demonstrably up; a skipped judge is transient. Retry.
-        raise HTTPException(
-            status_code=503,
-            detail="Case judge unavailable — promotion requires the real-case gate; try again.",
-        )
-    if not cj.get("skipped"):
-        generation["case_judge"] = {k: cj.get(k) for k in (
-            "coherence", "multimodal_necessity", "reasoning_divergence_potential")}
-        # Real-variant gate (PRD §9): coherence / multimodal_necessity /
-        # reasoning_divergence ONLY — no ground-truth dimension (the specialist is
-        # the answer key). A failing case stays 'ingested' (not consumed) so the
-        # admin can reject it or re-promote with a sharper question.
-        from asclepius.constants import (
-            case_coherence_min, case_divergence_min, case_mm_necessity_min,
-        )
-        failures = []
-        if (cj.get("coherence") or 0.0) < case_coherence_min():
-            failures.append(f"coherence {cj.get('coherence')} < {case_coherence_min()}")
-        if (cj.get("multimodal_necessity") or 0.0) < case_mm_necessity_min():
-            failures.append(f"multimodal_necessity {cj.get('multimodal_necessity')} < {case_mm_necessity_min()}")
-        if (cj.get("reasoning_divergence_potential") or 0.0) < case_divergence_min():
-            failures.append(
-                f"reasoning_divergence_potential {cj.get('reasoning_divergence_potential')} < {case_divergence_min()}")
-        if failures:
-            store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
-                            event_type="promote_gated", actor=admin["id"],
-                            payload={"failures": failures})
-            raise HTTPException(status_code=422, detail={
-                "error": "case_judge_gate", "failures": failures,
-                "hint": "Try a sharper clinical question, or reject the case. Floors are env-tunable."})
-    task = store.insert_task(
-        prompt=prompt, specialty=specialty, difficulty="hard",
-        capture_reasoning=True, source="partner_ehr",
-        candidate_answers=candidates, max_labels=max(1, int(body.max_labels or 1)),
-        grounding_mode=body.grounding_mode or DEFAULT_GROUNDING_MODE,
-        independent_mode=body.independent_mode or DEFAULT_INDEPENDENT_MODE,
-        case=case, generation=generation, created_by=admin["id"],
-    )
-    store.update_ingest_case(ingest_case_id, status="promoted", task_id=task["task_id"])
-    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
-                    event_type="case_promoted", actor=admin["id"],
-                    payload={"task_id": task["task_id"]})
+    conv = await _convert_and_gate(store, ic, question)
+    if conv["error"]:
+        raise HTTPException(status_code=conv["http_status"], detail=conv["error"])
+    if not conv["ok"]:
+        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                        event_type="promote_gated", actor=admin["id"],
+                        payload={"failures": conv["failures"]})
+        raise HTTPException(status_code=422, detail={
+            "error": "case_judge_gate", "failures": conv["failures"],
+            "hint": "Try a sharper clinical question, or reject the case. Floors are env-tunable."})
+    task = _commit_promoted_task(
+        store, ic, conv, admin, max_labels=body.max_labels,
+        grounding_mode=body.grounding_mode, independent_mode=body.independent_mode)
     return {"task_id": task["task_id"], "case_source": task.get("case_source"),
             "modality": task.get("modality")}
+
+
+def _sample_case_view(conv: Dict[str, Any]) -> Dict[str, Any]:
+    """The reviewable sample for the admin: the public (PHI-stripped) case with
+    its labs / notes / EHR records, the rendered prompt, the generated candidate
+    answers, and the automated-test (judge) scores."""
+    public = asc_cases.public_case(conv.get("case") or {}) or {}
+    return {
+        "ingest_case_id": conv.get("ingest_case_id"),
+        "patient_key": conv.get("patient_key"),
+        "specialty": conv.get("specialty"),
+        "question": conv.get("question"),
+        "prompt": conv.get("prompt"),
+        "case": public,
+        "candidates": conv.get("candidates") or [],
+        "judges": conv.get("judges") or {},
+        "tests_passed": bool(conv.get("ok")),
+        "failures": conv.get("failures") or [],
+        "error": conv.get("error"),
+    }
+
+
+@router.post("/ingestion/uploads/{upload_id}/prepare")
+async def prepare_upload_promotion(
+    upload_id: str, body: UploadPromoteRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Step 1 of the upload-scoped promote: run the conversion + automated tests
+    on ONE sample case from this partner file and return it for review (labs,
+    notes, EHR records, candidates, test scores) WITHOUT committing anything. The
+    admin reviews, then calls /promote-all to extend case creation to the rest."""
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    ingested = [c for c in store.list_ingest_cases(upload_id=upload_id)
+                if c.get("status") == "ingested"]
+    if not ingested:
+        raise HTTPException(status_code=409,
+                            detail="No ingested cases awaiting promotion in this upload.")
+    ic = ingested[0]
+    question = ((body.question or "").strip()
+                or _default_clinical_question(ic.get("specialty")))
+    conv = await _convert_and_gate(store, ic, question)
+    if conv["error"]:
+        raise HTTPException(status_code=conv["http_status"], detail=conv["error"])
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="promote_sample_prepared", actor=admin["id"],
+                    payload={"ingest_case_id": ic.get("ingest_case_id"),
+                             "tests_passed": conv["ok"]})
+    return {
+        "upload_id": upload_id,
+        "partner_label": _partner_label_for_upload(store, upload),
+        "filename": upload.get("filename"),
+        "ingested_count": len(ingested),
+        "sample": _sample_case_view(conv),
+    }
+
+
+@router.post("/ingestion/uploads/{upload_id}/promote-all")
+async def promote_upload_all(
+    upload_id: str, body: UploadPromoteRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Step 2 of the upload-scoped promote: after the admin approved the sample,
+    extend case creation to EVERY remaining ingested case in this partner file.
+    Each case runs the same conversion + gate; passing cases become V4 tasks,
+    gated/failed cases stay 'ingested' with the reason recorded."""
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    ingested = [c for c in store.list_ingest_cases(upload_id=upload_id)
+                if c.get("status") == "ingested"]
+    if not ingested:
+        raise HTTPException(status_code=409,
+                            detail="No ingested cases awaiting promotion in this upload.")
+    promoted: List[Dict[str, Any]] = []
+    gated: List[Dict[str, Any]] = []
+    failed: List[Dict[str, Any]] = []
+    for ic in ingested:
+        question = ((body.question or "").strip()
+                    or _default_clinical_question(ic.get("specialty")))
+        try:
+            conv = await _convert_and_gate(store, ic, question)
+        except Exception as exc:  # pragma: no cover - defensive per-case isolation
+            failed.append({"ingest_case_id": ic.get("ingest_case_id"), "error": str(exc)})
+            continue
+        if conv["error"]:
+            failed.append({"ingest_case_id": ic.get("ingest_case_id"), "error": conv["error"]})
+            continue
+        if not conv["ok"]:
+            store.log_event(entity_type="ingest_case", entity_id=ic.get("ingest_case_id"),
+                            event_type="promote_gated", actor=admin["id"],
+                            payload={"failures": conv["failures"]})
+            gated.append({"ingest_case_id": ic.get("ingest_case_id"), "failures": conv["failures"]})
+            continue
+        task = _commit_promoted_task(
+            store, ic, conv, admin, max_labels=body.max_labels,
+            grounding_mode=body.grounding_mode, independent_mode=body.independent_mode)
+        promoted.append({"ingest_case_id": ic.get("ingest_case_id"), "task_id": task["task_id"]})
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="promote_all", actor=admin["id"],
+                    payload={"promoted": len(promoted), "gated": len(gated),
+                             "failed": len(failed)})
+    return {"upload_id": upload_id, "promoted": len(promoted), "gated": len(gated),
+            "failed": len(failed), "task_ids": [p["task_id"] for p in promoted],
+            "details": {"promoted": promoted, "gated": gated, "failed": failed}}

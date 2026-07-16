@@ -22,7 +22,7 @@ ASCLEPIUS_CONFIG_VERSION = APP_AI_CONFIG_VERSION
 # ``data_partner`` (EHR PRD §4): a partner account that can do exactly one thing
 # — upload a de-identified bundle through its own tokenized link. No queue
 # access, no exports, no data reads.
-ROLES = ("evaluator", "admin", "qa_reviewer", "data_partner")
+ROLES = ("evaluator", "admin", "qa_reviewer", "data_partner", "buyer")
 
 # Primary verdict on the A/B comparison.
 VERDICTS = ("A_better", "B_better", "both_inadequate")
