@@ -164,6 +164,39 @@ ERROR_TAXONOMY = (
 
 ERROR_SEVERITIES = ("low", "medium", "high")
 
+# ─── Model-Failure Taxonomy (Tier-1 PRD §D) ──────────────────────────────────
+# A stable, controlled vocabulary of HOW a frontier model fails on a case, grounded in
+# the documented clinical-LLM failure literature. Each entry ships its one-line
+# definition in the export manifest so a buyer knows exactly what each tag means. New
+# modes are added HERE (never ad-hoc in the UI); ``other`` is queued for reconciliation
+# and is never sold as a named mode until promoted. V3/V4 only.
+FAILURE_MODES = (
+    ("anchoring", "Anchoring", "locked onto an early/salient feature; ignored disconfirming data"),
+    ("premature_closure", "Premature closure", "committed before working the differential"),
+    ("right_answer_wrong_reason", "Right answer, wrong reason", "correct conclusion via an invalid/unsupported path"),
+    ("context_neglect", "Context neglect", "failed to seek/use available EHR / labs / meds in the case"),
+    ("overtreatment", "Overtreatment / overtesting", "recommended an unnecessary intervention or workup"),
+    ("guideline_recency_or_sequencing", "Guideline recency / sequencing", "outdated guideline, or right steps in the wrong order"),
+    ("hallucinated_finding", "Hallucinated finding", "asserted a datum not present in the case"),
+    ("miscalibrated_confidence", "Miscalibrated confidence", "confidence not supported by the evidence"),
+    ("unsafe_recommendation", "Unsafe recommendation", "a critical-negative action (ties to the rubric critical-negative)"),
+    ("other", "Other", "free-text; queued for reconciliation, not sold as a named mode until promoted"),
+)
+FAILURE_MODE_IDS = tuple(m[0] for m in FAILURE_MODES)
+
+
+def failure_mode_definitions() -> dict:
+    """{id: {label, definition}} — shipped in the export manifest (PRD §D-1)."""
+    return {mid: {"label": label, "definition": definition} for (mid, label, definition) in FAILURE_MODES}
+
+
+def min_cell_n() -> int:
+    """Small-N suppression floor for the failure-taxonomy export (PRD §D-4/§D-5): a
+    {failure_mode × axis × provider × difficulty} cell with fewer than this many
+    observations is flagged ``low_confidence`` and its rate is suppressed (never
+    over-claim a failure rate on thin data). ``ASCLEPIUS_MIN_CELL_N`` (default 5)."""
+    return max(1, _env_int("ASCLEPIUS_MIN_CELL_N", 5))
+
 # Structured-first capture (Speed Optimization, Feature 6): a controlled
 # vocabulary of one-tap REASONS attached per selected error tag, so the
 # diagnostic "why" is captured without typing. Persisted as

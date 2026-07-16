@@ -21,11 +21,14 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import logging
 import os
 import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+log = logging.getLogger("asclepius.export")
 
 from asclepius import agreement as asc_agreement
 from asclepius import credentials as asc_credentials
@@ -958,6 +961,39 @@ def build_export(
         (out_dir / SCORE_PY_NAME).write_text(_SCORE_PY, encoding="utf-8")
         companion_files += [GRADER_PROMPT_NAME, SCORE_PY_NAME]
 
+    # Model-Failure Taxonomy export (PRD §D): the targeted-eval artifact — a scored,
+    # provider-attributed, physician-verified answer to "here is precisely how frontier
+    # models fail on this class of case". V3/V4 only; emitted when the batch has any
+    # physician failure observations. Small-N cells suppressed; κ label-agreement shipped.
+    _taxonomy_meta: Optional[Dict[str, Any]] = None
+    try:
+        from asclepius import failure_taxonomy as _ft
+        _bundle = _ft.build_failure_taxonomy(store, specialty=specialty)
+        if _bundle["aggregate"]["n_observations"] > 0:
+            _tax_doc = {
+                "mode_definitions": _bundle["mode_definitions"],
+                "label_agreement": _bundle["label_agreement"],
+                "provenance": _bundle["provenance"],
+                **_bundle["aggregate"],
+            }
+            (out_dir / "model_failure_taxonomy.json").write_text(
+                json.dumps(_tax_doc, indent=2), encoding="utf-8")
+            (out_dir / "TAXONOMY.md").write_text(_ft.taxonomy_markdown(_bundle), encoding="utf-8")
+            _eval_dir = out_dir / "failure_eval"
+            _eval_dir.mkdir(exist_ok=True)
+            (_eval_dir / "holdout.json").write_text(json.dumps(_bundle["holdout"], indent=2), encoding="utf-8")
+            (_eval_dir / "score_failuremode.py").write_text(_ft.SCORE_FAILUREMODE_PY, encoding="utf-8")
+            companion_files += ["model_failure_taxonomy.json", "TAXONOMY.md",
+                                "failure_eval/holdout.json", "failure_eval/score_failuremode.py"]
+            _taxonomy_meta = {"n_observations": _bundle["aggregate"]["n_observations"],
+                              "n_attributed": _bundle["aggregate"]["n_attributed"],
+                              "label_agreement": _bundle["provenance"]["label_agreement"],
+                              "n_physicians": _bundle["provenance"]["n_physicians"],
+                              "min_cell_n": _bundle["aggregate"]["min_cell_n"],
+                              "human_verified": True}
+    except Exception:  # a taxonomy failure must never break the core export
+        log.exception("asclepius: failure taxonomy export failed")
+
     # 5. manifest with content hashes (opt §1.4, §5)
     filters = {
         "profile": profile_name,
@@ -1008,6 +1044,10 @@ def build_export(
         "files": companion_files,
         "content_hashes": content_hashes,
         "rubric_count": sum(1 for r in emitted if r.get("type") == "rubric"),
+        # Model-Failure Taxonomy provenance (PRD §D-4): the trust certificate for the
+        # targeted eval (physician count, κ label agreement, small-N floor). Absent when
+        # the batch produced no failure observations.
+        "model_failure_taxonomy": _taxonomy_meta,
         "dir_path": str(out_dir),
         "destination": "local_disk",  # future seam: a cloud writer pushes here.
     }

@@ -278,6 +278,30 @@ class ChosenRevision(BaseModel):
     evidence_anchors: List[EvidenceAnchor] = Field(default_factory=list)
 
 
+class FailureTag(BaseModel):
+    """A PHYSICIAN-VERIFIED label of HOW a model answer failed (Tier-1 PRD §D-2).
+
+    ``mode`` is a controlled-vocabulary id from ``FAILURE_MODES`` (anything else is
+    coerced to ``other`` and queued for reconciliation — never sold as a named mode).
+    Each tag anchors to a specific reasoning-step or rubric ``criterion_id`` plus a
+    one-line verbatim rationale. The physician is BLIND to provider at capture; the tag
+    attaches to the slot and provider is joined in only at export. ``tier`` is derived
+    from the linked rubric criterion when present."""
+
+    mode: str = "other"
+    evidence_step_id: Optional[str] = None
+    criterion_id: Optional[str] = None
+    note: str = ""
+    tier: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _controlled_vocab(self) -> "FailureTag":
+        from asclepius.constants import FAILURE_MODE_IDS
+        if self.mode not in FAILURE_MODE_IDS:
+            self.mode = "other"
+        return self
+
+
 class RejectedCritique(BaseModel):
     error_tags: List[str] = Field(default_factory=list)
     severities: Dict[str, str] = Field(default_factory=dict)
@@ -288,6 +312,9 @@ class RejectedCritique(BaseModel):
     # selected error tag ({tag: reason}, reason from ERROR_TAG_REASONS) so the
     # diagnostic "why" is captured without typing.
     error_tag_reasons: Dict[str, str] = Field(default_factory=dict)
+    # Model-Failure Taxonomy (PRD §D-2): physician-verified failure-mode tags on the
+    # REJECTED answer (blind to provider at capture; attributed at export).
+    failure_tags: List["FailureTag"] = Field(default_factory=list)
 
 
 class FromScratch(BaseModel):

@@ -54,6 +54,7 @@ from asclepius.constants import (
     ERROR_TAG_REASONS,
     ERROR_TAXONOMY,
     EVIDENCE_SOURCE_TYPES,
+    FAILURE_MODES,
     GROUNDED_PREMIUM_DISCLAIMER,
     CASE_INCOHERENT_TASK_STATUS,
     GROUNDING_MODES,
@@ -227,6 +228,10 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
         # V3/V4 tier picker labels each band consistently with the backend.
         "rubric_tiers": list(RUBRIC_TIERS),
         "rubric_tier_bands": [{"tier": t, "min": lo, "max": hi} for (t, lo, hi) in RUBRIC_TIER_BANDS],
+        # Model-Failure Taxonomy (PRD §D): the controlled failure-mode vocabulary +
+        # definitions for the V3/V4 capture chips.
+        "failure_modes": [{"id": mid, "label": label, "definition": definition}
+                          for (mid, label, definition) in FAILURE_MODES],
         "independent_modes": list(INDEPENDENT_MODES),
         "portal_versions": list(PORTAL_VERSIONS),
         "value_tiers": list(VALUE_TIERS),
@@ -1400,6 +1405,8 @@ async def submit(
     claimed_pv = (_commit or {}).get("payload", {}).get("portal_version") or body.portal_version
     v34_unambiguous = claimed_pv in ("v3", "v4") or task.get("case_source") == "real_deid"
     from asclepius.rubric import has_critical_negative, normalize_rubric
+    _rubric_has_crit_neg = v34_unambiguous and bool(normalize_rubric(payload.get("rubric"))) \
+        and has_critical_negative(payload.get("rubric"))
     if v34_unambiguous and normalize_rubric(payload.get("rubric")):
         if not has_critical_negative(payload.get("rubric")):
             raise HTTPException(
@@ -1409,6 +1416,26 @@ async def submit(
                     "message": "Your scoring rubric must include at least one CRITICAL negative "
                                "criterion (points −8 to −10) — the single thing a correct answer "
                                "must never do. Mark your most serious 'never' criterion as critical.",
+                },
+            )
+
+    # Model-Failure Taxonomy gate (PRD §D-2): on V3/V4, when the rubric names a critical
+    # negative AND this is a real-model A/B pair (grade-real-models), require ≥1 physician
+    # failure tag on the REJECTED answer — the taxonomy is only valuable if labels are
+    # physician-verified. Reuses the critical-negative machinery; only fires for an A/B
+    # verdict on a baseline pair (never over-gates the from-scratch / flagged paths).
+    if _rubric_has_crit_neg and body.verdict in ("A_better", "B_better"):
+        _is_baseline_pair = any((c.get("source") == "baseline")
+                                for c in (task.get("candidate_answers") or []))
+        _failure_tags = ((payload.get("rejected_critique") or {}).get("failure_tags")) or []
+        if _is_baseline_pair and not _failure_tags:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "failure_tag_required",
+                    "message": "Tag at least one failure mode on the rejected answer (how it failed) "
+                               "so the model-failure taxonomy is physician-verified — e.g. anchoring, "
+                               "premature closure, unsafe recommendation.",
                 },
             )
 
