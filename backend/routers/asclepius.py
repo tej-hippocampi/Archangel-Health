@@ -2829,26 +2829,48 @@ async def partner_upload(
                 detail="Ingestion is disabled: DATA_ENCRYPTION_KEY is not configured, "
                        "so the upload cannot be encrypted at rest.",
             )
+        # FAIL CLOSED on non-durable storage too: never accept a bundle we cannot
+        # keep. A raw blob on ephemeral disk is the "download failed (410)" incident.
+        ok, why = asc_ingestion.ingest_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
     link = _validate_upload_token(store, t)
     data = await file.read()
     if len(data) > int(link.get("max_bytes") or asc_ingestion.max_zip_bytes()):
         raise HTTPException(status_code=413, detail="Upload exceeds the link's size cap")
     if data[:2] != b"PK":
         raise HTTPException(status_code=400, detail="Only .zip bundles are accepted")
-    # ATOMIC one-time claim (closes the TOCTOU race where two concurrent uploads
-    # both pass the used_count==0 validation read). After the cheap validations,
-    # so an innocent oversized/wrong-type attempt doesn't burn the link.
-    if not store.consume_upload_link(link["link_id"], one_time=bool(link.get("one_time"))):
-        raise HTTPException(status_code=410, detail="This upload link was already used")
     digest = asc_ingestion.sha256_hex(data)
+    # ── Order matters for data safety (see the 410 incident) ──────────────────
+    # 1. Persist the encrypted bytes to DURABLE storage FIRST, under a fresh id.
+    #    If the write fails we have NOT consumed the link and NOT created a row,
+    #    so the partner's one-time link stays valid and they can simply retry.
+    upload_id = store.new_upload_id()
+    try:
+        raw_path = asc_ingestion.store_raw(upload_id, data)
+    except Exception as exc:  # disk full, permissions, encrypt failure, …
+        store.log_event(entity_type="ingest_link", entity_id=link["link_id"],
+                        event_type="upload_store_failed", payload={"error": str(exc)})
+        raise HTTPException(
+            status_code=503,
+            detail="Could not store the upload securely — your link is still valid, "
+                   "please retry in a moment.",
+        )
+    # 2. ATOMIC one-time claim, AFTER the bytes are safe (closes the TOCTOU race
+    #    where two concurrent uploads both pass a used_count==0 read). If we lose
+    #    the claim (already used / revoked), delete the orphan blob and 410.
+    if not store.consume_upload_link(link["link_id"], one_time=bool(link.get("one_time"))):
+        asc_ingestion.delete_raw(raw_path)
+        raise HTTPException(status_code=410, detail="This upload link was already used")
+    # 3. Insert the row already carrying raw_path — it is never null, so the file
+    #    on disk is always reachable by download/retry/recovery.
     upload = store.insert_ingest_upload(
+        upload_id=upload_id,
         link_id=link["link_id"], partner_id=link["partner_id"],
         filename=(file.filename or "bundle.zip")[:120], sha256=digest,
-        size_bytes=len(data), raw_path=None,
+        size_bytes=len(data), raw_path=raw_path,
         source_ip=(request.client.host if request.client else None),
     )
-    raw_path = asc_ingestion.store_raw(upload["upload_id"], data)
-    store.update_ingest_upload(upload["upload_id"], raw_path=raw_path)
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
                     event_type="upload_received",
                     payload={"partner_id": link["partner_id"], "sha256": digest,

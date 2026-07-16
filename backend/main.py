@@ -5856,6 +5856,24 @@ async def startup_team_scheduler():
             "inactive (relying on volume encryption only). Set a base64 32-byte key to "
             "enable AES-256-GCM field encryption. See docs/security/ENCRYPTION.md."
         )
+    # EHR ingestion durability (the partner-upload 410 incident): warn loudly if
+    # raw bundles would land on non-durable storage, and recover any uploads left
+    # mid-pipeline by a restart — their raw blob is on the persistent volume, so
+    # reprocessing is lossless.
+    try:
+        from asclepius import ingestion as _asc_ingestion
+
+        _asc_store = getattr(app.state, "asclepius_store", None)
+        _dur_ok, _dur_why = _asc_ingestion.ingest_storage_durable()
+        if not _dur_ok:
+            _auth_logger.warning("[ingestion] NON-DURABLE raw upload storage — %s", _dur_why)
+        if _asc_store is not None:
+            # Off the event loop: reprocessing parses bundles and can be slow.
+            asyncio.create_task(
+                asyncio.to_thread(_asc_ingestion.recover_interrupted_uploads, _asc_store)
+            )
+    except Exception:
+        _auth_logger.warning("[ingestion] startup durability/recovery check failed", exc_info=True)
     if not _disable_public_demo_account():
         _ensure_demo_doctor()
     await _seed_demo_mode_data()

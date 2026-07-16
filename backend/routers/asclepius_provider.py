@@ -269,6 +269,10 @@ async def provider_upload(
         if not field_crypto.is_configured():
             raise HTTPException(status_code=503,
                                 detail="Ingestion is disabled: DATA_ENCRYPTION_KEY is not configured.")
+        # Fail closed on non-durable raw storage too (see the 410 incident).
+        ok, why = asc_ingestion.ingest_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
 
     cap = asc_ingestion.max_zip_bytes()
     raw_files: List[Dict[str, Any]] = []
@@ -284,14 +288,24 @@ async def provider_upload(
     if len(data) > cap:
         raise HTTPException(status_code=413, detail="Bundle exceeds the size limit.")
     digest = asc_ingestion.sha256_hex(data)
+    # Persist the encrypted bundle to durable storage BEFORE inserting the row,
+    # so the row never carries a null/unreachable raw_path (see the 410 incident).
+    upload_id = store.new_upload_id()
+    try:
+        raw_path = asc_ingestion.store_raw(upload_id, data)
+    except Exception as exc:  # disk full, permissions, encrypt failure, …
+        store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                        event_type="upload_store_failed", actor=provider_user["id"],
+                        payload={"error": str(exc)})
+        raise HTTPException(status_code=503,
+                            detail="Could not store the upload securely — please retry in a moment.")
     upload = store.insert_ingest_upload(
+        upload_id=upload_id,
         link_id=_ACCOUNT_LINK_ID, partner_id=provider_user["id"],
         filename=(raw_files[0]["filename"] if len(raw_files) == 1 else "bundle.zip")[:120],
-        sha256=digest, size_bytes=len(data), raw_path=None,
+        sha256=digest, size_bytes=len(data), raw_path=raw_path,
         source_ip=(request.client.host if request.client else None),
     )
-    raw_path = asc_ingestion.store_raw(upload["upload_id"], data)
-    store.update_ingest_upload(upload["upload_id"], raw_path=raw_path)
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
                     event_type="upload_received", actor=provider_user["id"],
                     payload={"partner_id": provider_user["id"], "sha256": digest,

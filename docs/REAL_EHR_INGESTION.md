@@ -60,7 +60,20 @@ off `case_source`, not the label.
   `/tmp` on Railway/Render: that dir is wiped on every redeploy, which would leave
   ingested uploads whose admin "Download file" fails with **410** ("raw blob was
   lost") even though the derived cases survive. Blobs are only ever recoverable
-  from the partner re-uploading.
+  from the partner re-uploading. Guardrails enforcing this:
+  - **Fail-closed:** in production the upload endpoints return **503** (refusing
+    the file) if the ingest dir resolves to ephemeral storage — we never accept a
+    bundle we cannot durably keep. Startup also logs a loud warning if the ingest
+    dir is ephemeral or on a different volume than the DB.
+  - **Store-before-claim ordering:** the encrypted bytes are written to durable
+    disk *before* the one-time link is consumed and *before* the DB row is
+    inserted. A storage failure leaves the link valid (partner just retries) and
+    strands no row; the row always carries a reachable `raw_path`.
+  - **Redeploy recovery:** on startup, uploads left mid-pipeline
+    (`received`/`scanning`/`parsing`) are re-processed from their durable blob
+    (idempotently — prior un-promoted cases are cleared first). If a blob is
+    genuinely gone, the upload is marked `rejected` with a re-upload prompt rather
+    than left stuck forever.
 - `ASCLEPIUS_MALWARE_SCAN_CMD` — plug a real AV (e.g. `clamscan --no-summary`);
   fail-closed. Without it only structural zip checks run.
 - `ASCLEPIUS_DEID_VERIFIER=baseline|presidio|comprehend_medical`.

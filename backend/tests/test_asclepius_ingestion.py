@@ -10,8 +10,10 @@ reject triage → promote to a gradable V4 task (stubbed LLM) → the value prem
 from __future__ import annotations
 
 import base64
+import glob
 import io
 import json
+import os
 import sys
 import zipfile
 from datetime import datetime, timedelta
@@ -23,6 +25,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tests import _asclepius as A  # noqa: E402
+from asclepius import ingestion as asc_ingestion  # noqa: E402
 from asclepius import pipeline as asc_pipeline  # noqa: E402
 from asclepius import profiles as asc_profiles  # noqa: E402
 
@@ -219,7 +222,6 @@ def test_default_ingest_dir_lives_next_to_the_db_not_tmp(monkeypatch, tmp_path):
     """Regression for the 410 download bug: with no ASCLEPIUS_INGEST_DIR set, raw
     blobs must land beside the (persistent) DB volume, never on ephemeral /tmp —
     otherwise a redeploy wipes them and downloads 410."""
-    from asclepius import ingestion as asc_ingestion
     monkeypatch.delenv("ASCLEPIUS_INGEST_DIR", raising=False)
     db_dir = tmp_path / "data"
     monkeypatch.setenv("ASCLEPIUS_DB_PATH", str(db_dir / "asclepius.db"))
@@ -227,6 +229,91 @@ def test_default_ingest_dir_lives_next_to_the_db_not_tmp(monkeypatch, tmp_path):
     assert root == (db_dir / "asclepius-ingest").resolve()   # sibling of the DB file
     assert root != Path("/tmp/asclepius-ingest")             # never the old ephemeral default
     assert root.is_dir()
+
+
+def test_ingest_storage_durability_flags_ephemeral(monkeypatch):
+    """The durability guard must reject ephemeral raw storage (the incident) and
+    accept a durable location."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", "/tmp/asclepius-ingest")
+    ok, why = asc_ingestion.ingest_storage_durable()
+    assert ok is False and "/tmp" in why
+    # A non-ephemeral path clears the fail-closed gate (st_dev mismatch only warns).
+    monkeypatch.setattr(asc_ingestion, "_EPHEMERAL_PREFIXES", ("/no-such-ephemeral",))
+    ok2, _ = asc_ingestion.ingest_storage_durable()
+    assert ok2 is True
+
+
+# ─── Upload never gets lost: store-first ordering + one-time-link safety ───────
+def test_upload_row_always_carries_a_reachable_raw_path():
+    """Every accepted upload row points at a raw blob that exists on disk — no
+    None window, so download/retry/recovery can always reach the original file."""
+    link = _mint(_admin_h())
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    up = _store().get_ingest_upload(res["upload_id"])
+    assert up["raw_path"] and os.path.exists(up["raw_path"])
+
+
+def test_storage_failure_does_not_burn_the_link_or_strand_a_row(monkeypatch):
+    """If the encrypted write fails, the one-time link is NOT consumed, NO row is
+    stranded, and the partner can retry the same link once storage recovers."""
+    link = _mint(_admin_h())
+    zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV})
+
+    def _boom(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(asc_ingestion, "store_raw", _boom)
+    r = client.post(f"/api/asclepius/partner/uploads?t={link['token']}",
+                    files={"file": ("b.zip", zb, "application/zip")})
+    assert r.status_code == 503
+    assert _store().list_ingest_uploads() == []          # no stranded row
+    # Storage recovers → the SAME one-time link still works (was never consumed).
+    monkeypatch.undo()
+    res = _upload(link["token"], zb)
+    assert res["status"] == "received"
+
+
+def test_lost_one_time_claim_cleans_up_the_orphan_blob(monkeypatch):
+    """If two uploads race and this one loses the atomic claim AFTER writing its
+    bytes, the orphan blob is deleted — no accumulating unreferenced files."""
+    link = _mint(_admin_h())
+    zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV})
+    st = _store()
+    monkeypatch.setattr(st, "consume_upload_link", lambda *a, **k: False)
+    before = set(glob.glob(str(asc_ingestion.quarantine_root() / "*.zip.enc")))
+    r = client.post(f"/api/asclepius/partner/uploads?t={link['token']}",
+                    files={"file": ("b.zip", zb, "application/zip")})
+    assert r.status_code == 410
+    after = set(glob.glob(str(asc_ingestion.quarantine_root() / "*.zip.enc")))
+    assert before == after                               # orphan cleaned up
+
+
+# ─── Recovery after a redeploy interrupts the pipeline ────────────────────────
+def test_recovery_reprocesses_a_stuck_upload_without_duplicating_cases():
+    st = _store()
+    link = _mint(_admin_h())
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    assert st.get_ingest_upload(res["upload_id"])["status"] == "ingested"
+    # Simulate a redeploy that killed the background task mid-flight.
+    st.update_ingest_upload(res["upload_id"], status="received")
+    handled = asc_ingestion.recover_interrupted_uploads(st)
+    assert handled >= 1
+    up = st.get_ingest_upload(res["upload_id"])
+    assert up["status"] == "ingested"                    # driven back to terminal
+    assert len(st.list_ingest_cases(upload_id=res["upload_id"])) == 1  # no dup cases
+
+
+def test_recovery_rejects_upload_whose_raw_blob_is_gone():
+    st = _store()
+    link = _mint(_admin_h())
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    up = st.get_ingest_upload(res["upload_id"])
+    st.update_ingest_upload(res["upload_id"], status="received")
+    os.remove(up["raw_path"])                            # blob truly lost
+    asc_ingestion.recover_interrupted_uploads(st)
+    up2 = st.get_ingest_upload(res["upload_id"])
+    assert up2["status"] == "rejected"
+    assert "re-upload" in (up2["reason"] or "")          # never left dangling
 
 
 # ─── The mixed bundle → ONE case (PRD §11 criterion 2 + 3, the B1 regression) ─

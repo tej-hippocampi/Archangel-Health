@@ -1123,12 +1123,18 @@ class AsclepiusStore:
         with self._conn() as conn:
             conn.execute("UPDATE ingest_upload_links SET revoked = 1 WHERE link_id = ?", (link_id,))
 
+    def new_upload_id(self) -> str:
+        """Mint an upload id up front so the raw blob can be written to durable
+        storage BEFORE the row is inserted (the row then always carries a valid
+        raw_path — no None window where the file is on disk but unreachable)."""
+        return _new_id("upl")
+
     def insert_ingest_upload(
         self, *, link_id: str, partner_id: str, filename: Optional[str],
         sha256: Optional[str], size_bytes: Optional[int], raw_path: Optional[str],
-        source_ip: Optional[str],
+        source_ip: Optional[str], upload_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        uid = _new_id("upl")
+        uid = upload_id or _new_id("upl")
         now = _utcnow_iso()
         with self._conn() as conn:
             conn.execute(
@@ -1251,6 +1257,37 @@ class AsclepiusStore:
             rec = dict(r)
             rec["case"] = json.loads(rec.pop("case_json") or "null")
             rec["report"] = json.loads(rec.pop("report_json") or "null")
+            out.append(rec)
+        return out
+
+    def delete_unpromoted_ingest_cases(self, upload_id: str) -> int:
+        """Remove an upload's cases that have NOT been promoted to a task
+        (``task_id`` still null). Lets a reprocess (startup recovery of an
+        upload interrupted by a redeploy) start from a clean slate without
+        creating duplicate cases — while never touching promoted work."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "DELETE FROM ingest_cases WHERE upload_id = ? "
+                "AND (task_id IS NULL OR task_id = '')",
+                (upload_id,),
+            )
+            return cur.rowcount
+
+    def list_uploads_in_status(self, statuses: List[str]) -> List[Dict[str, Any]]:
+        """Uploads currently sitting in any of ``statuses`` — used by startup
+        recovery to find work interrupted mid-pipeline (received/scanning/parsing)."""
+        if not statuses:
+            return []
+        qs = ",".join("?" for _ in statuses)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM ingest_uploads WHERE status IN ({qs}) "
+                "ORDER BY created_at ASC", tuple(statuses),
+            ).fetchall()
+        out = []
+        for r in rows:
+            rec = dict(r)
+            rec["files"] = json.loads(rec.pop("files_json") or "[]")
             out.append(rec)
         return out
 
