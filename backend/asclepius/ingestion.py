@@ -70,8 +70,24 @@ def raw_retention_days() -> int:
         return 30
 
 
+def _default_ingest_dir() -> Path:
+    """Co-locate raw blobs with the persistent DB, so the two share durability.
+
+    The admin download + retry paths read this encrypted blob days after upload,
+    so it MUST survive redeploys/restarts. Defaulting to ``/tmp`` was the bug:
+    on Railway/Render ``/tmp`` is ephemeral and wiped on every redeploy, while
+    the DB (``ASCLEPIUS_DB_PATH`` → mounted volume) persists — leaving the upload
+    row pointing at a blob that no longer exists, which the download endpoint
+    reports as a spurious 410 "already purged". Placing the ingest dir next to
+    the DB file means a raw blob is exactly as durable as its DB row. Mirrors
+    ``AsclepiusStore``'s DB-path resolution so the two never diverge."""
+    db_path = os.getenv("ASCLEPIUS_DB_PATH") or os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "asclepius.db")
+    return Path(os.path.dirname(os.path.abspath(db_path))) / "asclepius-ingest"
+
+
 def quarantine_root() -> Path:
-    root = Path(os.getenv("ASCLEPIUS_INGEST_DIR") or "/tmp/asclepius-ingest").resolve()
+    root = Path(os.getenv("ASCLEPIUS_INGEST_DIR") or _default_ingest_dir()).resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
 

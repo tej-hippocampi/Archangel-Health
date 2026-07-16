@@ -54,6 +54,13 @@ off `case_source`, not the label.
 
 - Raw zips: AES-GCM-encrypted at rest (`DATA_ENCRYPTION_KEY`), auto-purged after
   `ASCLEPIUS_RAW_RETENTION_DAYS` (30). The derived case is what we keep.
+- **Raw storage must be durable.** The encrypted blobs default to a dir *beside
+  the DB* (`ASCLEPIUS_INGEST_DIR`, defaulting next to `ASCLEPIUS_DB_PATH`) so they
+  share the DB's persistent volume. Do **not** point `ASCLEPIUS_INGEST_DIR` at
+  `/tmp` on Railway/Render: that dir is wiped on every redeploy, which would leave
+  ingested uploads whose admin "Download file" fails with **410** ("raw blob was
+  lost") even though the derived cases survive. Blobs are only ever recoverable
+  from the partner re-uploading.
 - `ASCLEPIUS_MALWARE_SCAN_CMD` — plug a real AV (e.g. `clamscan --no-summary`);
   fail-closed. Without it only structural zip checks run.
 - `ASCLEPIUS_DEID_VERIFIER=baseline|presidio|comprehend_medical`.

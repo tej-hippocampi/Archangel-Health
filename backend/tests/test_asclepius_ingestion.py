@@ -181,6 +181,54 @@ def test_raw_token_never_stored():
     assert all(link["token"] not in json.dumps(r) for r in rows)  # only the hash at rest
 
 
+# ─── Admin download of the original bundle (the 410 regression) ────────────────
+def test_admin_can_download_original_bundle():
+    """The 'Download file' button on a partner upload returns the exact bytes
+    the partner sent, while the raw blob is present."""
+    admin_h = _admin_h()
+    link = _mint(admin_h)
+    zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV})
+    res = _upload(link["token"], zb)
+    r = client.get(f"/api/asclepius/ingestion/uploads/{res['upload_id']}/download",
+                   headers=admin_h)
+    assert r.status_code == 200, r.text
+    assert r.content == zb                                   # byte-exact round trip
+    assert "attachment" in r.headers.get("content-disposition", "")
+
+
+def test_download_missing_blob_reports_storage_loss_not_retention(monkeypatch):
+    """If the raw blob vanishes while the upload is still inside the retention
+    window (the ephemeral-/tmp bug), the 410 must say the storage was lost — NOT
+    blame the retention policy, which would mislead the operator."""
+    admin_h = _admin_h()
+    link = _mint(admin_h)
+    zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV})
+    res = _upload(link["token"], zb)
+    # Simulate a redeploy wiping the (ephemeral) raw dir: delete the blob but keep
+    # the DB row, exactly as a /tmp wipe would.
+    upload = _store().get_ingest_upload(res["upload_id"])
+    Path(upload["raw_path"]).unlink()
+    r = client.get(f"/api/asclepius/ingestion/uploads/{res['upload_id']}/download",
+                   headers=admin_h)
+    assert r.status_code == 410
+    assert "lost" in r.json()["detail"].lower()
+    assert "retention window elapsed" not in r.json()["detail"]
+
+
+def test_default_ingest_dir_lives_next_to_the_db_not_tmp(monkeypatch, tmp_path):
+    """Regression for the 410 download bug: with no ASCLEPIUS_INGEST_DIR set, raw
+    blobs must land beside the (persistent) DB volume, never on ephemeral /tmp —
+    otherwise a redeploy wipes them and downloads 410."""
+    from asclepius import ingestion as asc_ingestion
+    monkeypatch.delenv("ASCLEPIUS_INGEST_DIR", raising=False)
+    db_dir = tmp_path / "data"
+    monkeypatch.setenv("ASCLEPIUS_DB_PATH", str(db_dir / "asclepius.db"))
+    root = asc_ingestion.quarantine_root()          # actually created on disk
+    assert root == (db_dir / "asclepius-ingest").resolve()   # sibling of the DB file
+    assert root != Path("/tmp/asclepius-ingest")             # never the old ephemeral default
+    assert root.is_dir()
+
+
 # ─── The mixed bundle → ONE case (PRD §11 criterion 2 + 3, the B1 regression) ─
 def test_mixed_bundle_assembles_one_case_with_all_sections():
     link = _mint(_admin_h())

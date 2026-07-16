@@ -2924,6 +2924,23 @@ async def list_ingestion_uploads(_admin: Dict[str, Any] = Depends(asc_auth.requi
     return {"uploads": uploads}
 
 
+def _upload_past_raw_retention(upload: Dict[str, Any]) -> bool:
+    """True if the upload is old enough that its raw blob would have been purged
+    by the retention sweep. Used to word a missing-blob 410 honestly: past the
+    window it's expected; inside it, the blob was lost to non-durable storage."""
+    created = upload.get("created_at")
+    if not created:
+        return True  # unknown age — assume the benign (retention) explanation
+    try:
+        ts = datetime.fromisoformat(str(created).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return True
+    if ts.tzinfo is not None:
+        ts = ts.replace(tzinfo=None)
+    age_days = (datetime.utcnow() - ts).total_seconds() / 86400
+    return age_days >= asc_ingestion.raw_retention_days()
+
+
 @router.get("/ingestion/uploads/{upload_id}/download")
 async def download_ingestion_upload(
     upload_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
@@ -2936,11 +2953,21 @@ async def download_ingestion_upload(
         raise HTTPException(status_code=404, detail="Upload not found")
     raw_path = upload.get("raw_path")
     if not raw_path or not os.path.exists(raw_path):
-        raise HTTPException(
-            status_code=410,
-            detail="The raw upload has been purged (retention window elapsed) — "
-                   "only the derived cases remain.",
+        # Distinguish an EXPECTED retention purge from unexpected blob loss: if the
+        # upload is still inside the retention window the blob should be here, so a
+        # missing file points at a storage problem (e.g. raw dir on ephemeral disk),
+        # not the retention policy. Give the admin the honest reason either way.
+        purged_by_retention = _upload_past_raw_retention(upload)
+        detail = (
+            "The raw upload has been purged (retention window elapsed) — "
+            "only the derived cases remain."
+            if purged_by_retention else
+            "The original upload is no longer available on disk even though it is "
+            "still within the retention window — the raw blob was lost (its storage "
+            "did not persist). Only the derived cases remain; ask the partner to "
+            "re-upload if the original bundle is needed."
         )
+        raise HTTPException(status_code=410, detail=detail)
     try:
         data = asc_ingestion.load_raw(raw_path)
     except Exception as exc:  # pragma: no cover - decrypt failure is exceptional

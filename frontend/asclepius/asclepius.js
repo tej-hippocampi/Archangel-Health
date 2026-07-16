@@ -4593,7 +4593,14 @@
   async function downloadBlob(path, filename) {
     try {
       const res = await api(path, { raw: true });
-      if (!res.ok) { toast('Download failed (' + res.status + ')', 'error'); return; }
+      if (!res.ok) {
+        // Surface the server's reason (e.g. a 410 raw-blob-lost/purged message)
+        // instead of a bare status code, so an admin knows why and what to do.
+        let detail = '';
+        try { detail = (await res.json()).detail || ''; } catch (_) { /* not JSON */ }
+        toast('Download failed (' + res.status + ')' + (detail ? ': ' + detail : ''), 'error');
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
