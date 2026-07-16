@@ -74,6 +74,16 @@ off `case_source`, not the label.
     (idempotently — prior un-promoted cases are cleared first). If a blob is
     genuinely gone, the upload is marked `rejected` with a re-upload prompt rather
     than left stuck forever.
+- **Sender failure notifications.** A link can carry an optional **contact
+  email** (set on the Mint form). If an upload through it ends up **rejected** or
+  its raw blob is **lost**, we automatically email that address a reassuring,
+  **PHI-free** note — *your file didn't come through; nothing was leaked and there
+  was no data breach; please re-send* — fired once per upload. The admin can also
+  hit **"Notify sender"** on any non-ingested row to send it manually (repeatable).
+  Uses the shared email transport (`EMAIL_DEV_MODE=1` prints instead of sending);
+  quarantine (held for review) does **not** auto-email.
+- **Partner Uploads list** paginates over full history (`GET /ingestion/uploads?
+  limit=&offset=`, returns `total`) — nothing scrolls off at 50 anymore.
 - `ASCLEPIUS_MALWARE_SCAN_CMD` — plug a real AV (e.g. `clamscan --no-summary`);
   fail-closed. Without it only structural zip checks run.
 - `ASCLEPIUS_DEID_VERIFIER=baseline|presidio|comprehend_medical`.

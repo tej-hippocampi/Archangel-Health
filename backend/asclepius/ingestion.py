@@ -218,6 +218,12 @@ def recover_interrupted_uploads(store: Any) -> int:
                 store.log_event(entity_type="ingest_upload", entity_id=uid,
                                 event_type="upload_recovery_failed",
                                 payload={"reason": "raw blob missing"})
+                try:
+                    from asclepius import ingest_notify
+                    ingest_notify.notify_upload_failed(
+                        store, store.get_ingest_upload(uid), outcome="lost")
+                except Exception:  # pragma: no cover - defensive
+                    pass
                 handled += 1
                 continue
             removed = store.delete_unpromoted_ingest_cases(uid)
@@ -383,6 +389,14 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
         store.update_ingest_upload(upload_id, status="rejected", reason=reason)
         store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                         event_type="upload_rejected", payload={"reason": reason})
+        # Auto-notify the sender their upload didn't come through (no PHI). Best
+        # effort — a notification issue must never affect the pipeline outcome.
+        try:
+            from asclepius import ingest_notify
+            ingest_notify.notify_upload_failed(
+                store, store.get_ingest_upload(upload_id), outcome="rejected")
+        except Exception:  # pragma: no cover - defensive
+            pass
         return {"status": "rejected", "reason": reason}
 
     store.update_ingest_upload(upload_id, status="scanning")

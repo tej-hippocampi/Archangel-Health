@@ -316,6 +316,100 @@ def test_recovery_rejects_upload_whose_raw_blob_is_gone():
     assert "re-upload" in (up2["reason"] or "")          # never left dangling
 
 
+# ─── Full-history pagination for the Partner Uploads list ─────────────────────
+def test_uploads_list_paginates_over_full_history():
+    admin_h = _admin_h()
+    link = _mint(admin_h, one_time=False)               # reuse one link for 3 uploads
+    for _ in range(3):
+        _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    p1 = client.get("/api/asclepius/ingestion/uploads?limit=2&offset=0", headers=admin_h).json()
+    assert p1["total"] == 3 and p1["offset"] == 0 and len(p1["uploads"]) == 2
+    p2 = client.get("/api/asclepius/ingestion/uploads?limit=2&offset=2", headers=admin_h).json()
+    assert len(p2["uploads"]) == 1                       # the tail page
+    ids1 = {u["upload_id"] for u in p1["uploads"]}
+    ids2 = {u["upload_id"] for u in p2["uploads"]}
+    assert not (ids1 & ids2)                             # pages don't overlap
+
+
+# ─── Contact email on the link + failure notification to the sender ───────────
+def test_mint_rejects_an_invalid_contact_email():
+    r = client.post("/api/asclepius/admin/upload-links", headers=_admin_h(),
+                    json={"partner_id": "mercy", "contact_email": "not-an-email"})
+    assert r.status_code == 400
+
+
+def test_contact_email_is_stored_and_surfaced_on_uploads():
+    admin_h = _admin_h()
+    link = _mint(admin_h, contact_email="partner@example.com")
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    rows = client.get("/api/asclepius/ingestion/uploads", headers=admin_h).json()["uploads"]
+    row = next(u for u in rows if u["upload_id"] == res["upload_id"])
+    assert row["contact_email"] == "partner@example.com"
+
+
+def _capture_email(monkeypatch):
+    sent = {}
+
+    async def _fake(to, subject, html, **kw):
+        sent.update(to=to, subject=subject, html=html)
+        sent.setdefault("count", 0)
+        sent["count"] += 1
+        return (True, "dev")
+
+    monkeypatch.setattr("email_utils.send_html_email_with_reason", _fake)
+    return sent
+
+
+def test_rejected_upload_auto_notifies_the_sender(monkeypatch):
+    sent = _capture_email(monkeypatch)
+    link = _mint(_admin_h(), contact_email="partner@example.com")
+    # A .bin-only bundle has no parseable clinical content → the pipeline rejects it.
+    res = _upload(link["token"], _zip({"data.bin": "\x00\x01\x02not-clinical"}))
+    up = _store().get_ingest_upload(res["upload_id"])
+    assert up["status"] == "rejected"
+    assert sent.get("to") == "partner@example.com"
+    assert "breach" in sent["html"].lower()             # reassuring, no-PHI body
+    assert up.get("failure_notified_at")                # stamped so it fires once
+
+
+def test_ingested_upload_does_not_auto_notify(monkeypatch):
+    sent = _capture_email(monkeypatch)
+    link = _mint(_admin_h(), contact_email="partner@example.com")
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    assert _store().get_ingest_upload(res["upload_id"])["status"] == "ingested"
+    assert sent == {}                                   # success never emails the partner
+
+
+def test_manual_notify_endpoint_sends_and_can_repeat(monkeypatch):
+    sent = _capture_email(monkeypatch)
+    admin_h = _admin_h()
+    link = _mint(admin_h, contact_email="p@example.com")
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    r = client.post(f"/api/asclepius/ingestion/uploads/{res['upload_id']}/notify-sender", headers=admin_h)
+    assert r.status_code == 200 and r.json()["sent"] is True
+    assert sent["to"] == "p@example.com" and sent["count"] == 1
+    # Manual is intentional — it can re-send (unlike the deduped auto path).
+    r2 = client.post(f"/api/asclepius/ingestion/uploads/{res['upload_id']}/notify-sender", headers=admin_h)
+    assert r2.status_code == 200 and sent["count"] == 2
+
+
+def test_manual_notify_without_a_contact_email_is_a_clear_400(monkeypatch):
+    _capture_email(monkeypatch)
+    admin_h = _admin_h()
+    link = _mint(admin_h)                               # no contact email
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    r = client.post(f"/api/asclepius/ingestion/uploads/{res['upload_id']}/notify-sender", headers=admin_h)
+    assert r.status_code == 400 and "contact email" in r.json()["detail"].lower()
+
+
+def test_failure_notice_body_reassures_and_escapes():
+    from asclepius import ingest_notify as N
+    html = N._html_body("Gray Scrubs Lab", "Data factory-20260714.zip", "rejected")
+    assert "no data breach" in html.lower() and "re-send" in html.lower()
+    danger = N._html_body("<script>x</script>", "<b>f</b>.zip", "lost")
+    assert "<script>" not in danger and "&lt;script&gt;" in danger  # HTML-escaped
+
+
 # ─── The mixed bundle → ONE case (PRD §11 criterion 2 + 3, the B1 regression) ─
 def test_mixed_bundle_assembles_one_case_with_all_sections():
     link = _mint(_admin_h())

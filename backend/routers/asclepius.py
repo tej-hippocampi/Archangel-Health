@@ -2731,6 +2731,7 @@ async def events(
 # ═══════════════════════════════════════════════════════════════════════════════
 from asclepius import deid_verify as asc_deid_verify  # noqa: E402
 from asclepius import ingestion as asc_ingestion  # noqa: E402
+from asclepius import ingest_notify as asc_ingest_notify  # noqa: E402
 
 
 def _token_hash(token: str) -> str:
@@ -2768,6 +2769,9 @@ async def mint_upload_link(
     store = _store()
     token = secrets.token_urlsafe(32)
     expires_at = (datetime.utcnow() + timedelta(hours=max(1, min(720, body.expires_hours)))).isoformat()
+    contact_email = (body.contact_email or "").strip() or None
+    if contact_email and not asc_ingest_notify.looks_like_email(contact_email):
+        raise HTTPException(status_code=400, detail="Contact email is not a valid address.")
     link = store.create_upload_link(
         token_hash=_token_hash(token),
         partner_id=body.partner_id.strip(),
@@ -2777,6 +2781,7 @@ async def mint_upload_link(
         one_time=body.one_time,
         max_bytes=min(body.max_bytes or asc_ingestion.max_zip_bytes(), asc_ingestion.max_zip_bytes()),
         created_by=admin["id"],
+        contact_email=contact_email,
     )
     store.log_event(entity_type="ingest_link", entity_id=link["link_id"],
                     event_type="upload_link_minted", actor=admin["id"],
@@ -2931,10 +2936,24 @@ def _partner_label_for_upload(store: Any, upload: Dict[str, Any]) -> Optional[st
     return None
 
 
+def _contact_email_for_upload(store: Any, upload: Dict[str, Any]) -> Optional[str]:
+    """The sender's contact email (magic-link ``contact_email`` or the account
+    provider's email) — drives the 'Notify sender' action. None if unknown."""
+    email, _name = asc_ingest_notify._recipient_for(store, upload)
+    return email
+
+
 @router.get("/ingestion/uploads")
-async def list_ingestion_uploads(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+async def list_ingestion_uploads(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Paginated over FULL history (newest first). Returns the page plus the
+    grand total so the admin UI can page through every upload ever received."""
     store = _store()
-    uploads = store.list_ingest_uploads()
+    total = store.count_ingest_uploads()
+    uploads = store.list_ingest_uploads(limit=limit, offset=offset)
     for u in uploads:
         u["partner_label"] = _partner_label_for_upload(store, u)
         # How many ingested cases are ready to promote from THIS upload file —
@@ -2942,8 +2961,11 @@ async def list_ingestion_uploads(_admin: Dict[str, Any] = Depends(asc_auth.requi
         cases = store.list_ingest_cases(upload_id=u["upload_id"])
         u["ingested_case_count"] = sum(1 for c in cases if c.get("status") == "ingested")
         u["case_count"] = len(cases)
+        # Notification affordances for the row (never expose the raw path).
+        u["contact_email"] = _contact_email_for_upload(store, u)
+        u["failure_notified"] = bool(u.get("failure_notified_at"))
         u.pop("raw_path", None)  # server-side path is not admin-relevant
-    return {"uploads": uploads}
+    return {"uploads": uploads, "total": total, "limit": limit, "offset": offset}
 
 
 def _upload_past_raw_retention(upload: Dict[str, Any]) -> bool:
@@ -2999,6 +3021,29 @@ async def download_ingestion_upload(
     fname = (upload.get("filename") or f"{upload_id}.zip")
     headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
     return StreamingResponse(io.BytesIO(data), media_type="application/zip", headers=headers)
+
+
+@router.post("/ingestion/uploads/{upload_id}/notify-sender")
+async def notify_upload_sender(
+    upload_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """Manually email the partner that their upload didn't come through (no PHI,
+    'nothing was leaked / no breach, please re-send'). Complements the automatic
+    notification on rejected/lost uploads; use it for anything you want to flag."""
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    outcome = "lost" if not (upload.get("raw_path") and os.path.exists(upload["raw_path"])) \
+        else (upload.get("status") or "failed")
+    sent, detail = asc_ingest_notify.notify_upload_failed(
+        store, upload, outcome=outcome, manual=True, actor=admin["id"])
+    if not sent:
+        # No recipient on file is a 400 the admin can act on; a transport failure
+        # is a 502 (their config/vendor), so the UI can word it correctly.
+        code = 400 if "contact email" in detail else 502
+        raise HTTPException(status_code=code, detail=detail)
+    return {"sent": True, "detail": detail}
 
 
 @router.get("/ingestion/uploads/{upload_id}")

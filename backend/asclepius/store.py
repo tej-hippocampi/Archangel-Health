@@ -661,6 +661,14 @@ class AsclepiusStore:
                 """
             )
 
+            # EHR ingestion: an optional sender contact email on a link, so a
+            # failed upload can notify the partner who sent it; plus a stamp on the
+            # upload to dedupe the auto-notification. Both additive/nullable.
+            if "contact_email" not in cols("ingest_upload_links"):
+                conn.execute("ALTER TABLE ingest_upload_links ADD COLUMN contact_email TEXT")
+            if "failure_notified_at" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN failure_notified_at TEXT")
+
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
         self,
@@ -1057,17 +1065,18 @@ class AsclepiusStore:
     def create_upload_link(
         self, *, token_hash: str, partner_id: str, partner_label: Optional[str],
         specialty: str, expires_at: str, one_time: bool, max_bytes: int,
-        created_by: Optional[str],
+        created_by: Optional[str], contact_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         lid = _new_id("lnk")
         with self._conn() as conn:
             conn.execute(
                 """INSERT INTO ingest_upload_links
                    (link_id, token_hash, partner_id, partner_label, specialty,
-                    expires_at, one_time, max_bytes, created_by, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    expires_at, one_time, max_bytes, created_by, contact_email, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (lid, token_hash, partner_id, partner_label, specialty, expires_at,
-                 1 if one_time else 0, int(max_bytes), created_by, _utcnow_iso()),
+                 1 if one_time else 0, int(max_bytes), created_by,
+                 (contact_email or None), _utcnow_iso()),
             )
         return self.get_upload_link(lid)  # type: ignore[return-value]
 
@@ -1173,10 +1182,11 @@ class AsclepiusStore:
         rec["files"] = json.loads(rec.pop("files_json") or "[]")
         return rec
 
-    def list_ingest_uploads(self, *, limit: int = 200) -> List[Dict[str, Any]]:
+    def list_ingest_uploads(self, *, limit: int = 200, offset: int = 0) -> List[Dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM ingest_uploads ORDER BY created_at DESC LIMIT ?", (limit,)
+                "SELECT * FROM ingest_uploads ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (max(1, limit), max(0, offset)),
             ).fetchall()
         out = []
         for r in rows:
@@ -1184,6 +1194,22 @@ class AsclepiusStore:
             rec["files"] = json.loads(rec.pop("files_json") or "[]")
             out.append(rec)
         return out
+
+    def count_ingest_uploads(self) -> int:
+        """Total upload rows — lets the admin UI paginate over full history."""
+        with self._conn() as conn:
+            return int(conn.execute("SELECT COUNT(*) FROM ingest_uploads").fetchone()[0])
+
+    def mark_upload_failure_notified(self, upload_id: str) -> None:
+        """Stamp the moment we emailed the sender that their upload failed, so the
+        auto-notifier fires at most once per upload (manual re-sends are allowed)."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET failure_notified_at = ?, updated_at = ? "
+                "WHERE upload_id = ?",
+                (now, now, upload_id),
+            )
 
     def insert_ingest_case(
         self, *, upload_id: str, patient_key: Optional[str], specialty: Optional[str],
