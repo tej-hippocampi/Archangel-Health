@@ -23,13 +23,63 @@ never a crash.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import random
 from typing import Any, Dict, List, Optional
 
-from asclepius.constants import baseline_models
+from asclepius.constants import baseline_models, ab_source
+from ai.model_config import resolve_provider, UnknownProvider
 
 log = logging.getLogger("asclepius.baselines")
+
+
+def _provider_of(model: Optional[str]) -> Optional[str]:
+    try:
+        return resolve_provider(model or "")
+    except UnknownProvider:
+        return None
+
+
+def _prompt_hash(system: str, user: str) -> str:
+    """One hash over (system + "\n" + user) so a buyer can verify BOTH frontier
+    answers were produced from byte-identical input."""
+    return hashlib.sha256((system + "\n" + user).encode("utf-8")).hexdigest()
+
+
+# ── Batch-balanced A/B placement (A3) ────────────────────────────────────────
+# The old per-pair random.shuffle is unbiased per pair but drifts on small N. This
+# nudges P(OpenAI = slot A) toward 0.5 across a batch/session. State is in-memory per
+# process (fine for a batch); the durable QC metric is computed from the stored
+# candidates' server-side `provider` field.
+_AB_STATE: Dict[str, int] = {"n_pairs": 0, "openai_in_A": 0}
+
+
+def reset_ab_state() -> None:
+    _AB_STATE["n_pairs"] = 0
+    _AB_STATE["openai_in_A"] = 0
+
+
+def openai_as_A_rate() -> Optional[float]:
+    n = _AB_STATE["n_pairs"]
+    return (_AB_STATE["openai_in_A"] / n) if n else None
+
+
+def place_AB(openai_ans: Dict[str, Any], anthropic_ans: Dict[str, Any],
+             state: Optional[Dict[str, int]] = None) -> List[Dict[str, Any]]:
+    """Place the OpenAI and Anthropic answers into slots A/B, nudging P(OpenAI=A)→0.5."""
+    st = state if state is not None else _AB_STATE
+    target = 0.5
+    cur = (st["openai_in_A"] / st["n_pairs"]) if st["n_pairs"] else 0.5
+    if abs(cur - target) < 0.02:
+        openai_is_A = random.random() < 0.5          # near balance → pure coin
+    else:
+        openai_is_A = cur < target                   # drifted → nudge back toward 0.5
+    st["n_pairs"] += 1
+    if openai_is_A:
+        st["openai_in_A"] += 1
+    a, b = (openai_ans, anthropic_ans) if openai_is_A else (anthropic_ans, openai_ans)
+    return [{"id": "A", **a}, {"id": "B", **b}]
 
 # A neutral clinical-answer system prompt — the model answers the case as a
 # confident clinician WITH NO HINTS (no archetype, no failure mode, no answer key).
@@ -49,13 +99,18 @@ async def run_baselines(
     models = models or baseline_models()
     prompt = (task or {}).get("prompt") or ""
     task_id = (task or {}).get("task_id")
+    # Compute the shared input hash ONCE — every model answers byte-identical input
+    # (same system + same rendered case, no hints/archetype/answer key). Both rows
+    # carry it so a buyer can prove the pair was answered from the same prompt.
+    prompt_hash = _prompt_hash(_BASELINE_SYSTEM, prompt)
     runs: List[Dict[str, Any]] = []
     try:
         from ai.llm_client import call_llm, first_text
     except Exception as exc:  # pragma: no cover
         for m in models:
             runs.append(store.insert_baseline_run(task_id=task_id, model=m, response_text=None,
-                                                  error=f"import:{exc}"))
+                                                  error=f"import:{exc}", provider=_provider_of(m),
+                                                  prompt_hash=prompt_hash))
         return runs
     for model in models:
         try:
@@ -65,12 +120,13 @@ async def run_baselines(
                 messages=[{"role": "user", "content": prompt}],
                 prompt_id="asclepius_baseline",
                 purpose="asclepius_baseline_capture",
-                model=model,  # per-model override (see llm_client._build_kwargs)
+                model=model,  # per-model override → router picks the provider by id
             )
         except Exception as exc:
             log.info("asclepius baseline %s failed: %s", model, exc)
             runs.append(store.insert_baseline_run(task_id=task_id, model=model,
-                                                  response_text=None, error=str(exc)))
+                                                  response_text=None, error=str(exc),
+                                                  provider=_provider_of(model), prompt_hash=prompt_hash))
             continue
         usage = (getattr(resp, "usage", None) or None)
         runs.append(store.insert_baseline_run(
@@ -79,37 +135,58 @@ async def run_baselines(
             latency_ms=(rec or {}).get("latency_ms"),
             tokens_in=getattr(usage, "input_tokens", None) if usage else None,
             tokens_out=getattr(usage, "output_tokens", None) if usage else None,
+            provider=(rec or {}).get("provider") or _provider_of(model),
+            prompt_hash=prompt_hash,
         ))
     return runs
 
 
 def build_baseline_candidates(
-    runs: List[Dict[str, Any]], *, gold_text: Optional[str] = None
+    runs: List[Dict[str, Any]], *, gold_text: Optional[str] = None, mode: Optional[str] = None,
 ) -> List[Dict[str, str]]:
-    """"Grade the real models" mode: build a blinded A/B pair from stored baseline
-    runs (or one baseline + one gold). ``source='baseline'`` + ``baseline_model``
-    are SERVER-SIDE ONLY. 50/50 slot randomization, same as the generated pairs.
-    Returns [] when there isn't enough material (fewer than two answers)."""
+    """Build a blinded A/B pair from stored baseline runs.
+
+    ``two_frontier`` (default for V3/V4): require **exactly one non-empty OpenAI answer
+    and one non-empty Anthropic answer**; place them via the batch balancer (A3). If
+    either provider is missing/errored, return ``[]`` (caller marks the task
+    ``needs_baseline``) — NEVER a silent gold fall-back. ``source='baseline'``,
+    ``baseline_model`` and ``provider`` are SERVER-SIDE ONLY (stripped by
+    ``_blind_task``'s allowlist).
+
+    ``legacy`` (opt-in only): the historical one-baseline-plus-``gold_text`` (or first
+    two) path with a per-pair shuffle."""
+    mode = (mode or ab_source() or "two_frontier").strip().lower()
+
+    def _ans(r):
+        return {"text": (r.get("response_text") or "").strip(),
+                "source": "baseline", "baseline_model": r.get("model"),
+                "provider": r.get("provider") or _provider_of(r.get("model"))}
+
+    if mode == "two_frontier":
+        oa = next((_ans(r) for r in (runs or [])
+                   if (r.get("response_text") or "").strip()
+                   and (r.get("provider") or _provider_of(r.get("model"))) == "openai"), None)
+        an = next((_ans(r) for r in (runs or [])
+                   if (r.get("response_text") or "").strip()
+                   and (r.get("provider") or _provider_of(r.get("model"))) == "anthropic"), None)
+        if not oa or not an:
+            return []  # one provider missing → caller sets needs_baseline (no gold stand-in)
+        return place_AB(oa, an)
+
+    # ── legacy mode (explicit opt-in): one-frontier + gold, or first two ──
     answers: List[Dict[str, Any]] = []
     for r in runs or []:
         text = (r.get("response_text") or "").strip()
         if text:
-            answers.append({"text": text, "source": "baseline", "baseline_model": r.get("model")})
+            answers.append({"text": text, "source": "baseline", "baseline_model": r.get("model"),
+                            "provider": r.get("provider") or _provider_of(r.get("model"))})
     if gold_text and (gold_text or "").strip():
-        answers.append({"text": gold_text.strip(), "source": "gold", "baseline_model": None})
+        answers.append({"text": gold_text.strip(), "source": "gold", "baseline_model": None, "provider": None})
     if len(answers) < 2:
         return []
     answers = answers[:2]
-    random.shuffle(answers)  # enforce 50/50 slot placement server-side
-    out: List[Dict[str, str]] = []
-    for i, a in enumerate(answers):
-        out.append({
-            "id": "A" if i == 0 else "B",
-            "text": a["text"],
-            "source": a["source"],
-            "baseline_model": a.get("baseline_model"),
-        })
-    return out
+    random.shuffle(answers)
+    return [{"id": "A" if i == 0 else "B", **a} for i, a in enumerate(answers)]
 
 
 def record_model_failure(store: Any, task_id: str, submission_id: str) -> Optional[str]:
@@ -157,6 +234,7 @@ def record_model_failure(store: Any, task_id: str, submission_id: str) -> Option
             fids.append(store.insert_model_failure(
                 task_id=task_id, submission_id=submission_id, model=model, verdict=verdict,
                 error_tags=tags, corrected_steps=steps, expert_correction=correction, prompt=prompt,
+                provider=_provider_of(model),
             ))
 
         if verdict in ("A_better", "B_better"):

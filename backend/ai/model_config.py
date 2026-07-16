@@ -67,6 +67,48 @@ MODEL_REGISTRY: dict[str, dict[str, Any]] = {
 
 _LEGACY_ENV = {"intraop_extract": "INTRAOP_EXTRACTOR_MODEL"}
 
+# The current-best OpenAI reasoning model used as the OpenAI side of the two-frontier
+# A/B pair. This is the single place an OpenAI id lives (mirrors the Anthropic-ids
+# invariant). Tej overrides it live via env (ASCLEPIUS_BASELINE_MODELS / OPENAI_MODEL)
+# with zero code change; the router keys off the id prefix.
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5")
+
+
+class UnknownProvider(ValueError):
+    """A model id whose provider cannot be determined (never crashes a run — the
+    caller records it as an errored run and degrades gracefully)."""
+
+
+def resolve_provider(model_id: str) -> str:
+    """Map a model id to its provider. ``claude*`` / ``anthropic:*`` → anthropic (the
+    existing path, untouched); ``gpt*`` / ``o1/o3/o4*`` / ``chatgpt*`` / ``openai:*`` →
+    openai. Anything else raises :class:`UnknownProvider`."""
+    m = (model_id or "").strip().lower()
+    if m.startswith("anthropic:") or m.startswith("claude"):
+        return "anthropic"
+    if (m.startswith("openai:") or m.startswith("gpt") or m.startswith("chatgpt")
+            or m.startswith("o1") or m.startswith("o3") or m.startswith("o4")):
+        return "openai"
+    raise UnknownProvider(f"cannot resolve provider for model id: {model_id!r}")
+
+
+def api_model_id(model_id: str) -> str:
+    """Strip an optional ``openai:`` / ``anthropic:`` routing prefix so the bare id is
+    sent to the SDK (``openai:gpt-5`` → ``gpt-5``)."""
+    m = (model_id or "").strip()
+    for pfx in ("openai:", "anthropic:"):
+        if m.lower().startswith(pfx):
+            return m[len(pfx):]
+    return m
+
+
+def is_anthropic_configured() -> bool:
+    return bool((os.getenv("ANTHROPIC_API_KEY") or "").strip())
+
+
+def is_openai_configured() -> bool:
+    return bool((os.getenv("OPENAI_API_KEY") or "").strip())
+
 
 def resolve(role: str) -> dict[str, Any]:
     cfg = dict(MODEL_REGISTRY[role])

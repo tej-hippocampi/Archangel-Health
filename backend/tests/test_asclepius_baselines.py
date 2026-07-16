@@ -132,9 +132,24 @@ def test_grade_real_models_blinds_source_and_records_failure(monkeypatch):
     assert any(s["model"] == f0["model"] for s in failures["summary"])
 
 
-def test_build_baseline_candidates_needs_two():
-    assert B.build_baseline_candidates([{"response_text": "only one", "model": "m"}]) == []
+def test_build_baseline_candidates_two_frontier():
+    # two_frontier (default): needs exactly one OpenAI + one Anthropic answer.
+    assert B.build_baseline_candidates([{"response_text": "only one", "model": "gpt-5"}]) == []
+    # two of the SAME provider → [] (the pairing is the product).
+    assert B.build_baseline_candidates([
+        {"response_text": "a", "model": "gpt-5"}, {"response_text": "b", "model": "gpt-4o"}]) == []
+    pair = B.build_baseline_candidates([
+        {"response_text": "openai ans", "model": "gpt-5"},
+        {"response_text": "anthropic ans", "model": "claude-opus-4-8"}])
+    assert {c["id"] for c in pair} == {"A", "B"}
+    assert all(c["source"] == "baseline" for c in pair)
+    assert {c["provider"] for c in pair} == {"openai", "anthropic"}
+
+
+def test_build_baseline_candidates_legacy_mode():
+    # legacy (opt-in): first-two / one-baseline-plus-gold, provider-agnostic.
     pair = B.build_baseline_candidates(
-        [{"response_text": "a", "model": "m1"}, {"response_text": "b", "model": "m2"}])
+        [{"response_text": "a", "model": "m1"}, {"response_text": "b", "model": "m2"}],
+        mode="legacy")
     assert {c["id"] for c in pair} == {"A", "B"}
     assert all(c["source"] == "baseline" for c in pair)

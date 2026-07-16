@@ -540,20 +540,54 @@ def value_reasoning_trace_marginal() -> float:
 
 
 def baseline_models() -> list:
-    """The frontier models to answer a case COLD for failure capture (FEAT-1).
+    """The frontier models that answer a case COLD (FEAT-1 / two-frontier A/B).
     Comma-separated ``ASCLEPIUS_BASELINE_MODELS`` (frontier model ids). These route
-    through the shared ``ai.llm_client``; a model id the backend can't reach is
-    recorded as an errored run, never a crash.
+    through the shared multi-provider ``ai.llm_client`` — the router picks OpenAI vs
+    Anthropic by the id prefix — so a model id the backend can't reach is recorded as
+    an errored run, never a crash.
 
-    The DEFAULT is resolved from the ``asclepius_baseline`` role in
-    ``ai/model_config.py`` — the single source of truth for model ids — so no
-    model literal ever lives in this file (repo invariant: model ids only in
-    model_config)."""
+    The DEFAULT is **two ids, one per provider** (the OpenAI best + the Anthropic
+    best) so the A/B pair is one OpenAI + one Anthropic out of the box. Both literals
+    live only in ``ai/model_config.py`` (repo invariant: model ids only in
+    model_config). Tej swaps them live via env with zero code change."""
     raw = os.getenv("ASCLEPIUS_BASELINE_MODELS")
     if raw:
         return [m.strip() for m in raw.split(",") if m.strip()]
-    from ai.model_config import resolve
-    return [resolve("asclepius_baseline")["model"]]
+    from ai.model_config import resolve, OPENAI_MODEL
+    return [OPENAI_MODEL, resolve("asclepius_baseline")["model"]]
+
+
+def ab_source() -> str:
+    """A/B answer source for V3/V4 (``ASCLEPIUS_AB_SOURCE``). ``two_frontier``
+    (default): one OpenAI + one Anthropic answer to the identical prompt. ``legacy``:
+    the old one-frontier-plus-gold / first-two path (admin opt-in only)."""
+    return (os.getenv("ASCLEPIUS_AB_SOURCE", "two_frontier") or "two_frontier").strip().lower()
+
+
+def baseline_pairing_ok() -> tuple:
+    """Validate that the configured baseline models resolve to TWO DIFFERENT providers
+    (the pairing IS the product). Returns ``(ok: bool, message: str)`` for a loud
+    startup log — never raises."""
+    from ai.model_config import resolve_provider, UnknownProvider
+    models = baseline_models()
+    provs = []
+    for m in models:
+        try:
+            provs.append(resolve_provider(m))
+        except UnknownProvider:
+            return (False, f"baseline model {m!r} has an unknown provider")
+    if len(models) != 2:
+        return (False, f"ASCLEPIUS_BASELINE_MODELS must be exactly 2 ids (got {len(models)}): {models}")
+    if provs[0] == provs[1]:
+        return (False, f"both baseline models are {provs[0]} — need one OpenAI + one Anthropic: {models}")
+    return (True, f"two-frontier A/B: {models[0]} ({provs[0]}) vs {models[1]} ({provs[1]})")
+
+
+def value_rubric_marginal() -> float:
+    """A confirmed rubric (FEAT-2) is a reusable SCORING FUNCTION (a grader), not a
+    single label — priced above a label. Marginal add-on over the judgment it was
+    seeded from."""
+    return _env_float("ASCLEPIUS_VALUE_RUBRIC_MARGINAL", 25.0)
 
 
 def value_rubric_marginal() -> float:

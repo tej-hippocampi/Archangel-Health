@@ -92,6 +92,7 @@ from asclepius.constants import (
     hard_only_generation,
     v3_multimodal_only,
     relax_multimodal_gates,
+    ab_source,
     non_circumvention_notice as _non_circumvention_notice,
 )
 from asclepius.schemas import (
@@ -1515,23 +1516,32 @@ async def grade_real_models(
         ok_runs = [r for r in runs if (r.get("response_text") or "").strip()]
     candidates = asc_baselines.build_baseline_candidates(ok_runs)
     if len(candidates) < 2:
+        # two_frontier requires exactly one OpenAI + one Anthropic answer. Mark the
+        # task needs_baseline (surfaced in admin) — NEVER a silent gold stand-in.
+        store.set_task_candidates(
+            task_id, task.get("candidate_answers") or [],
+            generation_patch={"needs_baseline": True, "ab_source": ab_source()},
+        )
+        provs = sorted({r.get("provider") for r in ok_runs if r.get("provider")})
         raise HTTPException(
             status_code=503,
-            detail="Need at least two successful baseline answers to grade real models "
-                   "(check ANTHROPIC_API_KEY and ASCLEPIUS_BASELINE_MODELS).",
+            detail=(f"two-frontier A/B needs one OpenAI + one Anthropic answer; got provider(s) "
+                    f"{provs or 'none'}. Task marked needs_baseline. Check OPENAI_API_KEY / "
+                    "ANTHROPIC_API_KEY and ASCLEPIUS_BASELINE_MODELS (must be one id per provider)."),
         )
     updated = store.set_task_candidates(
         task_id, candidates,
-        generation_patch={"mode": "grade_real_models",
+        generation_patch={"mode": "grade_real_models", "ab_source": ab_source(),
+                          "needs_baseline": False,
                           "baseline_models": [c.get("baseline_model") for c in candidates],
-                          # Clear any stale intended_flawed_id from the ORIGINAL
-                          # generated pair — the A/B ids were just reassigned, so the
-                          # old flawed id no longer maps to a candidate and would
-                          # pollute the flaw-catch-rate stat.
+                          "baseline_providers": [c.get("provider") for c in candidates],
+                          # Two-frontier pairs have NO intended_flawed_id — nothing is
+                          # pre-labeled flawed; the specialist decides which is wrong.
                           "intended_flawed_id": None},
     )
     store.log_event(entity_type="task", entity_id=task_id, event_type="grade_real_models",
-                    actor=admin["id"], payload={"models": [c.get("baseline_model") for c in candidates]})
+                    actor=admin["id"], payload={"models": [c.get("baseline_model") for c in candidates],
+                                                "providers": [c.get("provider") for c in candidates]})
     return {"task_id": task_id, "modality": updated.get("modality"),
             "candidate_count": len(candidates)}
 
@@ -1546,9 +1556,19 @@ async def model_failures(
     expert correction", filterable by model + error tag. This is what you put in
     front of a lab."""
     store = _store()
+    summary = store.model_failure_summary()
+    # Provider-keyed headline rollup ("OpenAI <id> failed N; Anthropic <id> failed K")
+    # — the lab-facing artifact framing.
+    by_provider: Dict[str, Any] = {}
+    for s in summary:
+        prov = s.get("provider") or "unknown"
+        bucket = by_provider.setdefault(prov, {"failures": 0, "models": {}})
+        bucket["failures"] += int(s.get("failures") or 0)
+        bucket["models"][s.get("model")] = int(s.get("failures") or 0)
     return {
         "failures": store.list_model_failures(model=model, error_tag=error_tag),
-        "summary": store.model_failure_summary(),
+        "summary": summary,
+        "by_provider": by_provider,
     }
 
 
@@ -2622,6 +2642,8 @@ async def stats(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
         "override_rate": store.override_rate_stats(portal_version="v2"),
         # Position-bias QC (Seamless PRD WS6): observed A-is-stronger rate (~0.5).
         "ab_balance": store.ab_balance_stats(),
+        # Two-frontier slot balance (A3): OpenAI-in-slot-A rate over built pairs (~0.5).
+        "ab_slot_balance": store.ab_slot_balance(),
         "qa_pass_rate": store.qa_pass_rate(),
         "average_agreement": store.average_agreement(),
         "kappa": asc_agreement.aggregate_kappa(store.list_agreement_observations()),

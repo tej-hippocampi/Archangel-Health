@@ -455,6 +455,8 @@ class AsclepiusStore:
                     run_id        TEXT PRIMARY KEY,
                     task_id       TEXT NOT NULL,
                     model         TEXT NOT NULL,
+                    provider      TEXT,
+                    prompt_hash   TEXT,
                     response_text TEXT,
                     error         TEXT,
                     latency_ms    INTEGER,
@@ -466,6 +468,11 @@ class AsclepiusStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_baseline_runs_task ON baseline_runs(task_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_baseline_runs_model ON baseline_runs(model)")
+            _br_cols = cols("baseline_runs")
+            if "provider" not in _br_cols:
+                conn.execute("ALTER TABLE baseline_runs ADD COLUMN provider TEXT")
+            if "prompt_hash" not in _br_cols:
+                conn.execute("ALTER TABLE baseline_runs ADD COLUMN prompt_hash TEXT")
             # ``model_failures``: the per-model failure record computed AFTER a
             # specialist grades a real-model A/B pair — which model was rejected,
             # which error tags applied, which steps were wrong, + the correction.
@@ -476,6 +483,7 @@ class AsclepiusStore:
                     task_id         TEXT NOT NULL,
                     submission_id   TEXT NOT NULL,
                     model           TEXT NOT NULL,
+                    provider        TEXT,
                     verdict         TEXT,
                     error_tags_json TEXT NOT NULL DEFAULT '[]',
                     corrected_steps_json TEXT NOT NULL DEFAULT '[]',
@@ -487,6 +495,8 @@ class AsclepiusStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_model_failures_model ON model_failures(model)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_model_failures_task ON model_failures(task_id)")
+            if "provider" not in cols("model_failures"):
+                conn.execute("ALTER TABLE model_failures ADD COLUMN provider TEXT")
 
             task_cols = cols("tasks")
             if "grounding_mode" not in task_cols:
@@ -2657,16 +2667,17 @@ class AsclepiusStore:
         self, *, task_id: str, model: str, response_text: Optional[str],
         error: Optional[str] = None, latency_ms: Optional[int] = None,
         tokens_in: Optional[int] = None, tokens_out: Optional[int] = None,
+        provider: Optional[str] = None, prompt_hash: Optional[str] = None,
     ) -> Dict[str, Any]:
         rid = _new_id("bl")
         with self._conn() as conn:
             conn.execute(
                 """INSERT INTO baseline_runs
-                   (run_id, task_id, model, response_text, error, latency_ms,
-                    tokens_in, tokens_out, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (rid, task_id, model, response_text, error, latency_ms,
-                 tokens_in, tokens_out, _utcnow_iso()),
+                   (run_id, task_id, model, provider, prompt_hash, response_text, error,
+                    latency_ms, tokens_in, tokens_out, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (rid, task_id, model, provider, prompt_hash, response_text, error,
+                 latency_ms, tokens_in, tokens_out, _utcnow_iso()),
             )
         return self.get_baseline_run(rid)  # type: ignore[return-value]
 
@@ -2694,16 +2705,16 @@ class AsclepiusStore:
     def insert_model_failure(
         self, *, task_id: str, submission_id: str, model: str, verdict: Optional[str],
         error_tags: List[str], corrected_steps: List[Dict[str, Any]],
-        expert_correction: Optional[str], prompt: Optional[str],
+        expert_correction: Optional[str], prompt: Optional[str], provider: Optional[str] = None,
     ) -> str:
         fid = _new_id("mf")
         with self._conn() as conn:
             conn.execute(
                 """INSERT INTO model_failures
-                   (failure_id, task_id, submission_id, model, verdict, error_tags_json,
+                   (failure_id, task_id, submission_id, model, provider, verdict, error_tags_json,
                     corrected_steps_json, expert_correction, prompt, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (fid, task_id, submission_id, model, verdict, json.dumps(error_tags or []),
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (fid, task_id, submission_id, model, provider, verdict, json.dumps(error_tags or []),
                  json.dumps(corrected_steps or []), expert_correction, prompt, _utcnow_iso()),
             )
         return fid
@@ -2734,10 +2745,11 @@ class AsclepiusStore:
 
     def model_failure_summary(self) -> List[Dict[str, Any]]:
         """Per-model failure counts + the error-tag mix — the datasheet/admin
-        headline ("GPT-5.5 failed N cases; top tags …")."""
+        headline ("GPT-5.5 failed N cases; top tags …"). Includes ``provider``."""
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT model, COUNT(*) AS n FROM model_failures GROUP BY model ORDER BY n DESC"
+                "SELECT model, MAX(provider) AS provider, COUNT(*) AS n "
+                "FROM model_failures GROUP BY model ORDER BY n DESC"
             ).fetchall()
         out = []
         for r in rows:
@@ -2745,8 +2757,37 @@ class AsclepiusStore:
             for f in self.list_model_failures(model=r["model"]):
                 for t in f.get("error_tags") or []:
                     tags[t] = tags.get(t, 0) + 1
-            out.append({"model": r["model"], "failures": int(r["n"]), "error_tags": tags})
+            out.append({"model": r["model"], "provider": r["provider"],
+                        "failures": int(r["n"]), "error_tags": tags})
         return out
+
+    def ab_slot_balance(self) -> Dict[str, Any]:
+        """Durable QC metric (A3): over all two-frontier A/B pairs actually built (a
+        candidate with source='baseline' + a provider), how often is OpenAI in slot A?
+        Must converge to ~0.5. Computed from stored candidates so it survives restart."""
+        n_pairs = 0
+        openai_in_A = 0
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT candidate_answers_json FROM tasks WHERE candidate_answers_json LIKE '%\"baseline\"%'"
+            ).fetchall()
+        for row in rows:
+            try:
+                cands = json.loads(row["candidate_answers_json"] or "[]")
+            except (ValueError, TypeError):
+                continue
+            by_id = {c.get("id"): c for c in cands if isinstance(c, dict)}
+            a, b = by_id.get("A"), by_id.get("B")
+            if not a or not b:
+                continue
+            provs = {a.get("provider"), b.get("provider")}
+            if provs != {"openai", "anthropic"}:
+                continue
+            n_pairs += 1
+            if a.get("provider") == "openai":
+                openai_in_A += 1
+        rate = round(openai_in_A / n_pairs, 3) if n_pairs else None
+        return {"pairs": n_pairs, "openai_in_A": openai_in_A, "openai_as_A_rate": rate}
 
     def flaw_catch_rate(self) -> Dict[str, Any]:
         """How often evaluators reject the intended-flawed candidate on generated

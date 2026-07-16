@@ -6,6 +6,10 @@ uvicorn[standard]==0.49.0
 
 # AI
 anthropic==0.109.0
+# OpenAI — the OpenAI side of the two-frontier A/B pair (Responses API). Only
+# imported when a caller routes an OpenAI model id (baselines); everything else
+# stays on Anthropic. Pinned to a version that ships client.responses.
+openai==1.99.9
 
 # HTTP client (ElevenLabs, Tavus)
 httpx==0.28.1

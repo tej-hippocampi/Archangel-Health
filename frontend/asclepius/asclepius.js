@@ -3479,6 +3479,16 @@
         return;
       }
       const pad = h('div', { class: 'asc-card-pad' });
+      // Provider rollup headline ("OpenAI failed N; Anthropic failed K") — the
+      // two-frontier lab-facing framing.
+      const byProv = data.by_provider || {};
+      const provKeys = Object.keys(byProv);
+      if (provKeys.length) {
+        pad.appendChild(h('div', { style: 'display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px' },
+          ...provKeys.map((p) => h('span', { class: 'asc-chip', style: 'font-weight:700' },
+            (p === 'openai' ? 'OpenAI' : p === 'anthropic' ? 'Anthropic' : p) +
+            ' failed ' + (byProv[p].failures || 0)))));
+      }
       // Summary chips (click to filter).
       const chipRow = h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px' });
       chipRow.appendChild(h('button', { class: 'asc-chip' + (model ? '' : ' active'), type: 'button',
@@ -4414,7 +4424,16 @@
         stat(v1n, '📝 V1 · Classic', pct(v1n) + ' of labeled data'),
         stat(abRate == null ? '—' : Math.round(abRate * 100) + '%',
           (abOk ? '' : '⚠️ ') + 'A-is-stronger rate',
-          'target ~50% · n=' + (abb.n || 0) + ' (position-bias QC)')),
+          'target ~50% · n=' + (abb.n || 0) + ' (position-bias QC)'),
+        (function () {
+          // Two-frontier slot balance (A3): OpenAI-in-slot-A rate over built pairs.
+          const sb = s.ab_slot_balance || {};
+          const r = sb.openai_as_A_rate;
+          const ok = r == null || (r >= 0.4 && r <= 0.6);
+          return stat(r == null ? '—' : Math.round(r * 100) + '%',
+            (ok ? '' : '⚠️ ') + 'OpenAI-as-A rate',
+            'target ~50% · n=' + (sb.pairs || 0) + ' (two-frontier QC)');
+        })()),
       h('p', { class: 'asc-help', style: 'margin-top:10px' },
         'All three flows capture the same judgment and produce the same record types; every record is stamped with its source version. '
         + 'The A/B slot is randomized 50/50 so preference data carries no position bias.')));
