@@ -53,19 +53,18 @@ def _run_coro(coro: Any) -> Any:
 
 
 def _recipient_for(store: Any, upload: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
-    """(email, display_name) for the sender of this upload, or (None, name)."""
+    """(email, display_name) for the sender of this upload, or (None, name).
+
+    Scoped to the secure-LINK door for now: the recipient is the link's
+    ``contact_email``. Account-door uploads (link_id == 'account') intentionally
+    resolve to NO recipient — wiring notifications for that door is a deliberate
+    follow-up, so a rejected account upload never emails the provider."""
     link_id = upload.get("link_id")
-    if link_id and link_id != "account":
-        link = store.get_upload_link(link_id) or {}
-        name = (link.get("partner_label") or "").strip() or None
-        email = (link.get("contact_email") or "").strip() or None
-        if email:
-            return email, name
-        return None, name
-    # Account door: the data provider has an email on file.
-    prov = store.get_data_provider(upload.get("partner_id") or "") or {}
-    name = (prov.get("org_name") or "").strip() or None
-    email = (prov.get("email") or "").strip() or None
+    if not link_id or link_id == "account":
+        return None, None
+    link = store.get_upload_link(link_id) or {}
+    name = (link.get("partner_label") or "").strip() or None
+    email = (link.get("contact_email") or "").strip() or None
     return (email or None), name
 
 
