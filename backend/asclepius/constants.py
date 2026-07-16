@@ -245,6 +245,13 @@ RECORD_TYPES = ("preference", "ideal_answer", "reasoning_trace", "rubric")
 # benchmark all consume these).
 RUBRIC_AXES = ("accuracy", "completeness", "safety", "reasoning", "grounding", "communication")
 
+# FIX-7 (axis-coverage nudge): the three axes a defensible clinical grader should
+# almost always touch — did it get the medicine right (accuracy), is it safe
+# (safety), and does it reward sound clinical thinking (reasoning). This is an
+# ADVISORY nudge surfaced in the rubric card, NEVER a hard gate: a rubric that
+# skips one still ships (and can still be premium), it just gets a suggestion.
+RUBRIC_CORE_AXES = ("safety", "accuracy", "reasoning")
+
 # ─── Refined tiered rubric (Two-Model PRD Workstream B, V3/V4 only) ────────────
 # Every criterion carries a criticality TIER, derived from the absolute magnitude
 # of its signed weight: critical |8-10|, important |4-7|, helpful |1-3|. A
@@ -759,10 +766,35 @@ def two_frontier_v4_enabled() -> bool:
 
 
 def value_rubric_marginal() -> float:
-    """A confirmed rubric (FEAT-2) is a reusable SCORING FUNCTION (a grader), not a
-    single label — priced above a label. Marginal add-on over the judgment it was
-    seeded from. (De-duplicated — this was defined twice; PRD §E-1 / FIX-6.)"""
-    return _env_float("ASCLEPIUS_VALUE_RUBRIC_MARGINAL", 25.0)
+    """Base marginal for a confirmed rubric — a reusable SCORING FUNCTION (a grader),
+    not a single label. Raised to $60 (Rubric Rigor FIX-5.1): once it's a validated,
+    grounded, reusable grader it is not a $25 add-on. Quality multipliers below scale
+    this per rubric. (De-duplicated — was defined twice; §E-1 / FIX-6.)"""
+    return _env_float("ASCLEPIUS_VALUE_RUBRIC_MARGINAL", 60.0)
+
+
+# ─── Rubric quality multipliers (Rubric Rigor FIX-5.1) ────────────────────────
+# A rubric that is GROUNDED (FIX-3), VALIDATED (FIX-2: it provably separates the
+# physician's chosen vs rejected answer + the rejected critical-fails), and PREMIUM
+# (FIX-4: rich, ≥1 critical negative, ≥3 axes, all key criteria specific) is worth
+# markedly more. Multiplicative, hard-capped so nothing stacks into a fantasy number.
+# Fully loaded: 60 × 1.4 × 1.5 × 1.3 ≈ $164 marginal.
+def value_rubric_grounded_mult() -> float:
+    return _env_float("ASCLEPIUS_VALUE_RUBRIC_GROUNDED_MULT", 1.4)
+
+
+def value_rubric_validated_mult() -> float:
+    return _env_float("ASCLEPIUS_VALUE_RUBRIC_VALIDATED_MULT", 1.5)
+
+
+def value_rubric_premium_mult() -> float:
+    return _env_float("ASCLEPIUS_VALUE_RUBRIC_PREMIUM_MULT", 1.3)
+
+
+def value_rubric_marginal_cap() -> float:
+    """Absolute ceiling on the quality-scaled rubric marginal — nothing stacks past
+    this (default $200)."""
+    return _env_float("ASCLEPIUS_VALUE_RUBRIC_MARGINAL_CAP", 200.0)
 
 
 def value_step_pair_each() -> float:

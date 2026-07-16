@@ -768,6 +768,10 @@
   // FIX-4 completeness/premium — mirrors backend rubric.rubric_completeness exactly.
   const _PREMIUM_MIN_CRITERIA = 5;
   const _PREMIUM_MIN_AXES = 3;
+  // FIX-7 (axis-coverage nudge): the three axes a defensible grader almost always
+  // touches. Mirrors backend constants.RUBRIC_CORE_AXES exactly. ADVISORY only —
+  // never affects premium/missing.
+  const _RUBRIC_CORE_AXES = ['safety', 'accuracy', 'reasoning'];
   function rubricCompleteness(criteria) {
     const crit = (criteria || []).filter((c) => (c.text || '').trim());
     const n = crit.length;
@@ -784,8 +788,17 @@
     if (!hasCritNeg) missing.push('name ≥1 CRITICAL negative (−8 to −10)');
     if (axes.size < _PREMIUM_MIN_AXES) missing.push('cover ≥' + _PREMIUM_MIN_AXES + ' axes (have ' + axes.size + ')');
     if (!allKeySpecific) missing.push('make every critical/important criterion specific (name the fact/drug/dose/threshold)');
+    // FIX-7: advisory core-axis coverage — kept OUT of `missing` so it never gates premium.
+    const coreAxesMissing = _RUBRIC_CORE_AXES.filter((a) => !axes.has(a));
+    const nudges = [];
+    if (coreAxesMissing.length) {
+      nudges.push('consider covering ' + coreAxesMissing.join(', ')
+        + ' (a grader is stronger when it scores safety, accuracy, and reasoning)');
+    }
     return { premium: missing.length === 0, tier: missing.length === 0 ? 'premium' : 'standard',
-      n_criteria: n, n_axes: axes.size, missing };
+      n_criteria: n, n_axes: axes.size, missing,
+      core_axes: _RUBRIC_CORE_AXES.slice(), core_axes_missing: coreAxesMissing,
+      covers_core_axes: coreAxesMissing.length === 0, nudges };
   }
 
   // Is this task a REAL-MODEL (baseline) A/B pair? (needed for the §D failure-tag gate)
@@ -1738,6 +1751,32 @@
         ? h('span', { class: 'asc-label-hint' }, rc.n_criteria + ' criteria · ' + rc.n_axes + ' axes — meets the premium bar')
         : h('span', { class: 'asc-label-hint' }, 'to reach premium: ' + rc.missing.join('; '));
       meter.appendChild(h('div', { class: 'asc-rubric-meter-row' }, pill, detail));
+
+      // FIX-7 axis-coverage histogram + nudge. Advisory only — a missing core axis
+      // (safety/accuracy/reasoning) is flagged but never blocks submit or premium.
+      const counts = {};
+      d.rubric.filter((c) => (c.text || '').trim()).forEach((c) => {
+        const ax = c.axis || 'accuracy';
+        counts[ax] = (counts[ax] || 0) + 1;
+      });
+      const histRow = h('div', { class: 'asc-rubric-axis-hist' });
+      (state.taxonomy.rubric_axes || ['accuracy', 'completeness', 'safety', 'reasoning', 'grounding', 'communication'])
+        .forEach((ax) => {
+          const n = counts[ax] || 0;
+          const isCore = rc.core_axes.indexOf(ax) !== -1;
+          const missing = rc.core_axes_missing.indexOf(ax) !== -1;
+          const chip = h('span', {
+            class: 'asc-axis-chip' + (n ? ' has' : ' empty') + (isCore ? ' core' : '') + (missing ? ' core-missing' : ''),
+            title: isCore
+              ? (missing ? 'Core axis not yet covered — a defensible grader usually scores this.' : 'Core axis covered.')
+              : (n ? n + ' criteria on ' + ax : ax + ' not covered'),
+          }, ax + (n ? ' ·' + n : ''));
+          histRow.appendChild(chip);
+        });
+      meter.appendChild(histRow);
+      if (rc.nudges && rc.nudges.length) {
+        meter.appendChild(h('div', { class: 'asc-rubric-nudge' }, '💡 ' + rc.nudges.join('; ')));
+      }
     }
 
     d.rubric.forEach((c, i) => {

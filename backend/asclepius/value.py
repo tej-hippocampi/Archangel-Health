@@ -32,20 +32,46 @@ def _difficulty_mult(difficulty: Optional[str]) -> float:
 
 
 def _content_value(
-    *, has_ideal: bool, has_reasoning: bool, num_step_pairs: int, has_rubric: bool = False
+    *, has_ideal: bool, has_reasoning: bool, num_step_pairs: int, rubric_value: float = 0.0
 ) -> float:
     """§A1: PREFERENCE_BASE is unconditional (every completed judgment is at least
     a preference-grade signal); ideal + reasoning are marginal add-ons; capped
     step-pairs each add a step-level preference pair; a confirmed rubric (FEAT-2)
-    is a reusable scoring function priced above a label."""
+    is a reusable scoring function priced above a label — its marginal is the
+    quality-scaled ``rubric_value`` (FIX-5.1), 0 when there is no rubric."""
     pairs = max(0, min(int(num_step_pairs or 0), C.value_step_pair_max()))
     return (
         C.value_preference_base()
         + (C.value_ideal_answer_marginal() if has_ideal else 0.0)
         + (C.value_reasoning_trace_marginal() if has_reasoning else 0.0)
-        + (C.value_rubric_marginal() if has_rubric else 0.0)
+        + max(0.0, float(rubric_value or 0.0))
         + pairs * C.value_step_pair_each()
     )
+
+
+def _rubric_validated(rubric_record: Optional[Dict[str, Any]]) -> bool:
+    """FIX-2: a rubric is VALIDATED when its package-time grader meta-eval PROVED it
+    separates the physician's chosen vs rejected answer — real separation, the rejected
+    answer critical-fails, and it wasn't flagged needs_review. Skipped/absent → False."""
+    gv = (rubric_record or {}).get("grader_validity") or {}
+    return (bool(gv) and not gv.get("skipped") and not gv.get("needs_review")
+            and bool(gv.get("rejected_critical_failed")))
+
+
+def _rubric_marginal(rubric_record: Optional[Dict[str, Any]]) -> float:
+    """Quality-scaled rubric marginal (FIX-5.1): base × grounded × validated × premium,
+    hard-capped. A fully-loaded (grounded + validated + premium) rubric ≈ $164, a bare
+    one $60 — never the old flat $25 for a validated, grounded, reusable grader."""
+    if not rubric_record:
+        return 0.0
+    mult = 1.0
+    if rubric_record.get("grounded"):
+        mult *= C.value_rubric_grounded_mult()
+    if _rubric_validated(rubric_record):
+        mult *= C.value_rubric_validated_mult()
+    if rubric_record.get("premium"):
+        mult *= C.value_rubric_premium_mult()
+    return min(C.value_rubric_marginal_cap(), C.value_rubric_marginal() * mult)
 
 
 def _tier_mult(
@@ -157,12 +183,16 @@ def estimate_value(
 
     has_ideal = any(r.get("type") == "ideal_answer" for r in records)
     has_reasoning = any(r.get("type") == "reasoning_trace" for r in records)
-    has_rubric = any(r.get("type") == "rubric" for r in records)
+    rubric_record = next((r for r in records if r.get("type") == "rubric"), None)
+    has_rubric = rubric_record is not None
     num_pairs = _num_step_pairs(records)
+
+    # Quality-scaled rubric marginal (FIX-5.1): grounded × validated × premium.
+    rubric_value = _rubric_marginal(rubric_record)
 
     content = _content_value(
         has_ideal=has_ideal, has_reasoning=has_reasoning, num_step_pairs=num_pairs,
-        has_rubric=has_rubric,
+        rubric_value=rubric_value,
     )
 
     is_grounded = _records_grounded(records, submission)
@@ -195,6 +225,11 @@ def estimate_value(
             "has_ideal_answer": has_ideal,
             "has_reasoning_trace": has_reasoning,
             "has_rubric": has_rubric,
+            # Rubric repricing transparency (FIX-5.1): the quality-scaled marginal + why.
+            "rubric_value": _round_money(rubric_value),
+            "rubric_grounded": bool(rubric_record and rubric_record.get("grounded")),
+            "rubric_validated": _rubric_validated(rubric_record),
+            "rubric_premium": bool(rubric_record and rubric_record.get("premium")),
             "num_step_pairs": num_pairs,
             "is_grounded": is_grounded,
             "difficulty": task.get("difficulty"),

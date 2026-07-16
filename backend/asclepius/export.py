@@ -48,6 +48,12 @@ QUALITY_NAME = "quality_report.md"
 # records, so a buyer can run rubric-based LLM-as-judge scoring out of the box.
 GRADER_PROMPT_NAME = "grader_prompt.txt"
 SCORE_PY_NAME = "score.py"
+# Eval pack (Rubric Rigor FIX-5.2): the grader files + validity report + the rubric
+# records form a STANDALONE, re-licensable-per-model-version SKU — a reusable scoring
+# function whose discriminative validity is tied to the model version it was proven
+# against, so it re-licenses each time the buyer moves to a new frontier model.
+EVAL_PACK_NAME = "EVAL_PACK.md"
+VALIDITY_REPORT_NAME = "validity_report.json"
 
 _COMPANION_FILES = [JSONL_NAME, MANIFEST_NAME, DICTIONARY_NAME, DATASHEET_NAME, QUALITY_NAME]
 
@@ -398,7 +404,8 @@ def _multimodal_section_md(records: List[Dict[str, Any]], counts: Dict[str, Any]
 
 def _datasheet_md(*, export_id: str, profile_name: str, counts: Dict[str, Any],
                   records: List[Dict[str, Any]], contributors: List[Dict[str, Any]],
-                  scope: Optional[Dict[str, Any]] = None) -> str:
+                  scope: Optional[Dict[str, Any]] = None,
+                  eval_pack: Optional[Dict[str, Any]] = None) -> str:
     credentials = sorted({(r.get("payload") or {}).get("annotator_credential") or "unspecified" for r in records})
     specialties = sorted(counts["by_specialty"].keys())
     type_lines = "\n".join(f"- `{k}`: {v}" for k, v in sorted(counts["by_type"].items()))
@@ -445,6 +452,7 @@ is emitted unless it validates against the target schema.
 
 ## Recommended uses
 Training / evaluating medical LLMs (reward modeling, SFT, process supervision).
+{_eval_pack_datasheet_md(eval_pack)}
 
 ## Limitations
 - Evaluation artifacts, not medical advice; not for direct clinical use.
@@ -750,6 +758,150 @@ if __name__ == "__main__":
 '''
 
 
+def _rubric_is_validated(rec: Dict[str, Any]) -> bool:
+    """A rubric is VALIDATED when its package-time grader meta-eval PROVED it separates
+    the chosen from the rejected answer (real separation, rejected critical-fails, not
+    flagged needs_review). Mirrors value._rubric_validated exactly."""
+    gv = rec.get("grader_validity") or {}
+    return (bool(gv) and not gv.get("skipped") and not gv.get("needs_review")
+            and bool(gv.get("rejected_critical_failed")))
+
+
+def _eval_pack_summary(rubric_records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """FIX-5.2: roll the rubric records up into the eval-pack SKU descriptor — the
+    validity report (how many graders were probed / validated / flagged) plus the
+    recurring price (the sum of the quality-scaled rubric marginals, which is the
+    reusable-grader value the buyer re-licenses per model version). Deterministic; a
+    grader whose probes were skipped (no key at package time) counts as UNVALIDATED."""
+    from asclepius.value import _rubric_marginal  # local: keep pricing in one place
+
+    n = len(rubric_records)
+    probed = [r for r in rubric_records if (r.get("grader_validity") or {}) and not (r.get("grader_validity") or {}).get("skipped")]
+    n_validated = sum(1 for r in rubric_records if _rubric_is_validated(r))
+    n_needs_review = sum(
+        1 for r in rubric_records
+        if r.get("needs_review") or (r.get("grader_validity") or {}).get("needs_review")
+    )
+    n_reliable = sum(
+        1 for r in rubric_records
+        if (r.get("grader_reliability") or {}) and not (r.get("grader_reliability") or {}).get("skipped")
+        and not (r.get("grader_reliability") or {}).get("unreliable")
+    )
+    n_gameable = sum(1 for r in rubric_records if (r.get("hackability") or {}).get("gameable"))
+    recurring_value = round(sum(_rubric_marginal(r) for r in rubric_records), 2)
+    return {
+        "sku": "asclepius_eval_pack",
+        "title": "Asclepius Rubric Eval Pack",
+        "licensing": "re-licensable-per-model-version",
+        "billing": "recurring",
+        # The eval pack's discriminative validity is proven against ONE model version;
+        # moving to a new frontier model requires re-running the validity probe, which
+        # is what makes this a recurring (not one-time) line.
+        "revalidation_trigger": "buyer_model_version_change",
+        "recurring_value_usd": recurring_value,
+        "n_rubrics": n,
+        "n_probed": len(probed),
+        "n_validated": n_validated,
+        "n_needs_review": n_needs_review,
+        "n_reliable": n_reliable,
+        "n_gameable": n_gameable,
+        "n_premium": sum(1 for r in rubric_records if r.get("premium")),
+        "n_grounded": sum(1 for r in rubric_records if r.get("grounded")),
+        "n_critical_negative": sum(1 for r in rubric_records if r.get("has_critical_negative")),
+        "files": [JSONL_NAME, GRADER_PROMPT_NAME, SCORE_PY_NAME, VALIDITY_REPORT_NAME, EVAL_PACK_NAME],
+    }
+
+
+def _validity_report(rubric_records: List[Dict[str, Any]], summary: Dict[str, Any]) -> Dict[str, Any]:
+    """The per-rubric validity/reliability/hackability meta-eval, packaged so a buyer
+    can audit exactly which graders were proven to discriminate (and which need review
+    before they rely on them). Only the verdict fields ship — never the raw answer key."""
+    per_rubric = []
+    for r in rubric_records:
+        gv = r.get("grader_validity") or {}
+        gr = r.get("grader_reliability") or {}
+        hk = r.get("hackability") or {}
+        per_rubric.append({
+            "task_id": r.get("task_id") or r.get("prompt"),
+            "validated": _rubric_is_validated(r),
+            "needs_review": bool(r.get("needs_review") or gv.get("needs_review")),
+            "grounded": bool(r.get("grounded")),
+            "premium": bool(r.get("premium")),
+            "has_critical_negative": bool(r.get("has_critical_negative")),
+            "separation": gv.get("separation"),
+            "rejected_critical_failed": gv.get("rejected_critical_failed"),
+            "validity_skipped": bool(gv.get("skipped")),
+            "reliability_variance": gr.get("variance"),
+            "unreliable": bool(gr.get("unreliable")),
+            "gameable": bool(hk.get("gameable")),
+        })
+    return {"summary": {k: v for k, v in summary.items() if k != "files"}, "per_rubric": per_rubric}
+
+
+def _eval_pack_md(export_id: str, summary: Dict[str, Any]) -> str:
+    """EVAL_PACK.md — the SKU sheet. States, in the buyer's terms, that this is a
+    standalone reusable grader that re-licenses per model version (recurring), and how
+    to run it. This file is what makes the eval pack legible as a separate line item."""
+    files = "\n".join(f"- `{f}`" for f in summary["files"])
+    return f"""# Asclepius Rubric Eval Pack — `{export_id}`
+
+**SKU:** `{summary['sku']}` · **Billing:** {summary['billing']} ·
+**Licensing:** {summary['licensing']}
+
+This pack is a **standalone, reusable scoring function** — physician-authored,
+tiered, weighted rubrics plus a ready-to-run LLM-as-judge harness. It is sold and
+reported **separately from the training data**: the data is a one-time deliverable,
+the eval pack is a **recurring line**.
+
+## Why it re-licenses per model version
+Each rubric's discriminative validity was **proven at package time** against a
+specific frontier model version (the grader separated the physician-chosen answer
+from the rejected one, and the rejected answer critical-failed). That proof is
+**version-specific** — when you move to a new model, the grader must be re-validated
+against it. Re-validation is the recurring event ({summary['revalidation_trigger']}).
+
+## What's inside
+{files}
+
+## Validity report (this batch)
+- Rubrics: **{summary['n_rubrics']}** · probed at package time: **{summary['n_probed']}**
+- **Validated** (proven to discriminate): **{summary['n_validated']}**
+- Needs review before reliance: **{summary['n_needs_review']}**
+- Reliable (low grader variance): **{summary['n_reliable']}**
+- Gameable (verbose-wrong beats terse-right): **{summary['n_gameable']}**
+- Premium graders: **{summary['n_premium']}** · grounded: **{summary['n_grounded']}** ·
+  name a critical negative: **{summary['n_critical_negative']}**
+- Recurring value (this batch): **${summary['recurring_value_usd']:.2f}**
+
+See `{VALIDITY_REPORT_NAME}` for the per-rubric breakdown.
+
+## Running the grader
+```
+export ANTHROPIC_API_KEY=...        # or OPENAI_API_KEY with --provider openai
+export GRADER_MODEL=<your judge model id>
+python {SCORE_PY_NAME} --answer "the candidate answer text"
+```
+With no key, `{SCORE_PY_NAME}` prints the rubrics it WOULD score, so the scoring
+function is inspectable offline.
+"""
+
+
+def _eval_pack_datasheet_md(summary: Optional[Dict[str, Any]]) -> str:
+    """Datasheet section reporting the eval pack as a SEPARATE recurring SKU (FIX-5.2).
+    Empty when the batch carries no rubric records."""
+    if not summary:
+        return ""
+    return f"""
+## Eval pack (separate recurring SKU)
+This batch includes a **rubric eval pack** (`{summary['sku']}`), reported and priced
+**separately from the data**. It is a reusable scoring function (`{summary['n_rubrics']}`
+rubrics; `{summary['n_validated']}` validated, `{summary['n_premium']}` premium,
+`{summary['n_grounded']}` grounded) sold as a **{summary['billing']}** line and
+**{summary['licensing']}** — its validity is proven per model version, so it
+re-licenses whenever the buyer moves to a new frontier model. Recurring value this
+batch: **${summary['recurring_value_usd']:.2f}**. See `{EVAL_PACK_NAME}`."""
+
+
 def build_export(
     store: Any,
     *,
@@ -938,12 +1090,18 @@ def build_export(
     }
     counts = _counts(emitted)
 
+    # Eval-pack SKU descriptor (FIX-5.2): computed here so the datasheet can report it
+    # as a separate recurring line. Empty when the batch carries no rubric records.
+    _rubric_records = [r for r in emitted if r.get("type") == "rubric"]
+    eval_pack_summary = _eval_pack_summary(_rubric_records) if _rubric_records else None
+
     # 4. companions
     (out_dir / DICTIONARY_NAME).write_text(_data_dictionary_md(profile_name), encoding="utf-8")
     (out_dir / DATASHEET_NAME).write_text(
         _datasheet_md(
             export_id=export_id, profile_name=profile_name, counts=counts,
             records=emitted, contributors=contributors, scope=scope,
+            eval_pack=eval_pack_summary,
         ),
         encoding="utf-8",
     )
@@ -956,10 +1114,19 @@ def build_export(
     # ready-to-run rubric-based LLM-as-judge scorer (grader_prompt.txt + score.py)
     # — the "eval alongside dataset" a buyer can run out of the box.
     companion_files = list(_COMPANION_FILES)
-    if any(r.get("type") == "rubric" for r in emitted):
+    if _rubric_records:
         (out_dir / GRADER_PROMPT_NAME).write_text(_GRADER_PROMPT, encoding="utf-8")
         (out_dir / SCORE_PY_NAME).write_text(_SCORE_PY, encoding="utf-8")
         companion_files += [GRADER_PROMPT_NAME, SCORE_PY_NAME]
+        # Eval pack (FIX-5.2): the validity report + SKU sheet turn the grader files
+        # into a standalone, re-licensable-per-model-version recurring SKU, reported
+        # separately in the manifest (`eval_pack`) and datasheet.
+        (out_dir / VALIDITY_REPORT_NAME).write_text(
+            json.dumps(_validity_report(_rubric_records, eval_pack_summary), indent=2, ensure_ascii=False),
+            encoding="utf-8")
+        (out_dir / EVAL_PACK_NAME).write_text(
+            _eval_pack_md(export_id, eval_pack_summary), encoding="utf-8")
+        companion_files += [VALIDITY_REPORT_NAME, EVAL_PACK_NAME]
 
     # Model-Failure Taxonomy export (PRD §D): the targeted-eval artifact — a scored,
     # provider-attributed, physician-verified answer to "here is precisely how frontier
@@ -1043,7 +1210,11 @@ def build_export(
         "tier_b_leak_gate": "passed",
         "files": companion_files,
         "content_hashes": content_hashes,
-        "rubric_count": sum(1 for r in emitted if r.get("type") == "rubric"),
+        "rubric_count": len(_rubric_records),
+        # Eval pack (FIX-5.2): the reusable-grader SKU, reported SEPARATELY from the
+        # one-time data sale — recurring, re-licensable per model version. Absent when
+        # the batch carries no rubric records.
+        "eval_pack": eval_pack_summary,
         # Model-Failure Taxonomy provenance (PRD §D-4): the trust certificate for the
         # targeted eval (physician count, κ label agreement, small-N floor). Absent when
         # the batch produced no failure observations.

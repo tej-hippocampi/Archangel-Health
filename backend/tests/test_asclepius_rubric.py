@@ -128,6 +128,50 @@ def test_rubric_adds_marginal_value():
     assert with_rubric["content_value"] > without["content_value"]
 
 
+def test_rubric_repricing():
+    """FIX-5.1: a rubric is a reusable scoring function, priced by quality — a bare one
+    at the $60 base, a fully-loaded (grounded + validated + premium) one ~$164, NEVER
+    the old flat $25. The multipliers stack and the breakdown explains why."""
+    import asclepius.constants as C
+    from asclepius.value import _rubric_marginal
+
+    # A bare confirmed rubric already prices above the old flat $25 (the $60 base).
+    bare = _rubric_marginal({"type": "rubric"})
+    assert bare == pytest.approx(C.value_rubric_marginal())
+    assert bare == pytest.approx(60.0) and bare > 25.0
+
+    # Grounded × validated × premium stack multiplicatively: 60 × 1.4 × 1.5 × 1.3.
+    loaded = _rubric_marginal({
+        "type": "rubric", "grounded": True, "premium": True,
+        "grader_validity": {"rejected_critical_failed": True},
+    })
+    assert loaded == pytest.approx(60.0 * 1.4 * 1.5 * 1.3)  # 163.8
+    assert loaded >= 150.0
+
+    # A grader that was probed but NOT proven to separate is not "validated" — no bump.
+    unproven = _rubric_marginal({
+        "type": "rubric", "grounded": True, "premium": True,
+        "grader_validity": {"skipped": True},
+    })
+    assert unproven == pytest.approx(60.0 * 1.4 * 1.3) and unproven < loaded
+
+    # The cap holds even if every multiplier were maxed.
+    assert loaded <= C.value_rubric_marginal_cap()
+
+    # ...and it flows through estimate_value into the transparent breakdown.
+    task, submission = _submission_with_rubric()
+    recs = package_submission(task, submission)
+    for r in recs:
+        if r["type"] == "rubric":
+            r["grounded"] = True
+            r["premium"] = True
+            r["grader_validity"] = {"rejected_critical_failed": True}
+    est = estimate_value(recs, task, submission)
+    bd = est["breakdown"]
+    assert bd["rubric_value"] == pytest.approx(163.8, abs=0.01)
+    assert bd["rubric_grounded"] and bd["rubric_validated"] and bd["rubric_premium"]
+
+
 # ─── Endpoint + full flow + export ────────────────────────────────────────────
 def _admin_h():
     return A.headers_for(A.make_user(_store(), role="admin", email=f"a-{uuid.uuid4().hex[:6]}@x.example"))
@@ -187,6 +231,64 @@ def test_rubric_suggest_endpoint_and_export_ships_grader():
     # The rubric record is in the JSONL.
     lines = [json.loads(l) for l in zf.read("records.jsonl").decode().splitlines() if l.strip()]
     assert any(r.get("type") == "rubric" and r.get("max_points") == 8.0 for r in lines)
+
+
+def test_eval_pack_sku():
+    """FIX-5.2: the rubric records + grader files + validity report ship as a STANDALONE
+    eval pack — a re-licensable-per-model-version recurring SKU, reported SEPARATELY from
+    the one-time data sale in both the manifest and the datasheet."""
+    admin_h, ev_h = _admin_h(), _ev_h()
+    body = {"specialty": "nephrology", "difficulty": "hard", "max_labels": 1,
+            "prompt": f"Hyperkalemia {A.uniq(6)}?",
+            "candidate_answers": [{"id": "A", "text": "IV calcium then dialyze"},
+                                  {"id": "B", "text": "Set dialysate K+ 1.0"}]}
+    tid = client.post("/api/asclepius/tasks", json={"tasks": [body]}, headers=admin_h).json()["created"][0]
+    client.get("/api/asclepius/tasks/next", headers=ev_h)
+    sid = "s-" + uuid.uuid4().hex[:12]
+    sub = client.post("/api/asclepius/submissions", json={
+        "submission_id": sid, "task_id": tid, "verdict": "A_better", "chosen_id": "A",
+        "rejected_id": "B", "confidence": "high", "time_spent_sec": 150,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "Stabilize with IV calcium, then insulin/dextrose, then dialyze."},
+        "chosen_revision": {"edited": False, "why_better_notes": "B over-lowers K+"},
+        "rejected_critique": {"error_tags": ["dosing_error"]},
+        "rubric": [{"text": "A correct answer stabilizes the myocardium with IV calcium first.", "points": 8, "axis": "safety"},
+                   {"text": "A correct answer never uses a 1K dialysate for modest hyperkalemia.", "points": -9, "axis": "safety"}],
+    }, headers=ev_h)
+    assert sub.status_code == 200, sub.text
+
+    manifest = client.post("/api/asclepius/exports", json={"profile": "default"}, headers=admin_h).json()
+
+    # The eval pack is a first-class, SEPARATE line in the manifest.
+    pack = manifest.get("eval_pack")
+    assert pack is not None, "eval pack must be reported separately in the manifest"
+    assert pack["sku"] == "asclepius_eval_pack"
+    assert pack["billing"] == "recurring"
+    assert pack["licensing"] == "re-licensable-per-model-version"
+    assert pack["revalidation_trigger"] == "buyer_model_version_change"
+    assert pack["n_rubrics"] >= 1
+    # Priced as a reusable grader (≥ the $60 base per rubric), NOT the old flat $25.
+    assert pack["recurring_value_usd"] >= 60.0 * pack["n_rubrics"] - 0.01
+    assert pack["recurring_value_usd"] > 25.0
+    for f in ("EVAL_PACK.md", "validity_report.json", "grader_prompt.txt", "score.py"):
+        assert f in pack["files"] and f in manifest["files"]
+
+    # The pack files + a per-rubric validity report actually ship in the bundle.
+    dl = client.get(f"/api/asclepius/exports/{manifest['export_id']}/download", headers=admin_h)
+    zf = zipfile.ZipFile(io.BytesIO(dl.content))
+    names = zf.namelist()
+    assert "EVAL_PACK.md" in names and "validity_report.json" in names
+    report = json.loads(zf.read("validity_report.json").decode())
+    assert "summary" in report and len(report["per_rubric"]) == pack["n_rubrics"]
+    assert all("validated" in pr and "needs_review" in pr for pr in report["per_rubric"])
+
+    pack_md = zf.read("EVAL_PACK.md").decode()
+    assert "re-licensable-per-model-version" in pack_md and "recurring" in pack_md
+
+    # The datasheet reports it as a separate recurring SKU (not folded into the data).
+    datasheet = zf.read("datasheet.md").decode()
+    assert "Eval pack (separate recurring SKU)" in datasheet
+    assert "re-licensable-per-model-version" in datasheet
 
 
 # ─── Tiered rubric (Two-Model PRD Workstream B) ───────────────────────────────
@@ -427,6 +529,30 @@ def test_rubric_completeness_gate():
         {"text": "explain the ECG arrhythmia risk", "points": 3, "axis": "communication", "tier": "helpful", "specific": True}]
     r2 = rubric_completeness(rich)
     assert r2["premium"] is True and r2["missing"] == [] and r2["n_axes"] >= 3
+
+
+def test_rubric_core_axis_nudge():
+    """FIX-7: a rubric missing a core axis (safety/accuracy/reasoning) gets an ADVISORY
+    nudge — never a gate. The nudge stays out of `missing`, so a premium rubric with no
+    reasoning criterion is still premium but is still told to consider adding one."""
+    from asclepius.rubric import rubric_completeness
+    # The 'rich' rubric covers safety+accuracy but NOT reasoning → nudge, still premium.
+    rich_no_reasoning = [
+        {"text": "give IV calcium 1g", "points": 9, "axis": "safety"},
+        {"text": "never use a 1K dialysate", "points": -9, "axis": "safety"},
+        {"text": "insulin 10 units with dextrose", "points": 6, "axis": "accuracy"},
+        {"text": "recheck K+ in 2 hours", "points": 4, "axis": "completeness"},
+        {"text": "explain the ECG arrhythmia risk", "points": 3, "axis": "communication"}]
+    r = rubric_completeness(rich_no_reasoning)
+    assert r["premium"] is True                       # nudge NEVER blocks premium
+    assert r["core_axes_missing"] == ["reasoning"]
+    assert r["covers_core_axes"] is False
+    assert r["nudges"] and "reasoning" in r["nudges"][0]
+    assert not any("reasoning" in m for m in r["missing"])   # advisory, not in the gate
+    # Add a reasoning criterion → no nudge, all core axes covered.
+    covered = rich_no_reasoning + [{"text": "weigh the ECG against the K+ before dosing", "points": 5, "axis": "reasoning"}]
+    r2 = rubric_completeness(covered)
+    assert r2["covers_core_axes"] is True and r2["nudges"] == [] and r2["core_axes_missing"] == []
 
 
 def test_rubric_failure_coverage():

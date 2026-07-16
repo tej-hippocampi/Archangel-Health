@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional
 
-from asclepius.constants import RUBRIC_AXES, RUBRIC_TIERS, tier_for_points
+from asclepius.constants import RUBRIC_AXES, RUBRIC_CORE_AXES, RUBRIC_TIERS, tier_for_points
 
 # Map each error tag to the axis its NEGATIVE criterion scores on.
 _ERROR_TAG_AXIS = {
@@ -326,16 +326,24 @@ def rubric_completeness(criteria: Optional[List[Dict[str, Any]]]) -> Dict[str, A
     ``premium`` requires: ≥5 criteria, ≥1 positive AND ≥1 negative, ≥1 CRITICAL
     negative, ≥3 axes covered, and every critical/important criterion ``specific``
     (FIX-1). Returns the flags + the list of what's missing (for a ≤60s UI fix)."""
-    crit = [c for c in (criteria or []) if isinstance(c, dict)]
+    # Filter blank-text criteria (matches the frontend's `(c.text||'').trim()` filter
+    # exactly, so a transient empty row never changes the score). Backend inputs are
+    # already normalized, so this is defensive parity, not a behavior change.
+    crit = [c for c in (criteria or []) if isinstance(c, dict) and str(c.get("text") or "").strip()]
     n = len(crit)
     n_pos = sum(1 for c in crit if (c.get("points") or 0) > 0)
     n_neg = sum(1 for c in crit if (c.get("points") or 0) < 0)
     axes = {c.get("axis") for c in crit if c.get("axis")}
     has_crit_neg = has_critical_negative(crit)
     # A non-specific critical/important criterion does not count toward premium (FIX-1).
+    # Recompute tier (from |points|) and specificity (from text) rather than trusting the
+    # stored fields, so this matches the frontend mirror byte-for-byte on ANY input shape
+    # (the fields may be absent on a freshly-seeded criterion).
     key_tiers = ("critical", "important")
-    key_criteria = [c for c in crit if (c.get("tier") in key_tiers)]
-    all_key_specific = all(bool(c.get("specific")) for c in key_criteria) if key_criteria else False
+    key_criteria = [c for c in crit if tier_for_points(c.get("points")) in key_tiers]
+    all_key_specific = (
+        all(is_specific_text(c.get("text")) for c in key_criteria) if key_criteria else False
+    )
 
     missing: List[str] = []
     if n < _PREMIUM_MIN_CRITERIA:
@@ -352,6 +360,20 @@ def rubric_completeness(criteria: Optional[List[Dict[str, Any]]]) -> Dict[str, A
         missing.append("make every critical/important criterion specific (name the fact/drug/dose/threshold)")
 
     premium = not missing
+
+    # FIX-7 (axis-coverage nudge): ADVISORY, never a gate. A defensible grader almost
+    # always touches safety, accuracy, and reasoning; if one is missing we surface a
+    # suggestion so the physician can round out coverage — but the rubric still ships
+    # (and can still be premium). ``core_axes_missing`` is kept OUT of ``missing`` so
+    # it never blocks the premium gate.
+    core_axes_missing = [a for a in RUBRIC_CORE_AXES if a not in axes]
+    nudges: List[str] = []
+    if core_axes_missing:
+        nudges.append(
+            "consider covering " + ", ".join(core_axes_missing)
+            + " (a grader is stronger when it scores safety, accuracy, and reasoning)"
+        )
+
     return {
         "premium": premium,
         "tier": "premium" if premium else "standard",
@@ -363,6 +385,11 @@ def rubric_completeness(criteria: Optional[List[Dict[str, Any]]]) -> Dict[str, A
         "has_critical_negative": has_crit_neg,
         "all_key_specific": all_key_specific,
         "missing": missing,
+        # FIX-7: advisory core-axis coverage (does NOT affect premium/missing).
+        "core_axes": list(RUBRIC_CORE_AXES),
+        "core_axes_missing": core_axes_missing,
+        "covers_core_axes": not core_axes_missing,
+        "nudges": nudges,
     }
 
 

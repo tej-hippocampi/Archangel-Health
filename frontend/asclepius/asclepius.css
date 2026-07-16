@@ -1257,6 +1257,17 @@
 }
 .asc-rubric-premium.premium { color: #7c3aed; background: #f5f3ff; border: 1px solid #ddd6fe; }
 .asc-rubric-premium.standard { color: #64748b; background: #f1f5f9; border: 1px solid #e2e8f0; }
+/* FIX-7 axis-coverage histogram + nudge (advisory). */
+.asc-rubric-axis-hist { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.asc-axis-chip {
+  font-size: 10.5px; font-weight: 600; border-radius: 999px; padding: 2px 8px;
+  border: 1px solid #e2e8f0; color: #94a3b8; background: transparent; white-space: nowrap;
+}
+.asc-axis-chip.has { color: #334155; background: #f8fafc; border-color: #cbd5e1; }
+.asc-axis-chip.core { border-style: solid; }
+.asc-axis-chip.core.has { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
+.asc-axis-chip.core-missing { color: #b45309; background: #fffbeb; border-color: #fde68a; border-style: dashed; }
+.asc-rubric-nudge { margin-top: 6px; font-size: 11.5px; color: #b45309; }
 .asc-chip-failure.active { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
 .asc-cite-link { font-weight: 600; color: var(--asc-primary, #2563eb); text-decoration: none; }
 .asc-cite-link:hover { text-decoration: underline; }
