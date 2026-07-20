@@ -47,6 +47,12 @@ export function MissionPage({ actions }: { actions: ShellActions }) {
           <p>Verification is the scarce input in medical AI.</p>
           <p>A 70% benchmark score is irrelevant when a patient is downstream.</p>
           <p>The people who carry the consequences should define what correct means.</p>
+          <p className="thesis-byline">
+            <span className="chrome">Written &amp; curated by</span>
+            <a href="https://www.linkedin.com/in/tej-patel-873b952a8/" target="_blank" rel="noreferrer">Tej&nbsp;Patel</a>
+            <span className="amp">&amp;</span>
+            <a href="https://www.linkedin.com/in/aryaa-bhatia-8aaaa0319/" target="_blank" rel="noreferrer">Aryaa&nbsp;Bhatia</a>
+          </p>
         </div>
 
         <div className="sub-crumb reveal">

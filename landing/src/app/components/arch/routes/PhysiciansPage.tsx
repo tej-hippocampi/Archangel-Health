@@ -24,16 +24,18 @@ const FRICTION = [
 /** Doto numeral counts 150 → 300 once on entry, then rests (PRD §7 motion). */
 function PayFigure() {
   const ref = useRef<HTMLSpanElement | null>(null);
-  const [n, setN] = useState(150);
+  // Rest at the correct full range (300); the count-up resets to 150 and climbs
+  // only once the figure enters view — so it never sits showing "$150–$150+".
+  const [n, setN] = useState(300);
   const ran = useRef(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) {
-      setN(300);
-      return;
+      return; // already resting at 300
     }
+    let raf = 0;
     const io = new IntersectionObserver(
       (entries) => {
         if (!entries.some((e) => e.isIntersecting) || ran.current) return;
@@ -45,14 +47,17 @@ function PayFigure() {
           const p = Math.min(1, (t - t0) / dur);
           const eased = 1 - Math.pow(1 - p, 3);
           setN(Math.round(150 + eased * 150));
-          if (p < 1) requestAnimationFrame(tick);
+          if (p < 1) raf = requestAnimationFrame(tick);
         };
-        requestAnimationFrame(tick);
+        raf = requestAnimationFrame(tick);
       },
       { threshold: 0.4 }
     );
     io.observe(el);
-    return () => io.disconnect();
+    return () => {
+      io.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, []);
 
   return (

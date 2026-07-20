@@ -36,6 +36,7 @@ const DURATION_MS = 12000;
 export function EnvDiagram() {
   const pathRef = useRef<SVGPathElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const svgWrapRef = useRef<HTMLDivElement | null>(null);
   const [t, setT] = useState(0);
   const [len, setLen] = useState(1);
   const playing = useRef(true);
@@ -71,7 +72,10 @@ export function EnvDiagram() {
       setT(1);
       return;
     }
-    const wrap = wrapRef.current;
+    // Observe the SVG wrapper, not the whole card: it is display:none at ≤720px,
+    // so it never intersects there and the per-frame setT (and its re-render)
+    // stays paused on mobile, where the static step list is shown instead.
+    const wrap = svgWrapRef.current;
     let io: IntersectionObserver | null = null;
     if (wrap && "IntersectionObserver" in window) {
       io = new IntersectionObserver((entries) => {
@@ -114,7 +118,7 @@ export function EnvDiagram() {
     >
       <span className="label">Clinical environment — one episode</span>
 
-      <div className="env-svg-wrap">
+      <div className="env-svg-wrap" ref={svgWrapRef}>
         <svg
           className="env-svg"
           viewBox="0 0 900 320"
@@ -188,15 +192,17 @@ export function EnvDiagram() {
         </div>
       )}
 
-      {/* vertical sequence at narrow widths */}
-      <div className="env-steps-mobile" aria-hidden="true">
+      {/* Vertical sequence at narrow widths. The SVG above is display:none on
+          mobile, so this list carries the episode for screen readers there;
+          on desktop it is display:none and the SVG's aria-label takes over. */}
+      <ol className="env-steps-mobile" aria-label="Clinical episode sequence">
         {EVENTS.map((ev) => (
-          <span className="env-step-m" key={ev.label}>
-            <span className="dot" style={{ background: COLORS[ev.kind] }} />
+          <li className="env-step-m" key={ev.label}>
+            <span className="dot" style={{ background: COLORS[ev.kind] }} aria-hidden="true" />
             {ev.label}
-          </span>
+          </li>
         ))}
-      </div>
+      </ol>
     </div>
   );
 }

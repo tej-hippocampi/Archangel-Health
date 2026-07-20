@@ -69,6 +69,14 @@ export type ShellActions = {
   handleMailto: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 };
 
+const ROUTE_H1: Record<Exclude<ArchPath, "/">, string> = {
+  "/research": "Research",
+  "/data": "Data for clinical and medical AI",
+  "/health-systems": "For health systems and organizations",
+  "/physicians": "For physicians and medical experts",
+  "/mission": "Mission, team, and contact",
+};
+
 function normalizePath(p: string): ArchPath {
   const clean = (p || "/").replace(/\/+$/, "") || "/";
   return (ARCH_PATHS as string[]).includes(clean) ? (clean as ArchPath) : "/";
@@ -80,6 +88,8 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
     normalizePath(initialPath ?? (typeof window !== "undefined" ? window.location.pathname : "/"))
   );
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuOpenRef = useRef(false);
+  menuOpenRef.current = menuOpen;
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -104,24 +114,43 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
   const navigate = useCallback((to: string) => {
     const [pathPart, hash] = to.split("#");
     const next = normalizePath(pathPart);
-    if (typeof window !== "undefined" && window.location.pathname !== next) {
+    const routeChanged = typeof window !== "undefined" && window.location.pathname !== next;
+    if (routeChanged) {
       window.history.pushState({}, "", hash ? `${next}#${hash}` : next);
     } else if (hash && typeof window !== "undefined") {
       window.history.replaceState({}, "", `${next}#${hash}`);
     }
     setRoute(next);
+    // If this navigation came from the open menu, return focus to the trigger
+    // so keyboard users aren't dropped onto <body> when the menu unmounts.
+    const fromMenu = menuOpenRef.current;
     setMenuOpen(false);
     requestAnimationFrame(() => {
       if (hash) {
-        document.getElementById(hash)?.scrollIntoView({ block: "start" });
+        // Same-route section jump animates (smooth); a cross-route jump lands
+        // instantly so the new page doesn't slow-scroll from an unrelated spot.
+        document.getElementById(hash)?.scrollIntoView({
+          block: "start",
+          behavior: (routeChanged ? "instant" : "smooth") as ScrollBehavior,
+        });
       } else {
         window.scrollTo(0, 0);
       }
+      if (fromMenu) menuTriggerRef.current?.focus();
     });
   }, []);
 
   useEffect(() => {
-    const onPop = () => setRoute(normalizePath(window.location.pathname));
+    const onPop = () => {
+      setMenuOpen(false);
+      setRoute(normalizePath(window.location.pathname));
+      const hash = window.location.hash.replace("#", "");
+      if (hash && hash !== "recovery-plan") {
+        requestAnimationFrame(() =>
+          document.getElementById(hash)?.scrollIntoView({ block: "start", behavior: "instant" as ScrollBehavior })
+        );
+      }
+    };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
@@ -162,7 +191,12 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
   useEffect(() => {
     const hash = window.location.hash.replace("#", "");
     if (!hash || hash === "recovery-plan") return;
-    const t = setTimeout(() => document.getElementById(hash)?.scrollIntoView({ block: "start" }), 120);
+    // Jump instantly on a fresh deep-link — the global `scroll-behavior: smooth`
+    // would otherwise slow-scroll from the top through the whole page.
+    const t = setTimeout(
+      () => document.getElementById(hash)?.scrollIntoView({ block: "start", behavior: "instant" as ScrollBehavior }),
+      120
+    );
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -276,6 +310,10 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
       )}
 
       <main>
+        {/* One h1 per route. Home's is the visible hero headline; every other
+            route's visible top heading is an h2, so give it a document h1 for
+            correct heading order without altering the design. */}
+        {route !== "/" && <h1 className="arch-sr-only">{ROUTE_H1[route]}</h1>}
         {route === "/" && <HomePage actions={actions} />}
         {route === "/research" && <ResearchPage actions={actions} />}
         {route === "/data" && <DataPage actions={actions} />}

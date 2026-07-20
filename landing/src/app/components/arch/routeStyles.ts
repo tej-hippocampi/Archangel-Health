@@ -7,6 +7,17 @@
  */
 
 export const routeStyles = `
+/* screen-reader-only (per-route document h1 that carries the heading order) */
+.arch-landing .arch-sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ============ shell ============ */
 
 .arch-landing .nav-left { display: flex; align-items: center; gap: 0.75rem; }
@@ -190,8 +201,9 @@ export const routeStyles = `
 @keyframes arch-mask-in { to { opacity: 1; transform: none; } }
 .arch-landing .hero-min .btn { min-width: 12.5rem; justify-content: center; }
 .arch-landing .h1-break { display: none; }
-/* one line on desktop; natural balance-wrap at mid widths; controlled break ≤640px */
-@media (min-width: 1000px) { .arch-landing .hero-min h1 { white-space: nowrap; } }
+/* one line on wide desktop; natural balance-wrap at mid widths (where a single
+   line would overflow and clip); controlled break ≤640px */
+@media (min-width: 1200px) { .arch-landing .hero-min h1 { white-space: nowrap; } }
 
 /* ============ route scaffolding ============ */
 
@@ -350,7 +362,7 @@ export const routeStyles = `
   border: 1.5px solid var(--ink);
   cursor: grab;
 }
-.arch-landing .env-steps-mobile { display: none; }
+.arch-landing .env-steps-mobile { display: none; list-style: none; }
 
 /* benchmarks table */
 .arch-landing .bench-wrap { margin-top: clamp(1.8rem, 4vh, 2.6rem); overflow-x: auto; }
@@ -490,7 +502,19 @@ export const routeStyles = `
 
 .arch-landing .thesis { margin-top: clamp(2rem, 5vh, 3rem); display: flex; flex-direction: column; gap: 0.9rem; }
 .arch-landing .thesis p { font-size: clamp(1.05rem, 1.7vw, 1.25rem); color: var(--ink); max-width: 44rem; }
-.arch-landing .thesis p:last-child { color: var(--ink-soft); }
+.arch-landing .thesis p:nth-child(3) { color: var(--ink-soft); }
+.arch-landing .thesis-byline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+.arch-landing .thesis-byline .chrome { color: var(--ink-faint); }
+.arch-landing .thesis-byline a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--hairline); }
+.arch-landing .thesis-byline .amp { color: var(--ink-faint); }
 
 .arch-landing .team { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: clamp(1.8rem, 4vh, 2.6rem); max-width: 52rem; }
 .arch-landing .team-card {
@@ -566,6 +590,7 @@ export const routeStyles = `
   .arch-landing .bench thead { display: none; }
   .arch-landing .bench tr { border: 1px solid var(--hairline); border-radius: var(--r-sm); background: var(--card); padding: 0.9rem 1rem; margin-top: 0.8rem; }
   .arch-landing .bench td { border: none; padding: 0.25em 0; }
+  .arch-landing .bench td:first-child { white-space: normal; } /* long benchmark names wrap in stacked cards */
   .arch-landing .bench td::before {
     content: attr(data-th);
     display: block;

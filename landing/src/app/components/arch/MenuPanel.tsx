@@ -64,8 +64,13 @@ export function MenuPanel({
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
+    // Exclude tabIndex=-1 (collapsed accordion sub-items are kept in the DOM
+    // for the height animation but taken out of the tab order) as well as
+    // display-hidden nodes.
     const focusables = () =>
-      Array.from(panel.querySelectorAll<HTMLElement>("button, a[href]")).filter((el) => el.offsetParent !== null);
+      Array.from(panel.querySelectorAll<HTMLElement>("button, a[href]")).filter(
+        (el) => el.offsetParent !== null && el.tabIndex >= 0
+      );
     focusables()[0]?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -141,12 +146,13 @@ export function MenuPanel({
                 </span>
               </button>
               {row.sub && (
-                <div className={`menu-sub${isExpanded ? " open" : ""}`}>
+                <div className={`menu-sub${isExpanded ? " open" : ""}`} aria-hidden={!isExpanded}>
                   <div className="menu-sub-inner">
                     <button
                       type="button"
                       className="menu-sub-item"
                       style={{ animationDelay: "0ms" }}
+                      tabIndex={isExpanded ? undefined : -1}
                       onClick={() => onNavigate(row.path)}
                     >
                       <span className="chrome">02.0</span>
@@ -158,6 +164,7 @@ export function MenuPanel({
                         type="button"
                         className="menu-sub-item"
                         style={{ animationDelay: `${(j + 1) * 20}ms` }}
+                        tabIndex={isExpanded ? undefined : -1}
                         onClick={() => onNavigate(`${row.path}#${s.hash}`)}
                       >
                         <span className="chrome">{s.num}</span>

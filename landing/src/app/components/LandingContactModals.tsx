@@ -389,6 +389,9 @@ export function PhysicianOnboardModal({
         email: trimmed,
         company_website: honeypot,
       });
+      if (!onboarding_url) {
+        throw new Error("Couldn't start onboarding just now. Please email us instead.");
+      }
       setRedirecting(true);
       window.location.assign(onboarding_url);
     } catch (err) {
