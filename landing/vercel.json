@@ -69,11 +69,23 @@
       "destination": "/index.html"
     },
     {
+      "source": "/onboard/m/:token/",
+      "destination": "/index.html"
+    },
+    {
       "source": "/onboard/:token",
       "destination": "/index.html"
     },
     {
+      "source": "/onboard/:token/",
+      "destination": "/index.html"
+    },
+    {
       "source": "/t/:slug/sign-in",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/t/:slug/sign-in/",
       "destination": "/index.html"
     }
   ]

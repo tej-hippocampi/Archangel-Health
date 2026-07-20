@@ -71,6 +71,41 @@ function useLockBodyScroll(active: boolean) {
   }, [active]);
 }
 
+/**
+ * Dialog a11y: trap Tab inside the card while open, and restore focus to the
+ * element that opened the dialog when it closes (matches MenuPanel's trap).
+ */
+export function useFocusTrap(active: boolean, cardRef: React.RefObject<HTMLElement | null>) {
+  React.useEffect(() => {
+    if (!active) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const card = cardRef.current;
+      if (!card) return;
+      const els = Array.from(
+        card.querySelectorAll<HTMLElement>("button, a[href], input, textarea, select")
+      ).filter((el) => el.offsetParent !== null && el.tabIndex >= 0);
+      if (!els.length) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      const inside = card.contains(document.activeElement);
+      if (e.shiftKey && (document.activeElement === first || !inside)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      opener?.focus();
+    };
+  }, [active, cardRef]);
+}
+
 export function LeadFormModal({
   kind,
   open,
@@ -90,8 +125,10 @@ export function LeadFormModal({
   const [submitting, setSubmitting] = React.useState(false);
   const [done, setDone] = React.useState(false);
   const firstFieldRef = React.useRef<HTMLInputElement | null>(null);
+  const cardRef = React.useRef<HTMLDivElement | null>(null);
 
   useLockBodyScroll(open);
+  useFocusTrap(open, cardRef);
 
   // Reset everything each time the modal (re)opens.
   React.useEffect(() => {
@@ -167,7 +204,7 @@ export function LeadFormModal({
           if (e.target === e.currentTarget) onClose();
         }}
       >
-        <div className="am-card" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <div ref={cardRef} className="am-card" role="dialog" aria-modal="true" aria-labelledby={titleId}>
           <button type="button" className="am-close" onClick={onClose} aria-label="Close">
             ×
           </button>
@@ -272,7 +309,9 @@ export function ContributorChooser({
   onAnnotator: () => void;
   onDataContributor: () => void;
 }) {
+  const cardRef = React.useRef<HTMLDivElement | null>(null);
   useLockBodyScroll(open);
+  useFocusTrap(open, cardRef);
 
   React.useEffect(() => {
     if (!open) return;
@@ -293,7 +332,7 @@ export function ContributorChooser({
           if (e.target === e.currentTarget) onClose();
         }}
       >
-        <div className="am-card" role="dialog" aria-modal="true" aria-labelledby="contributor-title">
+        <div ref={cardRef} className="am-card" role="dialog" aria-modal="true" aria-labelledby="contributor-title">
           <button type="button" className="am-close" onClick={onClose} aria-label="Close">
             ×
           </button>
@@ -347,8 +386,10 @@ export function PhysicianOnboardModal({
   const [submitting, setSubmitting] = React.useState(false);
   const [redirecting, setRedirecting] = React.useState(false);
   const fieldRef = React.useRef<HTMLInputElement | null>(null);
+  const cardRef = React.useRef<HTMLDivElement | null>(null);
 
   useLockBodyScroll(open);
+  useFocusTrap(open, cardRef);
 
   React.useEffect(() => {
     if (open) {
@@ -408,7 +449,7 @@ export function PhysicianOnboardModal({
           if (e.target === e.currentTarget && !redirecting) onClose();
         }}
       >
-        <div className="am-card" role="dialog" aria-modal="true" aria-labelledby="phys-onboard-title">
+        <div ref={cardRef} className="am-card" role="dialog" aria-modal="true" aria-labelledby="phys-onboard-title">
           <button type="button" className="am-close" onClick={onClose} aria-label="Close">
             ×
           </button>

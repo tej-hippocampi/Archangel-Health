@@ -85,8 +85,13 @@ def test_honeypot_returns_decoy_and_stores_nothing(client, store):
     assert r.status_code == 200
     body = r.json()
     assert body["ok"] is True
-    assert "/onboard/" in body["onboarding_url"]  # same shape as a real success
+    assert "/onboard/" in body["onboarding_url"]
     assert _rows(store) == []
+
+    # Decoy must be indistinguishable from a real success by shape: pin key
+    # parity so the responses can't silently diverge.
+    real = client.post("/api/onboarding/self-serve", json={"email": "doc@hospital.org"}).json()
+    assert set(body.keys()) == set(real.keys())
 
     # ...and the decoy token opens nothing.
     token = body["onboarding_url"].rsplit("/onboard/", 1)[1]
@@ -99,6 +104,10 @@ def test_per_email_cap(client, store):
         assert client.post("/api/onboarding/self-serve", json={"email": "doc@hospital.org"}).status_code == 200
     r = client.post("/api/onboarding/self-serve", json={"email": "doc@hospital.org"})
     assert r.status_code == 429
+    assert len(_rows(store)) == 3
+
+    # Case variants of the same inbox hit the same cap (normalization pinned).
+    assert client.post("/api/onboarding/self-serve", json={"email": "DOC@Hospital.org"}).status_code == 429
     assert len(_rows(store)) == 3
 
     # A different email is unaffected.

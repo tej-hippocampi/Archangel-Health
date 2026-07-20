@@ -17,15 +17,20 @@ const ArchShell = lazy(() => import("@/app/components/arch/ArchShell"));
 const ARCH_ROUTES = new Set(["/", "/research", "/data", "/health-systems", "/physicians", "/mission"]);
 
 export default function App() {
+  // Normalize a trailing slash so `/email-preview/` (and friends) don't fall
+  // through to the landing shell — vercel rewrites both variants here.
+  const rawPath = typeof window !== "undefined" ? window.location.pathname : "/";
+  const normalizedPath = rawPath.length > 1 ? rawPath.replace(/\/+$/, "") || "/" : rawPath;
+
   const isEmailPreviewRoute =
     typeof window !== "undefined" &&
-    (window.location.pathname === "/email-preview" || window.location.search.includes("emailPreview=1"));
+    (normalizedPath === "/email-preview" || window.location.search.includes("emailPreview=1"));
 
   if (isEmailPreviewRoute) {
     return <RecoveryResourcesEmailPreview />;
   }
 
-  const path = typeof window !== "undefined" ? window.location.pathname : "/";
+  const path = normalizedPath;
   const memberOnboardMatch = path.match(/^\/onboard\/m\/([^/]+)\/?$/);
   if (memberOnboardMatch) {
     return (

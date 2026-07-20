@@ -127,15 +127,20 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
     const fromMenu = menuOpenRef.current;
     setMenuOpen(false);
     requestAnimationFrame(() => {
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (hash) {
-        // Same-route section jump animates (smooth); a cross-route jump lands
-        // instantly so the new page doesn't slow-scroll from an unrelated spot.
+        // Same-route section jump animates (smooth, unless reduced motion);
+        // a cross-route jump lands instantly so the new page doesn't
+        // slow-scroll from an unrelated spot.
         document.getElementById(hash)?.scrollIntoView({
           block: "start",
-          behavior: (routeChanged ? "instant" : "smooth") as ScrollBehavior,
+          behavior: (routeChanged || reduced ? "instant" : "smooth") as ScrollBehavior,
         });
       } else {
-        window.scrollTo(0, 0);
+        // Explicit instant: the global `scroll-behavior: smooth` would
+        // otherwise animate the new route from the old scroll position,
+        // tripping every reveal on the way up.
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
       }
       if (fromMenu) menuTriggerRef.current?.focus();
     });

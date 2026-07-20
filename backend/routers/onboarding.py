@@ -3,13 +3,14 @@
 import html
 import os
 import string
+from datetime import datetime, timedelta
 from typing import Any, Dict
 
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 
-from ratelimit import client_ip, rate_limiter
+from ratelimit import client_ip, global_rate_limiter, rate_limiter
 
 from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import (
@@ -231,26 +232,42 @@ async def onboarding_session(token: str, request: Request):
     }
 
 
-@router.post("/self-serve", dependencies=[Depends(rate_limiter("onboarding_self_serve", 5, 600))])
+@router.post(
+    "/self-serve",
+    dependencies=[
+        Depends(rate_limiter("onboarding_self_serve", 5, 600)),
+        # Volumetric backstop: even with rotating source IPs, total link
+        # creation is bounded (rows in health_systems + founder emails).
+        Depends(global_rate_limiter("onboarding_self_serve_all", 60, 3600)),
+    ],
+)
 async def self_serve_invite(body: SelfServeBody, request: Request):
     """Public: mint a physician-contributor onboarding link on demand.
 
     Issues the same magic link the admin "Generate Health System Link" button
     creates, so a physician clicking "Become a contributor" on the landing
     lands directly in the existing onboarding wizard. Abuse guards, layered:
-    IP rate limit (5 / 10 min) → honeypot → per-email cap (3 pending / 24h)
-    → 7-day expiry (vs the admin default 30) → the wizard's own email-OTP
-    step, which still gates every completion on proof of inbox control.
+    IP rate limit (5 / 10 min) → global cap (60/h) → honeypot → per-email cap
+    (3 pending / 24h) → 7-day expiry (vs the admin default 30) → the wizard's
+    own email-OTP step, which still gates every completion on proof of inbox
+    control.
     """
     ts = _ts(request)
     email = str(body.email).lower().strip()
 
     # Honeypot: accept silently with a decoy link so a bot can't tell it was
-    # caught. The token is random garbage — the wizard 404s it.
+    # caught. The token is random garbage — the wizard 404s it. Shape matches
+    # the real success exactly (ok / onboarding_url / expires_at).
     if body.company_website.strip():
+        decoy_expires = (
+            (datetime.utcnow() + timedelta(days=_SELF_SERVE_EXPIRES_DAYS))
+            .replace(microsecond=0)
+            .isoformat()
+        )
         return {
             "ok": True,
             "onboarding_url": f"{_landing_base()}/onboard/{secrets.token_urlsafe(32)}",
+            "expires_at": decoy_expires,
         }
 
     if ts.count_recent_pending_invites_for_email(email, hours=24) >= _SELF_SERVE_EMAIL_CAP:

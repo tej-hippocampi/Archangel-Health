@@ -103,11 +103,7 @@ export const routeStyles = `
   transform: scale(0.98);
   animation: arch-menu-in 260ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-.arch-landing .menu-overlay.closing {
-  animation: arch-menu-out 180ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
 @keyframes arch-menu-in { to { opacity: 1; transform: scale(1); } }
-@keyframes arch-menu-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.99); } }
 
 .arch-landing .menu-head {
   display: flex;
@@ -672,6 +668,7 @@ export const routeStyles = `
 /* ============ reduced motion ============ */
 
 @media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; } /* overrides baseStyles' global smooth scroll */
   .arch-landing .menu-overlay { animation-duration: 1ms; }
   .arch-landing .menu-open .menu-row-btn,
   .arch-landing .menu-sub.open .menu-sub-item { animation-duration: 1ms; animation-delay: 0ms !important; }

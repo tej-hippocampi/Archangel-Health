@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { EnvDiagram } from "../EnvDiagram";
+import { useFocusTrap } from "@/app/components/LandingContactModals";
 import type { ShellActions } from "../ArchShell";
 
 /* ---------- ungated sample record (illustrative, de-identified) ---------- */
@@ -118,11 +119,14 @@ function downloadSchema() {
   a.href = url;
   a.download = "archangel-record.schema.json";
   a.click();
-  URL.revokeObjectURL(url);
+  // Deferred: a synchronous revoke can abort the download in some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 function SampleDrawer({ onClose }: { onClose: () => void }) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(true, drawerRef);
   useEffect(() => {
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
@@ -140,7 +144,7 @@ function SampleDrawer({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="drawer-overlay" onMouseDown={onClose} />
-      <div className="drawer" role="dialog" aria-modal="true" aria-label="Sample record">
+      <div ref={drawerRef} className="drawer" role="dialog" aria-modal="true" aria-label="Sample record">
         <div className="drawer-head">
           <span className="chrome">Sample record · JSON</span>
           <span className="chip chip-lime">de-identified</span>
