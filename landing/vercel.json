@@ -25,6 +25,50 @@
       "destination": "/index.html"
     },
     {
+      "source": "/research",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/research/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/data",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/data/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/health-systems",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/health-systems/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/physicians",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/physicians/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/mission",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/mission/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/onboard/m/:token",
+      "destination": "/index.html"
+    },
+    {
       "source": "/onboard/:token",
       "destination": "/index.html"
     },

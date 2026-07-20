@@ -8,9 +8,13 @@ import { SiteHeader, parseLandingView } from "@/app/components/SiteHeader";
 import OnboardingWizard from "@/app/components/OnboardingWizard";
 import TenantSignIn from "@/app/components/TenantSignIn";
 
-// Lazy so the home page's ~535KB of embedded-font CSS becomes a home-only
+// Lazy so the landing's ~535KB of embedded-font CSS becomes a landing-only
 // chunk instead of render-blocking every other route (calculator, onboarding…).
-const ClinicalDataLanding = lazy(() => import("@/app/components/ClinicalDataLanding"));
+const ArchShell = lazy(() => import("@/app/components/arch/ArchShell"));
+
+// Audience routes served by the landing shell (menu-driven SPA — PRD
+// Archangel_Landing_Rebuild_v2 §1). Deep-linkable; vercel.json rewrites match.
+const ARCH_ROUTES = new Set(["/", "/research", "/data", "/health-systems", "/physicians", "/mission"]);
 
 export default function App() {
   const isEmailPreviewRoute =
@@ -49,13 +53,15 @@ export default function App() {
 
   const view = parseLandingView();
 
-  // The clinical-data landing ships its own fixed nav + footer, so the home
-  // view renders without SiteHeader; every other view keeps the shared header.
+  // The landing shell ships its own fixed nav + footer, so its routes render
+  // without SiteHeader; every other view keeps the shared header.
   if (view === "home") {
+    const normalized = path.replace(/\/+$/, "") || "/";
+    const initialPath = ARCH_ROUTES.has(normalized) ? normalized : "/";
     return (
       <AuthProvider>
         <Suspense fallback={<div style={{ minHeight: "100vh", background: "#eef0ef" }} />}>
-          <ClinicalDataLanding />
+          <ArchShell initialPath={initialPath} />
         </Suspense>
       </AuthProvider>
     );

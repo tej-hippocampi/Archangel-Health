@@ -327,6 +327,160 @@ export function ContributorChooser({
   return createPortal(modal, document.body);
 }
 
+/**
+ * PhysicianOnboardModal — "Become a contributor" (annotator path). One email
+ * field; on submit the backend mints a personal onboarding link (the same
+ * magic link the admin console issues) and we redirect straight into the
+ * wizard. The link is also emailed so the physician can resume any time.
+ */
+export function PhysicianOnboardModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [email, setEmail] = React.useState("");
+  const [honeypot, setHoneypot] = React.useState("");
+  const [emailErr, setEmailErr] = React.useState<string | null>(null);
+  const [formErr, setFormErr] = React.useState<string | null>(null);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [redirecting, setRedirecting] = React.useState(false);
+  const fieldRef = React.useRef<HTMLInputElement | null>(null);
+
+  useLockBodyScroll(open);
+
+  React.useEffect(() => {
+    if (open) {
+      setEmail("");
+      setHoneypot("");
+      setEmailErr(null);
+      setFormErr(null);
+      setSubmitting(false);
+      setRedirecting(false);
+      const t = setTimeout(() => fieldRef.current?.focus(), 40);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = email.trim();
+    if (!EMAIL_RE.test(trimmed)) {
+      setEmailErr("Enter a valid email address.");
+      return;
+    }
+    setEmailErr(null);
+    setFormErr(null);
+    setSubmitting(true);
+    try {
+      const { onboarding_url } = await authApi.createPhysicianOnboardingLink({
+        email: trimmed,
+        company_website: honeypot,
+      });
+      setRedirecting(true);
+      window.location.assign(onboarding_url);
+    } catch (err) {
+      setFormErr(err instanceof Error ? err.message : "Could not start onboarding. Please email us instead.");
+      setSubmitting(false);
+    }
+  };
+
+  const modal = (
+    <div className="arch-portal">
+      <div
+        className="am-overlay"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget && !redirecting) onClose();
+        }}
+      >
+        <div className="am-card" role="dialog" aria-modal="true" aria-labelledby="phys-onboard-title">
+          <button type="button" className="am-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+
+          {redirecting ? (
+            <div className="am-success">
+              <span className="am-check" aria-hidden="true">✓</span>
+              <p className="am-success-text">Link created — taking you to onboarding…</p>
+            </div>
+          ) : (
+            <>
+              <h2 id="phys-onboard-title" className="am-heading">Start onboarding</h2>
+              <p className="am-subhead">
+                We'll create your personal onboarding link and take you straight there.
+              </p>
+
+              {formErr && <p className="am-form-error" role="alert">{formErr}</p>}
+
+              <form onSubmit={handleSubmit} noValidate>
+                {/* honeypot — visually hidden, off the tab order */}
+                <div className="am-hp" aria-hidden="true">
+                  <label htmlFor="am-hp-phys">Company website</label>
+                  <input
+                    id="am-hp-phys"
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                  />
+                </div>
+
+                <div className="am-field">
+                  <label htmlFor="am-email-phys" className="am-label">Email</label>
+                  <input
+                    ref={fieldRef}
+                    id="am-email-phys"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    className="am-input"
+                    placeholder="you@hospital.org"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    aria-invalid={emailErr ? true : undefined}
+                    aria-describedby={emailErr ? "am-email-err-phys" : undefined}
+                    required
+                  />
+                  {emailErr && (
+                    <p id="am-email-err-phys" className="am-field-error">{emailErr}</p>
+                  )}
+                  <p className="am-trust">
+                    Credentials are verified during onboarding. We'll also email you the
+                    link so you can resume any time — it stays valid for 7 days.
+                  </p>
+                </div>
+
+                <button type="submit" className="am-btn am-btn-primary" disabled={submitting}>
+                  {submitting ? "Creating your link…" : "Begin onboarding →"}
+                </button>
+                <p className="am-fallback">
+                  or email us: <a href={`mailto:${FALLBACK_EMAIL}`}>{FALLBACK_EMAIL}</a>
+                </p>
+              </form>
+            </>
+          )}
+        </div>
+      </div>
+      <style>{MODAL_STYLES}</style>
+    </div>
+  );
+
+  return createPortal(modal, document.body);
+}
+
 const MODAL_STYLES = `
 .arch-portal {
   --canvas: #eef0ef;

@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/leads", tags=["leads"])
 _SOURCE_LABELS = {
     "request_data": "Request data · AI lab / buyer",
     "provide_data": "Provide data · data provider",
+    "research_notify": "Research notify · publication list",
 }
 
 _LEAD_SOURCES = tuple(_SOURCE_LABELS.keys())
