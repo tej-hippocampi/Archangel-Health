@@ -14,7 +14,7 @@ export function HomePage({ actions }: { actions: ShellActions }) {
       </div>
       <div>
         <h1>
-          Data to Power<br className="h1-break" /> Clinical and Medical AI
+          Frontier Data to Power<br className="h1-break" /> Clinical and Medical AI
         </h1>
         <div className="hero-ctas">
           <button type="button" className="btn btn-primary" onClick={() => actions.openLead("request_data")}>

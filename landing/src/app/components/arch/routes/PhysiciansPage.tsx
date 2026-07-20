@@ -74,13 +74,15 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
         <p className="crumb chrome reveal"><span className="root">Archangel</span><span className="sep">/</span><span className="here">04 · Physicians</span></p>
         <div className="reveal">
           <h2>Your expertise will power the future of medicine.</h2>
-          <p className="lede">The AI being built now will practice alongside you. You decide what it learns.</p>
         </div>
 
-        {/* Pay — above the fold, mostly numeral. */}
-        <div className="c-card pay-card reveal">
-          <PayFigure />
-          <span className="label">Varies per task — scales with difficulty, specialty, and depth.</span>
+        {/* Lede left, pay right — typography on canvas, no card (PRD §3). */}
+        <div className="pay-band reveal">
+          <p className="lede pay-band-lede">The AI being built now will practice alongside you. You decide what it learns.</p>
+          <div className="pay-figure">
+            <PayFigure />
+            <span className="label">Varies per task — difficulty, specialty, depth.</span>
+          </div>
         </div>
 
         {/* What you'll do — 3-step strip, one line each. */}

@@ -158,13 +158,16 @@ function SampleDrawer({ onClose }: { onClose: () => void }) {
   );
 }
 
-const BENCH_ROWS = [
-  ["HealthBench / Hard", "Physician-written rubric criteria; Hard subset collapses", "Rubric-graded hard cases, validated instance-specific criteria"],
-  ["MedAlign", "Clinician instructions over longitudinal EHRs; degrades with context", "Longitudinal real de-identified EHR cases, outcomes linked"],
-  ["AgentClinic", "~10× accuracy collapse when sequential and agentic", "Clinical environments (02.2)"],
-  ["MedXpertQA-R", "Expert reasoning, not recall", "Step-level physician reasoning traces (PRM)"],
-  ["MedHELM", "Holistic eval; clinician–clinician agreement is low", "Multi-rater adjudicated records, κ reported per record"],
-  ["MedAgentsBench + agentic-EHR suite", "Agents acting over real EHR structures", "FHIR/HL7/lab-CSV-native cases and EHR agent tasks"],
+// Names carry the credibility — an ML lead already knows each one. Set at
+// display scale, ink only, no gap/supply columns (PRD final-pass §1).
+const BENCH_NAMES = [
+  "HealthBench",
+  "MedAlign",
+  "MedXpertQA-R",
+  "HealthBench Hard",
+  "AgentClinic",
+  "MedHELM",
+  "MedAgentsBench",
 ];
 
 export function DataPage(_props: { actions: ShellActions }) {
@@ -349,43 +352,50 @@ export function DataPage(_props: { actions: ShellActions }) {
           <h3 style={{ fontSize: "1.4rem" }}>Climb the benchmarks. Then build the next ones.</h3>
         </div>
 
-        <div className="bench-wrap reveal">
-          <table className="bench">
-            <thead>
-              <tr><th>Benchmark</th><th>Documented gap</th><th>What we supply</th></tr>
-            </thead>
-            <tbody>
-              {BENCH_ROWS.map((r) => (
-                <tr key={r[0]}>
-                  <td data-th="Benchmark">{r[0]}</td>
-                  <td data-th="Documented gap">{r[1]}</td>
-                  <td data-th="What we supply">{r[2]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Block A — the benchmark grid, names only. A masthead, not a table. */}
+        <div className="bench-climb">
+          <span className="chrome reveal">We help labs climb</span>
+          <div className="bench-grid">
+            {BENCH_NAMES.map((name, i) => (
+              <span className="bench-name reveal" key={name} style={{ transitionDelay: `${i * 40}ms` }}>{name}</span>
+            ))}
+          </div>
+          <p className="bench-suite reveal">
+            <span className="chrome">Agentic-EHR suite — MedAgentBench · EHR-Complex · FHIR-AgentBench · EHRAgent</span>
+          </p>
         </div>
 
-        <div className="reveal" style={{ marginTop: "clamp(1.8rem, 4vh, 2.4rem)" }}>
-          <p className="lede-strong">Benchmarks saturate. 70% doesn’t clear the bar for a patient.</p>
+        {/* Block B — rubrics and evals attached, beside the eval pack. */}
+        <div className="split bench-rubrics">
+          <div className="reveal">
+            <p className="lede-strong">Rubrics and evals attached.</p>
+            <p className="lede bench-claim-sub">Every dataset ships with the rubric and eval that prove the climb.</p>
+          </div>
+          <div className="c-card eval-pack reveal">
+            <span className="chrome chrome-box"><span className="dot dot-lime" />Eval pack</span>
+            <p>Rubric records + grader + score.py + validity report. Re-licensed per model release.</p>
+          </div>
         </div>
-        <div className="c-card eval-pack reveal">
-          <span className="chrome chrome-box"><span className="dot dot-lime" />Eval pack</span>
-          <p>Rubric records + grader + score.py + validity report. Re-licensed per model release.</p>
+
+        {/* Block C — building the next ones. */}
+        <div className="bench-next reveal">
+          <p className="lede-strong">Benchmarks saturate. We author the next ones.</p>
+          <p className="lede bench-claim-sub">Physician-grounded evaluations of clinical reasoning and clinical application.</p>
         </div>
 
         {/* ============ 02.4 — Physical AI ============ */}
         <p className="crumb chrome reveal sub-crumb" id="02-4"><span className="root">02.4</span><span className="sep">/</span><span className="here">Physical AI</span></p>
         <div className="reveal">
           <h3 style={{ fontSize: "1.4rem" }}>Surgical data isn’t in any EHR.</h3>
-          <p className="lede">Force, resistance, texture, tremor — the signals a surgeon acts on are tactile.</p>
+          <p className="lede">We’re building hardware to capture it — training data for robotic surgery and physical AI medical products.</p>
           <p style={{ marginTop: "1rem" }}>
             <span className="chrome chrome-box"><span className="dot dot-faint" />In development</span>
           </p>
+          <p className="chrome bench-suite" style={{ marginTop: "1.1rem" }}>Tactile · Force · Motion · Sensing</p>
         </div>
 
         <div className="c-card wave-card reveal" aria-hidden="true">
-          <span className="label">Force waveform — instrument contact</span>
+          <span className="label">Instrument contact — the signal no chart records.</span>
           <svg viewBox="0 0 900 160" preserveAspectRatio="none" style={{ marginTop: "0.9rem" }}>
             <line className="wave-base" x1="0" y1="80" x2="900" y2="80" />
             <path

@@ -20,9 +20,14 @@ export const routeStyles = `
 
 /* ============ shell ============ */
 
-.arch-landing .nav-left { display: flex; align-items: center; gap: 0.75rem; }
+.arch-landing .nav-right-group { display: flex; align-items: center; gap: clamp(0.75rem, 1.8vw, 1.5rem); min-width: 0; }
+.arch-landing .nav-cluster { display: flex; align-items: center; gap: 0.6rem; }
 
-.arch-landing .menu-trigger { gap: 0.7em; }
+/* wordmark: left on mobile, tucked into the top-right corner on desktop */
+.arch-landing .wordmark-mobile { display: none; }
+
+/* menu button lives on the right; only shown once the inline nav collapses */
+.arch-landing .menu-trigger { gap: 0.7em; display: none; }
 .arch-landing .menu-glyph { display: inline-flex; flex-direction: column; gap: 3px; width: 14px; }
 .arch-landing .menu-glyph i {
   height: 1px;
@@ -31,6 +36,56 @@ export const routeStyles = `
 }
 .arch-landing .menu-trigger:hover .menu-glyph i:first-child { transform: translateY(-1px); }
 .arch-landing .menu-trigger:hover .menu-glyph i:last-child { transform: translateY(1px); }
+
+/* ============ inline section nav (desktop) ============ */
+
+.arch-landing .topnav { display: flex; align-items: center; gap: 0.15rem; min-width: 0; }
+.arch-landing .topnav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.5em 0.85em;
+  border-radius: 10px;
+  font-family: var(--sans);
+  font-size: 0.94rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+.arch-landing .topnav-item:hover { background: var(--card); color: var(--ink); }
+.arch-landing .topnav-item.active { background: var(--card); color: var(--ink); box-shadow: var(--shadow-card); }
+.arch-landing .topnav-chev { font-size: 0.66em; color: var(--ink-faint); transition: transform 200ms ease; }
+.arch-landing .topnav-chev.openv { transform: rotate(180deg); }
+
+.arch-landing .topnav-drop { position: relative; }
+.arch-landing .topnav-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 15rem;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-float);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  animation: arch-drop-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes arch-drop-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+.arch-landing .topnav-menu-item {
+  text-align: left;
+  padding: 0.6em 0.75em;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+.arch-landing .topnav-menu-item:hover { background: var(--card-in); color: var(--ink); }
 
 /* ============ menu panel ============ */
 
@@ -200,10 +255,9 @@ export const routeStyles = `
 }
 @keyframes arch-mask-in { to { opacity: 1; transform: none; } }
 .arch-landing .hero-min .btn { min-width: 12.5rem; justify-content: center; }
-.arch-landing .h1-break { display: none; }
-/* one line on wide desktop; natural balance-wrap at mid widths (where a single
-   line would overflow and clip); controlled break ≤640px */
-@media (min-width: 1200px) { .arch-landing .hero-min h1 { white-space: nowrap; } }
+/* Clean two-line headline on every width: "Frontier Data to Power" /
+   "Clinical and Medical AI". balance-wrap handles very narrow screens. */
+.arch-landing .h1-break { display: block; }
 
 /* ============ route scaffolding ============ */
 
@@ -364,31 +418,35 @@ export const routeStyles = `
 }
 .arch-landing .env-steps-mobile { display: none; list-style: none; }
 
-/* benchmarks table */
-.arch-landing .bench-wrap { margin-top: clamp(1.8rem, 4vh, 2.6rem); overflow-x: auto; }
-.arch-landing .bench { width: 100%; border-collapse: collapse; min-width: 640px; }
-.arch-landing .bench th {
-  font-family: var(--mono);
-  font-size: 0.62rem;
+/* benchmarks — names as a masthead (Block A) */
+.arch-landing .bench-climb { margin-top: clamp(1.8rem, 4vh, 2.6rem); }
+.arch-landing .bench-climb > .chrome { display: block; margin-bottom: clamp(1.3rem, 3vh, 1.9rem); }
+.arch-landing .bench-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 15rem));
+  justify-content: start;   /* pack names left — even air, not a stretched gap */
+  gap: 0.35rem 3rem;
+}
+.arch-landing .bench-name {
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
   font-weight: 400;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  text-align: left;
-  padding: 0 0.9em 0.7em 0;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  padding: 0.55rem 0;
 }
-.arch-landing .bench td {
-  padding: 0.85em 0.9em 0.85em 0;
-  border-top: 1px solid var(--hairline);
-  font-size: 0.88rem;
-  color: var(--ink-soft);
-  vertical-align: top;
-}
-.arch-landing .bench td:first-child { color: var(--ink); font-weight: 500; white-space: nowrap; }
+.arch-landing .bench-name.reveal { transform: translateY(6px); } /* lighter lift than default reveal */
+.arch-landing .bench-suite { margin-top: clamp(1.5rem, 3.5vh, 2.1rem); max-width: none; }
+.arch-landing .bench-suite .chrome { color: var(--ink-faint); font-size: 0.62rem; line-height: 1.7; }
 
-.arch-landing .eval-pack { margin-top: clamp(1.8rem, 4vh, 2.4rem); max-width: 30rem; }
+/* Block B — claim beside the eval pack */
+.arch-landing .bench-rubrics { margin-top: clamp(2.6rem, 6vh, 4rem); align-items: start; }
+.arch-landing .bench-claim-sub { margin-top: 0.6rem; }
+.arch-landing .eval-pack { max-width: 30rem; }
 .arch-landing .eval-pack .chrome-box { font-size: 0.6rem; margin-bottom: 1rem; }
 .arch-landing .eval-pack p { font-size: 0.92rem; }
+
+/* Block C — building the next ones */
+.arch-landing .bench-next { margin-top: clamp(3rem, 7vh, 5rem); }
 
 /* physical AI waveform */
 .arch-landing .wave-card { margin-top: clamp(1.8rem, 4vh, 2.6rem); padding: 1.8rem 1.6rem 1.4rem; }
@@ -420,40 +478,40 @@ export const routeStyles = `
 .arch-landing .flow.in .flow-arrow { opacity: 0.7; }
 
 .arch-landing .trust-rows { margin-top: clamp(2rem, 5vh, 3rem); border-top: 1px solid var(--hairline); }
-.arch-landing .trust-row { border-bottom: 1px solid var(--hairline); }
-.arch-landing .trust-row.reveal { transform: none; } /* opacity only — stillness reads as seriousness */
-.arch-landing .trust-btn {
-  display: flex;
-  align-items: baseline;
-  gap: 1.1rem;
-  width: 100%;
-  padding: 1.05rem 0.4rem;
-  text-align: left;
-  cursor: pointer;
-}
-.arch-landing .trust-btn .chrome { min-width: 12em; flex: none; }
-.arch-landing .trust-line { font-size: 0.95rem; color: var(--ink); flex: 1; }
-.arch-landing .trust-btn .menu-chev { align-self: center; }
-.arch-landing .trust-body {
+.arch-landing .trust-row {
   display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  grid-template-columns: 15em 1fr;   /* fixed label column → lines align across every row */
+  gap: 1.6rem;
+  align-items: baseline;
+  padding: 1.05rem 0.4rem;
+  border-bottom: 1px solid var(--hairline);
 }
-.arch-landing .trust-body.open { grid-template-rows: 1fr; }
-.arch-landing .trust-body-inner { overflow: hidden; min-height: 0; }
-.arch-landing .trust-body p { padding: 0 0.4rem 1.1rem calc(12em + 1.5rem); font-size: 0.88rem; }
-.arch-landing .trust-tag { font-size: 0.6rem; padding: 0.3em 0.8em; margin-left: 0.6rem; }
+.arch-landing .trust-row.reveal { transform: none; } /* opacity only — stillness reads as seriousness */
+.arch-landing .trust-label { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.arch-landing .trust-label .chrome { line-height: 1.5; }
+.arch-landing .trust-line { font-size: 0.95rem; line-height: 1.5; color: var(--ink); }
+.arch-landing .trust-tag { font-size: 0.58rem; padding: 0.28em 0.75em; }
 
 /* ============ /physicians ============ */
 
-.arch-landing .pay-card {
-  margin-top: clamp(2rem, 5vh, 3rem);
-  padding: 1.9rem 1.8rem 1.7rem;
-  max-width: 26rem;
+/* Pay band — lede left, pay figure right. No card: "scale not boldness". */
+.arch-landing .pay-band {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: start;
+  margin-top: clamp(1.4rem, 3.5vh, 2.2rem);
 }
-.arch-landing .pay-card .doto { font-size: clamp(2.9rem, 5vw, 4.2rem); color: var(--ink); }
-.arch-landing .pay-card .per { font-size: 0.45em; color: var(--ink-faint); letter-spacing: 0; }
-.arch-landing .pay-card .label { display: block; margin-top: 0.7rem; }
+.arch-landing .pay-band-lede { margin: 0; }
+.arch-landing .pay-figure { text-align: right; }
+.arch-landing .pay-figure .doto {
+  font-size: clamp(1.6rem, 2.8vw, 2.15rem);   /* ~half the old numeral — reads instantly, never outranks the H2 */
+  color: var(--ink);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.arch-landing .pay-figure .per { font-size: 0.42em; color: var(--ink-faint); letter-spacing: 0; }
+.arch-landing .pay-figure .label { display: block; margin-top: 0.45rem; }
 
 .arch-landing .steps-strip { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: clamp(1.8rem, 4vh, 2.6rem); }
 .arch-landing .steps-strip::before {
@@ -502,7 +560,18 @@ export const routeStyles = `
 
 .arch-landing .thesis { margin-top: clamp(2rem, 5vh, 3rem); display: flex; flex-direction: column; gap: 0.9rem; }
 .arch-landing .thesis p { font-size: clamp(1.05rem, 1.7vw, 1.25rem); color: var(--ink); max-width: 44rem; }
-.arch-landing .thesis p:nth-child(3) { color: var(--ink-soft); }
+/* line 3 matches line 2's ink and sits a touch heavier */
+.arch-landing .thesis p:nth-child(3) { color: var(--ink); font-weight: 500; }
+/* line 2 — lime marker highlight (clones cleanly across wrapped lines) */
+.arch-landing .thesis-mark {
+  background: var(--lime);
+  color: var(--ink);
+  padding: 0.08em 0.3em;
+  margin: 0 -0.12em;
+  border-radius: 5px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
 .arch-landing .thesis-byline {
   display: flex;
   flex-wrap: wrap;
@@ -558,12 +627,24 @@ export const routeStyles = `
 
 /* ============ responsive ============ */
 
+/* Header: inline section nav on the full page; collapses to the right-hand
+   menu button (and the wordmark drops to the left) below this width. */
+@media (max-width: 1200px) {
+  .arch-landing .topnav { display: none; }
+  .arch-landing .menu-trigger { display: inline-flex; }
+  .arch-landing .wordmark-mobile { display: inline-flex; }
+  .arch-landing .wordmark-corner { display: none; }
+}
+
 @media (max-width: 900px) {
   .arch-landing .r-cards, .arch-landing .steps-strip { grid-template-columns: 1fr; }
   .arch-landing .steps-strip::before { display: none; }
   .arch-landing .flow { flex-direction: column; }
   .arch-landing .flow-arrow { transform: rotate(90deg); align-self: flex-start; margin-left: 1.4rem; }
   .arch-landing .team { grid-template-columns: 1fr; }
+  .arch-landing .bench-grid { grid-template-columns: repeat(2, 1fr); }
+  .arch-landing .pay-band { grid-template-columns: 1fr; gap: 0.9rem; }
+  .arch-landing .pay-figure { text-align: left; }   /* never centered on mobile */
 }
 
 @media (max-width: 720px) {
@@ -571,36 +652,21 @@ export const routeStyles = `
   .arch-landing .env-steps-mobile { display: flex; flex-direction: column; gap: 0; margin-top: 0.4rem; }
   .arch-landing .env-step-m { display: flex; align-items: center; gap: 0.8rem; padding: 0.62em 0.2em; border-top: 1px solid var(--hairline); font-size: 0.88rem; color: var(--ink-soft); }
   .arch-landing .env-step-m:first-child { border-top: none; }
-  .arch-landing .trust-btn { flex-wrap: wrap; gap: 0.35rem 1.1rem; }
-  .arch-landing .trust-line { flex-basis: 100%; }
-  .arch-landing .trust-body p { padding-left: 0.4rem; }
+  .arch-landing .trust-row { grid-template-columns: 1fr; gap: 0.3rem; }
 }
 
 @media (max-width: 640px) {
   .arch-landing .menu-row-btn { min-height: 64px; gap: 0.9rem; }
   .arch-landing .menu-row-btn .chrome { min-width: 0; }
+  .arch-landing .nav-cluster .hide-sm { display: none; } /* container renamed from .nav-links */
   .arch-landing .menu-trigger .menu-label { display: none; }
-  .arch-landing .h1-break { display: block; }
   .arch-landing .hero-min .hero-ctas { flex-direction: column; align-items: stretch; }
   .arch-landing .hero-min .btn { width: 100%; min-height: 44px; }
   .arch-landing .notify-form { flex-direction: column; }
   .arch-landing .fr-row, .arch-landing .contact-row { flex-direction: column; gap: 0.3rem; }
-  .arch-landing .bench { min-width: 0; }
-  .arch-landing .bench, .arch-landing .bench tbody, .arch-landing .bench tr, .arch-landing .bench td { display: block; }
-  .arch-landing .bench thead { display: none; }
-  .arch-landing .bench tr { border: 1px solid var(--hairline); border-radius: var(--r-sm); background: var(--card); padding: 0.9rem 1rem; margin-top: 0.8rem; }
-  .arch-landing .bench td { border: none; padding: 0.25em 0; }
-  .arch-landing .bench td:first-child { white-space: normal; } /* long benchmark names wrap in stacked cards */
-  .arch-landing .bench td::before {
-    content: attr(data-th);
-    display: block;
-    font-family: var(--mono);
-    font-size: 0.58rem;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-    margin: 0.5em 0 0.15em;
-  }
+  .arch-landing .bench-grid { grid-template-columns: 1fr; gap: 0; }
+  .arch-landing .bench-name { padding: 0.4rem 0; border-top: 1px solid var(--hairline); }
+  .arch-landing .bench-name:first-child { border-top: none; }
 }
 
 /* ============ reduced motion ============ */
@@ -609,7 +675,8 @@ export const routeStyles = `
   .arch-landing .menu-overlay { animation-duration: 1ms; }
   .arch-landing .menu-open .menu-row-btn,
   .arch-landing .menu-sub.open .menu-sub-item { animation-duration: 1ms; animation-delay: 0ms !important; }
-  .arch-landing .menu-sub, .arch-landing .trust-body, .arch-landing .menu-chev { transition: none; }
+  .arch-landing .menu-sub, .arch-landing .menu-chev, .arch-landing .topnav-chev { transition: none; }
+  .arch-landing .topnav-menu { animation: arch-fade-once 120ms ease; }
   .arch-landing .hero-min .glow-a, .arch-landing .hero-min .glow-b { animation: none; }
   .arch-landing .hero-min h1, .arch-landing .hero-min .hero-ctas { animation: arch-fade-once 120ms ease forwards; transform: none; }
   .arch-landing .trace-scroll .trace, .arch-landing .trace-scroll .trace-orange,

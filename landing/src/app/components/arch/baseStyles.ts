@@ -283,8 +283,6 @@ html { scroll-behavior: smooth; }
 }
 .arch-landing .wordmark .halo { width: 21px; height: 21px; color: var(--green); }
 
-.arch-landing .nav-links { display: flex; align-items: center; gap: 0.6rem; }
-
 /* ---------- hero ---------- */
 
 .arch-landing .hero {
@@ -885,7 +883,6 @@ html { scroll-behavior: smooth; }
   .arch-landing .c-row1 { grid-template-columns: 1fr; }
   .arch-landing .doors { grid-template-columns: 1fr; }
   .arch-landing .derives { grid-template-columns: 1fr; }
-  .arch-landing .nav-links .hide-sm { display: none; }
   .arch-landing .c-pipe { flex-wrap: wrap; }
   .arch-landing .hero-glow .chip-float { right: 4%; top: auto; bottom: 5.5rem; font-size: 0.74rem; padding: 0.55em 1em; }
   .arch-landing .gn2, .arch-landing .gn3 { display: none; }

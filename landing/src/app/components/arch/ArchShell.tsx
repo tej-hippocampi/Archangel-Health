@@ -19,6 +19,7 @@ import { useLandingAuth } from "@/app/hooks/useLandingAuth";
 import { baseStyles } from "./baseStyles";
 import { routeStyles } from "./routeStyles";
 import { MenuPanel } from "./MenuPanel";
+import { TopNav } from "./TopNav";
 import { HomePage } from "./routes/HomePage";
 import { ResearchPage } from "./routes/ResearchPage";
 import { DataPage } from "./routes/DataPage";
@@ -27,7 +28,7 @@ import { PhysiciansPage } from "./routes/PhysiciansPage";
 import { MissionPage } from "./routes/MissionPage";
 import "@/styles/clinical-fonts.css";
 
-export const MAIL = "aryaabhatia@berkeley.edu";
+export const MAIL = "tejpatel@berkeley.edu";
 export const mailto = (subject: string) => `mailto:${MAIL}?subject=${encodeURIComponent(subject)}`;
 
 export type ArchPath = "/" | "/research" | "/data" | "/health-systems" | "/physicians" | "/mission";
@@ -36,7 +37,7 @@ export const ARCH_PATHS: ArchPath[] = ["/", "/research", "/data", "/health-syste
 
 const TITLES: Record<ArchPath, { title: string; desc: string }> = {
   "/": {
-    title: "Archangel Health — Data to Power Clinical and Medical AI",
+    title: "Archangel Health — Frontier Data to Power Clinical and Medical AI",
     desc: "Expert clinical reasoning over real, de-identified cases — training data for clinical and medical AI.",
   },
   "/research": {
@@ -140,6 +141,17 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
     });
   }, []);
 
+  // Close the mobile menu panel if the viewport widens past the header
+  // breakpoint (where the inline nav takes over) — avoids a stranded overlay
+  // and a duplicate "Sections" landmark alongside the inline nav.
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth > 1200) setMenuOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   useEffect(() => {
     const onPop = () => {
       setMenuOpen(false);
@@ -238,54 +250,66 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
     menuTriggerRef.current?.focus();
   }, []);
 
+  const wordmark = (className: string) => (
+    <a
+      className={className}
+      href="/"
+      aria-label="Archangel Health — home"
+      onClick={(e) => {
+        e.preventDefault();
+        navigate("/");
+      }}
+    >
+      <svg className="halo" viewBox="0 0 24 24" aria-hidden="true">
+        <ellipse cx="12" cy="12" rx="9" ry="5.4" fill="none" stroke="currentColor" strokeWidth="1.7" transform="rotate(-24 12 12)" />
+      </svg>
+      <span>Archangel&nbsp;Health</span>
+    </a>
+  );
+
   return (
     <div ref={rootRef} className="arch-landing">
       <header className="nav" id="top">
-        <div className="nav-left">
-          <button
-            ref={menuTriggerRef}
-            type="button"
-            className="chrome chrome-box menu-trigger"
-            aria-haspopup="dialog"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(true)}
-          >
-            <span className="menu-glyph" aria-hidden="true"><i /><i /><i /></span>
-            <span className="menu-label">Menu</span>
-          </button>
-          <a
-            className="wordmark"
-            href="/"
-            aria-label="Archangel Health — home"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate("/");
-            }}
-          >
-            <svg className="halo" viewBox="0 0 24 24" aria-hidden="true">
-              <ellipse cx="12" cy="12" rx="9" ry="5.4" fill="none" stroke="currentColor" strokeWidth="1.7" transform="rotate(-24 12 12)" />
-            </svg>
-            <span>Archangel&nbsp;Health</span>
-          </a>
+        {/* mobile: wordmark sits on the left; desktop: hidden (moves to the corner) */}
+        {wordmark("wordmark wordmark-mobile")}
+
+        {/* desktop: inline section nav on the left; hidden below the breakpoint */}
+        <TopNav active={route} onNavigate={navigate} />
+
+        <div className="nav-right-group">
+          <div className="nav-cluster">
+            {!loading &&
+              (user ? (
+                <>
+                  {doctorPortalUrl && (
+                    <a className="chrome chrome-box hide-sm" href={doctorPortalUrl}>{doctorPortalLabel}</a>
+                  )}
+                  <button type="button" className="chrome chrome-box hide-sm" onClick={logout}>Sign out</button>
+                </>
+              ) : (
+                <button type="button" className="chrome chrome-box hide-sm" onClick={() => setSignInOpen(true)}>
+                  Sign in
+                </button>
+              ))}
+            <button type="button" className="chrome chrome-box solid" onClick={() => setLeadModal("request_data")}>
+              Request data
+            </button>
+            {/* menu button — shown only below the desktop breakpoint, on the right */}
+            <button
+              ref={menuTriggerRef}
+              type="button"
+              className="chrome chrome-box menu-trigger"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(true)}
+            >
+              <span className="menu-glyph" aria-hidden="true"><i /><i /><i /></span>
+              <span className="menu-label">Menu</span>
+            </button>
+          </div>
+          {/* desktop: wordmark nested in the top-right corner */}
+          {wordmark("wordmark wordmark-corner")}
         </div>
-        <nav className="nav-links" aria-label="Primary">
-          {!loading &&
-            (user ? (
-              <>
-                {doctorPortalUrl && (
-                  <a className="chrome chrome-box hide-sm" href={doctorPortalUrl}>{doctorPortalLabel}</a>
-                )}
-                <button type="button" className="chrome chrome-box hide-sm" onClick={logout}>Sign out</button>
-              </>
-            ) : (
-              <button type="button" className="chrome chrome-box hide-sm" onClick={() => setSignInOpen(true)}>
-                Sign in
-              </button>
-            ))}
-          <button type="button" className="chrome chrome-box solid" onClick={() => setLeadModal("request_data")}>
-            Request data
-          </button>
-        </nav>
       </header>
 
       {menuOpen && (
