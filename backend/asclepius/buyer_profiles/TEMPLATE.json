@@ -42,19 +42,114 @@
   "name": "example_buyer",
   "description": "Example buyer profile — rename and edit.",
   "preference_variant": "flat",
-  "record_types": ["preference", "ideal_answer"],
+  "record_types": [
+    "preference",
+    "ideal_answer"
+  ],
   "field_maps": {
     "preference": {
-      "flat": {"prompt": "prompt", "chosen": "chosen", "rejected": "rejected", "annotator_credential": "expert", "license": "license", "ip_cleared": "ip_cleared", "contains_phi": "contains_phi", "type": "type"},
-      "chat": {"chosen_messages": "chosen", "rejected_messages": "rejected", "annotator_credential": "expert", "license": "license", "ip_cleared": "ip_cleared", "contains_phi": "contains_phi", "type": "type"}
+      "flat": {
+        "prompt": "prompt",
+        "chosen": "chosen",
+        "rejected": "rejected",
+        "annotator_credential": "expert",
+        "license": "license",
+        "ip_cleared": "ip_cleared",
+        "contains_phi": "contains_phi",
+        "type": "type",
+        "specialty": "specialty",
+        "taxonomy_bucket": "taxonomy_bucket",
+        "subtopic": "subtopic",
+        "case_type": "case_type",
+        "ai_failure_mode": "ai_failure_mode",
+        "empirical_difficulty": "empirical_difficulty",
+        "empirical_difficulty_measured": "empirical_difficulty_measured"
+      },
+      "chat": {
+        "chosen_messages": "chosen",
+        "rejected_messages": "rejected",
+        "annotator_credential": "expert",
+        "license": "license",
+        "ip_cleared": "ip_cleared",
+        "contains_phi": "contains_phi",
+        "type": "type",
+        "specialty": "specialty",
+        "taxonomy_bucket": "taxonomy_bucket",
+        "subtopic": "subtopic",
+        "case_type": "case_type",
+        "ai_failure_mode": "ai_failure_mode",
+        "empirical_difficulty": "empirical_difficulty",
+        "empirical_difficulty_measured": "empirical_difficulty_measured"
+      }
     },
-    "ideal_answer": {"prompt": "instruction", "completion": "response", "annotator_credential": "expert", "license": "license", "ip_cleared": "ip_cleared", "contains_phi": "contains_phi", "type": "type"}
+    "ideal_answer": {
+      "prompt": "instruction",
+      "completion": "response",
+      "annotator_credential": "expert",
+      "license": "license",
+      "ip_cleared": "ip_cleared",
+      "contains_phi": "contains_phi",
+      "type": "type",
+      "specialty": "specialty",
+      "taxonomy_bucket": "taxonomy_bucket",
+      "subtopic": "subtopic",
+      "case_type": "case_type",
+      "ai_failure_mode": "ai_failure_mode",
+      "empirical_difficulty": "empirical_difficulty",
+      "empirical_difficulty_measured": "empirical_difficulty_measured"
+    }
   },
   "schemas": {
     "preference": {
-      "flat": {"type": "object", "required": ["prompt", "chosen", "rejected"], "properties": {"prompt": {"type": "string"}, "chosen": {"type": "string"}, "rejected": {"type": "string"}}},
-      "chat": {"type": "object", "required": ["chosen", "rejected"], "properties": {"chosen": {"type": "array"}, "rejected": {"type": "array"}}}
+      "flat": {
+        "type": "object",
+        "required": [
+          "prompt",
+          "chosen",
+          "rejected"
+        ],
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "chosen": {
+            "type": "string"
+          },
+          "rejected": {
+            "type": "string"
+          }
+        }
+      },
+      "chat": {
+        "type": "object",
+        "required": [
+          "chosen",
+          "rejected"
+        ],
+        "properties": {
+          "chosen": {
+            "type": "array"
+          },
+          "rejected": {
+            "type": "array"
+          }
+        }
+      }
     },
-    "ideal_answer": {"type": "object", "required": ["instruction", "response"], "properties": {"instruction": {"type": "string"}, "response": {"type": "string"}}}
+    "ideal_answer": {
+      "type": "object",
+      "required": [
+        "instruction",
+        "response"
+      ],
+      "properties": {
+        "instruction": {
+          "type": "string"
+        },
+        "response": {
+          "type": "string"
+        }
+      }
+    }
   }
 }

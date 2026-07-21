@@ -114,13 +114,27 @@ def _counts(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     by_portal_version: Dict[str, int] = {}
     by_modality: Dict[str, int] = {}
     by_case_source: Dict[str, int] = {}
+    by_taxonomy_bucket: Dict[str, int] = {}
+    by_case_type: Dict[str, int] = {}
+    # Per-specialty breakdown (Specialty Hyper-Personalization PRD §2): count, mean
+    # empirical difficulty, failure-mode histogram, and bucket histogram — so a buyer
+    # sees exactly what each per-specialty slice contains and its measured hardness.
+    spec_breakdown: Dict[str, Dict[str, Any]] = {}
+
+    def _sb(sp: str) -> Dict[str, Any]:
+        return spec_breakdown.setdefault(sp, {
+            "count": 0, "failure_modes": {}, "taxonomy_buckets": {},
+            "_difficulty_sum": 0.0, "_difficulty_n": 0, "measured_count": 0,
+        })
+
     for r in records:
         by_type[r["type"]] = by_type.get(r["type"], 0) + 1
         sp = r.get("specialty") or "unknown"
         by_specialty[sp] = by_specialty.get(sp, 0) + 1
         # V1 (classic) vs V2 (assisted) breakdown (Asclepius V2). Legacy records
         # with no stamp are counted as v1 (they predate the assisted flow).
-        pv = (r.get("payload") or {}).get("portal_version") or "v1"
+        payload = r.get("payload") or {}
+        pv = payload.get("portal_version") or "v1"
         by_portal_version[pv] = by_portal_version.get(pv, 0) + 1
         # Text vs multimodal (structured-case) breakdown (Multimodal PRD §8).
         mod = _rec_modality(r)
@@ -128,12 +142,42 @@ def _counts(records: List[Dict[str, Any]]) -> Dict[str, Any]:
         cs = _rec_case_source(r)
         if cs:
             by_case_source[cs] = by_case_source.get(cs, 0) + 1
+        # Specialty case-type metadata (PRD §2).
+        bucket = payload.get("taxonomy_bucket")
+        if bucket:
+            by_taxonomy_bucket[bucket] = by_taxonomy_bucket.get(bucket, 0) + 1
+        ctype = payload.get("case_type")
+        if ctype:
+            by_case_type[ctype] = by_case_type.get(ctype, 0) + 1
+        sb = _sb(sp)
+        sb["count"] += 1
+        fm = payload.get("ai_failure_mode")
+        if fm:
+            sb["failure_modes"][fm] = sb["failure_modes"].get(fm, 0) + 1
+        if bucket:
+            sb["taxonomy_buckets"][bucket] = sb["taxonomy_buckets"].get(bucket, 0) + 1
+        ed = payload.get("empirical_difficulty")
+        if isinstance(ed, (int, float)):
+            sb["_difficulty_sum"] += float(ed)
+            sb["_difficulty_n"] += 1
+        if payload.get("empirical_difficulty_measured"):
+            sb["measured_count"] += 1
+
+    # Finalize the per-specialty mean difficulty and drop the running sums.
+    for sp, sb in spec_breakdown.items():
+        n = sb.pop("_difficulty_n", 0)
+        s = sb.pop("_difficulty_sum", 0.0)
+        sb["mean_empirical_difficulty"] = round(s / n, 3) if n else None
+
     return {
         "by_type": by_type,
         "by_specialty": by_specialty,
         "by_portal_version": by_portal_version,
         "by_modality": by_modality,
         "by_case_source": by_case_source,
+        "by_taxonomy_bucket": by_taxonomy_bucket,
+        "by_case_type": by_case_type,
+        "specialty_breakdown": spec_breakdown,
         "total": len(records),
     }
 

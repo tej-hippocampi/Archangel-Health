@@ -118,6 +118,40 @@ def _prompt_clinician_reviewed(submission: Dict[str, Any]) -> bool:
     return review.get("verdict") == "valid"
 
 
+def _specialty_case_fields(task: Dict[str, Any]) -> Dict[str, Any]:
+    """The buyer-facing specialty + case-type metadata that must be FIRST-CLASS on
+    every exported record (Specialty Hyper-Personalization PRD §2): ``specialty``,
+    ``taxonomy_bucket``, ``subtopic``, ``case_type`` (the modality signature),
+    ``ai_failure_mode`` (the documented failure the case targets), and
+    ``empirical_difficulty`` (the frontier-model failure rate, §9). Additive only —
+    values fall back to None so text records keep their shape."""
+    gen = task.get("generation") or {}
+    case = task.get("case") or {}
+    case_type = gen.get("case_type")
+    if not case_type and (case.get("lab_panels") or case.get("notes") or case.get("studies")):
+        try:
+            from asclepius.cases import case_type_signature
+            case_type = case_type_signature(case)
+        except Exception:
+            case_type = None
+    # Empirical difficulty: prefer the first-class task column (numeric), else the
+    # value inside the generation block.
+    ed_val = task.get("empirical_difficulty")
+    ed_block = gen.get("empirical_difficulty") if isinstance(gen.get("empirical_difficulty"), dict) else None
+    if ed_val is None and ed_block is not None:
+        ed_val = ed_block.get("value") if ed_block.get("value") is not None else ed_block.get("declared")
+    measured = bool(task.get("difficulty_measured")) or bool((ed_block or {}).get("measured"))
+    return {
+        "specialty": task.get("specialty"),
+        "taxonomy_bucket": gen.get("taxonomy_bucket"),
+        "subtopic": gen.get("subtopic"),
+        "case_type": case_type,
+        "ai_failure_mode": gen.get("ai_failure_mode"),
+        "empirical_difficulty": ed_val,
+        "empirical_difficulty_measured": measured,
+    }
+
+
 def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, Any]:
     annotator = submission.get("annotator") or {}
     payload = submission.get("payload") or {}
@@ -156,6 +190,8 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, A
         # status-change timestamp (capture time; export stamps exported_at)
         "captured_at": submission.get("created_at"),
     }
+    # Specialty + case-type metadata, first-class on every record (PRD §2).
+    prov.update(_specialty_case_fields(task))
     gen = _generation_provenance(task)
     if gen is not None:
         prov["generation"] = gen

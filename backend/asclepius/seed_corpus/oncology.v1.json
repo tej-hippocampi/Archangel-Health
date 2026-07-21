@@ -1,0 +1,333 @@
+{
+  "version": "oncology.v1",
+  "specialty": "oncology",
+  "ratified": true,
+  "review_status": "clinician_authored_exemplars",
+  "note": "Built from the 10 authored hard oncology cases (Asclepius_Cardiology_Oncology_Cases.md). Each is engineered so a frontier model fails — wrong ground truth, or right answer via broken reasoning. The decisive signal lives in a STUDY (ECG/echo/cath/pathology/molecular/imaging). These seed the Seedmaker few-shots and the gold set; every generated case must still clear the empirical-difficulty gate (PRD §9) before it ships.",
+  "reviewed_by": "asclepius_specialty_hyperpersonalization_prd",
+  "reviewed_at": null,
+  "generated_by": "scripts/build_specialty_seed_corpus.py",
+  "failure_domains": [
+    {
+      "name": "reasoning_errors_right_answer_wrong_reason",
+      "weight": 0.28,
+      "why": "Reasoning errors dominate oncology-note interpretation (confirmation bias + anchoring); models reach correct conclusions via faulty reasoning — invisible to accuracy-only evaluation."
+    },
+    {
+      "name": "immunotherapy_toxicity_vs_progression",
+      "weight": 0.22,
+      "why": "Pseudoprogression vs true progression; irAEs (pneumonitis/colitis/hypophysitis/myocarditis) mis-attributed to progression or infection."
+    },
+    {
+      "name": "molecular_over_histology",
+      "weight": 0.2,
+      "why": "Actionable driver/resistance mutation (EGFR T790M→osimertinib, MSI-high→checkpoint, ALK/BRAF/NTRK) changes the answer; models treat by histology and miss the NGS panel."
+    },
+    {
+      "name": "oncologic_emergencies",
+      "weight": 0.18,
+      "why": "TLS from modern targeted/immuno agents (not just heme/cytotoxic), febrile neutropenia, cord compression, SVC, hypercalcemia — under-urgency kills."
+    },
+    {
+      "name": "paraneoplastic_and_supportive",
+      "weight": 0.12,
+      "why": "SIADH (correction-rate/ODS), PTHrP hypercalcemia, LEMS; anticoagulation and dosing trade-offs in organ dysfunction."
+    }
+  ],
+  "hardness_rubric": [
+    "The decisive signal lives in the pathology/molecular/temporal-imaging data and contradicts the histology- or progression-anchored shortcut.",
+    "At least half of each batch is reachable by faulty reasoning to the correct answer (the reasoning trace carries the value).",
+    "Requires integrating the molecular/temporal evidence, not the loud narrative.",
+    "Sits in a documented oncology model-failure domain.",
+    "Contains a plausible trap (the reflex 'switch therapy / treat by histology / TLS only if heme' is wrong).",
+    "At least one case per batch carries a time-critical or catastrophic-if-delayed action.",
+    "High clinical stakes (safety-relevant)."
+  ],
+  "hard_case_archetypes": [
+    {
+      "topic": "immunotherapy_toxicity_vs_progression",
+      "failure_domain": "immunotherapy_toxicity_vs_progression",
+      "why_hard": "Bigger lesions + a new nodule → RECIST 'progression, switch therapy.' Early growth on immunotherapy with improving LDH and clinical status is pseudoprogression — switching abandons an effective drug.",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "multi_step",
+        "high_stakes"
+      ],
+      "multimodal": {
+        "panels": [
+          "Tumor markers - week 8",
+          "Tumor markers - baseline"
+        ],
+        "studies": [
+          "CT: CT chest/abdomen/pelvis — timeline (baseline → week 8)"
+        ],
+        "note_types": [
+          "Progress"
+        ],
+        "hard_hook": "Bigger lesions + a new nodule → RECIST 'progression, switch therapy.' Early growth on immunotherapy with improving LDH and clinical status is pseudoprogression — switching abandons an effective drug.",
+        "ground_truth_spec": "Likely pseudoprogression. Apply iRECIST: this is unconfirmed progression — continue pembrolizumab and obtain a confirmatory scan in 4-8 weeks before declaring true progression, especially with an improving LDH and clinical status. Do not switch therapy on this single worsening scan.",
+        "reasoning_divergence": "Sound path applies iRECIST, notes improving biomarkers + well patient, continues with a confirmatory scan. Shortcut applies conventional RECIST and stops working therapy."
+      }
+    },
+    {
+      "topic": "onc_emergencies",
+      "failure_domain": "oncologic_emergencies",
+      "why_hard": "'TLS doesn't happen with a targeted pill in a solid tumor' → the model looks for sepsis/contrast AKI. The metabolic sextet 3 days after a highly effective targeted agent in bulky disease = TLS, now documented with targeted/immuno agents.",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "multi_step",
+        "high_stakes"
+      ],
+      "multimodal": {
+        "panels": [
+          "Metabolic panel - today",
+          "Baseline - 3 days ago"
+        ],
+        "studies": [
+          "CT: CT chest/abdomen (staging)"
+        ],
+        "note_types": [
+          "Progress"
+        ],
+        "hard_hook": "'TLS doesn't happen with a targeted pill in a solid tumor' → the model looks for sepsis/contrast AKI. The metabolic sextet 3 days after a highly effective targeted agent in bulky disease = TLS, now documented with targeted/immuno agents.",
+        "ground_truth_spec": "Tumor lysis syndrome from a rapid response to targeted therapy. Give aggressive IV hydration, rasburicase for hyperuricemia, treat hyperkalemia and hyperphosphatemia, avoid calcium unless symptomatic, and involve nephrology/ICU. Modern targeted/immuno agents cause TLS even in solid tumors — the old 'heme + cytotoxic only' risk profile is outdated.",
+        "reasoning_divergence": "Sound path recognizes TLS regardless of agent class, gives fluids + rasburicase + electrolyte management. Shortcut anchors on the outdated risk profile and misses a treatable emergency."
+      }
+    },
+    {
+      "topic": "molecular_therapy_selection",
+      "failure_domain": "molecular_over_histology",
+      "why_hard": "PD-L1 60% → 'high PD-L1, give a checkpoint inhibitor.' The EGFR exon-19 deletion overrides PD-L1: EGFR-mutant NSCLC responds poorly to first-line immunotherapy; the correct first-line is osimertinib.",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "multi_step",
+        "high_stakes"
+      ],
+      "multimodal": {
+        "panels": [
+          "CBC + chemistry"
+        ],
+        "studies": [
+          "PATHOLOGY: Core biopsy — histology/IHC",
+          "MOLECULAR: NGS panel"
+        ],
+        "note_types": [
+          "Consult"
+        ],
+        "hard_hook": "PD-L1 60% → 'high PD-L1, give a checkpoint inhibitor.' The EGFR exon-19 deletion overrides PD-L1: EGFR-mutant NSCLC responds poorly to first-line immunotherapy; the correct first-line is osimertinib.",
+        "ground_truth_spec": "EGFR exon-19-deletion NSCLC → first-line OSIMERTINIB, not immunotherapy, despite PD-L1 60%. Actionable driver mutations supersede PD-L1 for first-line selection, and first-line immunotherapy in EGFR-mutant disease is less effective and raises pneumonitis risk when a TKI follows.",
+        "reasoning_divergence": "Sound path grounds the NGS result, recognizes the driver takes precedence over PD-L1, gives osimertinib. Shortcut anchors on the loud PD-L1 number and gives the wrong, potentially harmful first-line."
+      }
+    },
+    {
+      "topic": "paraneoplastic",
+      "failure_domain": "paraneoplastic_and_supportive",
+      "why_hard": "Na 116 + confusion → 'severe hyponatremia, run hypertonic saline to normal.' Euvolemic hyponatremia with concentrated urine = SIADH; the danger is over-rapid correction → osmotic demyelination.",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "multi_step",
+        "high_stakes"
+      ],
+      "multimodal": {
+        "panels": [
+          "Sodium + osmolality"
+        ],
+        "studies": [
+          "CT: CT chest"
+        ],
+        "note_types": [
+          "Progress"
+        ],
+        "hard_hook": "Na 116 + confusion → 'severe hyponatremia, run hypertonic saline to normal.' Euvolemic hyponatremia with concentrated urine = SIADH; the danger is over-rapid correction → osmotic demyelination.",
+        "ground_truth_spec": "SIADH from small-cell lung cancer. Correct the sodium by ≤6-8 mmol/L per 24 h (cautious hypertonic saline ONLY if seizing/severely symptomatic, with strict limits), fluid-restrict, and treat the malignancy. Over-rapid correction causes osmotic demyelination — normalizing the sodium fast is the danger, not the goal.",
+        "reasoning_divergence": "Sound path caps correction, uses hypertonic saline only for severe symptoms with strict limits, fluid-restricts, works up the small-cell primary. Shortcut chases a normal sodium fast and demyelinates the pons."
+      }
+    }
+  ],
+  "items": [
+    {
+      "seed_id": "onc-seed-0001",
+      "specialty": "oncology",
+      "topic": "immunotherapy_toxicity_vs_progression",
+      "subtopic": "pseudoprogression",
+      "difficulty": "hard",
+      "prompt": "A 60-69y man on pembrolizumab for melanoma; the 8-week scan shows enlarged lesions + a new small nodule; he feels well and LDH is improving. Plan?",
+      "ai_failure_mode": "anchoring on 'scan worse → progression'; misses the temporal/inflammatory pattern (right-answer-wrong-reason risk)",
+      "why_high_value": "Sound path applies iRECIST, notes improving biomarkers + well patient, continues with a confirmatory scan. Shortcut applies conventional RECIST and stops working therapy.",
+      "reference_basis": "Early growth on immunotherapy with improving biomarkers and clinical status is the classic pseudoprogression pattern; conventional RECIST would wrongly stop an effective drug.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "immunotherapy_toxicity_vs_progression",
+        "pseudoprogression",
+        "oncology"
+      ]
+    },
+    {
+      "seed_id": "onc-seed-0002",
+      "specialty": "oncology",
+      "topic": "immunotherapy_toxicity_vs_progression",
+      "subtopic": "checkpoint_myocarditis",
+      "difficulty": "hard",
+      "prompt": "A 50-59y woman two weeks into ipilimumab+nivolumab: fatigue, mild dyspnea, elevated troponin, subtle ECG changes. Manage.",
+      "ai_failure_mode": "failure to attribute to irAE; misses a high-mortality toxicity",
+      "why_high_value": "Sound path grounds the temporal link + myositis markers + conduction disease, stops the drug and starts steroids. Shortcut anchors on troponin → ACS and delays the life-saving steroids.",
+      "reference_basis": "Fulminant ICI myocarditis is a high-mortality irAE that mimics ACS; the myositis markers, conduction disease, non-coronary distribution, and the 2-week temporal link key the diagnosis, and steroids (not DAPT/cath) are life-saving.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "immunotherapy_toxicity_vs_progression",
+        "checkpoint_myocarditis",
+        "oncology"
+      ]
+    },
+    {
+      "seed_id": "onc-seed-0003",
+      "specialty": "oncology",
+      "topic": "onc_emergencies",
+      "subtopic": "tumor_lysis",
+      "difficulty": "hard",
+      "prompt": "A 60-69y man started selpercatinib for RET-fusion NSCLC 3 days ago; now AKI, K+ 6.4, high phosphate, high urate, low calcium. Cause and management?",
+      "ai_failure_mode": "anchoring on the old TLS risk profile (heme + cytotoxic chemo only)",
+      "why_high_value": "Sound path recognizes TLS regardless of agent class, gives fluids + rasburicase + electrolyte management. Shortcut anchors on the outdated risk profile and misses a treatable emergency.",
+      "reference_basis": "The full metabolic sextet 3 days after starting a highly effective agent in bulky disease is TLS regardless of drug class; anchoring on the outdated risk profile misses a treatable emergency.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "onc_emergencies",
+        "tumor_lysis",
+        "oncology"
+      ]
+    },
+    {
+      "seed_id": "onc-seed-0004",
+      "specialty": "oncology",
+      "topic": "molecular_therapy_selection",
+      "subtopic": "pd_l1_vs_driver",
+      "difficulty": "hard",
+      "prompt": "A 60-69y never-smoker woman with lung adenocarcinoma; choosing first-line therapy. Path/NGS attached.",
+      "ai_failure_mode": "molecular-over-histology miss; right cancer, wrong therapy (right-answer-wrong-reason)",
+      "why_high_value": "Sound path grounds the NGS result, recognizes the driver takes precedence over PD-L1, gives osimertinib. Shortcut anchors on the loud PD-L1 number and gives the wrong, potentially harmful first-line.",
+      "reference_basis": "The NGS driver changes the drug; PD-L1 high is a distractor because EGFR-mutant tumors respond poorly to first-line checkpoint inhibitors.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "molecular_therapy_selection",
+        "pd_l1_vs_driver",
+        "oncology"
+      ]
+    },
+    {
+      "seed_id": "onc-seed-0005",
+      "specialty": "oncology",
+      "topic": "molecular_therapy_selection",
+      "subtopic": "t790m_resistance",
+      "difficulty": "hard",
+      "prompt": "A 70-79y man with EGFR-mutant NSCLC progressing on erlotinib after 14 months. Next line?",
+      "ai_failure_mode": "failure to seek the resistance-mechanism data; sequencing error",
+      "why_high_value": "Sound path orders resistance testing and, if T790M+, gives osimertinib; only if negative considers chemo. Shortcut skips the mechanism test and defaults to chemo or dose escalation.",
+      "reference_basis": "T790M is the most common acquired-resistance mechanism to first-gen EGFR TKIs and is specifically treatable with osimertinib; empirically defaulting to chemo skips the decisive molecular test.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "molecular_therapy_selection",
+        "t790m_resistance",
+        "oncology"
+      ]
+    },
+    {
+      "seed_id": "onc-seed-0006",
+      "specialty": "oncology",
+      "topic": "onc_emergencies",
+      "subtopic": "febrile_neutropenia",
+      "difficulty": "hard",
+      "prompt": "A 50-59y woman, 10 days post-chemo, temp 38.5°C, ANC 400, looks well. Immediate step?",
+      "ai_failure_mode": "dangerous under-urgency; withholds empiric antibiotics pending data",
+      "why_high_value": "Sound path draws cultures and immediately starts empiric antibiotics, risk-stratifies, does not wait. Shortcut waits for a source or culture result and loses the golden hour.",
+      "reference_basis": "The golden-hour antibiotic rule for febrile neutropenia is independent of appearance or an identified source; delay to await data is the dangerous error.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "onc_emergencies",
+        "febrile_neutropenia",
+        "oncology"
+      ]
+    },
+    {
+      "seed_id": "onc-seed-0007",
+      "specialty": "oncology",
+      "topic": "paraneoplastic",
+      "subtopic": "siadh",
+      "difficulty": "hard",
+      "prompt": "A 60-69y smoker, Na 116, confused, with a hilar mass. Manage the sodium.",
+      "ai_failure_mode": "overtreatment / osmotic demyelination; misses the paraneoplastic driver + correction limit",
+      "why_high_value": "Sound path caps correction, uses hypertonic saline only for severe symptoms with strict limits, fluid-restricts, works up the small-cell primary. Shortcut chases a normal sodium fast and demyelinates the pons.",
+      "reference_basis": "Chronic euvolemic hyponatremia from paraneoplastic SIADH must be corrected slowly; the trap is aggressive normalization causing osmotic demyelination syndrome.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "paraneoplastic",
+        "siadh",
+        "oncology"
+      ]
+    },
+    {
+      "seed_id": "onc-seed-0008",
+      "specialty": "oncology",
+      "topic": "paraneoplastic",
+      "subtopic": "pthrp_hypercalcemia",
+      "difficulty": "hard",
+      "prompt": "A 60-69y man with squamous lung cancer, calcium 13.8, confusion. Cause and treatment?",
+      "ai_failure_mode": "anchoring on 'high calcium = check PTH → parathyroid'; misses PTHrP (right-answer-wrong-reason)",
+      "why_high_value": "Sound path grounds the suppressed PTH and PTHrP, diagnoses HHM, hydrates and gives a bisphosphonate/denosumab. Shortcut anchors on 'hypercalcemia = parathyroid' and pursues the wrong organ.",
+      "reference_basis": "A suppressed PTH with elevated PTHrP in a squamous cancer defines HHM; anchoring on 'hypercalcemia = parathyroid' pursues the wrong organ and delays the right therapy.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "paraneoplastic",
+        "pthrp_hypercalcemia",
+        "oncology"
+      ]
+    },
+    {
+      "seed_id": "onc-seed-0009",
+      "specialty": "oncology",
+      "topic": "onc_emergencies",
+      "subtopic": "cord_compression",
+      "difficulty": "hard",
+      "prompt": "A 60-69y man with prostate cancer, progressive back pain, new leg weakness and urinary hesitancy. Plan?",
+      "ai_failure_mode": "under-urgency; misses the emergency window for steroids + definitive treatment",
+      "why_high_value": "Sound path grounds the neuro deficit + MRI, gives immediate dexamethasone and emergent consults. Shortcut treats it as routine pain and lets the patient become paraplegic.",
+      "reference_basis": "Progressive weakness plus sphincter symptoms with MRI-confirmed cord compression is a time-critical emergency; outpatient management risks irreversible paraplegia.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "onc_emergencies",
+        "cord_compression",
+        "oncology"
+      ]
+    },
+    {
+      "seed_id": "onc-seed-0010",
+      "specialty": "oncology",
+      "topic": "molecular_therapy_selection",
+      "subtopic": "msi_high_tmb",
+      "difficulty": "hard",
+      "prompt": "A 60-69y woman with metastatic colorectal cancer progressing after two chemo lines. Molecular attached. Next option?",
+      "ai_failure_mode": "failure to ground the biomarker; withholds the effective therapy",
+      "why_high_value": "Sound path grounds the MSI-high result and gives a checkpoint inhibitor. Shortcut fixates on 'no driver mutation' and misses that MMR status IS the actionable marker.",
+      "reference_basis": "dMMR/MSI-high status predicts marked benefit from checkpoint inhibitors regardless of RAS/BRAF; fixating on the absence of a classic driver misses the decisive biomarker.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "molecular_therapy_selection",
+        "msi_high_tmb",
+        "oncology"
+      ]
+    }
+  ]
+}

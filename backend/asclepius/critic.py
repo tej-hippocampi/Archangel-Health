@@ -61,11 +61,15 @@ def _extract_json(text: str) -> Optional[Dict[str, Any]]:
 # GENERATION path we first map common aliases and strip unknown keys, so a good case
 # is never dropped over cosmetics. Real ingestion does NOT use this (it stays strict).
 _CASE_KEYS = {"case_id", "case_source", "specialty", "demographics", "problem_list",
-              "medications", "vitals", "lab_panels", "notes", "ground_truth",
+              "medications", "vitals", "lab_panels", "studies", "notes", "ground_truth",
               "hard_hook", "reasoning_divergence"}
 _PANEL_KEYS = {"panel", "collected_offset_days", "results"}
 _RESULT_KEYS = {"analyte", "loinc", "value", "unit", "ref_low", "ref_high", "flag"}
 _NOTE_KEYS = {"note_type", "author_role", "text"}
+_STUDY_KEYS = {"modality", "label", "findings", "measurements", "impression", "asset"}
+_STUDY_ALIASES = {"type": "modality", "study_type": "modality", "name": "label",
+                  "title": "label", "report": "findings", "finding": "findings",
+                  "measures": "measurements", "values": "measurements", "conclusion": "impression"}
 _TOP_ALIASES = {"labs": "lab_panels", "laboratory": "lab_panels", "lab_results": "lab_panels",
                 "panels": "lab_panels", "note": "notes", "clinical_notes": "notes",
                 "problems": "problem_list", "meds": "medications"}
@@ -110,6 +114,21 @@ def _sanitize_generated_case(raw: Any) -> Any:
     if isinstance(notes, list):
         c["notes"] = [_remap(n, _NOTE_ALIASES, _NOTE_KEYS)
                       for n in notes if isinstance(n, dict)]
+    # Structured studies (PRD §3): remap aliases, keep valid keys, and sanitize each
+    # study's numeric ``measurements`` exactly like lab results (they reuse LabResult).
+    studies = c.get("studies")
+    if isinstance(studies, list):
+        clean_studies = []
+        for s in studies:
+            if not isinstance(s, dict):
+                continue
+            s = _remap(s, _STUDY_ALIASES, _STUDY_KEYS)
+            meas = s.get("measurements")
+            if isinstance(meas, list):
+                s["measurements"] = [_remap(m, _RESULT_ALIASES, _RESULT_KEYS)
+                                     for m in meas if isinstance(m, dict)]
+            clean_studies.append(s)
+        c["studies"] = clean_studies
     return c
 
 
@@ -656,7 +675,10 @@ async def run_hardness_judge(
 
 
 # ─── Multimodal case generation + judge (Synthetic Multimodal Cases PRD §3) ────
-async def generate_case(archetype: Dict[str, Any], *, specialty: str = "general") -> Dict[str, Any]:
+async def generate_case(
+    archetype: Dict[str, Any], *, specialty: str = "general",
+    require_faulty_reasoning: bool = False, require_catastrophic: bool = False,
+) -> Dict[str, Any]:
     """Author a PHI-free ClinicalCase from a multimodal archetype (the archetype's
     ``multimodal`` block seeds the panels/hooks/ground-truth). Returns
     ``{case, question, model, skipped}``; the case is coerced through the
@@ -681,12 +703,27 @@ async def generate_case(archetype: Dict[str, Any], *, specialty: str = "general"
     # trips extra='forbid') and the difficulty pattern. Injected FIRST, before the
     # archetype spec. Degrades to no examples if the gold set is unavailable.
     ctx: List[str] = []
-    try:
-        from asclepius.gold_cases import fewshot_prompt_block, GOLD_NEPHROLOGY_CASES
+    # Specialty-specific construction rule (PRD §4.3/§5.3) + the §8 cross-specialty
+    # value multipliers — injected in the USER message so the pipeline stays
+    # specialty-agnostic (specialty is config, never a code fork).
+    from asclepius.prompts import specialty_case_gen_rules
 
-        _n = len(GOLD_NEPHROLOGY_CASES) or 1
+    _rules = specialty_case_gen_rules(
+        specialty,
+        require_faulty_reasoning=require_faulty_reasoning,
+        require_catastrophic=require_catastrophic,
+    )
+    if _rules.strip():
+        ctx.append(_rules.strip())
+    try:
+        from asclepius.gold_cases import fewshot_prompt_block, GOLD_CASE_SETS
+
+        _pool = GOLD_CASE_SETS.get((specialty or "").strip().lower()) or []
+        _n = len(_pool) or 1
         _start = (abs(hash(str(archetype.get("topic", "")))) % _n)
-        _fs = fewshot_prompt_block(k=2, start=_start)
+        # Few-shot from the SAME specialty so the model copies the right modality
+        # shape (cardiology → ECG/echo studies; oncology → pathology/molecular).
+        _fs = fewshot_prompt_block(k=2, start=_start, specialty=specialty)
         if _fs:
             ctx.append(_fs.strip())
     except Exception:  # never let exemplar loading break generation
@@ -696,6 +733,9 @@ async def generate_case(archetype: Dict[str, Any], *, specialty: str = "general"
         ctx.append(f"Why hard: {archetype['why_hard']}")
     if mm.get("panels"):
         ctx.append("Lab panels to synthesize: " + ", ".join(map(str, mm["panels"])))
+    if mm.get("studies"):
+        ctx.append("Studies to synthesize (structured findings + measurements; the DECISIVE signal lives here): "
+                   + ", ".join(map(str, mm["studies"])))
     if mm.get("note_types"):
         ctx.append("Note types: " + ", ".join(map(str, mm["note_types"])))
     if mm.get("hard_hook"):

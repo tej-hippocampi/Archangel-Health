@@ -486,6 +486,46 @@ def hardness_min() -> float:
     return _env_float("ASCLEPIUS_HARDNESS_MIN", 0.75)
 
 
+def min_empirical_difficulty() -> float:
+    """The empirical-difficulty FLOOR (Specialty Hyper-Personalization PRD §9): a
+    case ships only if the fraction of frontier-model attempts that FAIL (wrong
+    ground truth OR wrong reasoning) is ≥ this. Default 0.5 for hard buckets. This is
+    the prime-directive gate — a case that frontier models pass is not valuable."""
+    return _env_float("ASCLEPIUS_MIN_EMPIRICAL_DIFFICULTY", 0.5)
+
+
+def require_measured_difficulty() -> bool:
+    """When ON, the serving gate refuses any case whose ``empirical_difficulty`` was
+    not LIVE-MEASURED above the floor (PRD §9). Default OFF so authored/declared seed
+    cases still serve in dev + demo without live frontier API access; flip ON in
+    production once ``grade-real-models`` measurement is wired to real keys."""
+    return os.getenv("ASCLEPIUS_REQUIRE_MEASURED_DIFFICULTY", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def empirical_difficulty_attempts() -> int:
+    """How many frontier attempts (per provider) the empirical-difficulty measurement
+    runs (PRD §9). Kept small by default to bound cost/latency."""
+    return max(1, _env_int("ASCLEPIUS_EMPIRICAL_DIFFICULTY_ATTEMPTS", 2))
+
+
+def measure_empirical_difficulty_enabled() -> bool:
+    """Whether generation runs the LIVE empirical-difficulty measurement (PRD §9)
+    against frontier models for each case. Default OFF (measurement spends real
+    frontier tokens per case + needs keys). When OFF, a case carries a DECLARED
+    difficulty (from the hardness-judge proxy) with ``measured=False``; when ON, the
+    frontier failure rate is measured and — with ``require_measured_difficulty`` —
+    gates below-floor cases out of generation."""
+    return os.getenv("ASCLEPIUS_MEASURE_EMPIRICAL_DIFFICULTY", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def require_faulty_reasoning_default() -> bool:
+    """Product-wide value multiplier (PRD §8.2): when ON, generation forces a
+    fraction of EVERY specialty's cases to admit a plausible-but-wrongly-reasoned
+    path to the correct answer, so the reasoning trace (not the verdict) carries the
+    signal. Default OFF (opt-in per generation call)."""
+    return os.getenv("ASCLEPIUS_REQUIRE_FAULTY_REASONING", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
 def v3_multimodal_only() -> bool:
     """Whether the V3 (seamless) queue PREFERS multimodal cases — i.e. the default
     V3 experience is a structured clinical case (demographics + lab panels with

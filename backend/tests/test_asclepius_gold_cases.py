@@ -174,16 +174,30 @@ def test_admin_load_gold_endpoint_is_admin_only_and_idempotent():
     assert r2.json()["loaded"] == 0 and r2.json()["skipped"] == 10
 
 
-def test_load_gold_for_other_specialty_is_a_noop():
-    """Review fix (C#4): the gold set is nephrology-only, so loading it for another
-    specialty must be a clean no-op (load nothing, tag nothing under that specialty)
-    rather than inserting nephrology cases mislabeled."""
+def test_load_gold_is_specialty_scoped_no_cross_contamination():
+    """Each specialty loads ONLY its own authored gold set (nephrology, cardiology
+    and oncology each ship 10). The case's own specialty is authoritative, so a
+    load never mis-tags one specialty's cases under another (PRD §7)."""
     A.fresh_store()
     admin_h = _admin_h()
-    r = client.post("/api/asclepius/generation/cardiology/load-gold", headers=admin_h)
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["loaded"] == 0 and body["total"] == 0
-    # Nephrology still loads normally afterward.
-    rn = client.post("/api/asclepius/generation/nephrology/load-gold", headers=admin_h)
-    assert rn.json()["loaded"] == 10
+    counts = {}
+    for sp in ("nephrology", "cardiology", "oncology"):
+        r = client.post(f"/api/asclepius/generation/{sp}/load-gold", headers=admin_h)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        counts[sp] = body["loaded"]
+        assert body["loaded"] == 10 and body["total"] == 10
+    assert counts == {"nephrology": 10, "cardiology": 10, "oncology": 10}
+
+
+def test_load_gold_for_unknown_specialty_is_a_noop():
+    """A specialty with no authored gold set loads nothing rather than mis-tagging
+    another specialty's cases under it."""
+    A.fresh_store()
+    admin_h = _admin_h()
+    # 'dermatology' is not a registered specialty → the endpoint rejects it, and a
+    # registered-but-goldless specialty would load 0. Either way, no cases leak.
+    r = client.post("/api/asclepius/generation/dermatology/load-gold", headers=admin_h)
+    assert r.status_code in (200, 400)
+    if r.status_code == 200:
+        assert r.json()["loaded"] == 0 and r.json()["total"] == 0
