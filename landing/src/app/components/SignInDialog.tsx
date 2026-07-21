@@ -2,11 +2,9 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Button } from "@/app/components/ui/button";
-import { Input } from "@/app/components/ui/input";
-import { Label } from "@/app/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import * as authApi from "@/lib/auth-api";
+import { authDialogStyles } from "./authDialogStyles";
 
 type Step = "role" | "doctor" | "patient";
 
@@ -117,163 +115,145 @@ export function SignInDialog({ open, onOpenChange }: Props) {
 
   const modal = (
     <div
-      className="auth-modal-overlay fixed inset-0 z-[9999] flex items-center justify-center bg-black/60"
-      style={{ position: "fixed", zIndex: 9999 }}
+      className="auth-modal-overlay adg-scrim"
       role="dialog"
       aria-modal="true"
       aria-labelledby="signin-title"
     >
-      <div className="w-full max-w-md rounded-2xl border border-[rgba(255,255,255,0.12)] bg-[#111118] px-6 py-6 shadow-[0_0_40px_rgba(0,0,0,0.8)]">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 id="signin-title" className="text-lg font-semibold text-[#f5f5f7]">
-              {step === "role" && "Sign in"}
-              {step === "doctor" && "Doctor sign in"}
-              {step === "patient" && "Access your recovery plan"}
-            </h2>
-            <p className="mt-1 text-sm text-[#a5a5aa]">
-              {step === "role" && "Are you a patient or a doctor?"}
-              {step === "doctor" && "Sign in with your account to access the doctor dashboard."}
-              {step === "patient" && "Enter the codes from your care team email."}
+      <style>{authDialogStyles}</style>
+      <div className="adg-panel">
+        <div className="adg-body">
+          <div className="adg-head">
+            <div>
+              <h2 id="signin-title" className="adg-title">
+                {step === "role" && "Sign in"}
+                {step === "doctor" && "Doctor sign in"}
+                {step === "patient" && "Access your recovery plan"}
+              </h2>
+              <p className="adg-sub">
+                {step === "role" && "Are you a patient or a doctor?"}
+                {step === "doctor" && "Sign in with your account to access the doctor dashboard."}
+                {step === "patient" && "Enter the codes from your care team email."}
+              </p>
+              {step === "doctor" && authApi.signInServerHost() && (
+                <p className="adg-chrome adg-server">Server · {authApi.signInServerHost()}</p>
+              )}
+            </div>
+            <button type="button" onClick={resetAndClose} className="adg-close" aria-label="Close">
+              ×
+            </button>
+          </div>
+
+          {(error || apiError) && (
+            <p className="adg-error" role="alert">
+              <span className="adg-dot adg-dot-pink" aria-hidden="true" />
+              <span>{apiError || error}</span>
             </p>
-            {step === "doctor" && authApi.signInServerHost() && (
-              <p className="mt-1 text-xs text-[#6a6a70]">Server: {authApi.signInServerHost()}</p>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={resetAndClose}
-            className="inline-flex size-8 items-center justify-center rounded-full border border-white/10 text-[#f5f5f7]/80 hover:bg-white/10"
-          >
-            ×
-          </button>
+          )}
+
+          {step === "role" && (
+            <div className="adg-form">
+              <div className="adg-roles">
+                <button type="button" className="adg-role" onClick={() => setStep("patient")}>
+                  <span className="adg-role-for">
+                    <span className="adg-dot adg-dot-faint" aria-hidden="true" />
+                    <span className="adg-chrome">Access codes</span>
+                  </span>
+                  <span className="adg-role-title">Patient</span>
+                  <span className="adg-role-sub">Health system &amp; resource codes</span>
+                </button>
+                <button type="button" className="adg-role" onClick={() => setStep("doctor")}>
+                  <span className="adg-role-for">
+                    <span className="adg-dot adg-dot-green" aria-hidden="true" />
+                    <span className="adg-chrome">Credentialed</span>
+                  </span>
+                  <span className="adg-role-title">Doctor</span>
+                  <span className="adg-role-sub">Email &amp; password</span>
+                </button>
+              </div>
+              <div className="adg-actions">
+                <button type="button" className="adg-btn adg-btn-secondary" onClick={resetAndClose}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === "doctor" && (
+            <form onSubmit={handleDoctorSubmit} className="adg-form">
+              <div className="adg-field">
+                <label className="adg-label" htmlFor="signin-email">Email</label>
+                <input
+                  id="signin-email"
+                  className="adg-input"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+              <div className="adg-field">
+                <label className="adg-label" htmlFor="signin-password">Password</label>
+                <input
+                  id="signin-password"
+                  className="adg-input"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+              <div className="adg-actions">
+                <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("role")}>
+                  Back
+                </button>
+                <button type="submit" className="adg-btn adg-btn-primary" disabled={submitting}>
+                  {submitting ? "Signing in…" : "Sign in"}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {step === "patient" && (
+            <form onSubmit={handlePatientSubmit} className="adg-form">
+              <div className="adg-field">
+                <label className="adg-label" htmlFor="signin-clinic-code">Health system code</label>
+                <input
+                  id="signin-clinic-code"
+                  className="adg-input adg-input-code"
+                  type="text"
+                  placeholder="From your email"
+                  value={clinicCode}
+                  onChange={(e) => setClinicCode(e.target.value.toUpperCase())}
+                  required
+                />
+              </div>
+              <div className="adg-field">
+                <label className="adg-label" htmlFor="signin-resource-code">Resource code</label>
+                <input
+                  id="signin-resource-code"
+                  className="adg-input adg-input-code"
+                  type="text"
+                  placeholder="From your email"
+                  value={resourceCode}
+                  onChange={(e) => setResourceCode(e.target.value.toUpperCase())}
+                  required
+                />
+              </div>
+              <div className="adg-actions">
+                <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("role")}>
+                  Back
+                </button>
+                <button type="submit" className="adg-btn adg-btn-primary" disabled={submitting}>
+                  {submitting ? "Loading…" : "View recovery plan"}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
-
-        {(error || apiError) && (
-          <p
-            className="mb-4 rounded-md border border-[#ff3b30]/40 bg-[#2b1413] px-3 py-2 text-sm text-[#ffb3aa]"
-            role="alert"
-          >
-            {apiError || error}
-          </p>
-        )}
-
-        {step === "role" && (
-          <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10 whitespace-normal text-center"
-                onClick={() => setStep("patient")}
-              >
-                <span className="text-2xl">👤</span>
-                <span className="font-semibold">Patient</span>
-                <span className="text-xs font-normal text-[#a5a5aa]">I have health system & resource codes</span>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10 whitespace-normal text-center"
-                onClick={() => setStep("doctor")}
-              >
-                <span className="text-2xl">👨‍⚕️</span>
-                <span className="font-semibold">Doctor</span>
-                <span className="text-xs font-normal text-[#a5a5aa]">Email & password</span>
-              </Button>
-            </div>
-            <div className="flex justify-end">
-              <Button type="button" variant="outline" onClick={resetAndClose} className="border-[rgba(255,255,255,0.25)]">
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {step === "doctor" && (
-          <form onSubmit={handleDoctorSubmit} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="signin-email">Email</Label>
-              <Input
-                id="signin-email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] text-[#f5f5f7] placeholder:text-[#6a6a70]"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="signin-password">Password</Label>
-              <Input
-                id="signin-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] text-[#f5f5f7] placeholder:text-[#6a6a70]"
-              />
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep("role")}
-                className="border-[rgba(255,255,255,0.25)]"
-              >
-                Back
-              </Button>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Signing in…" : "Sign in"}
-              </Button>
-            </div>
-          </form>
-        )}
-
-        {step === "patient" && (
-          <form onSubmit={handlePatientSubmit} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="signin-clinic-code">Health system code</Label>
-              <Input
-                id="signin-clinic-code"
-                type="text"
-                placeholder="From your email"
-                value={clinicCode}
-                onChange={(e) => setClinicCode(e.target.value.toUpperCase())}
-                required
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] font-mono tracking-wider text-[#f5f5f7] placeholder:text-[#6a6a70]"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="signin-resource-code">Resource code</Label>
-              <Input
-                id="signin-resource-code"
-                type="text"
-                placeholder="From your email"
-                value={resourceCode}
-                onChange={(e) => setResourceCode(e.target.value.toUpperCase())}
-                required
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] font-mono tracking-wider text-[#f5f5f7] placeholder:text-[#6a6a70]"
-              />
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep("role")}
-                className="border-[rgba(255,255,255,0.25)]"
-              >
-                Back
-              </Button>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Loading…" : "View recovery plan"}
-              </Button>
-            </div>
-          </form>
-        )}
       </div>
     </div>
   );

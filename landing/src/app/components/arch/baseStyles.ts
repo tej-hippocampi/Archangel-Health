@@ -4,6 +4,34 @@
  * Route-specific additions live in routeStyles.ts.
  */
 
+/**
+ * Canonical console palette, exported so surfaces that render outside the
+ * .arch-landing scope (auth dialogs, onboarding) consume the exact same
+ * values without duplicating them. This is the §2.1 token list — do not
+ * introduce a color anywhere in the landing app that is not defined here.
+ */
+export const consolePalette = `
+  --canvas: #eef0ef;
+  --card: #fbfcfa;
+  --card-in: #f4f5f3;
+  --hairline: rgba(26, 27, 26, 0.08);
+  --hairline-strong: rgba(26, 27, 26, 0.16);
+  --ink: #1a1b1a;
+  --ink-hover: #0f100f;
+  --ink-soft: #5c5e5a;
+  --ink-faint: #8b8d89;
+  --green: #4ca63c;
+  --orange: #ec9440;
+  --pink: #e8447b;
+  --lime: #d5e14e;
+  --shadow-card: 0 1px 2px rgba(26, 27, 26, 0.03);
+  --shadow-float: 0 24px 60px -36px rgba(26, 27, 26, 0.28);
+  --sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --doto: 'Doto', monospace;
+  --scrim: rgba(238, 240, 239, 0.92);
+`;
+
 export const baseStyles = `
 /* ============================================================
    Archangel Health — v3 "console" system
@@ -16,27 +44,12 @@ export const baseStyles = `
 html { scroll-behavior: smooth; }
 
 .arch-landing {
-  --canvas: #eef0ef;
-  --card: #fbfcfa;
-  --card-in: #f4f5f3;
-  --hairline: rgba(26, 27, 26, 0.08);
-  --ink: #1a1b1a;
-  --ink-soft: #5c5e5a;
-  --ink-faint: #8b8d89;
-  --green: #4ca63c;
-  --orange: #ec9440;
-  --pink: #e8447b;
-  --lime: #d5e14e;
+  ${consolePalette}
   --r-chip: 999px;
   --r-sm: 18px;
   --r-md: 28px;
   --r-lg: 36px;
   --r-xl: 44px;
-  --shadow-card: 0 1px 2px rgba(26, 27, 26, 0.03);
-  --shadow-float: 0 24px 60px -36px rgba(26, 27, 26, 0.28);
-  --sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --doto: 'Doto', monospace;
   --pagepad: clamp(1.25rem, 4vw, 2.5rem);
   --measure: 34rem;
 

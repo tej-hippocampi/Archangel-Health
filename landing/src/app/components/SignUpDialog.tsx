@@ -2,11 +2,9 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Button } from "@/app/components/ui/button";
-import { Input } from "@/app/components/ui/input";
-import { Label } from "@/app/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import * as authApi from "@/lib/auth-api";
+import { authDialogStyles } from "./authDialogStyles";
 
 type Step = "role" | "register" | "doctor-onboard" | "patient-codes";
 
@@ -110,243 +108,231 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
 
   const modal = (
     <div
-      className="auth-modal-overlay fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
-      style={{ position: "fixed", zIndex: 9999 }}
+      className="auth-modal-overlay adg-scrim"
       role="dialog"
       aria-modal="true"
       aria-labelledby="signup-title"
     >
+      <style>{authDialogStyles}</style>
       <div
-        className="relative z-10 w-full max-w-md rounded-2xl border border-[rgba(255,255,255,0.12)] bg-[#111118] shadow-[0_0_40px_rgba(0,0,0,0.8)] flex flex-col max-h-[90vh] overflow-hidden"
+        className="adg-panel"
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex-none px-6 pt-6 pb-2">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="adg-body">
+        <div className="adg-head">
           <div>
-            <h2 id="signup-title" className="text-lg font-semibold text-[#f5f5f7]">
+            <h2 id="signup-title" className="adg-title">
               {step === "role" && "Sign up"}
               {step === "register" && "Create account"}
               {step === "doctor-onboard" && "Doctor onboarding"}
               {step === "patient-codes" && "View your recovery plan"}
             </h2>
-            <p className="mt-1 text-sm text-[#a5a5aa]">
+            <p className="adg-sub">
               {step === "role" && "Are you a patient or a doctor?"}
               {step === "register" && "Create your Archangel Health account."}
               {step === "doctor-onboard" && "Tell us about your practice."}
               {step === "patient-codes" && "Enter the codes from your care team email."}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={resetAndClose}
-            className="inline-flex size-8 items-center justify-center rounded-full border border-white/10 text-[#f5f5f7]/80 hover:bg-white/10"
-          >
+          <button type="button" onClick={resetAndClose} className="adg-close" aria-label="Close">
             ×
           </button>
         </div>
-        </div>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
         {(error || apiError) && (
-          <p
-            className="mb-4 rounded-md border border-[#ff3b30]/40 bg-[#2b1413] px-3 py-2 text-sm text-[#ffb3aa]"
-            role="alert"
-          >
-            {apiError || error}
+          <p className="adg-error" role="alert">
+            <span className="adg-dot adg-dot-pink" aria-hidden="true" />
+            <span>{apiError || error}</span>
           </p>
         )}
 
         {/* Step: Choose role */}
         {step === "role" && (
-          <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10 whitespace-normal text-center"
-                onClick={() => setStep("patient-codes")}
-              >
-                <span className="text-2xl">👤</span>
-                <span className="font-semibold">Patient</span>
-                <span className="text-xs font-normal text-[#a5a5aa]">I have a health system & resource code</span>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-auto flex-col gap-2 py-6 border-[rgba(255,255,255,0.25)] text-[#f5f5f7] hover:bg-white/10 whitespace-normal text-center"
-                onClick={() => setStep("register")}
-              >
-                <span className="text-2xl">👨‍⚕️</span>
-                <span className="font-semibold">Doctor</span>
-                <span className="text-xs font-normal text-[#a5a5aa]">I provide care</span>
-              </Button>
+          <div className="adg-form">
+            <div className="adg-roles">
+              <button type="button" className="adg-role" onClick={() => setStep("patient-codes")}>
+                <span className="adg-role-for">
+                  <span className="adg-dot adg-dot-faint" aria-hidden="true" />
+                  <span className="adg-chrome">Access codes</span>
+                </span>
+                <span className="adg-role-title">Patient</span>
+                <span className="adg-role-sub">Health system &amp; resource codes</span>
+              </button>
+              <button type="button" className="adg-role" onClick={() => setStep("register")}>
+                <span className="adg-role-for">
+                  <span className="adg-dot adg-dot-green" aria-hidden="true" />
+                  <span className="adg-chrome">Credentialed</span>
+                </span>
+                <span className="adg-role-title">Doctor</span>
+                <span className="adg-role-sub">I provide care</span>
+              </button>
             </div>
-            <div className="flex justify-end">
-              <Button type="button" variant="outline" onClick={resetAndClose} className="border-[rgba(255,255,255,0.25)]">
+            <div className="adg-actions">
+              <button type="button" className="adg-btn adg-btn-secondary" onClick={resetAndClose}>
                 Cancel
-              </Button>
+              </button>
             </div>
           </div>
         )}
 
         {/* Step: Register (doctor) */}
         {step === "register" && (
-          <form onSubmit={handleRegister} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="signup-email">Email</Label>
-              <Input
+          <form onSubmit={handleRegister} className="adg-form">
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="signup-email">Email</label>
+              <input
                 id="signup-email"
+                className="adg-input"
                 type="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] text-[#f5f5f7] placeholder:text-[#6a6a70]"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="signup-name">Name (optional)</Label>
-              <Input
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="signup-name">Name (optional)</label>
+              <input
                 id="signup-name"
+                className="adg-input"
                 type="text"
                 placeholder="Your name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoComplete="name"
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] text-[#f5f5f7] placeholder:text-[#6a6a70]"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="signup-password">Password</Label>
-              <Input
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="signup-password">Password</label>
+              <input
                 id="signup-password"
+                className="adg-input"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={8}
                 autoComplete="new-password"
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] text-[#f5f5f7] placeholder:text-[#6a6a70]"
               />
             </div>
-            <div className="mt-4 flex items-center justify-end gap-3">
-              <Button type="button" variant="outline" onClick={() => setStep("role")} className="border-[rgba(255,255,255,0.25)]">
+            <div className="adg-actions">
+              <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("role")}>
                 Back
-              </Button>
-              <Button type="submit" disabled={submitting}>
+              </button>
+              <button type="submit" className="adg-btn adg-btn-primary" disabled={submitting}>
                 {submitting ? "Creating account…" : "Create account"}
-              </Button>
+              </button>
             </div>
           </form>
         )}
 
         {/* Step: Doctor onboarding */}
         {step === "doctor-onboard" && (
-          <form onSubmit={handleDoctorOnboard} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="onboard-name">Name</Label>
-              <Input
+          <form onSubmit={handleDoctorOnboard} className="adg-form">
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="onboard-name">Name</label>
+              <input
                 id="onboard-name"
+                className="adg-input"
                 type="text"
                 placeholder="Dr. Jane Smith"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] text-[#f5f5f7] placeholder:text-[#6a6a70]"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="onboard-email">Email</Label>
-              <Input
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="onboard-email">Email</label>
+              <input
                 id="onboard-email"
+                className="adg-input"
                 type="email"
                 value={email}
                 readOnly
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] text-[#f5f5f7] opacity-80"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="onboard-phone">Office phone</Label>
-              <Input
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="onboard-phone">Office phone</label>
+              <input
                 id="onboard-phone"
+                className="adg-input"
                 type="tel"
                 placeholder="+1 (555) 123-4567"
                 value={officePhone}
                 onChange={(e) => setOfficePhone(e.target.value)}
                 required
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] text-[#f5f5f7] placeholder:text-[#6a6a70]"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="onboard-type">Type of doctor</Label>
-              <Input
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="onboard-type">Type of doctor</label>
+              <input
                 id="onboard-type"
+                className="adg-input"
                 type="text"
                 placeholder="e.g. Surgeon, Oncologist, PCP"
                 value={doctorType}
                 onChange={(e) => setDoctorType(e.target.value)}
                 required
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] text-[#f5f5f7] placeholder:text-[#6a6a70]"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="onboard-affiliations">Hospital affiliations</Label>
-              <Input
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="onboard-affiliations">Hospital affiliations</label>
+              <input
                 id="onboard-affiliations"
+                className="adg-input"
                 type="text"
                 placeholder="e.g. Memorial Hospital, City Medical Center"
                 value={hospitalAffiliations}
                 onChange={(e) => setHospitalAffiliations(e.target.value)}
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] text-[#f5f5f7] placeholder:text-[#6a6a70]"
               />
             </div>
-            <div className="mt-4 flex items-center justify-end gap-3">
-              <Button type="button" variant="outline" onClick={() => setStep("register")} className="border-[rgba(255,255,255,0.25)]">
+            <div className="adg-actions">
+              <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("register")}>
                 Back
-              </Button>
-              <Button type="submit" disabled={submitting}>
+              </button>
+              <button type="submit" className="adg-btn adg-btn-primary" disabled={submitting}>
                 {submitting ? "Saving…" : "Complete setup"}
-              </Button>
+              </button>
             </div>
           </form>
         )}
 
         {/* Step: Patient codes */}
         {step === "patient-codes" && (
-          <form onSubmit={handlePatientCodes} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="patient-clinic-code">Health system code</Label>
-              <Input
+          <form onSubmit={handlePatientCodes} className="adg-form">
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="patient-clinic-code">Health system code</label>
+              <input
                 id="patient-clinic-code"
+                className="adg-input adg-input-code"
                 type="text"
                 placeholder="From your email"
                 value={clinicCode}
                 onChange={(e) => setClinicCode(e.target.value.toUpperCase())}
                 required
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] font-mono tracking-wider text-[#f5f5f7] placeholder:text-[#6a6a70]"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="patient-resource-code">Resource code</Label>
-              <Input
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="patient-resource-code">Resource code</label>
+              <input
                 id="patient-resource-code"
+                className="adg-input adg-input-code"
                 type="text"
                 placeholder="From your email"
                 value={resourceCode}
                 onChange={(e) => setResourceCode(e.target.value.toUpperCase())}
                 required
-                className="bg-[#0a0a0b] border-[rgba(255,255,255,0.16)] font-mono tracking-wider text-[#f5f5f7] placeholder:text-[#6a6a70]"
               />
             </div>
-            <div className="mt-4 flex items-center justify-end gap-3">
-              <Button type="button" variant="outline" onClick={() => setStep("role")} className="border-[rgba(255,255,255,0.25)]">
+            <div className="adg-actions">
+              <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("role")}>
                 Back
-              </Button>
-              <Button type="submit" disabled={submitting}>
+              </button>
+              <button type="submit" className="adg-btn adg-btn-primary" disabled={submitting}>
                 {submitting ? "Loading…" : "View recovery plan"}
-              </Button>
+              </button>
             </div>
           </form>
         )}
