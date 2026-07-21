@@ -68,6 +68,17 @@ SUBPROCESSORS: Dict[str, Subprocessor] = {
         baa_default=True, baa_env="ANTHROPIC_BAA_SIGNED",
         notes="BAA covers the first-party Claude API only (not Console/Workbench/consumer tiers).",
     ),
+    "openai_api": Subprocessor(
+        key="openai_api", name="OpenAI (API)",
+        purpose="Two-frontier A/B baseline generation + V4 vision A/B (Asclepius)",
+        baa_default=False, baa_env="OPENAI_BAA_SIGNED",
+        notes="OpenAI is the OpenAI side of the two-frontier A/B pair and reads the "
+              "de-identified V4 image in the vision A/B (V4 Image Embedding PRD §5.7). "
+              "Enabling ASCLEPIUS_TWO_FRONTIER_V4 sends real de-identified partner "
+              "images here — a logged founder/compliance decision. PHI-ineligible until "
+              "a BAA is on file (set OPENAI_BAA_SIGNED); V4 relies on partner "
+              "de-identification, not a BAA, for the image content.",
+    ),
     "twilio_sms": Subprocessor(
         key="twilio_sms", name="Twilio (SMS)", purpose="SMS delivery",
         baa_default=True, baa_env="TWILIO_BAA_SIGNED",

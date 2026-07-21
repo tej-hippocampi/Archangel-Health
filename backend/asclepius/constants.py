@@ -760,6 +760,46 @@ def baseline_pairing_ok() -> tuple:
     return (True, f"two-frontier A/B: {models[0]} ({provs[0]}) vs {models[1]} ({provs[1]})")
 
 
+# ─── V4 image embedding (V4 Image Embedding PRD) ─────────────────────────────
+def asset_store() -> str:
+    """The content-addressed asset store location (V4 Image PRD §4). A local
+    filesystem path by default; an ``s3://`` URL is honored by a future backend.
+    The image blob NEVER lives in asclepius.db — only the StudyAsset reference."""
+    return os.getenv("ASCLEPIUS_ASSET_STORE", "").strip() or _default_asset_store()
+
+
+def _default_asset_store() -> str:
+    base = os.getenv("ASCLEPIUS_DATA_DIR", "").strip() or os.path.join(os.path.dirname(__file__), "_assetstore")
+    return base
+
+
+def image_max_bytes() -> int:
+    """Max accepted image byte size on ingest (V4 Image PRD §3.1). Default 25 MB —
+    bounds storage + vision-API cost/latency."""
+    return max(1, _env_int("ASCLEPIUS_IMAGE_MAX_BYTES", 25 * 1024 * 1024))
+
+
+def image_max_dim() -> int:
+    """Longest-edge pixel cap; larger rasters are downscaled preserving aspect (V4
+    Image PRD §3.1). Default 4000 px — keeps ECG/report legibility while bounding
+    vision cost."""
+    return max(64, _env_int("ASCLEPIUS_IMAGE_MAX_DIM", 4000))
+
+
+def image_burnin_scan_enabled() -> bool:
+    """Optional, DEFAULT-OFF OCR backstop (V4 Image PRD §9): when on, ingest runs OCR
+    and FLAGS (never blocks) an image whose text looks like a burned-in identifier for
+    admin review. It is NOT a de-identification gate — the partner attestation is
+    trusted. Build the flag, leave it off."""
+    return os.getenv("ASCLEPIUS_IMAGE_BURNIN_SCAN", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def image_keep_original_pdf() -> bool:
+    """Whether to retain the original PDF alongside the rendered raster (V4 Image PRD
+    §3.2). Default off — the rendered raster is authoritative for viewing + vision."""
+    return os.getenv("ASCLEPIUS_IMAGE_KEEP_PDF", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
 # ─── Fallback ladder (PRD §A3) ────────────────────────────────────────────────
 # Two-frontier has vehement priority (Rung 1). On a genuine single-provider failure
 # the system reverts to the OLD Anthropic-only method (Rung 2, tagged

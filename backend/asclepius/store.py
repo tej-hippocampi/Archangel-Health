@@ -1529,6 +1529,20 @@ class AsclepiusStore:
             )
         return self.get_task(tid)  # type: ignore[return-value]
 
+    def update_task_case(self, task_id: str, case: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Replace a task's stored case (V4 Image Embedding PRD §3.5 — attach an image
+        asset to a study). Re-derives modality + case_source from the new case. Used by
+        the image-ingest path; the image BYTES live in the asset store, only the
+        StudyAsset reference is written here."""
+        md = "multimodal" if (case and (case.get("lab_panels") or case.get("notes") or case.get("studies"))) else "text"
+        cs = ((case.get("case_source") or "synthetic") if case else None)
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE tasks SET case_json = ?, modality = ?, case_source = ? WHERE task_id = ?",
+                (json.dumps(case) if case else None, md, cs, task_id),
+            )
+        return self.get_task(task_id)
+
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,)).fetchone()

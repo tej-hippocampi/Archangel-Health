@@ -693,13 +693,103 @@
       h('table', { class: 'asc-lab-table' }, h('thead', {}, head), h('tbody', {}, ...rows)));
   }
 
-  // Placeholder for the V4 image viewer (defined in the V4 image-embedding layer).
-  // Returns null when no image viewer is available or the study carries no asset,
-  // so a text-only study renders exactly the same either way.
+  // Fetch a cleaned image asset over the AUTHENTICATED endpoint (Bearer token — an
+  // <img src> can't carry it, so we fetch a blob and use an object URL). Blinding
+  // holds: the bytes carry no provider/model/partner identity (V4 Image PRD §6).
+  async function fetchAssetBlobUrl(assetId) {
+    const res = await fetch(API_BASE + '/assets/' + encodeURIComponent(assetId), {
+      headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
+    });
+    if (!res.ok) throw new Error('asset ' + res.status);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  // The V4 image viewer (V4 Image Embedding PRD §6): the image renders ABOVE its
+  // structured findings, with zoom (scroll / ＋－), pan (drag), fit/reset, and a
+  // full-screen toggle — keyboard-operable (＋/－/0, arrows, Esc). One component,
+  // design-tokens only, with a real load-failure state (never a broken-image icon).
   function renderStudyImage(study) {
-    if (!study || !study.asset) return null;
-    if (typeof window.__ascRenderStudyImage === 'function') return window.__ascRenderStudyImage(study);
-    return null;
+    if (!study || !study.asset || !study.asset.asset_id) return null;
+    const asset = study.asset;
+    const pageCount = parseInt(asset.page_count, 10) || 1;
+    const view = { scale: 1, x: 0, y: 0, page: parseInt(asset.page, 10) || 1 };
+    const wrap = h('div', { class: 'asc-img-viewer' });
+    const stage = h('div', { class: 'asc-img-stage', tabindex: '0', role: 'img',
+      'aria-label': (study.label || study.modality || 'clinical') + ' image' });
+    const img = h('img', { class: 'asc-img', alt: (study.label || study.modality || 'clinical image'), draggable: 'false' });
+    const skeleton = h('div', { class: 'asc-img-skeleton' }, h('div', { class: 'loading-spinner' }));
+    stage.appendChild(skeleton);
+
+    function apply() {
+      img.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';
+    }
+    function zoom(delta, cx, cy) {
+      const next = Math.min(8, Math.max(1, view.scale + delta));
+      view.scale = next;
+      if (next === 1) { view.x = 0; view.y = 0; }
+      apply();
+    }
+    function reset() { view.scale = 1; view.x = 0; view.y = 0; apply(); }
+
+    // Zoom on scroll; pan on drag.
+    stage.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 0.25 : -0.25); }, { passive: false });
+    let drag = null;
+    stage.addEventListener('mousedown', (e) => { drag = { x: e.clientX - view.x, y: e.clientY - view.y }; stage.classList.add('asc-img-grabbing'); });
+    window.addEventListener('mousemove', (e) => { if (!drag) return; view.x = e.clientX - drag.x; view.y = e.clientY - drag.y; apply(); });
+    window.addEventListener('mouseup', () => { drag = null; stage.classList.remove('asc-img-grabbing'); });
+    // Keyboard: +/- zoom, 0 reset, arrows pan, Esc exit full-screen.
+    stage.addEventListener('keydown', (e) => {
+      const step = 40;
+      if (e.key === '+' || e.key === '=') { zoom(0.25); }
+      else if (e.key === '-' || e.key === '_') { zoom(-0.25); }
+      else if (e.key === '0') { reset(); }
+      else if (e.key === 'ArrowLeft') { view.x += step; apply(); }
+      else if (e.key === 'ArrowRight') { view.x -= step; apply(); }
+      else if (e.key === 'ArrowUp') { view.y += step; apply(); }
+      else if (e.key === 'ArrowDown') { view.y -= step; apply(); }
+      else if (e.key === 'Escape') { if (wrap.classList.contains('asc-img-full')) toggleFull(); return; }
+      else { return; }
+      e.preventDefault();
+    });
+    function toggleFull() { wrap.classList.toggle('asc-img-full'); reset(); stage.focus(); }
+
+    const toolbar = h('div', { class: 'asc-img-toolbar' },
+      h('button', { class: 'asc-img-btn', type: 'button', title: 'Zoom out (−)', onClick: () => zoom(-0.25) }, '−'),
+      h('button', { class: 'asc-img-btn', type: 'button', title: 'Zoom in (+)', onClick: () => zoom(0.25) }, '＋'),
+      h('button', { class: 'asc-img-btn', type: 'button', title: 'Reset view (0)', onClick: reset }, 'Reset'),
+      h('button', { class: 'asc-img-btn', type: 'button', title: 'Full screen', onClick: toggleFull }, '⤢'));
+    // Multi-page PDF navigation (page count > 1).
+    let pageLabel = null;
+    if (pageCount > 1) {
+      pageLabel = h('span', { class: 'asc-img-page' }, view.page + ' / ' + pageCount);
+      toolbar.appendChild(h('span', { class: 'asc-img-pagenav' },
+        h('button', { class: 'asc-img-btn', type: 'button', title: 'Previous page',
+          onClick: () => { if (view.page > 1) { view.page--; pageLabel.textContent = view.page + ' / ' + pageCount; } } }, '‹'),
+        pageLabel,
+        h('button', { class: 'asc-img-btn', type: 'button', title: 'Next page',
+          onClick: () => { if (view.page < pageCount) { view.page++; pageLabel.textContent = view.page + ' / ' + pageCount; } } }, '›')));
+    }
+
+    stage.appendChild(img);
+    wrap.appendChild(toolbar);
+    wrap.appendChild(stage);
+
+    // Load the bytes. On failure show a real error state with a reload — the doctor
+    // must NEVER grade a case whose image didn't render (PRD §6).
+    fetchAssetBlobUrl(asset.asset_id).then((url) => {
+      img.onload = () => { if (skeleton.parentNode) skeleton.parentNode.removeChild(skeleton); apply(); };
+      img.onerror = () => showError();
+      img.src = url;
+    }).catch(() => showError());
+    function showError() {
+      clear(stage);
+      stage.appendChild(h('div', { class: 'asc-img-error' },
+        h('div', {}, 'Could not load the image.'),
+        h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+          onClick: () => { const p = wrap.parentNode; if (p) { const fresh = renderStudyImage(study); p.replaceChild(fresh, wrap); } } }, 'Reload')));
+    }
+    return wrap;
   }
 
   // One study rendered inside its tab: the image first (if any), then the modality

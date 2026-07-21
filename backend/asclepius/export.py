@@ -1232,6 +1232,12 @@ def build_export(
         if name in (JSONL_NAME, MANIFEST_NAME):
             continue
         content_hashes[name] = _sha256_text((out_dir / name).read_text(encoding="utf-8"))
+    # Image assets (V4 Image Embedding PRD §8): bundle the CLEANED image bytes with the
+    # record set so a buyer can use the reasoning trace about the image, referenced by
+    # asset_id + sha256 (integrity). Blinding holds — stripped-metadata images only, no
+    # provider/model/partner identity. Best-effort: a missing blob is skipped, never
+    # fatal.
+    image_assets = _collect_and_write_image_assets(emitted, out_dir)
     manifest = {
         "export_id": export_id,
         "created_at": exported_at,
@@ -1243,6 +1249,10 @@ def build_export(
         "counts": counts,
         "grounded_count": sum(1 for r in emitted if (r.get("payload") or {}).get("grounded")),
         "multimodal_count": sum(1 for r in emitted if _rec_modality(r) == "multimodal"),
+        # Image assets bundled with this export (V4 Image PRD §8): {asset_id, sha256,
+        # modality, mime, license, provenance, path}. Empty for text-only batches.
+        "image_assets": image_assets,
+        "image_asset_count": len(image_assets),
         "synthetic_prompt_count": len(_synthetic_records(emitted)),
         # Tri-state: true (all synthetic prompts from a ratified corpus), false
         # (some unratified — see datasheet warning), or null (no synthetic prompts).
@@ -1296,12 +1306,62 @@ def build_export(
     return manifest
 
 
+def _mime_ext(mime: str) -> str:
+    return {"image/png": ".png", "image/jpeg": ".jpg", "application/pdf": ".pdf"}.get((mime or "").lower(), ".bin")
+
+
+def _collect_and_write_image_assets(records: List[Dict[str, Any]], out_dir: "Path") -> List[Dict[str, Any]]:
+    """Collect image-bearing studies from the emitted records, write each CLEANED blob
+    to ``<out_dir>/assets/<sha256><ext>`` (deduped), and return the manifest entries
+    (V4 Image PRD §8). Every asset carries provenance + the V4 real-record license.
+    Best-effort — a missing/unreadable blob is skipped, never fatal."""
+    try:
+        from asclepius.cases import study_has_valid_asset
+        from asclepius.assets import load_asset
+        from asclepius.constants import default_license
+    except Exception:  # pragma: no cover
+        return []
+    license_terms = None
+    try:
+        license_terms = default_license()
+    except Exception:
+        license_terms = None
+    assets_dir = out_dir / "assets"
+    seen: Dict[str, Dict[str, Any]] = {}
+    for r in records:
+        case = ((r.get("payload") or {}).get("context") or {}).get("case") or {}
+        for s in (case.get("studies") or []):
+            if not (isinstance(s, dict) and study_has_valid_asset(s)):
+                continue
+            a = s.get("asset") or {}
+            sha = a.get("sha256")
+            if not sha or sha in seen:
+                continue
+            fname = "assets/" + sha + _mime_ext(a.get("mime"))
+            try:
+                data, _mime = load_asset(a)
+                assets_dir.mkdir(parents=True, exist_ok=True)
+                (out_dir / fname).write_bytes(data)
+            except Exception:  # missing/corrupt blob — reference it but don't bundle
+                fname = None
+            seen[sha] = {
+                "asset_id": a.get("asset_id"), "sha256": sha,
+                "modality": str(s.get("modality") or "").lower(),
+                "mime": a.get("mime"), "byte_size": a.get("byte_size"),
+                "license": license_terms,
+                "provenance": a.get("source") or "partner_deidentified",
+                "path": fname,
+            }
+    return list(seen.values())
+
+
 def zip_export(export: Dict[str, Any]) -> bytes:
     """Zip an export directory into an in-memory archive for download."""
     dir_path = Path(export.get("dir_path") or "")
+    manifest = export.get("manifest") or {}
     # Use the manifest's actual file list (may include the FEAT-2 grader files);
     # fall back to the base companions for older manifests.
-    files = ((export.get("manifest") or {}).get("files")) or _COMPANION_FILES
+    files = manifest.get("files") or _COMPANION_FILES
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         if dir_path.is_dir():
@@ -1309,7 +1369,12 @@ def zip_export(export: Dict[str, Any]) -> bytes:
                 fp = dir_path / name
                 if fp.exists():
                     zf.write(fp, arcname=name)
+            # Bundle the image assets (V4 Image PRD §8) — cleaned bytes only.
+            for ia in (manifest.get("image_assets") or []):
+                p = ia.get("path")
+                if p and (dir_path / p).exists():
+                    zf.write(dir_path / p, arcname=p)
         else:
-            zf.writestr(MANIFEST_NAME, json.dumps(export.get("manifest") or {}, indent=2))
+            zf.writestr(MANIFEST_NAME, json.dumps(manifest, indent=2))
     buf.seek(0)
     return buf.read()

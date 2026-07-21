@@ -132,6 +132,52 @@ def _user_text(messages: list[dict[str, Any]]) -> str:
     return "\n\n".join(parts)
 
 
+# ── Vision (V4 Image Embedding PRD §5) ───────────────────────────────────────
+# The provider-neutral image block callers put in a message's ``content`` list is
+# the ANTHROPIC base64 form; the OpenAI path converts it to a Responses image part.
+# One asset → two identical payloads (the whole point of the vision A/B).
+def image_block(mime: str, b64_data: str) -> dict[str, Any]:
+    """A base64 image content block (Anthropic form). Pass inside a message's
+    ``content`` list alongside a ``{"type":"text",...}`` block."""
+    return {"type": "image", "source": {"type": "base64", "media_type": mime, "data": b64_data}}
+
+
+def _has_images(messages: list[dict[str, Any]]) -> bool:
+    for m in messages or []:
+        c = m.get("content")
+        if isinstance(c, list) and any(isinstance(b, dict) and b.get("type") == "image" for b in c):
+            return True
+    return False
+
+
+def _openai_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build the OpenAI Responses ``input`` list from messages that may carry
+    Anthropic-style image blocks — text → ``input_text``, base64 image →
+    ``input_image`` data URL. Same bytes as the Anthropic payload."""
+    out: list[dict[str, Any]] = []
+    for m in messages or []:
+        role = m.get("role", "user")
+        content = m.get("content")
+        parts: list[dict[str, Any]] = []
+        if isinstance(content, list):
+            for b in content:
+                if not isinstance(b, dict):
+                    continue
+                if b.get("type") == "text":
+                    parts.append({"type": "input_text", "text": b.get("text", "")})
+                elif b.get("type") == "image":
+                    src = b.get("source") or {}
+                    if src.get("type") == "base64":
+                        parts.append({"type": "input_image",
+                                      "image_url": f"data:{src.get('media_type', 'image/png')};base64,{src.get('data', '')}"})
+                    elif src.get("type") == "url" and src.get("url"):
+                        parts.append({"type": "input_image", "image_url": src.get("url")})
+        else:
+            parts.append({"type": "input_text", "text": str(content or "")})
+        out.append({"role": role, "content": parts})
+    return out
+
+
 def _is_openai_reasoning(model: str) -> bool:
     m = (model or "").lower().replace("openai:", "")
     return m.startswith(("o1", "o3", "o4", "gpt-5", "gpt5"))
@@ -236,10 +282,12 @@ async def _openai_create_async(model: str, system: str, messages: list[dict[str,
     user_text = _user_text(messages)
     reasoning = _is_openai_reasoning(model)
     out_cap = _openai_output_cap(max_tokens, reasoning)
+    has_images = _has_images(messages)  # V4 vision A/B — read the pixels, not just text
     # Prefer the Responses API (uniform across reasoning + non-reasoning models);
     # fall back to chat.completions if the installed SDK lacks it.
     try:
-        params: dict[str, Any] = {"model": model, "instructions": system, "input": user_text,
+        params: dict[str, Any] = {"model": model, "instructions": system,
+                                  "input": (_openai_input(messages) if has_images else user_text),
                                   "max_output_tokens": out_cap}
         if temperature is not None and not reasoning:
             params["temperature"] = temperature
@@ -252,9 +300,23 @@ async def _openai_create_async(model: str, system: str, messages: list[dict[str,
                           getattr(resp, "id", None))
     except (AttributeError, TypeError):
         # Older SDK / shape mismatch → chat.completions with reasoning-safe params.
+        if has_images:
+            uc: list[dict[str, Any]] = [{"type": "text", "text": user_text}]
+            for m in messages or []:
+                c = m.get("content")
+                if isinstance(c, list):
+                    for b in c:
+                        if isinstance(b, dict) and b.get("type") == "image":
+                            src = b.get("source") or {}
+                            if src.get("type") == "base64":
+                                uc.append({"type": "image_url", "image_url": {
+                                    "url": f"data:{src.get('media_type', 'image/png')};base64,{src.get('data', '')}"}})
+            user_content: Any = uc
+        else:
+            user_content = user_text
         params = {"model": model,
                   "messages": [{"role": "system", "content": system},
-                               {"role": "user", "content": user_text}]}
+                               {"role": "user", "content": user_content}]}
         if reasoning:
             params["max_completion_tokens"] = out_cap
         else:

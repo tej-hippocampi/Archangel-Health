@@ -92,6 +92,42 @@ def resolve_provider(model_id: str) -> str:
     raise UnknownProvider(f"cannot resolve provider for model id: {model_id!r}")
 
 
+# Model families that can accept an image input (V4 Image Embedding PRD §5.1). The
+# current frontier ids (gpt-5, claude-opus/sonnet/haiku 4.x, o-series) are all
+# vision-capable; a legacy/text-only id must degrade the case to needs_baseline
+# rather than silently grade text-only. Override the allow/deny via
+# MODEL_VISION_ALLOW / MODEL_VISION_DENY (comma-separated id prefixes).
+_VISION_CAPABLE_PREFIXES = (
+    "gpt-5", "gpt-4o", "gpt-4.1", "chatgpt", "o1", "o3", "o4",
+    "claude-opus", "claude-sonnet", "claude-haiku", "claude-3", "claude-4",
+    "claude-fable", "anthropic:claude", "openai:gpt", "openai:o",
+)
+# Known text-only ids that must NOT be used for a vision A/B.
+_VISION_INCAPABLE_PREFIXES = ("gpt-3.5", "claude-instant", "claude-2", "claude-1")
+
+
+def _csv_env(name: str) -> tuple:
+    raw = (os.getenv(name) or "").strip()
+    return tuple(x.strip().lower() for x in raw.split(",") if x.strip())
+
+
+def is_vision_capable(model_id: str) -> bool:
+    """True if ``model_id`` can accept an image input (V4 Image PRD §5.1). Used by the
+    baseline preflight to degrade a misconfigured non-vision model to
+    ``needs_baseline`` instead of silently grading an image case text-only."""
+    m = (model_id or "").strip().lower()
+    if not m:
+        return False
+    for pfx in _csv_env("MODEL_VISION_DENY") or ():
+        if m.startswith(pfx):
+            return False
+    if any(m.startswith(pfx) for pfx in _VISION_INCAPABLE_PREFIXES):
+        return False
+    if any(m.startswith(pfx) for pfx in _csv_env("MODEL_VISION_ALLOW") or ()):
+        return True
+    return any(m.startswith(pfx) for pfx in _VISION_CAPABLE_PREFIXES)
+
+
 def api_model_id(model_id: str) -> str:
     """Strip an optional ``openai:`` / ``anthropic:`` routing prefix so the bare id is
     sent to the SDK (``openai:gpt-5`` → ``gpt-5``)."""

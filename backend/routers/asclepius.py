@@ -25,10 +25,10 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import (
-    APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request,
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request,
     UploadFile,
 )
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from asclepius import agreement as asc_agreement
 from asclepius import auth as asc_auth
@@ -652,6 +652,88 @@ async def get_seed_corpus(
 @router.get("/specialties")
 async def list_specialties(_user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     return {"specialties": asc_specialties.list_specialties()}
+
+
+# ─── V4 image assets (V4 Image Embedding PRD §3–§4) ──────────────────────────
+@router.post("/assets/ingest")
+async def ingest_image_asset(
+    file: UploadFile = File(...),
+    task_id: str = Form(...),
+    modality: str = Form(...),
+    label: str = Form(""),
+    findings: str = Form(""),
+    page: int = Form(1),
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Ingest a PNG/JPEG/PDF and attach it as a StudyAsset to a V4 (real de-identified)
+    case's study (PRD §3). Enforces PNG/JPEG/PDF only (415), size/dim caps, PDF→raster,
+    metadata strip, content-addressed store + dedupe. The image BYTES go to the asset
+    store; only the reference is written to the case. Images NEVER enter V1/V2/V3."""
+    from asclepius import assets as asc_assets
+    store = _store()
+    task = store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="task_not_found")
+    case = task.get("case") or {}
+    # V4 WALL (PRD §3.5 / §11): an image can only attach to a real de-identified case.
+    if case.get("case_source") != "real_deid":
+        raise HTTPException(status_code=400, detail="image_only_on_real_deid_v4_case")
+    data = await file.read()
+    try:
+        asset = asc_assets.process_upload(data, file.content_type or "", page=page)
+    except asc_assets.UnsupportedMediaType as exc:
+        raise HTTPException(status_code=415, detail={"error": "unsupported_media_type", "message": str(exc)})
+    except asc_assets.ImageTooLarge as exc:
+        raise HTTPException(status_code=413, detail={"error": "image_too_large", "message": str(exc)})
+    except asc_assets.AssetError as exc:
+        raise HTTPException(status_code=422, detail={"error": "asset_error", "message": str(exc)})
+    modality = (modality or "other").strip().lower()
+    studies = list(case.get("studies") or [])
+    # Attach to the first study of this modality that has no asset yet, else append a
+    # new study. ``findings`` stays required (the reasoning anchor, PRD §2).
+    target = next((s for s in studies if isinstance(s, dict)
+                   and str(s.get("modality", "")).lower() == modality and not s.get("asset")), None)
+    if target is None:
+        target = {"modality": modality, "label": label or modality.upper(),
+                  "findings": findings or "(structured findings pending)", "measurements": [], "asset": None}
+        studies.append(target)
+    if findings:
+        target["findings"] = findings
+    if label:
+        target["label"] = label
+    target["asset"] = asset
+    case["studies"] = studies
+    # Validate the updated case still clears the (extended) multimodal gate.
+    try:
+        asc_cases.assert_multimodal_content(case)
+    except asc_cases.MultimodalContentError as exc:
+        raise HTTPException(status_code=422, detail={"error": "case_content", "message": str(exc)})
+    store.update_task_case(task_id, case)
+    # Return the reference only — never the bytes, store path, or partner id.
+    return {"asset_id": asset["asset_id"], "sha256": asset["sha256"], "mime": asset["mime"],
+            "modality": modality, "task_id": task_id,
+            "case_type": asc_cases.case_type_signature(case)}
+
+
+@router.get("/assets/{asset_id}")
+async def get_asset(asset_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+    """Stream a cleaned image asset by id (PRD §4). Authenticated (evaluator/admin);
+    the served bytes carry no provider/model, no partner identity, and no residual
+    metadata (stripped at ingest). The store path is never exposed."""
+    from asclepius import assets as asc_assets
+    store = _store()
+    ref = asc_assets.find_asset_by_id(store, asset_id)
+    if not ref:
+        raise HTTPException(status_code=404, detail="asset_not_found")
+    try:
+        data, mime = asc_assets.load_asset(ref)
+    except asc_assets.AssetError:
+        raise HTTPException(status_code=404, detail="asset_unavailable")
+    return Response(content=data, media_type=mime, headers={
+        "Cache-Control": "private, max-age=3600",
+        "Content-Length": str(len(data)),
+        "X-Content-Type-Options": "nosniff",
+    })
 
 
 @router.get("/tasks")

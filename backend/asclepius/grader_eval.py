@@ -68,10 +68,15 @@ def _first_sentences(text: str, n: int = 2) -> str:
 
 async def run_grader(
     criteria: List[Dict[str, Any]], prompt: str, answer: str, *, role: str = "asclepius_critic",
+    image: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Run the SHIPPED grader (same criteria the buyer gets) on one answer. Returns the
     grader JSON (with the deterministic critical-negative hard-fail applied) or
-    ``{"skipped": True}``. Never raises."""
+    ``{"skipped": True}``. Never raises.
+
+    ``image`` (V4 Image Embedding PRD §7): for an image case the grader MUST receive
+    the SAME image the models saw, or its validity measurement is on a different input
+    than the models graded — which would be invalid."""
     if not (answer or "").strip() or not criteria:
         return dict(_SKIPPED)
     try:
@@ -82,10 +87,11 @@ async def run_grader(
     user = ("PROMPT:\n" + (prompt or "") + "\n\nRUBRIC CRITERIA:\n"
             + json.dumps(criteria, indent=2, default=str)
             + "\n\nCANDIDATE ANSWER:\n" + answer)
+    content: Any = ([{"type": "text", "text": user}, image] if image else user)
     try:
         resp, _ = await call_llm(
             role=role, system=_GRADER_PROMPT,
-            messages=[{"role": "user", "content": user}],
+            messages=[{"role": "user", "content": content}],
             prompt_id="asclepius_critic", purpose="rubric_grader_eval",
         )
     except Exception as exc:
@@ -113,6 +119,7 @@ def _norm(g: Dict[str, Any]) -> float:
 
 async def grader_validity(
     criteria: List[Dict[str, Any]], prompt: str, chosen: str, rejected: str,
+    *, image: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """FIX-2: run the grader on the physician's own chosen vs rejected answers. Proves
     the criteria discriminate. ``needs_review`` when separation is low OR the rejected
@@ -120,8 +127,8 @@ async def grader_validity(
     if not (chosen or "").strip() or not (rejected or "").strip():
         return dict(_SKIPPED)
     gc, gr = await asyncio.gather(
-        run_grader(criteria, prompt, chosen),
-        run_grader(criteria, prompt, rejected),
+        run_grader(criteria, prompt, chosen, image=image),
+        run_grader(criteria, prompt, rejected, image=image),
     )
     if gc.get("skipped") or gr.get("skipped"):
         return dict(_SKIPPED)
@@ -142,6 +149,7 @@ async def grader_validity(
 
 async def grader_reliability(
     criteria: List[Dict[str, Any]], prompt: str, chosen: str, *, runs: Optional[int] = None,
+    image: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """FIX-2: grade the chosen answer N identical times; report normalized-score
     variance + per-criterion met/not-met flip rate. A CRITICAL criterion that flips
@@ -149,7 +157,7 @@ async def grader_reliability(
     if not (chosen or "").strip():
         return dict(_SKIPPED)
     n = runs or grader_reliability_runs()
-    grades = await asyncio.gather(*[run_grader(criteria, prompt, chosen) for _ in range(n)])
+    grades = await asyncio.gather(*[run_grader(criteria, prompt, chosen, image=image) for _ in range(n)])
     grades = [g for g in grades if not g.get("skipped")]
     if len(grades) < 2:
         return dict(_SKIPPED)
@@ -182,6 +190,7 @@ async def grader_reliability(
 
 async def hackability(
     criteria: List[Dict[str, Any]], prompt: str, chosen: str, rejected: str,
+    *, image: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """FIX-8: build a padded-but-hollow answer (verbose hedging that ticks surface
     positives while committing the case's actual error) and a terse-but-correct answer,
@@ -193,8 +202,8 @@ async def hackability(
     padded = (_HEDGE * 3) + rejected.strip()          # long + hollow + commits the error
     terse = _first_sentences(chosen, 2) or chosen.strip()   # short + nails the point
     gp, gt = await asyncio.gather(
-        run_grader(criteria, prompt, padded),
-        run_grader(criteria, prompt, terse),
+        run_grader(criteria, prompt, padded, image=image),
+        run_grader(criteria, prompt, terse, image=image),
     )
     if gp.get("skipped") or gt.get("skipped"):
         return dict(_SKIPPED)
@@ -228,11 +237,31 @@ async def run_rubric_probes(
     payload = submission.get("payload") or {}
     chosen = _chosen_text(task, payload)
     rejected = _rejected_text(task, payload)
+    # V4 image case (PRD §7): the grader MUST receive the SAME image the models saw, or
+    # the validity measurement is on a different input than they graded. If no vision
+    # grader is available, mark the grader block skipped: vision_grader_unavailable —
+    # never grade an image case text-only and call it validated.
+    image = None
+    try:
+        from asclepius.baselines import _case_image_for_baseline
+        image = _case_image_for_baseline(task)[0]
+    except Exception:  # pragma: no cover
+        image = None
+    if image is not None:
+        try:
+            from ai.model_config import resolve, is_vision_capable
+            grader_model = (resolve("asclepius_critic") or {}).get("model")
+            if not is_vision_capable(grader_model):
+                skip = {"skipped": True, "reason": "vision_grader_unavailable"}
+                return {"grader_validity": dict(skip), "grader_reliability": dict(skip),
+                        "hackability": dict(skip), "needs_review": True}
+        except Exception:  # pragma: no cover
+            pass
     try:
         validity, reliability, hack = await asyncio.gather(
-            grader_validity(criteria, prompt, chosen, rejected),
-            grader_reliability(criteria, prompt, chosen),
-            hackability(criteria, prompt, chosen, rejected),
+            grader_validity(criteria, prompt, chosen, rejected, image=image),
+            grader_reliability(criteria, prompt, chosen, image=image),
+            hackability(criteria, prompt, chosen, rejected, image=image),
         )
     except Exception as exc:  # pragma: no cover - meta-eval must never break submit
         log.exception("run_rubric_probes failed: %s", exc)
