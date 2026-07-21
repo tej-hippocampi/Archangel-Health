@@ -1182,28 +1182,75 @@
   function normSentence(s) {
     return (s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
+  // Token set of a normalized sentence (for the soft Jaccard match below).
+  function sentTokenSet(norm) {
+    const set = new Set();
+    for (const t of (norm || '').split(' ')) { if (t) set.add(t); }
+    return set;
+  }
+  // Token-set Jaccard similarity between two normalized sentences.
+  function tokenJaccard(setA, setB) {
+    if (!setA.size || !setB.size) return 0;
+    let inter = 0;
+    for (const t of setA) { if (setB.has(t)) inter++; }
+    const union = setA.size + setB.size - inter;
+    return union ? inter / union : 0;
+  }
   // LCS over normalized sentences → per-sentence shared/divergent flags.
-  function diffFlags(aSents, bSents) {
+  // ``soft`` (§3.1, V3/V4 only): near-identical clinical sentences also count as
+  // shared (token-set Jaccard ≥ 0.85), so shared boilerplate dims on real prose
+  // instead of only on byte-identical sentences. V1/V2 keep exact matching.
+  function diffFlags(aSents, bSents, soft) {
     const aN = aSents.map(normSentence), bN = bSents.map(normSentence);
     const n = aN.length, m = bN.length;
     if (n * m > 40000) { // pathological size: skip dimming rather than lock the UI
       return { a: aSents.map(() => false), b: bSents.map(() => false), any: false };
     }
+    const aT = soft ? aN.map(sentTokenSet) : null;
+    const bT = soft ? bN.map(sentTokenSet) : null;
+    const eq = (i, j) => {
+      if (!aN[i]) return false;
+      if (aN[i] === bN[j]) return true;
+      return !!soft && tokenJaccard(aT[i], bT[j]) >= 0.85;
+    };
     const dp = [];
     for (let i = 0; i <= n; i++) dp.push(new Array(m + 1).fill(0));
     for (let i = n - 1; i >= 0; i--) {
       for (let j = m - 1; j >= 0; j--) {
-        dp[i][j] = (aN[i] && aN[i] === bN[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+        dp[i][j] = eq(i, j) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
       }
     }
     const aShared = new Array(n).fill(false), bShared = new Array(m).fill(false);
     let i = 0, j = 0, any = false;
     while (i < n && j < m) {
-      if (aN[i] && aN[i] === bN[j]) { aShared[i] = bShared[j] = true; any = true; i++; j++; }
+      if (eq(i, j)) { aShared[i] = bShared[j] = true; any = true; i++; j++; }
       else if (dp[i + 1][j] >= dp[i][j + 1]) i++;
       else j++;
     }
     return { a: aShared, b: bShared, any };
+  }
+  // Pure A/B divergence diff (§3.1) — no app state, unit-testable.
+  //   * some sentences shared → dim shared, brighten divergent (as before);
+  //   * NOTHING shared and opts.markAllWhenDisjoint → every sentence marked
+  //     divergent (allDivergent:true) so fully-divergent answers still highlight
+  //     (the "diff not working" bug: returning null rendered plain text);
+  //   * otherwise null (V1/V2 keep the legacy no-diff fallback).
+  function buildAnswerDiff(aText, bText, opts) {
+    opts = opts || {};
+    const aS = splitSentences(aText || ''), bS = splitSentences(bText || '');
+    if (!aS.length || !bS.length) return null;
+    const flags = diffFlags(aS, bS, !!opts.soft);
+    if (flags.any) {
+      return { A: { sents: aS, shared: flags.a }, B: { sents: bS, shared: flags.b }, allDivergent: false };
+    }
+    if (opts.markAllWhenDisjoint) {
+      return {
+        A: { sents: aS, shared: aS.map(() => false) },
+        B: { sents: bS, shared: bS.map(() => false) },
+        allDivergent: true,
+      };
+    }
+    return null;
   }
   function computeAnswerDiff() {
     // Candidate texts are immutable for the life of a task — memoize the LCS
@@ -1212,10 +1259,9 @@
     const cands = state.task.candidate_answers || [];
     const A = cands.find((c) => c.id === 'A'), B = cands.find((c) => c.id === 'B');
     if (!A || !B || A.text == null || B.text == null) return null; // not cached: texts may still load
-    const aS = splitSentences(A.text), bS = splitSentences(B.text);
-    const flags = diffFlags(aS, bS);
-    // Fully divergent answers: dimming adds nothing (cache the null too).
-    const diff = flags.any ? { A: { sents: aS, shared: flags.a }, B: { sents: bS, shared: flags.b } } : null;
+    // §3.1 is V3/V4-only: soft matching + the all-divergent fallback. V1/V2 keep
+    // exact matching and the legacy null-on-disjoint behavior, byte-for-byte.
+    const diff = buildAnswerDiff(A.text, B.text, { soft: isV3(), markAllWhenDisjoint: isV3() });
     state._diffCacheTask = state.task.task_id;
     state._diffCache = diff;
     return diff;
@@ -1263,7 +1309,9 @@
     if (diff && isV3()) {
       container.appendChild(h('div', { class: 'asc-diff-legend' },
         h('span', { class: 'asc-diff-legend-mark' }, '⬍'),
-        ' Bright passages are where A and B differ — shared text is dimmed.'));
+        diff.allDivergent
+          ? ' These answers share no text — they diverge throughout, so both are highlighted in full.'
+          : ' Bright passages are where A and B differ — shared text is dimmed.'));
     }
     (state.task.candidate_answers || []).forEach((c) => {
       container.appendChild(renderAnswerCard(c, diff, a));
@@ -4064,9 +4112,8 @@
         h('td', {}, t.status === 'prompt_flagged'
           ? h('span', { class: 'asc-badge asc-badge-amber' }, 'prompt flagged')
           : (t.status || '—')),
-        // Frontier-model failure capture (FEAT-1): swap this task's A/B pair to two
-        // real frontier answers so a specialist grades the real models.
-        h('td', {}, gradeRealModelsBtn(t))));
+        // Frontier-model failure capture (FEAT-1) + two-frontier provenance (§4.2).
+        h('td', {}, baselineCell(t))));
       card.appendChild(h('div', { class: 'asc-table-wrap' },
         h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
@@ -4076,6 +4123,37 @@
       clear(card);
       card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
     }
+  }
+
+  // §4.2 two-frontier provenance (ADMIN-ONLY — ab_meta/needs_baseline exist only
+  // on the admin /tasks payload; the blinded evaluator payload never carries a
+  // provider). Shows which provider filled each blinded slot and whether both
+  // answers share one prompt_hash, plus a held-task "needs baseline" alert.
+  function baselineCell(t) {
+    const cell = h('div', {}, gradeRealModelsBtn(t));
+    const meta = t.ab_meta;
+    if (meta && (meta.candidates || []).length) {
+      cell.appendChild(h('div', { class: 'asc-card-sub asc-mono', style: 'margin-top:4px' },
+        meta.candidates.map((c) => (c.id || '?') + ':' + (c.provider || '?')).join(' · ')));
+      const flags = h('div', { style: 'margin-top:2px;display:flex;gap:4px;flex-wrap:wrap' });
+      flags.appendChild(meta.prompt_hash_match
+        ? h('span', { class: 'asc-badge asc-badge-green',
+            title: 'Both answers were produced from byte-identical input (one prompt_hash).' }, 'same prompt ✓')
+        : h('span', { class: 'asc-badge asc-badge-red',
+            title: 'prompt_hash mismatch — the pair compares prompts, not models. It should have been discarded.' }, 'prompt divergence'));
+      if (!meta.two_providers) {
+        flags.appendChild(h('span', { class: 'asc-badge asc-badge-amber',
+          title: 'Both slots came from one provider (legacy/fallback pair) — not a two-frontier comparison.' }, 'one provider'));
+      }
+      cell.appendChild(flags);
+    }
+    if (t.needs_baseline) {
+      cell.appendChild(h('div', { style: 'margin-top:4px' },
+        h('span', { class: 'asc-badge asc-badge-amber',
+          title: 'No two-frontier pair could be assembled (e.g. OPENAI_API_KEY unset or a provider down). The task is HELD — never silently served two same-provider answers.' },
+          'needs baseline')));
+    }
+    return cell;
   }
 
   function gradeRealModelsBtn(t) {
