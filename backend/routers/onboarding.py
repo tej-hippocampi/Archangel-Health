@@ -1,14 +1,16 @@
 """Health system onboarding (magic link, email OTP, team invites)."""
 
+import html
 import os
 import string
+from datetime import datetime, timedelta
 from typing import Any, Dict
 
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 
-from ratelimit import rate_limiter
+from ratelimit import client_ip, global_rate_limiter, rate_limiter
 
 from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import (
@@ -105,6 +107,17 @@ class AddMemberBody(OnboardTokenBody):
 
 class FinishBody(OnboardTokenBody):
     pass
+
+
+class SelfServeBody(BaseModel):
+    email: EmailStr
+    # Honeypot — real users never see or fill this; a non-empty value is a bot.
+    company_website: str = Field(default="", max_length=200)
+
+
+# Outstanding self-serve links one inbox can hold at once (rolling 24h).
+_SELF_SERVE_EMAIL_CAP = 3
+_SELF_SERVE_EXPIRES_DAYS = 7
 
 
 def _load_hs(request: Request, token: str) -> Dict[str, Any]:
@@ -216,6 +229,111 @@ async def onboarding_session(token: str, request: Request):
         "slug": row.get("slug"),
         "step": int(row.get("onboarding_step") or 0),
         **_hydrate_session_fields(ts, row),
+    }
+
+
+@router.post(
+    "/self-serve",
+    dependencies=[
+        Depends(rate_limiter("onboarding_self_serve", 5, 600)),
+        # Volumetric backstop: even with rotating source IPs, total link
+        # creation is bounded (rows in health_systems + founder emails).
+        Depends(global_rate_limiter("onboarding_self_serve_all", 60, 3600)),
+    ],
+)
+async def self_serve_invite(body: SelfServeBody, request: Request):
+    """Public: mint a physician-contributor onboarding link on demand.
+
+    Issues the same magic link the admin "Generate Health System Link" button
+    creates, so a physician clicking "Become a contributor" on the landing
+    lands directly in the existing onboarding wizard. Abuse guards, layered:
+    IP rate limit (5 / 10 min) → global cap (60/h) → honeypot → per-email cap
+    (3 pending / 24h) → 7-day expiry (vs the admin default 30) → the wizard's
+    own email-OTP step, which still gates every completion on proof of inbox
+    control.
+    """
+    ts = _ts(request)
+    email = str(body.email).lower().strip()
+
+    # Honeypot: accept silently with a decoy link so a bot can't tell it was
+    # caught. The token is random garbage — the wizard 404s it. Shape matches
+    # the real success exactly (ok / onboarding_url / expires_at).
+    if body.company_website.strip():
+        decoy_expires = (
+            (datetime.utcnow() + timedelta(days=_SELF_SERVE_EXPIRES_DAYS))
+            .replace(microsecond=0)
+            .isoformat()
+        )
+        return {
+            "ok": True,
+            "onboarding_url": f"{_landing_base()}/onboard/{secrets.token_urlsafe(32)}",
+            "expires_at": decoy_expires,
+        }
+
+    if ts.count_recent_pending_invites_for_email(email, hours=24) >= _SELF_SERVE_EMAIL_CAP:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "An onboarding link was already created for this email. "
+                "Check your inbox, or try again tomorrow."
+            ),
+        )
+
+    invite = ts.create_health_system_invite(
+        invite_base_url=_landing_base(),
+        expires_days=_SELF_SERVE_EXPIRES_DAYS,
+        director_email=email,
+    )
+
+    # Best-effort provenance + founder visibility. Never fail the request on
+    # either — the returned link is the deliverable.
+    try:
+        ts.record_lead_submission(
+            "physician_onboard",
+            email,
+            f"Self-serve physician onboarding link issued ({invite['slug']}).",
+            user_agent=request.headers.get("user-agent"),
+            client_ip=client_ip(request),
+        )
+    except Exception:
+        pass
+    if _email_configured():
+        safe_email = html.escape(email)
+        safe_url = html.escape(invite["onboarding_url"])
+        try:
+            await send_html_email(
+                email,
+                "Your Archangel Health onboarding link",
+                (
+                    '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
+                    'color:#1a1b1a;line-height:1.6">'
+                    "<p>Here is your personal onboarding link — it stays valid for "
+                    f"{_SELF_SERVE_EXPIRES_DAYS} days, and you can return to it any time "
+                    "to resume where you left off:</p>"
+                    f'<p><a href="{safe_url}">{safe_url}</a></p>'
+                    "<p style='color:#8b8d89;font-size:13px'>If you didn't request this, "
+                    "you can ignore this email.</p></div>"
+                ),
+            )
+            await send_html_email(
+                (os.getenv("LEAD_NOTIFY_EMAIL") or "tejpatel@berkeley.edu").strip(),
+                f"[Onboarding] Physician contributor started — {email}",
+                (
+                    '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
+                    'color:#1a1b1a;line-height:1.6">'
+                    f"<p><strong>{safe_email}</strong> requested a physician-contributor "
+                    "onboarding link from the landing page.</p>"
+                    f"<p>Pending row: <code>{html.escape(invite['slug'])}</code> · "
+                    f"expires {html.escape(invite['expires_at'])}</p></div>"
+                ),
+            )
+        except Exception:
+            pass
+
+    return {
+        "ok": True,
+        "onboarding_url": invite["onboarding_url"],
+        "expires_at": invite["expires_at"],
     }
 
 

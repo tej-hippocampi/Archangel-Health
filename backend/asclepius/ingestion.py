@@ -70,8 +70,24 @@ def raw_retention_days() -> int:
         return 30
 
 
+def _default_ingest_dir() -> Path:
+    """Co-locate raw blobs with the persistent DB, so the two share durability.
+
+    The admin download + retry paths read this encrypted blob days after upload,
+    so it MUST survive redeploys/restarts. Defaulting to ``/tmp`` was the bug:
+    on Railway/Render ``/tmp`` is ephemeral and wiped on every redeploy, while
+    the DB (``ASCLEPIUS_DB_PATH`` → mounted volume) persists — leaving the upload
+    row pointing at a blob that no longer exists, which the download endpoint
+    reports as a spurious 410 "already purged". Placing the ingest dir next to
+    the DB file means a raw blob is exactly as durable as its DB row. Mirrors
+    ``AsclepiusStore``'s DB-path resolution so the two never diverge."""
+    db_path = os.getenv("ASCLEPIUS_DB_PATH") or os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "asclepius.db")
+    return Path(os.path.dirname(os.path.abspath(db_path))) / "asclepius-ingest"
+
+
 def quarantine_root() -> Path:
-    root = Path(os.getenv("ASCLEPIUS_INGEST_DIR") or "/tmp/asclepius-ingest").resolve()
+    root = Path(os.getenv("ASCLEPIUS_INGEST_DIR") or _default_ingest_dir()).resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
 
@@ -104,6 +120,54 @@ def load_raw(raw_path: str) -> bytes:
     return decrypt_bytes(Path(raw_path).read_bytes())
 
 
+def delete_raw(raw_path: Optional[str]) -> None:
+    """Best-effort removal of a raw blob (cleanup when a one-time claim is lost
+    after the bytes were already written). Never raises."""
+    if not raw_path:
+        return
+    try:
+        Path(raw_path).unlink()
+    except OSError:
+        pass
+
+
+# Filesystems where a redeploy/restart wipes the data — never durable for the
+# raw partner bundle (this is what caused the "download failed (410)" incident:
+# blobs on /tmp vanished on redeploy while the DB row survived).
+_EPHEMERAL_PREFIXES = ("/tmp", "/var/tmp", "/dev/shm", "/run")
+
+
+def ingest_storage_durable() -> Tuple[bool, str]:
+    """(ok, detail) — is the raw ingest dir safe to keep partner bundles in?
+
+    Two signals: (1) the dir must not sit on an ephemeral, redeploy-wiped path;
+    (2) it should live on the same volume (device) as the DB, so a blob is
+    exactly as durable as its row. (1) is fail-closed-worthy; (2) is a warning
+    (a deliberately separate durable mount is legitimate)."""
+    root = quarantine_root()
+    root_str = str(root)
+    for pre in _EPHEMERAL_PREFIXES:
+        if root_str == pre or root_str.startswith(pre + "/"):
+            return False, (
+                f"raw ingest dir {root_str} is on ephemeral storage ({pre}); "
+                "a redeploy will delete partner uploads. Set ASCLEPIUS_INGEST_DIR "
+                "to a path on your persistent volume (e.g. beside ASCLEPIUS_DB_PATH)."
+            )
+    db_path = os.getenv("ASCLEPIUS_DB_PATH") or os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "asclepius.db")
+    db_dir = os.path.dirname(os.path.abspath(db_path)) or "/"
+    try:
+        if os.stat(root_str).st_dev != os.stat(db_dir).st_dev:
+            return True, (
+                f"raw ingest dir {root_str} is on a different volume than the DB "
+                f"({db_dir}); confirm that volume is persistent, or move the ingest "
+                "dir next to the DB so raw blobs share its durability."
+            )
+    except OSError:
+        pass
+    return True, f"raw ingest dir {root_str} is on the DB's volume"
+
+
 def purge_expired_raw(store: Any) -> int:
     """Delete raw blobs older than the retention window (PRD §4: we keep the
     derived case, not the partner file). Called opportunistically on ingestion
@@ -121,6 +185,59 @@ def purge_expired_raw(store: Any) -> int:
         store.log_event(entity_type="ingest", event_type="raw_purged",
                         payload={"deleted": deleted, "retention_days": raw_retention_days()})
     return deleted
+
+
+# Non-terminal upload states: the pipeline was mid-flight. A redeploy kills the
+# in-process BackgroundTask, so without recovery these would sit stuck forever.
+_NON_TERMINAL_UPLOAD_STATUSES = ["received", "scanning", "parsing"]
+
+
+def recover_interrupted_uploads(store: Any) -> int:
+    """Re-run the pipeline for uploads left mid-flight by a crash/redeploy.
+
+    The raw blob is durable (persistent volume), so reprocessing is lossless.
+    We clear each upload's un-promoted cases first, so a partially-processed
+    upload reprocesses cleanly instead of double-inserting cases. An upload
+    whose raw blob is genuinely gone is marked rejected (never left dangling).
+    Returns the number of uploads re-enqueued/handled. Best-effort; never raises."""
+    handled = 0
+    try:
+        stuck = store.list_uploads_in_status(_NON_TERMINAL_UPLOAD_STATUSES)
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("ingest recovery: could not list interrupted uploads: %s", exc)
+        return 0
+    for upload in stuck:
+        uid = upload.get("upload_id")
+        raw_path = upload.get("raw_path")
+        try:
+            if not raw_path or not os.path.exists(raw_path):
+                store.update_ingest_upload(
+                    uid, status="rejected",
+                    reason="raw upload was lost before processing completed "
+                           "(interrupted by a restart); ask the partner to re-upload")
+                store.log_event(entity_type="ingest_upload", entity_id=uid,
+                                event_type="upload_recovery_failed",
+                                payload={"reason": "raw blob missing"})
+                try:
+                    from asclepius import ingest_notify
+                    ingest_notify.notify_upload_failed(
+                        store, store.get_ingest_upload(uid), outcome="lost")
+                except Exception:  # pragma: no cover - defensive
+                    pass
+                handled += 1
+                continue
+            removed = store.delete_unpromoted_ingest_cases(uid)
+            store.log_event(entity_type="ingest_upload", entity_id=uid,
+                            event_type="upload_recovery_requeued",
+                            payload={"prior_status": upload.get("status"),
+                                     "cleared_cases": removed})
+            process_upload(store, uid)
+            handled += 1
+        except Exception as exc:  # pragma: no cover - defensive per-upload
+            log.warning("ingest recovery: upload %s failed to reprocess: %s", uid, exc)
+    if handled:
+        log.info("ingest recovery: handled %d interrupted upload(s)", handled)
+    return handled
 
 
 # ─── Malware scan hook ────────────────────────────────────────────────────────
@@ -272,6 +389,14 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
         store.update_ingest_upload(upload_id, status="rejected", reason=reason)
         store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                         event_type="upload_rejected", payload={"reason": reason})
+        # Auto-notify the sender their upload didn't come through (no PHI). Best
+        # effort — a notification issue must never affect the pipeline outcome.
+        try:
+            from asclepius import ingest_notify
+            ingest_notify.notify_upload_failed(
+                store, store.get_ingest_upload(upload_id), outcome="rejected")
+        except Exception:  # pragma: no cover - defensive
+            pass
         return {"status": "rejected", "reason": reason}
 
     store.update_ingest_upload(upload_id, status="scanning")

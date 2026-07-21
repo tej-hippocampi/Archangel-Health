@@ -153,6 +153,20 @@ class TeamStore:
                 CREATE INDEX IF NOT EXISTS idx_escalations_created ON escalations(created_at);
                 CREATE INDEX IF NOT EXISTS idx_preop_intake_patient ON preop_intake_submissions(patient_id);
 
+                -- Landing lead-capture forms: "Request data" (buyers) and
+                -- "Provide data" (data providers). Public, no PHI.
+                CREATE TABLE IF NOT EXISTS lead_submissions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source TEXT NOT NULL,            -- request_data | provide_data
+                    email TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    user_agent TEXT,
+                    client_ip TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_lead_submissions_created ON lead_submissions(created_at);
+
                 -- Intra-Op Reassessment (PRD v1.0) ────────────────────────────
                 CREATE TABLE IF NOT EXISTS intraop_forms (
                     id TEXT PRIMARY KEY,
@@ -850,11 +864,23 @@ class TeamStore:
                 (hs_id, slug, name, phone, health_system_code, now, now),
             )
 
-    def create_health_system_invite(self, *, invite_base_url: str) -> Dict[str, Any]:
-        """Admin: new pending health system + one-time onboarding URL (token shown once)."""
+    def create_health_system_invite(
+        self,
+        *,
+        invite_base_url: str,
+        expires_days: int = 30,
+        director_email: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """New pending health system + one-time onboarding URL (token shown once).
+
+        ``director_email`` pre-fills the contact without advancing
+        ``onboarding_step`` — the wizard still runs its full identity + OTP
+        flow. Self-serve (non-admin) callers pass it so the row is tied to a
+        reachable inbox, alongside a shorter ``expires_days``.
+        """
         raw_token = secrets.token_urlsafe(32)
         token_hash = self._hash_onboarding_token(raw_token)
-        expires = (datetime.utcnow() + timedelta(days=30)).replace(microsecond=0).isoformat()
+        expires = (datetime.utcnow() + timedelta(days=expires_days)).replace(microsecond=0).isoformat()
         now = _utcnow_iso()
         invite_url = f"{invite_base_url.rstrip('/')}/onboard/{raw_token}"
         hs_id = ""
@@ -873,9 +899,17 @@ class TeamStore:
                             last_generated_invite_url, created_at
                         )
                         VALUES (?, ?, NULL, NULL, NULL, NULL, 'pending_onboarding', ?, ?, NULL,
-                                NULL, NULL, NULL, 0, ?, ?)
+                                ?, NULL, NULL, 0, ?, ?)
                         """,
-                        (hs_id, slug, token_hash, expires, invite_url, now),
+                        (
+                            hs_id,
+                            slug,
+                            token_hash,
+                            expires,
+                            (director_email or "").lower().strip() or None,
+                            invite_url,
+                            now,
+                        ),
                     )
                 break
             except sqlite3.IntegrityError:
@@ -889,6 +923,27 @@ class TeamStore:
             "onboarding_url": url,
             "expires_at": expires,
         }
+
+    def count_recent_pending_invites_for_email(self, email: str, *, hours: int = 24) -> int:
+        """Pending (uncompleted) onboarding rows tied to this email created in the
+        last ``hours``. Admin-issued invites carry no email, so this only counts
+        self-serve issuance — the per-email cap for the public endpoint."""
+        e = (email or "").lower().strip()
+        if not e:
+            return 0
+        since = (datetime.utcnow() - timedelta(hours=hours)).replace(microsecond=0).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS n FROM health_systems
+                WHERE lower(trim(COALESCE(director_email, ''))) = ?
+                  AND onboarding_completed_at IS NULL
+                  AND status = 'pending_onboarding'
+                  AND datetime(created_at) >= datetime(?)
+                """,
+                (e, since),
+            ).fetchone()
+            return int(row["n"] if row else 0)
 
     def list_health_systems_admin(self) -> List[Dict[str, Any]]:
         with self._conn() as conn:
@@ -2090,6 +2145,29 @@ class TeamStore:
                 VALUES (?, ?, ?, ?, ?)
                 """,
                 (patient_id, specialty, form_template_name, json.dumps(form_data or {}), ts),
+            )
+            return int(cur.lastrowid)
+
+    def record_lead_submission(
+        self,
+        source: str,
+        email: str,
+        message: str,
+        *,
+        user_agent: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        created_at: Optional[str] = None,
+    ) -> int:
+        """Append a landing lead-capture submission ("Request data" / "Provide
+        data"). Public form data, no PHI. Returns the new row id."""
+        ts = created_at or _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO lead_submissions (source, email, message, user_agent, client_ip, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (source, email, message, user_agent, client_ip, ts),
             )
             return int(cur.lastrowid)
 

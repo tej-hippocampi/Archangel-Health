@@ -10,8 +10,10 @@ reject triage → promote to a gradable V4 task (stubbed LLM) → the value prem
 from __future__ import annotations
 
 import base64
+import glob
 import io
 import json
+import os
 import sys
 import zipfile
 from datetime import datetime, timedelta
@@ -23,6 +25,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tests import _asclepius as A  # noqa: E402
+from asclepius import ingestion as asc_ingestion  # noqa: E402
 from asclepius import pipeline as asc_pipeline  # noqa: E402
 from asclepius import profiles as asc_profiles  # noqa: E402
 
@@ -179,6 +182,232 @@ def test_raw_token_never_stored():
     link = _mint(_admin_h())
     rows = _store().list_upload_links()
     assert all(link["token"] not in json.dumps(r) for r in rows)  # only the hash at rest
+
+
+# ─── Admin download of the original bundle (the 410 regression) ────────────────
+def test_admin_can_download_original_bundle():
+    """The 'Download file' button on a partner upload returns the exact bytes
+    the partner sent, while the raw blob is present."""
+    admin_h = _admin_h()
+    link = _mint(admin_h)
+    zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV})
+    res = _upload(link["token"], zb)
+    r = client.get(f"/api/asclepius/ingestion/uploads/{res['upload_id']}/download",
+                   headers=admin_h)
+    assert r.status_code == 200, r.text
+    assert r.content == zb                                   # byte-exact round trip
+    assert "attachment" in r.headers.get("content-disposition", "")
+
+
+def test_download_missing_blob_reports_storage_loss_not_retention(monkeypatch):
+    """If the raw blob vanishes while the upload is still inside the retention
+    window (the ephemeral-/tmp bug), the 410 must say the storage was lost — NOT
+    blame the retention policy, which would mislead the operator."""
+    admin_h = _admin_h()
+    link = _mint(admin_h)
+    zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV})
+    res = _upload(link["token"], zb)
+    # Simulate a redeploy wiping the (ephemeral) raw dir: delete the blob but keep
+    # the DB row, exactly as a /tmp wipe would.
+    upload = _store().get_ingest_upload(res["upload_id"])
+    Path(upload["raw_path"]).unlink()
+    r = client.get(f"/api/asclepius/ingestion/uploads/{res['upload_id']}/download",
+                   headers=admin_h)
+    assert r.status_code == 410
+    assert "lost" in r.json()["detail"].lower()
+    assert "retention window elapsed" not in r.json()["detail"]
+
+
+def test_default_ingest_dir_lives_next_to_the_db_not_tmp(monkeypatch, tmp_path):
+    """Regression for the 410 download bug: with no ASCLEPIUS_INGEST_DIR set, raw
+    blobs must land beside the (persistent) DB volume, never on ephemeral /tmp —
+    otherwise a redeploy wipes them and downloads 410."""
+    monkeypatch.delenv("ASCLEPIUS_INGEST_DIR", raising=False)
+    db_dir = tmp_path / "data"
+    monkeypatch.setenv("ASCLEPIUS_DB_PATH", str(db_dir / "asclepius.db"))
+    root = asc_ingestion.quarantine_root()          # actually created on disk
+    assert root == (db_dir / "asclepius-ingest").resolve()   # sibling of the DB file
+    assert root != Path("/tmp/asclepius-ingest")             # never the old ephemeral default
+    assert root.is_dir()
+
+
+def test_ingest_storage_durability_flags_ephemeral(monkeypatch):
+    """The durability guard must reject ephemeral raw storage (the incident) and
+    accept a durable location."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", "/tmp/asclepius-ingest")
+    ok, why = asc_ingestion.ingest_storage_durable()
+    assert ok is False and "/tmp" in why
+    # A non-ephemeral path clears the fail-closed gate (st_dev mismatch only warns).
+    monkeypatch.setattr(asc_ingestion, "_EPHEMERAL_PREFIXES", ("/no-such-ephemeral",))
+    ok2, _ = asc_ingestion.ingest_storage_durable()
+    assert ok2 is True
+
+
+# ─── Upload never gets lost: store-first ordering + one-time-link safety ───────
+def test_upload_row_always_carries_a_reachable_raw_path():
+    """Every accepted upload row points at a raw blob that exists on disk — no
+    None window, so download/retry/recovery can always reach the original file."""
+    link = _mint(_admin_h())
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    up = _store().get_ingest_upload(res["upload_id"])
+    assert up["raw_path"] and os.path.exists(up["raw_path"])
+
+
+def test_storage_failure_does_not_burn_the_link_or_strand_a_row(monkeypatch):
+    """If the encrypted write fails, the one-time link is NOT consumed, NO row is
+    stranded, and the partner can retry the same link once storage recovers."""
+    link = _mint(_admin_h())
+    zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV})
+
+    def _boom(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(asc_ingestion, "store_raw", _boom)
+    r = client.post(f"/api/asclepius/partner/uploads?t={link['token']}",
+                    files={"file": ("b.zip", zb, "application/zip")})
+    assert r.status_code == 503
+    assert _store().list_ingest_uploads() == []          # no stranded row
+    # Storage recovers → the SAME one-time link still works (was never consumed).
+    monkeypatch.undo()
+    res = _upload(link["token"], zb)
+    assert res["status"] == "received"
+
+
+def test_lost_one_time_claim_cleans_up_the_orphan_blob(monkeypatch):
+    """If two uploads race and this one loses the atomic claim AFTER writing its
+    bytes, the orphan blob is deleted — no accumulating unreferenced files."""
+    link = _mint(_admin_h())
+    zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV})
+    st = _store()
+    monkeypatch.setattr(st, "consume_upload_link", lambda *a, **k: False)
+    before = set(glob.glob(str(asc_ingestion.quarantine_root() / "*.zip.enc")))
+    r = client.post(f"/api/asclepius/partner/uploads?t={link['token']}",
+                    files={"file": ("b.zip", zb, "application/zip")})
+    assert r.status_code == 410
+    after = set(glob.glob(str(asc_ingestion.quarantine_root() / "*.zip.enc")))
+    assert before == after                               # orphan cleaned up
+
+
+# ─── Recovery after a redeploy interrupts the pipeline ────────────────────────
+def test_recovery_reprocesses_a_stuck_upload_without_duplicating_cases():
+    st = _store()
+    link = _mint(_admin_h())
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    assert st.get_ingest_upload(res["upload_id"])["status"] == "ingested"
+    # Simulate a redeploy that killed the background task mid-flight.
+    st.update_ingest_upload(res["upload_id"], status="received")
+    handled = asc_ingestion.recover_interrupted_uploads(st)
+    assert handled >= 1
+    up = st.get_ingest_upload(res["upload_id"])
+    assert up["status"] == "ingested"                    # driven back to terminal
+    assert len(st.list_ingest_cases(upload_id=res["upload_id"])) == 1  # no dup cases
+
+
+def test_recovery_rejects_upload_whose_raw_blob_is_gone():
+    st = _store()
+    link = _mint(_admin_h())
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    up = st.get_ingest_upload(res["upload_id"])
+    st.update_ingest_upload(res["upload_id"], status="received")
+    os.remove(up["raw_path"])                            # blob truly lost
+    asc_ingestion.recover_interrupted_uploads(st)
+    up2 = st.get_ingest_upload(res["upload_id"])
+    assert up2["status"] == "rejected"
+    assert "re-upload" in (up2["reason"] or "")          # never left dangling
+
+
+# ─── Full-history pagination for the Partner Uploads list ─────────────────────
+def test_uploads_list_paginates_over_full_history():
+    admin_h = _admin_h()
+    link = _mint(admin_h, one_time=False)               # reuse one link for 3 uploads
+    for _ in range(3):
+        _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    p1 = client.get("/api/asclepius/ingestion/uploads?limit=2&offset=0", headers=admin_h).json()
+    assert p1["total"] == 3 and p1["offset"] == 0 and len(p1["uploads"]) == 2
+    p2 = client.get("/api/asclepius/ingestion/uploads?limit=2&offset=2", headers=admin_h).json()
+    assert len(p2["uploads"]) == 1                       # the tail page
+    ids1 = {u["upload_id"] for u in p1["uploads"]}
+    ids2 = {u["upload_id"] for u in p2["uploads"]}
+    assert not (ids1 & ids2)                             # pages don't overlap
+
+
+# ─── Contact email on the link + failure notification to the sender ───────────
+def test_mint_rejects_an_invalid_contact_email():
+    r = client.post("/api/asclepius/admin/upload-links", headers=_admin_h(),
+                    json={"partner_id": "mercy", "contact_email": "not-an-email"})
+    assert r.status_code == 400
+
+
+def test_contact_email_is_stored_and_surfaced_on_uploads():
+    admin_h = _admin_h()
+    link = _mint(admin_h, contact_email="partner@example.com")
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    rows = client.get("/api/asclepius/ingestion/uploads", headers=admin_h).json()["uploads"]
+    row = next(u for u in rows if u["upload_id"] == res["upload_id"])
+    assert row["contact_email"] == "partner@example.com"
+
+
+def _capture_email(monkeypatch):
+    sent = {}
+
+    async def _fake(to, subject, html, **kw):
+        sent.update(to=to, subject=subject, html=html)
+        sent.setdefault("count", 0)
+        sent["count"] += 1
+        return (True, "dev")
+
+    monkeypatch.setattr("email_utils.send_html_email_with_reason", _fake)
+    return sent
+
+
+def test_rejected_upload_auto_notifies_the_sender(monkeypatch):
+    sent = _capture_email(monkeypatch)
+    link = _mint(_admin_h(), contact_email="partner@example.com")
+    # A .bin-only bundle has no parseable clinical content → the pipeline rejects it.
+    res = _upload(link["token"], _zip({"data.bin": "\x00\x01\x02not-clinical"}))
+    up = _store().get_ingest_upload(res["upload_id"])
+    assert up["status"] == "rejected"
+    assert sent.get("to") == "partner@example.com"
+    assert "breach" in sent["html"].lower()             # reassuring, no-PHI body
+    assert up.get("failure_notified_at")                # stamped so it fires once
+
+
+def test_ingested_upload_does_not_auto_notify(monkeypatch):
+    sent = _capture_email(monkeypatch)
+    link = _mint(_admin_h(), contact_email="partner@example.com")
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    assert _store().get_ingest_upload(res["upload_id"])["status"] == "ingested"
+    assert sent == {}                                   # success never emails the partner
+
+
+def test_manual_notify_endpoint_sends_and_can_repeat(monkeypatch):
+    sent = _capture_email(monkeypatch)
+    admin_h = _admin_h()
+    link = _mint(admin_h, contact_email="p@example.com")
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    r = client.post(f"/api/asclepius/ingestion/uploads/{res['upload_id']}/notify-sender", headers=admin_h)
+    assert r.status_code == 200 and r.json()["sent"] is True
+    assert sent["to"] == "p@example.com" and sent["count"] == 1
+    # Manual is intentional — it can re-send (unlike the deduped auto path).
+    r2 = client.post(f"/api/asclepius/ingestion/uploads/{res['upload_id']}/notify-sender", headers=admin_h)
+    assert r2.status_code == 200 and sent["count"] == 2
+
+
+def test_manual_notify_without_a_contact_email_is_a_clear_400(monkeypatch):
+    _capture_email(monkeypatch)
+    admin_h = _admin_h()
+    link = _mint(admin_h)                               # no contact email
+    res = _upload(link["token"], _zip({"manifest.json": _manifest(), "labs.csv": _CSV}))
+    r = client.post(f"/api/asclepius/ingestion/uploads/{res['upload_id']}/notify-sender", headers=admin_h)
+    assert r.status_code == 400 and "contact email" in r.json()["detail"].lower()
+
+
+def test_failure_notice_body_reassures_and_escapes():
+    from asclepius import ingest_notify as N
+    html = N._html_body("Gray Scrubs Lab", "Data factory-20260714.zip", "rejected")
+    assert "no data breach" in html.lower() and "re-send" in html.lower()
+    danger = N._html_body("<script>x</script>", "<b>f</b>.zip", "lost")
+    assert "<script>" not in danger and "&lt;script&gt;" in danger  # HTML-escaped
 
 
 # ─── The mixed bundle → ONE case (PRD §11 criterion 2 + 3, the B1 regression) ─

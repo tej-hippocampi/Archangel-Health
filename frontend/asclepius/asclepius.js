@@ -3387,6 +3387,7 @@
     const plabel = h('input', { class: 'asc-input', placeholder: 'display label (optional)' });
     const pspec = selectFrom(['nephrology', 'cardiology'], 'nephrology');
     const phours = h('input', { type: 'number', class: 'asc-input', value: '72', min: '1', max: '720' });
+    const pcontact = h('input', { type: 'email', class: 'asc-input', placeholder: 'partner contact email (optional)' });
     const ponce = h('input', { type: 'checkbox', checked: 'checked' });
     const mintStatus = h('div', {});
     const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '🔗 Mint secure upload link');
@@ -3397,7 +3398,7 @@
         const res = await api('/admin/upload-links', { method: 'POST', body: {
           partner_id: pid.value.trim(), partner_label: plabel.value.trim() || null,
           specialty: pspec.value, expires_hours: Math.max(1, parseInt(phours.value, 10) || 72),
-          one_time: ponce.checked,
+          one_time: ponce.checked, contact_email: pcontact.value.trim() || null,
         } });
         const url = res.upload_url || ('/partner/upload?t=' + res.token);
         mintStatus.appendChild(h('div', { class: 'asc-inline-warn' },
@@ -3423,7 +3424,9 @@
         h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Expires (hours)'), phours),
           h('label', { class: 'asc-checkbox-row', style: 'align-self:end;margin-bottom:14px' }, ponce, 'Single use'),
-          h('div', {})),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Contact email'), pcontact)),
+        h('div', { class: 'asc-card-sub', style: 'margin:-4px 0 12px' },
+          'If an upload through this link fails, we email this address that it didn’t come through (no PHI, no breach) so they can re-send.'),
         mintBtn, mintStatus));
 
     const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));
@@ -3437,37 +3440,95 @@
   // Cached uploads (used to filter the promote list by partner/file search).
   let _ingestUploads = [];
 
+  const _UPLOADS_PAGE = 50;
+  let _uploadsOffset = 0;
+  let _uploadsTotal = 0;
+
   async function loadIngestionLists() {
     const up = document.getElementById('ascIngestUploads');
     const cc = document.getElementById('ascIngestCases');
     if (!up) return;
-    // Uploads — each row has a Download button for the original partner file.
+    // The uploads TABLE paginates over full history (renderUploadsTable). The
+    // promote list needs the eligible set across history, so fetch a wide window
+    // for it separately (keeps its behavior even when the table is on page 2+).
     try {
-      const data = await api('/ingestion/uploads');
-      _ingestUploads = data.uploads || [];
-      clear(up);
-      up.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Partner uploads (' + _ingestUploads.length + ')')));
-      if (!_ingestUploads.length) { up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No uploads yet — mint a link above and send it to the partner.'))); }
-      else {
-        const rows = _ingestUploads.slice(0, 50).map((u) => {
-          const dlBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
-            onClick: () => downloadBlob('/ingestion/uploads/' + u.upload_id + '/download', u.filename || (u.upload_id + '.zip')) },
-            '⬇ Download file');
-          return h('tr', {},
-            h('td', {}, fmtDate(u.created_at)),
-            h('td', {}, u.partner_label || u.partner_id || '—'),
-            h('td', { class: 'asc-mono' }, (u.filename || '') + ' · ' + Math.round((u.size_bytes || 0) / 1024) + 'KB'),
-            h('td', {}, h('span', { class: 'asc-badge ' + (u.status === 'ingested' ? 'asc-badge-green' : (u.status === 'quarantined' ? 'asc-badge-amber' : (u.status === 'rejected' ? 'asc-badge-red' : 'asc-badge-gray'))) }, u.status)),
-            h('td', {}, dlBtn));
-        });
-        up.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-          h('thead', {}, h('tr', {}, ['When', 'Partner', 'File', 'Status', ''].map((c) => h('th', {}, c)))),
-          h('tbody', {}, rows))));
-      }
-    } catch (e) { clear(up); up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); }
-
+      const pdata = await api('/ingestion/uploads?limit=200&offset=0');
+      _ingestUploads = pdata.uploads || [];
+    } catch (e) { _ingestUploads = _ingestUploads || []; }
+    await renderUploadsTable(0);
     // Ingested cases → promote, grouped by partner upload, searchable.
     renderPromoteByUpload(cc, '');
+  }
+
+  // Full-history, server-paginated uploads table. Each row: Download the original
+  // file, and — for anything that didn't cleanly ingest — Notify the sender.
+  async function renderUploadsTable(offset) {
+    const up = document.getElementById('ascIngestUploads');
+    if (!up) return;
+    try {
+      const data = await api('/ingestion/uploads?limit=' + _UPLOADS_PAGE + '&offset=' + Math.max(0, offset));
+      const uploads = data.uploads || [];
+      _uploadsOffset = data.offset || 0;
+      _uploadsTotal = data.total || 0;
+      clear(up);
+      up.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' },
+        'Partner uploads (' + _uploadsTotal + ')')));
+      if (!_uploadsTotal) {
+        up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
+          'No uploads yet — mint a link above and send it to the partner.')));
+        return;
+      }
+      const rows = uploads.map((u) => {
+        const dlBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+          onClick: () => downloadBlob('/ingestion/uploads/' + u.upload_id + '/download', u.filename || (u.upload_id + '.zip')) },
+          '⬇ Download file');
+        const actions = [dlBtn];
+        if (u.status !== 'ingested') {
+          const canNotify = !!u.contact_email;
+          const nbtn = h('button', {
+            class: 'asc-btn asc-btn-subtle asc-btn-sm',
+            title: canNotify ? ('Email ' + u.contact_email + ' that this upload didn’t come through')
+                             : 'No contact email on this upload’s link — set one when minting the link',
+            onClick: () => notifySender(u),
+          }, u.failure_notified ? '✉ Re-notify sender' : '✉ Notify sender');
+          if (!canNotify) nbtn.disabled = true;
+          actions.push(nbtn);
+        }
+        return h('tr', {},
+          h('td', {}, fmtDate(u.created_at)),
+          h('td', {}, u.partner_label || u.partner_id || '—'),
+          h('td', { class: 'asc-mono' }, (u.filename || '') + ' · ' + Math.round((u.size_bytes || 0) / 1024) + 'KB'),
+          h('td', {}, h('span', { class: 'asc-badge ' + (u.status === 'ingested' ? 'asc-badge-green' : (u.status === 'quarantined' ? 'asc-badge-amber' : (u.status === 'rejected' ? 'asc-badge-red' : 'asc-badge-gray'))) }, u.status)),
+          h('td', {}, h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' }, actions)));
+      });
+      up.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {}, ['When', 'Partner', 'File', 'Status', ''].map((c) => h('th', {}, c)))),
+        h('tbody', {}, rows))));
+      // Pager
+      const to = _uploadsOffset + uploads.length;
+      const prev = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm' }, '‹ Prev');
+      const next = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm' }, 'Next ›');
+      if (_uploadsOffset <= 0) prev.disabled = true;
+      if (to >= _uploadsTotal) next.disabled = true;
+      prev.addEventListener('click', () => renderUploadsTable(Math.max(0, _uploadsOffset - _UPLOADS_PAGE)));
+      next.addEventListener('click', () => renderUploadsTable(_uploadsOffset + _UPLOADS_PAGE));
+      up.appendChild(h('div', { class: 'asc-card-pad', style: 'display:flex;justify-content:space-between;align-items:center;gap:10px' },
+        h('div', { class: 'asc-card-sub' }, 'Showing ' + (_uploadsOffset + 1) + '–' + to + ' of ' + _uploadsTotal),
+        h('div', { style: 'display:flex;gap:8px' }, prev, next)));
+    } catch (e) {
+      clear(up);
+      up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message || 'Failed to load uploads')));
+    }
+  }
+
+  async function notifySender(u) {
+    try {
+      const res = await api('/ingestion/uploads/' + u.upload_id + '/notify-sender', { method: 'POST' });
+      toast('Sender notified' + (res && res.detail ? ' — ' + res.detail : ''), 'success');
+      renderUploadsTable(_uploadsOffset);   // reflect the notified state
+    } catch (e) {
+      toast('Could not notify sender: ' + (e.detail || e.message || ''), 'error');
+    }
   }
 
   // Group ingested cases by the partner upload they came from, filtered by a
@@ -4917,7 +4978,14 @@
   async function downloadBlob(path, filename) {
     try {
       const res = await api(path, { raw: true });
-      if (!res.ok) { toast('Download failed (' + res.status + ')', 'error'); return; }
+      if (!res.ok) {
+        // Surface the server's reason (e.g. a 410 raw-blob-lost/purged message)
+        // instead of a bare status code, so an admin knows why and what to do.
+        let detail = '';
+        try { detail = (await res.json()).detail || ''; } catch (_) { /* not JSON */ }
+        toast('Download failed (' + res.status + ')' + (detail ? ': ' + detail : ''), 'error');
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

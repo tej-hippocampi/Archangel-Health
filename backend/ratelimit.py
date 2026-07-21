@@ -36,13 +36,19 @@ def reset() -> None:
 
 
 def client_ip(request: Request) -> str:
-    """Resolve the caller IP, honoring the first X-Forwarded-For hop when behind
-    a TLS-terminating proxy (Railway/Render)."""
+    """Resolve the caller IP when behind a TLS-terminating proxy (Railway/
+    Render/Cloudflare).
+
+    Uses the LAST X-Forwarded-For hop, not the first: edge proxies APPEND the
+    address they actually observed, while everything to the left is
+    client-supplied and spoofable. Trusting the first hop would hand every
+    per-IP throttle a fresh bucket per request (send a random XFF each time).
+    With one trusted proxy in front, the last entry is the real client."""
     xff = request.headers.get("x-forwarded-for")
     if xff:
-        first = xff.split(",")[0].strip()
-        if first:
-            return first
+        last = xff.split(",")[-1].strip()
+        if last:
+            return last
     return request.client.host if request.client else "unknown"
 
 
@@ -74,6 +80,25 @@ def rate_limiter(scope: str, max_requests: int, window_sec: int = 60):
             raise HTTPException(
                 status_code=429,
                 detail="Too many requests. Please slow down and try again shortly.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+    return _dependency
+
+
+def global_rate_limiter(scope: str, max_requests: int, window_sec: int = 60):
+    """Like ``rate_limiter`` but with a single shared bucket (not per-IP) — a
+    volumetric backstop for unauthenticated endpoints that create state, so IP
+    spoofing or a distributed source can't mint unbounded rows."""
+
+    async def _dependency(request: Request) -> None:
+        if not is_enabled():
+            return
+        allowed, retry_after = check(f"{scope}:__global__", max_requests, window_sec)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="We're receiving a lot of requests right now — please try again shortly.",
                 headers={"Retry-After": str(retry_after)},
             )
 

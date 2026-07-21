@@ -96,6 +96,9 @@ class UploadLinkRequest(BaseModel):
     expires_hours: int = 72          # capped 1..720 server-side
     one_time: bool = True
     max_bytes: Optional[int] = None  # capped to the global ingest limit
+    # Optional partner contact email: if an upload through this link fails, the
+    # sender is notified (no PHI) that it didn't come through. Blank = no notify.
+    contact_email: Optional[str] = None
 
 
 class QuarantineOverrideRequest(BaseModel):

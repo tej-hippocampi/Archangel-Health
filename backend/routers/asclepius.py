@@ -2921,6 +2921,7 @@ async def events(
 # ═══════════════════════════════════════════════════════════════════════════════
 from asclepius import deid_verify as asc_deid_verify  # noqa: E402
 from asclepius import ingestion as asc_ingestion  # noqa: E402
+from asclepius import ingest_notify as asc_ingest_notify  # noqa: E402
 
 
 def _token_hash(token: str) -> str:
@@ -2958,6 +2959,9 @@ async def mint_upload_link(
     store = _store()
     token = secrets.token_urlsafe(32)
     expires_at = (datetime.utcnow() + timedelta(hours=max(1, min(720, body.expires_hours)))).isoformat()
+    contact_email = (body.contact_email or "").strip() or None
+    if contact_email and not asc_ingest_notify.looks_like_email(contact_email):
+        raise HTTPException(status_code=400, detail="Contact email is not a valid address.")
     link = store.create_upload_link(
         token_hash=_token_hash(token),
         partner_id=body.partner_id.strip(),
@@ -2967,6 +2971,7 @@ async def mint_upload_link(
         one_time=body.one_time,
         max_bytes=min(body.max_bytes or asc_ingestion.max_zip_bytes(), asc_ingestion.max_zip_bytes()),
         created_by=admin["id"],
+        contact_email=contact_email,
     )
     store.log_event(entity_type="ingest_link", entity_id=link["link_id"],
                     event_type="upload_link_minted", actor=admin["id"],
@@ -3019,26 +3024,48 @@ async def partner_upload(
                 detail="Ingestion is disabled: DATA_ENCRYPTION_KEY is not configured, "
                        "so the upload cannot be encrypted at rest.",
             )
+        # FAIL CLOSED on non-durable storage too: never accept a bundle we cannot
+        # keep. A raw blob on ephemeral disk is the "download failed (410)" incident.
+        ok, why = asc_ingestion.ingest_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
     link = _validate_upload_token(store, t)
     data = await file.read()
     if len(data) > int(link.get("max_bytes") or asc_ingestion.max_zip_bytes()):
         raise HTTPException(status_code=413, detail="Upload exceeds the link's size cap")
     if data[:2] != b"PK":
         raise HTTPException(status_code=400, detail="Only .zip bundles are accepted")
-    # ATOMIC one-time claim (closes the TOCTOU race where two concurrent uploads
-    # both pass the used_count==0 validation read). After the cheap validations,
-    # so an innocent oversized/wrong-type attempt doesn't burn the link.
-    if not store.consume_upload_link(link["link_id"], one_time=bool(link.get("one_time"))):
-        raise HTTPException(status_code=410, detail="This upload link was already used")
     digest = asc_ingestion.sha256_hex(data)
+    # ── Order matters for data safety (see the 410 incident) ──────────────────
+    # 1. Persist the encrypted bytes to DURABLE storage FIRST, under a fresh id.
+    #    If the write fails we have NOT consumed the link and NOT created a row,
+    #    so the partner's one-time link stays valid and they can simply retry.
+    upload_id = store.new_upload_id()
+    try:
+        raw_path = asc_ingestion.store_raw(upload_id, data)
+    except Exception as exc:  # disk full, permissions, encrypt failure, …
+        store.log_event(entity_type="ingest_link", entity_id=link["link_id"],
+                        event_type="upload_store_failed", payload={"error": str(exc)})
+        raise HTTPException(
+            status_code=503,
+            detail="Could not store the upload securely — your link is still valid, "
+                   "please retry in a moment.",
+        )
+    # 2. ATOMIC one-time claim, AFTER the bytes are safe (closes the TOCTOU race
+    #    where two concurrent uploads both pass a used_count==0 read). If we lose
+    #    the claim (already used / revoked), delete the orphan blob and 410.
+    if not store.consume_upload_link(link["link_id"], one_time=bool(link.get("one_time"))):
+        asc_ingestion.delete_raw(raw_path)
+        raise HTTPException(status_code=410, detail="This upload link was already used")
+    # 3. Insert the row already carrying raw_path — it is never null, so the file
+    #    on disk is always reachable by download/retry/recovery.
     upload = store.insert_ingest_upload(
+        upload_id=upload_id,
         link_id=link["link_id"], partner_id=link["partner_id"],
         filename=(file.filename or "bundle.zip")[:120], sha256=digest,
-        size_bytes=len(data), raw_path=None,
+        size_bytes=len(data), raw_path=raw_path,
         source_ip=(request.client.host if request.client else None),
     )
-    raw_path = asc_ingestion.store_raw(upload["upload_id"], data)
-    store.update_ingest_upload(upload["upload_id"], raw_path=raw_path)
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
                     event_type="upload_received",
                     payload={"partner_id": link["partner_id"], "sha256": digest,
@@ -3099,10 +3126,24 @@ def _partner_label_for_upload(store: Any, upload: Dict[str, Any]) -> Optional[st
     return None
 
 
+def _contact_email_for_upload(store: Any, upload: Dict[str, Any]) -> Optional[str]:
+    """The sender's contact email (magic-link ``contact_email`` or the account
+    provider's email) — drives the 'Notify sender' action. None if unknown."""
+    email, _name = asc_ingest_notify._recipient_for(store, upload)
+    return email
+
+
 @router.get("/ingestion/uploads")
-async def list_ingestion_uploads(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+async def list_ingestion_uploads(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Paginated over FULL history (newest first). Returns the page plus the
+    grand total so the admin UI can page through every upload ever received."""
     store = _store()
-    uploads = store.list_ingest_uploads()
+    total = store.count_ingest_uploads()
+    uploads = store.list_ingest_uploads(limit=limit, offset=offset)
     for u in uploads:
         u["partner_label"] = _partner_label_for_upload(store, u)
         # How many ingested cases are ready to promote from THIS upload file —
@@ -3110,8 +3151,28 @@ async def list_ingestion_uploads(_admin: Dict[str, Any] = Depends(asc_auth.requi
         cases = store.list_ingest_cases(upload_id=u["upload_id"])
         u["ingested_case_count"] = sum(1 for c in cases if c.get("status") == "ingested")
         u["case_count"] = len(cases)
+        # Notification affordances for the row (never expose the raw path).
+        u["contact_email"] = _contact_email_for_upload(store, u)
+        u["failure_notified"] = bool(u.get("failure_notified_at"))
         u.pop("raw_path", None)  # server-side path is not admin-relevant
-    return {"uploads": uploads}
+    return {"uploads": uploads, "total": total, "limit": limit, "offset": offset}
+
+
+def _upload_past_raw_retention(upload: Dict[str, Any]) -> bool:
+    """True if the upload is old enough that its raw blob would have been purged
+    by the retention sweep. Used to word a missing-blob 410 honestly: past the
+    window it's expected; inside it, the blob was lost to non-durable storage."""
+    created = upload.get("created_at")
+    if not created:
+        return True  # unknown age — assume the benign (retention) explanation
+    try:
+        ts = datetime.fromisoformat(str(created).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return True
+    if ts.tzinfo is not None:
+        ts = ts.replace(tzinfo=None)
+    age_days = (datetime.utcnow() - ts).total_seconds() / 86400
+    return age_days >= asc_ingestion.raw_retention_days()
 
 
 @router.get("/ingestion/uploads/{upload_id}/download")
@@ -3126,11 +3187,21 @@ async def download_ingestion_upload(
         raise HTTPException(status_code=404, detail="Upload not found")
     raw_path = upload.get("raw_path")
     if not raw_path or not os.path.exists(raw_path):
-        raise HTTPException(
-            status_code=410,
-            detail="The raw upload has been purged (retention window elapsed) — "
-                   "only the derived cases remain.",
+        # Distinguish an EXPECTED retention purge from unexpected blob loss: if the
+        # upload is still inside the retention window the blob should be here, so a
+        # missing file points at a storage problem (e.g. raw dir on ephemeral disk),
+        # not the retention policy. Give the admin the honest reason either way.
+        purged_by_retention = _upload_past_raw_retention(upload)
+        detail = (
+            "The raw upload has been purged (retention window elapsed) — "
+            "only the derived cases remain."
+            if purged_by_retention else
+            "The original upload is no longer available on disk even though it is "
+            "still within the retention window — the raw blob was lost (its storage "
+            "did not persist). Only the derived cases remain; ask the partner to "
+            "re-upload if the original bundle is needed."
         )
+        raise HTTPException(status_code=410, detail=detail)
     try:
         data = asc_ingestion.load_raw(raw_path)
     except Exception as exc:  # pragma: no cover - decrypt failure is exceptional
@@ -3140,6 +3211,29 @@ async def download_ingestion_upload(
     fname = (upload.get("filename") or f"{upload_id}.zip")
     headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
     return StreamingResponse(io.BytesIO(data), media_type="application/zip", headers=headers)
+
+
+@router.post("/ingestion/uploads/{upload_id}/notify-sender")
+async def notify_upload_sender(
+    upload_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """Manually email the partner that their upload didn't come through (no PHI,
+    'nothing was leaked / no breach, please re-send'). Complements the automatic
+    notification on rejected/lost uploads; use it for anything you want to flag."""
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    outcome = "lost" if not (upload.get("raw_path") and os.path.exists(upload["raw_path"])) \
+        else (upload.get("status") or "failed")
+    sent, detail = asc_ingest_notify.notify_upload_failed(
+        store, upload, outcome=outcome, manual=True, actor=admin["id"])
+    if not sent:
+        # No recipient on file is a 400 the admin can act on; a transport failure
+        # is a 502 (their config/vendor), so the UI can word it correctly.
+        code = 400 if "contact email" in detail else 502
+        raise HTTPException(status_code=code, detail=detail)
+    return {"sent": True, "detail": detail}
 
 
 @router.get("/ingestion/uploads/{upload_id}")

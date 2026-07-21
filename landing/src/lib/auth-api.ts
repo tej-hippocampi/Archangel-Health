@@ -1,11 +1,15 @@
+/// <reference types="vite/client" />
 /**
  * Archangel Health landing — auth API client.
  * Uses relative /api in dev (Vite proxy to backend) or VITE_API_URL when set.
  */
 
-const viteEnv = ((import.meta as unknown as {
-  env?: { VITE_DASHBOARD_URL?: string; VITE_API_URL?: string; DEV?: boolean };
-})?.env ?? {});
+// Access `import.meta.env` directly — Vite substitutes it statically, and any
+// indirection (casts, optional chaining on import.meta) defeats the
+// substitution, leaving env undefined in dev so every call silently fell
+// through to the production backend instead of the Vite proxy.
+type ViteEnv = { VITE_DASHBOARD_URL?: string; VITE_API_URL?: string; DEV?: boolean };
+const viteEnv: ViteEnv = (import.meta.env as ViteEnv | undefined) ?? {};
 
 /**
  * Production backend origin (FastAPI: API routes + doctor/patient portals).
@@ -289,6 +293,60 @@ export async function getDoctorProfile(token: string): Promise<DoctorProfile | n
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) return null;
+  return res.json();
+}
+
+export type LeadSource = "request_data" | "provide_data" | "research_notify";
+
+/**
+ * Submit a landing lead-capture form ("Request data" / "Provide data"). The
+ * backend stores the row and emails the configured recipient. Throws an
+ * actionable error on failure so the form can show its "or email us" fallback.
+ */
+export async function submitLead(payload: {
+  source: LeadSource;
+  email: string;
+  message: string;
+}): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/leads`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw networkError();
+  }
+  if (!res.ok) {
+    throw new Error(await errorDetail(res, "Could not send"));
+  }
+}
+
+/**
+ * Mint a self-serve physician-contributor onboarding link — the same magic
+ * link the admin "Generate Health System Link" button issues, created on
+ * demand when a physician clicks "Become a contributor". The backend also
+ * emails the link to `email` so the wizard can be resumed later. Throws an
+ * actionable error (rate limit, cap reached) for the modal to surface.
+ */
+export async function createPhysicianOnboardingLink(payload: {
+  email: string;
+  company_website?: string;
+}): Promise<{ onboarding_url: string; expires_at?: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/onboarding/self-serve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw networkError();
+  }
+  if (!res.ok) {
+    throw new Error(await errorDetail(res, "Could not create your onboarding link"));
+  }
   return res.json();
 }
 
