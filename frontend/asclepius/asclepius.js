@@ -4129,7 +4129,7 @@
     const citation = h('input', { class: 'asc-input', placeholder: 'e.g. KDIGO 2024 Guideline §3.2', value: anchor.citation_text || '' });
     citation.addEventListener('input', () => {
       anchor.citation_text = citation.value;
-      if (!anchor.entry_method) anchor.entry_method = 'manual';
+      if (isV3() && !anchor.entry_method) anchor.entry_method = 'manual';
       saveDraft(); updateSubmitState();
     });
     const sourceSel = h('select', { class: 'asc-select' },
@@ -4140,7 +4140,7 @@
     const identifier = h('input', { class: 'asc-input', placeholder: 'Identifier — PMID:…, DOI:…, KDIGO 2024', value: anchor.identifier || '' });
     identifier.addEventListener('input', () => {
       anchor.identifier = identifier.value;
-      if (!anchor.entry_method) anchor.entry_method = 'manual';
+      if (isV3() && !anchor.entry_method) anchor.entry_method = 'manual';
       saveDraft(); updateSubmitState();
     });
     // Paste-your-own URL (BUG-3c escape hatch): a link the doctor pastes rides the
@@ -4158,7 +4158,7 @@
         if (!anchor.source_type) { anchor.source_type = 'other'; sourceSel.value = 'other'; }
         if (!(anchor.identifier || '').trim()) { anchor.identifier = anchor.url; identifier.value = anchor.url; }
         if (!(anchor.citation_text || '').trim()) { anchor.citation_text = anchor.url; citation.value = anchor.url; }
-        if (!anchor.entry_method) anchor.entry_method = 'manual';
+        if (isV3() && !anchor.entry_method) anchor.entry_method = 'manual';
       }
       openLink._sync(); saveDraft(); updateSubmitState();
     });
@@ -4199,7 +4199,7 @@
                 anchor.identifier = (s.identifier || s.title || '').trim();
                 anchor.url = s.url || '';
                 anchor.citation_confirmed = true;
-                anchor.entry_method = 'typeahead';
+                if (isV3()) anchor.entry_method = 'typeahead';
                 saveDraft();
                 box.setAttribute('hidden', '');
                 if (onPick) onPick();

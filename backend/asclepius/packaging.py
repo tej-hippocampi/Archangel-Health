@@ -82,6 +82,10 @@ def _anchor(a: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         out["url"] = a.get("url")
     if a.get("citation_confirmed") is not None:
         out["citation_confirmed"] = bool(a.get("citation_confirmed"))
+    # §11 (additive): capture provenance — present only when the V3/V4 UI set it,
+    # so V1/V2 records stay byte-identical.
+    if a.get("entry_method"):
+        out["entry_method"] = a.get("entry_method")
     return out
 
 
@@ -251,6 +255,14 @@ def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # reason consistent is what makes this data sellable.
         if s.get("corrected") and reason:
             label = label_for_correction_reason(reason)
+        # §13 (additive): the physician's verbatim "what's off" + the server-
+        # derived classification — included ONLY when a note exists, so V1/V2
+        # (and untouched V3 steps) package byte-identically to before.
+        note = (s.get("step_note") or "").strip()
+        extra = {}
+        if note:
+            extra["step_note"] = note
+            extra["step_error_tag"] = s.get("step_error_tag") or derive_step_error_tag(note)
         out.append(
             {
                 "step": s.get("step", i),
@@ -266,17 +278,13 @@ def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "suggested_label": s.get("suggested_label"),
                 # Why the edited step was wrong (drives the derived label).
                 "correction_reason": reason,
-                # §13 (additive): the physician's verbatim "what's off" and the
-                # server-derived classification (see apply_step_notes).
-                "step_note": s.get("step_note"),
-                "step_error_tag": s.get("step_error_tag")
-                    or derive_step_error_tag(s.get("step_note") or ""),
                 "step_reward": s.get("step_reward"),
                 # One-line "what's off?" critique on graded steps (Eval Flow Upgrade §4).
                 "critique": s.get("critique"),
                 # Multi-anchor (BUG-3b): the full list + a singular back-compat alias.
                 "evidence_anchor": _first_anchor(s),
                 "evidence_anchors": _anchors(s),
+                **extra,
             }
         )
     return out
