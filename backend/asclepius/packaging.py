@@ -162,6 +162,78 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, A
     return prov
 
 
+# ─── step_note → step_error_tag (Eval UX Overhaul §13) ───────────────────────
+# On V3/V4 the physician types a free-text "what's off with this step?" instead
+# of picking a tag; the SERVER classifies it onto the existing controlled
+# STEP_CORRECTION_REASONS vocabulary. Deterministic keyword rules so it always
+# works offline (an LLM refinement can be layered later without changing the
+# contract); the default is factual_error — the modal correction in practice.
+# Rules are ordered most-specific-first; keywords are conservative on purpose
+# (a wrong specific tag is worse than the factual_error default).
+_STEP_TAG_RULES: List[tuple] = [
+    ("unsafe", (
+        "unsafe", "danger", "harmful", "contraindicat", "toxic", "overdose",
+        "life-threatening", "fatal", "kill", "unmonitored",
+    )),
+    ("outdated_guideline", (
+        "outdated", "superseded", "old guideline", "older guideline",
+        "no longer recommended", "deprecated", "current guideline", "since updated",
+    )),
+    ("wrong_order", (
+        "wrong order", "out of order", "sequence", "sequencing", "premature",
+        "too early", "too late", "should come after", "should come before",
+        "before confirming", "before checking",
+    )),
+    ("incomplete", (
+        "incomplete", "missing", "omits", "omitted", "fails to mention",
+        "doesn't mention", "does not mention", "no mention", "leaves out",
+        "doesn't address", "does not address", "partial", "misses the",
+    )),
+    ("minor_wording", (
+        "wording", "phrasing", "typo", "grammar", "stylistic", "minor wording",
+        "cosmetic", "reads better",
+    )),
+]
+
+
+def derive_step_error_tag(note: str) -> Optional[str]:
+    """Classify a free-text step note onto STEP_CORRECTION_REASONS. Empty/blank
+    note → None (nothing to classify)."""
+    t = (note or "").strip().lower()
+    if not t:
+        return None
+    for tag, keywords in _STEP_TAG_RULES:
+        if any(k in t for k in keywords):
+            return tag
+    return "factual_error"
+
+
+def apply_step_notes(steps: List[Dict[str, Any]]) -> None:
+    """In-place §13 derivation over raw payload steps (run BEFORE validation, so
+    a note-only corrected step never trips missing_correction_reason):
+      * ``step_error_tag`` is always (re)derived from ``step_note`` — never
+        trusted from the wire;
+      * a corrected step with a note but no ``correction_reason`` gets the
+        derived tag as its reason, and its label/step_reward re-derived, so
+        every downstream consumer (validation, packaging, model-failure
+        records) sees the exact shape the tag-picker flow produces."""
+    for s in steps or []:
+        if not isinstance(s, dict):
+            continue
+        note = (s.get("step_note") or "").strip()
+        s["step_error_tag"] = derive_step_error_tag(note)
+        if not note:
+            continue
+        if s.get("corrected") and not (s.get("correction_reason") or "").strip():
+            s["correction_reason"] = s["step_error_tag"]
+            s["label"] = label_for_correction_reason(s["correction_reason"])
+            s["step_reward"] = 1 if s["label"] == "good" else 0
+        # The note doubles as the per-step critique when none was typed — it is
+        # the same "what's off?" signal (never overwrites an explicit critique).
+        if not (s.get("critique") or "").strip():
+            s["critique"] = note
+
+
 def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """PRM800K-style ordered steps; each independently labeled + optionally
     anchored (opt §1.1, §1.2).
@@ -194,6 +266,11 @@ def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "suggested_label": s.get("suggested_label"),
                 # Why the edited step was wrong (drives the derived label).
                 "correction_reason": reason,
+                # §13 (additive): the physician's verbatim "what's off" and the
+                # server-derived classification (see apply_step_notes).
+                "step_note": s.get("step_note"),
+                "step_error_tag": s.get("step_error_tag")
+                    or derive_step_error_tag(s.get("step_note") or ""),
                 "step_reward": s.get("step_reward"),
                 # One-line "what's off?" critique on graded steps (Eval Flow Upgrade §4).
                 "critique": s.get("critique"),

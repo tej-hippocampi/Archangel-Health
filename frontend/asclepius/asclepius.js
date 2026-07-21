@@ -1113,32 +1113,49 @@
       h('div', { class: 'asc-stage-right' }, dots, timer));
   }
 
-  // ─── Home page: choose your evaluation experience (V1–V4) ───────────────────
+  // ─── Home page: choose your evaluation experience (§5) ─────────────────────
+  // Cards lead with WHAT the physician will work on, never a version number.
+  // Order: Real (v4) · Synthetic (v3) · Longitudinal (v5, coming soon). The
+  // legacy V1/V2 flows keep their exact cards behind an "Other flows" affordance.
   const VERSION_OPTS = [
     {
       // V4 (EHR PRD §9.5): the V3 flow over REAL de-identified patient cases.
       // Shown LOCKED unless the contributor is real_data_approved — serving is
       // enforced server-side regardless; the lock is honest UI, not the gate.
-      v: 'v4', label: 'V4 · Real Cases', tag: 'Real patient data', dot: 'asc-dot-pink',
+      v: 'v4', label: 'Real · De-identified Cases', tag: 'Real patient data', dot: 'asc-dot-pink',
       requiresRealData: true,
-      blurb: 'De-identified real patient cases — labs, notes, and a real clinical timeline. Same fast flow as V3.',
+      blurb: 'Work through real, de-identified patient cases — labs, notes, and a real clinical snapshot. Same task as synthetic; the data is real.',
       bullets: [
-        'Real, de-identified cases from partner health systems',
-        'Full labs trend + clinical notes in the case panel',
-        'Identical V3 flow: gut check, hidden suggestions, one-click citations',
+        'Read a real de-identified case — labs, notes, meds, vitals',
+        'Give a 10-second first impression before you see the AI answers',
+        'Pick the better of two AI answers, refine it, and say why',
+        'A single point-in-time (static) case — not a timeline',
         'Requires real-data approval (BAA / training)',
       ],
     },
     {
-      v: 'v3', label: 'V3 · Seamless', tag: 'Recommended', dot: 'asc-dot-lime',
-      blurb: 'The fastest, sharpest flow — a 10-second gut check, then grade.',
+      v: 'v3', label: 'Synthetic Multimodal Cases', tag: 'Recommended', dot: 'asc-dot-lime',
+      blurb: 'Structured synthetic cases — labs, EHR notes, and meds — built to be hard.',
       bullets: [
-        'One-line "gut check" before you see the answers (~10s)',
-        'AI suggestions stay hidden until you commit your own verdict',
-        'One-click cited sources · roomy answer editor',
-        'Bright, marked A/B diff · voice dictation everywhere',
+        'Read a multimodal case — labs, EHR notes, meds, vitals',
+        'Give a 10-second first impression before the AI answers appear',
+        'Compare two AI answers and pick the stronger one',
+        'Refine it, flag the weaker one’s errors, and check the reasoning',
       ],
     },
+    {
+      v: 'v5', label: 'Real Longitudinal Cases', tag: 'Coming soon', dot: 'asc-dot-faint',
+      comingSoon: true,
+      blurb: 'Follow one real patient across time — multiple visits, evolving labs, and what actually happened next.',
+      bullets: [
+        'A real patient followed across multiple timepoints',
+        'Reason about how the case evolves, not a single snapshot',
+        'Outcomes linked past the decision',
+      ],
+    },
+  ];
+  // The legacy flows — content untouched, tucked behind "Other flows".
+  const LEGACY_VERSION_OPTS = [
     {
       v: 'v2', label: 'V2 · Assisted', tag: null, dot: 'asc-dot-orange',
       blurb: 'The assisted flow — under 10 minutes per task.',
@@ -1164,55 +1181,102 @@
     state.portalChosen = true;
     renderEvalView();
   }
+  function versionCard(o, last, approved) {
+    const locked = !!(o.requiresRealData && !approved);
+    const soon = !!o.comingSoon;
+    const inert = locked || soon;
+    return h('div', {
+      class: 'asc-ver-card' + (last === o.v && !soon ? ' last-used' : '')
+        + (locked ? ' asc-ver-locked' : '') + (soon ? ' asc-ver-soon' : ''),
+      role: soon ? null : 'button',
+      tabindex: soon ? null : '0',
+      'aria-disabled': inert ? 'true' : null,
+      onClick: inert ? null : () => chooseVersion(o.v),
+      onKeydown: inert ? null : (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseVersion(o.v); }
+      },
+    },
+      h('div', { class: 'asc-ver-card-head' },
+        h('span', { class: 'asc-ver-card-icon ' + (o.dot || 'asc-dot-faint'), 'aria-hidden': 'true' }),
+        h('div', {},
+          h('div', { class: 'asc-ver-card-title' }, o.label,
+            o.tag ? h('span', { class: 'asc-ver-card-tag' + (o.requiresRealData ? ' asc-ver-tag-real' : '') }, o.tag) : null,
+            last === o.v && !inert ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null),
+          h('div', { class: 'asc-ver-card-blurb' }, o.blurb))),
+      h('ul', { class: 'asc-ver-card-list' }, o.bullets.map((b) => h('li', {}, b))),
+      soon
+        ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-block', type: 'button', tabindex: '-1', disabled: true },
+            'Coming soon')
+        : locked
+          ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-block', type: 'button', tabindex: '-1', disabled: true },
+              'Requires real-data approval')
+          : h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
+              'Start →'));
+  }
   function renderVersionHome() {
     stopTimer();
     updateHeaderProgress(); // no open task — the §16 bar hides here
     const last = getPortalVersion();
     const approved = !!(state.user && state.user.real_data_approved);
     const cards = h('div', { class: 'asc-ver-cards' });
-    VERSION_OPTS.forEach((o) => {
-      const locked = !!(o.requiresRealData && !approved);
-      const card = h('div', {
-        class: 'asc-ver-card' + (last === o.v ? ' last-used' : '') + (locked ? ' asc-ver-locked' : ''),
-        role: 'button', tabindex: '0',
-        'aria-disabled': locked ? 'true' : null,
-        onClick: () => { if (!locked) chooseVersion(o.v); },
-        onKeydown: (e) => { if (!locked && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); chooseVersion(o.v); } },
+    VERSION_OPTS.forEach((o) => cards.appendChild(versionCard(o, last, approved)));
+
+    // Legacy flows, folded away — exactly as they were, one click deeper.
+    const legacyCards = h('div', { class: 'asc-ver-cards', hidden: true });
+    LEGACY_VERSION_OPTS.forEach((o) => legacyCards.appendChild(versionCard(o, last, approved)));
+    const legacyToggle = h('button', {
+      class: 'asc-btn-link', type: 'button', style: 'display:block;margin:18px auto 0',
+      onClick: () => {
+        const showing = !legacyCards.hasAttribute('hidden');
+        if (showing) { legacyCards.setAttribute('hidden', ''); legacyToggle.textContent = 'Other flows (classic & assisted) ▾'; }
+        else { legacyCards.removeAttribute('hidden'); legacyToggle.textContent = 'Other flows (classic & assisted) ▴'; }
       },
-        h('div', { class: 'asc-ver-card-head' },
-          h('span', { class: 'asc-ver-card-icon ' + (o.dot || 'asc-dot-faint'), 'aria-hidden': 'true' }),
-          h('div', {},
-            h('div', { class: 'asc-ver-card-title' }, o.label,
-              o.tag ? h('span', { class: 'asc-ver-card-tag' + (o.requiresRealData ? ' asc-ver-tag-real' : '') }, o.tag) : null,
-              last === o.v && !locked ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null),
-            h('div', { class: 'asc-ver-card-blurb' }, o.blurb))),
-        h('ul', { class: 'asc-ver-card-list' }, o.bullets.map((b) => h('li', {}, b))),
-        locked
-          ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-block', type: 'button', tabindex: '-1', disabled: true },
-              'Requires real-data approval')
-          : h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
-              'Start with ' + o.label.split(' ')[0] + ' →'));
-      cards.appendChild(card);
-    });
+    }, 'Other flows (classic & assisted) ▾');
+
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-ver-home' },
         h('h1', { class: 'asc-ver-home-title' }, 'Choose your evaluation experience'),
         h('p', { class: 'asc-ver-home-sub' },
-          'Every version captures the same clinical judgment and produces the same training data — pick how you want to work. You can switch anytime.'),
-        cards)));
+          'Same clinical judgment, same training data — pick how you want to work.'),
+        cards,
+        legacyToggle,
+        legacyCards)));
   }
 
   // Small read-only indicator inside the workspace: which experience this task
   // is being graded under, with a one-tap route back to the home chooser.
   function renderExperienceBadge() {
     const v = draftVersion();
-    const meta = { v4: ['', 'V4 · Real Cases'], v3: ['', 'V3 · Seamless'], v2: ['', 'V2 · Assisted'], v1: ['', 'V1 · Classic'] }[v] || ['', 'V1 · Classic'];
+    const meta = { v4: ['', 'Real · De-identified Cases'], v3: ['', 'Synthetic Multimodal'], v2: ['', 'V2 · Assisted'], v1: ['', 'V1 · Classic'] }[v] || ['', 'V1 · Classic'];
     return h('div', { class: 'asc-exp-badge' },
       h('span', { class: 'asc-exp-badge-label' }, meta[0] + meta[1]),
       h('button', {
         class: 'asc-btn-link', type: 'button',
         onClick: () => { state.portalChosen = false; renderEvalView(); },
       }, 'Change experience'));
+  }
+
+  // ─── §6 semantic case-tag chips (V3/V4) ─────────────────────────────────────
+  // Consistent, meaningful color from the console palette (no blue — it left
+  // with the design-system migration): a stable hue per specialty, semantic
+  // difficulty (hard=pink, medium=orange, easy=green), lime=multimodal,
+  // orange=reasoning (model), pink=grounding (attention). Color always pairs
+  // with the text label — never the sole carrier.
+  const SPECIALTY_DOT = { nephrology: 'asc-dot-green', cardiology: 'asc-dot-orange' };
+  const _SPECIALTY_CYCLE = ['asc-dot-lime', 'asc-dot-green', 'asc-dot-orange', 'asc-dot-pink'];
+  function specialtyDot(spec) {
+    const s = (spec || '').toLowerCase();
+    if (SPECIALTY_DOT[s]) return SPECIALTY_DOT[s];
+    // Deterministic per-specialty hue for anything unmapped: same specialty,
+    // same color, every time.
+    let acc = 0;
+    for (let i = 0; i < s.length; i++) acc = (acc + s.charCodeAt(i)) % 997;
+    return _SPECIALTY_CYCLE[acc % _SPECIALTY_CYCLE.length];
+  }
+  const DIFFICULTY_DOT = { hard: 'asc-dot-pink', medium: 'asc-dot-orange', easy: 'asc-dot-green' };
+  function metaChip(label, dotClass, title) {
+    return h('span', { class: 'asc-meta-chip', title: title || null },
+      h('span', { class: 'asc-meta-chip-dot ' + dotClass, 'aria-hidden': 'true' }), label);
   }
 
   function renderTaskWorkspace() {
@@ -1225,15 +1289,29 @@
     // the prompt card carries only the clinical QUESTION (parsed out of the
     // rendered prompt) — no duplicated wall of serialized case text.
     const promptText = caseObj ? caseQuestion(task.prompt) : (task.prompt || '');
-    const promptCard = h('div', { class: 'asc-card asc-prompt-card' },
-      h('div', { class: 'asc-card-pad' },
-        h('div', { class: 'asc-meta-row' },
+    const diff = (task.difficulty || 'medium');
+    // §6: V3/V4 get the semantic dot chips; V1/V2 keep the muted badges as-is.
+    const metaRow = isV3()
+      ? h('div', { class: 'asc-meta-row' },
+          metaChip(task.specialty || 'general', specialtyDot(task.specialty),
+            'Specialty — same specialty, same color, always'),
+          metaChip('Difficulty: ' + diff, DIFFICULTY_DOT[diff] || 'asc-dot-orange',
+            'hard = pink · medium = orange · easy = green'),
+          caseObj ? metaChip('Multimodal case', 'asc-dot-lime') : null,
+          task.capture_reasoning ? metaChip('Reasoning capture', 'asc-dot-orange',
+            'This task captures the model’s step-by-step reasoning') : null,
+          required ? metaChip('Grounding required', 'asc-dot-pink',
+            'Evidence citations are required on this task') : null)
+      : h('div', { class: 'asc-meta-row' },
           h('span', { class: 'asc-badge asc-badge-primary' }, task.specialty || 'general'),
           h('span', { class: 'asc-badge asc-badge-gray' }, 'Difficulty: ' + (task.difficulty || 'medium')),
           caseObj ? h('span', { class: 'asc-badge asc-badge-accent' }, 'Multimodal case') : null,
           task.capture_reasoning ? h('span', { class: 'asc-badge asc-badge-accent' }, 'Reasoning capture') : null,
           required ? h('span', { class: 'asc-badge asc-badge-amber' }, 'Grounding required') : null,
-        ),
+        );
+    const promptCard = h('div', { class: 'asc-card asc-prompt-card' },
+      h('div', { class: 'asc-card-pad' },
+        metaRow,
         h('div', { class: 'asc-prompt-label' }, caseObj ? 'Clinical question' : 'Clinical prompt'),
         h('div', { class: 'asc-prompt-text' }, promptText),
       ));
@@ -1633,8 +1711,13 @@
     refreshAnswerHighlight();
   }
 
-  // ─── Stage 1: prompt validation gate (Feature A) ───────────────────────────
+  // ─── Stage 1: prompt validation gate (Feature A; §7 rebuild on V3/V4) ───────
   function renderPromptGate() {
+    // §7 (V3/V4): ONE honest control. The primary action is simply to proceed;
+    // a single low-emphasis "Flag as invalid" opens a required-reason capture
+    // routed to admin (the former "case is internally inconsistent" mode folds
+    // into the same free-text reason — one flag, one reason, one destination).
+    if (isV3()) return renderPromptGateV3();
     const d = state.draft;
     const reasonBox = h('div', { id: 'ascFlagReason', hidden: true });
     const reasonInput = h('input', { class: 'asc-input', placeholder: 'One line — why is this prompt invalid? (e.g. ambiguous, not clinically meaningful, unsafe premise)', value: d.prompt_review.note || '' });
@@ -1684,6 +1767,51 @@
           reasonInput.focus();
         } }, 'Flag as invalid'),
         incoherentBtn),
+      reasonBox);
+  }
+
+  // §7 (V3/V4): one primary continue + one ghost flag with a required reason.
+  function renderPromptGateV3() {
+    const d = state.draft;
+    const isCase = !!multimodalCase();
+    const reasonInput = h('input', {
+      class: 'asc-input',
+      placeholder: 'Why is this ' + (isCase ? 'case' : 'prompt')
+        + ' invalid? (e.g. ambiguous, not clinically meaningful, unsafe premise, internally inconsistent)',
+      value: d.prompt_review.note || '',
+    });
+    const sendBtn = h('button', {
+      class: 'asc-btn asc-btn-danger', type: 'button', disabled: true,
+      onClick: () => { if ((d.prompt_review.note || '').trim()) flagPrompt(); },
+    }, 'Send to admin');
+    reasonInput.addEventListener('input', () => {
+      d.prompt_review.note = reasonInput.value;
+      sendBtn.disabled = !(reasonInput.value || '').trim();
+      saveDraft();
+    });
+    const reasonBox = h('div', { hidden: true },
+      h('div', { class: 'asc-field', style: 'margin-top:14px' },
+        h('label', { class: 'asc-label' }, 'Why is this ' + (isCase ? 'case' : 'prompt') + ' invalid?'),
+        withMic(reasonInput),
+        h('div', { style: 'margin-top:10px' }, sendBtn)));
+    const flagBtn = h('button', {
+      class: 'asc-btn-link asc-flag-invalid', type: 'button',
+      onClick: () => {
+        if (reasonBox.hasAttribute('hidden')) { reasonBox.removeAttribute('hidden'); reasonInput.focus(); }
+        else reasonBox.setAttribute('hidden', '');
+      },
+    }, 'Flag as invalid');
+    return h('div', { class: 'asc-card asc-card-pad asc-gate' },
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' },
+        isCase ? 'Review the case' : 'Review the prompt'),
+      h('p', { class: 'asc-help', style: 'margin-bottom:16px' },
+        'Read it through. If it’s a real, answerable clinical '
+        + (isCase ? 'case' : 'question') + ', continue — flagged '
+        + (isCase ? 'cases' : 'prompts') + ' leave your queue and go to admin review with your reason.'),
+      h('div', { class: 'asc-gate-actions' },
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', onClick: validatePrompt },
+          'Looks clinically valid — continue →'),
+        flagBtn),
       reasonBox);
   }
 

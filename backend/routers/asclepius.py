@@ -1387,6 +1387,14 @@ async def submit(
 
     payload = body.model_dump()
 
+    # §13 (Eval UX Overhaul): derive step_error_tag (and, for note-only corrected
+    # steps, the correction_reason + label) from the physician's free-text
+    # step_note — BEFORE validation, so a V3/V4 note-only correction never routes
+    # to QA as missing_correction_reason. No-op when no step carries a note.
+    from asclepius.packaging import apply_step_notes
+    apply_step_notes(payload.get("reasoning_steps"))
+    apply_step_notes((payload.get("from_scratch") or {}).get("reasoning_steps"))
+
     # The independent answer that ships is the one COMMITTED before reveal (Eval
     # Flow Upgrade §1), not whatever the post-reveal client submits — so a client
     # can't unlock the answers with a throwaway commit and then pass off an

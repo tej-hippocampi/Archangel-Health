@@ -1703,3 +1703,30 @@
   .asc-hp-fill { transition: none; }
   .asc-substage-chip, .asc-info-dot, .asc-rubric-tier-btn { transition: none; }
 }
+
+/* ─── §5 coming-soon version card ──────────────────────────────────────── */
+.asc-ver-card.asc-ver-soon { opacity: 0.72; cursor: default; }
+.asc-ver-card.asc-ver-soon:hover { border-color: var(--asc-line); transform: none; box-shadow: var(--shadow-card); }
+.asc-ver-card-icon.asc-dot-green { background: var(--green); }
+
+/* ─── §6 semantic case-tag chips ───────────────────────────────────────── */
+.asc-meta-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border: 1px solid var(--asc-line);
+  border-radius: var(--r-chip); background: var(--card);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-soft);
+}
+.asc-meta-chip-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: var(--ink-faint);
+}
+.asc-meta-chip-dot.asc-dot-green { background: var(--green); }
+.asc-meta-chip-dot.asc-dot-orange { background: var(--orange); }
+.asc-meta-chip-dot.asc-dot-pink { background: var(--pink); }
+.asc-meta-chip-dot.asc-dot-lime { background: var(--lime); }
+.asc-meta-chip-dot.asc-dot-faint { background: rgba(26, 27, 26, 0.18); }
+
+/* ─── §7 single flag control ───────────────────────────────────────────── */
+.asc-flag-invalid { color: var(--pink-deep); }
+.asc-flag-invalid:hover { color: var(--pink); }
