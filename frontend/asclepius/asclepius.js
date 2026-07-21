@@ -347,7 +347,7 @@
     }
     const card = h('div', { class: 'asc-login-card' },
       h('div', { class: 'asc-login-head' },
-        h('div', { class: 'asc-login-mark' }, '⚕'),
+        h('div', { class: 'asc-login-mark', 'aria-hidden': 'true' }),
         h('h1', {}, 'Asclepius'),
         h('p', {}, 'Expert Evaluation Portal'),
       ),
@@ -399,7 +399,7 @@
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'asc-empty' },
-          h('div', { class: 'asc-empty-icon' }, '✅'),
+          h('div', { class: 'asc-empty-icon' }, '✓'),
           h('h3', {}, 'Your queue is clear'),
           h('p', {}, 'No evaluation tasks are waiting for you right now. Check back soon.'),
           h('div', { style: 'margin-top:16px' },
@@ -668,7 +668,7 @@
 
     const panel = h('div', { class: 'asc-card asc-case-card' },
       h('div', { class: 'asc-case-head' },
-        h('span', { class: 'asc-badge asc-badge-accent' }, '🧬 Multimodal case'),
+        h('span', { class: 'asc-badge asc-badge-accent' }, 'Multimodal case'),
         h('span', { class: 'asc-case-source' }, (c.case_source === 'real_deid' ? 'Real (de-identified)' : 'Synthetic'))),
       tabRow, bodyHost);
     paint();
@@ -851,7 +851,7 @@
       // V4 (EHR PRD §9.5): the V3 flow over REAL de-identified patient cases.
       // Shown LOCKED unless the contributor is real_data_approved — serving is
       // enforced server-side regardless; the lock is honest UI, not the gate.
-      v: 'v4', label: 'V4 · Real Cases', tag: 'Real patient data', icon: '🏥',
+      v: 'v4', label: 'V4 · Real Cases', tag: 'Real patient data', dot: 'asc-dot-pink',
       requiresRealData: true,
       blurb: 'De-identified real patient cases — labs, notes, and a real clinical timeline. Same fast flow as V3.',
       bullets: [
@@ -862,7 +862,7 @@
       ],
     },
     {
-      v: 'v3', label: 'V3 · Seamless', tag: 'Recommended', icon: '⚡',
+      v: 'v3', label: 'V3 · Seamless', tag: 'Recommended', dot: 'asc-dot-lime',
       blurb: 'The fastest, sharpest flow — a 10-second gut check, then grade.',
       bullets: [
         'One-line "gut check" before you see the answers (~10s)',
@@ -872,7 +872,7 @@
       ],
     },
     {
-      v: 'v2', label: 'V2 · Assisted', tag: null, icon: '✨',
+      v: 'v2', label: 'V2 · Assisted', tag: null, dot: 'asc-dot-orange',
       blurb: 'The assisted flow — under 10 minutes per task.',
       bullets: [
         'A 30-second quick take before you see the answers',
@@ -882,7 +882,7 @@
       ],
     },
     {
-      v: 'v1', label: 'V1 · Classic', tag: null, icon: '📝',
+      v: 'v1', label: 'V1 · Classic', tag: null, dot: 'asc-dot-faint',
       blurb: 'The original flow — write your full ideal answer.',
       bullets: [
         'Write your complete ideal answer before reveal',
@@ -911,7 +911,7 @@
         onKeydown: (e) => { if (!locked && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); chooseVersion(o.v); } },
       },
         h('div', { class: 'asc-ver-card-head' },
-          h('span', { class: 'asc-ver-card-icon' }, o.icon),
+          h('span', { class: 'asc-ver-card-icon ' + (o.dot || 'asc-dot-faint'), 'aria-hidden': 'true' }),
           h('div', {},
             h('div', { class: 'asc-ver-card-title' }, o.label,
               o.tag ? h('span', { class: 'asc-ver-card-tag' + (o.requiresRealData ? ' asc-ver-tag-real' : '') }, o.tag) : null,
@@ -920,7 +920,7 @@
         h('ul', { class: 'asc-ver-card-list' }, o.bullets.map((b) => h('li', {}, b))),
         locked
           ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-block', type: 'button', tabindex: '-1', disabled: true },
-              '🔒 Requires real-data approval')
+              'Requires real-data approval')
           : h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
               'Start with ' + o.label.split(' ')[0] + ' →'));
       cards.appendChild(card);
@@ -937,7 +937,7 @@
   // is being graded under, with a one-tap route back to the home chooser.
   function renderExperienceBadge() {
     const v = draftVersion();
-    const meta = { v4: ['🏥 ', 'V4 · Real Cases'], v3: ['⚡ ', 'V3 · Seamless'], v2: ['✨ ', 'V2 · Assisted'], v1: ['📝 ', 'V1 · Classic'] }[v] || ['📝 ', 'V1 · Classic'];
+    const meta = { v4: ['', 'V4 · Real Cases'], v3: ['', 'V3 · Seamless'], v2: ['', 'V2 · Assisted'], v1: ['', 'V1 · Classic'] }[v] || ['', 'V1 · Classic'];
     return h('div', { class: 'asc-exp-badge' },
       h('span', { class: 'asc-exp-badge-label' }, meta[0] + meta[1]),
       h('button', {
@@ -973,7 +973,7 @@
     let groundingBanner = null;
     if (required && task.grounding_disclaimer) {
       groundingBanner = h('div', { class: 'asc-grounding-banner' },
-        h('div', { class: 'asc-gb-icon' }, '📎'),
+        h('div', { class: 'asc-gb-icon', 'aria-hidden': 'true' }),
         h('div', {},
           h('div', { class: 'asc-gb-title' }, 'Evidence required for this task'),
           h('div', { class: 'asc-gb-text' }, task.grounding_disclaimer),
@@ -1074,7 +1074,7 @@
     clear(el);
     const a = assistData();
     if (!a) return;
-    el.appendChild(h('span', { class: 'asc-assist-chip' }, '✨'));
+    el.appendChild(h('span', { class: 'asc-assist-chip', 'aria-hidden': 'true' }));
     el.appendChild(h('span', {},
       'Model thinks ', h('strong', {}, a.suggested_weaker), ' is weaker — tap a verdict to decide.'));
   }
@@ -1089,7 +1089,7 @@
       h('div', { class: 'asc-blur-stack' },
         fake,
         h('div', { class: 'asc-blur-overlay' },
-          h('div', { class: 'asc-blur-lock' }, '🔒'),
+          
           h('div', { class: 'asc-blur-caption' }, caption))));
   }
 
@@ -1392,7 +1392,7 @@
       class: 'asc-mic-btn', type: 'button',
       title: 'Dictate into this field (tap to start/stop)',
       'aria-label': 'Dictate into this field',
-    }, '🎤');
+    });
     btn.addEventListener('click', async () => {
       if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
       try {
@@ -1429,7 +1429,7 @@
           if (e.status === 503) toast('Dictation is not configured — type instead (or use the Wispr Flow app).', 'info');
           else if (e.status !== 401) toast('Transcription failed: ' + e.message, 'error');
         } finally {
-          btn.textContent = '🎤'; btn.disabled = false;
+          btn.textContent = ''; btn.disabled = false;
           btn.setAttribute('aria-label', 'Dictate into this field');
           btn.title = 'Dictate into this field (tap to start/stop)';
         }
@@ -1613,7 +1613,7 @@
       h('div', { class: 'asc-answer-head' },
         h('div', { class: 'asc-answer-tag' },
           h('span', { class: 'asc-answer-letter', dataset: { letter: c.id } }, c.id),
-          'Answer ' + c.id),
+          'Model ' + c.id),
       ),
       body);
   }
@@ -1707,9 +1707,9 @@
       onClick: () => { d.rubric.push({ text: '', points: 5, axis: 'accuracy', source: 'manual' }); saveDraft(); paintRubricList(); } },
       '+ Add a criterion');
     const seedBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
-      onClick: () => seedRubric(true) }, '✨ Re-seed from my tags');
+      onClick: () => seedRubric(true) }, 'Re-seed from my tags');
 
-    host.appendChild(h('div', { class: 'asc-card-title' }, '📋 Scoring rubric', h('span', { class: 'asc-badge', style: 'margin-left:8px' }, 'optional')));
+    host.appendChild(h('div', { class: 'asc-card-title' }, 'Scoring rubric', h('span', { class: 'asc-badge', style: 'margin-left:8px' }, 'optional')));
     host.appendChild(h('div', { class: 'asc-card-sub', style: 'margin-bottom:12px' },
       'What must a correct answer include (positive points) or never say (negative points)? Auto-seeded from your tags — confirm, edit, or delete. Each criterion is tiered by weight — critical (±8–10), important (±4–7), helpful (±1–3). If you build a rubric, name at least one CRITICAL negative: the single thing a correct answer must never do (the grader hard-fails on it). This ships as a reusable scoring function.'));
     host.appendChild(listHost);
@@ -1746,7 +1746,7 @@
       clear(meter);
       const rc = rubricCompleteness(d.rubric);
       const pill = h('span', { class: 'asc-rubric-premium ' + (rc.premium ? 'premium' : 'standard') },
-        rc.premium ? '★ premium' : 'standard');
+        rc.premium ? 'premium' : 'standard');
       const detail = rc.premium
         ? h('span', { class: 'asc-label-hint' }, rc.n_criteria + ' criteria · ' + rc.n_axes + ' axes — meets the premium bar')
         : h('span', { class: 'asc-label-hint' }, 'to reach premium: ' + rc.missing.join('; '));
@@ -1775,7 +1775,7 @@
         });
       meter.appendChild(histRow);
       if (rc.nudges && rc.nudges.length) {
-        meter.appendChild(h('div', { class: 'asc-rubric-nudge' }, '💡 ' + rc.nudges.join('; ')));
+        meter.appendChild(h('div', { class: 'asc-rubric-nudge' }, rc.nudges.join('; ')));
       }
     }
 
@@ -1845,7 +1845,7 @@
           } else {
             citeArea.setAttribute('hidden', '');
           }
-        } }, '🔗 cite');
+        } }, 'cite');
       const del = h('button', { class: 'asc-btn-link', type: 'button',
         onClick: () => { d.rubric.splice(i, 1); saveDraft(); paintRubricList(); updateSubmitState(); } }, 'remove');
       paintTier();
@@ -2080,7 +2080,7 @@
     if (!pendingTags.length && !rationalePending) return;
 
     const box = h('div', { class: 'asc-suggest-box' },
-      h('div', { class: 'asc-suggest-label' }, '✨ Suggested — tap to accept'));
+      h('div', { class: 'asc-suggest-label' }, 'Suggested — tap to accept'));
     if (pendingTags.length) {
       const row = h('div', { class: 'asc-chips' });
       pendingTags.forEach((tag) => {
@@ -2271,7 +2271,7 @@
     if (!force && activeSteps().length) return;
     state.splitting = true;
     const list = document.getElementById(listId);
-    if (list) { clear(list); list.appendChild(h('p', { class: 'asc-help' }, '✨ Splitting the chosen answer into steps…')); }
+    if (list) { clear(list); list.appendChild(h('p', { class: 'asc-help' }, 'Splitting the chosen answer into steps…')); }
     try {
       // Assisted flows (V2 + V3) pre-grade each step (suggested good/bad); V1
       // (classic) just splits. In V3 this only runs post-verdict (editing the
@@ -2356,7 +2356,7 @@
     if (pendingGood.length) {
       list.appendChild(h('div', { class: 'asc-step-bulkbar' },
         h('span', { class: 'asc-step-bulk-label' },
-          '✨ ' + pendingGood.length + ' step' + (pendingGood.length === 1 ? ' looks' : 's look')
+          pendingGood.length + ' step' + (pendingGood.length === 1 ? ' looks' : 's look')
           + ' correct to the model — read them, then confirm in one tap.'),
         h('button', {
           class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
@@ -2379,7 +2379,7 @@
           h('div', { class: 'asc-step-head' },
             h('div', { style: 'display:flex;align-items:center;gap:8px;min-width:0' },
               h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)),
-              h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, '✨ looks correct'),
+              h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, 'model · looks correct'),
               pill),
             h('div', { style: 'display:flex;align-items:center;gap:8px' },
               h('button', {
@@ -2451,10 +2451,10 @@
 
       // Model pre-grade flag (Speed Optimization §2) — a review hint, never a label.
       const flaggedBadge = (s.suggested_label === 'bad')
-        ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, '⚑ model flags this')
+        ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, 'model · flags this')
         : null;
       const suggestHint = (s.suggested_label === 'bad' && s.suggested_critique)
-        ? h('div', { class: 'asc-step-suggest-hint' }, '✨ Model: ' + s.suggested_critique)
+        ? h('div', { class: 'asc-step-suggest-hint' }, 'Model: ' + s.suggested_critique)
         : null;
 
       const head = h('div', { class: 'asc-step-head' },
@@ -2544,7 +2544,7 @@
       clear(wrap);
       if (!suggestions.length) return;
       wrap.appendChild(h('div', { class: 'asc-cite-head' },
-        h('span', { class: 'asc-cite-title' }, '📎 Suggested source' + (suggestions.length > 1 ? 's' : '') + ' — tap to review, confirm to cite'),
+        h('span', { class: 'asc-cite-title' }, 'Suggested source' + (suggestions.length > 1 ? 's' : '') + ' — tap to review, confirm to cite'),
         h('button', { class: 'asc-btn-link', type: 'button', onClick: () => { dismissed = true; clear(wrap); } }, 'dismiss')));
       suggestions.slice(0, 3).forEach((s) => {
         const snippet = h('div', { class: 'asc-cite-snippet' }, s.snippet || '');
@@ -2633,7 +2633,7 @@
 
     // Escape hatch: search the library (BUG-3c) — always one tap away.
     const search = renderLibrarySearch(anchor, () => { block._rebuild(); });
-    const searchBtn = h('button', { class: 'asc-btn-link', type: 'button', onClick: () => search._toggle() }, '🔍 Search the library');
+    const searchBtn = h('button', { class: 'asc-btn-link', type: 'button', onClick: () => search._toggle() }, 'Search the library');
     body.appendChild(h('div', { style: 'margin:8px 0' }, searchBtn));
     body.appendChild(search);
 
@@ -2644,7 +2644,7 @@
     const renderExtra = () => {
       clear(extraHost);
       anchor._extra.forEach((ea, i) => {
-        const row = h('div', { class: 'asc-extra-anchor', style: 'border-top:1px dashed var(--asc-line,#e5e7eb);padding-top:10px;margin-top:10px' });
+        const row = h('div', { class: 'asc-extra-anchor', style: 'border-top:1px dashed var(--asc-line);padding-top:10px;margin-top:10px' });
         row.appendChild(h('div', { class: 'asc-label', style: 'display:flex;justify-content:space-between' },
           'Additional citation ' + (i + 1),
           h('button', { class: 'asc-btn-link', type: 'button', onClick: () => { anchor._extra.splice(i, 1); saveDraft(); renderExtra(); updateSubmitState(); } }, 'remove')));
@@ -2664,7 +2664,7 @@
         if (body.hasAttribute('hidden')) body.removeAttribute('hidden');
         else body.setAttribute('hidden', '');
       },
-    }, required ? '📎 Citation (required)' : '+ add citation', status);
+    }, required ? 'Citation (required)' : '+ add citation', status);
 
     const block = h('div', { class: 'asc-disclosure' }, toggle, body);
     block._status = status;
@@ -3151,7 +3151,7 @@
     const tabs = [
       ['tasks', 'Tasks'],
       ['qa', 'QA'],
-      ['ingestion', '🏥 Ingestion'],
+      ['ingestion', 'Ingestion'],
       ['buyers', 'Buyers & Requests'],
       ['exports', 'Exports'],
       ['metrics', 'Metrics'],
@@ -3237,7 +3237,7 @@
         h('div', { class: 'asc-card-title' }, 'Pending (' + subs.length + ')')));
       if (!subs.length) {
         listCard.appendChild(h('div', { class: 'asc-card-pad' },
-          h('div', { class: 'asc-card-sub' }, 'Queue is clear — nothing needs QA right now. 🎉')));
+          h('div', { class: 'asc-card-sub' }, 'Queue is clear — nothing needs QA right now.')));
         return;
       }
       const table = h('table', { class: 'asc-table' },
@@ -3253,7 +3253,7 @@
         // ships in a data package, but the admin is allowed to see who labelled.
         const contribCell = h('td', {},
           h('div', { style: 'font-weight:600' }, ident.name || ann.credentials || ann.specialty || '—'),
-          ident.organization ? h('div', { class: 'asc-card-sub' }, '🏥 ' + ident.organization) : null,
+          ident.organization ? h('div', { class: 'asc-card-sub' }, ident.organization) : null,
           ident.email ? h('div', { class: 'asc-card-sub asc-mono' }, ident.email) : null);
         tbody.appendChild(h('tr', {},
           h('td', { class: 'asc-mono' }, (s.submission_id || '').slice(0, 12)),
@@ -3319,7 +3319,7 @@
       const critic = (sub.critic || {}).consistency || {};
       if (critic && critic.consistent === false) {
         pad.appendChild(h('div', { class: 'asc-inline-warn' },
-          '⚠ Consistency critic flagged: ' + (critic.explanation || (critic.issues || []).join(', '))));
+          'Consistency critic flagged: ' + (critic.explanation || (critic.issues || []).join(', '))));
       }
 
       // Approve / Reject (with reason).
@@ -3390,7 +3390,7 @@
     const pcontact = h('input', { type: 'email', class: 'asc-input', placeholder: 'partner contact email (optional)' });
     const ponce = h('input', { type: 'checkbox', checked: 'checked' });
     const mintStatus = h('div', {});
-    const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '🔗 Mint secure upload link');
+    const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Mint secure upload link');
     mintBtn.addEventListener('click', async () => {
       clear(mintStatus);
       if (!pid.value.trim()) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Partner id is required.')); return; }
@@ -3402,13 +3402,13 @@
         } });
         const url = res.upload_url || ('/partner/upload?t=' + res.token);
         mintStatus.appendChild(h('div', { class: 'asc-inline-warn' },
-          '⚠️ Copy this link NOW — the token is shown once and never stored: '));
+          'Copy this link NOW — the token is shown once and never stored: '));
         const urlBox = h('input', { class: 'asc-input asc-mono', value: url, readonly: 'readonly', style: 'margin-top:8px' });
         urlBox.addEventListener('click', () => { urlBox.select(); });
         mintStatus.appendChild(urlBox);
         mintStatus.appendChild(h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', style: 'margin-top:8px', onClick: () => {
           navigator.clipboard.writeText(url).then(() => toast('Link copied.', 'success')).catch(() => {});
-        } }, '📋 Copy link'));
+        } }, 'Copy link'));
         loadIngestionLists();
       } catch (e) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
     });
@@ -3490,7 +3490,7 @@
             title: canNotify ? ('Email ' + u.contact_email + ' that this upload didn’t come through')
                              : 'No contact email on this upload’s link — set one when minting the link',
             onClick: () => notifySender(u),
-          }, u.failure_notified ? '✉ Re-notify sender' : '✉ Notify sender');
+          }, u.failure_notified ? 'Re-notify sender' : 'Notify sender');
           if (!canNotify) nbtn.disabled = true;
           actions.push(nbtn);
         }
@@ -3543,7 +3543,7 @@
     const search = h('input', { class: 'asc-input', placeholder: 'Search a partner upload (e.g. "Gray Scrubs Lab") or file name…', value: query || '' });
     search.addEventListener('input', () => renderPromoteList(listBox, search.value));
     cc.appendChild(h('div', { class: 'asc-card-head' }, h('div', { style: 'flex:1' },
-      h('div', { class: 'asc-card-title' }, '✅ Ready to promote — by partner upload'),
+      h('div', { class: 'asc-card-title' }, 'Ready to promote — by partner upload'),
       h('div', { class: 'asc-card-sub' }, 'Pick a partner file and promote it to V4. We convert the real records, run automated tests, and show you one sample case (labs, notes, EHR + candidates) to review — then extend case creation to the rest of the file.'),
       h('div', { class: 'asc-field', style: 'margin-top:12px;margin-bottom:0' }, search))));
     cc.appendChild(listBox);
@@ -3564,16 +3564,16 @@
     }
     eligible.forEach((u) => {
       const st = h('div', { style: 'margin-top:10px' });
-      const promoteBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, '⚡ Promote to V4 task');
+      const promoteBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Promote to V4 task');
       promoteBtn.addEventListener('click', () => openPromoteReview(u, st));
       listBox.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
         h('div', { style: 'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center' },
           h('div', {},
-            h('strong', {}, '🏥 ' + (u.partner_label || u.partner_id || 'partner')),
+            h('strong', {}, (u.partner_label || u.partner_id || 'partner')),
             h('div', { class: 'asc-card-sub asc-mono' }, u.filename || ''),
             h('div', { class: 'asc-card-sub' }, (u.ingested_case_count || 0) + ' case(s) ready · uploaded ' + fmtDate(u.created_at))),
           h('div', { style: 'display:flex;gap:8px;align-items:center' },
-            h('span', { class: 'asc-badge-real' }, '🏥 real · V4'),
+            h('span', { class: 'asc-badge-real' }, 'real · V4'),
             promoteBtn)),
         st));
     });
@@ -3603,11 +3603,11 @@
     // Automated-test result banner.
     const testBanner = s.tests_passed
       ? h('div', { class: 'asc-grounding-banner', style: 'margin-bottom:14px' },
-          h('div', { class: 'asc-gb-icon' }, '✅'),
+          h('div', { class: 'asc-gb-icon', 'aria-hidden': 'true' }),
           h('div', {}, h('div', { class: 'asc-gb-title' }, 'Automated tests passed'),
             h('div', { class: 'asc-gb-text' }, 'The sample case cleared the real-case gate (coherence, multimodal necessity, reasoning divergence).')))
       : h('div', { class: 'asc-inline-warn', style: 'margin-bottom:14px' },
-          '⚠ Sample did not pass the automated gate: ' + ((s.failures || []).join('; ') || 'see scores below') +
+          'Sample did not pass the automated gate: ' + ((s.failures || []).join('; ') || 'see scores below') +
           '. You can still promote — cases that fail the gate stay ingested with the reason recorded.');
 
     // Case panel: labs, notes, meds, problems, demographics.
@@ -3652,9 +3652,9 @@
       h('div', { class: 'asc-card-sub', style: 'margin:4px 0 14px' },
         (s.specialty || '') + ' · ' + (demo.age_band || '?') + ' ' + (demo.sex || '') + ' · ' +
         (kase.lab_panels || []).length + ' lab panel(s) · ' + (kase.notes || []).length + ' note(s)'),
-      labs.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, '🧪 Lab panels'), h('div', {}, labs)) : null,
-      notes.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, '📝 Notes / EHR records'), h('div', {}, notes)) : null,
-      cands.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, '🤖 Generated candidate answers'), h('div', {}, cands)) : null,
+      labs.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Lab panels'), h('div', {}, labs)) : null,
+      notes.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Notes / EHR records'), h('div', {}, notes)) : null,
+      cands.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Generated candidate answers'), h('div', {}, cands)) : null,
       status,
       h('div', { style: 'display:flex;gap:10px;margin-top:16px' },
         promoteAllBtn,
@@ -3698,7 +3698,7 @@
                 const notHard = tasks.filter((t) => ((t && t.difficulty) || 'medium') !== 'hard').length;
                 if (notHard > 0) {
                   pasteStatus.appendChild(h('div', { class: 'asc-inline-warn', style: 'margin-top:8px' },
-                    '⚠️ ' + notHard + ' of ' + tasks.length + ' task(s) are not difficulty:"hard" and will NOT appear in the V3 (default) hard-case queue. Set difficulty:"hard" to serve them in V3.'));
+                    notHard + ' of ' + tasks.length + ' task(s) are not difficulty:"hard" and will NOT appear in the V3 (default) hard-case queue. Set difficulty:"hard" to serve them in V3.'));
                 }
                 jsonTa.value = '';
                 loadTasksTable();
@@ -3798,7 +3798,7 @@
     const autoGenCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
         h('div', { class: 'asc-card-title' }, 'Auto-generate tasks (Seedmaker — SYNTHETIC, V1–V3)'),
-        h('div', { class: 'asc-card-sub' }, 'Text prompts or structured multimodal cases — all SYNTHETIC (V3 tier). Real patient cases (V4) come only from the 🏥 Ingestion tab. Quality-gated before they enter the queue.'))),
+        h('div', { class: 'asc-card-sub' }, 'Text prompts or structured multimodal cases — all SYNTHETIC (V3 tier). Real patient cases (V4) come only from the Ingestion tab. Quality-gated before they enter the queue.'))),
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), agSpecialty),
@@ -3921,7 +3921,7 @@
       const summary = data.summary || [];
       const failures = data.failures || [];
       card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, '🎯 Frontier-model failures'),
+        h('div', { class: 'asc-card-title' }, 'Frontier-model failures'),
         h('div', { class: 'asc-card-sub' }, 'Cases a real frontier model got wrong, with the expert correction — the artifact to put in front of a lab.'))));
       if (!summary.length && !failures.length) {
         card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
@@ -4050,19 +4050,19 @@
         // Modality badge (Multimodal Debug PRD P0.3): multimodal batches must be
         // distinguishable at a glance, not invisible among text tasks.
         h('td', {}, (t.modality || 'text') === 'multimodal'
-          ? h('span', { class: 'asc-badge asc-badge-accent' }, '🧬 multimodal')
+          ? h('span', { class: 'asc-badge asc-badge-accent' }, 'multimodal')
           : 'text'),
         // Case source + version (EHR PRD §9.5): an admin must never mistake a
         // REAL case for a synthetic one at a glance. Real ⇒ V4, always.
         h('td', {}, t.case_source === 'real_deid'
-          ? h('span', { class: 'asc-badge asc-badge-real' }, '🏥 real · V4')
+          ? h('span', { class: 'asc-badge asc-badge-real' }, 'real · V4')
           : (t.case_source ? 'synthetic' : '—')),
         h('td', {}, t.difficulty || '—'),
         h('td', {}, (t.prompt || '').slice(0, 90) + ((t.prompt || '').length > 90 ? '…' : '')),
         h('td', {}, t.grounding_mode === 'required' ? h('span', { class: 'asc-badge asc-badge-amber' }, 'required') : 'optional'),
         h('td', {}, String(t.submission_count != null ? t.submission_count : 0)),
         h('td', {}, t.status === 'prompt_flagged'
-          ? h('span', { class: 'asc-badge asc-badge-amber' }, '⚑ prompt flagged')
+          ? h('span', { class: 'asc-badge asc-badge-amber' }, 'prompt flagged')
           : (t.status || '—')),
         // Frontier-model failure capture (FEAT-1): swap this task's A/B pair to two
         // real frontier answers so a specialist grades the real models.
@@ -4081,7 +4081,7 @@
   function gradeRealModelsBtn(t) {
     const btn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
       title: 'Answer this case cold with frontier models, then A/B two real answers' },
-      '🎯 Grade real');
+      'Grade real');
     btn.addEventListener('click', async () => {
       if (!window.confirm('Run the configured frontier models on this case and replace the A/B pair with two REAL model answers?')) return;
       btn.setAttribute('disabled', ''); btn.textContent = 'Running…';
@@ -4090,7 +4090,7 @@
         toast('Swapped in ' + (res.candidate_count || 0) + ' real-model answers — this task now grades the real models.', 'success');
       } catch (e) {
         toast(e.status === 503 ? (e.message || 'Baseline generation unavailable (no LLM key?).') : e.message, 'error');
-      } finally { btn.removeAttribute('disabled'); btn.textContent = '🎯 Grade real'; }
+      } finally { btn.removeAttribute('disabled'); btn.textContent = 'Grade real'; }
     });
     return btn;
   }
@@ -4158,7 +4158,7 @@
     catch (e) { clear(card); card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); return; }
     clear(card);
     card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
-      h('div', { class: 'asc-card-title' }, '📤 Export & send data to a buyer'),
+      h('div', { class: 'asc-card-title' }, 'Export & send data to a buyer'),
       h('div', { class: 'asc-card-sub' }, 'Select one or more organizations, choose a time window and format, then deliver the dataset straight to a buyer’s secure workspace.'))));
 
     if (!orgs.length) { card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No organizations with data yet.'))); return; }
@@ -4170,14 +4170,14 @@
       return h('label', { class: 'asc-checkbox-row', style: 'padding:8px 0;border-bottom:1px solid var(--asc-line)' },
         cb,
         h('span', { style: 'flex:1' },
-          h('span', { style: 'font-weight:600' }, '🏥 ' + o.organization),
+          h('span', { style: 'font-weight:600' }, o.organization),
           h('span', { class: 'asc-card-sub' }, '  ' + o.contributor_count + ' contributor(s) · ' + o.record_count + ' record(s)')));
     });
 
     // Time window (Pacific): all time / this week / today. Output is always JSONL.
     const winSel = selectFrom(['all time', 'this week', 'today'], 'all time');
     const summary = h('div', { class: 'asc-card-sub', style: 'margin:10px 0' });
-    const sendBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '📨 Send to buyer');
+    const sendBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send to buyer');
     function syncSummary() {
       summary.textContent = selected.size
         ? (selected.size + ' organization(s) selected: ' + Array.from(selected).join(', '))
@@ -4211,7 +4211,7 @@
     const fmt = h('input', { class: 'asc-input', value: 'JSONL', readonly: 'readonly' });
     const notes = h('textarea', { class: 'asc-textarea', placeholder: 'Additional notes for the buyer (optional)' });
     const status = h('div', { style: 'margin-top:10px' });
-    const sendBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '📨 Send to buyer');
+    const sendBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send to buyer');
     sendBtn.addEventListener('click', async () => {
       clear(status);
       if (!name.value.trim()) { status.appendChild(h('div', { class: 'asc-inline-error' }, 'Buyer name is required.')); return; }
@@ -4232,7 +4232,7 @@
           : (e.status === 503 ? 'Email is not configured — set SendGrid/SMTP (or EMAIL_DEV_MODE=1 for local).'
           : (e.status === 422 ? 'Export blocked: ' + e.message : (e.message || 'Send failed')));
         status.appendChild(h('div', { class: 'asc-inline-error' }, msg));
-        sendBtn.removeAttribute('disabled'); sendBtn.textContent = '📨 Send to buyer';
+        sendBtn.removeAttribute('disabled'); sendBtn.textContent = 'Send to buyer';
       }
     });
     const popup = h('div', { class: 'call-team-popup', style: 'max-width:560px', onClick: (e) => e.stopPropagation() },
@@ -4645,7 +4645,7 @@
         : h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: open }, 'View →');
       listBox.appendChild(h('div', { class: 'asc-browse-row', onClick: open },
         h('div', { class: 'asc-browse-main' },
-          h('div', { class: 'asc-browse-name' }, '🏥 ' + o.organization),
+          h('div', { class: 'asc-browse-name' }, o.organization),
           h('div', { class: 'asc-browse-meta' }, meta.join(' · '))),
         right));
     });
@@ -4658,7 +4658,7 @@
       onClick: () => { state.browse[mode] = { level: 'orgs', org: null, idHashed: null, contributor: null }; renderOrgContribBrowser(card, mode); } }, '← All organizations');
     const head = h('div', { class: 'asc-card-head' }, h('div', {},
       h('div', { class: 'asc-browse-crumb' }, back),
-      h('div', { class: 'asc-card-title' }, '🏥 ' + org)));
+      h('div', { class: 'asc-card-title' }, org)));
     if (mode === 'export') {
       const statusBox = h('div', {});
       head.appendChild(h('div', {},
@@ -4691,8 +4691,8 @@
       listBox.appendChild(h('div', { class: 'asc-browse-row', onClick: open },
         h('div', { class: 'asc-browse-main' },
           h('div', { class: 'asc-browse-name' },
-            '👩‍⚕️ ' + (c.display_name || c.id_hashed),
-            c.is_mock ? h('span', { class: 'asc-badge asc-badge-amber', style: 'margin-left:8px' }, '🧪 Mock Contributor Account') : null,
+            (c.display_name || c.id_hashed),
+            c.is_mock ? h('span', { class: 'asc-badge asc-badge-amber', style: 'margin-left:8px' }, 'Mock Contributor Account') : null,
             c.credentials_verified ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:8px' }, 'verified ✓') : null),
           h('div', { class: 'asc-browse-meta' }, meta.join(' · '))),
         h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: open }, 'Open →')));
@@ -4703,7 +4703,7 @@
     const sum = (k) => contributors.reduce((a, c) => a + (Number(c[k]) || 0), 0);
     const last = contributors.reduce((a, c) => (c.last_labeled_at && (!a || c.last_labeled_at > a) ? c.last_labeled_at : a), null);
     return h('div', { class: 'asc-stat-grid', style: 'margin-bottom:16px' },
-      stat(contributors.length, 'Contributors'),
+      stat(contributors.length, 'Contributors', null, true),
       stat(sum('submission_count'), 'Submissions'),
       stat(sum('record_count'), 'Records labelled'),
       stat(sum('grounded_submissions'), 'Grounded subs'),
@@ -4733,12 +4733,12 @@
     // Admin-visible identity: real name + email (never ships in an export).
     const displayName = c.full_name || c.display_name || idHashed;
     pad.appendChild(h('div', { class: 'asc-profile-head' },
-      h('div', { class: 'asc-profile-avatar' }, '👩‍⚕️'),
+      h('div', { class: 'asc-profile-avatar', 'aria-hidden': 'true' }),
       h('div', {},
         h('div', { class: 'asc-profile-name' }, displayName,
-          c.is_mock ? h('span', { class: 'asc-badge asc-badge-amber', style: 'margin-left:10px' }, '🧪 Mock Contributor Account') : null,
+          c.is_mock ? h('span', { class: 'asc-badge asc-badge-amber', style: 'margin-left:10px' }, 'Mock Contributor Account') : null,
           cr.credentials_verified ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:10px' }, 'verified ✓') : null),
-        c.email ? h('div', { class: 'asc-card-sub asc-mono', style: 'margin-top:2px' }, '✉ ' + c.email) : null,
+        c.email ? h('div', { class: 'asc-card-sub asc-mono', style: 'margin-top:2px' }, c.email) : null,
         h('div', { class: 'asc-meta-row', style: 'margin-top:6px' },
           h('span', { class: 'asc-badge asc-badge-primary' }, cr.role_title || '—'),
           h('span', { class: 'asc-badge asc-badge-gray' }, (cr.ship && cr.ship.primary_specialty) || c.primary_specialty || '—'),
@@ -4760,7 +4760,7 @@
 
     if (c.is_mock) {
       pad.appendChild(h('div', { class: 'asc-grounding-banner', style: 'margin-top:14px' },
-        h('div', { class: 'asc-gb-icon' }, '🧪'),
+        h('div', { class: 'asc-gb-icon', 'aria-hidden': 'true' }),
         h('div', {},
           h('div', { class: 'asc-gb-title' }, 'Sandbox account — excluded from exports'),
           h('div', { class: 'asc-gb-text' }, 'This is the Mock Contributor Account. Its submissions are hard-excluded from every export batch by default so a demo never contaminates a shipped dataset.'))));
@@ -4770,7 +4770,7 @@
       h('button', { class: 'asc-btn asc-btn-primary',
         onClick: (ev) => exportContributor(idHashed, statusBox, ev.target) }, '⬇ Export Data'),
       h('button', { class: 'asc-btn asc-btn-secondary',
-        onClick: () => openCredentialSummaryModal(idHashed, c.display_name || idHashed) }, '🔒 Further Credential Summary')));
+        onClick: () => openCredentialSummaryModal(idHashed, c.display_name || idHashed) }, 'Further Credential Summary')));
     pad.appendChild(h('p', { class: 'asc-label-hint', style: 'margin-top:8px' },
       'Export Data ships credential attributes only (no identifying info). Further Credential Summary releases the full verification dossier under NDA / non-circumvention.'));
     pad.appendChild(statusBox);
@@ -4866,7 +4866,7 @@
     clear(pad);
     if (!c) { pad.appendChild(h('div', { class: 'asc-inline-error' }, 'No contributor selected.')); return; }
     pad.appendChild(h('div', { class: 'asc-profile-head' },
-      h('div', { class: 'asc-profile-avatar' }, '👩‍⚕️'),
+      h('div', { class: 'asc-profile-avatar', 'aria-hidden': 'true' }),
       h('div', {},
         h('div', { class: 'asc-profile-name' }, c.display_name || c.id_hashed,
           c.credentials_verified ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:10px' }, 'verified ✓') : null),
@@ -4874,7 +4874,7 @@
           h('span', { class: 'asc-badge asc-badge-primary' }, c.role_title || c.role || '—'),
           h('span', { class: 'asc-badge asc-badge-gray' }, c.primary_specialty || c.specialty || '—')))));
     pad.appendChild(h('div', { class: 'asc-stat-grid', style: 'margin-top:14px' },
-      stat(c.submission_count || 0, 'Submissions'),
+      stat(c.submission_count || 0, 'Submissions', null, true),
       stat(c.record_count || 0, 'Records labelled'),
       stat(c.grounded_submissions || 0, 'Grounded subs'),
       stat((c.total_hours != null ? c.total_hours : 0) + 'h', 'Total hours'),
@@ -4959,7 +4959,7 @@
     const noticeText = policy.non_circumvention_notice
       || 'CONFIDENTIAL — credential verification, provided under NDA / non-circumvention.';
     const popup = h('div', { class: 'call-team-popup', style: 'max-width:720px;max-height:90vh;overflow:auto;text-align:left', onClick: (e) => e.stopPropagation() },
-      h('div', { class: 'call-team-title' }, '🔒 Further Credential Summary'),
+      h('div', { class: 'call-team-title' }, 'Further Credential Summary'),
       h('p', { class: 'asc-help' }, 'Verification dossier for ', h('strong', {}, displayName),
         ' — releases the private (Tier B) credentials under NDA. Watermarked confidential and logged for audit.'),
       h('div', { class: 'asc-notice-box' }, noticeText),
@@ -5006,7 +5006,7 @@
       clear(card);
       card.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Export history (' + exports.length + ')')));
       if (!exports.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No exports yet.'))); return; }
-      const verLabel = (v) => ({ v4: '🏥 V4', v3: '⚡ V3', v2: '✨ V2', v1: '📝 V1' }[v] || v);
+      const verLabel = (v) => ({ v4: 'V4', v3: 'V3', v2: 'V2', v1: 'V1' }[v] || v);
       const versionCell = (x) => {
         const m = x.manifest || {};
         const filt = (m.filters || {}).portal_version;
@@ -5065,11 +5065,11 @@
     // Top stat tiles
     const omc = s.open_modality_counts || {};
     const tiles = h('div', { class: 'asc-stat-grid' },
-      stat(s.task_count != null ? s.task_count : 0, 'Tasks'),
+      stat(s.task_count != null ? s.task_count : 0, 'Tasks', null, true),
       // Multimodal Debug PRD P3.11: always-visible count of structured cases in
       // the OPEN queue — "0" here is the tell that generation hasn't produced
       // (or the queue drained), before anyone wonders why no case panel appears.
-      stat(omc.multimodal != null ? omc.multimodal : 0, '🧬 Multimodal in queue',
+      stat(omc.multimodal != null ? omc.multimodal : 0, 'Multimodal in queue',
         (omc.text != null ? omc.text : 0) + ' text open'),
       stat(sumValues(sc), 'Submissions'),
       stat((qpr.pass_rate != null ? Math.round(qpr.pass_rate * 100) : 0) + '%', 'QA pass rate', (qpr.passed || 0) + ' / ' + (qpr.reviewed || 0) + ' reviewed'),
@@ -5101,12 +5101,12 @@
     body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Data by product version'),
       h('div', { class: 'asc-stat-grid' },
-        stat(v4n, '🏥 V4 · Real Cases', pct(v4n) + ' of labeled data'),
-        stat(v3n, '⚡ V3 · Seamless', pct(v3n) + ' of labeled data'),
-        stat(v2n, '✨ V2 · Assisted', pct(v2n) + ' of labeled data'),
-        stat(v1n, '📝 V1 · Classic', pct(v1n) + ' of labeled data'),
+        stat(v4n, 'V4 · Real Cases', pct(v4n) + ' of labeled data'),
+        stat(v3n, 'V3 · Seamless', pct(v3n) + ' of labeled data'),
+        stat(v2n, 'V2 · Assisted', pct(v2n) + ' of labeled data'),
+        stat(v1n, 'V1 · Classic', pct(v1n) + ' of labeled data'),
         stat(abRate == null ? '—' : Math.round(abRate * 100) + '%',
-          (abOk ? '' : '⚠️ ') + 'A-is-stronger rate',
+          (abOk ? '' : 'alert · ') + 'A-is-stronger rate',
           'target ~50% · n=' + (abb.n || 0) + ' (position-bias QC)'),
         (function () {
           // Two-frontier slot balance (A3): OpenAI-in-slot-A rate over built pairs.
@@ -5114,7 +5114,7 @@
           const r = sb.openai_as_A_rate;
           const ok = r == null || (r >= 0.4 && r <= 0.6);
           return stat(r == null ? '—' : Math.round(r * 100) + '%',
-            (ok ? '' : '⚠️ ') + 'OpenAI-as-A rate',
+            (ok ? '' : 'alert · ') + 'OpenAI-as-A rate',
             'target ~50% · n=' + (sb.pairs || 0) + ' (two-frontier QC)');
         })(),
         (function () {
@@ -5125,7 +5125,7 @@
           const r = fb.rate;
           const alert = !!fb.alert;
           return stat(r == null ? '—' : Math.round(r * 100) + '%',
-            (alert ? '🔴 ' : '') + 'Legacy-fallback rate',
+            (alert ? 'alert · ' : '') + 'Legacy-fallback rate',
             alert
               ? 'ABOVE ceiling ' + Math.round((fb.ceiling || 0) * 100) + '% — a provider looks down; new pairs held. Fix OPENAI_API_KEY / the provider.'
               : 'ceiling ' + Math.round((fb.ceiling || 0) * 100) + '% · two-frontier fallback health');
@@ -5157,12 +5157,12 @@
         'North-star: sellable $ produced per minute of clinician time. Held to realized ≥ '
           + ratio(vTarget) + '. Projected includes the ×reuse forecast (not banked).'),
       h('div', { class: 'asc-stat-grid' },
-        stat(ratio(realizedOverall), (meets ? '✅ ' : '') + 'Realized V/T',
+        stat(ratio(realizedOverall), (meets ? '✓ ' : '') + 'Realized V/T',
           'target ' + ratio(vTarget) + ' · n=' + (vptOverall.n || 0)),
         stat(ratio(vptOverall.projected_vpm), 'Projected V/T', '× reuse forecast'),
-        stat(ratio((byVer.v3 || {}).realized_vpm), '⚡ V3 realized V/T', 'n=' + ((byVer.v3 || {}).n || 0)),
-        stat(ratio((byVer.v2 || {}).realized_vpm), '✨ V2 realized V/T', 'n=' + ((byVer.v2 || {}).n || 0)),
-        stat(ratio((byVer.v1 || {}).realized_vpm), '📝 V1 realized V/T', 'n=' + ((byVer.v1 || {}).n || 0)),
+        stat(ratio((byVer.v3 || {}).realized_vpm), 'V3 realized V/T', 'n=' + ((byVer.v3 || {}).n || 0)),
+        stat(ratio((byVer.v2 || {}).realized_vpm), 'V2 realized V/T', 'n=' + ((byVer.v2 || {}).n || 0)),
+        stat(ratio((byVer.v1 || {}).realized_vpm), 'V1 realized V/T', 'n=' + ((byVer.v1 || {}).n || 0)),
         stat(fmtNum(kappa.overall), "Cohen's κ", 'quality anchor · n=' + (kappa.n != null ? kappa.n : 0)),
         stat(pctOr(ovr.verdict), 'Verdict override', 'assist accepted vs changed'),
         stat(pctOr(ovr.steps), 'Step override', 'rubber-stamp guard')),
@@ -5231,8 +5231,8 @@
     renderOrgContribBrowser(browseCard, 'metrics');
   }
 
-  function stat(value, label, sub) {
-    return h('div', { class: 'asc-stat' },
+  function stat(value, label, sub, hero) {
+    return h('div', { class: 'asc-stat' + (hero ? ' asc-stat-hero' : '') },
       h('div', { class: 'asc-stat-value' }, String(value)),
       h('div', { class: 'asc-stat-label' }, label),
       sub ? h('div', { class: 'asc-stat-sub' }, sub) : null);
@@ -5277,7 +5277,7 @@
   }
   // Product-version label shared by the exports history + per-task version badges.
   function ascVerLabel(v) {
-    return { v4: '🏥 V4 · Real', v3: '⚡ V3', v2: '✨ V2', v1: '📝 V1' }[v] || (v || '—');
+    return { v4: 'V4 · Real', v3: 'V3', v2: 'V2', v1: 'V1' }[v] || (v || '—');
   }
 
   // ─── Keyboard shortcuts (eval view) ────────────────────────────────────────
