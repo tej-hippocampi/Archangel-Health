@@ -53,7 +53,7 @@ export default function OnboardingStyles() {
         --ah-lime-line: rgba(178, 190, 40, 0.55);
         --ah-orange-wash: rgba(236, 148, 64, 0.12);
         --ah-orange-line: rgba(236, 148, 64, 0.42);
-        --ah-orange-deep: #a05f1c;
+        --ah-orange-deep: #9c5c1b;
         --ah-faint-30: rgba(26, 27, 26, 0.30);
 
         position: relative;
