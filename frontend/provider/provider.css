@@ -1,8 +1,9 @@
 /* ═══════════════════════════════════════════════════════════
    Data Provider Portal — provider.css
-   Layered on /static/styles.css + /static/asclepius/asclepius.css.
-   Only adds the portal-specific chrome: auth framing, the drop
-   zone, upload progress/results, and the history table tweaks.
+   Layered on _tokens.css + _base.css + asclepius.css (console
+   design system). Only adds the portal-specific chrome: auth
+   framing, the drop zone, upload progress/results, and the
+   history table tweaks. No raw hex — tokens only.
    ═══════════════════════════════════════════════════════════ */
 
 .prv-body { min-height: 100vh; }
@@ -33,35 +34,36 @@
 .prv-lead {
   font-size: 14px;
   line-height: 1.6;
-  color: var(--asc-muted, #6b7280);
+  color: var(--asc-muted);
   margin-bottom: 18px;
 }
 
-/* Password strength hint under the reset field. */
+/* Password strength hint under the reset field.
+   Meaning is carried by the word itself, color reinforces. */
 .prv-strength {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   margin-top: 6px;
   min-height: 16px;
 }
-.prv-strength.weak   { color: var(--asc-danger, #ef4444); }
-.prv-strength.fair   { color: var(--asc-warning, #f59e0b); }
-.prv-strength.strong { color: var(--asc-success, #10b981); }
+.prv-strength.weak   { color: var(--pink-deep); }
+.prv-strength.fair   { color: var(--orange-deep); }
+.prv-strength.strong { color: var(--green-deep); }
 
 /* ─── Upload screen ───────────────────────────────────────── */
 .prv-upload { gap: 18px; }
 
 .prv-intro-title {
   font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--asc-text, #111827);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  color: var(--asc-text);
   margin-bottom: 6px;
 }
 .prv-intro-sub {
   font-size: 14px;
   line-height: 1.6;
-  color: var(--asc-muted, #6b7280);
+  color: var(--asc-muted);
   max-width: 62ch;
 }
 
@@ -72,7 +74,8 @@
   align-items: start;
 }
 
-/* Drop zone — a real <button>, keyboard + pointer usable. */
+/* Drop zone — a real <button>, keyboard + pointer usable.
+   Green = the handover path (verified/secure), never blue. */
 .prv-drop {
   display: flex;
   flex-direction: column;
@@ -85,48 +88,48 @@
   text-align: center;
   cursor: pointer;
   font-family: inherit;
-  color: var(--asc-text, #111827);
-  background:
-    linear-gradient(0deg, rgba(37, 99, 235, .03), rgba(37, 99, 235, .03));
-  border: 2.5px dashed var(--asc-line-strong, #d1d5db);
-  border-radius: var(--radius-lg, 16px);
-  transition: border-color .15s, background .15s, box-shadow .15s;
+  color: var(--asc-text);
+  background: var(--card-in);
+  border: 1.5px dashed var(--asc-line-strong);
+  border-radius: var(--r-lg);
+  transition: border-color .16s cubic-bezier(.4,0,.2,1), background .16s cubic-bezier(.4,0,.2,1);
 }
-.prv-drop:hover,
+.prv-drop:hover {
+  border-color: var(--green-line);
+  background: var(--green-wash);
+}
 .prv-drop:focus-visible {
-  border-color: var(--asc-primary, #2563eb);
-  background: var(--asc-primary-light, #eff6ff);
-  outline: none;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 .prv-drop.is-dragover {
-  border-color: var(--asc-primary, #2563eb);
+  border-color: var(--green);
   border-style: solid;
-  background: var(--asc-primary-light, #eff6ff);
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, .18);
+  background: var(--green-wash);
 }
 .prv-drop-icon {
-  font-size: 40px;
+  font-size: 32px;
   line-height: 1;
-  color: var(--asc-primary, #2563eb);
+  color: var(--green-deep);
 }
-.prv-drop-title { font-size: 17px; font-weight: 700; }
-.prv-drop-sub { font-size: 13px; color: var(--asc-muted, #6b7280); }
+.prv-drop-title { font-size: 17px; font-weight: 500; }
+.prv-drop-sub { font-size: 13px; color: var(--asc-muted); }
 .prv-drop-help { margin-top: 12px; line-height: 1.5; }
 
-/* Batch progress bar. */
+/* Batch progress bar — green fill on a hairline track. */
 .prv-progress { margin-top: 18px; }
 .prv-progress-label {
   font-size: 13px;
-  font-weight: 600;
-  color: var(--asc-text, #111827);
+  font-weight: 500;
+  color: var(--asc-text);
   margin-bottom: 6px;
 }
 .prv-progress-track {
   position: relative;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--gray-200, #e5e7eb);
+  height: 8px;
+  border-radius: var(--r-chip);
+  background: var(--card-in);
+  border: 1px solid var(--asc-line);
   overflow: hidden;
 }
 .prv-progress-fill {
@@ -134,8 +137,8 @@
   inset: 0 100% 0 0;
   right: auto;
   width: 0%;
-  background: linear-gradient(90deg, #2563eb, #7c3aed);
-  border-radius: 999px;
+  background: var(--green);
+  border-radius: var(--r-chip);
   transition: width .2s ease;
 }
 
@@ -146,42 +149,61 @@
   align-items: flex-start;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid var(--asc-line, #e5e7eb);
-  border-radius: var(--radius-sm, 8px);
-  background: var(--gray-50, #f9fafb);
+  border: 1px solid var(--asc-line);
+  border-radius: var(--r-sm);
+  background: var(--card-in);
 }
-.prv-result-icon { font-size: 16px; line-height: 1.4; flex: 0 0 auto; }
+.prv-result-icon { font-size: 14px; line-height: 1.5; flex: 0 0 auto; }
+.prv-result-icon.ok { color: var(--green-deep); }
+.prv-result-icon.fail { color: var(--pink-deep); }
 .prv-result-main { flex: 1; min-width: 0; }
 .prv-result-name {
   font-size: 13.5px;
-  font-weight: 600;
-  color: var(--asc-text, #111827);
+  font-weight: 500;
+  color: var(--asc-text);
   word-break: break-word;
 }
-.prv-result-msg { font-size: 12.5px; color: var(--asc-muted, #6b7280); margin-top: 2px; line-height: 1.45; }
-.prv-result-type { font-size: 11px; color: var(--asc-muted, #6b7280); }
+.prv-result-msg { font-size: 12.5px; color: var(--asc-muted); margin-top: 2px; line-height: 1.45; }
+.prv-result-type { font-size: 11px; color: var(--asc-muted); }
 
 /* ─── Helper card ─────────────────────────────────────────── */
 .prv-checklist { margin: 0 0 14px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
-.prv-checklist li { font-size: 13.5px; line-height: 1.5; color: var(--asc-text, #111827); }
+.prv-checklist li { font-size: 13.5px; line-height: 1.5; color: var(--asc-text); }
 .prv-checklist code {
+  font-family: var(--mono);
   font-size: 12px;
-  background: var(--gray-100, #f3f4f6);
+  background: var(--card-in);
   padding: 1px 6px;
   border-radius: 4px;
 }
 .prv-note { line-height: 1.5; }
 
+/* ─── Buyer workspace hero (one Doto numeral per view) ────── */
+.bw-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--asc-line);
+}
+.bw-hero-num {
+  font-size: 44px;
+  color: var(--ink);
+  margin-top: 8px;
+}
+
 /* ─── History ─────────────────────────────────────────────── */
 .prv-history-table td { vertical-align: middle; }
-.prv-hist-detail { color: var(--asc-muted, #6b7280); font-size: 12.5px; line-height: 1.45; }
-.prv-hist-files { font-variant-numeric: tabular-nums; }
+.prv-hist-detail { color: var(--asc-muted); font-size: 12.5px; line-height: 1.45; }
+.prv-hist-files { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .prv-history-empty {
   text-align: center;
   padding: 40px 24px;
-  color: var(--asc-muted, #6b7280);
+  color: var(--asc-muted);
 }
-.prv-history-empty .asc-empty-icon { font-size: 34px; margin-bottom: 8px; }
+.prv-history-empty .asc-empty-icon { font-size: 24px; margin-bottom: 8px; }
 
 /* ─── Responsive ──────────────────────────────────────────── */
 @media (max-width: 760px) {

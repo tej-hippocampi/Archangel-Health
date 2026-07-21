@@ -21,7 +21,7 @@
   <header class="asc-header" id="bwHeader" hidden>
     <div class="asc-header-inner">
       <a class="asc-logo" href="/workspace">
-        <span class="asc-logo-mark" aria-hidden="true">⚕</span>
+        <span class="asc-logo-mark" aria-hidden="true"></span>
         <span class="asc-logo-text">Asclepius<span class="asc-logo-sub">Secure Data Workspace</span></span>
       </a>
       <div class="asc-header-right">
@@ -44,7 +44,7 @@
     <div class="prv-auth-wrap">
       <div class="asc-login-card prv-auth-card">
         <div class="asc-login-head">
-          <div class="asc-login-mark" aria-hidden="true">⚕</div>
+          <div class="asc-login-mark" aria-hidden="true"></div>
           <h1>Secure Data Workspace</h1>
           <p>Access your datasets from Archangel Health</p>
         </div>
@@ -70,7 +70,7 @@
             </button>
           </form>
           <p class="asc-login-hint">
-            🔒 This workspace is for authorized data buyers only. Access is logged.
+            This workspace is for authorized data buyers only. Access is logged.
             Datasets are provided under your NDA / non-circumvention agreement.
           </p>
         </div>
@@ -83,7 +83,7 @@
     <div class="prv-auth-wrap">
       <div class="asc-login-card prv-auth-card">
         <div class="asc-login-head">
-          <div class="asc-login-mark" aria-hidden="true">🔑</div>
+          <div class="asc-login-mark" aria-hidden="true"></div>
           <h1>Set your password</h1>
           <p>Required before opening your workspace</p>
         </div>
@@ -130,13 +130,20 @@
             Every dataset delivered to you by Archangel Health is available below.
             New deliveries appear here automatically.
           </p>
+          <div class="bw-hero" id="bwHero" hidden>
+            <div>
+              <div class="chrome">Records delivered</div>
+              <div class="doto bw-hero-num" id="bwHeroCount">0</div>
+            </div>
+            <div class="chrome" id="bwHeroSub"></div>
+          </div>
         </div>
       </section>
 
       <section class="asc-card">
         <div class="asc-card-head">
           <div>
-            <div class="asc-card-title">📦 Delivered datasets</div>
+            <div class="asc-card-title">Delivered datasets</div>
             <div class="asc-card-sub">Download any dataset delivered to your account.</div>
           </div>
           <button type="button" class="asc-btn asc-btn-ghost asc-btn-sm" id="bwRefreshBtn">↻ Refresh</button>
@@ -156,7 +163,7 @@
           </table>
         </div>
         <div class="prv-history-empty" id="bwDeliveriesEmpty" hidden>
-          <div class="asc-empty-icon" aria-hidden="true">📭</div>
+          <div class="asc-empty-icon" aria-hidden="true">—</div>
           <p>No datasets yet. Deliveries will appear here.</p>
         </div>
       </section>

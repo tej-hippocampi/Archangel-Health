@@ -239,6 +239,7 @@
       const data = await apiGet("/buyer/deliveries");
       const deliveries = (data && Array.isArray(data.deliveries)) ? data.deliveries : [];
       clear(body);
+      updateHero(deliveries);
       if (!deliveries.length) { empty.hidden = false; return; }
       empty.hidden = true;
       deliveries.forEach((d) => body.appendChild(deliveryRow(d)));
@@ -246,6 +247,18 @@
       if (e instanceof AuthError) { bounceToLogin(e.message); return; }
       toast(e.message || "Could not load your datasets.", "error");
     }
+  }
+
+  // Workspace hero: total records delivered (the one Doto numeral on this view).
+  function updateHero(deliveries) {
+    const hero = document.getElementById("bwHero");
+    if (!hero) return;
+    const countEl = document.getElementById("bwHeroCount");
+    const subEl = document.getElementById("bwHeroSub");
+    const total = deliveries.reduce(function (a, d) { return a + (d.record_count || 0); }, 0);
+    if (countEl) countEl.textContent = total.toLocaleString();
+    if (subEl) subEl.textContent = deliveries.length + (deliveries.length === 1 ? " dataset" : " datasets");
+    hero.hidden = deliveries.length === 0;
   }
 
   function deliveryRow(d) {

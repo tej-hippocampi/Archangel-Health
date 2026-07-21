@@ -112,24 +112,24 @@
   // ─── Status vocabulary (plain-English rendering) ───────────
   // Maps API upload statuses to a human label, badge class, and icon.
   const STATUS_META = {
-    received:     { label: "Received",        badge: "asc-badge-gray",    icon: "📥",
+    received:     { label: "Received",        badge: "asc-badge-gray",    icon: "·",
                     help: "We've got your file and queued it for processing." },
-    parsing:      { label: "Reading",         badge: "asc-badge-primary", icon: "⏳",
+    parsing:      { label: "Reading",         badge: "asc-badge-primary", icon: "…",
                     help: "We're reading and understanding the contents." },
-    needs_review: { label: "Needs review",    badge: "asc-badge-amber",   icon: "👀",
+    needs_review: { label: "Needs review",    badge: "asc-badge-amber",   icon: "!",
                     help: "A team member will take a closer look before ingesting." },
-    ingested:     { label: "Accepted",        badge: "asc-badge-green",   icon: "✅",
+    ingested:     { label: "Accepted",        badge: "asc-badge-green",   icon: "✓",
                     help: "Successfully ingested. Nothing more needed from you." },
-    quarantined:  { label: "Held for safety", badge: "asc-badge-amber",   icon: "🛑",
+    quarantined:  { label: "Held for safety", badge: "asc-badge-amber",   icon: "!",
                     help: "Set aside pending a safety check." },
-    failed:       { label: "Could not process", badge: "asc-badge-red",   icon: "⚠️",
+    failed:       { label: "Could not process", badge: "asc-badge-red",   icon: "✕",
                     help: "We were unable to process this. See the reason below." },
     // per-file outcomes emitted by the ingestion pipeline
-    parsed:       { label: "Read",             badge: "asc-badge-green",   icon: "✅",
+    parsed:       { label: "Read",             badge: "asc-badge-green",   icon: "✓",
                     help: "Read successfully and folded into your case." },
-    rejected:     { label: "Not accepted",     badge: "asc-badge-red",     icon: "🚫",
+    rejected:     { label: "Not accepted",     badge: "asc-badge-red",     icon: "✕",
                     help: "This file type isn't accepted (e.g. an executable or script)." },
-    excluded:     { label: "Excluded",         badge: "asc-badge-gray",    icon: "🖼️",
+    excluded:     { label: "Excluded",         badge: "asc-badge-gray",    icon: "—",
                     help: "Imaging can't be graded and was left out — the rest of your bundle is unaffected." }
   };
 
@@ -146,7 +146,7 @@
     const meta = statusMeta(status);
     const span = document.createElement("span");
     span.className = "asc-badge " + meta.badge;
-    span.textContent = meta.icon + " " + meta.label;
+    span.textContent = meta.label;
     return span;
   }
 
