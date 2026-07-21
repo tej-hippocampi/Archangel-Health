@@ -181,7 +181,9 @@
   text-transform: capitalize;
   white-space: nowrap;
 }
-.asc-badge::before {
+/* Leading semantic dot on status badges — but NOT the numeric count pill
+   (.asc-badge-count), which is a different shape and carries a number. */
+.asc-badge:not(.asc-badge-count)::before {
   content: '';
   width: 6px;
   height: 6px;
@@ -1066,7 +1068,10 @@
   display: inline-flex; align-items: center; justify-content: center;
   transition: border-color .16s cubic-bezier(.4,0,.2,1), background .16s cubic-bezier(.4,0,.2,1);
 }
-.asc-mic-btn::before {
+/* Idle only: JS swaps textContent to a stop/transcribing glyph while
+   recording (.recording) or transcribing (:disabled) — so the mic mask
+   must hide in those states or it would double up with the glyph. */
+.asc-mic-btn:not(.recording):not(:disabled)::before {
   content: '';
   width: 15px;
   height: 15px;
