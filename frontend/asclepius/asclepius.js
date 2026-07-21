@@ -396,6 +396,7 @@
 
   function renderEvalEmpty() {
     stopTimer();
+    updateHeaderProgress(); // no open task — the §16 bar hides here
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'asc-empty' },
@@ -435,6 +436,21 @@
       rejected_critique: { error_tags: [], severities: {}, why_worse: '', error_tag_anchors: {}, error_tag_reasons: {}, failure_tags: [] },
       from_scratch: { ideal_answer: '', approach_notes: '', reasoning_steps: [], evidence_anchor: emptyAnchor() },
       reasoning_steps: [],
+      // §1 substage machine (Evaluation UX Overhaul) — V3/V4 only. ``substage``
+      // is the persisted position INSIDE stage==='compare'; the *_done flags are
+      // the explicit per-section completions (a section advances only when its
+      // Save/Continue is clicked, never silently). All additive + backfilled.
+      substage: null,
+      refine_saved: false,
+      why_better_done: false,
+      citations_reviewed: false,
+      critique_done: false,
+      from_scratch_saved: false,
+      reasoning_done: false,
+      rubric_done: false,
+      confidence_set: false,
+      rubricCursor: 0,
+      rubricSeedHash: null,
       // Rubric capture (FEAT-2): the weighted +/− criteria the doctor confirms.
       // ``rubricSeeded`` guards the one-time auto-seed from the doctor's tags.
       rubric: [],
@@ -464,6 +480,17 @@
     if (!Array.isArray(draft.rubric)) draft.rubric = [];
     if (draft.rubricSeeded === undefined) draft.rubricSeeded = false;
     if (!draft.stage) draft.stage = 'prompt_review';
+    // §1 substage machine backfill (all additive; an in-flight draft resumes at
+    // the first incomplete section with its data prefilled — nothing is lost).
+    if (draft.substage === undefined) draft.substage = null;
+    ['refine_saved', 'why_better_done', 'citations_reviewed', 'critique_done',
+      'from_scratch_saved', 'reasoning_done', 'rubric_done', 'confidence_set']
+      .forEach((k) => { if (draft[k] === undefined) draft[k] = false; });
+    if (draft.rubricCursor === undefined) draft.rubricCursor = 0;
+    if (draft.rubricSeedHash === undefined) draft.rubricSeedHash = null;
+    // §13: per-step free-text "what's off" (step_note) — backfill older steps.
+    [].concat(draft.reasoning_steps || [], (draft.from_scratch || {}).reasoning_steps || [])
+      .forEach((s) => { if (s && s.step_note === undefined) s.step_note = ''; });
     state.draft = draft;
     startTimer(draft.elapsedSec || 0);
   }
@@ -715,7 +742,13 @@
     for (const s of activeSteps()) {
       if (!(s.text || '').trim()) continue;
       if (!(s.confirmed || s.corrected || s.added)) reasons.push('pending_step');
-      if (s.corrected && !(s.correction_reason || '').trim()) reasons.push('missing_correction_reason');
+      // §13 (V3/V4): a corrected step's "why" is the free-text step_note — the
+      // server derives the error-tag classification from it. V1/V2 keep the
+      // one-tap correction_reason picker.
+      if (s.corrected && !(s.correction_reason || '').trim()
+          && !(isV3() && (s.step_note || '').trim())) {
+        reasons.push('missing_correction_reason');
+      }
     }
     return { ok: reasons.length === 0, reasons };
   }
@@ -821,6 +854,229 @@
     return { ok: false, msg: 'tag ≥1 failure mode on the rejected answer to continue' };
   }
 
+  // ─── §1 Substage machine (Evaluation UX Overhaul — V3/V4 only) ──────────────
+  // One decision per screen: inside stage==='compare', sections mount one at a
+  // time, each only when the previous one is explicitly completed. V1/V2 never
+  // enter this machine (renderRationale keeps their render-everything path).
+  const SUBSTAGE_META = {
+    compare:           { chrome: 'PICK THE STRONGER ANSWER', title: 'Compare the answers' },
+    refine:            { chrome: 'REFINE THE ANSWER', title: 'Refine the winning answer' },
+    why_better:        { chrome: 'WHY IT’S BETTER', title: 'Why is this answer better?' },
+    citations:         { chrome: 'CITE YOUR SOURCES', title: 'Ground it in a source' },
+    critique_rejected: { chrome: 'WHAT’S WRONG WITH THE OTHER ANSWER', title: 'Critique the rejected answer' },
+    from_scratch:      { chrome: 'WRITE THE IDEAL ANSWER', title: 'Compose the ideal answer' },
+    reasoning:         { chrome: 'CHECK THE REASONING', title: 'Check the reasoning' },
+    rubric:            { chrome: 'BUILD THE SCORING GUIDE', title: 'Build the scoring guide' },
+    confidence:        { chrome: 'CONFIDENCE & SUBMIT', title: 'How confident are you with your answer?' },
+  };
+
+  // The ordered substage list for the current draft. Depends on the verdict
+  // (both_inadequate skips the winner-refinement path) and on capture_reasoning.
+  function compareSubstages() {
+    const d = state.draft;
+    if (!d || !d.verdict) {
+      // No verdict yet: assume the (far more common) A/B path so the §16
+      // progress total is stable — picking a verdict must never make the bar
+      // jump backwards because the denominator grew.
+      const dflt = ['compare', 'refine', 'why_better', 'citations', 'critique_rejected'];
+      if (state.task && state.task.capture_reasoning) dflt.push('reasoning');
+      dflt.push('rubric', 'confidence');
+      return dflt;
+    }
+    if (d.verdict === 'both_inadequate') {
+      return ['compare', 'from_scratch', 'reasoning', 'rubric', 'confidence'];
+    }
+    const list = ['compare', 'refine', 'why_better', 'citations', 'critique_rejected'];
+    if (state.task.capture_reasoning) list.push('reasoning');
+    list.push('rubric', 'confidence');
+    return list;
+  }
+
+  function whyBetterConditionsMet() {
+    const rev = state.draft.chosen_revision;
+    return !!(rev.why_better_notes || '').trim() && (rev.why_better_tags || []).length >= 1;
+  }
+
+  // §12 completion: a required "why is it worse?" line, ≥1 error tag, and each
+  // selected tag carrying its severity (captured via the tag-tap popover). On a
+  // real-model pair the §D failure-mode tags are also required HERE, so submit
+  // can never surprise the doctor after this section has collapsed.
+  function critiqueConditionsMet() {
+    const crit = state.draft.rejected_critique;
+    if (!(crit.why_worse || '').trim()) return false;
+    if (!(crit.error_tags || []).length) return false;
+    for (const t of crit.error_tags) { if (!crit.severities[t]) return false; }
+    if (isBaselinePair() && (state.taxonomy.failure_modes || []).length
+        && !(crit.failure_tags || []).length) return false;
+    return true;
+  }
+
+  function reasoningConditionsMet() {
+    return stepsReview().ok;
+  }
+
+  // Explicit completion per substage: the *_done flag (the Save/Continue click)
+  // AND the section's data conditions — so deleting data from a re-opened
+  // section honestly regresses the flow instead of leaving a stale checkmark.
+  function substageComplete(key) {
+    const d = state.draft;
+    switch (key) {
+      case 'compare': return !!d.verdict;
+      case 'refine': return !!d.refine_saved;
+      case 'why_better': return !!d.why_better_done && whyBetterConditionsMet();
+      case 'citations': return !!d.citations_reviewed;
+      case 'critique_rejected': return !!d.critique_done && critiqueConditionsMet();
+      case 'from_scratch': return !!d.from_scratch_saved && !!(d.from_scratch.ideal_answer || '').trim();
+      case 'reasoning': return !!d.reasoning_done && reasoningConditionsMet();
+      case 'rubric': return !!d.rubric_done && rubricGate().ok;
+      case 'confidence': return !!d.confidence_set;
+      default: return false;
+    }
+  }
+
+  // First incomplete substage, or 'done' when everything is complete.
+  function currentSubstage() {
+    for (const key of compareSubstages()) {
+      if (!substageComplete(key)) return key;
+    }
+    return 'done';
+  }
+
+  // Reset every downstream completion when the verdict/chosen side changes —
+  // sections completed against the previous answer must not survive it.
+  function resetStagedFlow() {
+    const d = state.draft;
+    d.refine_saved = false;
+    d.why_better_done = false;
+    d.citations_reviewed = false;
+    d.critique_done = false;
+    d.from_scratch_saved = false;
+    d.reasoning_done = false;
+    d.rubric_done = false;
+    d.confidence_set = false;
+    d.rubricCursor = 0;
+    state._reopenedSubstage = null;
+  }
+
+  // One save + re-render + submit-state pass — every section's Save/Continue
+  // funnels through here so advancing is a single code path.
+  function refreshStagedFlow() {
+    saveDraft();
+    renderRationale();
+    updateSubmitState();
+  }
+
+  // Smooth-scroll a freshly-mounted section's heading to ~120px below the
+  // sticky chrome. Honors prefers-reduced-motion (jump, don't animate).
+  function scrollToSubstage(key) {
+    const el = document.querySelector('[data-substage="' + key + '"]');
+    if (!el) return;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const y = el.getBoundingClientRect().top + window.pageYOffset - 120;
+    try { window.scrollTo({ top: Math.max(0, y), behavior: reduce ? 'auto' : 'smooth' }); }
+    catch (e) { window.scrollTo(0, Math.max(0, y)); }
+  }
+
+  // ─── §16 Task progress — ONE source of truth ────────────────────────────────
+  // The full ordered step list: prompt_review → independent_answer → the §1
+  // compare substages → submit. Both the header bar and stageHeader's step
+  // counter read from here, so they can never disagree.
+  function taskProgress() {
+    const d = state.draft;
+    if (!d) return { done: 0, total: 1, pct: 0 };
+    const steps = [];
+    steps.push({ key: 'prompt_review', done: d.stage !== 'prompt_review' });
+    steps.push({ key: 'independent_answer', done: d.stage === 'compare' });
+    if (isV3()) {
+      compareSubstages().forEach((k) => {
+        steps.push({ key: k, done: d.stage === 'compare' && substageComplete(k) });
+      });
+    } else {
+      steps.push({ key: 'compare', done: false }); // completes at submit
+    }
+    // Submit is the last increment — the bar reads 100% only while submitting.
+    steps.push({ key: 'submit', done: !!state.submitting });
+    const done = steps.filter((s) => s.done).length;
+    return { done, total: steps.length, pct: Math.round((100 * done) / steps.length) };
+  }
+
+  // The slim header progress rail (§16): centered between the wordmark and the
+  // account cluster, visible only while a V3/V4 task is open. Width animates via
+  // transform (scaleX) only; reduced-motion disables the transition in CSS.
+  function updateHeaderProgress() {
+    const header = document.getElementById('ascHeader');
+    if (!header) return;
+    let host = document.getElementById('ascHeaderProgress');
+    const active = !!(state.user && state.view === 'eval' && state.portalChosen
+      && state.task && state.draft && state.draft.stage && isV3());
+    if (!active) { if (host) host.remove(); return; }
+    if (!host) {
+      const fill = h('div', { class: 'asc-hp-fill', id: 'ascHeaderProgressFill' });
+      host = h('div', {
+        class: 'asc-header-progress', id: 'ascHeaderProgress',
+        role: 'progressbar', 'aria-label': 'Task progress',
+        'aria-valuemin': '0', 'aria-valuemax': '100',
+      },
+        h('div', { class: 'asc-hp-track' }, fill),
+        h('span', { class: 'asc-hp-pct', id: 'ascHeaderProgressPct' }, '0%'));
+      const nav = document.getElementById('ascNav');
+      if (nav && nav.parentNode) nav.parentNode.insertBefore(host, nav.nextSibling);
+      else header.appendChild(host);
+    }
+    const p = taskProgress();
+    host.setAttribute('aria-valuenow', String(p.pct));
+    const fillEl = document.getElementById('ascHeaderProgressFill');
+    if (fillEl) fillEl.style.transform = 'scaleX(' + (p.pct / 100) + ')';
+    const pctEl = document.getElementById('ascHeaderProgressPct');
+    if (pctEl) pctEl.textContent = p.pct + '%';
+  }
+
+  // ─── §2 Info-dot — the reusable "?" explainer ───────────────────────────────
+  // A 16px circular "?" after a section title; click/keyboard opens a small
+  // anchored popover (two short lines), dismissed on outside-click or Esc.
+  // Help, never a gate.
+  function infoDot(titleText, bodyLines) {
+    const btn = h('button', {
+      class: 'asc-info-dot', type: 'button',
+      'aria-label': 'What is this?', 'aria-expanded': 'false',
+    }, '?');
+    const wrap = h('span', { class: 'asc-info-wrap' }, btn);
+    let pop = null;
+    const close = () => {
+      if (!pop) return;
+      pop.remove(); pop = null;
+      btn.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', onDocClick, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+    const onDocClick = (e) => { if (pop && !wrap.contains(e.target)) close(); };
+    const onKey = (e) => { if (e.key === 'Escape') { close(); btn.focus(); } };
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (pop) { close(); return; }
+      pop = h('div', { class: 'asc-info-pop', role: 'note' },
+        titleText ? h('div', { class: 'asc-info-pop-title' }, titleText) : null,
+        (bodyLines || []).map((l) => h('p', { class: 'asc-info-pop-line' }, l)));
+      wrap.appendChild(pop);
+      btn.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', onDocClick, true);
+      document.addEventListener('keydown', onKey, true);
+    });
+    return wrap;
+  }
+
+  // Section shell: mono chrome step label (STEP N · …), the title, an optional
+  // info dot — every §1 section mounts through this.
+  function sectionCard(key, info, ...children) {
+    const meta = SUBSTAGE_META[key] || { chrome: key.toUpperCase(), title: key };
+    const n = compareSubstages().indexOf(key) + 1;
+    return h('div', { class: 'asc-card asc-card-pad asc-substage', dataset: { substage: key } },
+      h('div', { class: 'asc-substage-head' },
+        h('div', { class: 'asc-substage-step' }, 'STEP ' + n + ' · ' + meta.chrome),
+        h('div', { class: 'asc-substage-title' }, meta.title, info || null)),
+      ...children);
+  }
+
   // ─── Workspace render (3 gated stages) ─────────────────────────────────────
   // Stage 1 prompt_review + Stage 2 independent_answer NEVER render the candidate
   // answer text into the DOM (anti-peeking, Eval Flow Upgrade §1). Only the
@@ -833,14 +1089,26 @@
     const dots = h('div', { class: 'asc-stage-dots' });
     STAGES.forEach((s, i) => dots.appendChild(
       h('span', { class: 'asc-stage-dot' + (i < n ? ' done' : '') + (i === n - 1 ? ' active' : '') })));
-    // The compare stage's submit bar owns the live #ascTimer; avoid a duplicate
-    // id here (only the first match would update). Stages 1–2 host it instead.
-    const timer = d.stage === 'compare'
+    // V1/V2: the compare stage's submit bar owns the live #ascTimer (avoid a
+    // duplicate id — only the first match would update); stages 1–2 host it here.
+    // V3/V4: the submit bar is DEFERRED to the confidence substage (§15), and its
+    // V3 variant carries no timer — this header owns #ascTimer in every stage.
+    const timer = (d.stage === 'compare' && !isV3())
       ? null
       : h('span', { class: 'asc-timer', id: 'ascTimer' }, formatTime(getElapsed()));
+    // §16: the step counter reads from taskProgress() — the same single source
+    // of truth as the header bar. V1/V2's 3-stage list yields the same "Step N
+    // of 3" text as before; V3/V4 span the full substage flow.
+    let stepText;
+    if (isV3()) {
+      const p = taskProgress();
+      stepText = 'Step ' + Math.min(p.done + 1, p.total) + ' of ' + p.total;
+    } else {
+      stepText = 'Step ' + n + ' of ' + STAGES.length;
+    }
     return h('div', { class: 'asc-stage-head' },
       h('div', { class: 'asc-stage-meta' },
-        h('span', { class: 'asc-stage-step' }, 'Step ' + n + ' of 3'),
+        h('span', { class: 'asc-stage-step' }, stepText),
         h('span', { class: 'asc-stage-label' }, label)),
       h('div', { class: 'asc-stage-right' }, dots, timer));
   }
@@ -898,6 +1166,7 @@
   }
   function renderVersionHome() {
     stopTimer();
+    updateHeaderProgress(); // no open task — the §16 bar hides here
     const last = getPortalVersion();
     const approved = !!(state.user && state.user.real_data_approved);
     const cards = h('div', { class: 'asc-ver-cards' });
@@ -994,6 +1263,9 @@
       setRoot(wrap);
     } else {
       wrap.appendChild(stageHeader('Compare & grade'));
+      // §17: the linear flow scrolls a lot — keep the case one tap away with a
+      // slim sticky strip (question + "View case") for the whole compare stage.
+      if (isV3()) wrap.appendChild(renderCaseSticky(promptText));
       renderCompareStage(wrap);
       setRoot(wrap);
       refreshAnswerHighlight();
@@ -1001,6 +1273,45 @@
       updateSubmitState();
       loadAssist(); // fire-and-forget: suggestions appear when ready (Speed Opt §2)
     }
+    updateHeaderProgress();
+  }
+
+  // ─── §17 Sticky case strip + case overlay (V3/V4 compare stage) ─────────────
+  // A slim sticky bar carrying the clinical question and a "View case" control,
+  // so labs/notes/meds are reachable from any section without scrolling back up.
+  function renderCaseSticky(questionText) {
+    const hasCase = !!multimodalCase();
+    return h('div', { class: 'asc-case-sticky' },
+      h('span', { class: 'asc-case-sticky-label' }, 'CASE'),
+      h('span', { class: 'asc-case-sticky-q', title: questionText || '' }, questionText || ''),
+      h('button', {
+        class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+        onClick: () => openCaseOverlay(questionText),
+      }, hasCase ? 'View case ▾' : 'View question ▾'));
+  }
+
+  function openCaseOverlay(questionText) {
+    const overlay = h('div', {
+      class: 'call-team-overlay is-open',
+      onClick: (e) => { if (e.target === overlay) closeOverlay(); },
+    });
+    const onKey = (e) => { if (e.key === 'Escape') closeOverlay(); };
+    function closeOverlay() { overlay.remove(); document.removeEventListener('keydown', onKey, true); }
+    document.addEventListener('keydown', onKey, true);
+    const panel = renderCasePanel();
+    const popup = h('div', {
+      class: 'call-team-popup asc-case-popup', onClick: (e) => e.stopPropagation(),
+      style: 'max-width:860px;max-height:88vh;overflow:auto;text-align:left',
+    },
+      h('div', { class: 'call-team-title' }, 'Case reference'),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Clinical question'),
+        h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, questionText || state.task.prompt || '—')),
+      panel || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, state.task.prompt || '—'),
+      h('div', { style: 'display:flex;margin-top:14px' },
+        h('button', { class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto', onClick: closeOverlay }, 'Close')));
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
   }
 
   // ─── Model-assisted pre-labeling (Speed Optimization §2) ────────────────────
@@ -1135,7 +1446,6 @@
     // stays empty until a verdict is committed (assist isn't fetched until then).
     const assistHint = assisted ? h('div', { class: 'asc-assist-hint', id: 'ascAssistHint' }) : null;
     const rationale = h('div', { id: 'ascRationale' });
-    const submitBar = renderSubmitBar();
 
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-compare-head' },
@@ -1150,7 +1460,11 @@
       verdicts,
       assistHint,
       rationale));
-    wrap.appendChild(h('div', { class: 'asc-card' }, submitBar));
+    // §15 (the single biggest structural gotcha): on V3/V4 the submit bar — and
+    // the confidence pills inside it — must NOT mount at compare entry. It mounts
+    // from the §1 substage machine, only when the flow reaches `confidence`.
+    // V1/V2 keep the eager submit bar exactly as before.
+    if (!isV3()) wrap.appendChild(h('div', { class: 'asc-card' }, renderSubmitBar()));
     if (assisted) setTimeout(renderAssistHint, 0);
   }
 
@@ -1691,6 +2005,9 @@
       d.chosen_revision.revised_text = null;
       d.reasoning_steps = [];
       state.splitAttemptedFor = null;
+      // §1: sections completed against the previous answer must not survive it —
+      // the staged flow restarts at refine (data the doctor typed is kept).
+      if (isV3()) resetStagedFlow();
     }
     saveDraft();
     // Update verdict button states
@@ -1718,194 +2035,1066 @@
     });
   }
 
-  // ─── Rationale (chosen / rejected / from-scratch) ───────────────────────────
+  // ─── Rationale ───────────────────────────────────────────────────────────
+  // V1/V2: the original render-everything rationale, untouched.
+  // V3/V4 (§1): a substage-gated renderer — one active section at a time,
+  // completed sections collapse to re-openable summary chips, upcoming sections
+  // simply do not exist yet.
   function renderRationale() {
     const container = document.getElementById('ascRationale');
     if (!container) return;
     clear(container);
     const d = state.draft;
-    if (!d.verdict) return;
+    if (!d.verdict) { updateHeaderProgress(); return; }
 
-    const box = h('div', { class: 'asc-rationale', style: 'margin-top:20px' });
-
-    if (d.verdict === 'A_better' || d.verdict === 'B_better') {
-      box.appendChild(renderChosenCard());
-      box.appendChild(renderRejectedCard());
-      if (state.task.capture_reasoning) box.appendChild(renderStepsCard(false));
-    } else if (d.verdict === 'both_inadequate') {
-      box.appendChild(renderFromScratchCard());
-      box.appendChild(renderStepsCard(true));
-    }
-    // Rubric capture (FEAT-2): one compact card after the verdict (V3 + V4 —
-    // isV3() covers both), the criteria auto-seeded from the doctor's tags.
-    if (isV3()) box.appendChild(renderRubricCard());
-    container.appendChild(box);
-  }
-
-  // ─── Rubric card (FEAT-2) ───────────────────────────────────────────────────
-  // "What must a correct answer include / never say?" — auto-seeded criteria as
-  // editable chips with point sliders; the doctor confirms, edits, deletes, or
-  // adds. Nothing is auto-applied. Target ≤60 seconds.
-  function renderRubricCard() {
-    const d = state.draft;
-    const host = h('div', { class: 'asc-card asc-card-pad', id: 'ascRubricCard', style: 'margin-top:18px' });
-    const listHost = h('div', { id: 'ascRubricList' });
-
-    const addBtn = h('button', { class: 'asc-btn-link', type: 'button', style: 'margin-top:8px',
-      onClick: () => { d.rubric.push({ text: '', points: 5, axis: 'accuracy', source: 'manual' }); saveDraft(); paintRubricList(); } },
-      '+ Add a criterion');
-    const seedBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
-      onClick: () => seedRubric(true) }, 'Re-seed from my tags');
-
-    host.appendChild(h('div', { class: 'asc-card-title' }, 'Scoring rubric', h('span', { class: 'asc-badge', style: 'margin-left:8px' }, 'optional')));
-    host.appendChild(h('div', { class: 'asc-card-sub', style: 'margin-bottom:12px' },
-      'What must a correct answer include (positive points) or never say (negative points)? Auto-seeded from your tags — confirm, edit, or delete. Each criterion is tiered by weight — critical (±8–10), important (±4–7), helpful (±1–3). If you build a rubric, name at least one CRITICAL negative: the single thing a correct answer must never do (the grader hard-fails on it). This ships as a reusable scoring function.'));
-    host.appendChild(listHost);
-    host.appendChild(h('div', { style: 'display:flex;gap:12px;align-items:center;margin-top:6px' }, addBtn, seedBtn));
-
-    // Paint the list NOW from the current draft. Pass the freshly-created node
-    // explicitly: renderRationale builds this subtree DETACHED and only attaches
-    // it at the end, so a getElementById lookup here would return null and the
-    // list would mount blank (review finding). The async seed below repaints via
-    // getElementById (the card is attached by the time its await resolves), which
-    // is what makes it resilient to a rebuild mid-seed.
-    paintRubricList(listHost);
-    // Seed once when the card first appears (fire-and-forget).
-    if (!d.rubricSeeded) seedRubric(false);
-    return host;
-  }
-
-  // Repaint the rubric list. Pass the node explicitly for the initial (still-
-  // detached) mount; call with no arg from async/live paths to find the LIVE
-  // #ascRubricList (resilient to the card being rebuilt while a seed is in flight).
-  function paintRubricList(listHostArg) {
-    const listHost = listHostArg || document.getElementById('ascRubricList');
-    if (!listHost) return;
-    const d = state.draft;
-    clear(listHost);
-    if (!d.rubric.length) {
-      listHost.appendChild(h('div', { class: 'asc-label-hint' },
-        'No criteria yet — confirm the seeded ones or add your own.'));
+    if (!isV3()) {
+      const box = h('div', { class: 'asc-rationale', style: 'margin-top:20px' });
+      if (d.verdict === 'A_better' || d.verdict === 'B_better') {
+        box.appendChild(renderChosenCard());
+        box.appendChild(renderRejectedCard());
+        if (state.task.capture_reasoning) box.appendChild(renderStepsCard(false));
+      } else if (d.verdict === 'both_inadequate') {
+        box.appendChild(renderFromScratchCard());
+        box.appendChild(renderStepsCard(true));
+      }
+      container.appendChild(box);
       return;
     }
-    // FIX-4 completeness meter (defined here so row handlers can repaint it live).
-    const meter = h('div', { class: 'asc-rubric-meter' });
-    function paintMeter() {
-      clear(meter);
-      const rc = rubricCompleteness(d.rubric);
-      const pill = h('span', { class: 'asc-rubric-premium ' + (rc.premium ? 'premium' : 'standard') },
-        rc.premium ? 'premium' : 'standard');
-      const detail = rc.premium
-        ? h('span', { class: 'asc-label-hint' }, rc.n_criteria + ' criteria · ' + rc.n_axes + ' axes — meets the premium bar')
-        : h('span', { class: 'asc-label-hint' }, 'to reach premium: ' + rc.missing.join('; '));
-      meter.appendChild(h('div', { class: 'asc-rubric-meter-row' }, pill, detail));
 
-      // FIX-7 axis-coverage histogram + nudge. Advisory only — a missing core axis
-      // (safety/accuracy/reasoning) is flagged but never blocks submit or premium.
-      const counts = {};
-      d.rubric.filter((c) => (c.text || '').trim()).forEach((c) => {
-        const ax = c.axis || 'accuracy';
-        counts[ax] = (counts[ax] || 0) + 1;
-      });
-      const histRow = h('div', { class: 'asc-rubric-axis-hist' });
-      (state.taxonomy.rubric_axes || ['accuracy', 'completeness', 'safety', 'reasoning', 'grounding', 'communication'])
-        .forEach((ax) => {
-          const n = counts[ax] || 0;
-          const isCore = rc.core_axes.indexOf(ax) !== -1;
-          const missing = rc.core_axes_missing.indexOf(ax) !== -1;
-          const chip = h('span', {
-            class: 'asc-axis-chip' + (n ? ' has' : ' empty') + (isCore ? ' core' : '') + (missing ? ' core-missing' : ''),
-            title: isCore
-              ? (missing ? 'Core axis not yet covered — a defensible grader usually scores this.' : 'Core axis covered.')
-              : (n ? n + ' criteria on ' + ax : ax + ' not covered'),
-          }, ax + (n ? ' ·' + n : ''));
-          histRow.appendChild(chip);
-        });
-      meter.appendChild(histRow);
-      if (rc.nudges && rc.nudges.length) {
-        meter.appendChild(h('div', { class: 'asc-rubric-nudge' }, rc.nudges.join('; ')));
+    const list = compareSubstages().slice(1); // 'compare' is the verdict card above
+    const cur = currentSubstage();
+    if (d.substage !== cur) { d.substage = cur; saveDraft(); }
+    const curIdx = cur === 'done' ? list.length : list.indexOf(cur);
+    const box = h('div', { class: 'asc-rationale asc-staged', style: 'margin-top:20px' });
+    list.forEach((key, i) => {
+      if (i > curIdx) return; // §1: the next section does not exist until its turn
+      const isCurrent = key === cur;
+      if (!isCurrent && key !== 'confidence' && substageComplete(key)
+          && state._reopenedSubstage !== key) {
+        box.appendChild(renderSubstageSummary(key));
+      } else {
+        box.appendChild(renderSubstageSection(key));
       }
-    }
-
-    d.rubric.forEach((c, i) => {
-      const pos = (c.points || 0) >= 0;
-      const ptsLabel = h('span', { class: 'asc-rubric-pts ' + (pos ? 'pos' : 'neg') },
-        (pos ? '+' : '') + (c.points || 0));
-      // Tier chip (Two-Model PRD WS-B): derived live from |points|; a critical
-      // NEGATIVE is highlighted because a v3/v4 rubric must include at least one.
-      const tierChip = h('span', { class: 'asc-rubric-tier' });
-      function paintTier() {
-        c.tier = tierForPoints(c.points);
-        c.critical = c.tier === 'critical';
-        const isCritNeg = c.critical && (c.points || 0) < 0;
-        tierChip.textContent = c.tier + (isCritNeg ? ' ✓' : '');
-        tierChip.className = 'asc-rubric-tier tier-' + c.tier + (isCritNeg ? ' crit-neg' : '');
-        tierChip.title = isCritNeg
-          ? 'Critical negative — the thing a correct answer must never do (grader hard-fails on it).'
-          : c.tier + ' criterion (|points| ' + (c.tier === 'critical' ? '8–10' : c.tier === 'important' ? '4–7' : '1–3') + ')';
-      }
-      // FIX-1 concreteness chip: nudges the doctor to name a specific fact/drug/dose/
-      // threshold. A vague CRITICAL/IMPORTANT criterion doesn't count toward premium.
-      const specChip = h('span', { class: 'asc-rubric-spec' });
-      function paintSpec() {
-        const sp = isSpecificText(c.text);
-        c.specific = sp;
-        const keyTier = c.tier === 'critical' || c.tier === 'important';
-        specChip.textContent = sp ? 'specific' : 'vague';
-        specChip.className = 'asc-rubric-spec ' + (sp ? 'ok' : (keyTier ? 'warn' : 'soft'));
-        specChip.title = sp
-          ? 'Machine-checkable — names a concrete fact/drug/dose/threshold.'
-          : 'Vague — name the specific fact, drug, dose, or threshold so the grader can check it.';
-      }
-      const slider = h('input', { type: 'range', min: '-10', max: '10', step: '1',
-        value: String(c.points || 0), style: 'width:120px' });
-      slider.addEventListener('input', () => {
-        c.points = parseInt(slider.value, 10);
-        ptsLabel.textContent = (c.points >= 0 ? '+' : '') + c.points;
-        ptsLabel.className = 'asc-rubric-pts ' + (c.points >= 0 ? 'pos' : 'neg');
-        paintTier();
-        paintSpec();
-        paintMeter();
-        saveDraft();
-        updateSubmitState();
-      });
-      const textInput = h('input', { class: 'asc-input asc-rubric-text', value: c.text || '' });
-      textInput.addEventListener('input', () => {
-        c.text = textInput.value; paintSpec(); paintMeter(); saveDraft(); updateSubmitState();
-      });
-      const axisSel = h('select', { class: 'asc-select', style: 'max-width:150px' },
-        ...(state.taxonomy.rubric_axes || ['accuracy', 'completeness', 'safety', 'reasoning', 'grounding', 'communication'])
-          .map((ax) => h('option', { value: ax, selected: c.axis === ax ? 'selected' : null }, ax)));
-      axisSel.value = c.axis || 'accuracy';
-      axisSel.addEventListener('change', () => { c.axis = axisSel.value; paintMeter(); saveDraft(); });
-      // FIX-3 per-criterion citation (grounded = premium). Reuses the one-click /cite
-      // anchor editor; the anchor area toggles below the row.
-      const citeArea = h('div', { class: 'asc-rubric-cite', hidden: 'hidden' });
-      const citeBtn = h('button', { class: 'asc-btn-link', type: 'button',
-        onClick: () => {
-          if (!c.evidence_anchor) c.evidence_anchor = emptyAnchor();
-          const showing = citeArea.hasAttribute('hidden');
-          if (showing) {
-            clear(citeArea);
-            citeArea.appendChild(renderAnchorBlock(c.evidence_anchor,
-              { label: 'citation for this criterion', required: false }));
-            citeArea.removeAttribute('hidden');
-          } else {
-            citeArea.setAttribute('hidden', '');
-          }
-        } }, 'cite');
-      const del = h('button', { class: 'asc-btn-link', type: 'button',
-        onClick: () => { d.rubric.splice(i, 1); saveDraft(); paintRubricList(); updateSubmitState(); } }, 'remove');
-      paintTier();
-      paintSpec();
-      listHost.appendChild(h('div', {},
-        h('div', { class: 'asc-rubric-row' }, ptsLabel, tierChip, specChip, slider, textInput, axisSel, citeBtn, del),
-        citeArea));
     });
-    listHost.appendChild(meter);
-    paintMeter();
+    container.appendChild(box);
+    // Scroll the freshly-mounted section under the sticky chrome when the flow
+    // advanced (not on every repaint).
+    if (state._lastSubstage !== cur) {
+      const target = cur === 'done' ? 'confidence' : cur;
+      state._lastSubstage = cur;
+      setTimeout(() => scrollToSubstage(target), 40);
+    }
+    updateHeaderProgress();
   }
 
+  // One-line summary chip for a completed section (§1) — keeps context without
+  // the control surface; click to re-open.
+  function substageSummaryText(key) {
+    const d = state.draft;
+    switch (key) {
+      case 'refine':
+        return 'Refined answer (' + d.chosen_id + ')' + (d.chosen_revision.edited ? ' · edited' : ' · kept as-is');
+      case 'why_better': {
+        const tags = (d.chosen_revision.why_better_tags || []).map((t) => t.replace(/_/g, ' '));
+        return 'Why better: ' + (tags.slice(0, 3).join(', ') + (tags.length > 3 ? ' +' + (tags.length - 3) : ''));
+      }
+      case 'citations': {
+        const n = anchorsForSubmit(d.chosen_revision.evidence_anchor).length;
+        return n ? ('Sources: ' + n + ' cited') : 'Sources reviewed';
+      }
+      case 'critique_rejected': {
+        const tags = (d.rejected_critique.error_tags || []).map((t) => t.replace(/_/g, ' '));
+        return 'Rejected (' + d.rejected_id + '): ' + tags.slice(0, 3).join(', ')
+          + (tags.length > 3 ? ' +' + (tags.length - 3) : '');
+      }
+      case 'from_scratch': return 'Ideal answer written';
+      case 'reasoning': {
+        const n = activeSteps().filter((s) => (s.text || '').trim()).length;
+        return 'Reasoning: ' + n + ' step' + (n === 1 ? '' : 's') + ' reviewed';
+      }
+      case 'rubric': {
+        const n = (d.rubric || []).filter((c) => (c.text || '').trim()).length;
+        return n ? ('Scoring guide: ' + n + ' criteria') : 'Scoring guide: none';
+      }
+      default: return (SUBSTAGE_META[key] || {}).title || key;
+    }
+  }
+
+  function renderSubstageSummary(key) {
+    const n = compareSubstages().indexOf(key) + 1;
+    return h('button', {
+      class: 'asc-substage-chip', type: 'button', dataset: { substage: key },
+      title: 'Re-open this section',
+      onClick: () => {
+        state._reopenedSubstage = key;
+        renderRationale();
+        setTimeout(() => scrollToSubstage(key), 40);
+      },
+    },
+      h('span', { class: 'asc-substage-chip-step' }, String(n)),
+      h('span', { class: 'asc-substage-chip-check', 'aria-hidden': 'true' }, '✓'),
+      h('span', { class: 'asc-substage-chip-label' }, substageSummaryText(key)),
+      h('span', { class: 'asc-substage-chip-edit' }, 'edit'));
+  }
+
+  function renderSubstageSection(key) {
+    let el;
+    switch (key) {
+      case 'refine': el = renderRefineSection(); break;
+      case 'why_better': el = renderWhyBetterSection(); break;
+      case 'citations': el = renderCitationsSection(); break;
+      case 'critique_rejected': el = renderCritiqueSection(); break;
+      case 'from_scratch': el = renderFromScratchSection(); break;
+      case 'reasoning': el = renderReasoningSection(); break;
+      case 'rubric': el = renderRubricSection(); break;
+      case 'confidence': el = renderConfidenceSection(); break;
+      default: el = h('div', {});
+    }
+    // A completed section that was re-opened gets a collapse control back to
+    // its summary chip.
+    if (substageComplete(key) && state._reopenedSubstage === key) {
+      el.appendChild(h('div', { style: 'margin-top:12px' },
+        h('button', {
+          class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
+          onClick: () => { state._reopenedSubstage = null; refreshStagedFlow(); },
+        }, '✓ Done — collapse')));
+    }
+    return el;
+  }
+
+  // Shared footer for a section: a hint + the single primary action.
+  function sectionActions(hint, btn) {
+    return h('div', { class: 'asc-substage-actions' }, hint, btn);
+  }
+
+  // ─── §9 Refine the winning answer ───────────────────────────────────────────
+  function renderRefineSection() {
+    const d = state.draft;
+    const rev = d.chosen_revision;
+    const original = chosenText();
+    const ta = h('textarea', { class: 'asc-textarea asc-v3-editor', style: 'min-height:46vh' },
+      rev.revised_text != null ? rev.revised_text : original);
+    const editDiff = h('div', { class: 'asc-editdiff-wrap' });
+    editDiff.setAttribute('hidden', '');
+    const editDiffToggle = h('button', {
+      class: 'asc-btn-link', type: 'button', style: 'margin-top:6px',
+      onClick: () => {
+        if (editDiff.hasAttribute('hidden')) {
+          clear(editDiff);
+          editDiff.appendChild(renderEditDiff(original, ta.value));
+          editDiff.removeAttribute('hidden');
+          editDiffToggle.textContent = 'Hide changes';
+        } else {
+          editDiff.setAttribute('hidden', '');
+          editDiffToggle.textContent = '⬍ Show what you changed';
+        }
+      },
+    }, '⬍ Show what you changed');
+    ta.addEventListener('input', () => {
+      rev.revised_text = ta.value;
+      rev.edited = ta.value !== original;
+      saveDraft();
+      if (!editDiff.hasAttribute('hidden')) {
+        clear(editDiff);
+        editDiff.appendChild(renderEditDiff(original, ta.value));
+      }
+    });
+    // §9: ONE primary button. Saving with no edits is the "looks proper" path.
+    const saveBtn = h('button', {
+      class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
+      onClick: () => {
+        rev.revised_text = ta.value;
+        rev.edited = ta.value !== original;
+        d.refine_saved = true;
+        state._reopenedSubstage = null;
+        refreshStagedFlow();
+      },
+    }, 'Save changes →');
+    return sectionCard('refine', null,
+      h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
+        'Edit the stronger answer into what a correct answer should say. If it’s already right, just save.'),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Refined answer (' + d.chosen_id + ') ',
+          h('span', { class: 'asc-label-hint' }, 'edits become the gold revision; original is preserved')),
+        withMic(ta), editDiffToggle, editDiff),
+      sectionActions(null, saveBtn));
+  }
+
+  // ─── §10 Why it's better (required) ─────────────────────────────────────────
+  function renderWhyBetterSection() {
+    const d = state.draft;
+    const rev = d.chosen_revision;
+    const notes = h('textarea', {
+      class: 'asc-textarea', style: 'min-height:64px',
+      placeholder: 'e.g. correctly continues decongestion despite the creatinine rise',
+    }, rev.why_better_notes || '');
+    const hint = h('span', { class: 'asc-submit-hint' });
+    const contBtn = h('button', {
+      class: 'asc-btn asc-btn-primary', type: 'button',
+      onClick: () => {
+        if (!whyBetterConditionsMet()) return;
+        d.why_better_done = true;
+        state._reopenedSubstage = null;
+        refreshStagedFlow();
+      },
+    }, 'Continue →');
+    const sync = () => {
+      const ok = whyBetterConditionsMet();
+      contBtn.disabled = !ok;
+      hint.textContent = ok ? '' : 'write one line and tag ≥1 reason to continue';
+    };
+    notes.addEventListener('input', () => { rev.why_better_notes = notes.value; saveDraft(); sync(); });
+    const chips = renderChips((state.taxonomy.why_better_tags || []), rev.why_better_tags, (tag, on) => {
+      toggleInArray(rev.why_better_tags, tag, on);
+      saveDraft();
+      sync();
+    });
+    setTimeout(sync, 0);
+    return sectionCard('why_better',
+      infoDot('Why it’s better', [
+        'Capture the reason the answer you chose is clinically stronger. This is the preference signal a model learns from.',
+        'Write one clear sentence, then tag the reasons that apply.',
+      ]),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Why is this answer better?'),
+        withMic(notes)),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Why-better tags ',
+          infoDot('Why-better tags', [
+            'Tag the dimensions on which it’s better.',
+            'Pick every reason that applies — accuracy, completeness, safety, reasoning.',
+          ])),
+        chips),
+      sectionActions(hint, contBtn));
+  }
+
+  // ─── §11 Citations (reviewed, not blocking — unless grounding is required) ──
+  function renderCitationsSection() {
+    const d = state.draft;
+    const rev = d.chosen_revision;
+    const required = (state.task.grounding_mode === 'required');
+    const cite = renderCiteSuggest(
+      rev.evidence_anchor,
+      () => ((rev.revised_text != null ? rev.revised_text : chosenText()) + ' ' + (rev.why_better_notes || '')),
+      () => renderRationale());
+    const anchorBlock = renderAnchorBlock(rev.evidence_anchor, {
+      label: 'citation for this rationale',
+      required,
+      prominent: true,
+    });
+    const hint = h('span', { class: 'asc-submit-hint' });
+    const contBtn = h('button', {
+      class: 'asc-btn asc-btn-primary', type: 'button',
+      onClick: () => {
+        if (required && !isValidAnchor(rev.evidence_anchor)) return;
+        d.citations_reviewed = true;
+        state._reopenedSubstage = null;
+        refreshStagedFlow();
+      },
+    }, 'Continue →');
+    const sync = () => {
+      const ok = !required || isValidAnchor(rev.evidence_anchor);
+      contBtn.disabled = !ok;
+      hint.textContent = ok ? '' : 'this task requires a citation — attach one to continue';
+    };
+    const card = sectionCard('citations',
+      infoDot('Citations', [
+        'Cite the guideline or trial your judgment rests on.',
+        'Search the library, open the source to check it, then it’s attached.',
+      ]),
+      h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
+        required
+          ? 'This task requires evidence — attach the source your judgment rests on.'
+          : 'Not every case needs one — open a suggested source to attach it, or continue.'),
+      cite,
+      anchorBlock,
+      sectionActions(hint, contBtn));
+    card.addEventListener('input', () => setTimeout(sync, 0));
+    card.addEventListener('click', () => setTimeout(sync, 0));
+    setTimeout(sync, 0);
+    return card;
+  }
+
+  // ─── §12 Critique the rejected answer — popover-per-tag, no model hints ─────
+  function closeTagPopover() {
+    if (state._tagPop) {
+      state._tagPop.remove();
+      state._tagPop = null;
+      document.removeEventListener('keydown', _tagPopKey, true);
+    }
+  }
+  function _tagPopKey(e) { if (e.key === 'Escape') closeTagPopover(); }
+
+  function renderCritiqueSection() {
+    const d = state.draft;
+    const crit = d.rejected_critique;
+    const errorTags = (state.taxonomy.error_tags || []);
+    const hint = h('span', { class: 'asc-submit-hint' });
+    const contBtn = h('button', {
+      class: 'asc-btn asc-btn-primary', type: 'button',
+      onClick: () => {
+        if (!critiqueConditionsMet()) return;
+        closeTagPopover();
+        d.critique_done = true;
+        state._reopenedSubstage = null;
+        refreshStagedFlow();
+      },
+    }, 'Continue →');
+    const critiqueHint = () => {
+      if (!(crit.error_tags || []).length) return 'tag at least one error to continue';
+      for (const t of crit.error_tags) {
+        if (!crit.severities[t]) return 'tap “' + t.replace(/_/g, ' ') + '” to set how serious it is';
+      }
+      if (!(crit.why_worse || '').trim()) return 'write one line on why it’s worse';
+      return 'tag how it failed (failure modes) to continue';
+    };
+    const sync = () => {
+      const ok = critiqueConditionsMet();
+      contBtn.disabled = !ok;
+      hint.textContent = ok ? '' : critiqueHint();
+    };
+
+    // Error-tag chips: tap to select → a small popover captures THIS tag's
+    // "why" + severity → the chip collapses to "✓ tag · severity" (§12).
+    const chipsWrap = h('div', { class: 'asc-errtag-wrap' });
+    const chipsRow = h('div', { class: 'asc-chips', style: 'position:relative' });
+    chipsWrap.appendChild(chipsRow);
+
+    function openTagPopover(tag, chipEl) {
+      closeTagPopover();
+      const reasons = (state.taxonomy.error_tag_reasons || []);
+      const sevs = (state.taxonomy.error_severities || ['low', 'medium', 'high']);
+      const pop = h('div', { class: 'asc-tag-pop', role: 'dialog', 'aria-label': 'Detail this error' });
+      pop.appendChild(h('div', { class: 'asc-tag-pop-title' }, tag.replace(/_/g, ' ')));
+      if (reasons.length) {
+        const rRow = h('div', { class: 'asc-sev-pills asc-reason-pills' });
+        reasons.forEach((r) => {
+          const b = h('button', {
+            class: 'asc-sev-pill' + (crit.error_tag_reasons[tag] === r ? ' active' : ''),
+            type: 'button',
+            onClick: () => {
+              if (crit.error_tag_reasons[tag] === r) delete crit.error_tag_reasons[tag];
+              else crit.error_tag_reasons[tag] = r;
+              saveDraft();
+              Array.from(rRow.children).forEach((x) => x.classList.toggle('active', x.textContent === r.replace(/_/g, ' ') && crit.error_tag_reasons[tag] === r));
+            },
+          }, r.replace(/_/g, ' '));
+          rRow.appendChild(b);
+        });
+        pop.appendChild(h('div', { class: 'asc-tag-pop-field' },
+          h('div', { class: 'asc-label' }, 'Why?'), rRow));
+      }
+      const sRow = h('div', { class: 'asc-sev-pills' });
+      const doneBtn = h('button', {
+        class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
+        disabled: !crit.severities[tag],
+        onClick: () => { closeTagPopover(); paintChips(); sync(); },
+      }, 'Done');
+      sevs.forEach((sv) => {
+        const b = h('button', {
+          class: 'asc-sev-pill' + (crit.severities[tag] === sv ? ' active' : ''),
+          type: 'button',
+          onClick: () => {
+            crit.severities[tag] = sv;
+            saveDraft();
+            Array.from(sRow.children).forEach((x) => x.classList.toggle('active', x.textContent === sv));
+            doneBtn.disabled = false;
+            sync();
+          },
+        }, sv);
+        sRow.appendChild(b);
+      });
+      pop.appendChild(h('div', { class: 'asc-tag-pop-field' },
+        h('div', { class: 'asc-label' }, 'How serious?'), sRow));
+      pop.appendChild(h('div', { class: 'asc-tag-pop-foot' },
+        h('button', {
+          class: 'asc-btn-link', type: 'button', style: 'color:var(--asc-danger)',
+          onClick: () => {
+            toggleInArray(crit.error_tags, tag, false);
+            delete crit.severities[tag]; delete crit.error_tag_anchors[tag]; delete crit.error_tag_reasons[tag];
+            saveDraft(); closeTagPopover(); paintChips(); sync();
+          },
+        }, 'Remove tag'),
+        doneBtn));
+      // Anchor under the tapped chip, clamped to the row.
+      pop.style.left = Math.max(0, Math.min(chipEl.offsetLeft, Math.max(0, chipsRow.offsetWidth - 330))) + 'px';
+      pop.style.top = (chipEl.offsetTop + chipEl.offsetHeight + 6) + 'px';
+      chipsRow.appendChild(pop);
+      state._tagPop = pop;
+      document.addEventListener('keydown', _tagPopKey, true);
+    }
+
+    function paintChips() {
+      // A popover from a previous render is detached — drop the stale handle
+      // (insertBefore with a non-child reference node would throw).
+      if (state._tagPop && state._tagPop.parentNode !== chipsRow) state._tagPop = null;
+      Array.from(chipsRow.children).forEach((c) => { if (c !== state._tagPop) c.remove(); });
+      errorTags.forEach((tag) => {
+        const on = crit.error_tags.indexOf(tag) !== -1;
+        const sev = crit.severities[tag];
+        const chip = h('button', {
+          class: 'asc-chip err' + (on ? ' active' : ''), type: 'button',
+          onClick: (e) => {
+            if (!on) {
+              toggleInArray(crit.error_tags, tag, true);
+              saveDraft(); paintChips(); sync();
+              const fresh = Array.from(chipsRow.children).find((c) => c.dataset && c.dataset.tag === tag);
+              openTagPopover(tag, fresh || e.currentTarget);
+            } else {
+              openTagPopover(tag, e.currentTarget);
+            }
+          },
+          dataset: { tag },
+        },
+          on && sev ? ('✓ ' + tag.replace(/_/g, ' ') + ' · ' + sev)
+            : on ? ('✓ ' + tag.replace(/_/g, ' ') + ' · tap to detail')
+              : tag.replace(/_/g, ' '));
+        chipsRow.insertBefore(chip, state._tagPop || null);
+      });
+    }
+    paintChips();
+
+    const whyWorse = h('input', {
+      class: 'asc-input',
+      placeholder: 'One line on the key problem…',
+      value: crit.why_worse || '',
+    });
+    whyWorse.addEventListener('input', () => { crit.why_worse = whyWorse.value; saveDraft(); sync(); });
+
+    // §D failure-mode taxonomy chips (baseline pairs) — physician-picked, kept.
+    const failureField = h('div', {});
+    if (isBaselinePair() && (state.taxonomy.failure_modes || []).length) {
+      const fmContainer = h('div', { id: 'ascFailureModes' });
+      failureField.appendChild(h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'How did it fail? ',
+          h('span', { class: 'asc-label-hint' }, '(model-failure taxonomy — select all that apply)')),
+        fmContainer));
+      renderFailureTags(fmContainer);
+      fmContainer.addEventListener('click', () => setTimeout(sync, 0));
+    }
+
+    // Optional per-error citation — lightweight, behind a disclosure (§12).
+    const anchorContainer = h('div', { id: 'ascTagAnchors' });
+    const citeDisclosure = h('div', { class: 'asc-disclosure' },
+      h('div', { style: 'display:inline-flex;align-items:center;gap:6px' },
+        discloseToggle('+ cite specific errors', anchorContainer),
+        infoDot('Cite specific errors', [
+          'Optionally point the error at a source.',
+          'Open a guideline that shows why this is wrong.',
+        ])));
+    renderTagAnchors(anchorContainer, true);
+
+    setTimeout(sync, 0);
+    return sectionCard('critique_rejected',
+      infoDot('Critique the rejected answer', [
+        'Mark why the rejected answer is worse.',
+        'Pick the error tags that apply; tap a tag to add why and how serious.',
+      ]),
+      h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
+        'Rejected answer: Model ' + d.rejected_id + '. Pick the error tags yourself — no model hints here.'),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Error tags ',
+          h('span', { class: 'asc-label-hint' }, '(tap a tag to add why + severity)')),
+        chipsWrap),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Why is it worse?'),
+        withMic(whyWorse)),
+      failureField,
+      citeDisclosure,
+      anchorContainer,
+      sectionActions(hint, contBtn));
+  }
+
+  // ─── Both-inadequate: compose the ideal answer ──────────────────────────────
+  function renderFromScratchSection() {
+    const d = state.draft;
+    const hint = h('span', { class: 'asc-submit-hint' });
+    const saveBtn = h('button', {
+      class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
+      onClick: () => {
+        if (!(d.from_scratch.ideal_answer || '').trim()) return;
+        d.from_scratch_saved = true;
+        state._reopenedSubstage = null;
+        refreshStagedFlow();
+      },
+    }, 'Save & continue →');
+    const sync = () => {
+      const ok = !!(d.from_scratch.ideal_answer || '').trim();
+      saveBtn.disabled = !ok;
+      hint.textContent = ok ? '' : 'write the ideal answer to continue';
+    };
+    const card = sectionCard('from_scratch', null,
+      renderFromScratchCard(),
+      sectionActions(hint, saveBtn));
+    card.addEventListener('input', () => setTimeout(sync, 0));
+    setTimeout(sync, 0);
+    return card;
+  }
+
+  // ─── §13 Check the reasoning — one step open at a time, free-text "what's off"
+  function renderReasoningSection() {
+    const d = state.draft;
+    const forBoth = d.verdict === 'both_inadequate';
+    const listId = 'ascStepsList';
+    const canAutoSplit = !forBoth;
+
+    const addBtn = h('button', {
+      class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
+      onClick: () => {
+        activeSteps().push(newAuthoredStep());
+        state._openStep = activeSteps().length - 1;
+        saveDraft(); renderStepsListV3(listId); updateSubmitState();
+      },
+    }, '+ Add step');
+    const resplitBtn = canAutoSplit ? h('button', {
+      class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+      onClick: () => autoSplitChosen(listId, true),
+    }, '↻ Re-split from answer') : null;
+
+    const hint = h('span', { class: 'asc-submit-hint', id: 'ascStepsContHint' });
+    const contBtn = h('button', {
+      class: 'asc-btn asc-btn-primary', type: 'button', id: 'ascStepsCont',
+      onClick: () => {
+        if (!reasoningConditionsMet()) return;
+        d.reasoning_done = true;
+        state._reopenedSubstage = null;
+        refreshStagedFlow();
+      },
+    }, 'Continue →');
+
+    const card = sectionCard('reasoning',
+      infoDot('Check the reasoning', [
+        'Review the step-by-step reasoning behind the answer.',
+        'Open any step that’s off and say what’s wrong — we handle the rest.',
+      ]),
+      h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
+        forBoth ? 'Optionally lay out the reasoning steps behind your ideal answer.'
+          : 'Confirm each step, or open it and say what’s off — one step at a time.'),
+      h('div', { class: 'asc-steps', id: listId }),
+      h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn, resplitBtn),
+      sectionActions(hint, contBtn));
+
+    setTimeout(() => {
+      renderStepsListV3(listId);
+      if (canAutoSplit && activeSteps().length === 0
+          && state.splitAttemptedFor !== state.task.task_id && !state.splitting) {
+        state.splitAttemptedFor = state.task.task_id;
+        autoSplitChosen(listId, false);
+      }
+    }, 0);
+    return card;
+  }
+
+  // Keep the Continue affordance honest as steps change.
+  function syncStepsCont() {
+    const btn = document.getElementById('ascStepsCont');
+    const hint = document.getElementById('ascStepsContHint');
+    if (!btn) return;
+    const sr = stepsReview();
+    // Never allow Continue while the auto-split is in flight — steps landing
+    // after the section completed would silently regress the flow.
+    btn.disabled = state.splitting || !sr.ok;
+    if (hint) {
+      hint.textContent = state.splitting ? 'splitting the answer into steps…'
+        : sr.ok ? ''
+          : (sr.reasons.indexOf('missing_correction_reason') !== -1
+            ? 'say what’s off with each edited step'
+            : 'review each step — confirm it, or open it and correct it');
+    }
+  }
+
+  // V3/V4 steps list (§13): single-open accordion; an edited step captures a
+  // free-text ``step_note`` (the server derives the error-tag classification);
+  // NO tag picker and NO citation block inside step editing.
+  function renderStepsListV3(listId) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    clear(list);
+    const steps = activeSteps();
+    if (state.splitting) {
+      list.appendChild(h('p', { class: 'asc-help' }, 'Splitting the chosen answer into steps…'));
+      return;
+    }
+    if (!steps.length) {
+      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually' +
+        (state.draft.verdict !== 'both_inadequate' ? ', or use “Re-split from answer”.' : '.')));
+      syncStepsCont();
+      return;
+    }
+
+    const statusOf = (s) => {
+      if (s.added) return { text: 'added', cls: 'added' };
+      if (s.corrected) {
+        return (s.step_note || '').trim()
+          ? { text: 'corrected ✎', cls: 'corrected' }
+          : { text: 'corrected — say what’s off', cls: 'corrected' };
+      }
+      if (s.confirmed) return { text: 'confirmed ✓', cls: 'confirmed' };
+      return { text: 'pending', cls: 'pending' };
+    };
+
+    // Bulk confirm for model-passed, untouched steps (kept from the pre-graded
+    // flow — reading then one tap is still an explicit endorsement).
+    const untouchedGood = steps.filter((s) => s.suggested_label === 'good' && !s.confirmed
+      && !s.corrected && !s.added && (s.text || '').trim() === (s.original_text || '').trim());
+    if (untouchedGood.length > 1) {
+      list.appendChild(h('div', { class: 'asc-step-bulkbar' },
+        h('span', { class: 'asc-step-bulk-label' },
+          untouchedGood.length + ' steps look correct to the model — read them, then confirm in one tap.'),
+        h('button', {
+          class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
+          onClick: () => {
+            untouchedGood.forEach((s) => setStepConfirmed(s, true));
+            saveDraft(); renderStepsListV3(listId); updateSubmitState();
+          },
+        }, '✓ Confirm all correct')));
+    }
+
+    steps.forEach((s, idx) => {
+      s.step = idx + 1;
+      const open = state._openStep === idx;
+      const st = statusOf(s);
+      const flaggedBadge = (s.suggested_label === 'bad')
+        ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, 'model · flags this')
+        : (s.suggested_label === 'good')
+          ? h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, 'model · looks correct')
+          : null;
+
+      const confirmBtn = h('button', {
+        class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm' + (s.confirmed ? ' active' : ''),
+        type: 'button', hidden: s.corrected || s.added,
+        onClick: (e) => {
+          e.stopPropagation();
+          setStepConfirmed(s, !s.confirmed);
+          if (s.confirmed && state._openStep === idx) state._openStep = null;
+          saveDraft(); renderStepsListV3(listId); updateSubmitState();
+        },
+      }, s.confirmed ? '✓ Confirmed' : '✓ Correct as-is');
+
+      const head = h('div', { class: 'asc-step-head' },
+        h('div', { style: 'display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap' },
+          h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)),
+          flaggedBadge,
+          h('span', { class: 'asc-step-status ' + st.cls }, st.text)),
+        h('div', { style: 'display:flex;align-items:center;gap:8px' },
+          confirmBtn,
+          h('button', {
+            class: 'asc-btn-link', type: 'button',
+            onClick: () => {
+              state._openStep = open ? null : idx;
+              renderStepsListV3(listId);
+            },
+          }, open ? 'Close' : (s.corrected || s.added ? 'Edit' : 'Open'))));
+
+      const row = h('div', {
+        class: 'asc-step' + (open ? '' : ' asc-step-collapsed') + (s.confirmed ? ' is-confirmed' : ''),
+      }, head);
+
+      if (!open) {
+        row.appendChild(h('div', { class: 'asc-step-collapsed-text' }, s.text || ''));
+        list.appendChild(row);
+        return;
+      }
+
+      // Expanded editor: the step text + the single free-text "what's off" box.
+      const ta = h('textarea', { class: 'asc-textarea', placeholder: 'Describe this reasoning step…' }, s.text || '');
+      const noteWrap = h('div', { class: 'asc-field', style: 'margin-top:8px' });
+      const note = h('input', {
+        class: 'asc-input',
+        placeholder: 'e.g. treats the creatinine bump as intrinsic AKI — it’s decongestion-related hemoconcentration',
+        value: s.step_note || '',
+      });
+      note.addEventListener('input', () => {
+        s.step_note = note.value;
+        if ((s.step_note || '').trim()) {
+          // The server derives the error-tag classification from this note
+          // (step_note → step_error_tag); the physician never picks a tag.
+          s.label = 'bad'; s.step_reward = 0; s.correction_reason = null;
+        } else {
+          s.label = null; s.step_reward = null;
+        }
+        saveDraft(); syncStepsCont(); updateSubmitState();
+        const pill = row.querySelector('.asc-step-status');
+        const st2 = statusOf(s);
+        if (pill) { pill.textContent = st2.text; pill.className = 'asc-step-status ' + st2.cls; }
+      });
+      noteWrap.appendChild(h('label', { class: 'asc-label' }, 'What’s off with this step?'));
+      noteWrap.appendChild(withMic(note));
+      noteWrap.hidden = !s.corrected;
+
+      const hasOriginal = s.original_text != null;
+      const originalBox = hasOriginal
+        ? h('details', { class: 'asc-step-original', hidden: !s.corrected },
+            h('summary', {}, 'original: ' + ((s.original_text || '').length > 80
+              ? (s.original_text || '').slice(0, 80) + '…' : (s.original_text || ''))),
+            h('div', { class: 'asc-step-original-full' }, s.original_text || ''))
+        : null;
+
+      const suggestHint = (s.suggested_label === 'bad' && s.suggested_critique)
+        ? h('div', { class: 'asc-step-suggest-hint' }, 'Model: ' + s.suggested_critique)
+        : null;
+
+      ta.addEventListener('input', () => {
+        s.text = ta.value;
+        if (hasOriginal) {
+          if (ta.value.trim() !== (s.original_text || '').trim()) {
+            if (!s.corrected) { s.corrected = true; s.confirmed = false; }
+          } else {
+            s.corrected = false; s.confirmed = false; s.correction_reason = null;
+            s.label = null; s.step_reward = null;
+          }
+        }
+        noteWrap.hidden = !s.corrected;
+        if (originalBox) originalBox.hidden = !s.corrected;
+        const pill = row.querySelector('.asc-step-status');
+        const st2 = statusOf(s);
+        if (pill) { pill.textContent = st2.text; pill.className = 'asc-step-status ' + st2.cls; }
+        saveDraft(); syncStepsCont(); updateSubmitState();
+      });
+
+      const rowActions = h('div', { style: 'margin-top:8px;display:flex;gap:10px' },
+        h('button', {
+          class: 'asc-btn-link', type: 'button',
+          onClick: () => {
+            activeSteps().splice(idx + 1, 0, newAuthoredStep());
+            state._openStep = idx + 1;
+            saveDraft(); renderStepsListV3(listId); updateSubmitState();
+          },
+        }, '+ insert below'),
+        h('button', {
+          class: 'asc-btn-link', type: 'button', style: 'color:var(--asc-danger)',
+          onClick: () => {
+            activeSteps().splice(idx, 1);
+            state._openStep = null;
+            saveDraft(); renderStepsListV3(listId); updateSubmitState();
+          },
+        }, 'Remove'));
+
+      appendChildren(row, [suggestHint, ta, noteWrap, originalBox, rowActions]);
+      list.appendChild(row);
+    });
+    syncStepsCont();
+  }
+
+  // ─── §15 Confidence + submit — mounts ONLY at the confidence substage ───────
+  function renderConfidenceSection() {
+    const d = state.draft;
+    const confLevels = (state.taxonomy.confidence_levels || ['low', 'medium', 'high']);
+    const confPills = h('div', { class: 'asc-conf-pills', id: 'ascConf' });
+    confLevels.forEach((lvl) => {
+      confPills.appendChild(h('button', {
+        // Unset until the doctor actively picks — the draft default is never
+        // presented as a pre-made choice.
+        class: 'asc-conf-pill' + (d.confidence_set && d.confidence === lvl ? ' active' : ''),
+        type: 'button', dataset: { conf: lvl },
+        onClick: () => {
+          d.confidence = lvl;
+          d.confidence_set = true;
+          saveDraft();
+          Array.from(confPills.children).forEach((b) => b.classList.toggle('active', b.dataset.conf === lvl));
+          updateSubmitState();
+          updateHeaderProgress();
+        },
+      }, lvl));
+    });
+    const submitBtn = h('button', {
+      class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascSubmit', onClick: submitEvaluation,
+    }, 'Submit evaluation');
+    const hint = h('span', { class: 'asc-submit-hint', id: 'ascSubmitHint' });
+    const card = sectionCard('confidence', null,
+      confPills,
+      h('div', { class: 'asc-submit-row' }, hint, submitBtn));
+    setTimeout(updateSubmitState, 0);
+    return card;
+  }
+
+  // ─── §14 Rubric — build the scoring guide, one criterion at a time ──────────
+  // V3/V4 only (the rubric never rendered on V1/V2). Replaces the dense
+  // all-criteria list with a focused wizard: one criterion per card, a pinned
+  // copy of the revised answer for reference, silent auto-seeding from the
+  // doctor's tags, and plain-language weights (numeric bands live in the
+  // info-dot, not the primary copy).
+  const TIER_DEFAULT_PTS = { critical: 9, important: 5, helpful: 2 };
+  const TIER_CHOICES = [
+    ['critical', 'Must-have', 'decides correctness on its own'],
+    ['important', 'Important', 'a real quality difference'],
+    ['helpful', 'Nice-to-have', 'polish — good if present'],
+  ];
+
+  // 14.4: auto-growing textarea (min 2 rows) — the full criterion text is always
+  // visible and editable; nothing clips.
+  function autoGrow(ta) {
+    const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.max(ta.scrollHeight, 52) + 'px'; };
+    ta.addEventListener('input', fit);
+    setTimeout(fit, 0);
+    return ta;
+  }
+
+  // Repaint the live rubric section after an async seed lands — never while the
+  // doctor is typing in it (would steal focus).
+  function repaintRubricUI() {
+    const rub = document.querySelector('[data-substage="rubric"]');
+    if (!rub) return;
+    const active = document.activeElement;
+    const typing = active && rub.contains(active)
+      && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT' || active.tagName === 'SELECT');
+    if (!typing) renderRationale();
+  }
+
+  function renderRubricSection() {
+    const d = state.draft;
+    // 14.5: SILENT auto-seed. First mount seeds from the doctor's tags; if the
+    // tags changed since the last seed (a re-opened earlier section), reseed
+    // additively in the background. No prompt, no reseed button — ever.
+    const tagHash = JSON.stringify([
+      (d.chosen_revision.why_better_tags || []).slice().sort(),
+      (d.rejected_critique.error_tags || []).slice().sort(),
+    ]);
+    if (!d.rubricSeeded) {
+      d.rubricSeedHash = tagHash;
+      saveDraft();
+      seedRubric(false);
+    } else if (d.rubricSeedHash !== tagHash) {
+      d.rubricSeedHash = tagHash;
+      saveDraft();
+      seedRubric(true);
+    }
+
+    const crits = d.rubric;
+    const cursor = Math.max(0, Math.min(d.rubricCursor || 0, crits.length));
+
+    // 14.2: the physician's revised answer, pinned + collapsible, so scoring
+    // never requires scrolling back up.
+    const refText = d.verdict === 'both_inadequate'
+      ? (d.from_scratch.ideal_answer || '')
+      : chosenRefinedText();
+    const pinned = h('details', { class: 'asc-rubric-pin', open: '' },
+      h('summary', {}, 'Your revised answer — reference'),
+      h('div', { class: 'asc-rubric-pin-body' }, refText));
+
+    const body = h('div', { id: 'ascRubricWizard' });
+    if (!d.rubricSeeded && !crits.length) {
+      body.appendChild(h('p', { class: 'asc-help' }, 'Drafting starting criteria from your tags…'));
+    } else if (cursor < crits.length) {
+      body.appendChild(renderRubricCriterionCard(crits, cursor));
+    } else {
+      body.appendChild(renderRubricFinishCard(crits));
+    }
+
+    return sectionCard('rubric',
+      infoDot('Build the scoring guide', [
+        'Weights: must-have / important / nice-to-have map to high / medium / low points; a “must-never” auto-fails the answer.',
+        'Confirm or edit each drafted criterion, then add your own if something is missing.',
+      ]),
+      // 14.1: layman's description — no numeric tiers in the primary copy.
+      h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
+        'List what a correct answer must get right and what it must never do. Each item is weighted by how much it matters. Name at least one “must-never”: the single thing that makes an answer wrong no matter what.'),
+      pinned,
+      body);
+  }
+
+  // 14.3: one focused criterion card — sentence, type, weight, axis, cite.
+  function renderRubricCriterionCard(crits, i) {
+    const d = state.draft;
+    const c = crits[i];
+    const card = h('div', { class: 'asc-rubric-focus' });
+    card.appendChild(h('div', { class: 'asc-rubric-progress' },
+      'Criterion ' + (i + 1) + ' of ' + crits.length));
+
+    const ta = autoGrow(h('textarea', {
+      class: 'asc-textarea asc-rubric-ta', rows: '2',
+      placeholder: 'e.g. accounts for the still-congested state (JVP 12, 3+ edema, weight barely down)',
+    }, c.text || ''));
+    const specChip = h('span', { class: 'asc-rubric-spec' });
+    const paintSpec = () => {
+      const sp = isSpecificText(c.text);
+      c.specific = sp;
+      const keyTier = tierForPoints(c.points) !== 'helpful';
+      specChip.textContent = sp ? 'specific' : 'vague';
+      specChip.className = 'asc-rubric-spec ' + (sp ? 'ok' : (keyTier ? 'warn' : 'soft'));
+      specChip.title = sp
+        ? 'Machine-checkable — names a concrete fact/drug/dose/threshold.'
+        : 'Name the specific fact, drug, dose, or threshold so the grader can check it.';
+    };
+    ta.addEventListener('input', () => { c.text = ta.value; paintSpec(); saveDraft(); updateSubmitState(); });
+
+    const signRow = h('div', { class: 'asc-sev-pills' });
+    const tierRow = h('div', { class: 'asc-rubric-tier-row' });
+    const ptsLabel = h('span', { class: 'asc-rubric-pts' });
+    const slider = h('input', { type: 'range', min: '1', max: '10', step: '1', style: 'width:120px' });
+    const autoFail = h('span', {
+      class: 'asc-badge asc-badge-amber', hidden: true,
+      title: 'A “must-never” — the grader hard-fails an answer that does this.',
+    }, 'auto-fail ✓');
+
+    const mag = () => Math.max(1, Math.abs(Number(c.points) || 5));
+    const neg = () => (Number(c.points) || 0) < 0;
+    function paintAll() {
+      slider.value = String(mag());
+      ptsLabel.textContent = (neg() ? '−' : '+') + mag();
+      ptsLabel.className = 'asc-rubric-pts ' + (neg() ? 'neg' : 'pos');
+      Array.from(signRow.children).forEach((b) => b.classList.toggle('active', (b.dataset.sign === 'neg') === neg()));
+      Array.from(tierRow.children).forEach((b) => b.classList.toggle('active', b.dataset.tier === tierForPoints(c.points)));
+      autoFail.hidden = !(neg() && tierForPoints(c.points) === 'critical');
+      paintSpec();
+    }
+    const setPoints = (magnitude, negative) => {
+      c.points = (negative ? -1 : 1) * Math.max(1, Math.min(10, magnitude));
+      c.tier = tierForPoints(c.points);
+      c.critical = c.tier === 'critical';
+      paintAll();
+      saveDraft();
+      updateSubmitState();
+    };
+    [['pos', 'Must include ✓'], ['neg', 'Must never ✕']].forEach(([sign, label]) => {
+      signRow.appendChild(h('button', {
+        class: 'asc-sev-pill', type: 'button', dataset: { sign },
+        onClick: () => setPoints(mag(), sign === 'neg'),
+      }, label));
+    });
+    TIER_CHOICES.forEach(([tier, label, expl]) => {
+      tierRow.appendChild(h('button', {
+        class: 'asc-rubric-tier-btn', type: 'button', dataset: { tier }, title: expl,
+        onClick: () => setPoints(TIER_DEFAULT_PTS[tier], neg()),
+      },
+        h('span', { class: 'asc-rubric-tier-name' }, label),
+        h('span', { class: 'asc-rubric-tier-expl' }, expl)));
+    });
+    slider.addEventListener('input', () => setPoints(parseInt(slider.value, 10) || 1, neg()));
+
+    const axes = (state.taxonomy.rubric_axes
+      || ['accuracy', 'completeness', 'safety', 'reasoning', 'grounding', 'communication']);
+    const axisRow = h('div', { class: 'asc-sev-pills asc-axis-row' });
+    axes.forEach((ax) => {
+      axisRow.appendChild(h('button', {
+        class: 'asc-sev-pill' + ((c.axis || 'accuracy') === ax ? ' active' : ''), type: 'button',
+        onClick: (e) => {
+          c.axis = ax;
+          Array.from(axisRow.children).forEach((b) => b.classList.toggle('active', b === e.currentTarget));
+          saveDraft();
+        },
+      }, ax));
+    });
+
+    const citeArea = h('div', { class: 'asc-rubric-cite', hidden: 'hidden' });
+    const citeBtn = h('button', {
+      class: 'asc-btn-link', type: 'button',
+      onClick: () => {
+        if (!c.evidence_anchor) c.evidence_anchor = emptyAnchor();
+        if (citeArea.hasAttribute('hidden')) {
+          clear(citeArea);
+          citeArea.appendChild(renderAnchorBlock(c.evidence_anchor,
+            { label: 'citation for this criterion', required: false }));
+          citeArea.removeAttribute('hidden');
+        } else {
+          citeArea.setAttribute('hidden', '');
+        }
+      },
+    }, '+ cite (optional)');
+    const removeBtn = h('button', {
+      class: 'asc-btn-link', type: 'button', style: 'color:var(--asc-danger)',
+      onClick: () => { crits.splice(i, 1); saveDraft(); renderRationale(); },
+    }, 'remove this criterion');
+
+    const back = h('button', {
+      class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button', disabled: i === 0,
+      onClick: () => { d.rubricCursor = i - 1; saveDraft(); renderRationale(); },
+    }, '← Back');
+    const next = h('button', {
+      class: 'asc-btn asc-btn-primary', type: 'button',
+      onClick: () => { c.text = ta.value; d.rubricCursor = i + 1; saveDraft(); renderRationale(); },
+    }, 'Next →');
+
+    card.appendChild(h('div', { class: 'asc-field' },
+      h('label', { class: 'asc-label' }, 'A correct answer… ', specChip),
+      ta));
+    card.appendChild(h('div', { class: 'asc-field' },
+      h('label', { class: 'asc-label' }, 'Type'), signRow));
+    card.appendChild(h('div', { class: 'asc-field' },
+      h('label', { class: 'asc-label' }, 'How much does it matter? ',
+        infoDot('Weights', [
+          'Must-have / important / nice-to-have map to high / medium / low points.',
+          'A “must never” marked must-have is the auto-fail — the grader hard-fails on it.',
+        ])),
+      tierRow,
+      h('div', { style: 'display:flex;align-items:center;gap:10px;margin-top:8px' },
+        slider, ptsLabel, autoFail)));
+    card.appendChild(h('div', { class: 'asc-field' },
+      h('label', { class: 'asc-label' }, 'Which axis does it score? ',
+        infoDot('Axes', [
+          'Accuracy = facts right · completeness = nothing missing · safety = no harm · reasoning = sound logic.',
+          'Grounding = evidence-backed · communication = clear to the reader.',
+        ])),
+      axisRow));
+    card.appendChild(h('div', { style: 'display:flex;gap:14px;margin-top:4px' }, citeBtn, removeBtn));
+    card.appendChild(citeArea);
+    card.appendChild(h('div', { class: 'asc-substage-actions' }, back, next));
+    paintAll();
+    return card;
+  }
+
+  // The final wizard card: recap + "Add your own (optional)" + Save & finish.
+  function renderRubricFinishCard(crits) {
+    const d = state.draft;
+    const card = h('div', { class: 'asc-rubric-focus' });
+    const named = crits.filter((c) => (c.text || '').trim());
+    card.appendChild(h('div', { class: 'asc-rubric-progress' },
+      named.length ? (named.length + ' criteria in the guide') : 'No criteria yet'));
+    if (named.length) {
+      const ul = h('ul', { class: 'asc-rubric-recap' });
+      named.forEach((c) => {
+        const pos = (c.points || 0) >= 0;
+        ul.appendChild(h('li', {},
+          h('span', { class: 'asc-rubric-pts ' + (pos ? 'pos' : 'neg') }, (pos ? '+' : '') + (c.points || 0)),
+          h('span', { class: 'asc-rubric-recap-text' }, c.text),
+          h('button', {
+            class: 'asc-btn-link', type: 'button',
+            onClick: () => { d.rubricCursor = crits.indexOf(c); saveDraft(); renderRationale(); },
+          }, 'edit')));
+      });
+      card.appendChild(ul);
+      const rc = rubricCompleteness(d.rubric);
+      card.appendChild(h('div', { class: 'asc-rubric-meter-row' },
+        h('span', { class: 'asc-rubric-premium ' + (rc.premium ? 'premium' : 'standard') },
+          rc.premium ? 'premium' : 'standard'),
+        h('span', { class: 'asc-label-hint' }, rc.premium
+          ? (rc.n_criteria + ' criteria · ' + rc.n_axes + ' axes — meets the premium bar')
+          : ('to reach premium: ' + rc.missing.join('; ')))));
+    } else {
+      card.appendChild(h('p', { class: 'asc-help' },
+        'Add your own criteria below, or finish without a scoring guide.'));
+    }
+    const addBtn = h('button', {
+      class: 'asc-btn asc-btn-subtle', type: 'button',
+      onClick: () => {
+        d.rubric.push({ text: '', points: 5, axis: 'accuracy', source: 'manual' });
+        d.rubricCursor = d.rubric.length - 1;
+        saveDraft(); renderRationale();
+      },
+    }, '+ Add your own (optional)');
+    const hint = h('span', { class: 'asc-submit-hint' });
+    const gate = rubricGate();
+    if (!gate.ok) hint.textContent = gate.msg;
+    const finish = h('button', {
+      class: 'asc-btn asc-btn-primary', type: 'button', disabled: !gate.ok,
+      onClick: () => {
+        if (!rubricGate().ok) return;
+        d.rubric_done = true;
+        state._reopenedSubstage = null;
+        refreshStagedFlow();
+      },
+    }, 'Save & finish →');
+    const back = h('button', {
+      class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button', disabled: !crits.length,
+      onClick: () => { d.rubricCursor = Math.max(0, crits.length - 1); saveDraft(); renderRationale(); },
+    }, '← Back');
+    card.appendChild(h('div', { style: 'margin-top:10px' }, addBtn));
+    card.appendChild(h('div', { class: 'asc-substage-actions' }, back, hint, finish));
+    return card;
+  }
+
+  // 14.5: seeding is SILENT and automatic — invoked on rubric mount and again
+  // (additively) whenever the doctor's tags change. Never prompts, never asks.
   async function seedRubric(force) {
     const d = state.draft;
     if (d.rubricSeeded && !force) return;
@@ -1913,7 +3102,7 @@
     try {
       const res = await api('/rubric/suggest', { method: 'POST', body: buildSubmissionPayload() });
       const seeded = (res && res.criteria) || [];
-      if (!seeded.length) { paintRubricList(); return; }
+      if (!seeded.length) { repaintRubricUI(); return; }
       if (force) {
         // Re-seed: append only criteria not already present (by text).
         const have = new Set(d.rubric.map((c) => (c.text || '').trim().toLowerCase()));
@@ -1922,10 +3111,15 @@
         d.rubric = seeded;
       }
       saveDraft();
-      // Repaint the LIVE list (resilient if the card was rebuilt during the await).
-      paintRubricList();
+      // Repaint the LIVE wizard (resilient if the section was rebuilt mid-seed;
+      // never repaints over the doctor's typing).
+      repaintRubricUI();
       updateSubmitState();
-    } catch (e) { /* seeding is a convenience — never surface an error */ }
+    } catch (e) {
+      // Seeding is a convenience — never surface an error. Still repaint so the
+      // "drafting criteria…" placeholder resolves to the empty wizard.
+      repaintRubricUI();
+    }
   }
 
   function chosenText() {
@@ -2274,6 +3468,9 @@
       original_text: original !== undefined ? original : (text || ''),
       corrected: false, confirmed: false, added: false,
       correction_reason: null,
+      // §13 (V3/V4): the free-text "what's off with this step?" — the backend
+      // derives step_error_tag (and the correction_reason vocab) from it.
+      step_note: '',
       label: null, step_reward: null, critique: '', evidence_anchor: emptyAnchor(),
       // Pre-grade suggestion (Speed Optimization §2) — a hint, never the label.
       suggested_label: (suggested && suggested.suggested_label) || null,
@@ -2320,6 +3517,7 @@
     state.splitting = true;
     const list = document.getElementById(listId);
     if (list) { clear(list); list.appendChild(h('p', { class: 'asc-help' }, 'Splitting the chosen answer into steps…')); }
+    if (isV3()) syncStepsCont(); // §13: Continue stays locked while splitting
     try {
       // Assisted flows (V2 + V3) pre-grade each step (suggested good/bad); V1
       // (classic) just splits. In V3 this only runs post-verdict (editing the
@@ -2342,7 +3540,14 @@
         saveDraft();
       }
     } catch (e) { /* graceful: leave steps for manual entry */ }
-    finally { state.splitting = false; renderStepsList(listId); updateSubmitState(); }
+    finally { state.splitting = false; repaintSteps(listId); updateSubmitState(); }
+  }
+
+  // Route step-list repaints to the version-appropriate renderer: V3/V4 use the
+  // single-open accordion (§13); V1/V2 keep the classic list.
+  function repaintSteps(listId) {
+    if (isV3()) renderStepsListV3(listId);
+    else renderStepsList(listId);
   }
 
   function renderStepsCard(forBoth) {
@@ -2588,13 +3793,36 @@
     if (!isV3()) return null;
     const wrap = h('div', { class: 'asc-cite-suggest' });
     let lastQuery = null, dismissed = false;
+    // §11: a clean list — opening the source IS the action (the citation is
+    // recorded as entry_method:'opened'); no separate Confirm step. An entry
+    // with no verified link renders reference-only (no Open source button —
+    // never a constructed/guessed URL), citable via a subtle "Cite".
+    const applyCite = (s, method) => {
+      anchor.citation_text = (s.snippet || s.title || s.identifier || '').trim();
+      // Only accept a source_type the validator recognizes; otherwise leave
+      // it blank so the doctor completes it (never a false "grounded").
+      const types = (state.taxonomy && state.taxonomy.evidence_source_types) || [];
+      anchor.source_type = types.indexOf(s.source_type) !== -1 ? s.source_type : '';
+      anchor.identifier = (s.identifier || s.title || '').trim();
+      anchor.url = s.url || '';
+      anchor.citation_confirmed = true;
+      anchor.entry_method = method;
+      saveDraft();
+      // Toast the TRUTH: only claim grounded when the anchor actually
+      // validates (else cleanAnchor would strip it on submit / block a
+      // grounding=required task — the misleading-success case).
+      if (isValidAnchor(anchor)) toast('Citation attached — this record is now grounded.', 'success');
+      else toast('Citation attached — finish the source fields below to ground it.', 'info');
+      if (onConfirm) onConfirm();
+    };
     const renderChips = (suggestions) => {
       clear(wrap);
       if (!suggestions.length) return;
       wrap.appendChild(h('div', { class: 'asc-cite-head' },
-        h('span', { class: 'asc-cite-title' }, 'Suggested source' + (suggestions.length > 1 ? 's' : '') + ' — tap to review, confirm to cite'),
+        h('span', { class: 'asc-cite-title' }, 'Suggested source' + (suggestions.length > 1 ? 's' : '') + ' — open one to check it; opening attaches it'),
         h('button', { class: 'asc-btn-link', type: 'button', onClick: () => { dismissed = true; clear(wrap); } }, 'dismiss')));
       suggestions.slice(0, 3).forEach((s) => {
+        const hasUrl = !!(s.url && /^https?:\/\//i.test(s.url));
         const snippet = h('div', { class: 'asc-cite-snippet' }, s.snippet || '');
         snippet.setAttribute('hidden', '');
         const chip = h('div', { class: 'asc-cite-chip' },
@@ -2602,26 +3830,19 @@
             onClick: () => { if (snippet.hasAttribute('hidden')) snippet.removeAttribute('hidden'); else snippet.setAttribute('hidden', ''); } },
             h('strong', {}, s.identifier || s.title || 'Source'),
             s.section ? h('span', { class: 'asc-cite-sec' }, ' · ' + s.section) : null),
-          // Click through to ground truth in one tap (BUG-3a).
-          s.url ? h('a', { class: 'asc-cite-link', href: s.url, target: '_blank', rel: 'noopener noreferrer', style: 'margin:0 8px' }, 'Open source ↗') : null,
-          h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
-            onClick: () => {
-              anchor.citation_text = (s.snippet || s.title || s.identifier || '').trim();
-              // Only accept a source_type the validator recognizes; otherwise leave
-              // it blank so the doctor completes it (never a false "grounded").
-              const types = (state.taxonomy && state.taxonomy.evidence_source_types) || [];
-              anchor.source_type = types.indexOf(s.source_type) !== -1 ? s.source_type : '';
-              anchor.identifier = (s.identifier || s.title || '').trim();
-              anchor.url = s.url || '';
-              anchor.citation_confirmed = true;
-              saveDraft();
-              // Toast the TRUTH: only claim grounded when the anchor actually
-              // validates (else cleanAnchor would strip it on submit / block a
-              // grounding=required task — the misleading-success case).
-              if (isValidAnchor(anchor)) toast('Citation added — this record is now grounded.', 'success');
-              else toast('Citation added — finish the source fields below to ground it.', 'info');
-              if (onConfirm) onConfirm();
-            } }, '✓ Confirm'));
+          hasUrl
+            // The ONE action: opens the entry's canonical link (never a guessed
+            // URL) in a new tab AND records the citation.
+            ? h('a', {
+                class: 'asc-btn asc-btn-subtle asc-btn-sm', href: s.url,
+                target: '_blank', rel: 'noopener noreferrer',
+                onClick: () => applyCite(s, 'opened'),
+              }, 'Open source ↗')
+            // Reference-only: no link to mislead with; still citable.
+            : h('span', { style: 'display:inline-flex;align-items:center;gap:8px' },
+                h('span', { class: 'asc-label-hint' }, 'reference only'),
+                h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+                  onClick: () => applyCite(s, 'typeahead') }, 'Cite')));
         wrap.appendChild(chip);
         wrap.appendChild(snippet);
       });
@@ -2706,15 +3927,26 @@
       onClick: () => { anchor._extra.push(emptyAnchor()); saveDraft(); renderExtra(); updateSubmitState(); } }, '+ Add another citation'));
 
     const status = h('span', { class: 'asc-anchor-valid' });
+    // §11: in the V3/V4 citations section the affordance is a REAL button (not a
+    // tiny text link) with an explainer info-dot; elsewhere the compact
+    // disclosure toggle is unchanged.
     const toggle = h('button', {
-      class: 'asc-disclosure-toggle', type: 'button',
+      class: opts.prominent ? 'asc-btn asc-btn-subtle asc-add-cite' : 'asc-disclosure-toggle',
+      type: 'button',
       onClick: () => {
         if (body.hasAttribute('hidden')) body.removeAttribute('hidden');
         else body.setAttribute('hidden', '');
       },
     }, required ? 'Citation (required)' : '+ add citation', status);
 
-    const block = h('div', { class: 'asc-disclosure' }, toggle, body);
+    const head = opts.prominent
+      ? h('div', { class: 'asc-add-cite-row' }, toggle,
+          infoDot('Citations', [
+            'Cite the guideline or trial your judgment rests on.',
+            'Search the library, open the source to check it, then it’s attached.',
+          ]))
+      : toggle;
+    const block = h('div', { class: 'asc-disclosure' }, head, body);
     block._status = status;
     // Rebuild the primary fields when the library search fills the anchor, so the
     // inputs + the "Open source ↗" link reflect the picked source immediately.
@@ -2767,14 +3999,22 @@
   function anchorFields(anchor) {
     const types = (state.taxonomy.evidence_source_types || ['guideline', 'primary_literature', 'expert_consensus', 'other']);
     const citation = h('input', { class: 'asc-input', placeholder: 'e.g. KDIGO 2024 Guideline §3.2', value: anchor.citation_text || '' });
-    citation.addEventListener('input', () => { anchor.citation_text = citation.value; saveDraft(); updateSubmitState(); });
+    citation.addEventListener('input', () => {
+      anchor.citation_text = citation.value;
+      if (!anchor.entry_method) anchor.entry_method = 'manual';
+      saveDraft(); updateSubmitState();
+    });
     const sourceSel = h('select', { class: 'asc-select' },
       h('option', { value: '' }, 'Source type…'),
       ...types.map((t) => h('option', { value: t, selected: anchor.source_type === t ? 'selected' : null }, t.replace(/_/g, ' '))));
     sourceSel.value = anchor.source_type || '';
     sourceSel.addEventListener('change', () => { anchor.source_type = sourceSel.value; saveDraft(); updateSubmitState(); });
     const identifier = h('input', { class: 'asc-input', placeholder: 'Identifier — PMID:…, DOI:…, KDIGO 2024', value: anchor.identifier || '' });
-    identifier.addEventListener('input', () => { anchor.identifier = identifier.value; saveDraft(); updateSubmitState(); });
+    identifier.addEventListener('input', () => {
+      anchor.identifier = identifier.value;
+      if (!anchor.entry_method) anchor.entry_method = 'manual';
+      saveDraft(); updateSubmitState();
+    });
     // Paste-your-own URL (BUG-3c escape hatch): a link the doctor pastes rides the
     // anchor + is clickable. Pasting a URL with no source type defaults to "other".
     const openLink = openSourceLink(anchor);
@@ -2790,6 +4030,7 @@
         if (!anchor.source_type) { anchor.source_type = 'other'; sourceSel.value = 'other'; }
         if (!(anchor.identifier || '').trim()) { anchor.identifier = anchor.url; identifier.value = anchor.url; }
         if (!(anchor.citation_text || '').trim()) { anchor.citation_text = anchor.url; citation.value = anchor.url; }
+        if (!anchor.entry_method) anchor.entry_method = 'manual';
       }
       openLink._sync(); saveDraft(); updateSubmitState();
     });
@@ -2830,6 +4071,7 @@
                 anchor.identifier = (s.identifier || s.title || '').trim();
                 anchor.url = s.url || '';
                 anchor.citation_confirmed = true;
+                anchor.entry_method = 'typeahead';
                 saveDraft();
                 box.setAttribute('hidden', '');
                 if (onPick) onPick();
@@ -2931,6 +4173,8 @@
         const fg = failureTagGate();
         if (!rg.ok) { ok = false; msg = rg.msg; }
         else if (!fg.ok) { ok = false; msg = fg.msg; }
+        // §15 (V3/V4): confidence is an active choice, never the draft default.
+        else if (isV3() && !d.confidence_set) { ok = false; msg = 'pick your confidence to submit'; }
       }
     }
     btn.disabled = !ok || state.submitting;
@@ -2970,6 +4214,7 @@
     if (!rubricGate().ok) { updateSubmitState(); return; }
     if (!failureTagGate().ok) { updateSubmitState(); return; }
     state.submitting = true;
+    updateHeaderProgress(); // §16: the bar reads 100% while the submit runs
     const btn = document.getElementById('ascSubmit');
     const hint = document.getElementById('ascSubmitHint');
     if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
@@ -3058,6 +4303,9 @@
     // (Seamless PRD WS3) so the record distinguishes a confirmed source.
     if ((a.url || '').trim()) out.url = a.url.trim();
     if (a.citation_confirmed) out.citation_confirmed = true;
+    // §11: how the citation was captured — 'opened' (clicked through to the
+    // source), 'typeahead' (picked from the library), 'manual' (hand-typed).
+    if (a.entry_method) out.entry_method = a.entry_method;
     return out;
   }
   function cleanSteps(steps) {
@@ -3069,6 +4317,9 @@
       confirmed: !!s.confirmed,
       added: !!s.added,
       correction_reason: s.correction_reason || null,
+      // §13: the free-text "what's off" — the server derives step_error_tag
+      // (and a correction_reason) from it. Additive; null when untouched.
+      step_note: (s.step_note || '').trim() || null,
       label: s.label || null,
       step_reward: s.step_reward != null ? s.step_reward : null,
       critique: (s.critique || '').trim() || null,
@@ -3196,6 +4447,7 @@
   // ═══════════════════════════════════════════════════════════════════════════
   function renderAdminView() {
     stopTimer();
+    updateHeaderProgress(); // admin view — the §16 bar hides here
     const tabs = [
       ['tasks', 'Tasks'],
       ['qa', 'QA'],
