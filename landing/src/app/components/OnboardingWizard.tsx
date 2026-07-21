@@ -667,15 +667,15 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     if (loading) {
       return (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "120px 0" }}>
-          <p style={{ color: "rgba(245,245,247,0.62)", fontSize: 14 }}>Loading onboarding…</p>
+          <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>Loading onboarding…</p>
         </div>
       );
     }
     if (bootError) {
       return (
         <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center" }}>
-          <h2 style={{ color: "#F5F5F7", marginBottom: 12 }}>This onboarding link can&apos;t be loaded.</h2>
-          <p style={{ color: "rgba(245,245,247,0.62)", fontSize: 14 }}>{bootError}</p>
+          <h2 style={{ color: "var(--ink)", marginBottom: 12 }}>This onboarding link can&apos;t be loaded.</h2>
+          <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>{bootError}</p>
         </div>
       );
     }

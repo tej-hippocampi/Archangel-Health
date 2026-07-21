@@ -274,11 +274,11 @@ export function Step2Verify({
       lede={
         sent ? (
           <>
-            We sent a 6‑digit code to <span style={{ color: "#67E8F9" }}>{data.email}</span>. Enter it below.
+            We sent a 6‑digit code to <span style={{ color: "var(--ah-green-deep)" }}>{data.email}</span>. Enter it below.
           </>
         ) : (
           <>
-            We&apos;ll send a one‑time code to <span style={{ color: "#67E8F9" }}>{data.email}</span> to confirm it&apos;s yours.
+            We&apos;ll send a one‑time code to <span style={{ color: "var(--ah-green-deep)" }}>{data.email}</span> to confirm it&apos;s yours.
           </>
         )
       }
@@ -312,7 +312,7 @@ export function Step2Verify({
               display: "flex",
               justifyContent: "space-between",
               fontSize: 12,
-              color: "rgba(245,245,247,0.5)",
+              color: "var(--ink-faint)",
               marginBottom: 22,
             }}
           >
@@ -324,7 +324,7 @@ export function Step2Verify({
               style={{
                 background: "transparent",
                 border: "none",
-                color: resendIn > 0 ? "rgba(245,245,247,0.32)" : "#67E8F9",
+                color: resendIn > 0 ? "var(--ink-faint)" : "var(--ah-green-deep)",
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: resendIn > 0 ? "default" : "pointer",
@@ -405,8 +405,8 @@ export function Step3Org({
       />
       <div
         style={{
-          background: "rgba(103,232,249,0.06)",
-          border: "1px solid rgba(103,232,249,0.18)",
+          background: "var(--ah-green-wash)",
+          border: "1px solid var(--ah-green-line)",
           borderRadius: 12,
           padding: "14px 16px",
           display: "flex",
@@ -420,19 +420,19 @@ export function Step3Org({
             width: 32,
             height: 32,
             borderRadius: 9,
-            background: "rgba(103,232,249,0.14)",
+            background: "var(--ah-green-wash)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#67E8F9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ah-green-deep)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 7L9 18l-5-5" />
           </svg>
         </div>
-        <div style={{ fontSize: 13, color: "rgba(245,245,247,0.78)", lineHeight: 1.5 }}>
-          Your role: <strong style={{ color: "#F5F5F7" }}>Director of TEAM Initiative</strong> — assigned automatically as the onboarding owner.
+        <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5 }}>
+          Your role: <strong style={{ color: "var(--ink)" }}>Director of TEAM Initiative</strong> — assigned automatically as the onboarding owner.
         </div>
       </div>
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
@@ -532,13 +532,13 @@ export function Step4YourTeam({
       {/* Director card — distinguished */}
       <div
         style={{
-          background: "linear-gradient(135deg, rgba(38,99,235,0.12) 0%, rgba(103,232,249,0.06) 100%)",
-          border: "1px solid rgba(103,232,249,0.25)",
+          background: "var(--card)",
+          border: "1px solid var(--ah-green-line)",
           borderRadius: 14,
           padding: "20px 22px",
           marginBottom: 22,
           position: "relative",
-          boxShadow: "0 0 0 1px rgba(103,232,249,0.04), 0 8px 32px rgba(38,99,235,0.10)",
+          boxShadow: "var(--shadow-card)",
         }}
       >
         <div
@@ -546,13 +546,14 @@ export function Step4YourTeam({
             position: "absolute",
             top: -10,
             left: 22,
-            background: "#0B0C12",
+            background: "var(--card)",
             padding: "0 10px",
             fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.18em",
+            fontWeight: 400,
+            letterSpacing: "0.08em",
             textTransform: "uppercase",
-            color: "#67E8F9",
+            fontFamily: "var(--mono)",
+            color: "var(--ah-green-deep)",
           }}
         >
           Director of TEAM Initiative
@@ -563,11 +564,11 @@ export function Step4YourTeam({
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
               <h3
                 style={{
-                  fontFamily: "'Fraunces', 'Iowan Old Style', 'Charter', Georgia, serif",
+                  fontFamily: "var(--sans)",
                   fontSize: 20,
                   fontWeight: 500,
                   letterSpacing: "-0.01em",
-                  color: "#F5F5F7",
+                  color: "var(--ink)",
                   margin: 0,
                 }}
               >
@@ -578,7 +579,7 @@ export function Step4YourTeam({
             <div
               style={{
                 fontSize: 13,
-                color: "rgba(245,245,247,0.62)",
+                color: "var(--ink-soft)",
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
@@ -586,9 +587,9 @@ export function Step4YourTeam({
               }}
             >
               <span>{data.email}</span>
-              <span style={{ width: 3, height: 3, borderRadius: "50%", background: "rgba(245,245,247,0.3)" }} />
+              <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
               <span>{data.orgName || "—"}</span>
-              <span style={{ width: 3, height: 3, borderRadius: "50%", background: "rgba(245,245,247,0.3)" }} />
+              <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
               <span>{data.department || "—"}</span>
             </div>
           </div>
@@ -601,24 +602,25 @@ export function Step4YourTeam({
           <div
             style={{
               fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.14em",
+              fontWeight: 400,
+              letterSpacing: "0.08em",
               textTransform: "uppercase",
-              color: "rgba(245,245,247,0.5)",
+              fontFamily: "var(--mono)",
+              color: "var(--ink-faint)",
               marginBottom: 4,
             }}
           >
             Team members
           </div>
-          <div style={{ fontSize: 13, color: "rgba(245,245,247,0.55)" }}>
+          <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>
             {teamFull ? (
               <>
-                <span style={{ color: "#67E8F9", fontWeight: 600 }}>Team is complete.</span>{" "}
+                <span style={{ color: "var(--ah-green-deep)", fontWeight: 600 }}>Team is complete.</span>{" "}
                 Pod has 4 / 4 — director (surgeon), {rnCount} RN, {nppaCount} NP / PA.
               </>
             ) : (
               <>
-                Team: <strong style={{ color: "#F5F5F7" }}>{totalCount} / {TEAM_CAP_TOTAL}</strong>
+                Team: <strong style={{ color: "var(--ink)" }}>{totalCount} / {TEAM_CAP_TOTAL}</strong>
                 {totalCount === 1 ? " — director (surgeon)" : ""}
               </>
             )}
@@ -634,9 +636,9 @@ export function Step4YourTeam({
               gap: 8,
               padding: "9px 14px",
               borderRadius: 9999,
-              background: "rgba(103,232,249,0.10)",
-              border: "1px solid rgba(103,232,249,0.32)",
-              color: "#67E8F9",
+              background: "var(--ah-green-wash)",
+              border: "1px solid var(--ah-green-line)",
+              color: "var(--ah-green-deep)",
               fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
@@ -656,15 +658,15 @@ export function Step4YourTeam({
         {members.length === 0 && !showAdd && (
           <div
             style={{
-              border: "1px dashed rgba(255,255,255,0.10)",
+              border: "1px dashed var(--hairline-strong)",
               borderRadius: 12,
               padding: "28px 20px",
               textAlign: "center",
-              color: "rgba(245,245,247,0.42)",
+              color: "var(--ink-faint)",
               fontSize: 13,
             }}
           >
-            Click <strong style={{ color: "#67E8F9" }}>Add member</strong> to invite the surgeons and care coordinators on your TEAM.
+            Click <strong style={{ color: "var(--ah-green-deep)" }}>Add member</strong> to invite the surgeons and care coordinators on your TEAM.
           </div>
         )}
         {members.map((m) => (
@@ -676,8 +678,8 @@ export function Step4YourTeam({
       {showAdd && (
         <div
           style={{
-            background: "rgba(15,17,24,0.55)",
-            border: "1px solid rgba(103,232,249,0.20)",
+            background: "var(--card-in)",
+            border: "1px solid var(--ah-green-line)",
             borderRadius: 14,
             padding: "20px 22px",
             marginBottom: 22,
@@ -685,14 +687,14 @@ export function Step4YourTeam({
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#F5F5F7" }}>Invite a team member</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>Invite a team member</div>
             <button
               type="button"
               onClick={() => setShowAdd(false)}
               style={{
                 background: "transparent",
                 border: "none",
-                color: "rgba(245,245,247,0.5)",
+                color: "var(--ink-faint)",
                 fontSize: 18,
                 cursor: "pointer",
                 lineHeight: 1,
@@ -742,7 +744,7 @@ export function Step4YourTeam({
         </div>
       )}
 
-      <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "8px 0 22px" }} />
+      <div style={{ height: 1, background: "var(--hairline)", margin: "8px 0 22px" }} />
       <PrimaryButton fullWidth onClick={onNext} loadingLabel="Finishing setup…" successLabel="Workspace ready ✓">
         {members.length === 0
           ? "Skip for now & continue"
@@ -767,8 +769,8 @@ function MemberRow({ member, onRemove }: { member: Member; onRemove: () => void 
         gap: 14,
         padding: "14px 18px",
         borderRadius: 12,
-        background: hover ? "rgba(255,255,255,0.04)" : "rgba(15,17,24,0.45)",
-        border: "1px solid " + (hover ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.07)"),
+        background: hover ? "var(--card-in)" : "var(--card-in)",
+        border: "1px solid " + (hover ? "var(--hairline-strong)" : "var(--hairline)"),
         transition: "all 200ms cubic-bezier(0.16, 1, 0.3, 1)",
         animation: "ah-onb-fade-up 320ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
@@ -776,12 +778,12 @@ function MemberRow({ member, onRemove }: { member: Member; onRemove: () => void 
       <Avatar name={`${member.firstName} ${member.lastName}`} size={42} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 15, fontWeight: 500, color: "#F5F5F7" }}>
+          <span style={{ fontSize: 15, fontWeight: 500, color: "var(--ink)" }}>
             {member.firstName} {member.lastName}
           </span>
           <RolePill role={member.role} />
         </div>
-        <div style={{ fontSize: 13, color: "rgba(245,245,247,0.55)", marginTop: 3 }}>{member.email}</div>
+        <div style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 3 }}>{member.email}</div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <StatusPill status={member.status} />
@@ -795,9 +797,9 @@ function MemberRow({ member, onRemove }: { member: Member; onRemove: () => void 
               width: 28,
               height: 28,
               borderRadius: 8,
-              background: "rgba(248,113,113,0.10)",
-              border: "1px solid rgba(248,113,113,0.32)",
-              color: "#FCA5A5",
+              background: "var(--ah-pink-wash)",
+              border: "1px solid var(--ah-pink-line)",
+              color: "var(--ah-pink-deep)",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
@@ -845,7 +847,7 @@ export function Step5SignIn({
       lede={
         <>
           Workspace:{" "}
-          <span style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", color: "#67E8F9" }}>
+          <span style={{ fontFamily: "var(--mono)", color: "var(--ah-green-deep)" }}>
             {workspaceSlug}
           </span>
         </>
@@ -882,7 +884,7 @@ export function Step5SignIn({
       <div style={{ textAlign: "center", marginTop: 16 }}>
         <a
           href={`/t/${encodeURIComponent(workspaceSlug)}/sign-in`}
-          style={{ fontSize: 13, color: "rgba(245,245,247,0.55)", textDecoration: "none" }}
+          style={{ fontSize: 13, color: "var(--ink-soft)", textDecoration: "none" }}
         >
           Forgot password?
         </a>
@@ -914,7 +916,7 @@ export function Step6Success({
           height: 76,
           borderRadius: "50%",
           margin: "0 auto 28px",
-          background: "radial-gradient(circle, rgba(103,232,249,0.30) 0%, rgba(103,232,249,0) 70%)",
+          background: "radial-gradient(circle, var(--ah-green-glow) 0%, transparent 70%)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -925,14 +927,14 @@ export function Step6Success({
             width: 56,
             height: 56,
             borderRadius: "50%",
-            background: "linear-gradient(135deg, #67E8F9 0%, #2DD4BF 100%)",
+            background: "var(--green)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 0 30px rgba(103,232,249,0.45), 0 0 0 1px rgba(103,232,249,0.5)",
+            boxShadow: "none",
           }}
         >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#07070A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--card)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
@@ -952,18 +954,18 @@ export function Step6Success({
       <p
         style={{
           fontSize: 14,
-          color: "rgba(245,245,247,0.62)",
+          color: "var(--ink-soft)",
           textAlign: "center",
           lineHeight: 1.6,
           marginTop: 0,
           marginBottom: 26,
         }}
       >
-        We&apos;ve sent welcome credentials to <strong style={{ color: "#F5F5F7" }}>{data.email}</strong>
+        We&apos;ve sent welcome credentials to <strong style={{ color: "var(--ink)" }}>{data.email}</strong>
         {memberCount > 0 ? (
           <>
             {" "}and to{" "}
-            <strong style={{ color: "#F5F5F7" }}>
+            <strong style={{ color: "var(--ink)" }}>
               {memberCount} team member{memberCount !== 1 ? "s" : ""}
             </strong>
           </>
@@ -981,8 +983,8 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div
       style={{
-        background: "rgba(15,17,24,0.55)",
-        border: "1px solid rgba(255,255,255,0.07)",
+        background: "var(--card-in)",
+        border: "1px solid var(--hairline)",
         borderRadius: 12,
         padding: "14px 14px",
       }}
@@ -990,10 +992,11 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div
         style={{
           fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: "0.12em",
+          fontWeight: 400,
+          letterSpacing: "0.08em",
           textTransform: "uppercase",
-          color: "rgba(245,245,247,0.5)",
+          fontFamily: "var(--mono)",
+          color: "var(--ink-faint)",
           marginBottom: 6,
         }}
       >
@@ -1003,8 +1006,8 @@ function Stat({ label, value }: { label: string; value: string }) {
         style={{
           fontSize: 15,
           fontWeight: 500,
-          color: "#F5F5F7",
-          fontFamily: "'Fraunces', 'Iowan Old Style', 'Charter', Georgia, serif",
+          color: "var(--ink)",
+          fontFamily: "var(--sans)",
           letterSpacing: "-0.005em",
           lineHeight: 1.2,
           wordBreak: "break-word",
@@ -1028,15 +1031,16 @@ function SectionHeading({ title, sub }: { title: string; sub?: ReactNode }) {
       <div
         style={{
           fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: "0.14em",
+          fontWeight: 400,
+          letterSpacing: "0.08em",
           textTransform: "uppercase",
-          color: "rgba(245,245,247,0.6)",
+          fontFamily: "var(--mono)",
+          color: "var(--ink-soft)",
         }}
       >
         {title}
       </div>
-      {sub && <div style={{ fontSize: 12.5, color: "rgba(245,245,247,0.45)", marginTop: 5 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 5 }}>{sub}</div>}
     </div>
   );
 }
@@ -1054,8 +1058,8 @@ function RepeatableCard({
     <div
       style={{
         position: "relative",
-        background: "rgba(15,17,24,0.40)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        background: "var(--card-in)",
+        border: "1px solid var(--hairline)",
         borderRadius: 12,
         padding: "16px 16px 0",
         marginBottom: 12,
@@ -1074,9 +1078,9 @@ function RepeatableCard({
             width: 26,
             height: 26,
             borderRadius: 8,
-            background: "rgba(248,113,113,0.10)",
-            border: "1px solid rgba(248,113,113,0.30)",
-            color: "#FCA5A5",
+            background: "var(--ah-pink-wash)",
+            border: "1px solid var(--ah-pink-line)",
+            color: "var(--ah-pink-deep)",
             cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
@@ -1104,9 +1108,9 @@ function AddRowButton({ label, onClick }: { label: string; onClick: () => void }
         gap: 8,
         padding: "9px 14px",
         borderRadius: 9999,
-        background: "rgba(103,232,249,0.08)",
-        border: "1px dashed rgba(103,232,249,0.32)",
-        color: "#67E8F9",
+        background: "var(--ah-green-wash)",
+        border: "1px dashed var(--ah-green-line)",
+        color: "var(--ah-green-deep)",
         fontSize: 13,
         fontWeight: 600,
         cursor: "pointer",
@@ -1240,8 +1244,8 @@ export function Step4Institution({
       />
       <div
         style={{
-          background: "rgba(103,232,249,0.06)",
-          border: "1px solid rgba(103,232,249,0.18)",
+          background: "var(--ah-green-wash)",
+          border: "1px solid var(--ah-green-line)",
           borderRadius: 12,
           padding: "14px 16px",
           display: "flex",
@@ -1255,19 +1259,19 @@ export function Step4Institution({
             width: 32,
             height: 32,
             borderRadius: 9,
-            background: "rgba(103,232,249,0.14)",
+            background: "var(--ah-green-wash)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#67E8F9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ah-green-deep)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 7L9 18l-5-5" />
           </svg>
         </div>
-        <div style={{ fontSize: 13, color: "rgba(245,245,247,0.78)", lineHeight: 1.5 }}>
-          Your role: <strong style={{ color: "#F5F5F7" }}>Director of Data Training</strong> — you can label data and invite your clinical team.
+        <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5 }}>
+          Your role: <strong style={{ color: "var(--ink)" }}>Director of Data Training</strong> — you can label data and invite your clinical team.
         </div>
       </div>
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
@@ -1579,7 +1583,7 @@ export function Step5Credentials({
         suggestions={LANGUAGE_SUGGESTIONS}
       />
 
-      <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "8px 0 22px" }} />
+      <div style={{ height: 1, background: "var(--hairline)", margin: "8px 0 22px" }} />
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
         Continue
       </PrimaryButton>
@@ -1614,8 +1618,8 @@ function CheckRow({
         gap: 14,
         padding: "16px 18px",
         borderRadius: 12,
-        background: checked ? "rgba(103,232,249,0.06)" : "rgba(15,17,24,0.45)",
-        border: "1px solid " + (checked ? "rgba(103,232,249,0.32)" : "rgba(255,255,255,0.08)"),
+        background: checked ? "var(--ah-green-wash)" : "var(--card-in)",
+        border: "1px solid " + (checked ? "var(--ah-green-line)" : "var(--hairline)"),
         marginBottom: 12,
         cursor: "pointer",
         transition: "all 200ms cubic-bezier(0.16, 1, 0.3, 1)",
@@ -1628,24 +1632,24 @@ function CheckRow({
           width: 22,
           height: 22,
           borderRadius: 7,
-          border: "1.5px solid " + (checked ? "#67E8F9" : "rgba(255,255,255,0.25)"),
-          background: checked ? "#67E8F9" : "transparent",
+          border: "1.5px solid " + (checked ? "var(--green)" : "var(--hairline-strong)"),
+          background: checked ? "var(--green)" : "transparent",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
         {checked && (
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#07070A" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--card)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         )}
       </span>
       <span>
-        <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "#F5F5F7", marginBottom: 4 }}>
+        <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>
           {title}
         </span>
-        <span style={{ display: "block", fontSize: 13, lineHeight: 1.55, color: "rgba(245,245,247,0.6)" }}>
+        <span style={{ display: "block", fontSize: 13, lineHeight: 1.55, color: "var(--ink-soft)" }}>
           {body}
         </span>
       </span>
@@ -1725,10 +1729,10 @@ export function Step6Attestations({
           <div
             style={{
               flex: 1,
-              fontFamily: "'Fraunces', 'Iowan Old Style', 'Charter', Georgia, serif",
+              fontFamily: "var(--sans)",
               fontSize: 30,
-              color: initials ? "#67E8F9" : "rgba(245,245,247,0.25)",
-              borderBottom: "1px solid rgba(255,255,255,0.12)",
+              color: initials ? "var(--ah-green-deep)" : "var(--ink-faint)",
+              borderBottom: "1px solid var(--hairline-strong)",
               paddingBottom: 8,
               minHeight: 44,
               letterSpacing: "0.08em",
@@ -1737,12 +1741,12 @@ export function Step6Attestations({
             {initials || "—"}
           </div>
         </div>
-        <div style={{ fontSize: 12, color: "rgba(245,245,247,0.45)", marginTop: 8 }}>
+        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8 }}>
           Typing your initials constitutes your electronic signature on the attestations above.
         </div>
       </div>
 
-      <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "22px 0" }} />
+      <div style={{ height: 1, background: "var(--hairline)", margin: "22px 0" }} />
       <PrimaryButton
         fullWidth
         disabled={!valid}
@@ -1827,13 +1831,13 @@ export function Step7AsclepiusTeam({
       {/* Director card */}
       <div
         style={{
-          background: "linear-gradient(135deg, rgba(38,99,235,0.12) 0%, rgba(103,232,249,0.06) 100%)",
-          border: "1px solid rgba(103,232,249,0.25)",
+          background: "var(--card)",
+          border: "1px solid var(--ah-green-line)",
           borderRadius: 14,
           padding: "20px 22px",
           marginBottom: 22,
           position: "relative",
-          boxShadow: "0 0 0 1px rgba(103,232,249,0.04), 0 8px 32px rgba(38,99,235,0.10)",
+          boxShadow: "var(--shadow-card)",
         }}
       >
         <div
@@ -1841,13 +1845,14 @@ export function Step7AsclepiusTeam({
             position: "absolute",
             top: -10,
             left: 22,
-            background: "#0B0C12",
+            background: "var(--card)",
             padding: "0 10px",
             fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.18em",
+            fontWeight: 400,
+            letterSpacing: "0.08em",
             textTransform: "uppercase",
-            color: "#67E8F9",
+            fontFamily: "var(--mono)",
+            color: "var(--ah-green-deep)",
           }}
         >
           Director of Data Training
@@ -1858,11 +1863,11 @@ export function Step7AsclepiusTeam({
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
               <h3
                 style={{
-                  fontFamily: "'Fraunces', 'Iowan Old Style', 'Charter', Georgia, serif",
+                  fontFamily: "var(--sans)",
                   fontSize: 20,
                   fontWeight: 500,
                   letterSpacing: "-0.01em",
-                  color: "#F5F5F7",
+                  color: "var(--ink)",
                   margin: 0,
                 }}
               >
@@ -1873,7 +1878,7 @@ export function Step7AsclepiusTeam({
             <div
               style={{
                 fontSize: 13,
-                color: "rgba(245,245,247,0.62)",
+                color: "var(--ink-soft)",
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
@@ -1881,9 +1886,9 @@ export function Step7AsclepiusTeam({
               }}
             >
               <span>{data.email}</span>
-              <span style={{ width: 3, height: 3, borderRadius: "50%", background: "rgba(245,245,247,0.3)" }} />
+              <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
               <span>{data.orgName || "—"}</span>
-              <span style={{ width: 3, height: 3, borderRadius: "50%", background: "rgba(245,245,247,0.3)" }} />
+              <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
               <span>{data.specialty || "—"}</span>
             </div>
           </div>
@@ -1896,21 +1901,22 @@ export function Step7AsclepiusTeam({
           <div
             style={{
               fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.14em",
+              fontWeight: 400,
+              letterSpacing: "0.08em",
               textTransform: "uppercase",
-              color: "rgba(245,245,247,0.5)",
+              fontFamily: "var(--mono)",
+              color: "var(--ink-faint)",
               marginBottom: 4,
             }}
           >
             Team members
           </div>
-          <div style={{ fontSize: 13, color: "rgba(245,245,247,0.55)" }}>
+          <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>
             {teamFull ? (
-              <span style={{ color: "#67E8F9", fontWeight: 600 }}>Team is full (10 invited).</span>
+              <span style={{ color: "var(--ah-green-deep)", fontWeight: 600 }}>Team is full (10 invited).</span>
             ) : (
               <>
-                <strong style={{ color: "#F5F5F7" }}>{members.length}</strong> of {ASCLEPIUS_TEAM_CAP} invited
+                <strong style={{ color: "var(--ink)" }}>{members.length}</strong> of {ASCLEPIUS_TEAM_CAP} invited
               </>
             )}
           </div>
@@ -1925,9 +1931,9 @@ export function Step7AsclepiusTeam({
               gap: 8,
               padding: "9px 14px",
               borderRadius: 9999,
-              background: "rgba(103,232,249,0.10)",
-              border: "1px solid rgba(103,232,249,0.32)",
-              color: "#67E8F9",
+              background: "var(--ah-green-wash)",
+              border: "1px solid var(--ah-green-line)",
+              color: "var(--ah-green-deep)",
               fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
@@ -1947,15 +1953,15 @@ export function Step7AsclepiusTeam({
         {members.length === 0 && !showAdd && (
           <div
             style={{
-              border: "1px dashed rgba(255,255,255,0.10)",
+              border: "1px dashed var(--hairline-strong)",
               borderRadius: 12,
               padding: "28px 20px",
               textAlign: "center",
-              color: "rgba(245,245,247,0.42)",
+              color: "var(--ink-faint)",
               fontSize: 13,
             }}
           >
-            Click <strong style={{ color: "#67E8F9" }}>Add member</strong> to invite the clinicians on your team — or skip and add them later.
+            Click <strong style={{ color: "var(--ah-green-deep)" }}>Add member</strong> to invite the clinicians on your team — or skip and add them later.
           </div>
         )}
         {members.map((m) => (
@@ -1967,8 +1973,8 @@ export function Step7AsclepiusTeam({
       {showAdd && (
         <div
           style={{
-            background: "rgba(15,17,24,0.55)",
-            border: "1px solid rgba(103,232,249,0.20)",
+            background: "var(--card-in)",
+            border: "1px solid var(--ah-green-line)",
             borderRadius: 14,
             padding: "20px 22px",
             marginBottom: 22,
@@ -1976,14 +1982,14 @@ export function Step7AsclepiusTeam({
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#F5F5F7" }}>Invite a team member</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>Invite a team member</div>
             <button
               type="button"
               onClick={() => setShowAdd(false)}
               style={{
                 background: "transparent",
                 border: "none",
-                color: "rgba(245,245,247,0.5)",
+                color: "var(--ink-faint)",
                 fontSize: 18,
                 cursor: "pointer",
                 lineHeight: 1,
@@ -2033,7 +2039,7 @@ export function Step7AsclepiusTeam({
         </div>
       )}
 
-      <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "8px 0 22px" }} />
+      <div style={{ height: 1, background: "var(--hairline)", margin: "8px 0 22px" }} />
       <PrimaryButton fullWidth onClick={onNext} loadingLabel="Finishing setup…" successLabel="Workspace ready ✓">
         {members.length === 0 ? "Skip for now & finish" : `Finish with ${members.length} invited`}
       </PrimaryButton>
@@ -2062,8 +2068,8 @@ function AsclepiusMemberRow({
         gap: 14,
         padding: "14px 18px",
         borderRadius: 12,
-        background: hover ? "rgba(255,255,255,0.04)" : "rgba(15,17,24,0.45)",
-        border: "1px solid " + (hover ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.07)"),
+        background: hover ? "var(--card-in)" : "var(--card-in)",
+        border: "1px solid " + (hover ? "var(--hairline-strong)" : "var(--hairline)"),
         transition: "all 200ms cubic-bezier(0.16, 1, 0.3, 1)",
         animation: "ah-onb-fade-up 320ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
@@ -2071,12 +2077,12 @@ function AsclepiusMemberRow({
       <Avatar name={`${member.firstName} ${member.lastName}`} size={42} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 15, fontWeight: 500, color: "#F5F5F7" }}>
+          <span style={{ fontSize: 15, fontWeight: 500, color: "var(--ink)" }}>
             {member.firstName} {member.lastName}
           </span>
           <RolePill role={ASCLEPIUS_ROLE_LABELS[member.role]} />
         </div>
-        <div style={{ fontSize: 13, color: "rgba(245,245,247,0.55)", marginTop: 3 }}>{member.email}</div>
+        <div style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 3 }}>{member.email}</div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <StatusPill status={member.status} />
@@ -2090,9 +2096,9 @@ function AsclepiusMemberRow({
               width: 28,
               height: 28,
               borderRadius: 8,
-              background: "rgba(248,113,113,0.10)",
-              border: "1px solid rgba(248,113,113,0.32)",
-              color: "#FCA5A5",
+              background: "var(--ah-pink-wash)",
+              border: "1px solid var(--ah-pink-line)",
+              color: "var(--ah-pink-deep)",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
@@ -2129,17 +2135,27 @@ export function Step8AsclepiusSuccess({
           display: "flex",
           gap: 12,
           alignItems: "flex-start",
-          background: "rgba(251,191,36,0.08)",
-          border: "1px solid rgba(251,191,36,0.30)",
+          background: "var(--ah-lime-wash)",
+          border: "1px solid var(--ah-lime-line)",
           borderRadius: 12,
           padding: "14px 16px",
           marginBottom: 26,
         }}
       >
-        <span style={{ fontSize: 18, lineHeight: 1.3 }}>⭐</span>
-        <div style={{ fontSize: 13.5, lineHeight: 1.55, color: "rgba(245,245,247,0.82)" }}>
-          We just emailed <strong style={{ color: "#F5F5F7" }}>{data.email}</strong> your workspace
-          credentials. <strong style={{ color: "#FCD34D" }}>Please star that email</strong> — your
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: "var(--lime)",
+            flexShrink: 0,
+            marginTop: 6,
+          }}
+          aria-hidden="true"
+        />
+        <div style={{ fontSize: 13.5, lineHeight: 1.55, color: "var(--ink-soft)" }}>
+          We just emailed <strong style={{ color: "var(--ink)" }}>{data.email}</strong> your workspace
+          credentials. <strong style={{ color: "var(--ink)" }}>Please star that email</strong> — your
           email and password live there, and everything you need to contribute data lives in it.
         </div>
       </div>
@@ -2150,7 +2166,7 @@ export function Step8AsclepiusSuccess({
           height: 76,
           borderRadius: "50%",
           margin: "0 auto 28px",
-          background: "radial-gradient(circle, rgba(103,232,249,0.30) 0%, rgba(103,232,249,0) 70%)",
+          background: "radial-gradient(circle, var(--ah-green-glow) 0%, transparent 70%)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -2161,14 +2177,14 @@ export function Step8AsclepiusSuccess({
             width: 56,
             height: 56,
             borderRadius: "50%",
-            background: "linear-gradient(135deg, #67E8F9 0%, #2DD4BF 100%)",
+            background: "var(--green)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 0 30px rgba(103,232,249,0.45), 0 0 0 1px rgba(103,232,249,0.5)",
+            boxShadow: "none",
           }}
         >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#07070A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--card)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
@@ -2186,7 +2202,7 @@ export function Step8AsclepiusSuccess({
       <p
         style={{
           fontSize: 14,
-          color: "rgba(245,245,247,0.62)",
+          color: "var(--ink-soft)",
           textAlign: "center",
           lineHeight: 1.6,
           marginTop: 0,

@@ -1,12 +1,14 @@
 /**
- * Archangel Health — onboarding primitives.
+ * Archangel Health — onboarding primitives (console design system).
  *
- * 1:1 port of the design handoff prototype components
- * (see .tmp-flat/archangel/design_handoff_onboarding_flow/design_files/components.jsx)
- * into typed, idiomatic React.
+ * Light "console" treatment shared with the landing page and product
+ * surfaces: canvas/card neutrals, ink type, the four semantic accents
+ * (green = verified, orange = model, pink = flag, lime = highlight),
+ * IBM Plex Mono chrome labels for wayfinding.
  *
- * Each primitive is the smallest piece needed to assemble the 6 step screens
- * and the email-shell preview. They share no state with each other.
+ * Each primitive is the smallest piece needed to assemble the step screens.
+ * They share no state with each other. All colors reference the CSS custom
+ * properties declared on .ah-onb-root (OnboardingStyles.tsx) — no raw hex.
  */
 
 import {
@@ -22,53 +24,51 @@ import {
   type ReactNode,
 } from "react";
 
+/* Shared chrome-label style — the wayfinding primitive. */
+const CHROME: CSSProperties = {
+  fontFamily: "var(--mono)",
+  fontSize: 11,
+  fontWeight: 400,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+};
+
+/* Focus ring simulated for inline-styled shells: card gap + ink ring. */
+const FOCUS_RING = "0 0 0 2px var(--card), 0 0 0 4px var(--ink)";
+
 /* ─────────────────────────────────────────────────────────────
-   Brandmark — gradient tile + Archangel wordmark.
+   Brandmark — green halo dot + wordmark, as on the landing nav.
    ───────────────────────────────────────────────────────────── */
 
 type BrandmarkSize = "sm" | "md" | "lg";
 
-const BRAND_SIZES: Record<BrandmarkSize, { tile: number; shield: number; gap: number; word: number }> = {
-  sm: { tile: 28, shield: 16, gap: 10, word: 12 },
-  md: { tile: 36, shield: 20, gap: 12, word: 14 },
-  lg: { tile: 44, shield: 24, gap: 14, word: 16 },
+const BRAND_SIZES: Record<BrandmarkSize, { dot: number; gap: number; word: number }> = {
+  sm: { dot: 7, gap: 8, word: 14 },
+  md: { dot: 8, gap: 10, word: 16 },
+  lg: { dot: 9, gap: 12, word: 18 },
 };
 
 export function Brandmark({ size = "md" }: { size?: BrandmarkSize }) {
   const s = BRAND_SIZES[size];
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: s.gap }}>
-      <div
-        style={{
-          width: s.tile,
-          height: s.tile,
-          borderRadius: s.tile * 0.32,
-          background: "linear-gradient(135deg, #1A3C8F 0%, #2563EB 100%)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 0 0 1px rgba(103,232,249,0.18), 0 8px 24px rgba(38,99,235,0.30)",
-          flexShrink: 0,
-        }}
-      >
-        <svg viewBox="0 0 120 120" width={s.shield} height={s.shield} fill="none" aria-hidden="true">
-          <rect x="58" y="20" width="4" height="80" fill="#fff" rx="2" />
-          <circle cx="60" cy="28" r="12" stroke="#fff" strokeWidth="1.5" fill="none" opacity="0.9" />
-          <circle cx="60" cy="28" r="4" fill="#67E8F9" opacity="0.95" />
-          <path d="M60 45 Q50 50 48 58 Q46 66 54 70" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-          <path d="M60 55 Q70 60 72 68 Q74 76 66 80" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-          <circle cx="47" cy="58" r="3.5" fill="#fff" />
-          <circle cx="73" cy="68" r="3.5" fill="#fff" />
-        </svg>
-      </div>
       <span
         style={{
-          fontFamily: "'Inter', sans-serif",
+          width: s.dot,
+          height: s.dot,
+          borderRadius: "50%",
+          background: "var(--green)",
+          flexShrink: 0,
+        }}
+        aria-hidden="true"
+      />
+      <span
+        style={{
+          fontFamily: "var(--sans)",
           fontSize: s.word,
-          fontWeight: 600,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: "#F5F5F7",
+          fontWeight: 500,
+          letterSpacing: "-0.01em",
+          color: "var(--ink)",
         }}
       >
         Archangel Health
@@ -94,11 +94,11 @@ export function ChromeHeader({ onExit, helpHref = "mailto:tejpatel@archangelheal
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "20px 32px",
-        background: "rgba(7, 7, 10, 0.72)",
-        backdropFilter: "blur(14px) saturate(140%)",
-        WebkitBackdropFilter: "blur(14px) saturate(140%)",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        padding: "16px 32px",
+        background: "rgba(238, 240, 239, 0.72)",
+        backdropFilter: "blur(22px) saturate(1.5)",
+        WebkitBackdropFilter: "blur(22px) saturate(1.5)",
+        borderBottom: "1px solid var(--hairline)",
       }}
     >
       <Brandmark size="md" />
@@ -107,7 +107,7 @@ export function ChromeHeader({ onExit, helpHref = "mailto:tejpatel@archangelheal
           href={helpHref}
           style={{
             fontSize: 13,
-            color: "rgba(245,245,247,0.62)",
+            color: "var(--ink-soft)",
             textDecoration: "none",
             fontWeight: 500,
           }}
@@ -120,10 +120,10 @@ export function ChromeHeader({ onExit, helpHref = "mailto:tejpatel@archangelheal
           style={{
             fontSize: 13,
             fontWeight: 500,
-            color: "rgba(245,245,247,0.62)",
+            color: "var(--ink-soft)",
             background: "transparent",
-            border: "none",
-            padding: "8px 14px",
+            border: "1px solid var(--hairline-strong)",
+            padding: "8px 16px",
             borderRadius: 9999,
           }}
         >
@@ -135,7 +135,7 @@ export function ChromeHeader({ onExit, helpHref = "mailto:tejpatel@archangelheal
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Stepper — numbered chips connected by hairlines.
+   Stepper — numbered chips on a hairline rail; green = done.
    ───────────────────────────────────────────────────────────── */
 
 export function Stepper({ steps, currentIndex }: { steps: string[]; currentIndex: number }) {
@@ -153,7 +153,6 @@ export function Stepper({ steps, currentIndex }: { steps: string[]; currentIndex
       {steps.map((label, i) => {
         const done = i < currentIndex;
         const active = i === currentIndex;
-        const chipColor = done || active ? "#67E8F9" : "rgba(245,245,247,0.5)";
         return (
           <div key={label} style={{ display: "contents" }}>
             <div
@@ -161,7 +160,7 @@ export function Stepper({ steps, currentIndex }: { steps: string[]; currentIndex
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                opacity: done || active ? 1 : 0.42,
+                opacity: done || active ? 1 : 0.55,
                 transition: "opacity 400ms cubic-bezier(0.16, 1, 0.3, 1)",
               }}
             >
@@ -170,22 +169,19 @@ export function Stepper({ steps, currentIndex }: { steps: string[]; currentIndex
                   width: 26,
                   height: 26,
                   borderRadius: "50%",
-                  background: done ? "rgba(103,232,249,0.16)" : "transparent",
+                  background: done ? "var(--green)" : "var(--card)",
                   border: active
-                    ? "1.5px solid #67E8F9"
+                    ? "1.5px solid var(--ink)"
                     : done
-                      ? "1.5px solid rgba(103,232,249,0.4)"
-                      : "1px solid rgba(255,255,255,0.16)",
+                      ? "1.5px solid var(--green)"
+                      : "1px solid var(--hairline-strong)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   fontSize: 12,
-                  fontWeight: 600,
-                  color: chipColor,
-                  fontFamily: "'Inter', sans-serif",
-                  boxShadow: active
-                    ? "0 0 0 6px rgba(103,232,249,0.06), 0 0 22px rgba(103,232,249,0.18)"
-                    : "none",
+                  fontWeight: 500,
+                  color: done ? "var(--card)" : active ? "var(--ink)" : "var(--ink-faint)",
+                  fontFamily: "var(--mono)",
                   transition: "all 400ms cubic-bezier(0.16, 1, 0.3, 1)",
                 }}
               >
@@ -199,11 +195,9 @@ export function Stepper({ steps, currentIndex }: { steps: string[]; currentIndex
               </div>
               <span
                 style={{
+                  ...CHROME,
                   fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                  color: active ? "#F5F5F7" : done ? "rgba(245,245,247,0.72)" : "rgba(245,245,247,0.42)",
+                  color: active ? "var(--ink)" : done ? "var(--ink-soft)" : "var(--ink-faint)",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -216,7 +210,7 @@ export function Stepper({ steps, currentIndex }: { steps: string[]; currentIndex
                   width: 38,
                   height: 1,
                   margin: "0 14px",
-                  background: done ? "rgba(103,232,249,0.35)" : "rgba(255,255,255,0.10)",
+                  background: done ? "var(--ah-green-line)" : "var(--hairline)",
                   transition: "background 400ms cubic-bezier(0.16, 1, 0.3, 1)",
                 }}
               />
@@ -229,7 +223,7 @@ export function Stepper({ steps, currentIndex }: { steps: string[]; currentIndex
 }
 
 /* ─────────────────────────────────────────────────────────────
-   OnboardingCard — eyebrow + Fraunces title + lede + body card.
+   OnboardingCard — chrome eyebrow + display title + lede + card.
    ───────────────────────────────────────────────────────────── */
 
 export function OnboardingCard({
@@ -259,14 +253,10 @@ export function OnboardingCard({
       {eyebrow && (
         <div
           style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            color: "#67E8F9",
+            ...CHROME,
+            color: "var(--ink-faint)",
             textAlign: "center",
             marginBottom: 18,
-            opacity: 0.85,
           }}
         >
           {eyebrow}
@@ -274,16 +264,15 @@ export function OnboardingCard({
       )}
       <h1
         style={{
-          fontFamily: "'Fraunces', 'Iowan Old Style', 'Charter', Georgia, serif",
-          fontSize: "clamp(36px, 5vw, 52px)",
-          fontWeight: 500,
-          lineHeight: 1.05,
-          letterSpacing: "-0.025em",
+          fontFamily: "var(--sans)",
+          fontSize: "clamp(30px, 4.4vw, 42px)",
+          fontWeight: 400,
+          lineHeight: 1.12,
+          letterSpacing: "-0.015em",
           textAlign: "center",
-          color: "#F5F5F7",
+          color: "var(--ink)",
           marginTop: 0,
-          marginBottom: lede ? 18 : 36,
-          fontVariationSettings: '"opsz" 96, "SOFT" 30',
+          marginBottom: lede ? 16 : 32,
         }}
       >
         {title}
@@ -291,12 +280,12 @@ export function OnboardingCard({
       {lede && (
         <p
           style={{
-            fontSize: 16,
+            fontSize: 15,
             lineHeight: 1.55,
-            color: "rgba(245,245,247,0.62)",
+            color: "var(--ink-soft)",
             textAlign: "center",
             maxWidth: 520,
-            margin: "0 auto 40px",
+            margin: "0 auto 36px",
           }}
         >
           {lede}
@@ -305,21 +294,18 @@ export function OnboardingCard({
 
       <div
         style={{
-          background: "linear-gradient(180deg, rgba(20, 22, 30, 0.85) 0%, rgba(13, 14, 20, 0.85) 100%)",
-          backdropFilter: "blur(20px) saturate(140%)",
-          WebkitBackdropFilter: "blur(20px) saturate(140%)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          background: "var(--card)",
+          border: "1px solid var(--hairline)",
           borderRadius: 20,
-          padding: "36px 40px",
-          boxShadow:
-            "0 24px 60px rgba(0,0,0,0.35), 0 0 0 1px rgba(103,232,249,0.04), inset 0 1px 0 rgba(255,255,255,0.04)",
+          padding: "32px 36px",
+          boxShadow: "var(--shadow-card)",
         }}
       >
         {children}
       </div>
 
       {footer && (
-        <div style={{ marginTop: 24, textAlign: "center", fontSize: 13, color: "rgba(245,245,247,0.45)" }}>
+        <div style={{ marginTop: 24, textAlign: "center", fontSize: 13, color: "var(--ink-faint)" }}>
           {footer}
         </div>
       )}
@@ -328,7 +314,7 @@ export function OnboardingCard({
 }
 
 /* ─────────────────────────────────────────────────────────────
-   FieldLabel — uppercase mini-label inside cards.
+   FieldLabel — chrome mini-label inside cards.
    ───────────────────────────────────────────────────────────── */
 
 export function FieldLabel({ children, optional }: { children: ReactNode; optional?: boolean }) {
@@ -336,11 +322,8 @@ export function FieldLabel({ children, optional }: { children: ReactNode; option
     <div
       style={{
         display: "block",
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: "0.10em",
-        textTransform: "uppercase",
-        color: "rgba(245,245,247,0.62)",
+        ...CHROME,
+        color: "var(--ink-soft)",
         marginBottom: 10,
       }}
     >
@@ -348,8 +331,9 @@ export function FieldLabel({ children, optional }: { children: ReactNode; option
       {optional && (
         <span
           style={{
-            color: "rgba(245,245,247,0.32)",
-            fontWeight: 500,
+            color: "var(--ink-faint)",
+            fontFamily: "var(--sans)",
+            fontWeight: 400,
             marginLeft: 6,
             textTransform: "none",
             letterSpacing: 0,
@@ -364,7 +348,7 @@ export function FieldLabel({ children, optional }: { children: ReactNode; option
 }
 
 /* ─────────────────────────────────────────────────────────────
-   TextField — calm dark input, animated focus ring.
+   TextField — card-in input shell, ink focus ring.
    ───────────────────────────────────────────────────────────── */
 
 type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "value" | "type"> & {
@@ -404,24 +388,18 @@ export function TextField({
           position: "relative",
           display: "flex",
           alignItems: "center",
-          background: focused ? "rgba(15, 17, 24, 0.85)" : "rgba(15, 17, 24, 0.55)",
+          background: "var(--card-in)",
           border:
             "1px solid " +
-            (error
-              ? "rgba(248,113,113,0.55)"
-              : focused
-                ? "rgba(103,232,249,0.45)"
-                : "rgba(255,255,255,0.10)"),
-          borderRadius: 12,
+            (error ? "var(--ah-pink-line)" : focused ? "var(--hairline-strong)" : "var(--hairline)"),
+          borderRadius: 10,
           padding: "0 16px",
-          transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)",
-          boxShadow: focused
-            ? "0 0 0 4px rgba(103,232,249,0.10), inset 0 1px 0 rgba(255,255,255,0.03)"
-            : "inset 0 1px 0 rgba(255,255,255,0.02)",
+          transition: "border-color 160ms cubic-bezier(.4,0,.2,1), box-shadow 160ms cubic-bezier(.4,0,.2,1)",
+          boxShadow: focused ? FOCUS_RING : "none",
         }}
       >
         {prefix && (
-          <span style={{ color: "rgba(245,245,247,0.5)", marginRight: 10, fontSize: 14 }}>{prefix}</span>
+          <span style={{ color: "var(--ink-faint)", marginRight: 10, fontSize: 14 }}>{prefix}</span>
         )}
         <input
           {...rest}
@@ -437,10 +415,10 @@ export function TextField({
             background: "transparent",
             border: "none",
             outline: "none",
-            color: "#F5F5F7",
+            color: "var(--ink)",
             fontSize: 15,
             fontWeight: 400,
-            padding: "14px 0",
+            padding: "13px 0",
             fontFamily: "inherit",
             minWidth: 0,
           }}
@@ -448,10 +426,26 @@ export function TextField({
         {suffix}
       </div>
       {hint && !error && (
-        <div style={{ fontSize: 12, color: "rgba(245,245,247,0.45)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
+        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
       )}
       {error && (
-        <div style={{ fontSize: 12, color: "#FCA5A5", marginTop: 8, paddingLeft: 4 }}>{error}</div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 7,
+            fontSize: 12,
+            color: "var(--ah-pink-deep)",
+            marginTop: 8,
+            paddingLeft: 4,
+          }}
+        >
+          <span
+            style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--pink)", flexShrink: 0 }}
+            aria-hidden="true"
+          />
+          {error}
+        </div>
       )}
     </div>
   );
@@ -481,12 +475,12 @@ export function SelectField({
       <div
         style={{
           position: "relative",
-          background: focused ? "rgba(15, 17, 24, 0.85)" : "rgba(15, 17, 24, 0.55)",
-          border: "1px solid " + (focused ? "rgba(103,232,249,0.45)" : "rgba(255,255,255,0.10)"),
-          borderRadius: 12,
+          background: "var(--card-in)",
+          border: "1px solid " + (focused ? "var(--hairline-strong)" : "var(--hairline)"),
+          borderRadius: 10,
           padding: "0 16px",
-          transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)",
-          boxShadow: focused ? "0 0 0 4px rgba(103,232,249,0.10)" : "none",
+          transition: "border-color 160ms cubic-bezier(.4,0,.2,1), box-shadow 160ms cubic-bezier(.4,0,.2,1)",
+          boxShadow: focused ? FOCUS_RING : "none",
         }}
       >
         <select
@@ -499,9 +493,9 @@ export function SelectField({
             background: "transparent",
             border: "none",
             outline: "none",
-            color: value ? "#F5F5F7" : "rgba(245,245,247,0.45)",
+            color: value ? "var(--ink)" : "var(--ink-faint)",
             fontSize: 15,
-            padding: "14px 0",
+            padding: "13px 0",
             fontFamily: "inherit",
             appearance: "none",
             WebkitAppearance: "none",
@@ -516,7 +510,7 @@ export function SelectField({
               key={opt.value}
               value={opt.value}
               disabled={opt.disabled}
-              style={{ background: "#14161E", color: "#F5F5F7" }}
+              style={{ background: "var(--card)", color: "var(--ink)" }}
             >
               {opt.label}
             </option>
@@ -536,7 +530,7 @@ export function SelectField({
             right: 16,
             top: "50%",
             transform: "translateY(-50%)",
-            color: "rgba(245,245,247,0.5)",
+            color: "var(--ink-faint)",
             pointerEvents: "none",
           }}
         >
@@ -574,12 +568,12 @@ export function TextArea({
       {label && <FieldLabel optional={optional}>{label}</FieldLabel>}
       <div
         style={{
-          background: focused ? "rgba(15, 17, 24, 0.85)" : "rgba(15, 17, 24, 0.55)",
-          border: "1px solid " + (focused ? "rgba(103,232,249,0.45)" : "rgba(255,255,255,0.10)"),
-          borderRadius: 12,
+          background: "var(--card-in)",
+          border: "1px solid " + (focused ? "var(--hairline-strong)" : "var(--hairline)"),
+          borderRadius: 10,
           padding: "2px 16px",
-          transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)",
-          boxShadow: focused ? "0 0 0 4px rgba(103,232,249,0.10)" : "none",
+          transition: "border-color 160ms cubic-bezier(.4,0,.2,1), box-shadow 160ms cubic-bezier(.4,0,.2,1)",
+          boxShadow: focused ? FOCUS_RING : "none",
         }}
       >
         <textarea
@@ -594,7 +588,7 @@ export function TextArea({
             background: "transparent",
             border: "none",
             outline: "none",
-            color: "#F5F5F7",
+            color: "var(--ink)",
             fontSize: 15,
             lineHeight: 1.6,
             padding: "12px 0",
@@ -605,7 +599,7 @@ export function TextArea({
         />
       </div>
       {hint && (
-        <div style={{ fontSize: 12, color: "rgba(245,245,247,0.45)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
+        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
       )}
     </div>
   );
@@ -613,8 +607,7 @@ export function TextArea({
 
 /* ─────────────────────────────────────────────────────────────
    ChipMultiSelect — add-as-you-type tag input + suggested chips.
-   Caller owns the string[] value. Used for subspecialties, practice
-   settings, and languages.
+   Caller owns the string[] value.
    ───────────────────────────────────────────────────────────── */
 
 export function ChipMultiSelect({
@@ -662,12 +655,12 @@ export function ChipMultiSelect({
           flexWrap: "wrap",
           alignItems: "center",
           gap: 8,
-          background: focused ? "rgba(15, 17, 24, 0.85)" : "rgba(15, 17, 24, 0.55)",
-          border: "1px solid " + (focused ? "rgba(103,232,249,0.45)" : "rgba(255,255,255,0.10)"),
-          borderRadius: 12,
+          background: "var(--card-in)",
+          border: "1px solid " + (focused ? "var(--hairline-strong)" : "var(--hairline)"),
+          borderRadius: 10,
           padding: "10px 12px",
-          transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)",
-          boxShadow: focused ? "0 0 0 4px rgba(103,232,249,0.10)" : "none",
+          transition: "border-color 160ms cubic-bezier(.4,0,.2,1), box-shadow 160ms cubic-bezier(.4,0,.2,1)",
+          boxShadow: focused ? FOCUS_RING : "none",
         }}
       >
         {value.map((v) => (
@@ -680,9 +673,9 @@ export function ChipMultiSelect({
               height: 28,
               padding: "0 6px 0 11px",
               borderRadius: 9999,
-              background: "rgba(103,232,249,0.10)",
-              border: "1px solid rgba(103,232,249,0.32)",
-              color: "#67E8F9",
+              background: "var(--card)",
+              border: "1px solid var(--hairline-strong)",
+              color: "var(--ink)",
               fontSize: 13,
               fontWeight: 500,
             }}
@@ -696,9 +689,9 @@ export function ChipMultiSelect({
                 width: 18,
                 height: 18,
                 borderRadius: "50%",
-                background: "rgba(103,232,249,0.18)",
+                background: "var(--card-in)",
                 border: "none",
-                color: "#67E8F9",
+                color: "var(--ink-soft)",
                 cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",
@@ -734,7 +727,7 @@ export function ChipMultiSelect({
             background: "transparent",
             border: "none",
             outline: "none",
-            color: "#F5F5F7",
+            color: "var(--ink)",
             fontSize: 15,
             padding: "5px 0",
             fontFamily: "inherit",
@@ -753,8 +746,8 @@ export function ChipMultiSelect({
                 padding: "0 11px",
                 borderRadius: 9999,
                 background: "transparent",
-                border: "1px dashed rgba(255,255,255,0.18)",
-                color: "rgba(245,245,247,0.6)",
+                border: "1px dashed var(--hairline-strong)",
+                color: "var(--ink-soft)",
                 fontSize: 12.5,
                 cursor: "pointer",
               }}
@@ -765,14 +758,14 @@ export function ChipMultiSelect({
         </div>
       )}
       {hint && (
-        <div style={{ fontSize: 12, color: "rgba(245,245,247,0.45)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
+        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
       )}
     </div>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────
-   YesNoToggle — two-segment control for boolean questions.
+   YesNoToggle — two-segment control; lime = active selection.
    ───────────────────────────────────────────────────────────── */
 
 export function YesNoToggle({
@@ -798,18 +791,18 @@ export function YesNoToggle({
               key={opt.label}
               type="button"
               onClick={() => onChange(opt.v)}
+              aria-pressed={active}
               style={{
                 flex: 1,
-                padding: "13px 0",
-                borderRadius: 12,
-                background: active ? "rgba(103,232,249,0.12)" : "rgba(15,17,24,0.55)",
-                border: "1px solid " + (active ? "rgba(103,232,249,0.45)" : "rgba(255,255,255,0.10)"),
-                color: active ? "#67E8F9" : "rgba(245,245,247,0.7)",
+                padding: "12px 0",
+                borderRadius: 10,
+                background: active ? "var(--ah-lime-wash)" : "var(--card-in)",
+                border: "1px solid " + (active ? "var(--ah-lime-line)" : "var(--hairline)"),
+                color: active ? "var(--ink)" : "var(--ink-soft)",
                 fontSize: 14,
-                fontWeight: 600,
+                fontWeight: 500,
                 cursor: "pointer",
-                transition: "all 200ms cubic-bezier(0.16, 1, 0.3, 1)",
-                boxShadow: active ? "0 0 0 4px rgba(103,232,249,0.08)" : "none",
+                transition: "all 160ms cubic-bezier(.4,0,.2,1)",
               }}
             >
               {opt.label}
@@ -822,7 +815,8 @@ export function YesNoToggle({
 }
 
 /* ─────────────────────────────────────────────────────────────
-   ProductOption — large selectable card for Step 3 product choice.
+   ProductOption — large selectable card for the product choice.
+   Selection is confirmed with a green check (verified semantics).
    ───────────────────────────────────────────────────────────── */
 
 export function ProductOption({
@@ -850,25 +844,19 @@ export function ProductOption({
       onClick={onSelect}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      aria-pressed={selected}
       style={{
         textAlign: "left",
         display: "flex",
         flexDirection: "column",
         gap: 14,
         padding: "24px 24px",
-        borderRadius: 16,
-        background: selected
-          ? "linear-gradient(135deg, rgba(38,99,235,0.16) 0%, rgba(103,232,249,0.07) 100%)"
-          : "rgba(15,17,24,0.55)",
-        border: "1px solid " + (lit ? "rgba(103,232,249,0.45)" : "rgba(255,255,255,0.10)"),
-        boxShadow: selected
-          ? "0 0 0 4px rgba(103,232,249,0.08), 0 12px 40px rgba(38,99,235,0.16)"
-          : hover
-            ? "0 8px 28px rgba(0,0,0,0.30)"
-            : "none",
+        borderRadius: 14,
+        background: selected ? "var(--card)" : "var(--card-in)",
+        border: "1px solid " + (selected ? "rgba(26, 27, 26, 0.55)" : lit ? "var(--hairline-strong)" : "var(--hairline)"),
+        boxShadow: selected ? "var(--shadow-card)" : "none",
         cursor: "pointer",
-        transition: "all 240ms cubic-bezier(0.16, 1, 0.3, 1)",
-        transform: hover && !selected ? "translateY(-2px)" : "none",
+        transition: "background 240ms cubic-bezier(.4,0,.2,1), border-color 240ms cubic-bezier(.4,0,.2,1)",
         height: "100%",
       }}
     >
@@ -878,12 +866,12 @@ export function ProductOption({
             width: 44,
             height: 44,
             borderRadius: 12,
-            background: "linear-gradient(135deg, #1A3C8F 0%, #2563EB 100%)",
+            background: "var(--card)",
+            border: "1px solid var(--hairline)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 0 0 1px rgba(103,232,249,0.18), 0 8px 24px rgba(38,99,235,0.30)",
-            color: "#fff",
+            color: "var(--ink)",
           }}
         >
           {icon}
@@ -893,15 +881,16 @@ export function ProductOption({
             width: 22,
             height: 22,
             borderRadius: "50%",
-            border: "1.5px solid " + (selected ? "#67E8F9" : "rgba(255,255,255,0.25)"),
-            background: selected ? "#67E8F9" : "transparent",
+            border: "1.5px solid " + (selected ? "var(--green)" : "var(--hairline-strong)"),
+            background: selected ? "var(--green)" : "transparent",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            transition: "all 160ms cubic-bezier(.4,0,.2,1)",
           }}
         >
           {selected && (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#07070A" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--card)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12" />
             </svg>
           )}
@@ -910,20 +899,20 @@ export function ProductOption({
       <div>
         <div
           style={{
-            fontFamily: "'Fraunces', 'Iowan Old Style', 'Charter', Georgia, serif",
-            fontSize: 22,
+            fontFamily: "var(--sans)",
+            fontSize: 21,
             fontWeight: 500,
             letterSpacing: "-0.01em",
-            color: "#F5F5F7",
+            color: "var(--ink)",
           }}
         >
           {title}
         </div>
-        <div style={{ fontSize: 12.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "#67E8F9", marginTop: 6 }}>
+        <div style={{ ...CHROME, color: "var(--ink-faint)", marginTop: 6 }}>
           {tagline}
         </div>
       </div>
-      <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(245,245,247,0.62)" }}>{description}</div>
+      <div style={{ fontSize: 14, lineHeight: 1.55, color: "var(--ink-soft)" }}>{description}</div>
       {badges && badges.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: "auto", paddingTop: 6 }}>
           {badges.map((b) => (
@@ -933,9 +922,9 @@ export function ProductOption({
                 height: 24,
                 padding: "0 10px",
                 borderRadius: 9999,
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.10)",
-                color: "rgba(245,245,247,0.7)",
+                background: "var(--card)",
+                border: "1px solid var(--hairline)",
+                color: "var(--ink-soft)",
                 fontSize: 11.5,
                 fontWeight: 500,
                 display: "inline-flex",
@@ -953,48 +942,24 @@ export function ProductOption({
 
 /* ─────────────────────────────────────────────────────────────
    PrimaryButton — idle → loading → success → reset lifecycle.
-   The handler may return a Promise; resolving `false` keeps it Idle
-   (used to signal a server error without entering Success).
+   Ink-filled pill; success turns green (verified semantics).
+   The handler may return a Promise; resolving `false` keeps it
+   Idle (used to signal a server error without entering Success).
    ───────────────────────────────────────────────────────────── */
 
 type ButtonVariant = "primary" | "secondary";
 type ButtonState = "idle" | "loading" | "success";
 
-const BUTTON_STYLES: Record<ButtonVariant, Record<ButtonState, { bg: string; fg: string; border: string; shadow: string }>> = {
+const BUTTON_STYLES: Record<ButtonVariant, Record<ButtonState, { bg: string; fg: string; border: string }>> = {
   primary: {
-    idle: { bg: "#F5F5F7", fg: "#07070A", border: "transparent", shadow: "0 0 0 1px rgba(255,255,255,0.0)" },
-    loading: {
-      bg: "rgba(245,245,247,0.78)",
-      fg: "#07070A",
-      border: "transparent",
-      shadow: "0 0 0 1px rgba(255,255,255,0.0)",
-    },
-    success: {
-      bg: "#67E8F9",
-      fg: "#07070A",
-      border: "transparent",
-      shadow: "0 0 0 1px rgba(103,232,249,0.4), 0 0 32px rgba(103,232,249,0.35)",
-    },
+    idle: { bg: "var(--ink)", fg: "var(--card)", border: "var(--ink)" },
+    loading: { bg: "var(--ink-hover)", fg: "var(--card)", border: "var(--ink-hover)" },
+    success: { bg: "var(--green)", fg: "var(--card)", border: "var(--green)" },
   },
   secondary: {
-    idle: {
-      bg: "rgba(255,255,255,0.06)",
-      fg: "#F5F5F7",
-      border: "rgba(255,255,255,0.16)",
-      shadow: "none",
-    },
-    loading: {
-      bg: "rgba(255,255,255,0.10)",
-      fg: "#F5F5F7",
-      border: "rgba(255,255,255,0.20)",
-      shadow: "none",
-    },
-    success: {
-      bg: "rgba(103,232,249,0.12)",
-      fg: "#67E8F9",
-      border: "rgba(103,232,249,0.45)",
-      shadow: "0 0 24px rgba(103,232,249,0.20)",
-    },
+    idle: { bg: "transparent", fg: "var(--ink)", border: "var(--hairline-strong)" },
+    loading: { bg: "var(--card-in)", fg: "var(--ink)", border: "var(--hairline-strong)" },
+    success: { bg: "var(--ah-green-wash)", fg: "var(--ah-green-deep)", border: "var(--ah-green-line)" },
   },
 };
 
@@ -1080,21 +1045,19 @@ export function PrimaryButton({
         alignItems: "center",
         justifyContent: "center",
         gap: 10,
-        padding: "15px 28px",
-        borderRadius: 12,
+        padding: "14px 28px",
+        borderRadius: 9999,
         background: s.bg,
         color: s.fg,
         border: "1px solid " + s.border,
         fontSize: 15,
-        fontWeight: 600,
+        fontWeight: 500,
         letterSpacing: "-0.005em",
         fontFamily: "inherit",
         opacity: disabled ? 0.45 : 1,
         cursor:
           disabled || state !== "idle" ? (state === "loading" ? "progress" : "default") : "pointer",
-        transition: "all 280ms cubic-bezier(0.16, 1, 0.3, 1)",
-        boxShadow: s.shadow,
-        transform: state === "loading" ? "scale(0.985)" : "scale(1)",
+        transition: "background 160ms cubic-bezier(.4,0,.2,1), border-color 160ms cubic-bezier(.4,0,.2,1), color 160ms cubic-bezier(.4,0,.2,1)",
       }}
     >
       {state === "idle" && (
@@ -1105,13 +1068,13 @@ export function PrimaryButton({
       )}
       {state === "loading" && (
         <>
-          <Spinner color={variant === "primary" ? "#07070A" : "#F5F5F7"} />
+          <Spinner color={variant === "primary" ? "var(--card)" : "var(--ink)"} />
           <span>{loadingLabel ?? "Working…"}</span>
         </>
       )}
       {state === "success" && (
         <>
-          <CheckTick color={variant === "primary" ? "#07070A" : "#67E8F9"} />
+          <CheckTick color={variant === "primary" ? "var(--card)" : "var(--ah-green-deep)"} />
           <span>{successLabel ?? "Done"}</span>
         </>
       )}
@@ -1119,7 +1082,7 @@ export function PrimaryButton({
   );
 }
 
-export function Spinner({ color = "#07070A" }: { color?: string }) {
+export function Spinner({ color = "var(--ink)" }: { color?: string }) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ animation: "ah-onb-spin 0.8s linear infinite" }}>
       <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.25" />
@@ -1128,7 +1091,7 @@ export function Spinner({ color = "#07070A" }: { color?: string }) {
   );
 }
 
-export function CheckTick({ color = "#07070A" }: { color?: string }) {
+export function CheckTick({ color = "var(--ink)" }: { color?: string }) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
       <polyline
@@ -1160,7 +1123,7 @@ export function BackLink({ onClick }: { onClick?: () => void }) {
         gap: 8,
         background: "transparent",
         border: "none",
-        color: "rgba(245,245,247,0.55)",
+        color: "var(--ink-soft)",
         fontSize: 13,
         fontWeight: 500,
         padding: "8px 0",
@@ -1186,7 +1149,8 @@ export function BackLink({ onClick }: { onClick?: () => void }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Avatar — initials circle. Deterministic hue from name/email.
+   Avatar — initials circle on card-in; the signed-in director
+   ("you") carries the green ring (credentialed semantics).
    ───────────────────────────────────────────────────────────── */
 
 export function Avatar({
@@ -1207,7 +1171,6 @@ export function Avatar({
       .slice(0, 2)
       .map((w) => w[0]?.toUpperCase() ?? "")
       .join("") || "?";
-  const hue = seedSrc.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
   return (
     <div
       style={{
@@ -1218,16 +1181,12 @@ export function Avatar({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: you
-          ? "linear-gradient(135deg, #1A3C8F 0%, #2563EB 60%, #67E8F9 100%)"
-          : `linear-gradient(135deg, hsl(${hue} 60% 28%) 0%, hsl(${hue} 70% 42%) 100%)`,
-        color: "#F5F5F7",
-        fontSize: size * 0.36,
-        fontWeight: 600,
+        background: you ? "var(--green)" : "var(--card-in)",
+        border: you ? "none" : "1px solid var(--hairline)",
+        color: you ? "var(--card)" : "var(--ink-soft)",
+        fontSize: size * 0.34,
+        fontWeight: 500,
         letterSpacing: "0.01em",
-        boxShadow: you
-          ? "0 0 0 1.5px rgba(103,232,249,0.55), 0 4px 16px rgba(38,99,235,0.35)"
-          : "0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.06)",
       }}
     >
       {initials}
@@ -1237,58 +1196,11 @@ export function Avatar({
 
 /* ─────────────────────────────────────────────────────────────
    RolePill / StatusPill — capsule chips for member rows.
+   Neutral chips; status carried by a semantic dot + label
+   (never color alone).
    ───────────────────────────────────────────────────────────── */
 
-const ROLE_PALETTE: Record<string, { bg: string; border: string; fg: string }> = {
-  "Director of TEAM Initiative": {
-    bg: "rgba(103,232,249,0.10)",
-    border: "rgba(103,232,249,0.32)",
-    fg: "#67E8F9",
-  },
-  Surgeon: {
-    bg: "rgba(38,99,235,0.14)",
-    border: "rgba(96,165,250,0.32)",
-    fg: "#93C5FD",
-  },
-  "RN Care Coordinator": {
-    bg: "rgba(45,212,191,0.10)",
-    border: "rgba(45,212,191,0.32)",
-    fg: "#5EEAD4",
-  },
-  "NP / PA": {
-    bg: "rgba(167,139,250,0.12)",
-    border: "rgba(167,139,250,0.32)",
-    fg: "#C4B5FD",
-  },
-  "Director of Data Training": {
-    bg: "rgba(103,232,249,0.10)",
-    border: "rgba(103,232,249,0.32)",
-    fg: "#67E8F9",
-  },
-  "Physician (MD/DO/MBBS)": {
-    bg: "rgba(38,99,235,0.14)",
-    border: "rgba(96,165,250,0.32)",
-    fg: "#93C5FD",
-  },
-  "Nurse Practitioner (NP)": {
-    bg: "rgba(45,212,191,0.10)",
-    border: "rgba(45,212,191,0.32)",
-    fg: "#5EEAD4",
-  },
-  "Physician Assistant (PA)": {
-    bg: "rgba(167,139,250,0.12)",
-    border: "rgba(167,139,250,0.32)",
-    fg: "#C4B5FD",
-  },
-  "Resident / Fellow": {
-    bg: "rgba(251,191,36,0.10)",
-    border: "rgba(251,191,36,0.32)",
-    fg: "#FCD34D",
-  },
-};
-
 export function RolePill({ role }: { role: string }) {
-  const p = ROLE_PALETTE[role] ?? ROLE_PALETTE["Surgeon"];
   return (
     <span
       style={{
@@ -1297,13 +1209,11 @@ export function RolePill({ role }: { role: string }) {
         height: 22,
         padding: "0 9px",
         borderRadius: 9999,
-        background: p.bg,
-        border: "1px solid " + p.border,
-        color: p.fg,
+        background: "var(--card)",
+        border: "1px solid var(--hairline)",
+        color: "var(--ink-soft)",
+        ...CHROME,
         fontSize: 10.5,
-        fontWeight: 700,
-        letterSpacing: "0.06em",
-        textTransform: "uppercase",
         whiteSpace: "nowrap",
       }}
     >
@@ -1312,14 +1222,14 @@ export function RolePill({ role }: { role: string }) {
   );
 }
 
-const STATUS_PALETTE: Record<string, { bg: string; border: string; fg: string; dot: string }> = {
-  Invited: { bg: "rgba(251,191,36,0.10)", border: "rgba(251,191,36,0.32)", fg: "#FCD34D", dot: "#FCD34D" },
-  Active: { bg: "rgba(34,197,94,0.10)", border: "rgba(34,197,94,0.32)", fg: "#86EFAC", dot: "#86EFAC" },
-  You: { bg: "rgba(245,245,247,0.08)", border: "rgba(245,245,247,0.20)", fg: "#F5F5F7", dot: "#67E8F9" },
+const STATUS_DOTS: Record<string, string> = {
+  Invited: "var(--lime)",
+  Active: "var(--green)",
+  You: "var(--green)",
 };
 
 export function StatusPill({ status }: { status: "Invited" | "Active" | "You" }) {
-  const p = STATUS_PALETTE[status];
+  const isYou = status === "You";
   return (
     <span
       style={{
@@ -1329,25 +1239,24 @@ export function StatusPill({ status }: { status: "Invited" | "Active" | "You" })
         height: 22,
         padding: "0 10px",
         borderRadius: 9999,
-        background: p.bg,
-        border: "1px solid " + p.border,
-        color: p.fg,
+        background: isYou ? "var(--lime)" : "var(--card)",
+        border: isYou ? "1px solid transparent" : "1px solid var(--hairline)",
+        color: isYou ? "var(--ink)" : "var(--ink-soft)",
+        ...CHROME,
         fontSize: 10.5,
-        fontWeight: 700,
-        letterSpacing: "0.06em",
-        textTransform: "uppercase",
       }}
     >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: p.dot,
-          boxShadow: status === "Invited" ? `0 0 8px ${p.dot}` : "none",
-          animation: status === "Invited" ? "ah-onb-pulse-dot 2s ease-in-out infinite" : "none",
-        }}
-      />
+      {!isYou && (
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: STATUS_DOTS[status],
+            animation: status === "Invited" ? "ah-onb-pulse-dot 2s ease-in-out infinite" : "none",
+          }}
+        />
+      )}
       {status}
     </span>
   );
@@ -1355,6 +1264,7 @@ export function StatusPill({ status }: { status: "Invited" | "Active" | "You" })
 
 /* ─────────────────────────────────────────────────────────────
    InlineError — uniform error surface for step screens.
+   Pink dot + hairline carry the flag; text stays ink for AA.
    ───────────────────────────────────────────────────────────── */
 
 export function InlineError({ children }: { children?: ReactNode }) {
@@ -1362,18 +1272,25 @@ export function InlineError({ children }: { children?: ReactNode }) {
   return (
     <div
       style={{
+        display: "flex",
+        alignItems: "baseline",
+        gap: 10,
         marginBottom: 16,
         padding: "10px 14px",
         borderRadius: 10,
-        background: "rgba(248,113,113,0.08)",
-        border: "1px solid rgba(248,113,113,0.32)",
-        color: "#FCA5A5",
+        background: "var(--card-in)",
+        border: "1px solid var(--ah-pink-line)",
+        color: "var(--ink)",
         fontSize: 13,
         lineHeight: 1.45,
       }}
       role="alert"
     >
-      {children}
+      <span
+        style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--pink)", flexShrink: 0, transform: "translateY(-1px)" }}
+        aria-hidden="true"
+      />
+      <span>{children}</span>
     </div>
   );
 }
@@ -1381,7 +1298,8 @@ export function InlineError({ children }: { children?: ReactNode }) {
 /* ─────────────────────────────────────────────────────────────
    CodeInput — 6-box one-time code field with auto-advance,
    backspace-back, and 6-digit paste handling.
-   Caller owns the code string state.
+   Caller owns the code string state. Digits render in mono;
+   a filled box carries the green (progress) hairline.
    ───────────────────────────────────────────────────────────── */
 
 type CodeInputProps = {
@@ -1436,16 +1354,14 @@ export const CodeInput = forwardRef<HTMLInputElement, CodeInputProps>(function C
     height: 56,
     textAlign: "center",
     padding: 0,
-    background: "rgba(15,17,24,0.55)",
-    color: "#F5F5F7",
-    border: "1px solid " + (filled ? "rgba(103,232,249,0.45)" : "rgba(255,255,255,0.10)"),
-    borderRadius: 12,
+    background: "var(--card-in)",
+    color: "var(--ink)",
+    border: "1px solid " + (filled ? "var(--ah-green-line)" : "var(--hairline)"),
+    borderRadius: 10,
     fontSize: 22,
-    fontWeight: 600,
-    fontFamily: "'Fraunces', 'Iowan Old Style', 'Charter', Georgia, serif",
-    outline: "none",
-    transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)",
-    boxShadow: filled ? "0 0 0 4px rgba(103,232,249,0.08)" : "none",
+    fontWeight: 500,
+    fontFamily: "var(--mono)",
+    transition: "border-color 160ms cubic-bezier(.4,0,.2,1)",
     boxSizing: "border-box",
   });
 
