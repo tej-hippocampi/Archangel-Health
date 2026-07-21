@@ -1,0 +1,119 @@
+/* ============================================================
+   Archangel Health — console design system · product tokens
+   Single source of truth for every Asclepius product surface
+   (evaluation portal, buyer workspace, provider portal, admin).
+
+   Palette is copied exactly from landing arch/baseStyles.ts.
+   Laws: air is the design · scale not boldness · zero black
+   fills · gradients only as blurred auras · mono chrome = wayfinding.
+
+   Do not introduce a hex value anywhere outside this file.
+   ============================================================ */
+
+:root {
+  /* ---- canonical palette (§2.1 — copy of landing) ---- */
+  --canvas:   #eef0ef;
+  --card:     #fbfcfa;
+  --card-in:  #f4f5f3;
+  --hairline: rgba(26, 27, 26, 0.08);
+  --hairline-strong: rgba(26, 27, 26, 0.16);
+  --ink:      #1a1b1a;
+  --ink-hover:#0f100f;        /* hover state of ink fills — never #000 */
+  --ink-soft: #5c5e5a;
+  --ink-faint:#8b8d89;
+  --green:    #4ca63c;
+  --orange:   #ec9440;
+  --pink:     #e8447b;
+  --lime:     #d5e14e;
+
+  --sans:  'Instrument Sans', system-ui, -apple-system, sans-serif;
+  --mono:  'IBM Plex Mono', ui-monospace, monospace;
+  --doto:  'Doto', monospace;
+
+  --shadow-card:  0 1px 2px rgba(26, 27, 26, 0.03);
+  --shadow-float: 0 24px 60px -36px rgba(26, 27, 26, 0.28);
+
+  /* ---- accent washes — the only legitimate tinted fills ---- */
+  --green-wash:  rgba(76, 166, 60, 0.10);
+  --orange-wash: rgba(236, 148, 64, 0.10);
+  --pink-wash:   rgba(232, 68, 123, 0.09);
+  --lime-wash:   rgba(213, 225, 78, 0.22);
+  --green-line:  rgba(76, 166, 60, 0.38);
+  --orange-line: rgba(236, 148, 64, 0.42);
+  --pink-line:   rgba(232, 68, 123, 0.35);
+  --lime-line:   rgba(178, 190, 40, 0.55);
+
+  /* deep accent text — AA-contrast ink for text sitting on a wash */
+  --green-deep:  #3c7a31;
+  --orange-deep: #a05f1c;
+  --pink-deep:   #bb2f60;
+
+  /* ---- product scale (§2.2 — tighter than landing) ---- */
+  --r-chip: 999px;
+  --r-sm:   10px;
+  --r-md:   14px;
+  --r-lg:   20px;
+  --r-xl:   28px;
+
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
+
+  --t-display: 2rem;
+  --t-h2:      1.375rem;
+  --t-h3:      1.0625rem;
+  --t-body:    0.9375rem;
+  --t-sm:      0.8125rem;
+  --t-chrome:  0.6875rem;   /* mono, uppercase, 0.08em tracking */
+  --lh-tight: 1.25;
+  --lh-body:  1.55;
+
+  /* ---- scrim — canvas, never black (§4 modal law) ---- */
+  --scrim: rgba(238, 240, 239, 0.92);
+
+  /* ---- legacy Asclepius token remap (§2.4) ----
+     Keep the --asc-* names so downstream CSS/JS keeps working. */
+  --asc-bg:            var(--canvas);
+  --asc-surface:       var(--card);
+  --asc-surface-2:     var(--card-in);
+  --asc-bg-soft:       var(--card-in);
+  --asc-text:          var(--ink);
+  --asc-muted:         var(--ink-soft);
+  --asc-line:          var(--hairline);
+  --asc-line-strong:   var(--hairline-strong);
+  --asc-primary:       var(--ink);        /* primary actions are ink-filled */
+  --asc-primary-dark:  var(--ink-hover);
+  --asc-primary-light: var(--card-in);
+  --asc-accent:        var(--orange);     /* accent = model / AI output */
+  --asc-success:       var(--green);
+  --asc-warning:       var(--orange);
+  --asc-warn:          var(--orange-deep);
+  --asc-danger:        var(--pink);
+
+  /* ---- legacy surgical styles.css aliases ----
+     Safety net for any straggling reference now that
+     /static/styles.css is no longer loaded by product surfaces. */
+  --font:          var(--sans);
+  --primary:       var(--ink);
+  --primary-dark:  var(--ink-hover);
+  --primary-light: var(--card-in);
+  --success:       var(--green);
+  --warning:       var(--orange);
+  --danger:        var(--pink);
+  --gray-50:  var(--card);
+  --gray-100: var(--card-in);
+  --gray-200: var(--hairline);
+  --gray-300: var(--hairline-strong);
+  --gray-400: var(--ink-faint);
+  --gray-500: var(--ink-soft);
+  --gray-600: var(--ink-soft);
+  --gray-700: var(--ink);
+  --gray-800: var(--ink);
+  --gray-900: var(--ink);
+  --radius-sm: var(--r-sm);
+  --radius:    var(--r-md);
+  --radius-lg: var(--r-lg);
+  --shadow-sm: var(--shadow-card);
+  --shadow:    var(--shadow-card);
+  --shadow-md: var(--shadow-card);
+  --shadow-lg: var(--shadow-float);
+}

@@ -1,0 +1,222 @@
+/* ============================================================
+   Archangel Health — console design system · product base
+   Reset, typography base, form normalization, and the shared
+   component vocabulary (chrome labels, dots, chips, spinner,
+   generic modal). Consumes _tokens.css; no raw hex here.
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--sans);
+  font-size: var(--t-body);
+  font-weight: 400;
+  line-height: var(--lh-body);
+  background: var(--canvas);
+  color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* page atmosphere — felt, not seen (same auras as the landing) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(56rem 40rem at 12% -6%, rgba(76, 166, 60, 0.045), transparent 70%),
+    radial-gradient(52rem 44rem at 96% 44%, rgba(236, 148, 64, 0.04), transparent 70%);
+}
+body > * { position: relative; z-index: 1; }
+
+::selection { background: var(--lime); color: var(--ink); }
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+a { color: inherit; }
+
+h1, h2, h3 {
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: var(--lh-tight);
+  text-wrap: balance;
+}
+h1 { font-size: var(--t-display); }
+h2 { font-size: var(--t-h2); }
+h3 { font-size: var(--t-h3); font-weight: 500; letter-spacing: 0; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { background: none; border: none; cursor: pointer; }
+
+/* ---------- mono instrument chrome — the wayfinding primitive ---------- */
+.chrome {
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.chrome-strong { color: var(--ink-soft); }
+
+.chrome-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
+  padding: 0.55em 0.95em;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 7px;
+  background: transparent;
+  transition: background 0.16s cubic-bezier(.4,0,.2,1), border-color 0.16s cubic-bezier(.4,0,.2,1);
+}
+
+/* ---------- dotted data values — one hero numeral per view ---------- */
+.doto {
+  font-family: var(--doto);
+  font-weight: 400;
+  font-variation-settings: 'ROND' 100;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+/* ---------- status dots ---------- */
+.dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+.dot-green  { background: var(--green); }   /* verified / physician-authored */
+.dot-orange { background: var(--orange); }  /* model / AI output */
+.dot-pink   { background: var(--pink); }    /* flag / PHI / critical */
+.dot-lime   { background: var(--lime); }    /* new / active */
+.dot-faint  { background: rgba(26, 27, 26, 0.18); }
+
+/* ---------- chips ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.4em 0.95em;
+  border-radius: var(--r-chip);
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+}
+.chip-lime {
+  background: var(--lime);
+  border-color: transparent;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ---------- loading ---------- */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: var(--sp-7);
+  color: var(--ink-soft);
+  font-size: var(--t-sm);
+}
+
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--hairline);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- generic modal (legacy .call-team-* hooks) ----------
+   Scrim is canvas at 92% with a light blur — never black. */
+.call-team-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 200;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+.call-team-overlay.is-open { display: flex; }
+
+.call-team-popup {
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  max-width: 380px;
+  width: 100%;
+  padding: var(--sp-5);
+  box-shadow: var(--shadow-float);
+}
+.call-team-title {
+  font-size: var(--t-h3);
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.call-team-sub {
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+  margin-bottom: 16px;
+}
+.call-team-phone {
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  color: var(--ink);
+  margin-bottom: 16px;
+  letter-spacing: 0.02em;
+}
+.call-team-tel-link {
+  display: inline-block;
+  background: var(--ink);
+  color: var(--card);
+  padding: 10px 22px;
+  border-radius: var(--r-chip);
+  font-weight: 500;
+  text-decoration: none;
+  margin-bottom: 12px;
+}
+.call-team-tel-link:hover { background: var(--ink-hover); }
+.call-team-close {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-chip);
+  background: transparent;
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 0.16s cubic-bezier(.4,0,.2,1);
+}
+.call-team-close:hover { background: var(--card-in); color: var(--ink); }
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
+  .loading-spinner { animation: none; border-top-color: var(--ink-soft); }
+}
