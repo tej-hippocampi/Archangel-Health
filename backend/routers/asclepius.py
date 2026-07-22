@@ -709,6 +709,10 @@ async def ingest_image_asset(
     except asc_cases.MultimodalContentError as exc:
         raise HTTPException(status_code=422, detail={"error": "case_content", "message": str(exc)})
     store.update_task_case(task_id, case)
+    # Index the asset so serving resolves it in one indexed lookup (never a task scan)
+    # and the V4 wall can be enforced on the serve path.
+    store.insert_asset_ref(asset_id=asset["asset_id"], sha256=asset["sha256"],
+                           mime=asset["mime"], task_id=task_id, case_source="real_deid")
     # Return the reference only — never the bytes, store path, or partner id.
     return {"asset_id": asset["asset_id"], "sha256": asset["sha256"], "mime": asset["mime"],
             "modality": modality, "task_id": task_id,
@@ -725,6 +729,10 @@ async def get_asset(asset_id: str, user: Dict[str, Any] = Depends(asc_auth.get_c
     ref = asc_assets.find_asset_by_id(store, asset_id)
     if not ref:
         raise HTTPException(status_code=404, detail="asset_not_found")
+    # V4 real-data wall (PRD §4 / EHR PRD §9.5): every image asset lives on a
+    # real_deid case, so a non-real-data-approved evaluator must NOT fetch it by id —
+    # the wall never depends on the asset_id being unguessable.
+    _require_real_data_access({"case_source": ref.get("case_source") or "real_deid"}, user)
     try:
         data, mime = asc_assets.load_asset(ref)
     except asc_assets.AssetError:
@@ -1106,10 +1114,27 @@ def _ensure_gold_cases(store: Any, user: Dict[str, Any], specialty: Optional[str
     present cases are skipped). Returns the number newly loaded (Specialty
     Hyper-Personalization PRD §1/§7)."""
     sp = (specialty or user.get("specialty") or "").strip().lower()
+    # Memoize per STORE instance so the idempotent seed runs once per specialty per
+    # process — NOT on every /tasks/next poll (load_gold_cases does per-case SELECTs).
+    # Attached to the store so a test's fresh_store() (a new instance) re-seeds cleanly.
+    ensured = getattr(store, "_gold_ensured", None)
+    if ensured is None:
+        ensured = set()
+        try:
+            setattr(store, "_gold_ensured", ensured)
+        except Exception:  # pragma: no cover
+            pass
     try:
         from asclepius.gold_cases import load_gold_cases
         targets = [sp] if sp else [c["specialty"] for c in asc_specialties.list_specialties() if c.get("enabled")]
-        return sum(int(load_gold_cases(store, specialty=t).get("loaded", 0)) for t in targets)
+        targets = [t for t in targets if t and t not in ensured]
+        if not targets:
+            return 0
+        loaded = 0
+        for t in targets:
+            loaded += int(load_gold_cases(store, specialty=t).get("loaded", 0))
+            ensured.add(t)  # mark only after a successful load
+        return loaded
     except Exception:  # never let seeding break the queue request
         log.exception("asclepius: gold-case seeding failed")
         return 0

@@ -713,18 +713,23 @@
     if (!study || !study.asset || !study.asset.asset_id) return null;
     const asset = study.asset;
     const pageCount = parseInt(asset.page_count, 10) || 1;
-    const view = { scale: 1, x: 0, y: 0, page: parseInt(asset.page, 10) || 1 };
+    const shownPage = parseInt(asset.page, 10) || 1;
+    const view = { scale: 1, x: 0, y: 0 };
     const wrap = h('div', { class: 'asc-img-viewer' });
     const stage = h('div', { class: 'asc-img-stage', tabindex: '0', role: 'img',
       'aria-label': (study.label || study.modality || 'clinical') + ' image' });
     const img = h('img', { class: 'asc-img', alt: (study.label || study.modality || 'clinical image'), draggable: 'false' });
     const skeleton = h('div', { class: 'asc-img-skeleton' }, h('div', { class: 'loading-spinner' }));
     stage.appendChild(skeleton);
+    // Track the blob URL so it is revoked (no leaked decoded-image memory over a
+    // long grading session). Cleaned up on load, on error/reload, and on teardown.
+    let objUrl = null;
+    function revoke() { if (objUrl) { try { URL.revokeObjectURL(objUrl); } catch (e) { /* ignore */ } objUrl = null; } }
 
     function apply() {
       img.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';
     }
-    function zoom(delta, cx, cy) {
+    function zoom(delta) {
       const next = Math.min(8, Math.max(1, view.scale + delta));
       view.scale = next;
       if (next === 1) { view.x = 0; view.y = 0; }
@@ -732,12 +737,20 @@
     }
     function reset() { view.scale = 1; view.x = 0; view.y = 0; apply(); }
 
-    // Zoom on scroll; pan on drag.
+    // Zoom on scroll; pan on drag. The pan listeners live on `window` ONLY for the
+    // duration of a drag (added on mousedown, removed on mouseup) so they never
+    // accumulate across cases/tabs — the stage-scoped listeners are GC'd with the node.
     stage.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 0.25 : -0.25); }, { passive: false });
     let drag = null;
-    stage.addEventListener('mousedown', (e) => { drag = { x: e.clientX - view.x, y: e.clientY - view.y }; stage.classList.add('asc-img-grabbing'); });
-    window.addEventListener('mousemove', (e) => { if (!drag) return; view.x = e.clientX - drag.x; view.y = e.clientY - drag.y; apply(); });
-    window.addEventListener('mouseup', () => { drag = null; stage.classList.remove('asc-img-grabbing'); });
+    function onMove(e) { if (!drag) return; view.x = e.clientX - drag.x; view.y = e.clientY - drag.y; apply(); }
+    function onUp() { drag = null; stage.classList.remove('asc-img-grabbing');
+      window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
+    stage.addEventListener('mousedown', (e) => {
+      drag = { x: e.clientX - view.x, y: e.clientY - view.y };
+      stage.classList.add('asc-img-grabbing');
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    });
     // Keyboard: +/- zoom, 0 reset, arrows pan, Esc exit full-screen.
     stage.addEventListener('keydown', (e) => {
       const step = 40;
@@ -759,16 +772,12 @@
       h('button', { class: 'asc-img-btn', type: 'button', title: 'Zoom in (+)', onClick: () => zoom(0.25) }, '＋'),
       h('button', { class: 'asc-img-btn', type: 'button', title: 'Reset view (0)', onClick: reset }, 'Reset'),
       h('button', { class: 'asc-img-btn', type: 'button', title: 'Full screen', onClick: toggleFull }, '⤢'));
-    // Multi-page PDF navigation (page count > 1).
-    let pageLabel = null;
+    // Multi-page PDF: the ingested asset is a SINGLE rendered page (page N of the
+    // source), so we show an honest static indicator — never non-functional nav
+    // buttons that would let a clinician believe they are viewing a page that isn't
+    // loaded. (Per-page fetch is a follow-up; the endpoint serves one page today.)
     if (pageCount > 1) {
-      pageLabel = h('span', { class: 'asc-img-page' }, view.page + ' / ' + pageCount);
-      toolbar.appendChild(h('span', { class: 'asc-img-pagenav' },
-        h('button', { class: 'asc-img-btn', type: 'button', title: 'Previous page',
-          onClick: () => { if (view.page > 1) { view.page--; pageLabel.textContent = view.page + ' / ' + pageCount; } } }, '‹'),
-        pageLabel,
-        h('button', { class: 'asc-img-btn', type: 'button', title: 'Next page',
-          onClick: () => { if (view.page < pageCount) { view.page++; pageLabel.textContent = view.page + ' / ' + pageCount; } } }, '›')));
+      toolbar.appendChild(h('span', { class: 'asc-img-page' }, 'Page ' + shownPage + ' of ' + pageCount));
     }
 
     stage.appendChild(img);
@@ -778,11 +787,15 @@
     // Load the bytes. On failure show a real error state with a reload — the doctor
     // must NEVER grade a case whose image didn't render (PRD §6).
     fetchAssetBlobUrl(asset.asset_id).then((url) => {
-      img.onload = () => { if (skeleton.parentNode) skeleton.parentNode.removeChild(skeleton); apply(); };
-      img.onerror = () => showError();
+      objUrl = url;
+      // Revoke once decoded — the browser keeps the rendered image; frees the blob.
+      img.onload = () => { if (skeleton.parentNode) skeleton.parentNode.removeChild(skeleton); apply(); revoke(); };
+      img.onerror = () => { revoke(); showError(); };
       img.src = url;
     }).catch(() => showError());
     function showError() {
+      revoke();
+      onUp();  // ensure any in-flight drag listeners are removed
       clear(stage);
       stage.appendChild(h('div', { class: 'asc-img-error' },
         h('div', {}, 'Could not load the image.'),

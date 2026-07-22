@@ -23,6 +23,7 @@ The ``case`` objects use the LITERAL ClinicalCase schema keys; ``ground_truth`` 
 
 from __future__ import annotations
 
+import functools
 import json
 from typing import Any, Dict, List
 
@@ -2137,9 +2138,12 @@ def all_gold_cases() -> List[Dict[str, Any]]:
     return out
 
 
+@functools.lru_cache(maxsize=1)
 def _validated() -> List[Dict[str, Any]]:
     """Fail fast (at import) if a case does not clear the real content gate or is
-    missing its A/B pair — a broken seed must never ship silently."""
+    missing its A/B pair — a broken seed must never ship silently. Cached: the gold
+    set is static module data, so the content gate runs ONCE per process rather than
+    on every ``load_gold_cases`` call (this is on the serving hot path)."""
     from asclepius.cases import assert_multimodal_content, MultimodalContentError
 
     ok: List[Dict[str, Any]] = []

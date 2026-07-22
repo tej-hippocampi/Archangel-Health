@@ -52,13 +52,25 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+_EPHEMERAL_WARNED = False
+
+
 def _store_root() -> str:
-    from asclepius.constants import asset_store
+    global _EPHEMERAL_WARNED
+    from asclepius.constants import asset_store, asset_store_is_ephemeral
     root = asset_store()
     # Only a local filesystem backend is implemented here; an s3:// URL is accepted
     # by config but a future backend resolves it (never expose the path either way).
     if root.startswith("s3://"):
         raise AssetError("s3 asset backend not built in this release; set a local ASCLEPIUS_ASSET_STORE path")
+    if asset_store_is_ephemeral() and not _EPHEMERAL_WARNED:
+        _EPHEMERAL_WARNED = True
+        log.warning(
+            "ASCLEPIUS_ASSET_STORE is not set and no durable data dir/DB path is "
+            "configured — V4 image blobs are being written under the code tree (%s) "
+            "and WILL BE LOST on redeploy. Set ASCLEPIUS_ASSET_STORE to a persistent "
+            "volume in production.", root,
+        )
     return root
 
 
@@ -117,15 +129,21 @@ def _render_pdf_page(data: bytes, page: int) -> Tuple[bytes, int, int, int]:
     except Exception as exc:  # pragma: no cover
         raise AssetError(f"PDF rendering needs pdf2image + poppler: {exc}") from exc
     from asclepius.constants import image_max_dim
+    # Page count first (cheap — no rasterization), so we render ONLY the requested
+    # page rather than rasterizing every page into memory (a many-page PDF would OOM).
     try:
-        pages = convert_from_bytes(data, dpi=150)
+        from pdf2image import pdfinfo_from_bytes
+        page_count = int(pdfinfo_from_bytes(data).get("Pages") or 1)
+    except Exception:
+        page_count = 1
+    want = max(1, min(page or 1, page_count))
+    try:
+        pages = convert_from_bytes(data, dpi=150, first_page=want, last_page=want)
     except Exception as exc:
         raise AssetError(f"could not render PDF (is poppler installed?): {exc}") from exc
     if not pages:
         raise UnsupportedMediaType("PDF has no renderable pages")
-    page_count = len(pages)
-    idx = max(0, min((page or 1) - 1, page_count - 1))
-    im = pages[idx]
+    im = pages[0]
     max_dim = image_max_dim()
     w, h = im.size
     if max(w, h) > max_dim:
@@ -184,15 +202,27 @@ def _write_blob(sha256: str, data: bytes) -> None:
     if os.path.exists(path):
         return  # content-addressed dedupe — identical image costs once (§9 perf)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
+    # Unique temp name so two concurrent ingests of the same content don't race on a
+    # shared ``.tmp`` (the second os.replace could otherwise hit FileNotFoundError).
+    import uuid
+    tmp = f"{path}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
     with open(tmp, "wb") as f:
         f.write(data)
-    os.replace(tmp, path)
+    try:
+        os.replace(tmp, path)
+    except OSError:  # a concurrent writer won the race — identical content, fine
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 
-def load_asset(asset_or_sha: Any) -> Tuple[bytes, str]:
-    """Resolve a StudyAsset (dict) or a bare sha256 → (bytes, mime). Verifies the
-    content hash matches (integrity). Raises AssetError if missing/corrupt."""
+def load_asset(asset_or_sha: Any, *, verify: bool = False) -> Tuple[bytes, str]:
+    """Resolve a StudyAsset (dict) or a bare sha256 → (bytes, mime). ``verify`` re-
+    hashes the blob (integrity) — done at WRITE time, so it is OFF on the read/serve
+    path (re-hashing a 25 MB blob on every GET is wasted CPU; the content-addressed
+    path is the guarantee). Raises AssetError if missing/corrupt."""
     if isinstance(asset_or_sha, dict):
         sha = asset_or_sha.get("sha256")
         mime = asset_or_sha.get("mime") or "image/png"
@@ -206,16 +236,24 @@ def load_asset(asset_or_sha: Any) -> Tuple[bytes, str]:
         raise AssetError(f"asset blob not found for {sha[:12]}…")
     with open(path, "rb") as f:
         data = f.read()
-    if _sha256(data) != sha:  # integrity — a corrupted blob must never serve
+    if verify and _sha256(data) != sha:  # integrity — a corrupted blob must never serve
         raise AssetError(f"asset integrity check failed for {sha[:12]}…")
     return data, mime
 
 
 def find_asset_by_id(store: Any, asset_id: str) -> Optional[Dict[str, Any]]:
-    """Locate the StudyAsset reference for ``asset_id`` by scanning stored V4 cases'
-    studies (the DB holds only references). Returns the asset dict or None. The
-    serving endpoint uses this to resolve an ``asset_id`` → sha256 → blob without
-    ever exposing the store path or partner id."""
+    """Resolve ``asset_id`` → a reference dict {asset_id, sha256, mime, task_id,
+    case_source} via the ``study_assets`` index (O(1)). Falls back to a one-time scan
+    of stored V4 cases only if the index misses (legacy assets), backfilling the index
+    so the next lookup is indexed. Returns None if unknown. Never exposes the store
+    path or partner id."""
+    try:
+        ref = store.get_asset_ref(asset_id)
+    except Exception:  # pragma: no cover - index missing on a very old DB
+        ref = None
+    if ref and ref.get("sha256"):
+        return ref
+    # Fallback (legacy assets ingested before the index existed): scan once, backfill.
     try:
         tasks = store.list_tasks(limit=100000)
     except Exception:  # pragma: no cover
@@ -226,8 +264,16 @@ def find_asset_by_id(store: Any, asset_id: str) -> Optional[Dict[str, Any]]:
             continue
         for s in case.get("studies") or []:
             a = (s or {}).get("asset")
-            if isinstance(a, dict) and a.get("asset_id") == asset_id:
-                return a
+            if isinstance(a, dict) and a.get("asset_id") == asset_id and a.get("sha256"):
+                try:
+                    store.insert_asset_ref(asset_id=asset_id, sha256=a["sha256"],
+                                           mime=a.get("mime") or "image/png",
+                                           task_id=t.get("task_id"), case_source="real_deid")
+                except Exception:  # pragma: no cover
+                    pass
+                return {"asset_id": asset_id, "sha256": a["sha256"],
+                        "mime": a.get("mime") or "image/png",
+                        "task_id": t.get("task_id"), "case_source": "real_deid"}
     return None
 
 

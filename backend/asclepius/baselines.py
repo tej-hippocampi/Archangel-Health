@@ -60,6 +60,19 @@ def _prompt_hash(system: str, user: str, image_sha256: Optional[str] = None) -> 
     return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
 
+def _case_has_image(task: Dict[str, Any]) -> bool:
+    """Cheap check (no disk read / base64) for whether the task carries a V4 image
+    asset — used where only a boolean is needed so we don't load the bytes twice."""
+    case = (task or {}).get("case") or {}
+    if case.get("case_source") != "real_deid":
+        return False
+    try:
+        from asclepius.cases import study_has_valid_asset
+        return any(study_has_valid_asset(s) for s in (case.get("studies") or []))
+    except Exception:  # pragma: no cover
+        return False
+
+
 def _case_image_for_baseline(task: Dict[str, Any]):
     """Return (image_block, sha256, mime) for the case's PRIMARY image-bearing study
     (V4 Image PRD §5.2), or (None, None, None) for a text-only case. Loads the cleaned
@@ -400,7 +413,7 @@ async def assemble_ab_pair(store: Any, task: Dict[str, Any]) -> tuple:
         ``legacy_fallback`` + ``fallback_reason``. Reuses the surviving Anthropic answer.
       * **Shortfall:** ``[]`` → caller marks ``needs_baseline``. NEVER a gold stand-in."""
     is_v4 = (task or {}).get("case_source") == "real_deid"
-    has_image = bool(_case_image_for_baseline(task)[0])
+    has_image = _case_has_image(task)  # cheap check — do NOT load the bytes here
 
     # Rung 0 — V4 BAA gate (§A7). For an IMAGE case the vision A/B is the whole point
     # (V4 Image PRD §5.7): two-frontier SHOULD be on so OpenAI + Anthropic each ground

@@ -764,13 +764,32 @@ def baseline_pairing_ok() -> tuple:
 def asset_store() -> str:
     """The content-addressed asset store location (V4 Image PRD §4). A local
     filesystem path by default; an ``s3://`` URL is honored by a future backend.
-    The image blob NEVER lives in asclepius.db — only the StudyAsset reference."""
-    return os.getenv("ASCLEPIUS_ASSET_STORE", "").strip() or _default_asset_store()
+    The image blob NEVER lives in asclepius.db — only the StudyAsset reference.
+
+    Resolution order: ``ASCLEPIUS_ASSET_STORE`` → ``ASCLEPIUS_DATA_DIR/assets`` →
+    the DIRECTORY of the durable DB (``ASCLEPIUS_DB_PATH``) + ``/assets`` → the code
+    tree (last resort, ephemeral). Co-locating with the DB keeps real images on the
+    SAME persistent volume as their references, so they survive a redeploy."""
+    explicit = os.getenv("ASCLEPIUS_ASSET_STORE", "").strip()
+    if explicit:
+        return explicit
+    data_dir = os.getenv("ASCLEPIUS_DATA_DIR", "").strip()
+    if data_dir:
+        return os.path.join(data_dir, "assets")
+    db_path = os.getenv("ASCLEPIUS_DB_PATH", "").strip()
+    if db_path:
+        return os.path.join(os.path.dirname(os.path.abspath(db_path)) or ".", "asclepius_assets")
+    # Last resort: next to the package (EPHEMERAL — a container redeploy loses these).
+    # Warned once at startup (see asclepius.assets.warn_ephemeral_store).
+    return os.path.join(os.path.dirname(__file__), "_assetstore")
 
 
-def _default_asset_store() -> str:
-    base = os.getenv("ASCLEPIUS_DATA_DIR", "").strip() or os.path.join(os.path.dirname(__file__), "_assetstore")
-    return base
+def asset_store_is_ephemeral() -> bool:
+    """True when the asset store fell back to the code-tree default (no
+    ASCLEPIUS_ASSET_STORE / DATA_DIR / DB_PATH configured) — images would NOT survive
+    a redeploy. Used to emit a startup warning."""
+    return not any(os.getenv(k, "").strip() for k in
+                   ("ASCLEPIUS_ASSET_STORE", "ASCLEPIUS_DATA_DIR", "ASCLEPIUS_DB_PATH"))
 
 
 def image_max_bytes() -> int:

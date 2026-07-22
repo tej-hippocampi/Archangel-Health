@@ -88,11 +88,57 @@ def test_ingest_serve_roundtrip_and_case_type():
     body = r.json()
     assert body["asset_id"].startswith("asset-") and body["sha256"]
     assert "ecg_image" in body["case_type"] and body["case_type"].startswith("multimodal:real")
-    # serve (evaluator) — image bytes, no store path leak
-    eh = A.headers_for(A.make_user(_store(), role="evaluator", specialty="cardiology"))
-    r2 = client.get(f"/api/asclepius/assets/{body['asset_id']}", headers=eh)
+    # serve (real-data-APPROVED evaluator) — image bytes, no store path leak
+    st = _store()
+    ev = A.make_user(st, role="evaluator", specialty="cardiology")
+    st.set_real_data_approved(ev["id"], True)
+    r2 = client.get(f"/api/asclepius/assets/{body['asset_id']}", headers=A.headers_for(ev))
     assert r2.status_code == 200 and r2.headers["content-type"] == "image/png"
     assert len(r2.content) > 0
+
+
+def test_serve_asset_v4_wall_blocks_unapproved_evaluator():
+    """A real de-identified image must NOT be fetchable by an evaluator without
+    real-data approval — the V4 wall on the by-id serve path (audit fix)."""
+    A.fresh_store()
+    st = _store()
+    ah = A.headers_for(A.make_user(st, role="admin"))
+    tid = _v4_task()
+    r = client.post("/api/asclepius/assets/ingest", headers=ah,
+                    files={"file": ("ecg.png", _png(), "image/png")},
+                    data={"task_id": tid, "modality": "ecg", "findings": "x"})
+    asset_id = r.json()["asset_id"]
+    # Unapproved evaluator → 403; approved → 200.
+    unapproved = A.make_user(st, role="evaluator", specialty="cardiology")
+    r2 = client.get(f"/api/asclepius/assets/{asset_id}", headers=A.headers_for(unapproved))
+    assert r2.status_code == 403
+    st.set_real_data_approved(unapproved["id"], True)
+    r3 = client.get(f"/api/asclepius/assets/{asset_id}", headers=A.headers_for(unapproved))
+    assert r3.status_code == 200
+
+
+def test_asset_indexed_lookup_avoids_task_scan():
+    """After ingest the asset resolves via the study_assets index (O(1)) — not by
+    scanning tasks (audit fix)."""
+    A.fresh_store()
+    st = _store()
+    ah = A.headers_for(A.make_user(st, role="admin"))
+    tid = _v4_task()
+    r = client.post("/api/asclepius/assets/ingest", headers=ah,
+                    files={"file": ("ecg.png", _png(), "image/png")},
+                    data={"task_id": tid, "modality": "ecg", "findings": "x"})
+    aid = r.json()["asset_id"]
+    ref = st.get_asset_ref(aid)
+    assert ref and ref["sha256"] == r.json()["sha256"] and ref["case_source"] == "real_deid"
+    assert ref["task_id"] == tid
+
+
+def test_load_asset_skips_rehash_on_serve_but_can_verify():
+    a = asc_assets.process_upload(_png(), "image/png")
+    data, mime = asc_assets.load_asset(a)                       # serve path — no rehash
+    assert len(data) > 0
+    data2, _ = asc_assets.load_asset(a, verify=True)            # explicit integrity check
+    assert data2 == data
 
 
 def test_ingest_rejects_non_image_415():

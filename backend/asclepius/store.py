@@ -338,6 +338,19 @@ class AsclepiusStore:
                 CREATE INDEX IF NOT EXISTS idx_genjobs_specialty ON generation_jobs(specialty);
                 CREATE INDEX IF NOT EXISTS idx_genjobs_created ON generation_jobs(created_at);
 
+                -- V4 image asset index (V4 Image Embedding PRD §4). Resolves an
+                -- asset_id → sha256/mime/owning-task in ONE indexed lookup so serving
+                -- an image never scans the tasks table. The image BYTES live in the
+                -- content-addressed asset store, never here — only the reference.
+                CREATE TABLE IF NOT EXISTS study_assets (
+                    asset_id    TEXT PRIMARY KEY,
+                    sha256      TEXT NOT NULL,
+                    mime        TEXT NOT NULL,
+                    task_id     TEXT,
+                    case_source TEXT,
+                    created_at  TEXT NOT NULL
+                );
+
                 -- Contributor credential vault (Contributors view + tiered export).
                 -- Keyed by the same hashed annotator id that stamps every record, so
                 -- a dossier (Tier B) matches the exact shipped records (Tier A).
@@ -643,14 +656,17 @@ class AsclepiusStore:
                     except Exception:
                         cs = "synthetic"
                     conn.execute("UPDATE tasks SET case_source = ? WHERE task_id = ?", (cs, r["task_id"]))
+            # Specialty Hyper-Personalization PRD §9: the frontier-model failure rate
+            # (wrong answer OR wrong reasoning). First-class columns so the serving gate
+            # filters in SQL and admin/export can surface it. ``difficulty_measured`` =
+            # 1 only when LIVE-measured; a declared/authored value carries the numeric
+            # for display but 0 here. Each ALTER is guarded independently so a crash
+            # between the two can't leave insert_task referencing a missing column.
             if "empirical_difficulty" not in task_cols:
-                # Specialty Hyper-Personalization PRD §9: the frontier-model failure
-                # rate (wrong answer OR wrong reasoning). First-class columns so the
-                # serving gate filters in SQL and admin/export can surface it.
-                # ``difficulty_measured`` = 1 only when LIVE-measured on frontier models;
-                # a declared/authored value carries the numeric for display but 0 here.
                 conn.execute("ALTER TABLE tasks ADD COLUMN empirical_difficulty REAL")
+            if "difficulty_measured" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN difficulty_measured INTEGER NOT NULL DEFAULT 0")
+            if "empirical_difficulty" not in task_cols or "difficulty_measured" not in task_cols:
                 for r in conn.execute(
                     "SELECT task_id, generation_json FROM tasks WHERE generation_json IS NOT NULL"
                 ).fetchall():
@@ -1542,6 +1558,29 @@ class AsclepiusStore:
                 (json.dumps(case) if case else None, md, cs, task_id),
             )
         return self.get_task(task_id)
+
+    def insert_asset_ref(self, *, asset_id: str, sha256: str, mime: str,
+                         task_id: Optional[str], case_source: Optional[str]) -> None:
+        """Index a V4 image asset (V4 Image PRD §4) so serving resolves it in one
+        indexed lookup instead of scanning tasks. Idempotent on ``asset_id`` (dedupe:
+        the same content → same id → last owning task wins, which is fine — all image
+        assets are on real_deid cases)."""
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO study_assets "
+                "(asset_id, sha256, mime, task_id, case_source, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (asset_id, sha256, mime, task_id, case_source, _utcnow_iso()),
+            )
+
+    def get_asset_ref(self, asset_id: str) -> Optional[Dict[str, Any]]:
+        """Resolve an ``asset_id`` → {sha256, mime, task_id, case_source} via the
+        index (O(1)). None if unknown."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT asset_id, sha256, mime, task_id, case_source FROM study_assets WHERE asset_id = ?",
+                (asset_id,),
+            ).fetchone()
+        return dict(row) if row else None
 
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
