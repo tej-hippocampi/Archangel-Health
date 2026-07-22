@@ -956,6 +956,9 @@
     d.confidence_set = false;
     d.rubricCursor = 0;
     state._reopenedSubstage = null;
+    // Force the next renderRationale to treat the (re)computed current section
+    // as freshly mounted, so the scroll-into-view fires after a verdict switch.
+    state._lastSubstage = null;
   }
 
   // One save + re-render + submit-state pass — every section's Save/Continue
@@ -2448,8 +2451,10 @@
     if (state._tagPop) {
       state._tagPop.remove();
       state._tagPop = null;
-      document.removeEventListener('keydown', _tagPopKey, true);
     }
+    // Always detach the Esc handler — a re-render can tear the popover out of
+    // the DOM without going through here, leaving only the listener behind.
+    document.removeEventListener('keydown', _tagPopKey, true);
   }
   function _tagPopKey(e) { if (e.key === 'Escape') closeTagPopover(); }
 
@@ -3001,7 +3006,11 @@
       h('div', { class: 'asc-rubric-pin-body' }, refText));
 
     const body = h('div', { id: 'ascRubricWizard' });
-    if (!d.rubricSeeded && !crits.length) {
+    // While a seed request is in flight and nothing exists yet, hold the wizard
+    // on a placeholder — never flash the empty finish card (a fast "Save &
+    // finish" there would complete the section, only for the seeded criteria to
+    // land moments later and honestly-but-jarringly regress it).
+    if (state._rubricSeeding && !crits.length) {
       body.appendChild(h('p', { class: 'asc-help' }, 'Drafting starting criteria from your tags…'));
     } else if (cursor < crits.length) {
       body.appendChild(renderRubricCriterionCard(crits, cursor));
@@ -3227,25 +3236,28 @@
     const d = state.draft;
     if (d.rubricSeeded && !force) return;
     d.rubricSeeded = true;
+    state._rubricSeeding = true;
     try {
       const res = await api('/rubric/suggest', { method: 'POST', body: buildSubmissionPayload() });
       const seeded = (res && res.criteria) || [];
-      if (!seeded.length) { repaintRubricUI(); return; }
-      if (force) {
-        // Re-seed: append only criteria not already present (by text).
-        const have = new Set(d.rubric.map((c) => (c.text || '').trim().toLowerCase()));
-        seeded.forEach((c) => { if (!have.has((c.text || '').trim().toLowerCase())) d.rubric.push(c); });
-      } else if (!d.rubric.length) {
-        d.rubric = seeded;
+      if (seeded.length) {
+        if (force) {
+          // Re-seed: append only criteria not already present (by text).
+          const have = new Set(d.rubric.map((c) => (c.text || '').trim().toLowerCase()));
+          seeded.forEach((c) => { if (!have.has((c.text || '').trim().toLowerCase())) d.rubric.push(c); });
+        } else if (!d.rubric.length) {
+          d.rubric = seeded;
+        }
+        saveDraft();
       }
-      saveDraft();
-      // Repaint the LIVE wizard (resilient if the section was rebuilt mid-seed;
-      // never repaints over the doctor's typing).
-      repaintRubricUI();
       updateSubmitState();
     } catch (e) {
-      // Seeding is a convenience — never surface an error. Still repaint so the
-      // "drafting criteria…" placeholder resolves to the empty wizard.
+      // Seeding is a convenience — never surface an error; the placeholder
+      // resolves to the empty wizard below.
+    } finally {
+      state._rubricSeeding = false;
+      // Repaint the LIVE wizard (resilient if the section was rebuilt mid-seed;
+      // never repaints over the doctor's typing).
       repaintRubricUI();
     }
   }
@@ -3941,7 +3953,10 @@
       // grounding=required task — the misleading-success case).
       if (isValidAnchor(anchor)) toast('Citation attached — this record is now grounded.', 'success');
       else toast('Citation attached — finish the source fields below to ground it.', 'info');
-      if (onConfirm) onConfirm();
+      // Defer the re-render one tick: the 'opened' path fires from an <a
+      // target=_blank> click, and tearing the anchor out of the DOM inside its
+      // own click handler can cancel the new-tab navigation in some browsers.
+      if (onConfirm) setTimeout(onConfirm, 0);
     };
     const renderChips = (suggestions) => {
       clear(wrap);
@@ -4341,6 +4356,9 @@
     if (!sr.ok) { updateSubmitState(); return; }
     if (!rubricGate().ok) { updateSubmitState(); return; }
     if (!failureTagGate().ok) { updateSubmitState(); return; }
+    // §15 (V3/V4): confidence must be an active choice — mirror the button gate
+    // so a programmatic submit can never ship the draft default.
+    if (isV3() && !state.draft.confidence_set) { updateSubmitState(); return; }
     state.submitting = true;
     updateHeaderProgress(); // §16: the bar reads 100% while the submit runs
     const btn = document.getElementById('ascSubmit');
