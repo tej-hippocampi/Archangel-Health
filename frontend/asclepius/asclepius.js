@@ -912,7 +912,18 @@
   }
 
   function reasoningConditionsMet() {
-    return stepsReview().ok;
+    if (!stepsReview().ok) return false;
+    // Grounding-required tasks hard-gate a citation on EVERY step (the server
+    // 400s otherwise) — enforce it HERE, where the per-step anchor UI lives,
+    // so submit can never dead-end later with no way to fix it.
+    if ((state.task.grounding_mode || 'optional') === 'required') {
+      const steps = activeSteps().filter((s) => (s.text || '').trim());
+      const isReasoningTask = !!state.task.capture_reasoning || steps.length > 0;
+      if (isReasoningTask) {
+        for (const s of steps) { if (!isValidAnchor(s.evidence_anchor)) return false; }
+      }
+    }
+    return true;
   }
 
   // Explicit completion per substage: the *_done flag (the Save/Continue click)
@@ -1784,7 +1795,10 @@
       value: d.prompt_review.note || '',
     });
     const sendBtn = h('button', {
-      class: 'asc-btn asc-btn-danger', type: 'button', disabled: true,
+      // Enabled when a reason exists — including one prefilled from a resumed
+      // draft, not only after fresh keystrokes.
+      class: 'asc-btn asc-btn-danger', type: 'button',
+      disabled: !(d.prompt_review.note || '').trim(),
       onClick: () => { if ((d.prompt_review.note || '').trim()) flagPrompt(); },
     }, 'Send to admin');
     reasonInput.addEventListener('input', () => {
@@ -2122,6 +2136,10 @@
   }
 
   function selectVerdict(verdict) {
+    // Never switch verdicts while a submit is in flight — on V3/V4 the switch
+    // resets the staged flow and would tear down the live submit progress UI
+    // (and desync the draft from the posted payload).
+    if (state.submitting) return;
     const d = state.draft;
     const prevChosen = d.chosen_id;
     d.verdict = verdict;
@@ -2373,6 +2391,9 @@
       const ok = whyBetterConditionsMet();
       contBtn.disabled = !ok;
       hint.textContent = ok ? '' : 'write one line and tag ≥1 reason to continue';
+      // A re-opened section at the confidence substage must gate the mounted
+      // submit button live (no-op while #ascSubmit isn't mounted).
+      updateSubmitState();
     };
     notes.addEventListener('input', () => { rev.why_better_notes = notes.value; saveDraft(); sync(); });
     const chips = renderChips((state.taxonomy.why_better_tags || []), rev.why_better_tags, (tag, on) => {
@@ -2485,6 +2506,9 @@
       const ok = critiqueConditionsMet();
       contBtn.disabled = !ok;
       hint.textContent = ok ? '' : critiqueHint();
+      // Keep a mounted submit button honest when this section is re-opened
+      // and edited at the confidence substage.
+      updateSubmitState();
     };
 
     // Error-tag chips: tap to select → a small popover captures THIS tag's
@@ -2724,15 +2748,18 @@
     const hint = document.getElementById('ascStepsContHint');
     if (!btn) return;
     const sr = stepsReview();
+    const ok = reasoningConditionsMet();
     // Never allow Continue while the auto-split is in flight — steps landing
     // after the section completed would silently regress the flow.
-    btn.disabled = state.splitting || !sr.ok;
+    btn.disabled = state.splitting || !ok;
     if (hint) {
       hint.textContent = state.splitting ? 'splitting the answer into steps…'
-        : sr.ok ? ''
-          : (sr.reasons.indexOf('missing_correction_reason') !== -1
-            ? 'say what’s off with each edited step'
-            : 'review each step — confirm it, or open it and correct it');
+        : ok ? ''
+          : !sr.ok
+            ? (sr.reasons.indexOf('missing_correction_reason') !== -1
+              ? 'say what’s off with each edited step'
+              : 'review each step — confirm it, or open it and correct it')
+            : 'this task requires a citation on each step — open a step to attach one';
     }
   }
 
@@ -2744,6 +2771,10 @@
     if (!list) return;
     clear(list);
     const steps = activeSteps();
+    // Grounding-required tasks keep the per-step citation editor (§13's "no
+    // citation block in step editing" yields here: the server hard-gates a
+    // valid anchor on every step, so removing the UI would dead-end submit).
+    const groundingRequired = (state.task.grounding_mode === 'required');
     if (state.splitting) {
       list.appendChild(h('p', { class: 'asc-help' }, 'Splitting the chosen answer into steps…'));
       return;
@@ -2825,6 +2856,10 @@
 
       if (!open) {
         row.appendChild(h('div', { class: 'asc-step-collapsed-text' }, s.text || ''));
+        if (groundingRequired && (s.text || '').trim() && !isValidAnchor(s.evidence_anchor)) {
+          row.appendChild(h('div', { class: 'asc-anchor-valid asc-anchor-invalid', style: 'margin-top:4px' },
+            '· citation needed — open the step to attach one'));
+        }
         list.appendChild(row);
         return;
       }
@@ -2903,7 +2938,17 @@
           },
         }, 'Remove'));
 
-      appendChildren(row, [suggestHint, ta, noteWrap, originalBox, rowActions]);
+      // Per-step citation editor ONLY when the task requires grounding (see
+      // groundingRequired above) — everywhere else §13 keeps step editing lean.
+      let anchorBlock = null;
+      if (groundingRequired) {
+        if (!s.evidence_anchor) s.evidence_anchor = emptyAnchor();
+        anchorBlock = renderAnchorBlock(s.evidence_anchor, { label: 'citation for this step', required: true });
+        // Keep the section's Continue honest as the anchor fields are filled.
+        anchorBlock.addEventListener('input', () => setTimeout(() => { syncStepsCont(); updateSubmitState(); }, 0));
+        anchorBlock.addEventListener('change', () => setTimeout(() => { syncStepsCont(); updateSubmitState(); }, 0));
+      }
+      appendChildren(row, [suggestHint, ta, noteWrap, originalBox, anchorBlock, rowActions]);
       list.appendChild(row);
     });
     syncStepsCont();
@@ -4314,8 +4359,17 @@
       } else {
         const rg = rubricGate();
         const fg = failureTagGate();
+        const abVerdict = d.verdict === 'A_better' || d.verdict === 'B_better';
         if (!rg.ok) { ok = false; msg = rg.msg; }
         else if (!fg.ok) { ok = false; msg = fg.msg; }
+        // §10/§12 (V3/V4): the required sections stay required even if the
+        // doctor re-opens a completed section and deletes its data — submit
+        // must never ship an empty "why better" or critique.
+        else if (isV3() && abVerdict && !whyBetterConditionsMet()) {
+          ok = false; msg = 'finish “why it’s better” (one line + ≥1 tag) to submit';
+        } else if (isV3() && abVerdict && !critiqueConditionsMet()) {
+          ok = false; msg = 'finish the rejected-answer critique to submit';
+        }
         // §15 (V3/V4): confidence is an active choice, never the draft default.
         else if (isV3() && !d.confidence_set) { ok = false; msg = 'pick your confidence to submit'; }
       }
@@ -4356,9 +4410,15 @@
     if (!sr.ok) { updateSubmitState(); return; }
     if (!rubricGate().ok) { updateSubmitState(); return; }
     if (!failureTagGate().ok) { updateSubmitState(); return; }
-    // §15 (V3/V4): confidence must be an active choice — mirror the button gate
-    // so a programmatic submit can never ship the draft default.
-    if (isV3() && !state.draft.confidence_set) { updateSubmitState(); return; }
+    // §10/§12/§15 (V3/V4): mirror every staged-flow gate — a submit must never
+    // ship with a re-opened section's required data deleted, or the draft
+    // default confidence.
+    if (isV3()) {
+      const d0 = state.draft;
+      const abVerdict = d0.verdict === 'A_better' || d0.verdict === 'B_better';
+      if (abVerdict && (!whyBetterConditionsMet() || !critiqueConditionsMet())) { updateSubmitState(); return; }
+      if (!d0.confidence_set) { updateSubmitState(); return; }
+    }
     state.submitting = true;
     updateHeaderProgress(); // §16: the bar reads 100% while the submit runs
     const btn = document.getElementById('ascSubmit');
