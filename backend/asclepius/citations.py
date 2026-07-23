@@ -131,8 +131,41 @@ def _score_detail(query_tokens: List[str], c: Dict[str, Any]) -> Dict[str, Any]:
     return {"raw": raw, "rank": rank, "entities": entities}
 
 
+# ─── Link validity (Eval UX Overhaul §11) ────────────────────────────────────
+# "Open source" must land on the exact cited guideline/trial — never a wrong or
+# dead page. Every shipped library entry must carry a well-formed https URL; an
+# entry whose link is missing/malformed is surfaced WITHOUT a url (the UI shows
+# it reference-only, no "Open source" button) rather than with a link that might
+# mislead. ``validate_library`` is the audit pass (also enforced by test).
+_URL_RE = re.compile(r"^https?://[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?::\d+)?(?:/\S*)?$")
+
+
+def is_well_formed_url(url: Any) -> bool:
+    return bool(url) and bool(_URL_RE.match(str(url).strip()))
+
+
+def validate_library(specialty: str = "nephrology") -> List[Dict[str, Any]]:
+    """Return the entries whose ``url`` is missing or malformed (each as
+    ``{id, title, url, problem}``). Empty list = every entry resolvable."""
+    problems: List[Dict[str, Any]] = []
+    for c in load_library(specialty) or []:
+        url = c.get("url")
+        if not url:
+            problems.append({"id": c.get("id"), "title": c.get("title"), "url": None,
+                             "problem": "missing_url"})
+        elif not is_well_formed_url(url):
+            problems.append({"id": c.get("id"), "title": c.get("title"), "url": url,
+                             "problem": "malformed_url"})
+    return problems
+
+
 def _public(c: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: c.get(k) for k in _CITATION_KEYS if c.get(k) is not None}
+    out = {k: c.get(k) for k in _CITATION_KEYS if c.get(k) is not None}
+    # §11: never surface a link that can't resolve — strip it so the frontend
+    # renders the suggestion reference-only instead of guessing.
+    if "url" in out and not is_well_formed_url(out["url"]):
+        out.pop("url")
+    return out
 
 
 def suggest_citations(text: str, specialty: str = "nephrology", k: int = 3) -> List[Dict[str, Any]]:

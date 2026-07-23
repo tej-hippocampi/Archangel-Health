@@ -82,6 +82,10 @@ def _anchor(a: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         out["url"] = a.get("url")
     if a.get("citation_confirmed") is not None:
         out["citation_confirmed"] = bool(a.get("citation_confirmed"))
+    # §11 (additive): capture provenance — present only when the V3/V4 UI set it,
+    # so V1/V2 records stay byte-identical.
+    if a.get("entry_method"):
+        out["entry_method"] = a.get("entry_method")
     return out
 
 
@@ -198,6 +202,78 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, A
     return prov
 
 
+# ─── step_note → step_error_tag (Eval UX Overhaul §13) ───────────────────────
+# On V3/V4 the physician types a free-text "what's off with this step?" instead
+# of picking a tag; the SERVER classifies it onto the existing controlled
+# STEP_CORRECTION_REASONS vocabulary. Deterministic keyword rules so it always
+# works offline (an LLM refinement can be layered later without changing the
+# contract); the default is factual_error — the modal correction in practice.
+# Rules are ordered most-specific-first; keywords are conservative on purpose
+# (a wrong specific tag is worse than the factual_error default).
+_STEP_TAG_RULES: List[tuple] = [
+    ("unsafe", (
+        "unsafe", "danger", "harmful", "contraindicat", "toxic", "overdose",
+        "life-threatening", "fatal", "kill", "unmonitored",
+    )),
+    ("outdated_guideline", (
+        "outdated", "superseded", "old guideline", "older guideline",
+        "no longer recommended", "deprecated", "current guideline", "since updated",
+    )),
+    ("wrong_order", (
+        "wrong order", "out of order", "sequence", "sequencing", "premature",
+        "too early", "too late", "should come after", "should come before",
+        "before confirming", "before checking",
+    )),
+    ("incomplete", (
+        "incomplete", "missing", "omits", "omitted", "fails to mention",
+        "doesn't mention", "does not mention", "no mention", "leaves out",
+        "doesn't address", "does not address", "partial", "misses the",
+    )),
+    ("minor_wording", (
+        "wording", "phrasing", "typo", "grammar", "stylistic", "minor wording",
+        "cosmetic", "reads better",
+    )),
+]
+
+
+def derive_step_error_tag(note: str) -> Optional[str]:
+    """Classify a free-text step note onto STEP_CORRECTION_REASONS. Empty/blank
+    note → None (nothing to classify)."""
+    t = (note or "").strip().lower()
+    if not t:
+        return None
+    for tag, keywords in _STEP_TAG_RULES:
+        if any(k in t for k in keywords):
+            return tag
+    return "factual_error"
+
+
+def apply_step_notes(steps: List[Dict[str, Any]]) -> None:
+    """In-place §13 derivation over raw payload steps (run BEFORE validation, so
+    a note-only corrected step never trips missing_correction_reason):
+      * ``step_error_tag`` is always (re)derived from ``step_note`` — never
+        trusted from the wire;
+      * a corrected step with a note but no ``correction_reason`` gets the
+        derived tag as its reason, and its label/step_reward re-derived, so
+        every downstream consumer (validation, packaging, model-failure
+        records) sees the exact shape the tag-picker flow produces."""
+    for s in steps or []:
+        if not isinstance(s, dict):
+            continue
+        note = (s.get("step_note") or "").strip()
+        s["step_error_tag"] = derive_step_error_tag(note)
+        if not note:
+            continue
+        if s.get("corrected") and not (s.get("correction_reason") or "").strip():
+            s["correction_reason"] = s["step_error_tag"]
+            s["label"] = label_for_correction_reason(s["correction_reason"])
+            s["step_reward"] = 1 if s["label"] == "good" else 0
+        # The note doubles as the per-step critique when none was typed — it is
+        # the same "what's off?" signal (never overwrites an explicit critique).
+        if not (s.get("critique") or "").strip():
+            s["critique"] = note
+
+
 def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """PRM800K-style ordered steps; each independently labeled + optionally
     anchored (opt §1.1, §1.2).
@@ -215,6 +291,14 @@ def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # reason consistent is what makes this data sellable.
         if s.get("corrected") and reason:
             label = label_for_correction_reason(reason)
+        # §13 (additive): the physician's verbatim "what's off" + the server-
+        # derived classification — included ONLY when a note exists, so V1/V2
+        # (and untouched V3 steps) package byte-identically to before.
+        note = (s.get("step_note") or "").strip()
+        extra = {}
+        if note:
+            extra["step_note"] = note
+            extra["step_error_tag"] = s.get("step_error_tag") or derive_step_error_tag(note)
         out.append(
             {
                 "step": s.get("step", i),
@@ -236,6 +320,7 @@ def _steps_payload(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 # Multi-anchor (BUG-3b): the full list + a singular back-compat alias.
                 "evidence_anchor": _first_anchor(s),
                 "evidence_anchors": _anchors(s),
+                **extra,
             }
         )
     return out

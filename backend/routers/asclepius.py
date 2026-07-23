@@ -753,8 +753,43 @@ async def list_tasks(
     tasks = _store().list_tasks(specialty=specialty, status=status)
     # admin view keeps generator_model; add submission counts for visibility
     store = _store()
+    from asclepius.baselines import _provider_of  # local import mirrors the other baseline uses
+
     for t in tasks:
         t["submission_count"] = store.submission_count_for_task(t["task_id"])
+        # §4.2 two-frontier diagnostic (ADMIN-ONLY — this endpoint requires admin;
+        # the evaluator payload is built by _blind_task's allowlist and never
+        # carries any of this). Per baseline candidate: provider + model id +
+        # the prompt_hash stamped on its stored run, plus a match flag so an
+        # admin can verify both answers came from byte-identical input.
+        base = [c for c in (t.get("candidate_answers") or []) if c.get("source") == "baseline"]
+        if base:
+            runs = store.list_baseline_runs(task_id=t["task_id"])
+            hash_by_model = {r.get("model"): r.get("prompt_hash") for r in runs if r.get("prompt_hash")}
+            cand_meta = [
+                {
+                    "id": c.get("id"),
+                    "provider": c.get("provider") or _provider_of(c.get("baseline_model")),
+                    "model": c.get("baseline_model"),
+                    "prompt_hash": hash_by_model.get(c.get("baseline_model")),
+                }
+                for c in base
+            ]
+            hashes = {m["prompt_hash"] for m in cand_meta if m["prompt_hash"]}
+            providers = {m["provider"] for m in cand_meta if m["provider"]}
+            t["ab_meta"] = {
+                "candidates": cand_meta,
+                "prompt_hash_match": len(hashes) <= 1,
+                "two_providers": len(providers) >= 2,
+            }
+        # Two-frontier health flags (§4.2): a task held because no pair could be
+        # assembled (e.g. OPENAI_API_KEY unset) must be VISIBLE in admin, never a
+        # silent two-Anthropic swap.
+        gen = t.get("generation") or {}
+        if gen.get("needs_baseline"):
+            t["needs_baseline"] = True
+        if gen.get("ab_source"):
+            t["ab_source"] = gen.get("ab_source")
     return {"tasks": tasks}
 
 
@@ -1511,6 +1546,14 @@ async def submit(
         raise HTTPException(status_code=400, detail="Invalid confidence")
 
     payload = body.model_dump()
+
+    # §13 (Eval UX Overhaul): derive step_error_tag (and, for note-only corrected
+    # steps, the correction_reason + label) from the physician's free-text
+    # step_note — BEFORE validation, so a V3/V4 note-only correction never routes
+    # to QA as missing_correction_reason. No-op when no step carries a note.
+    from asclepius.packaging import apply_step_notes
+    apply_step_notes(payload.get("reasoning_steps"))
+    apply_step_notes((payload.get("from_scratch") or {}).get("reasoning_steps"))
 
     # The independent answer that ships is the one COMMITTED before reveal (Eval
     # Flow Upgrade §1), not whatever the post-reveal client submits — so a client

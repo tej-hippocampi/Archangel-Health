@@ -146,6 +146,10 @@ class EvidenceAnchor(BaseModel):
     # (Seamless PRD WS3) — never set implicitly. Lets buyers/QA distinguish a
     # confirmed library citation from a hand-typed one.
     citation_confirmed: Optional[bool] = None
+    # How the citation was captured (Eval UX Overhaul §11, additive):
+    # 'opened' (clicked through to the source), 'typeahead' (picked from the
+    # library), 'manual' (hand-typed/pasted). Provenance only — never gates.
+    entry_method: Optional[str] = None
 
 
 # ─── Tasks (admin-loaded input) ───────────────────────────────────────────────
@@ -245,6 +249,13 @@ class ReasoningStep(BaseModel):
     # Why the edited step was wrong — one of STEP_CORRECTION_REASONS. Drives the
     # derived ``label`` (minor_wording → neutral, anything else → bad).
     correction_reason: Optional[str] = None
+    # Eval UX Overhaul §13 (V3/V4, additive): the physician's free-text "what's
+    # off with this step?". The SERVER derives the error-tag classification
+    # (``step_error_tag`` → also backfills ``correction_reason``) — the
+    # physician never picks a tag in the step editor.
+    step_note: Optional[str] = None
+    # Derived server-side from ``step_note`` (never trusted from the wire).
+    step_error_tag: Optional[str] = None
     # PRM800K-style per-step label (opt §1.1): good | neutral | bad. Now DERIVED
     # from the confirm/correct action rather than hand-tapped.
     label: Optional[str] = None
