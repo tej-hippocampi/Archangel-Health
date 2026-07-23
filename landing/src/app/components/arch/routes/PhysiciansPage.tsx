@@ -84,12 +84,12 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
             <span className="chrome earnings-head">Two ways to earn</span>
             <div className="earn-grid">
               <div className="earn-way">
-                <span className="chrome chrome-box"><span className="dot dot-green" />Annotate &amp; earn</span>
+                <span className="chrome chrome-box"><span className="dot dot-green" />Annotate</span>
                 <PayFigure />
                 <span className="label">Per case — varies by difficulty, specialty, depth.</span>
               </div>
               <div className="earn-way">
-                <span className="chrome chrome-box"><span className="dot dot-green" />Refer &amp; earn</span>
+                <span className="chrome chrome-box"><span className="dot dot-green" />Refer</span>
                 <span className="doto">$50–$100<span className="per"> / referral</span></span>
                 <span className="label">For every physician you refer who completes their first task.</span>
               </div>
