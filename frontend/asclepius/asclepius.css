@@ -1274,6 +1274,7 @@
 .asc-ver-card-icon.asc-dot-pink { background: var(--pink); }
 .asc-ver-card-icon.asc-dot-lime { background: var(--lime); }
 .asc-ver-card-icon.asc-dot-orange { background: var(--orange); }
+.asc-ver-card-icon.asc-dot-green { background: var(--green); }
 .asc-ver-card-icon.asc-dot-faint { background: rgba(26, 27, 26, 0.18); }
 .asc-ver-card-title {
   font-size: 17px; font-weight: 500;
@@ -1385,6 +1386,79 @@
 .asc-lab-num { text-align: right; font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .asc-lab-warn { background: transparent; color: var(--orange-deep); font-weight: 500; }
 .asc-lab-crit { background: transparent; color: var(--pink-deep); font-weight: 500; }
+
+/* ─── Structured studies (Specialty Hyper-Personalization PRD §3/§6) ───────── */
+/* Deterministic specialty + modality chips — the same dot+label pattern; console
+   palette only (green/orange/pink), never blue. */
+.asc-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 400;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  border-radius: var(--r-chip); padding: 3px 10px; white-space: nowrap;
+  background: var(--card-in); border: 1px solid var(--asc-line); color: var(--ink-soft);
+}
+.asc-chip-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--ink-faint); flex: 0 0 auto; }
+.asc-chip-modality { background: var(--card-in); color: var(--asc-text); }
+.asc-chip-specialty.asc-chip-green { background: var(--green-wash); border-color: var(--green-line); color: var(--green-deep); }
+.asc-chip-specialty.asc-chip-green .asc-chip-dot { background: var(--green); }
+.asc-chip-specialty.asc-chip-orange { background: var(--orange-wash); border-color: var(--orange-line); color: var(--orange-deep); }
+.asc-chip-specialty.asc-chip-orange .asc-chip-dot { background: var(--orange); }
+.asc-chip-specialty.asc-chip-pink { background: var(--pink-wash); border-color: var(--pink-line); color: var(--pink-deep); }
+.asc-chip-specialty.asc-chip-pink .asc-chip-dot { background: var(--pink); }
+
+.asc-study { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--card-in);
+  border: 1px solid var(--hairline); border-radius: var(--r-md); }
+.asc-study + .asc-study { margin-top: 10px; }
+.asc-study-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.asc-study-label { font-size: 13px; font-weight: 500; color: var(--asc-text); }
+.asc-study-findings { font-size: 13.5px; line-height: 1.55; color: var(--asc-text); white-space: pre-wrap; }
+.asc-study-impression { font-size: 13px; color: var(--asc-muted); border-top: 1px solid var(--hairline); padding-top: 8px; }
+/* ECG "rhythm strip" — a scannable findings block (text, never a raw waveform). */
+.asc-ecg-strip {
+  background:
+    repeating-linear-gradient(0deg, var(--hairline) 0 1px, transparent 1px 16px),
+    repeating-linear-gradient(90deg, var(--hairline) 0 1px, transparent 1px 16px),
+    var(--card);
+  border: 1px solid var(--hairline-strong); border-radius: var(--r-sm); padding: 12px 14px;
+}
+.asc-ecg-strip-text { font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: var(--asc-text); white-space: pre-wrap; }
+/* Imaging timeline (baseline → on-treatment) — the temporal judgment. */
+.asc-timeline { display: flex; flex-direction: column; gap: 0; position: relative; }
+.asc-timeline-step { position: relative; padding-left: 22px; padding-bottom: 14px; border-left: 2px solid var(--hairline-strong); margin-left: 5px; }
+.asc-timeline-step:last-child { border-left-color: transparent; padding-bottom: 0; }
+.asc-timeline-marker { position: absolute; left: -7px; top: 4px; width: 12px; height: 12px; border-radius: 999px;
+  background: var(--card); border: 2px solid var(--pink); }
+
+/* ─── V4 image viewer (V4 Image Embedding PRD §6) — tokens only, no bespoke lib ── */
+.asc-img-viewer { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+.asc-img-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.asc-img-btn {
+  font-family: var(--mono); font-size: 12px; line-height: 1; color: var(--asc-text);
+  background: var(--card); border: 1px solid var(--asc-line); border-radius: var(--r-sm);
+  padding: 6px 10px; cursor: pointer; min-width: 32px;
+}
+.asc-img-btn:hover { border-color: var(--hairline-strong); background: var(--card-in); }
+.asc-img-pagenav { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.asc-img-page { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.asc-img-stage {
+  position: relative; overflow: hidden; height: 340px;
+  background: var(--card-in); border: 1px solid var(--hairline); border-radius: var(--r-md);
+  box-shadow: var(--shadow-card); display: flex; align-items: center; justify-content: center;
+  cursor: grab; outline: none;
+}
+.asc-img-stage:focus-visible { border-color: var(--hairline-strong); }
+.asc-img-stage.asc-img-grabbing { cursor: grabbing; }
+.asc-img { max-width: 100%; max-height: 100%; transform-origin: center center; user-select: none;
+  transition: transform 0.08s ease-out; will-change: transform; }
+.asc-img-skeleton { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.asc-img-error { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--asc-muted); font-size: 13.5px; }
+/* Full-screen: fixed overlay using tokens (no new colors). */
+.asc-img-viewer.asc-img-full {
+  position: fixed; inset: 0; z-index: 60; background: var(--card); padding: 18px;
+  margin: 0; gap: 12px;
+}
+.asc-img-viewer.asc-img-full .asc-img-stage { height: calc(100vh - 90px); }
+@media (prefers-reduced-motion: reduce) { .asc-img { transition: none; } }
 
 /* ─── V4 · Real Cases (EHR PRD §9.5) ─────────────────────── */
 .asc-ver-locked { opacity: .62; cursor: not-allowed; }

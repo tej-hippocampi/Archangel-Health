@@ -60,6 +60,25 @@ CASE_SOURCES = ("synthetic", "real_deid")
 # Task modality. "text" is the classic one-line prompt; "multimodal" carries a case.
 MODALITIES = ("text", "multimodal")
 
+# ── Structured studies (Specialty Hyper-Personalization PRD §3) ──────────────
+# Cardiology reasoning lives in the ECG/echo/cath; oncology in pathology/imaging/
+# molecular. Representing these as free-text notes only makes the cases weaker and
+# the data less structured. ``Study`` is a light, additive, backward-compatible
+# modality: existing nephrology cases simply carry ``studies: []``.
+STUDY_MODALITIES = (
+    "ecg", "echo", "cath", "ct", "mri", "pet", "pathology", "molecular", "other",
+)
+
+# Per-specialty REQUIRED study modalities (PRD §3 — "multimodal" must mean the
+# RIGHT modality per specialty). Nephrology is labs-driven and unchanged.
+CARDIOLOGY_STUDY_MODALITIES = ("ecg", "echo")
+ONCOLOGY_IMAGING_MODALITIES = ("ct", "mri", "pet")
+# Oncology is valid with ≥1 of pathology / imaging / molecular.
+ONCOLOGY_STUDY_MODALITIES = ("pathology", "molecular") + ONCOLOGY_IMAGING_MODALITIES
+
+# Accepted image asset MIME types for a V4 real-de-identified study (Image PRD §3.1).
+STUDY_ASSET_MIMES = ("image/png", "image/jpeg", "application/pdf")
+
 
 class LabResult(BaseModel):
     # extra="forbid" (BUG-1 §1): a key-name mismatch from the LLM (e.g. "result"
@@ -131,6 +150,44 @@ class GroundTruth(BaseModel):
     key_data: List[str] = Field(default_factory=list)
 
 
+class StudyAsset(BaseModel):
+    """A reference to a real de-identified image asset attached to a Study (V4 Image
+    PRD §2). The image BYTES are NEVER stored on the ClinicalCase or in asclepius.db —
+    only this opaque reference, resolved via the content-addressed asset store
+    (:mod:`asclepius.assets`). ``sha256`` is identity, dedupe, AND the A/B integrity
+    check (the same bytes must reach both frontier providers)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    asset_id: str                          # opaque id; resolves via the asset store
+    mime: str                              # image/png | image/jpeg | application/pdf
+    sha256: str                            # content hash — identity + A/B integrity
+    width: Optional[int] = None            # px (raster); page count for PDF
+    height: Optional[int] = None
+    byte_size: int = 0
+    page: Optional[int] = None             # for a multi-page PDF, the rendered page
+    page_count: Optional[int] = None       # total pages (PDF)
+    source: str = "partner_deidentified"   # provenance stamp (never a partner id)
+
+
+class Study(BaseModel):
+    """A structured study report — the decisive signal in cardiology/oncology cases
+    often lives here (PRD §3). ``findings`` is the structured report text (the
+    reasoning anchor, always required even when an image ``asset`` is attached);
+    ``measurements`` reuse :class:`LabResult` so EF %, valve gradient, PET SUVmax, and
+    molecular VAF are structured + gradeable, not buried in prose."""
+
+    # extra="forbid" (BUG-1 §1): a mis-named study key must raise, not be dropped.
+    model_config = ConfigDict(extra="forbid")
+
+    modality: str                          # ecg | echo | cath | ct | mri | pet | pathology | molecular | other
+    label: str = ""                        # "12-lead ECG", "TTE", "Core biopsy", "NGS panel"
+    findings: str = ""                     # the structured report text (decisive signal)
+    measurements: List[LabResult] = Field(default_factory=list)
+    impression: Optional[str] = None
+    asset: Optional[StudyAsset] = None      # NEW (V4): optional real image reference
+
+
 class ClinicalCase(BaseModel):
     # extra="forbid" (BUG-1 §1): THE critical one. If the LLM returns ``labs``
     # instead of ``lab_panels`` (or nests results differently, or omits them),
@@ -149,6 +206,10 @@ class ClinicalCase(BaseModel):
     vitals: Dict[str, Any] = Field(default_factory=dict)
     lab_panels: List[LabPanel] = Field(default_factory=list)
     notes: List[ClinicalNote] = Field(default_factory=list)
+    # Structured studies (PRD §3): ECG/echo/cath (cardiology), pathology/imaging/
+    # molecular (oncology), renal biopsy/US (nephrology). Additive + backward
+    # compatible — existing cases carry an empty list.
+    studies: List[Study] = Field(default_factory=list)
     # ── internal-only generation/QA metadata (never shipped raw) ──
     ground_truth: Optional[GroundTruth] = None
     hard_hook: Optional[str] = None
@@ -185,21 +246,90 @@ def _lab_result_ok(r: Dict[str, Any]) -> bool:
     return has_range or has_flag
 
 
+def _study_modality(s: Dict[str, Any]) -> str:
+    return str((s or {}).get("modality") or "").strip().lower()
+
+
+def study_has_valid_asset(s: Optional[Dict[str, Any]]) -> bool:
+    """True when a study carries a resolvable image asset (V4 Image PRD §2): an
+    ``asset`` with an ``asset_id``, a ``sha256``, and an accepted ``mime``."""
+    if not isinstance(s, dict):
+        return False
+    a = s.get("asset")
+    if not isinstance(a, dict):
+        return False
+    return bool(
+        str(a.get("asset_id") or "").strip()
+        and str(a.get("sha256") or "").strip()
+        and str(a.get("mime") or "").strip().lower() in STUDY_ASSET_MIMES
+    )
+
+
+def required_study_modalities(specialty: str) -> tuple:
+    """The study modalities a case of ``specialty`` MUST carry ≥1 of (PRD §3).
+    Nephrology (and any unlisted specialty) has no study requirement."""
+    sp = (specialty or "").strip().lower()
+    if sp == "cardiology":
+        return CARDIOLOGY_STUDY_MODALITIES
+    if sp == "oncology":
+        return ONCOLOGY_STUDY_MODALITIES
+    return ()
+
+
+def _assert_specialty_studies(specialty: str, studies: List[Dict[str, Any]]) -> None:
+    """Strengthen the gate per specialty (PRD §3): a cardiology case must carry ≥1
+    ``ecg``/``echo`` study; an oncology case ≥1 of ``pathology``/imaging/``molecular``.
+    Nephrology is unchanged (labs-driven, no study requirement)."""
+    required = required_study_modalities(specialty)
+    if not required:
+        return
+    present = {_study_modality(s) for s in studies}
+    if not (present & set(required)):
+        raise MultimodalContentError(
+            f"{specialty} case must carry ≥1 study of modality {sorted(required)}; "
+            f"found {sorted(m for m in present if m) or 'none'}"
+        )
+
+
 def assert_multimodal_content(case: Optional[Dict[str, Any]]) -> None:
-    """Hard content gate for a multimodal case (BUG-1 §2). Raises
+    """Hard content gate for a multimodal case (BUG-1 §2; PRD §3). Raises
     :class:`MultimodalContentError` unless the case carries:
 
+      * the per-specialty STUDY requirement (cardiology ≥1 ecg/echo; oncology ≥1
+        pathology/imaging/molecular; nephrology none) — this STRENGTHENS the gate;
+      * AND either the text content floor OR — for a V4 real image case — ≥1 study
+        carrying a valid image ``asset`` with non-empty ``findings`` (V4 Image PRD §3).
+
+    The text content floor (never weakened):
       * ≥ ``ASCLEPIUS_CASE_MIN_LAB_PANELS`` (default 1) lab panel(s) with, in
         total, ≥ ``ASCLEPIUS_CASE_MIN_LAB_RESULTS`` (default 2) results that each
         carry analyte + value + unit + (ref range OR flag);
       * ≥ 1 note with ≥ ``ASCLEPIUS_CASE_MIN_NOTE_CHARS`` (default 200) chars;
       * ≥ 1 problem AND ≥ 1 medication.
 
-    A multimodal case that has no labs is not a multimodal case. Called in
-    ``critic.generate_case`` before returning and again in ``generation.py``
-    before ``insert_task`` — defense in depth so an empty case can never be
-    stamped ``modality='multimodal'``."""
+    Called in ``critic.generate_case`` before returning and again in
+    ``generation.py`` before ``insert_task`` — defense in depth so an empty case can
+    never be stamped ``modality='multimodal'``."""
     c = as_dict(case) or {}
+    studies = [s for s in (c.get("studies") or []) if isinstance(s, dict)]
+
+    # (1) Per-specialty study requirement — always enforced (strengthen).
+    _assert_specialty_studies(c.get("specialty") or "", studies)
+
+    # (2) A V4 image-bearing study (valid asset + non-empty findings) satisfies the
+    #     multimodal content requirement on its own (V4 Image PRD §3.2). The text
+    #     gate below is skipped ONLY for such real image cases — never weakened for
+    #     text cases.
+    image_study = any(
+        study_has_valid_asset(s) and str(s.get("findings") or "").strip()
+        for s in studies
+    )
+    if image_study and (c.get("case_source") == "real_deid"):
+        if not (c.get("problem_list") or []):
+            raise MultimodalContentError("image case has an empty problem_list")
+        return
+
+    # (3) The text content floor (never weakened).
     min_panels = _content_int("ASCLEPIUS_CASE_MIN_LAB_PANELS", 1)
     min_results = _content_int("ASCLEPIUS_CASE_MIN_LAB_RESULTS", 2)
     min_note_chars = _content_int("ASCLEPIUS_CASE_MIN_NOTE_CHARS", 200)
@@ -228,6 +358,34 @@ def assert_multimodal_content(case: Optional[Dict[str, Any]]) -> None:
         raise MultimodalContentError("case has an empty problem_list")
     if not (c.get("medications") or []):
         raise MultimodalContentError("case has an empty medication list")
+
+
+def case_type_signature(case: Optional[Dict[str, Any]]) -> str:
+    """The modality signature a buyer filters on (PRD §2), e.g.
+    ``multimodal:labs+ecg+echo`` or ``multimodal:real+ct_image+molecular``. Derived
+    from the case's ``lab_panels``, ``notes``, and ``studies`` (image-bearing studies
+    add an ``_image`` suffix + a ``real`` prefix for a real de-identified case)."""
+    c = as_dict(case) or {}
+    parts: List[str] = []
+    is_real = c.get("case_source") == "real_deid"
+    if is_real:
+        parts.append("real")
+    if c.get("lab_panels"):
+        parts.append("labs")
+    if c.get("notes"):
+        parts.append("notes")
+    seen = set()
+    for s in (c.get("studies") or []):
+        if not isinstance(s, dict):
+            continue
+        m = str(s.get("modality") or "study").strip().lower()
+        tag = m + ("_image" if study_has_valid_asset(s) else "")
+        if tag not in seen:
+            seen.add(tag)
+            parts.append(tag)
+    if not parts:
+        return "multimodal"
+    return "multimodal:" + "+".join(parts)
 
 
 def as_dict(case: Any) -> Optional[Dict[str, Any]]:
@@ -274,6 +432,39 @@ def _render_labs(lab_panels: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _render_studies(studies: List[Dict[str, Any]]) -> str:
+    """Render structured studies (ECG/echo/cath/imaging/pathology/molecular) as text
+    so a model MUST read the decisive finding into its reasoning (PRD §3). Numeric
+    ``measurements`` render as a compact table (EF, gradient, SUVmax, VAF)."""
+    studies = [s for s in (studies or []) if isinstance(s, dict)]
+    if not studies:
+        return ""
+    lines: List[str] = ["Studies:"]
+    for s in studies:
+        modality = str(s.get("modality") or "study").upper()
+        label = str(s.get("label") or "").strip()
+        head = f"  [{modality}]" + (f" — {label}" if label else "")
+        if s.get("asset"):
+            head += "  (image attached)"
+        lines.append(head)
+        findings = str(s.get("findings") or "").strip()
+        if findings:
+            lines.append(f"    Findings: {findings}")
+        measurements = [r for r in (s.get("measurements") or []) if isinstance(r, dict)]
+        if measurements:
+            lines.append(f"    {'Measure':<26}{'Value':<12}{'Unit':<12}{'Ref':<14}Flag")
+            for r in measurements:
+                analyte = str(r.get("analyte", ""))[:25]
+                value = str(r.get("value", ""))
+                unit = str(r.get("unit") or "")
+                flag = str(r.get("flag") or "")
+                lines.append(f"    {analyte:<26}{value:<12}{unit:<12}{_ref_range(r):<14}{flag}")
+        impression = str(s.get("impression") or "").strip()
+        if impression:
+            lines.append(f"    Impression: {impression}")
+    return "\n".join(lines)
+
+
 def render_case_prompt(case: Any, question: str) -> str:
     """Render a human/model-readable prompt: the clinical question, then the case
     (labs as a compact table, notes verbatim, meds/problems/vitals). This string
@@ -312,6 +503,10 @@ def render_case_prompt(case: Any, question: str) -> str:
     if labs:
         parts.append(labs)
 
+    studies = _render_studies(c.get("studies") or [])
+    if studies:
+        parts.append(studies)
+
     for n in c.get("notes") or []:
         role = n.get("author_role") or "clinician"
         parts.append(f"[{n.get('note_type','Note')} — {role}]\n{(n.get('text') or '').strip()}")
@@ -330,4 +525,4 @@ def is_multimodal(task: Dict[str, Any]) -> bool:
     if (task.get("modality") or "text") == "multimodal":
         return True
     case = task.get("case")
-    return bool(case and (case.get("lab_panels") or case.get("notes")))
+    return bool(case and (case.get("lab_panels") or case.get("notes") or case.get("studies")))

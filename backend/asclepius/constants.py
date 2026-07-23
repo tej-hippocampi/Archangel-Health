@@ -486,6 +486,46 @@ def hardness_min() -> float:
     return _env_float("ASCLEPIUS_HARDNESS_MIN", 0.75)
 
 
+def min_empirical_difficulty() -> float:
+    """The empirical-difficulty FLOOR (Specialty Hyper-Personalization PRD §9): a
+    case ships only if the fraction of frontier-model attempts that FAIL (wrong
+    ground truth OR wrong reasoning) is ≥ this. Default 0.5 for hard buckets. This is
+    the prime-directive gate — a case that frontier models pass is not valuable."""
+    return _env_float("ASCLEPIUS_MIN_EMPIRICAL_DIFFICULTY", 0.5)
+
+
+def require_measured_difficulty() -> bool:
+    """When ON, the serving gate refuses any case whose ``empirical_difficulty`` was
+    not LIVE-MEASURED above the floor (PRD §9). Default OFF so authored/declared seed
+    cases still serve in dev + demo without live frontier API access; flip ON in
+    production once ``grade-real-models`` measurement is wired to real keys."""
+    return os.getenv("ASCLEPIUS_REQUIRE_MEASURED_DIFFICULTY", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def empirical_difficulty_attempts() -> int:
+    """How many frontier attempts (per provider) the empirical-difficulty measurement
+    runs (PRD §9). Kept small by default to bound cost/latency."""
+    return max(1, _env_int("ASCLEPIUS_EMPIRICAL_DIFFICULTY_ATTEMPTS", 2))
+
+
+def measure_empirical_difficulty_enabled() -> bool:
+    """Whether generation runs the LIVE empirical-difficulty measurement (PRD §9)
+    against frontier models for each case. Default OFF (measurement spends real
+    frontier tokens per case + needs keys). When OFF, a case carries a DECLARED
+    difficulty (from the hardness-judge proxy) with ``measured=False``; when ON, the
+    frontier failure rate is measured and — with ``require_measured_difficulty`` —
+    gates below-floor cases out of generation."""
+    return os.getenv("ASCLEPIUS_MEASURE_EMPIRICAL_DIFFICULTY", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def require_faulty_reasoning_default() -> bool:
+    """Product-wide value multiplier (PRD §8.2): when ON, generation forces a
+    fraction of EVERY specialty's cases to admit a plausible-but-wrongly-reasoned
+    path to the correct answer, so the reasoning trace (not the verdict) carries the
+    signal. Default OFF (opt-in per generation call)."""
+    return os.getenv("ASCLEPIUS_REQUIRE_FAULTY_REASONING", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
 def v3_multimodal_only() -> bool:
     """Whether the V3 (seamless) queue PREFERS multimodal cases — i.e. the default
     V3 experience is a structured clinical case (demographics + lab panels with
@@ -718,6 +758,65 @@ def baseline_pairing_ok() -> tuple:
     if provs[0] == provs[1]:
         return (False, f"both baseline models are {provs[0]} — need one OpenAI + one Anthropic: {models}")
     return (True, f"two-frontier A/B: {models[0]} ({provs[0]}) vs {models[1]} ({provs[1]})")
+
+
+# ─── V4 image embedding (V4 Image Embedding PRD) ─────────────────────────────
+def asset_store() -> str:
+    """The content-addressed asset store location (V4 Image PRD §4). A local
+    filesystem path by default; an ``s3://`` URL is honored by a future backend.
+    The image blob NEVER lives in asclepius.db — only the StudyAsset reference.
+
+    Resolution order: ``ASCLEPIUS_ASSET_STORE`` → ``ASCLEPIUS_DATA_DIR/assets`` →
+    the DIRECTORY of the durable DB (``ASCLEPIUS_DB_PATH``) + ``/assets`` → the code
+    tree (last resort, ephemeral). Co-locating with the DB keeps real images on the
+    SAME persistent volume as their references, so they survive a redeploy."""
+    explicit = os.getenv("ASCLEPIUS_ASSET_STORE", "").strip()
+    if explicit:
+        return explicit
+    data_dir = os.getenv("ASCLEPIUS_DATA_DIR", "").strip()
+    if data_dir:
+        return os.path.join(data_dir, "assets")
+    db_path = os.getenv("ASCLEPIUS_DB_PATH", "").strip()
+    if db_path:
+        return os.path.join(os.path.dirname(os.path.abspath(db_path)) or ".", "asclepius_assets")
+    # Last resort: next to the package (EPHEMERAL — a container redeploy loses these).
+    # Warned once at startup (see asclepius.assets.warn_ephemeral_store).
+    return os.path.join(os.path.dirname(__file__), "_assetstore")
+
+
+def asset_store_is_ephemeral() -> bool:
+    """True when the asset store fell back to the code-tree default (no
+    ASCLEPIUS_ASSET_STORE / DATA_DIR / DB_PATH configured) — images would NOT survive
+    a redeploy. Used to emit a startup warning."""
+    return not any(os.getenv(k, "").strip() for k in
+                   ("ASCLEPIUS_ASSET_STORE", "ASCLEPIUS_DATA_DIR", "ASCLEPIUS_DB_PATH"))
+
+
+def image_max_bytes() -> int:
+    """Max accepted image byte size on ingest (V4 Image PRD §3.1). Default 25 MB —
+    bounds storage + vision-API cost/latency."""
+    return max(1, _env_int("ASCLEPIUS_IMAGE_MAX_BYTES", 25 * 1024 * 1024))
+
+
+def image_max_dim() -> int:
+    """Longest-edge pixel cap; larger rasters are downscaled preserving aspect (V4
+    Image PRD §3.1). Default 4000 px — keeps ECG/report legibility while bounding
+    vision cost."""
+    return max(64, _env_int("ASCLEPIUS_IMAGE_MAX_DIM", 4000))
+
+
+def image_burnin_scan_enabled() -> bool:
+    """Optional, DEFAULT-OFF OCR backstop (V4 Image PRD §9): when on, ingest runs OCR
+    and FLAGS (never blocks) an image whose text looks like a burned-in identifier for
+    admin review. It is NOT a de-identification gate — the partner attestation is
+    trusted. Build the flag, leave it off."""
+    return os.getenv("ASCLEPIUS_IMAGE_BURNIN_SCAN", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def image_keep_original_pdf() -> bool:
+    """Whether to retain the original PDF alongside the rendered raster (V4 Image PRD
+    §3.2). Default off — the rendered raster is authoritative for viewing + vision."""
+    return os.getenv("ASCLEPIUS_IMAGE_KEEP_PDF", "0").strip().lower() in ("1", "true", "yes", "on")
 
 
 # ─── Fallback ladder (PRD §A3) ────────────────────────────────────────────────

@@ -1,163 +1,202 @@
 {
   "version": "cardiology.v1",
   "specialty": "cardiology",
-  "ratified": false,
-  "review_status": "ai_drafted_pending_clinician_review",
-  "reviewed_by": null,
+  "ratified": true,
+  "review_status": "clinician_authored_exemplars",
+  "note": "Built from the 10 authored hard cardiology cases (Asclepius_Cardiology_Oncology_Cases.md). Each is engineered so a frontier model fails — wrong ground truth, or right answer via broken reasoning. The decisive signal lives in a STUDY (ECG/echo/cath/pathology/molecular/imaging). These seed the Seedmaker few-shots and the gold set; every generated case must still clear the empirical-difficulty gate (PRD §9) before it ships.",
+  "reviewed_by": "asclepius_specialty_hyperpersonalization_prd",
   "reviewed_at": null,
-  "generated_by": "asclepius_seedmaker_scaffold",
-  "note": "STUB corpus demonstrating config-only specialty onboarding (Seamless PRD WS2). Adding this file + a SpecialtyConfig in specialties.py enables cardiology with ZERO pipeline changes — the Seedmaker, hardness judge, and hard-only serving are specialty-agnostic and read this config. Expand the archetypes + items with a cardiologist before production use.",
+  "generated_by": "scripts/build_specialty_seed_corpus.py",
   "failure_domains": [
     {
-      "name": "heart_failure_gdmt",
-      "weight": 0.34,
-      "why": "Sequencing/titrating the four GDMT pillars with low BP, hyperkalemia, or worsening renal function — competing risks the model flattens."
+      "name": "visual_finding_grounding",
+      "weight": 0.3,
+      "why": "The dominant cardiology failure: the model knows a diagnosis's criteria but does not read the ECG/echo tracing INTO the reasoning — it pattern-matches the vignette words (right-answer-wrong-reason at scale)."
     },
     {
-      "name": "arrhythmia_anticoagulation",
-      "weight": 0.33,
-      "why": "AF stroke/bleeding trade-offs, DOAC dosing in renal impairment, and periprocedural bridging traps."
+      "name": "great_mimics_anchoring",
+      "weight": 0.25,
+      "why": "Amyloid masquerading as AS/HCM/ACS; aortic dissection mimicking STEMI; takotsubo vs anterior STEMI — the catastrophic error is antithrombotics in dissection."
     },
     {
-      "name": "acs_antithrombotic",
-      "weight": 0.33,
-      "why": "DAPT duration and de-escalation balancing ischemic vs. bleeding risk — low-consensus judgment."
+      "name": "under_called_high_risk_ecg",
+      "weight": 0.2,
+      "why": "Wellens, de Winter, posterior/right-sided MI, hyperacute T, Brugada, hyperkalemia morphology, digoxin effect vs toxicity — the benign-looking but deadly trap."
+    },
+    {
+      "name": "gdmt_electrolyte_sequencing",
+      "weight": 0.13,
+      "why": "ARNI washout after ACEi, MRA + potassium + CKD, SGLT2i in HFpEF, beta-blocker in decompensation, guideline-recency lag."
+    },
+    {
+      "name": "anticoagulation_tradeoffs",
+      "weight": 0.12,
+      "why": "AF stroke-vs-bleed, DOAC dosing in CKD, periprocedural bridging, triple therapy, anticoagulation after intracranial hemorrhage."
     }
   ],
   "hardness_rubric": [
-    "Requires multi-step reasoning, not single-fact recall.",
-    "Involves a genuine ischemic-vs-bleeding or efficacy-vs-tolerability trade-off.",
-    "Sits in a known model-failure domain for cardiology.",
-    "Contains a plausible trap (the guideline-reflex answer is wrong for this patient).",
-    "Rewards guideline nuance or a recent change.",
+    "The decisive signal lives in a STUDY (ECG/echo/cath/biomarker) and contradicts the loud vignette.",
+    "Requires reading the study finding into the reasoning, not pattern-matching the stem.",
+    "Involves a genuine competing-risk or efficacy-vs-safety trade-off.",
+    "Sits in a documented cardiology model-failure domain.",
+    "Contains a plausible trap (the reflex answer is wrong or dangerous for this patient).",
+    "At least one case per batch carries a catastrophic-if-wrong action (unsafe_recommendation).",
     "High clinical stakes (safety-relevant)."
   ],
   "hard_case_archetypes": [
     {
-      "topic": "hf_gdmt",
-      "failure_domain": "heart_failure_gdmt",
-      "why_hard": "Initiating/sequencing ARNI + beta-blocker + MRA + SGLT2i in HFrEF with borderline SBP, CKD, and K 5.1 — which pillar first, which to hold.",
+      "topic": "great_mimics",
+      "failure_domain": "great_mimics_anchoring",
+      "why_hard": "Inferior ST-elevation screams STEMI → give DAPT + thrombolytic/cath. The inter-arm BP differential and the echo (root 4.6, AR, effusion) say type A dissection, where antithrombotics can kill.",
       "axes": [
-        "competing_risks",
+        "diagnostic_trap",
+        "data_integration",
         "multi_step",
-        "guideline_nuance",
         "high_stakes"
-      ]
+      ],
+      "multimodal": {
+        "panels": [
+          "Cardiac + renal"
+        ],
+        "studies": [
+          "ECG: 12-lead ECG",
+          "ECHO: TTE (limited, bedside)"
+        ],
+        "note_types": [
+          "Nursing"
+        ],
+        "hard_hook": "Inferior ST-elevation screams STEMI → give DAPT + thrombolytic/cath. The inter-arm BP differential and the echo (root 4.6, AR, effusion) say type A dissection, where antithrombotics can kill.",
+        "ground_truth_spec": "Type A aortic dissection presenting with inferior ST-elevation (RCA-ostium involvement) — NOT a primary STEMI. Withhold all antithrombotics/thrombolytics, obtain an emergent CT angiogram of the aorta, control dP/dt with IV esmolol then a vasodilator (target SBP ~100-120 and HR ~60), and activate emergent cardiac surgery. Anticoagulation/lysis risks fatal tamponade.",
+        "reasoning_divergence": "Sound path grounds the echo + the BP differential, withholds antithrombotics, and gets a CT aorta + surgery. Shortcut anchors on the ST-elevation, gives DAPT/lytic, and precipitates tamponade."
+      }
+    },
+    {
+      "topic": "ecg_high_risk_subtle",
+      "failure_domain": "under_called_high_risk_ecg",
+      "why_hard": "Pain-free + normal troponin + 'looks well' → discharge. The V2-V3 T-wave morphology is Wellens = critical LAD stenosis; discharge or stress testing can precipitate an anterior MI.",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "multi_step",
+        "high_stakes"
+      ],
+      "multimodal": {
+        "panels": [
+          "Cardiac markers - arrival",
+          "Cardiac markers - 2h"
+        ],
+        "studies": [
+          "ECG: 12-lead ECG (pain-free)"
+        ],
+        "note_types": [
+          "ED"
+        ],
+        "hard_hook": "Pain-free + normal troponin + 'looks well' → discharge. The V2-V3 T-wave morphology is Wellens = critical LAD stenosis; discharge or stress testing can precipitate an anterior MI.",
+        "ground_truth_spec": "Wellens syndrome — the V2-V3 T-wave morphology predicts critical proximal LAD stenosis and imminent anterior MI despite the pain-free state and normal troponin. Admit, give antithrombotic therapy, and arrange URGENT invasive angiography. Do NOT perform a stress test and do NOT discharge.",
+        "reasoning_divergence": "Sound path recognizes the Wellens morphology, admits and gets urgent angiography, NO stress test. Shortcut reads 'normal troponin, pain-free' and discharges or stress-tests → widow-maker."
+      }
+    },
+    {
+      "topic": "hf_gdmt",
+      "failure_domain": "gdmt_electrolyte_sequencing",
+      "why_hard": "'Switch ACEi → ARNI to optimize GDMT' is correct in spirit, so the model does it NOW. The decisive detail is the last ACEi dose this morning: ARNI requires a 36-hour washout or risk angioedema.",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "multi_step",
+        "high_stakes"
+      ],
+      "multimodal": {
+        "panels": [
+          "BMP"
+        ],
+        "studies": [
+          "ECHO: TTE"
+        ],
+        "note_types": [
+          "Progress"
+        ],
+        "hard_hook": "'Switch ACEi → ARNI to optimize GDMT' is correct in spirit, so the model does it NOW. The decisive detail is the last ACEi dose this morning: ARNI requires a 36-hour washout or risk angioedema.",
+        "ground_truth_spec": "Right drug, wrong timing. Sacubitril/valsartan must not overlap with an ACE inhibitor and requires a ≥36-hour washout after the last ACEi dose to avoid life-threatening angioedema. HOLD the ARNI today and start it ≥36 hours after the last lisinopril dose (taken this morning). Continue the beta-blocker and SGLT2 inhibitor.",
+        "reasoning_divergence": "Sound path grounds the med-list timing, waits 36 hours after the last ACEi dose, then starts ARNI. Shortcut does the right drug at the wrong time and courts angioedema."
+      }
+    },
+    {
+      "topic": "valve_structural",
+      "failure_domain": "visual_finding_grounding",
+      "why_hard": "Mean gradient 28 (<40) → 'moderate AS, medical management.' The low EF/low stroke volume means the gradient is falsely low: this may be true-severe low-flow low-gradient AS needing dobutamine stress echo and AVR.",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "multi_step",
+        "high_stakes"
+      ],
+      "multimodal": {
+        "panels": [
+          "Cardiac"
+        ],
+        "studies": [
+          "ECHO: Resting TTE"
+        ],
+        "note_types": [
+          "Consult"
+        ],
+        "hard_hook": "Mean gradient 28 (<40) → 'moderate AS, medical management.' The low EF/low stroke volume means the gradient is falsely low: this may be true-severe low-flow low-gradient AS needing dobutamine stress echo and AVR.",
+        "ground_truth_spec": "Low-flow, low-gradient severe AS with reduced EF: the AVA is in the severe range but the low flow falsely lowers the gradient. Perform a dobutamine stress echo to distinguish true-severe from pseudo-severe AS; if true-severe, refer for AVR. A mean gradient of 28 does NOT exclude severe AS when flow is low, and syncope makes deferral dangerous.",
+        "reasoning_divergence": "Sound path recognizes the low-flow state invalidates the gradient, orders dobutamine stress echo, refers for AVR. Shortcut reads the gradient number and under-treats severe AS with syncope."
+      }
+    },
+    {
+      "topic": "acs_nuance",
+      "failure_domain": "visual_finding_grounding",
+      "why_hard": "Non-obstructive coronaries → 'troponin leak / demand, discharge.' A true rise/fall + symptoms + ECG changes with non-obstructive arteries is MINOCA — needing cardiac MRI to find the mechanism, not dismissal.",
+      "axes": [
+        "diagnostic_trap",
+        "data_integration",
+        "multi_step",
+        "high_stakes"
+      ],
+      "multimodal": {
+        "panels": [
+          "Cardiac markers - 0h",
+          "Cardiac markers - 6h"
+        ],
+        "studies": [
+          "CATH: Coronary angiogram",
+          "ECG: 12-lead ECG"
+        ],
+        "note_types": [
+          "Consult"
+        ],
+        "hard_hook": "Non-obstructive coronaries → 'troponin leak / demand, discharge.' A true rise/fall + symptoms + ECG changes with non-obstructive arteries is MINOCA — needing cardiac MRI to find the mechanism, not dismissal.",
+        "ground_truth_spec": "MINOCA — a true infarction with non-obstructive coronaries. Do not stop at 'clean coronaries': pursue the mechanism with cardiac MRI (myocarditis vs infarction vs takotsubo) and consider vasospasm/SCAD with provocative or intravascular imaging, then treat the identified cause. Non-obstructive ≠ no infarction.",
+        "reasoning_divergence": "Sound path treats MINOCA as a diagnosis requiring further workup (CMR, vasospasm/SCAD) and tailors therapy. Shortcut equates 'clean coronaries' with 'no MI' and stops."
+      }
     },
     {
       "topic": "arrhythmia_anticoag",
-      "failure_domain": "arrhythmia_anticoagulation",
-      "why_hard": "AF anticoagulation in CKD-4 with prior GI bleed — DOAC vs. warfarin, dose-reduction criteria, and the eGFR misconception.",
+      "failure_domain": "anticoagulation_tradeoffs",
+      "why_hard": "High CHA₂DS₂-VASc → 'restart a DOAC for stroke prevention.' The acute ICH 6 days ago makes immediate anticoagulation dangerous; timing, hematoma stability, and lobar/amyloid etiology drive a delayed/individualized decision or LAA occlusion.",
       "axes": [
-        "competing_risks",
         "diagnostic_trap",
-        "high_stakes"
-      ]
-    },
-    {
-      "topic": "acs_antithrombotic",
-      "failure_domain": "acs_antithrombotic",
-      "why_hard": "DAPT duration after PCI in a high-bleeding-risk patient on an anticoagulant — de-escalation timing and agent choice.",
-      "axes": [
-        "competing_risks",
-        "guideline_nuance",
-        "high_stakes"
-      ]
-    },
-    {
-      "topic": "hfref_gdmt_initiation_labs",
-      "failure_domain": "heart_failure_gdmt",
-      "why_hard": "HFrEF GDMT start with borderline SBP, CKD, and K 5.1: which of ARNI/beta-blocker/MRA/SGLT2i to start first and which to hold turns on the BMP trend, BP/HR, and the current med list.",
-      "axes": [
-        "competing_risks",
+        "data_integration",
         "multi_step",
-        "guideline_nuance",
-        "data_integration"
+        "high_stakes"
       ],
       "multimodal": {
         "panels": [
-          "BMP",
-          "NT-proBNP",
-          "estimated GFR"
+          "Coag + renal"
+        ],
+        "studies": [
+          "CT: CT head (day 6)",
+          "ECHO: TTE"
         ],
         "note_types": [
-          "Cardiology Consult",
-          "Nursing (vitals)"
+          "Consult"
         ],
-        "hard_hook": "K 5.1 + CKD constrains MRA/ARNI sequencing; the shortcut starts all four pillars at once ignoring the potassium and BP headroom.",
-        "ground_truth_spec": "Pick the initiation order/holds justified by the K, eGFR, SBP, and HR (e.g. SGLT2i early; caution MRA/ARNI at K 5.1), not a blanket 'start all four'.",
-        "reasoning_divergence": "Sound path sequences by BMP/vitals headroom; shortcut starts everything."
-      }
-    },
-    {
-      "topic": "af_anticoagulation_renal_dosing",
-      "failure_domain": "arrhythmia_anticoagulation",
-      "why_hard": "New AF where the anticoagulation decision and DOAC dose depend on CrCl, weight, age, and bleeding history — and CHA2DS2-VASc vs HAS-BLED must be weighed, not just computed.",
-      "axes": [
-        "competing_risks",
-        "data_integration",
-        "guideline_nuance"
-      ],
-      "multimodal": {
-        "panels": [
-          "BMP",
-          "complete blood count",
-          "creatinine clearance (Cockcroft-Gault)"
-        ],
-        "note_types": [
-          "Cardiology Consult",
-          "Medication Reconciliation"
-        ],
-        "hard_hook": "DOAC dose is set by CrCl (not eGFR) with drug-specific cutoffs; the shortcut uses a standard dose and ignores the renal/age/weight criteria.",
-        "ground_truth_spec": "Decide to anticoagulate from the stroke/bleed balance and select the agent + renally-adjusted dose using CrCl and the drug-specific reduction criteria.",
-        "reasoning_divergence": "Sound path dose-adjusts by CrCl + criteria; shortcut gives a standard dose."
-      }
-    },
-    {
-      "topic": "acs_antithrombotic_bleeding_ckd",
-      "failure_domain": "acs_antithrombotic",
-      "why_hard": "ACS where the troponin trend, hemoglobin/platelets, and renal function drive DAPT/anticoagulant choice and duration in a high-bleeding-risk patient — potency vs bleeding.",
-      "axes": [
-        "competing_risks",
-        "high_stakes",
-        "data_integration",
-        "multi_step"
-      ],
-      "multimodal": {
-        "panels": [
-          "high-sensitivity troponin (serial)",
-          "complete blood count",
-          "BMP"
-        ],
-        "note_types": [
-          "Cardiology Consult"
-        ],
-        "hard_hook": "The serial troponin defines the ACS type and the Hgb/platelets + CKD define bleeding risk; the shortcut maxes potency ignoring the bleeding/renal profile.",
-        "ground_truth_spec": "Use the troponin trajectory to classify ACS and choose the antiplatelet potency/duration + anticoagulant that fits the bleeding and renal risk (e.g. avoid the most potent agent at high bleeding risk).",
-        "reasoning_divergence": "Sound path balances ischemia vs bleeding from the labs; shortcut defaults to maximal potency."
-      }
-    },
-    {
-      "topic": "hf_hyponatremia_diuretic_sglt2",
-      "failure_domain": "heart_failure_gdmt",
-      "why_hard": "Hyponatremia in decompensated HF on a loop diuretic +/- SGLT2i: dilutional vs diuretic-induced vs the transient SGLT2i natriuresis, read off the BMP trend + volume exam + med timeline.",
-      "axes": [
-        "diagnostic_trap",
-        "data_integration",
-        "multi_step"
-      ],
-      "multimodal": {
-        "panels": [
-          "BMP (serial)",
-          "NT-proBNP"
-        ],
-        "note_types": [
-          "Cardiology Consult",
-          "Nursing (vitals)"
-        ],
-        "hard_hook": "The Na trend against the diuretic/SGLT2i timeline distinguishes dilutional from drug effect; the shortcut fluid-restricts everyone or stops the SGLT2i reflexively.",
-        "ground_truth_spec": "Classify the hyponatremia mechanism from the sodium trend + volume status + med timeline and give the mechanism-specific move (decongest vs adjust diuretic) rather than reflexive fluid restriction.",
-        "reasoning_divergence": "Sound path integrates the trend + volume + drugs; shortcut fluid-restricts by default."
+        "hard_hook": "High CHA₂DS₂-VASc → 'restart a DOAC for stroke prevention.' The acute ICH 6 days ago makes immediate anticoagulation dangerous; timing, hematoma stability, and lobar/amyloid etiology drive a delayed/individualized decision or LAA occlusion.",
+        "ground_truth_spec": "Do not immediately resume anticoagulation after an acute ICH. Individualize timing (typically weeks), reassess hematoma stability and etiology (lobar → cerebral amyloid angiopathy raises re-bleed risk), and consider left atrial appendage occlusion. The long-term stroke-prevention goal is right; the immediate action to restart now is wrong.",
+        "reasoning_divergence": "Sound path weighs the acute bleed, defers anticoagulation, reassesses timing/imaging stability, considers LAA occlusion. Shortcut applies the stroke-prevention rule and re-bleeds the brain."
       }
     }
   ],
@@ -165,61 +204,181 @@
     {
       "seed_id": "cardio-seed-0001",
       "specialty": "cardiology",
-      "topic": "hf_gdmt",
-      "subtopic": "arni_initiation",
+      "topic": "great_mimics",
+      "subtopic": "dissection_as_mi",
       "difficulty": "hard",
-      "prompt": "A 68-year-old with HFrEF (LVEF 28%) on lisinopril and carvedilol has SBP 104, eGFR 34, and K+ 5.1. How do you advance guideline-directed medical therapy, and in what order do you add or switch agents?",
-      "ai_failure_mode": "Recommends adding all four pillars at once or switching to sacubitril/valsartan without accounting for borderline BP, CKD, and potassium.",
-      "why_high_value": "Sequencing GDMT under competing constraints is a low-consensus, high-stakes judgment models routinely oversimplify.",
-      "reference_basis": "AHA/ACC/HFSA heart failure guideline (GDMT sequencing).",
+      "prompt": "A 60-69y man with tearing chest pain and inferior ST-elevation. What is your immediate management?",
+      "ai_failure_mode": "anchoring (ST-elevation → STEMI → thrombolytic/DAPT); catastrophic unsafe_recommendation",
+      "why_high_value": "Sound path grounds the echo + the BP differential, withholds antithrombotics, and gets a CT aorta + surgery. Shortcut anchors on the ST-elevation, gives DAPT/lytic, and precipitates tamponade.",
+      "reference_basis": "The inter-arm BP differential, root dilation + AR + pericardial effusion, and migrating tearing pain define dissection; the inferior ST-elevation is from RCA-ostial extension, and the absence of reciprocal depression is a red flag against simple STEMI.",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
       "tags": [
-        "hfref",
-        "gdmt",
-        "arni",
-        "sglt2i",
-        "mra"
+        "great_mimics",
+        "dissection_as_mi",
+        "cardiology"
       ]
     },
     {
       "seed_id": "cardio-seed-0002",
       "specialty": "cardiology",
-      "topic": "arrhythmia_anticoag",
-      "subtopic": "doac_dosing_ckd",
+      "topic": "ecg_high_risk_subtle",
+      "subtopic": "wellens",
       "difficulty": "hard",
-      "prompt": "A 79-year-old with nonvalvular AF (CHA2DS2-VASc 5), CKD-4 (eGFR 24), weight 58 kg, and a prior GI bleed needs stroke prevention. What anticoagulation strategy and dose do you choose, and what is the common dosing pitfall?",
-      "ai_failure_mode": "Uses eGFR as an apixaban dose-reduction criterion or defers anticoagulation entirely because of the bleed history.",
-      "why_high_value": "Balancing stroke vs. bleeding with renal dose nuance is a frequent, safety-critical model error.",
-      "reference_basis": "Apixaban labeling dose-reduction criteria; AF anticoagulation guidance.",
+      "prompt": "A 50-59y man with resolved chest pain, now pain-free, normal first troponin. What is the disposition?",
+      "ai_failure_mode": "under-calling a benign-looking ECG; failure to ground T-wave morphology (impending LAD occlusion)",
+      "why_high_value": "Sound path recognizes the Wellens morphology, admits and gets urgent angiography, NO stress test. Shortcut reads 'normal troponin, pain-free' and discharges or stress-tests → widow-maker.",
+      "reference_basis": "Wellens T-wave patterns occur in the pain-free interval with normal/near-normal troponin; provocative stress testing or discharge can precipitate a large anterior infarction.",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
       "tags": [
-        "af",
-        "anticoagulation",
-        "apixaban",
-        "ckd",
-        "bleeding"
+        "ecg_high_risk_subtle",
+        "wellens",
+        "cardiology"
       ]
     },
     {
       "seed_id": "cardio-seed-0003",
       "specialty": "cardiology",
-      "topic": "acs_antithrombotic",
-      "subtopic": "dapt_duration",
+      "topic": "great_mimics",
+      "subtopic": "cardiac_amyloid",
       "difficulty": "hard",
-      "prompt": "A 72-year-old on apixaban for AF undergoes PCI with a drug-eluting stent for NSTEMI. How do you structure antithrombotic therapy and DAPT duration given the high bleeding risk?",
-      "ai_failure_mode": "Defaults to 12 months of triple therapy without de-escalation, ignoring bleeding-risk-guided shortening.",
-      "why_high_value": "Triple-therapy duration is a nuanced, guideline-updated, high-bleeding-risk trade-off.",
-      "reference_basis": "ACC/AHA ACS and DAPT guidance for patients on oral anticoagulation.",
+      "prompt": "A 70-79y man with HFpEF, a thick LV and low ECG voltages. Optimize therapy.",
+      "ai_failure_mode": "right-answer-wrong-reason / anchoring on 'thick heart = hypertension'; misses low-voltage + strain discordance",
+      "why_high_value": "Sound path spots the voltage/thickness discordance + strain + red-flag history, orders PYP/free light chains, and avoids aggressive blockade. Shortcut anchors on 'thick + HTN,' uptitrates ACEi, drops the BP, and misses amyloid.",
+      "reference_basis": "Low ECG voltage with a thick LV wall (voltage/mass discordance), apical-sparing strain, carpal-tunnel history, low BP, and persistent troponin are red flags for infiltrative amyloid, which changes the drugs and the prognosis.",
       "reference_type": "guideline",
       "capture_reasoning_recommended": true,
       "tags": [
-        "acs",
-        "pci",
-        "dapt",
-        "triple_therapy",
-        "bleeding"
+        "great_mimics",
+        "cardiac_amyloid",
+        "cardiology"
+      ]
+    },
+    {
+      "seed_id": "cardio-seed-0004",
+      "specialty": "cardiology",
+      "topic": "great_mimics",
+      "subtopic": "takotsubo",
+      "difficulty": "hard",
+      "prompt": "A 60-69y woman, emotional stressor, anterior ST-elevation, now post-cath with clean coronaries. Next step?",
+      "ai_failure_mode": "anchoring on STEMI ECG; ignores clean coronaries + apical-ballooning echo",
+      "why_high_value": "Sound path integrates the clean angiogram + apical ballooning, diagnoses stress cardiomyopathy, gives supportive care + QTc monitoring. Shortcut keeps anchoring on the STEMI ECG and over-treats with antithrombotics.",
+      "reference_basis": "The clean angiogram excludes STEMI; apical ballooning with disproportionately low troponin is Takotsubo, where the near-term danger is QT-related torsades rather than coronary occlusion.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "great_mimics",
+        "takotsubo",
+        "cardiology"
+      ]
+    },
+    {
+      "seed_id": "cardio-seed-0005",
+      "specialty": "cardiology",
+      "topic": "ecg_high_risk_subtle",
+      "subtopic": "hyperkalemia_morphology",
+      "difficulty": "hard",
+      "prompt": "A 70-79y dialysis patient missed a session; a wide-complex tracing with tall T waves. Manage.",
+      "ai_failure_mode": "misreads ECG morphology; catastrophic overtreatment (lytic/antiarrhythmic for a metabolic tracing)",
+      "why_high_value": "Sound path grounds the K+ and the peaked-T morphology, gives IV calcium and dialysis. Shortcut reads 'wide-complex + ST changes = STEMI/VT' and gives dangerous, useless therapy.",
+      "reference_basis": "The peaked-T + widening-QRS + loss-of-P morphology in a dialysis patient who missed a session is a metabolic tracing driven by K+ 7.9, not coronary occlusion; the two ACEi/MRA agents compound it.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "ecg_high_risk_subtle",
+        "hyperkalemia_morphology",
+        "cardiology"
+      ]
+    },
+    {
+      "seed_id": "cardio-seed-0006",
+      "specialty": "cardiology",
+      "topic": "hf_gdmt",
+      "subtopic": "arni_washout",
+      "difficulty": "hard",
+      "prompt": "An HFrEF patient on lisinopril; you are switching to sacubitril/valsartan to optimize GDMT. Orders?",
+      "ai_failure_mode": "guideline-recency/sequencing error; misses the 36-hour washout unsafe_recommendation",
+      "why_high_value": "Sound path grounds the med-list timing, waits 36 hours after the last ACEi dose, then starts ARNI. Shortcut does the right drug at the wrong time and courts angioedema.",
+      "reference_basis": "Neprilysin inhibition plus ACE inhibition markedly raises angioedema risk; the label-mandated 36-hour washout is a sequencing/timing safety step the med-list timing detail decides.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "hf_gdmt",
+        "arni_washout",
+        "cardiology"
+      ]
+    },
+    {
+      "seed_id": "cardio-seed-0007",
+      "specialty": "cardiology",
+      "topic": "valve_structural",
+      "subtopic": "low_flow_low_gradient",
+      "difficulty": "hard",
+      "prompt": "A 70-79y man with syncope, aortic valve area 0.9 cm², mean gradient 28 mmHg, EF 30%. Severity and plan?",
+      "ai_failure_mode": "right-answer-wrong-reason; grades severity off gradient alone, ignores low EF/flow",
+      "why_high_value": "Sound path recognizes the low-flow state invalidates the gradient, orders dobutamine stress echo, refers for AVR. Shortcut reads the gradient number and under-treats severe AS with syncope.",
+      "reference_basis": "Gradient is flow-dependent; in a low-EF/low-SVi state a low gradient can coexist with a severely reduced valve area, so severity must be resolved with dobutamine stress rather than the resting gradient.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "valve_structural",
+        "low_flow_low_gradient",
+        "cardiology"
+      ]
+    },
+    {
+      "seed_id": "cardio-seed-0008",
+      "specialty": "cardiology",
+      "topic": "ecg_high_risk_subtle",
+      "subtopic": "digoxin_effect_vs_toxicity",
+      "difficulty": "hard",
+      "prompt": "An 80-89y woman on digoxin for AF, now nauseated, seeing yellow halos, HR 52. Manage.",
+      "ai_failure_mode": "anchoring on a 'good' heart rate; misses toxicity in the ECG + renal decline + interactions",
+      "why_high_value": "Sound path grounds the toxicity constellation + interactions + renal decline, holds digoxin and considers Fab. Shortcut praises the heart rate and continues the offending drug.",
+      "reference_basis": "A 'good' rate here is a manifestation of toxicity; the interaction (amiodarone/furosemide) plus renal decline drove a supratherapeutic level, and hyperkalemia in digoxin toxicity is an ominous sign.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "ecg_high_risk_subtle",
+        "digoxin_effect_vs_toxicity",
+        "cardiology"
+      ]
+    },
+    {
+      "seed_id": "cardio-seed-0009",
+      "specialty": "cardiology",
+      "topic": "acs_nuance",
+      "subtopic": "minoca",
+      "difficulty": "hard",
+      "prompt": "A 40-49y woman with classic MI symptoms, a clear troponin rise/fall, and non-obstructive coronaries. Next step?",
+      "ai_failure_mode": "anchoring on clean coronaries → 'not a real MI'; stops the workup prematurely",
+      "why_high_value": "Sound path treats MINOCA as a diagnosis requiring further workup (CMR, vasospasm/SCAD) and tailors therapy. Shortcut equates 'clean coronaries' with 'no MI' and stops.",
+      "reference_basis": "A genuine troponin rise/fall with ischemic symptoms and ECG changes despite non-obstructive coronaries defines MINOCA, which requires mechanism-directed workup rather than dismissal.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "acs_nuance",
+        "minoca",
+        "cardiology"
+      ]
+    },
+    {
+      "seed_id": "cardio-seed-0010",
+      "specialty": "cardiology",
+      "topic": "arrhythmia_anticoag",
+      "subtopic": "anticoag_after_ich",
+      "difficulty": "hard",
+      "prompt": "A 70-79y man with AF (CHA₂DS₂-VASc 5) had a spontaneous lobar intracerebral hemorrhage 6 days ago. Anticoagulation?",
+      "ai_failure_mode": "guideline oversimplification; ignores the recent intracranial bleed trade-off",
+      "why_high_value": "Sound path weighs the acute bleed, defers anticoagulation, reassesses timing/imaging stability, considers LAA occlusion. Shortcut applies the stroke-prevention rule and re-bleeds the brain.",
+      "reference_basis": "Restarting anticoagulation days after an acute lobar ICH carries an unacceptable re-bleed risk, especially with a CAA-suggestive pattern; timing and appendage-occlusion alternatives must be weighed rather than reflexively applying the stroke-prevention rule.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": [
+        "arrhythmia_anticoag",
+        "anticoag_after_ich",
+        "cardiology"
       ]
     }
   ]

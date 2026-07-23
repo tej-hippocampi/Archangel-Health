@@ -114,13 +114,27 @@ def _counts(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     by_portal_version: Dict[str, int] = {}
     by_modality: Dict[str, int] = {}
     by_case_source: Dict[str, int] = {}
+    by_taxonomy_bucket: Dict[str, int] = {}
+    by_case_type: Dict[str, int] = {}
+    # Per-specialty breakdown (Specialty Hyper-Personalization PRD §2): count, mean
+    # empirical difficulty, failure-mode histogram, and bucket histogram — so a buyer
+    # sees exactly what each per-specialty slice contains and its measured hardness.
+    spec_breakdown: Dict[str, Dict[str, Any]] = {}
+
+    def _sb(sp: str) -> Dict[str, Any]:
+        return spec_breakdown.setdefault(sp, {
+            "count": 0, "failure_modes": {}, "taxonomy_buckets": {},
+            "_difficulty_sum": 0.0, "_difficulty_n": 0, "measured_count": 0,
+        })
+
     for r in records:
         by_type[r["type"]] = by_type.get(r["type"], 0) + 1
         sp = r.get("specialty") or "unknown"
         by_specialty[sp] = by_specialty.get(sp, 0) + 1
         # V1 (classic) vs V2 (assisted) breakdown (Asclepius V2). Legacy records
         # with no stamp are counted as v1 (they predate the assisted flow).
-        pv = (r.get("payload") or {}).get("portal_version") or "v1"
+        payload = r.get("payload") or {}
+        pv = payload.get("portal_version") or "v1"
         by_portal_version[pv] = by_portal_version.get(pv, 0) + 1
         # Text vs multimodal (structured-case) breakdown (Multimodal PRD §8).
         mod = _rec_modality(r)
@@ -128,12 +142,42 @@ def _counts(records: List[Dict[str, Any]]) -> Dict[str, Any]:
         cs = _rec_case_source(r)
         if cs:
             by_case_source[cs] = by_case_source.get(cs, 0) + 1
+        # Specialty case-type metadata (PRD §2).
+        bucket = payload.get("taxonomy_bucket")
+        if bucket:
+            by_taxonomy_bucket[bucket] = by_taxonomy_bucket.get(bucket, 0) + 1
+        ctype = payload.get("case_type")
+        if ctype:
+            by_case_type[ctype] = by_case_type.get(ctype, 0) + 1
+        sb = _sb(sp)
+        sb["count"] += 1
+        fm = payload.get("ai_failure_mode")
+        if fm:
+            sb["failure_modes"][fm] = sb["failure_modes"].get(fm, 0) + 1
+        if bucket:
+            sb["taxonomy_buckets"][bucket] = sb["taxonomy_buckets"].get(bucket, 0) + 1
+        ed = payload.get("empirical_difficulty")
+        if isinstance(ed, (int, float)):
+            sb["_difficulty_sum"] += float(ed)
+            sb["_difficulty_n"] += 1
+        if payload.get("empirical_difficulty_measured"):
+            sb["measured_count"] += 1
+
+    # Finalize the per-specialty mean difficulty and drop the running sums.
+    for sp, sb in spec_breakdown.items():
+        n = sb.pop("_difficulty_n", 0)
+        s = sb.pop("_difficulty_sum", 0.0)
+        sb["mean_empirical_difficulty"] = round(s / n, 3) if n else None
+
     return {
         "by_type": by_type,
         "by_specialty": by_specialty,
         "by_portal_version": by_portal_version,
         "by_modality": by_modality,
         "by_case_source": by_case_source,
+        "by_taxonomy_bucket": by_taxonomy_bucket,
+        "by_case_type": by_case_type,
+        "specialty_breakdown": spec_breakdown,
         "total": len(records),
     }
 
@@ -1188,6 +1232,12 @@ def build_export(
         if name in (JSONL_NAME, MANIFEST_NAME):
             continue
         content_hashes[name] = _sha256_text((out_dir / name).read_text(encoding="utf-8"))
+    # Image assets (V4 Image Embedding PRD §8): bundle the CLEANED image bytes with the
+    # record set so a buyer can use the reasoning trace about the image, referenced by
+    # asset_id + sha256 (integrity). Blinding holds — stripped-metadata images only, no
+    # provider/model/partner identity. Best-effort: a missing blob is skipped, never
+    # fatal.
+    image_assets = _collect_and_write_image_assets(emitted, out_dir)
     manifest = {
         "export_id": export_id,
         "created_at": exported_at,
@@ -1199,6 +1249,10 @@ def build_export(
         "counts": counts,
         "grounded_count": sum(1 for r in emitted if (r.get("payload") or {}).get("grounded")),
         "multimodal_count": sum(1 for r in emitted if _rec_modality(r) == "multimodal"),
+        # Image assets bundled with this export (V4 Image PRD §8): {asset_id, sha256,
+        # modality, mime, license, provenance, path}. Empty for text-only batches.
+        "image_assets": image_assets,
+        "image_asset_count": len(image_assets),
         "synthetic_prompt_count": len(_synthetic_records(emitted)),
         # Tri-state: true (all synthetic prompts from a ratified corpus), false
         # (some unratified — see datasheet warning), or null (no synthetic prompts).
@@ -1252,12 +1306,62 @@ def build_export(
     return manifest
 
 
+def _mime_ext(mime: str) -> str:
+    return {"image/png": ".png", "image/jpeg": ".jpg", "application/pdf": ".pdf"}.get((mime or "").lower(), ".bin")
+
+
+def _collect_and_write_image_assets(records: List[Dict[str, Any]], out_dir: "Path") -> List[Dict[str, Any]]:
+    """Collect image-bearing studies from the emitted records, write each CLEANED blob
+    to ``<out_dir>/assets/<sha256><ext>`` (deduped), and return the manifest entries
+    (V4 Image PRD §8). Every asset carries provenance + the V4 real-record license.
+    Best-effort — a missing/unreadable blob is skipped, never fatal."""
+    try:
+        from asclepius.cases import study_has_valid_asset
+        from asclepius.assets import load_asset
+        from asclepius.constants import default_license
+    except Exception:  # pragma: no cover
+        return []
+    license_terms = None
+    try:
+        license_terms = default_license()
+    except Exception:
+        license_terms = None
+    assets_dir = out_dir / "assets"
+    seen: Dict[str, Dict[str, Any]] = {}
+    for r in records:
+        case = ((r.get("payload") or {}).get("context") or {}).get("case") or {}
+        for s in (case.get("studies") or []):
+            if not (isinstance(s, dict) and study_has_valid_asset(s)):
+                continue
+            a = s.get("asset") or {}
+            sha = a.get("sha256")
+            if not sha or sha in seen:
+                continue
+            fname = "assets/" + sha + _mime_ext(a.get("mime"))
+            try:
+                data, _mime = load_asset(a)
+                assets_dir.mkdir(parents=True, exist_ok=True)
+                (out_dir / fname).write_bytes(data)
+            except Exception:  # missing/corrupt blob — reference it but don't bundle
+                fname = None
+            seen[sha] = {
+                "asset_id": a.get("asset_id"), "sha256": sha,
+                "modality": str(s.get("modality") or "").lower(),
+                "mime": a.get("mime"), "byte_size": a.get("byte_size"),
+                "license": license_terms,
+                "provenance": a.get("source") or "partner_deidentified",
+                "path": fname,
+            }
+    return list(seen.values())
+
+
 def zip_export(export: Dict[str, Any]) -> bytes:
     """Zip an export directory into an in-memory archive for download."""
     dir_path = Path(export.get("dir_path") or "")
+    manifest = export.get("manifest") or {}
     # Use the manifest's actual file list (may include the FEAT-2 grader files);
     # fall back to the base companions for older manifests.
-    files = ((export.get("manifest") or {}).get("files")) or _COMPANION_FILES
+    files = manifest.get("files") or _COMPANION_FILES
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         if dir_path.is_dir():
@@ -1265,7 +1369,12 @@ def zip_export(export: Dict[str, Any]) -> bytes:
                 fp = dir_path / name
                 if fp.exists():
                     zf.write(fp, arcname=name)
+            # Bundle the image assets (V4 Image PRD §8) — cleaned bytes only.
+            for ia in (manifest.get("image_assets") or []):
+                p = ia.get("path")
+                if p and (dir_path / p).exists():
+                    zf.write(dir_path / p, arcname=p)
         else:
-            zf.writestr(MANIFEST_NAME, json.dumps(export.get("manifest") or {}, indent=2))
+            zf.writestr(MANIFEST_NAME, json.dumps(manifest, indent=2))
     buf.seek(0)
     return buf.read()

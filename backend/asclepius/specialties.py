@@ -37,6 +37,11 @@ class SpecialtyConfig:
     seed_corpus: str  # path relative to this package (asclepius/)
     taxonomy: List[TaxonomyBucket]
     enabled: bool = False
+    # Presentation metadata (PRD §1/§6): the picker + case panel read these so a
+    # new specialty's chip + scope blurb are config, never a frontend change.
+    # ``accent`` is a console-palette token name (green|orange|pink — no blue).
+    accent: str = "green"
+    blurb: str = ""
 
     def bucket(self, bucket_id: str) -> TaxonomyBucket:
         for b in self.taxonomy:
@@ -113,32 +118,112 @@ NEPHROLOGY_TAXONOMY: List[TaxonomyBucket] = [
 ]
 
 
-# ─── Cardiology taxonomy (Seamless PRD WS2 — config-only onboarding demo) ──────
-# Proves the engine is specialty-agnostic: this taxonomy + seed_corpus/
-# cardiology.v1.json + the registry entry below are the ONLY additions needed to
-# enable a new specialty. The Seedmaker, hardness judge, and hard-only serving
-# read this config with zero pipeline changes (see docs/ADD_A_SPECIALTY.md).
+# ─── Cardiology taxonomy (Specialty Hyper-Personalization PRD §4.2) ────────────
+# All buckets ``min_difficulty: hard`` — cardiology is a first-class hard-case
+# specialty. The decisive signal lives in a study (ECG/echo/cath/biomarker) and
+# contradicts the loud vignette (§4.3). Replaces the earlier 3-bucket stub. Target
+# counts sum to 100.
 CARDIOLOGY_TAXONOMY: List[TaxonomyBucket] = [
     TaxonomyBucket(
-        id="hf_gdmt",
-        label="Heart-failure guideline-directed medical therapy",
+        id="ecg_high_risk_subtle",
+        label="Under-called high-risk ECG patterns",
         min_difficulty="hard",
-        target_count=40,
-        subtopics=["arni_initiation", "beta_blocker_titration", "mra_potassium", "sglt2i_hf"],
+        target_count=20,
+        subtopics=["wellens", "de_winter", "posterior_mi", "hyperacute_t",
+                   "brugada", "hyperkalemia_morphology", "digoxin_effect_vs_toxicity", "long_qt"],
+    ),
+    TaxonomyBucket(
+        id="great_mimics",
+        label="The great mimics (anchoring traps)",
+        min_difficulty="hard",
+        target_count=20,
+        subtopics=["cardiac_amyloid", "dissection_as_mi", "takotsubo",
+                   "myocarditis", "minoca"],
+    ),
+    TaxonomyBucket(
+        id="hf_gdmt",
+        label="Heart-failure GDMT + electrolyte/renal trade-offs",
+        min_difficulty="hard",
+        target_count=16,
+        subtopics=["arni_washout", "beta_blocker_decompensation", "mra_potassium_ckd",
+                   "sglt2i_hfpef", "guideline_recency"],
     ),
     TaxonomyBucket(
         id="arrhythmia_anticoag",
         label="Arrhythmia & anticoagulation trade-offs",
         min_difficulty="hard",
-        target_count=30,
-        subtopics=["doac_dosing_ckd", "af_stroke_bleeding", "periprocedural_bridging"],
+        target_count=16,
+        subtopics=["af_stroke_vs_bleed", "doac_dosing_ckd", "periprocedural_bridging",
+                   "triple_therapy", "anticoag_after_ich"],
     ),
     TaxonomyBucket(
-        id="acs_antithrombotic",
-        label="ACS antithrombotic strategy",
+        id="valve_structural",
+        label="Valvular & structural heart disease",
         min_difficulty="hard",
-        target_count=30,
-        subtopics=["dapt_duration", "de_escalation", "triple_therapy"],
+        target_count=14,
+        subtopics=["as_vs_amyloid", "low_flow_low_gradient", "endocarditis"],
+    ),
+    TaxonomyBucket(
+        id="acs_nuance",
+        label="ACS nuance & troponin interpretation",
+        min_difficulty="hard",
+        target_count=14,
+        subtopics=["type_2_mi", "minoca", "troponin_interpretation", "dapt_strategy"],
+    ),
+]
+
+
+# ─── Oncology taxonomy (Specialty Hyper-Personalization PRD §5.2) ──────────────
+# All buckets ``min_difficulty: hard``. Oncology's documented failure is
+# right-answer-wrong-reason: the decisive signal lives in the pathology/molecular/
+# temporal-imaging data and contradicts the histology- or progression-anchored
+# shortcut (§5.3). Target counts sum to 100.
+ONCOLOGY_TAXONOMY: List[TaxonomyBucket] = [
+    TaxonomyBucket(
+        id="immunotherapy_toxicity_vs_progression",
+        label="Immunotherapy toxicity vs progression",
+        min_difficulty="hard",
+        target_count=20,
+        subtopics=["irae", "pseudoprogression", "hyperprogression",
+                   "checkpoint_myocarditis", "pneumonitis_colitis"],
+    ),
+    TaxonomyBucket(
+        id="molecular_therapy_selection",
+        label="Molecular-over-histology therapy selection",
+        min_difficulty="hard",
+        target_count=20,
+        subtopics=["egfr", "t790m_resistance", "alk", "braf", "ntrk",
+                   "msi_high_tmb", "pd_l1_vs_driver"],
+    ),
+    TaxonomyBucket(
+        id="onc_emergencies",
+        label="Oncologic emergencies",
+        min_difficulty="hard",
+        target_count=20,
+        subtopics=["tumor_lysis", "febrile_neutropenia", "cord_compression",
+                   "svc_syndrome", "hypercalcemia", "hyperviscosity"],
+    ),
+    TaxonomyBucket(
+        id="staging_biomarker",
+        label="Staging & biomarker-confirmatory discrepancy",
+        min_difficulty="hard",
+        target_count=14,
+        subtopics=["tnm_traps", "ai_vs_confirmatory_molecular", "biomarker_discrepancy"],
+    ),
+    TaxonomyBucket(
+        id="paraneoplastic",
+        label="Paraneoplastic syndromes",
+        min_difficulty="hard",
+        target_count=14,
+        subtopics=["siadh", "pthrp_hypercalcemia", "lems"],
+    ),
+    TaxonomyBucket(
+        id="supportive_tradeoffs",
+        label="Supportive-care trade-offs",
+        min_difficulty="hard",
+        target_count=12,
+        subtopics=["anticoagulation_in_malignancy", "dosing_in_organ_dysfunction",
+                   "goals_of_care", "correction_rate_safety"],
     ),
 ]
 
@@ -149,15 +234,29 @@ SPECIALTY_REGISTRY: Dict[str, SpecialtyConfig] = {
         seed_corpus="seed_corpus/nephrology.v1.json",
         taxonomy=NEPHROLOGY_TAXONOMY,
         enabled=True,
+        accent="green",
+        blurb="Electrolytes, AKI/CKD, dialysis, transplant, glomerular — labs-driven.",
     ),
-    # Config-only onboarding demo (PRD §15 / Seamless WS2): a new specialty is a
-    # corpus file + a taxonomy + a registry entry, nothing else. Enabled so the
-    # hard-case engine + serving can be demonstrated end-to-end for cardiology.
+    # Config-only onboarding: a new specialty is a corpus file + a taxonomy + a
+    # registry entry, nothing else. Cardiology reasoning lives in the ECG/echo/cath
+    # + biomarkers (PRD §4).
     "cardiology": SpecialtyConfig(
         name="cardiology",
         seed_corpus="seed_corpus/cardiology.v1.json",
         taxonomy=CARDIOLOGY_TAXONOMY,
         enabled=True,
+        accent="orange",
+        blurb="ECG/echo/cath grounding, the great mimics, GDMT & anticoagulation trade-offs.",
+    ),
+    # Oncology reasoning lives in the pathology/molecular/temporal-imaging data
+    # (PRD §5); its documented failure is right-answer-wrong-reason.
+    "oncology": SpecialtyConfig(
+        name="oncology",
+        seed_corpus="seed_corpus/oncology.v1.json",
+        taxonomy=ONCOLOGY_TAXONOMY,
+        enabled=True,
+        accent="pink",
+        blurb="irAEs vs progression, molecular-over-histology, oncologic emergencies.",
     ),
 }
 
@@ -186,6 +285,8 @@ def list_specialties() -> List[Dict[str, Any]]:
                 "specialty": cfg.name,
                 "enabled": cfg.enabled,
                 "seed_corpus": cfg.seed_corpus,
+                "accent": cfg.accent,
+                "blurb": cfg.blurb,
                 "buckets": [
                     {
                         "id": b.id,
