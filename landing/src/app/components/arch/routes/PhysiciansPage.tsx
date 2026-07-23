@@ -76,12 +76,24 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
           <h2>Your expertise will power the future of medicine.</h2>
         </div>
 
-        {/* Lede left, pay right — typography on canvas, no card (PRD §3). */}
+        {/* Two ways to earn — annotate & refer, side by side, equal weight.
+            Typography on canvas, no card (PRD §3). */}
         <div className="pay-band reveal">
           <p className="lede pay-band-lede">The AI being built now will practice alongside you. You decide what it learns.</p>
-          <div className="pay-figure">
-            <PayFigure />
-            <span className="label">Varies per task — difficulty, specialty, depth.</span>
+          <div className="earnings">
+            <span className="chrome earnings-head">Two ways to earn</span>
+            <div className="earn-grid">
+              <div className="earn-way">
+                <span className="chrome chrome-box"><span className="dot dot-green" />Annotate &amp; earn</span>
+                <PayFigure />
+                <span className="label">Per case — varies by difficulty, specialty, depth.</span>
+              </div>
+              <div className="earn-way">
+                <span className="chrome chrome-box"><span className="dot dot-green" />Refer &amp; earn</span>
+                <span className="doto">$50–$100<span className="per"> / referral</span></span>
+                <span className="label">For every physician you refer who completes their first task.</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -113,7 +125,7 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
           <button type="button" className="btn btn-primary" onClick={actions.openPhysicianOnboard}>
             Become a contributor
           </button>
-          <p className="cta-note">Onboarding takes a few minutes — your personal link is created instantly.</p>
+          <p className="cta-note">Onboarding takes a few minutes — your personal link is created instantly. Refer colleagues from your dashboard once you're in.</p>
         </div>
       </section>
     </div>

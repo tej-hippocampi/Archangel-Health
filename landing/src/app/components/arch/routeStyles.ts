@@ -491,23 +491,46 @@ export const routeStyles = `
 /* ============ /physicians ============ */
 
 /* Pay band — lede left, pay figure right. No card: "scale not boldness". */
+/* The band stacks: the lede, then the two ways to earn side by side below. */
 .arch-landing .pay-band {
   display: grid;
-  grid-template-columns: 1.5fr 1fr;
-  gap: clamp(1.5rem, 4vw, 3rem);
+  grid-template-columns: 1fr;
+  gap: clamp(1.1rem, 3vh, 1.7rem);
   align-items: start;
   margin-top: clamp(1.4rem, 3.5vh, 2.2rem);
 }
-.arch-landing .pay-band-lede { margin: 0; }
-.arch-landing .pay-figure { text-align: right; }
-.arch-landing .pay-figure .doto {
-  font-size: clamp(1.6rem, 2.8vw, 2.15rem);   /* ~half the old numeral — reads instantly, never outranks the H2 */
+.arch-landing .pay-band-lede { margin: 0; max-width: 44rem; }
+
+/* Two ways to earn: annotate & refer, SIDE BY SIDE with equal size, format and
+   typography — no primary/secondary hierarchy. Typography on canvas, no card. */
+.arch-landing .earnings { display: flex; flex-direction: column; gap: 0.9rem; text-align: left; }
+.arch-landing .earnings-head { color: var(--ink-faint); }
+.arch-landing .earn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(1.5rem, 5vw, 3.5rem);
+  align-items: start;
+  max-width: 52rem;
+}
+.arch-landing .earn-way {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.arch-landing .earn-way .chrome-box { font-size: 0.6rem; padding: 0.4em 0.8em; }
+/* Both figures share ONE rule — identical size, weight, colour (the two ways
+   read as equals). Doto is a variable font; 700 is the "bold" fix, not colour. */
+.arch-landing .earn-way .doto {
+  font-size: clamp(1.7rem, 2.9vw, 2.35rem);
+  font-weight: 700;
   color: var(--ink);
   line-height: 1.1;
   white-space: nowrap;
+  margin-top: 0.1rem;
 }
-.arch-landing .pay-figure .per { font-size: 0.42em; color: var(--ink-faint); letter-spacing: 0; }
-.arch-landing .pay-figure .label { display: block; margin-top: 0.45rem; }
+.arch-landing .earn-way .per { font-size: 0.42em; color: var(--ink-faint); letter-spacing: 0; }
+.arch-landing .earn-way .label { color: var(--ink-soft); margin-top: 0.15rem; }
 
 .arch-landing .steps-strip { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: clamp(1.8rem, 4vh, 2.6rem); }
 .arch-landing .steps-strip::before {
@@ -640,7 +663,10 @@ export const routeStyles = `
   .arch-landing .team { grid-template-columns: 1fr; }
   .arch-landing .bench-grid { grid-template-columns: repeat(2, 1fr); }
   .arch-landing .pay-band { grid-template-columns: 1fr; gap: 0.9rem; }
-  .arch-landing .pay-figure { text-align: left; }   /* never centered on mobile */
+  /* Stack the two ways vertically on narrow screens; each stays left-aligned and
+     keeps its equal size + typography (a hairline separates them). */
+  .arch-landing .earn-grid { grid-template-columns: 1fr; gap: 1.1rem; }
+  .arch-landing .earn-way + .earn-way { border-top: 1px solid var(--hairline); padding-top: 1.1rem; }
 }
 
 @media (max-width: 720px) {
