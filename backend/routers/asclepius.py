@@ -61,6 +61,8 @@ from asclepius.constants import (
     INDEPENDENT_MODES,
     NOT_HARD_TASK_STATUS,
     PORTAL_VERSIONS,
+    SINGLE_TURN_PORTAL_VERSIONS,
+    DEFAULT_PORTAL_VERSION,
     PREFERENCE_VARIANTS,
     REAL_CASE_PORTAL_VERSION,
     SYNTHETIC_PORTAL_VERSIONS,
@@ -240,7 +242,7 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
         "failure_modes": [{"id": mid, "label": label, "definition": definition}
                           for (mid, label, definition) in FAILURE_MODES],
         "independent_modes": list(INDEPENDENT_MODES),
-        "portal_versions": list(PORTAL_VERSIONS),
+        "portal_versions": list(SINGLE_TURN_PORTAL_VERSIONS),
         "value_tiers": list(VALUE_TIERS),
         "preference_variants": list(PREFERENCE_VARIANTS),
         "export_profiles": asc_profiles.list_profiles(),
@@ -1338,7 +1340,10 @@ def _derive_portal_version(task: Dict[str, Any], claimed: Optional[str]) -> str:
             status_code=400,
             detail="portal_version 'v4' is reserved for real-case tasks; this task is synthetic.",
         )
-    return normalize_portal_version(claimed)
+    # Single-turn stamping stays within v1–v4. V5 (the agentic tier) is never
+    # stamped onto a single-turn submission — it has its own /environments surface.
+    pv = normalize_portal_version(claimed)
+    return pv if pv in SINGLE_TURN_PORTAL_VERSIONS else DEFAULT_PORTAL_VERSION
 
 
 def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) -> Dict[str, Any]:

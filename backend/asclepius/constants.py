@@ -118,8 +118,26 @@ def independent_capture_kind(portal_version, independent_mode):
 # Stage-1 prompt review and the packaged record TYPES are identical across all
 # versions. The version is stamped onto every submission + record so buyers/admin
 # can segment by provenance. V3 is the recommended default for new sessions.
-PORTAL_VERSIONS = ("v1", "v2", "v3", "v4")
+#   ``v5`` environments — the AGENTIC / RL-environment tier (Clinical RL
+#                      Environments PRD). An agent *acts inside* a case over
+#                      multiple steps (read/act tools) and is scored on its
+#                      trajectory + end state; a board-certified physician
+#                      annotates the trajectory step-by-step. V1–V4 are
+#                      single-turn (case → answer → grade); V5 is interactive.
+#                      Every new V5 surface gates on ``portal_version == "v5"``
+#                      (NEVER ``isAssisted()``); V1–V4 stay byte-for-byte
+#                      unchanged. V5 lives in its OWN ``env_runs`` table and its
+#                      own ``/environments`` routes — it never touches the
+#                      single-turn task queue.
+PORTAL_VERSIONS = ("v1", "v2", "v3", "v4", "v5")
 DEFAULT_PORTAL_VERSION = "v3"
+
+# The SINGLE-TURN portal versions (case → answer → grade). V5 is the agentic tier
+# and is deliberately excluded here: the single-turn ``/taxonomy`` surface and its
+# queue must stay byte-for-byte unchanged, and V5 has its own ``/environments``
+# routes + queue. Use this (not ``PORTAL_VERSIONS``) anywhere the meaning is
+# "the single-turn evaluation flows".
+SINGLE_TURN_PORTAL_VERSIONS = ("v1", "v2", "v3", "v4")
 
 # Portal versions that get the ASSISTED capabilities (model pre-labeling, diff,
 # dictation, value-aware routing). V1 (classic) is deliberately excluded.
@@ -134,6 +152,77 @@ SYNTHETIC_PORTAL_VERSIONS = ("v1", "v2", "v3")
 
 def normalize_portal_version(value):
     return value if value in PORTAL_VERSIONS else DEFAULT_PORTAL_VERSION
+
+
+# The agentic / RL-environment tier (Clinical RL Environments PRD). A V5 surface
+# is gated on this exact literal — never on ``isAssisted()`` / ASSISTED_PORTAL_VERSIONS.
+ENV_PORTAL_VERSION = "v5"
+
+
+def is_env_portal_version(value) -> bool:
+    """The single source of truth for gating a V5 (agentic environment) surface.
+    Matches the LITERAL declared value (like ``value_aware`` in the queue router),
+    so an absent/typo'd version never accidentally lights up the V5 tier."""
+    return value == ENV_PORTAL_VERSION
+
+
+# ─── V5 Clinical RL Environments — controlled vocabularies (PRD §1, §3, §7) ───
+# Centaur's exact trajectory step ``type`` vocabulary. Do NOT deviate — the record
+# must be drop-in for their pipeline (PRD §1, §13).
+ENV_STEP_TYPES = ("thought", "tool_call", "observation", "final_output")
+
+# The environment catalog (PRD §3). Five deterministic-first task types buildable
+# from a §0.5-validated ClinicalCase + its ground_truth, plus the longitudinal tier.
+ENV_TASK_TYPES = (
+    "information_retrieval",
+    "diagnostic_workup",
+    "medication_management",
+    "test_referral_ordering",
+    "escalation_safety",
+    "longitudinal_management",
+)
+
+# Export tiers (PRD §9). ``raw`` is Centaur's near-term default ("raw-first").
+ENV_EXPORT_MODES = ("raw", "graded", "expert")
+DEFAULT_ENV_EXPORT_MODE = "raw"
+
+# Case provenance for a compiled environment (PRD §0.5 source priority).
+ENV_CASE_SOURCES = ("gold", "real_deid", "synthetic")
+
+# Reward-tier method stamped on ``verification.method`` (PRD §5).
+ENV_VERIFY_METHODS = (
+    "deterministic",
+    "deterministic_plus_rubric",
+    "outcome_verified",
+)
+
+# Physician step-level process-reward label (PRD §7.1.1).
+ENV_STEP_LABELS = ("correct", "suboptimal", "wrong")
+
+# Physician judgement of a tool_call action (PRD §7.1.1).
+ENV_ACTION_JUDGMENTS = ("right_action_right_time", "unnecessary", "harmful", "better_action_existed")
+
+# The three temporal zones a real chart is partitioned into relative to the
+# decision point (PRD §8.4.2). ``outcome_future`` is verifier-only and must NEVER
+# be returned by a read tool — the cutoff is hard-enforced in ``state.py``.
+ENV_TEMPORAL_ZONES = ("observable_now", "earnable", "outcome_future")
+
+# Ground-truth resolution source for a real case, in priority order (PRD §8.4.3).
+ENV_GROUND_TRUTH_SOURCES = ("linked_outcome", "treating_physician_action", "physician_annotator_ratified")
+
+
+def normalize_env_task_type(value) -> str:
+    return value if value in ENV_TASK_TYPES else "diagnostic_workup"
+
+
+def normalize_env_export_mode(value) -> str:
+    return value if value in ENV_EXPORT_MODES else DEFAULT_ENV_EXPORT_MODE
+
+
+def env_max_steps() -> int:
+    """The episode step cap (``truncated=True`` when hit). PRD §4.5 / §6.
+    ``ASCLEPIUS_ENV_MAX_STEPS`` (default 24 — a 6–12 step trajectory with room)."""
+    return max(4, _env_int("ASCLEPIUS_ENV_MAX_STEPS", 24))
 
 # Where the task (prompt + candidate answers) originated. ``partner_ehr`` (EHR
 # PRD): a real, de-identified case ingested from a data partner's secure upload.

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asclepius V5 — Trajectory Annotation</title>
+  <!-- Reuse the console design system verbatim (PRD §7.6) — no new fonts/colors. -->
+  <link rel="stylesheet" href="/static/asclepius/clinical-fonts.css" />
+  <link rel="stylesheet" href="/static/asclepius/_tokens.css" />
+  <style>
+    /* V5 annotation surface — product scale, same palette + five laws (§7.6).
+       Accent semantics carry the trajectory: orange = model output ·
+       green = physician-authored · pink = critical/unsafe · lime = current step. */
+    * { box-sizing: border-box; }
+    body.v5-body {
+      margin: 0; background: var(--canvas); color: var(--ink);
+      font-family: var(--sans); font-size: var(--t-body); line-height: var(--lh-body);
+      -webkit-font-smoothing: antialiased;
+    }
+    .v5-chrome { font-family: var(--mono); font-size: var(--t-chrome);
+      text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); }
+    .v5-header { position: sticky; top: 0; z-index: 20; background: var(--card);
+      border-bottom: 1px solid var(--hairline); padding: var(--sp-3) var(--sp-5);
+      display: flex; align-items: center; gap: var(--sp-4); }
+    .v5-header h1 { font-size: var(--t-h3); margin: 0; font-weight: 600; }
+    .v5-progress { flex: 1; height: 4px; background: var(--card-in); border-radius: 999px; overflow: hidden; }
+    .v5-progress > i { display: block; height: 100%; width: 0; background: var(--green); transition: width .3s; }
+    .v5-layout { display: grid; grid-template-columns: 340px 1fr; gap: var(--sp-5);
+      max-width: 1240px; margin: 0 auto; padding: var(--sp-5); align-items: start; }
+    @media (max-width: 900px) { .v5-layout { grid-template-columns: 1fr; } }
+    /* sticky case-context panel (labs/notes/studies stay reachable, §7.6) */
+    .v5-context { position: sticky; top: 72px; }
+    .c-card { background: var(--card); border: 1px solid var(--hairline);
+      border-radius: var(--r-md); box-shadow: var(--shadow-card); padding: var(--sp-4); }
+    .c-card + .c-card { margin-top: var(--sp-3); }
+    .c-card h3 { font-size: var(--t-sm); margin: 0 0 var(--sp-2); font-weight: 600; }
+    .v5-kv { font-size: var(--t-sm); color: var(--ink-soft); }
+    .v5-kv b { color: var(--ink); font-weight: 500; }
+    details.v5-ctx-sec { margin-top: var(--sp-2); }
+    details.v5-ctx-sec > summary { cursor: pointer; font-size: var(--t-sm); color: var(--ink-soft); }
+    pre.v5-mono { font-family: var(--mono); font-size: var(--t-sm); white-space: pre-wrap;
+      background: var(--card-in); border-radius: var(--r-sm); padding: var(--sp-2); overflow-x: auto; }
+    /* the accordion — one step expanded at a time (§7.6) */
+    .v5-step { border: 1px solid var(--hairline); border-radius: var(--r-md);
+      background: var(--card); box-shadow: var(--shadow-card); margin-bottom: var(--sp-2); overflow: hidden; }
+    .v5-step.is-current { border-color: var(--lime-line); box-shadow: 0 0 0 3px var(--lime-wash); }
+    .v5-step-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);
+      cursor: pointer; }
+    .v5-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+    .v5-dot.model { background: var(--orange); }      /* orange = model output */
+    .v5-dot.physician { background: var(--green); }    /* green = physician-authored */
+    .v5-dot.critical { background: var(--pink); }      /* pink = critical/unsafe */
+    .v5-steptype { min-width: 92px; }
+    .v5-step-title { flex: 1; font-size: var(--t-sm); color: var(--ink); overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
+    .v5-status-chip { font-size: var(--t-chrome); font-family: var(--mono); text-transform: uppercase;
+      letter-spacing: 0.06em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--hairline); color: var(--ink-faint); }
+    .v5-status-chip.correct { color: var(--green-deep); border-color: var(--green-line); background: var(--green-wash); }
+    .v5-status-chip.suboptimal { color: var(--orange-deep); border-color: var(--orange-line); background: var(--orange-wash); }
+    .v5-status-chip.wrong { color: var(--pink-deep); border-color: var(--pink-line); background: var(--pink-wash); }
+    .v5-step-body { padding: 0 var(--sp-4) var(--sp-4); display: none; }
+    .v5-step.is-open .v5-step-body { display: block; }
+    .v5-model-out { border-left: 2px solid var(--orange-line); padding-left: var(--sp-3);
+      margin: var(--sp-2) 0 var(--sp-3); font-size: var(--t-sm); }
+    .v5-model-out .v5-chrome { color: var(--orange-deep); }
+    .v5-label-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-2); }
+    .v5-btn { font-family: var(--sans); font-size: var(--t-sm); border: 1px solid var(--hairline);
+      background: var(--card); color: var(--ink); border-radius: var(--r-chip); padding: 6px 14px; cursor: pointer; }
+    .v5-btn:hover { border-color: var(--hairline-strong); }
+    .v5-btn.sel-correct { background: var(--green-wash); border-color: var(--green-line); color: var(--green-deep); }
+    .v5-btn.sel-suboptimal { background: var(--orange-wash); border-color: var(--orange-line); color: var(--orange-deep); }
+    .v5-btn.sel-wrong { background: var(--pink-wash); border-color: var(--pink-line); color: var(--pink-deep); }
+    .v5-btn.green.on { background: var(--green-wash); border-color: var(--green-line); color: var(--green-deep); }
+    .v5-reveal { display: none; margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px dashed var(--hairline); }
+    .v5-reveal.show { display: block; animation: v5fade .25s ease; }
+    @keyframes v5fade { from { opacity: 0; transform: translateY(-4px);} to {opacity:1; transform:none;} }
+    @media (prefers-reduced-motion: reduce) { .v5-reveal.show { animation: none; } .v5-progress > i { transition: none; } }
+    .v5-field { margin-top: var(--sp-3); }
+    .v5-field label { display: block; font-size: var(--t-sm); margin-bottom: 4px; }
+    .v5-field label .info { color: var(--ink-faint); cursor: help; }
+    textarea, input[type=text] { width: 100%; font-family: var(--sans); font-size: var(--t-sm);
+      border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: var(--sp-2); background: var(--card); color: var(--ink); }
+    textarea:focus, input:focus { outline: none; border-color: var(--green-line); box-shadow: 0 0 0 3px var(--green-wash); }
+    .v5-green-affordance { border-left: 2px solid var(--green-line); padding-left: var(--sp-3); }
+    .v5-final { margin-top: var(--sp-4); }
+    .v5-submit { background: var(--ink); color: var(--card); border: none; border-radius: var(--r-chip);
+      padding: 10px 22px; font-size: var(--t-body); cursor: pointer; }
+    .v5-submit:hover { background: var(--ink-hover); }
+    .v5-submit[disabled] { opacity: .4; cursor: not-allowed; }
+    .v5-anchor-guard { font-size: var(--t-sm); color: var(--ink-faint); font-style: italic; }
+    .v5-reward-num { font-family: var(--doto); font-size: 1.6rem; color: var(--green-deep); }
+    .v5-pref { display: flex; gap: var(--sp-2); }
+    .v5-empty { text-align: center; color: var(--ink-soft); padding: var(--sp-8); }
+  </style>
+</head>
+<body class="v5-body">
+  <div class="v5-header">
+    <span class="v5-chrome">Asclepius · V5</span>
+    <h1>Trajectory Annotation</h1>
+    <div class="v5-progress" aria-label="steps reviewed"><i id="v5Bar"></i></div>
+    <span class="v5-chrome" id="v5ProgressText">0 / 0</span>
+  </div>
+  <main id="v5Root" aria-live="polite">
+    <div class="v5-empty">Loading…</div>
+  </main>
+  <script src="/static/asclepius/v5/annotate.js" defer></script>
+</body>
+</html>

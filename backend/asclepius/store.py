@@ -574,6 +574,42 @@ class AsclepiusStore:
             if "provider" not in cols("model_failures"):
                 conn.execute("ALTER TABLE model_failures ADD COLUMN provider TEXT")
 
+            # ── V5 Clinical RL Environments (Clinical RL Environments PRD §10).
+            # ONE row per environment OR per rollout run, keyed by run_id. A
+            # ``mode='generated'`` row is a compiled environment (compiled_json set,
+            # no trajectory); a ``mode='rollout'`` row is one agent trajectory over
+            # that environment (provider + trajectory_json set), sharing task_id.
+            # Fully additive; never touches the V1–V4 single-turn task queue.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS env_runs (
+                    run_id                   TEXT PRIMARY KEY,
+                    task_id                  TEXT NOT NULL,   -- the environment id (shared across providers)
+                    specialty                TEXT NOT NULL DEFAULT 'general',
+                    task_type                TEXT NOT NULL DEFAULT 'diagnostic_workup',
+                    case_id                  TEXT,
+                    case_source              TEXT NOT NULL DEFAULT 'gold',
+                    provider                 TEXT,
+                    model                    TEXT,
+                    ab_source                TEXT,
+                    mode                     TEXT NOT NULL DEFAULT 'generated',
+                    compiled_json            TEXT,            -- the compiled environment spec (§8.4)
+                    trajectory_json          TEXT,            -- the §1 record's trajectory
+                    verification_json        TEXT,            -- §5 reward block
+                    provenance_json          TEXT,
+                    physician_annotation_json TEXT,           -- §7 crown-jewel data
+                    empirical_difficulty     REAL,
+                    difficulty_measured      INTEGER NOT NULL DEFAULT 0,
+                    passes_difficulty_gate   INTEGER,
+                    created_at               TEXT NOT NULL,
+                    updated_at               TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_env_runs_task ON env_runs(task_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_env_runs_specialty ON env_runs(specialty)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_env_runs_mode ON env_runs(mode)")
+
             task_cols = cols("tasks")
             if "grounding_mode" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN grounding_mode TEXT NOT NULL DEFAULT 'optional'")
@@ -3193,6 +3229,122 @@ class AsclepiusStore:
         caught = int(row["caught"] or 0)
         rate = round(caught / scored, 3) if scored else None
         return {"scored": scored, "caught": caught, "rate": rate}
+
+    # ─── V5 Clinical RL Environments (env_runs, PRD §10) ─────────────────────
+    def insert_env_run(
+        self, *, task_id: str, specialty: str, task_type: str,
+        case_id: Optional[str] = None, case_source: str = "gold",
+        provider: Optional[str] = None, model: Optional[str] = None,
+        ab_source: Optional[str] = None, mode: str = "generated",
+        compiled: Optional[Dict[str, Any]] = None,
+        trajectory: Optional[List[Dict[str, Any]]] = None,
+        verification: Optional[Dict[str, Any]] = None,
+        provenance: Optional[Dict[str, Any]] = None,
+        physician_annotation: Optional[Dict[str, Any]] = None,
+        empirical_difficulty: Optional[float] = None,
+        difficulty_measured: bool = False,
+        passes_difficulty_gate: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        rid = _new_id("env")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO env_runs
+                   (run_id, task_id, specialty, task_type, case_id, case_source, provider,
+                    model, ab_source, mode, compiled_json, trajectory_json, verification_json,
+                    provenance_json, physician_annotation_json, empirical_difficulty,
+                    difficulty_measured, passes_difficulty_gate, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (rid, task_id, specialty, task_type, case_id, case_source, provider, model,
+                 ab_source, mode,
+                 json.dumps(compiled) if compiled is not None else None,
+                 json.dumps(trajectory) if trajectory is not None else None,
+                 json.dumps(verification) if verification is not None else None,
+                 json.dumps(provenance) if provenance is not None else None,
+                 json.dumps(physician_annotation) if physician_annotation is not None else None,
+                 empirical_difficulty, 1 if difficulty_measured else 0,
+                 (None if passes_difficulty_gate is None else (1 if passes_difficulty_gate else 0)),
+                 now, now),
+            )
+        return self.get_env_run(rid)  # type: ignore[return-value]
+
+    @staticmethod
+    def _env_run_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        for col in ("compiled", "trajectory", "verification", "provenance", "physician_annotation"):
+            raw = rec.pop(f"{col}_json", None)
+            rec[col] = json.loads(raw) if raw else None
+        rec["difficulty_measured"] = bool(rec.get("difficulty_measured"))
+        pg = rec.get("passes_difficulty_gate")
+        rec["passes_difficulty_gate"] = None if pg is None else bool(pg)
+        return rec
+
+    def get_env_run(self, run_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM env_runs WHERE run_id = ?", (run_id,)).fetchone()
+        return self._env_run_row(row) if row else None
+
+    def get_environment(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """The compiled-environment row (mode='generated') for a task_id."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM env_runs WHERE task_id = ? AND mode = 'generated' "
+                "ORDER BY created_at ASC LIMIT 1", (task_id,)
+            ).fetchone()
+        return self._env_run_row(row) if row else None
+
+    def list_env_runs(
+        self, *, task_id: Optional[str] = None, specialty: Optional[str] = None,
+        mode: Optional[str] = None, case_source: Optional[str] = None,
+        has_annotation: Optional[bool] = None, limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if task_id:
+            clauses.append("task_id = ?"); params.append(task_id)
+        if specialty:
+            clauses.append("specialty = ?"); params.append(specialty)
+        if mode:
+            clauses.append("mode = ?"); params.append(mode)
+        if case_source:
+            clauses.append("case_source = ?"); params.append(case_source)
+        if has_annotation is True:
+            clauses.append("physician_annotation_json IS NOT NULL")
+        elif has_annotation is False:
+            clauses.append("physician_annotation_json IS NULL")
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM env_runs {where} ORDER BY created_at DESC LIMIT ?", tuple(params)
+            ).fetchall()
+        return [self._env_run_row(r) for r in rows]
+
+    def update_env_run(self, run_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
+        if not fields:
+            return self.get_env_run(run_id)
+        json_cols = {"compiled", "trajectory", "verification", "provenance", "physician_annotation"}
+        sets, params = [], []
+        for key, val in fields.items():
+            if key in json_cols:
+                sets.append(f"{key}_json = ?")
+                params.append(json.dumps(val) if val is not None else None)
+            elif key == "difficulty_measured":
+                sets.append("difficulty_measured = ?"); params.append(1 if val else 0)
+            elif key == "passes_difficulty_gate":
+                sets.append("passes_difficulty_gate = ?")
+                params.append(None if val is None else (1 if val else 0))
+            else:
+                sets.append(f"{key} = ?"); params.append(val)
+        sets.append("updated_at = ?"); params.append(_utcnow_iso())
+        params.append(run_id)
+        with self._conn() as conn:
+            conn.execute(f"UPDATE env_runs SET {', '.join(sets)} WHERE run_id = ?", tuple(params))
+        return self.get_env_run(run_id)
+
+    def env_annotation_records(self, *, specialty: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Rollout rows that carry a physician annotation — the PRM training set
+        (PRD §7.5). Each dict has ``trajectory`` + ``physician_annotation``."""
+        return self.list_env_runs(specialty=specialty, mode="rollout", has_annotation=True)
 
 
 # ─── Process-wide singleton ───────────────────────────────────────────────────
