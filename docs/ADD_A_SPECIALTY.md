@@ -63,15 +63,38 @@ Generation gates every case through the case judge — coherence,
 Multimodal tasks are always `difficulty=hard`, always capture the reasoning
 trace, and carry a **1.35× value multiplier** (`ASCLEPIUS_VALUE_MULTIMODAL_MULT`).
 
-Invariants (enforced, not optional): **no imaging**; age **bands** only; lab
-timing is **relative** (`collected_offset_days`), never a date.
+Invariants (enforced, not optional): age **bands** only; lab timing is
+**relative** (`collected_offset_days`), never a date.
 
-**Evaluator view.** A multimodal task renders a structured case panel
-(Patient / Labs / Notes / Meds / Vitals tabs; labs as a flag-highlighted trend
-table across time offsets) and the clinician can flag a case as internally
-inconsistent (`case_incoherent` prompt-review verdict) — the human counterpart to
-the case-judge coherence gate. A flagged case is routed out (0 records) and fed
-back to recalibrate case generation.
+### Structured `studies` — the multimodal modalities (Specialty Hyper-Personalization PRD §3)
+Cardiology reasoning lives in the **ECG/echo/cath**; oncology in **pathology/
+imaging/molecular**. `ClinicalCase.studies: List[Study]` carries these as a
+**structured findings report** + numeric `measurements` (EF %, gradient, SUVmax,
+molecular VAF) — never a raw waveform/pixel image in V3 synthetic (a raw image is a
+V4-only asset, see below). `assert_multimodal_content` is **strengthened per
+specialty**: a cardiology case must carry ≥1 `ecg`/`echo` study; an oncology case
+≥1 of `pathology`/imaging(`ct`/`mri`/`pet`)/`molecular`; nephrology is unchanged
+(labs-driven). Add the specialty's construction rule via
+`prompts.specialty_case_gen_rules` (PRD §4.3/§5.3) — one code path, specialty is
+config, never a fork.
+
+### The empirical-difficulty gate (PRD §9 — the prime directive)
+A case ships only if it **breaks frontier models** — wrong ground truth OR wrong
+reasoning. `asclepius/empirical_difficulty.py` runs the case through the live
+frontier baseline models and scores BOTH axes; `empirical_difficulty` +
+`difficulty_measured` are first-class task columns. Measurement is OFF by default
+(`ASCLEPIUS_MEASURE_EMPIRICAL_DIFFICULTY`); authored/declared seeds carry a declared
+value with `measured=False`. Turn `ASCLEPIUS_REQUIRE_MEASURED_DIFFICULTY` on to
+enforce a live-measured floor at serving time (prod posture).
+
+**Evaluator view.** A multimodal task renders a structured case panel whose tabs
+are **data-driven from a per-specialty `SPECIALTY_UI` config** (cardiology: ECG ·
+Echo/Imaging · Labs · EHR · Meds; oncology: Pathology · Imaging timeline ·
+Molecular · Labs · EHR · Meds; nephrology unchanged) — one render path, never a
+per-specialty fork. Specialty chips are deterministic: nephrology **green**,
+cardiology **orange**, oncology **pink** (no blue). The clinician can flag a case
+as internally inconsistent (`case_incoherent`) — the human counterpart to the
+case-judge coherence gate.
 
 ### Real de-identified cases (`real_deid`) — the ingest seam
 `case_source` is `synthetic` (generated) or `real_deid` (parsed from a real,
@@ -79,9 +102,17 @@ de-identified export). Real cases come in through `case_formats.ingest_real_deid
 a format adapter (`lab_csv` / `fhir_r4` / `hl7v2`) maps the export to a
 `ClinicalCase`, then `deidentify()` enforces the Safe-Harbor bar (age banding,
 residual-identifier scan, relative-offset check) before the case is stamped.
-`dicom` is registered only to **reject** — imaging is never a gradable modality.
 The adapters are a wired seam (`CaseFormatNotImplemented` until a parser lands);
 every downstream path already handles `real_deid` with no change.
+
+### V4 real images (V4 Image Embedding PRD) — `docs/asclepius/V4_IMAGE_EMBEDDING.md`
+A **V4** (`real_deid`) case can attach a real de-identified image (ECG strip,
+echo/CT/PET still, pathology region) to a `Study` via a `StudyAsset` reference. The
+bytes live in a content-addressed asset store (`ASCLEPIUS_ASSET_STORE`), never in
+`asclepius.db`. Ingest accepts **PNG/JPEG/PDF only**, enforces size/dim caps,
+renders PDF→raster, strips EXIF/technical metadata, hashes, and dedupes. Both
+frontier A/B answers are produced by **vision models reading the identical image**
+(the `prompt_hash` includes the image `sha256`). Images never touch V1/V2/V3.
 
 ### Export
 Filter a batch by `modality` (`text` | `multimodal`) and `case_source`

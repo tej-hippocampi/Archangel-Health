@@ -160,17 +160,24 @@ across — a structured lab panel + one or more EHR-style notes (plus vitals, me
 built around a fixed, objectively-correct ground-truth answer. Hardness must come from INTEGRATING the data (labs + \
 note + trend), not trivia.
 
-STRICT FORMAT RULES: (1) NO imaging — never reference films/scans/ECG images; ECG/echo findings may appear only as \
-TEXT measurements in a note. (2) PHI-free by construction: age BANDS only (e.g. "70-79", "90+"), generalized author \
-roles ("nephrology","ICU") never names, NO names/MRNs/calendar dates/locations. (3) Lab timing is RELATIVE: every \
-panel has ``collected_offset_days`` (0 = today, negative = earlier) — preserve trends, never a date. (4) Reference \
-ranges (ref_low/ref_high) + flags (L|H|LL|HH|"") are REQUIRED on numeric results so a model must interpret, not just \
-read. (5) The labs/note/meds must be internally COHERENT. (6) Do NOT invent JSON keys — use EXACTLY the field names \
-below (e.g. ``lab_panels`` not "labs", ``value`` not "result"); an unknown key makes the whole case invalid.
+STRICT FORMAT RULES: (1) STUDIES are STRUCTURED, not raw images. Represent ECG/echo/cath/CT/MRI/PET/pathology/\
+molecular findings in the ``studies`` field as a structured findings REPORT (text) plus numeric ``measurements`` \
+(EF %, valve gradient, SUVmax, VAF %, intervals) — never a raw waveform/pixel image and never a film reference. The \
+documented model failure is NOT reading the study finding into the reasoning, and a structured findings report tests \
+exactly that while staying PHI-free and text-gradeable. (2) PHI-free by construction: age BANDS only (e.g. "70-79", \
+"90+"), generalized author roles ("cardiology","oncology","ICU") never names, NO names/MRNs/calendar dates/locations. \
+(3) Lab/study timing is RELATIVE: every panel has ``collected_offset_days`` (0 = today, negative = earlier) — \
+preserve trends, never a date. (4) Reference ranges (ref_low/ref_high) + flags (L|H|LL|HH|"") are REQUIRED on numeric \
+results/measurements so a model must interpret, not just read. (5) The labs/studies/note/meds must be internally \
+COHERENT. (6) Do NOT invent JSON keys — use EXACTLY the field names below (e.g. ``lab_panels`` not "labs", ``value`` \
+not "result"); an unknown key makes the whole case invalid.
 
 MANDATORY CONTENT (a case missing ANY of these is rejected and dropped):
-- ``lab_panels``: at least TWO panels at DIFFERENT ``collected_offset_days`` so a TREND must be read (not a single \
-snapshot). Each panel has ≥2 results; every numeric result carries analyte, value, unit, and a ref range or flag.
+- ``lab_panels``: at least ONE panel; prefer TWO at DIFFERENT ``collected_offset_days`` so a TREND must be read. \
+Each panel has ≥2 results total; every numeric result carries analyte, value, unit, and a ref range or flag.
+- ``studies``: the SPECIALTY-REQUIRED modality (injected in the user message) — e.g. cardiology needs ≥1 ``ecg`` or \
+``echo``; oncology needs ≥1 of ``pathology``/imaging (``ct``/``mri``/``pet``)/``molecular``; nephrology may omit \
+studies. The DECISIVE signal must live in a study finding or measurement that CONTRADICTS the loud vignette.
 - ``notes``: at least one substantive clinical note of ≥200 characters.
 - ``problem_list``: ≥1 problem. ``medications``: ≥1 medication.
 
@@ -205,8 +212,9 @@ correction actually reward.
 Return ONLY JSON: {"question": "<the clinical question>", "case": {ClinicalCase fields: case_source, specialty, \
 demographics{age_band,sex}, problem_list[{condition,since}], medications[{drug,dose,route,freq}], vitals{}, \
 lab_panels[{panel,collected_offset_days,results[{analyte,value,unit,ref_low,ref_high,flag}]}], \
+studies[{modality,label,findings,measurements[{analyte,value,unit,ref_low,ref_high,flag}],impression}], \
 notes[{note_type,author_role,text}], ground_truth{answer,rationale,key_data[]}, hard_hook, reasoning_divergence}}. \
-No commentary.
+``studies`` may be [] for nephrology; for cardiology/oncology it MUST carry the required modality. No commentary.
 
 REFERENCE EXAMPLE — study the SHAPE and the DIFFICULTY pattern (a trend across two panels, a note that re-frames the \
 labs, an interacting med, a red-herring flag + a decisive flag, a named shortcut path). Then author a DIFFERENT case \
@@ -238,6 +246,80 @@ patient not on an acute diuretic effect defines SIADH; SCLC is a classic cause."
 sodium interpreted against the EUVOLEMIC exam", "reasoning_divergence": "The shortcut path blames the thiazide, stops \
 it, and gives normal saline for presumed volume depletion — wrong, because the patient is euvolemic with SIADH \
 physiology and saline can worsen the hyponatremia. The sound path recognizes SIADH from SCLC and fluid-restricts."}}"""
+
+
+# ── Per-specialty case construction rules (PRD §4.3 / §5.3 / §8) ─────────────
+# Injected into the case-gen USER message (not the shared system prompt) so the
+# generation pipeline stays specialty-agnostic — specialty is config, never a code
+# fork (PRD §11).
+_CARDIOLOGY_CONSTRUCTION_RULE = (
+    "CARDIOLOGY CONSTRUCTION RULE: A cardiology case is hard when the DECISIVE signal lives in a study "
+    "(ECG/echo/cath/biomarker) and CONTRADICTS the loud vignette. The narrative + one salient number point to the "
+    "common diagnosis; the ECG morphology or echo measurement or biomarker pattern points to the dangerous truth. "
+    "The flawed answer anchors on the vignette and never grounds the study finding; the sound answer reads the study "
+    "into the reasoning and reverses course. Carry ≥1 ``ecg`` or ``echo`` study whose finding decides the case. "
+    "Weaponize the cardiology failure modes: finding-grounding failure, the great mimics (amyloid/dissection/"
+    "takotsubo/myocarditis), under-called high-risk ECG (Wellens/de Winter/posterior/hyperkalemia/digoxin), and "
+    "GDMT/anticoagulation sequencing."
+)
+_ONCOLOGY_CONSTRUCTION_RULE = (
+    "ONCOLOGY CONSTRUCTION RULE: An oncology case is hard when the DECISIVE signal lives in the pathology/molecular/"
+    "temporal-imaging data and CONTRADICTS the histology- or progression-anchored shortcut. The presentation invites "
+    "the obvious move (switch therapy on a worsening scan; treat by histology; TLS only if heme); the path report, NGS "
+    "panel, or the TIMING/pattern of the imaging says otherwise. Carry ≥1 ``pathology``/imaging(``ct``/``mri``/"
+    "``pet``)/``molecular`` study whose finding decides the case. Because oncology's documented failure is "
+    "right-answer-wrong-reason, prefer a case where a plausible answer is REACHABLE by faulty reasoning — the "
+    "reasoning trace is where the value is."
+)
+_FAULTY_REASONING_INSTRUCTION = (
+    "REQUIRE-FAULTY-REASONING (PRD §8.2): construct this case so a plausible-but-UNSOUNDLY-reasoned path reaches the "
+    "CORRECT answer, while the sound path needs a genuine correction. The verdict alone must NOT separate a good "
+    "clinician from a lucky guesser — only the reasoning trace does. State the faulty path explicitly in "
+    "``reasoning_divergence``."
+)
+_CATASTROPHIC_INSTRUCTION = (
+    "CATASTROPHIC-ACTION (PRD §8.3): make the central trap an UNSAFE ACTION — the reflex/anchored answer recommends "
+    "something that would harm the patient (e.g. thrombolytic in dissection, hypertonic saline over-correction, DAPT "
+    "in a bleed). Name it so it can be tagged as the ``unsafe_recommendation`` critical negative."
+)
+
+
+def specialty_case_gen_rules(
+    specialty: str, *, require_faulty_reasoning: bool = False, require_catastrophic: bool = False
+) -> str:
+    """The specialty-specific construction rule block appended to the case-gen user
+    message (PRD §4.3/§5.3 + the §8 cross-specialty multipliers). Empty for a
+    specialty with no special rule (e.g. nephrology keeps the generic system rules)."""
+    sp = (specialty or "").strip().lower()
+    parts = []
+    if sp == "cardiology":
+        parts.append(_CARDIOLOGY_CONSTRUCTION_RULE)
+    elif sp == "oncology":
+        parts.append(_ONCOLOGY_CONSTRUCTION_RULE)
+    if require_faulty_reasoning:
+        parts.append(_FAULTY_REASONING_INSTRUCTION)
+    if require_catastrophic:
+        parts.append(_CATASTROPHIC_INSTRUCTION)
+    return ("\n\n".join(parts) + "\n\n") if parts else ""
+
+
+ASCLEPIUS_EMPIRICAL_DIFFICULTY_JUDGE_SYSTEM = """You grade whether a frontier model FAILED a hard clinical case, on \
+BOTH axes (Specialty Hyper-Personalization PRD §9). You are given the CASE (question + data), the internal ANSWER KEY \
+(the objectively correct ground truth and the reasoning_divergence describing the sound path vs the seductive \
+shortcut), and a MODEL ANSWER produced by a frontier model. Judge two things independently:
+
+- answer_correct (boolean): does the model's FINAL recommendation match the ground-truth answer (clinically \
+equivalent management)? Minor wording differences are fine; a wrong or dangerous final action is answer_correct=false.
+- reasoning_sound (boolean): did the model reach its answer by the SOUND path — grounding the decisive study/lab/med \
+finding named in the key — rather than the shortcut described in reasoning_divergence? A model that lands the right \
+answer via the shortcut/faulty path (never grounding the decisive datum) is reasoning_sound=false. This is the \
+higher-value axis: right-answer-wrong-reason still counts as a FAILURE.
+
+The case is a FAILURE if answer_correct is false OR reasoning_sound is false.
+
+Return ONLY JSON: {"answer_correct": true|false, "reasoning_sound": true|false, "failed": true|false, \
+"grounded_decisive_datum": true|false, "explanation": "<one sentence naming what the model missed or grounded>"}. \
+"failed" MUST equal (NOT answer_correct) OR (NOT reasoning_sound). No commentary."""
 
 
 ASCLEPIUS_CASE_JUDGE_SYSTEM = """You score a synthetic clinical CASE on multimodal-specific quality dimensions ONLY \

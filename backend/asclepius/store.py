@@ -42,6 +42,26 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12]}"
 
 
+def _empirical_difficulty_fields(ed):
+    """Map a generation ``empirical_difficulty`` block → (value, measured_int) for the
+    first-class task columns (PRD §9). Accepts a dict {value, declared, measured} or a
+    bare number. The stored value is the MEASURED value when measured, else the declared
+    value (for display); ``measured`` is 1 only for a live frontier measurement."""
+    if isinstance(ed, (int, float)):
+        return float(ed), 0
+    if not isinstance(ed, dict):
+        return None, 0
+    measured = 1 if ed.get("measured") else 0
+    val = ed.get("value")
+    if val is None:
+        val = ed.get("declared")
+    try:
+        val = float(val) if val is not None else None
+    except (TypeError, ValueError):
+        val = None
+    return val, measured
+
+
 def hash_password(password: str) -> str:
     return _pwd.hash(password)
 
@@ -317,6 +337,19 @@ class AsclepiusStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_genjobs_specialty ON generation_jobs(specialty);
                 CREATE INDEX IF NOT EXISTS idx_genjobs_created ON generation_jobs(created_at);
+
+                -- V4 image asset index (V4 Image Embedding PRD §4). Resolves an
+                -- asset_id → sha256/mime/owning-task in ONE indexed lookup so serving
+                -- an image never scans the tasks table. The image BYTES live in the
+                -- content-addressed asset store, never here — only the reference.
+                CREATE TABLE IF NOT EXISTS study_assets (
+                    asset_id    TEXT PRIMARY KEY,
+                    sha256      TEXT NOT NULL,
+                    mime        TEXT NOT NULL,
+                    task_id     TEXT,
+                    case_source TEXT,
+                    created_at  TEXT NOT NULL
+                );
 
                 -- Contributor credential vault (Contributors view + tiered export).
                 -- Keyed by the same hashed annotator id that stamps every record, so
@@ -623,6 +656,30 @@ class AsclepiusStore:
                     except Exception:
                         cs = "synthetic"
                     conn.execute("UPDATE tasks SET case_source = ? WHERE task_id = ?", (cs, r["task_id"]))
+            # Specialty Hyper-Personalization PRD §9: the frontier-model failure rate
+            # (wrong answer OR wrong reasoning). First-class columns so the serving gate
+            # filters in SQL and admin/export can surface it. ``difficulty_measured`` =
+            # 1 only when LIVE-measured; a declared/authored value carries the numeric
+            # for display but 0 here. Each ALTER is guarded independently so a crash
+            # between the two can't leave insert_task referencing a missing column.
+            if "empirical_difficulty" not in task_cols:
+                conn.execute("ALTER TABLE tasks ADD COLUMN empirical_difficulty REAL")
+            if "difficulty_measured" not in task_cols:
+                conn.execute("ALTER TABLE tasks ADD COLUMN difficulty_measured INTEGER NOT NULL DEFAULT 0")
+            if "empirical_difficulty" not in task_cols or "difficulty_measured" not in task_cols:
+                for r in conn.execute(
+                    "SELECT task_id, generation_json FROM tasks WHERE generation_json IS NOT NULL"
+                ).fetchall():
+                    try:
+                        ed = (json.loads(r["generation_json"]) or {}).get("empirical_difficulty")
+                        val, measured = _empirical_difficulty_fields(ed)
+                    except Exception:
+                        val, measured = None, 0
+                    if val is not None or measured:
+                        conn.execute(
+                            "UPDATE tasks SET empirical_difficulty = ?, difficulty_measured = ? WHERE task_id = ?",
+                            (val, measured, r["task_id"]),
+                        )
 
             # Rich credential record provisioned by the Asclepius onboarding flow.
             user_cols = cols("users")
@@ -1442,11 +1499,16 @@ class AsclepiusStore:
         # that carries no labs AND no notes is an empty case and can never be
         # stamped multimodal (which would grant the value premium + a multimodal
         # label with no data behind it). An empty ``case={}`` is treated as text.
-        md = "multimodal" if (case and (case.get("lab_panels") or case.get("notes"))) else "text"
+        md = "multimodal" if (case and (case.get("lab_panels") or case.get("notes") or case.get("studies"))) else "text"
         # case_source is DERIVED from the case (EHR PRD §9.5): 'real_deid' only
         # when the case itself says so; any other case is 'synthetic'; a text
         # task has none. First-class column so the V4 routing wall is pure SQL.
         cs = ((case.get("case_source") or "synthetic") if case else None)
+        # Empirical difficulty (PRD §9) rides in the generation block; lift it to the
+        # first-class columns for the serving gate + admin/export.
+        ed_val, ed_measured = _empirical_difficulty_fields(
+            (generation or {}).get("empirical_difficulty")
+        )
         with self._conn() as conn:
             conn.execute(
                 """
@@ -1454,8 +1516,9 @@ class AsclepiusStore:
                   (task_id, specialty, difficulty, capture_reasoning, source, prompt,
                    candidate_answers_json, max_labels, grounding_mode, independent_mode,
                    buyer_request_id, generation_json, value_tier, modality, case_json,
-                   case_source, status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   case_source, empirical_difficulty, difficulty_measured,
+                   status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -1474,11 +1537,50 @@ class AsclepiusStore:
                     md,
                     json.dumps(case) if case else None,
                     cs,
+                    ed_val,
+                    ed_measured,
                     created_by,
                     _utcnow_iso(),
                 ),
             )
         return self.get_task(tid)  # type: ignore[return-value]
+
+    def update_task_case(self, task_id: str, case: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Replace a task's stored case (V4 Image Embedding PRD §3.5 — attach an image
+        asset to a study). Re-derives modality + case_source from the new case. Used by
+        the image-ingest path; the image BYTES live in the asset store, only the
+        StudyAsset reference is written here."""
+        md = "multimodal" if (case and (case.get("lab_panels") or case.get("notes") or case.get("studies"))) else "text"
+        cs = ((case.get("case_source") or "synthetic") if case else None)
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE tasks SET case_json = ?, modality = ?, case_source = ? WHERE task_id = ?",
+                (json.dumps(case) if case else None, md, cs, task_id),
+            )
+        return self.get_task(task_id)
+
+    def insert_asset_ref(self, *, asset_id: str, sha256: str, mime: str,
+                         task_id: Optional[str], case_source: Optional[str]) -> None:
+        """Index a V4 image asset (V4 Image PRD §4) so serving resolves it in one
+        indexed lookup instead of scanning tasks. Idempotent on ``asset_id`` (dedupe:
+        the same content → same id → last owning task wins, which is fine — all image
+        assets are on real_deid cases)."""
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO study_assets "
+                "(asset_id, sha256, mime, task_id, case_source, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (asset_id, sha256, mime, task_id, case_source, _utcnow_iso()),
+            )
+
+    def get_asset_ref(self, asset_id: str) -> Optional[Dict[str, Any]]:
+        """Resolve an ``asset_id`` → {sha256, mime, task_id, case_source} via the
+        index (O(1)). None if unknown."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT asset_id, sha256, mime, task_id, case_source FROM study_assets WHERE asset_id = ?",
+                (asset_id,),
+            ).fetchone()
+        return dict(row) if row else None
 
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
@@ -1526,6 +1628,7 @@ class AsclepiusStore:
     def next_task_for_evaluator(
         self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
         real_only: bool = False, multimodal_only: bool = False,
+        require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
     ) -> Optional[Dict[str, Any]]:
         """Oldest open task in the evaluator's specialty that (a) they have not
         already submitted and (b) still has label capacity (max_labels).
@@ -1550,6 +1653,12 @@ class AsclepiusStore:
         # V3 multimodal-only queue (default): serve structured cases only.
         if multimodal_only:
             clauses.append("t.modality = 'multimodal'")
+        # Empirical-difficulty gate (PRD §9): when required, serve only cases whose
+        # frontier-failure rate was LIVE-measured above the floor. OFF by default so
+        # declared/authored seeds still serve in dev without live frontier keys.
+        if require_measured_difficulty:
+            clauses.append("(t.difficulty_measured = 1 AND t.empirical_difficulty >= ?)")
+            params.append(float(min_empirical_difficulty))
         clauses.append(
             "t.case_source = 'real_deid'" if real_only
             else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
@@ -1582,6 +1691,7 @@ class AsclepiusStore:
     def eligible_tasks_for_evaluator(
         self, *, evaluator_id: str, specialty: Optional[str], limit: Optional[int] = None,
         hard_only: bool = False, real_only: bool = False, multimodal_only: bool = False,
+        require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
     ) -> List[Dict[str, Any]]:
         """All open tasks this evaluator may take (not already theirs + still has
         label capacity), oldest first — the candidate set value-aware routing
@@ -1606,6 +1716,10 @@ class AsclepiusStore:
         # V3 multimodal-only queue (default): structured cases only.
         if multimodal_only:
             clauses.append("t.modality = 'multimodal'")
+        # Empirical-difficulty gate (PRD §9) — same rule as next_task_for_evaluator.
+        if require_measured_difficulty:
+            clauses.append("(t.difficulty_measured = 1 AND t.empirical_difficulty >= ?)")
+            params.append(float(min_empirical_difficulty))
         # The V4 wall (EHR PRD §9.5) — same rule as next_task_for_evaluator.
         clauses.append(
             "t.case_source = 'real_deid'" if real_only

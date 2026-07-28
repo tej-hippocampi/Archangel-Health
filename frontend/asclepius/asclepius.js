@@ -13,6 +13,10 @@
   // for every new task.
   const PORTAL_VERSION_KEY = 'asclepius_portal_version';
   const DEFAULT_PORTAL_VERSION = 'v3';
+  // The V3/V4 specialty the physician is grading (Specialty Hyper-Personalization
+  // PRD §1). Persisted per browser like the portal version; sent on task fetch.
+  const PORTAL_SPECIALTY_KEY = 'asclepius_portal_specialty';
+  const DEFAULT_PORTAL_SPECIALTY = 'nephrology';
   // Doctor-portal session token (same origin). If present, we silently exchange
   // it for an Asclepius session so affiliated clinicians skip the login form.
   const DOCTOR_TOKEN_KEY = 'archangel_doctor_auth_token';
@@ -45,6 +49,8 @@
     assistFailedFor: null,  // task_id whose assist fetch failed (retry next load)
     showFullText: false,    // compare view: full text vs highlighted diff
     portalChosen: false,    // has the evaluator picked V1/V2 on the home page yet
+    specialtyChosen: false, // has the evaluator picked a specialty this session (V3/V4)
+    specialties: null,      // cached GET /specialties listing (drives the picker)
   };
 
   // ─── Tiny DOM helper ───────────────────────────────────────────────────────
@@ -365,6 +371,10 @@
     // recommended default — / V2 assisted / V1 classic) before any labeling. Shown
     // on entry until a choice is made this session (and again on "Change experience").
     if (!state.portalChosen) { renderVersionHome(); return; }
+    // V3/V4 are the specialty-scoped flows: pick the specialty before the case
+    // loads (PRD §1). V1/V2 are text prompts and skip the picker.
+    const ver = getPortalVersion();
+    if ((ver === 'v3' || ver === 'v4') && !state.specialtyChosen) { await renderSpecialtyPicker(); return; }
     const wrap = h('div', { class: 'asc-wrap' });
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Loading next evaluation…')));
@@ -375,7 +385,8 @@
       // V1 classic. WITHOUT this param the server safely falls back to the classic
       // oldest-first queue — i.e. the whole V3/V2 serving path is dead unless the
       // client sends its selected version here.
-      const data = await api('/tasks/next?portal_version=' + encodeURIComponent(getPortalVersion()));
+      const data = await api('/tasks/next?portal_version=' + encodeURIComponent(getPortalVersion())
+        + '&specialty=' + encodeURIComponent(getPortalSpecialty()));
       state.task = data.task;
       if (!state.task) { renderEvalEmpty(); return; }
       initDraftForTask(state.task);
@@ -397,14 +408,22 @@
   function renderEvalEmpty() {
     stopTimer();
     updateHeaderProgress(); // no open task — the §16 bar hides here
+    const ver = getPortalVersion();
+    const isSpecScoped = ver === 'v3' || ver === 'v4';
+    const sp = getPortalSpecialty();
+    const spLabel = sp.charAt(0).toUpperCase() + sp.slice(1);
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'asc-empty' },
           h('div', { class: 'asc-empty-icon' }, '✓'),
-          h('h3', {}, 'Your queue is clear'),
-          h('p', {}, 'No evaluation tasks are waiting for you right now. Check back soon.'),
+          h('h3', {}, isSpecScoped ? ('No ' + spLabel + ' cases available yet') : 'Your queue is clear'),
+          h('p', {}, isSpecScoped
+            ? ('No ' + spLabel + ' cases are available right now — check back soon, or pick another specialty.')
+            : 'No evaluation tasks are waiting for you right now. Check back soon.'),
           h('div', { style: 'margin-top:16px' },
-            h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', onClick: renderEvalView }, 'Refresh queue')),
+            h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', onClick: renderEvalView }, 'Refresh queue'),
+            isSpecScoped ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', style: 'margin-left:8px',
+              onClick: () => { state.specialtyChosen = false; renderEvalView(); } }, 'Change specialty') : null),
         ))));
   }
 
@@ -535,6 +554,56 @@
     v = PORTAL_VERSIONS.indexOf(v) !== -1 ? v : DEFAULT_PORTAL_VERSION;
     try { localStorage.setItem(PORTAL_VERSION_KEY, v); } catch (e) { /* ignore quota */ }
   }
+
+  // ─── Specialty selection (Specialty Hyper-Personalization PRD §1) ───────────
+  function getPortalSpecialty() {
+    let s = null;
+    try { s = localStorage.getItem(PORTAL_SPECIALTY_KEY); } catch (e) { s = null; }
+    return (s || DEFAULT_PORTAL_SPECIALTY).trim().toLowerCase();
+  }
+  function setPortalSpecialty(s) {
+    try { localStorage.setItem(PORTAL_SPECIALTY_KEY, String(s || '').trim().toLowerCase()); } catch (e) { /* ignore quota */ }
+  }
+  // The current task's specialty (drives the case panel's data-driven tabs).
+  function caseSpecialty() {
+    const c = multimodalCase();
+    return ((c && c.specialty) || (state.task && state.task.specialty) || 'nephrology').toLowerCase();
+  }
+
+  // Per-specialty case-panel layout — ONE code path, config not a render fork
+  // (PRD §6). Each entry is an ordered list of tab specs; a tab appears only when
+  // its data exists. ``study`` groups the case's ``studies`` by modality; ``strip``
+  // renders a scannable ECG findings block; ``timeline`` renders imaging as a
+  // baseline→on-treatment sequence; ``ngs`` renders molecular variants as a VAF table.
+  const SPECIALTY_UI = {
+    nephrology: [
+      { kind: 'overview' },
+      { kind: 'labs', label: 'Labs (trend)' },
+      { kind: 'study', key: 'studies', label: 'Studies', modalities: ['pathology', 'ct', 'mri', 'pet', 'echo', 'other'] },
+      { kind: 'notes' }, { kind: 'meds' }, { kind: 'vitals' },
+    ],
+    cardiology: [
+      { kind: 'overview' },
+      { kind: 'study', key: 'ecg', label: 'ECG', modalities: ['ecg'], strip: true },
+      { kind: 'study', key: 'echoimg', label: 'Echo/Imaging', modalities: ['echo', 'cath', 'ct', 'mri', 'pet'] },
+      { kind: 'labs', label: 'Labs' },
+      { kind: 'notes' }, { kind: 'meds' }, { kind: 'vitals' },
+    ],
+    oncology: [
+      { kind: 'overview' },
+      { kind: 'study', key: 'pathology', label: 'Pathology', modalities: ['pathology'] },
+      { kind: 'study', key: 'imaging', label: 'Imaging', modalities: ['ct', 'mri', 'pet'], timeline: true },
+      { kind: 'study', key: 'molecular', label: 'Molecular', modalities: ['molecular'], ngs: true },
+      { kind: 'labs', label: 'Labs' },
+      { kind: 'notes' }, { kind: 'meds' }, { kind: 'vitals' },
+    ],
+  };
+  const DEFAULT_SPECIALTY_UI = SPECIALTY_UI.nephrology;
+  // Modality → short chip label for the modality chips in a study tab.
+  const MODALITY_LABEL = {
+    ecg: 'ECG', echo: 'Echo', cath: 'Cath', ct: 'CT', mri: 'MRI', pet: 'PET',
+    pathology: 'Pathology', molecular: 'Molecular', other: 'Study',
+  };
   // The version a task is graded under: pinned onto the draft when the doctor
   // leaves Stage 1 (so a switch mid-task can't produce a half-assisted record);
   // until then it mirrors the live selection.
@@ -631,47 +700,221 @@
     return lo + '–' + hi;
   }
 
-  // The tabbed case panel. Tabs are built only for sections that carry data, so a
-  // labs-only case doesn't show empty Meds/Vitals tabs. State (active tab) lives
-  // on ``state._caseTab`` keyed by task so it survives re-renders within a task.
+  // A compact measurements/variants table (reuses the lab flag classes) for a
+  // study's numeric findings — EF %, valve gradient, SUVmax, molecular VAF, etc.
+  function renderMeasurements(measurements, valueHead) {
+    const ms = (measurements || []).filter((m) => m && m.analyte);
+    if (!ms.length) return null;
+    const head = h('tr', {}, h('th', {}, valueHead || 'Measure'), h('th', { class: 'asc-lab-num' }, 'Value'),
+      h('th', {}, 'Ref'));
+    const rows = ms.map((m) => h('tr', {},
+      h('td', { class: 'asc-lab-analyte' }, String(m.analyte) + (m.unit ? ' (' + m.unit + ')' : '')),
+      h('td', { class: 'asc-lab-num ' + labFlagClass(m.flag) }, String(m.value == null ? '·' : m.value) + (m.flag ? ' ' + String(m.flag).toUpperCase() : '')),
+      h('td', { class: 'asc-lab-ref' }, refRange(m))));
+    return h('div', { class: 'asc-lab-scroll' },
+      h('table', { class: 'asc-lab-table' }, h('thead', {}, head), h('tbody', {}, ...rows)));
+  }
+
+  // Fetch a cleaned image asset over the AUTHENTICATED endpoint (Bearer token — an
+  // <img src> can't carry it, so we fetch a blob and use an object URL). Blinding
+  // holds: the bytes carry no provider/model/partner identity (V4 Image PRD §6).
+  async function fetchAssetBlobUrl(assetId) {
+    const res = await fetch(API_BASE + '/assets/' + encodeURIComponent(assetId), {
+      headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
+    });
+    if (!res.ok) throw new Error('asset ' + res.status);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  // The V4 image viewer (V4 Image Embedding PRD §6): the image renders ABOVE its
+  // structured findings, with zoom (scroll / ＋－), pan (drag), fit/reset, and a
+  // full-screen toggle — keyboard-operable (＋/－/0, arrows, Esc). One component,
+  // design-tokens only, with a real load-failure state (never a broken-image icon).
+  function renderStudyImage(study) {
+    if (!study || !study.asset || !study.asset.asset_id) return null;
+    const asset = study.asset;
+    const pageCount = parseInt(asset.page_count, 10) || 1;
+    const shownPage = parseInt(asset.page, 10) || 1;
+    const view = { scale: 1, x: 0, y: 0 };
+    const wrap = h('div', { class: 'asc-img-viewer' });
+    const stage = h('div', { class: 'asc-img-stage', tabindex: '0', role: 'img',
+      'aria-label': (study.label || study.modality || 'clinical') + ' image' });
+    const img = h('img', { class: 'asc-img', alt: (study.label || study.modality || 'clinical image'), draggable: 'false' });
+    const skeleton = h('div', { class: 'asc-img-skeleton' }, h('div', { class: 'loading-spinner' }));
+    stage.appendChild(skeleton);
+    // Track the blob URL so it is revoked (no leaked decoded-image memory over a
+    // long grading session). Cleaned up on load, on error/reload, and on teardown.
+    let objUrl = null;
+    function revoke() { if (objUrl) { try { URL.revokeObjectURL(objUrl); } catch (e) { /* ignore */ } objUrl = null; } }
+
+    function apply() {
+      img.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';
+    }
+    function zoom(delta) {
+      const next = Math.min(8, Math.max(1, view.scale + delta));
+      view.scale = next;
+      if (next === 1) { view.x = 0; view.y = 0; }
+      apply();
+    }
+    function reset() { view.scale = 1; view.x = 0; view.y = 0; apply(); }
+
+    // Zoom on scroll; pan on drag. The pan listeners live on `window` ONLY for the
+    // duration of a drag (added on mousedown, removed on mouseup) so they never
+    // accumulate across cases/tabs — the stage-scoped listeners are GC'd with the node.
+    stage.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 0.25 : -0.25); }, { passive: false });
+    let drag = null;
+    function onMove(e) { if (!drag) return; view.x = e.clientX - drag.x; view.y = e.clientY - drag.y; apply(); }
+    function onUp() { drag = null; stage.classList.remove('asc-img-grabbing');
+      window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
+    stage.addEventListener('mousedown', (e) => {
+      drag = { x: e.clientX - view.x, y: e.clientY - view.y };
+      stage.classList.add('asc-img-grabbing');
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    });
+    // Keyboard: +/- zoom, 0 reset, arrows pan, Esc exit full-screen.
+    stage.addEventListener('keydown', (e) => {
+      const step = 40;
+      if (e.key === '+' || e.key === '=') { zoom(0.25); }
+      else if (e.key === '-' || e.key === '_') { zoom(-0.25); }
+      else if (e.key === '0') { reset(); }
+      else if (e.key === 'ArrowLeft') { view.x += step; apply(); }
+      else if (e.key === 'ArrowRight') { view.x -= step; apply(); }
+      else if (e.key === 'ArrowUp') { view.y += step; apply(); }
+      else if (e.key === 'ArrowDown') { view.y -= step; apply(); }
+      else if (e.key === 'Escape') { if (wrap.classList.contains('asc-img-full')) toggleFull(); return; }
+      else { return; }
+      e.preventDefault();
+    });
+    function toggleFull() { wrap.classList.toggle('asc-img-full'); reset(); stage.focus(); }
+
+    const toolbar = h('div', { class: 'asc-img-toolbar' },
+      h('button', { class: 'asc-img-btn', type: 'button', title: 'Zoom out (−)', onClick: () => zoom(-0.25) }, '−'),
+      h('button', { class: 'asc-img-btn', type: 'button', title: 'Zoom in (+)', onClick: () => zoom(0.25) }, '＋'),
+      h('button', { class: 'asc-img-btn', type: 'button', title: 'Reset view (0)', onClick: reset }, 'Reset'),
+      h('button', { class: 'asc-img-btn', type: 'button', title: 'Full screen', onClick: toggleFull }, '⤢'));
+    // Multi-page PDF: the ingested asset is a SINGLE rendered page (page N of the
+    // source), so we show an honest static indicator — never non-functional nav
+    // buttons that would let a clinician believe they are viewing a page that isn't
+    // loaded. (Per-page fetch is a follow-up; the endpoint serves one page today.)
+    if (pageCount > 1) {
+      toolbar.appendChild(h('span', { class: 'asc-img-page' }, 'Page ' + shownPage + ' of ' + pageCount));
+    }
+
+    stage.appendChild(img);
+    wrap.appendChild(toolbar);
+    wrap.appendChild(stage);
+
+    // Load the bytes. On failure show a real error state with a reload — the doctor
+    // must NEVER grade a case whose image didn't render (PRD §6).
+    fetchAssetBlobUrl(asset.asset_id).then((url) => {
+      objUrl = url;
+      // Revoke once decoded — the browser keeps the rendered image; frees the blob.
+      img.onload = () => { if (skeleton.parentNode) skeleton.parentNode.removeChild(skeleton); apply(); revoke(); };
+      img.onerror = () => { revoke(); showError(); };
+      img.src = url;
+    }).catch(() => showError());
+    function showError() {
+      revoke();
+      onUp();  // ensure any in-flight drag listeners are removed
+      clear(stage);
+      stage.appendChild(h('div', { class: 'asc-img-error' },
+        h('div', {}, 'Could not load the image.'),
+        h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+          onClick: () => { const p = wrap.parentNode; if (p) { const fresh = renderStudyImage(study); p.replaceChild(fresh, wrap); } } }, 'Reload')));
+    }
+    return wrap;
+  }
+
+  // One study rendered inside its tab: the image first (if any), then the modality
+  // chip, the structured findings report (as a scannable "rhythm strip" block for an
+  // ECG), the numeric measurements table, and the impression. This is the grounding
+  // anchor the model is supposed to read — surfaced prominently (PRD §3/§6).
+  function renderStudyCard(study, opts) {
+    opts = opts || {};
+    const modality = String(study.modality || 'study').toLowerCase();
+    const chipLabel = MODALITY_LABEL[modality] || modality.toUpperCase();
+    const findings = (study.findings || '').trim();
+    const isNgs = opts.ngs || modality === 'molecular';
+    return h('div', { class: 'asc-study' },
+      h('div', { class: 'asc-study-head' },
+        h('span', { class: 'asc-chip asc-chip-modality' },
+          h('span', { class: 'asc-chip-dot', 'aria-hidden': 'true' }),
+          h('span', {}, chipLabel)),
+        study.label ? h('span', { class: 'asc-study-label' }, study.label) : null),
+      renderStudyImage(study),
+      findings
+        ? (opts.strip
+            ? h('div', { class: 'asc-ecg-strip' }, h('div', { class: 'asc-ecg-strip-text' }, findings))
+            : h('div', { class: 'asc-study-findings' }, findings))
+        : null,
+      renderMeasurements(study.measurements, isNgs ? 'Variant' : 'Measure'),
+      study.impression ? h('div', { class: 'asc-study-impression' }, h('strong', {}, 'Impression: '), study.impression) : null);
+  }
+
+  // Build a study tab body from the case's ``studies`` filtered to ``modalities``.
+  // ``timeline`` lays the studies out as a baseline→on-treatment sequence (the
+  // temporal judgment pseudoprogression turns on, PRD §6).
+  function renderStudyTab(studies, spec) {
+    const mods = spec.modalities;
+    const items = (studies || []).filter((s) => s && (!mods || mods.indexOf(String(s.modality || '').toLowerCase()) !== -1));
+    if (!items.length) return null;
+    if (spec.timeline && items.length) {
+      return h('div', { class: 'asc-case-body' },
+        h('div', { class: 'asc-timeline' }, ...items.map((s, i) => h('div', { class: 'asc-timeline-step' },
+          h('div', { class: 'asc-timeline-marker', 'aria-hidden': 'true' }),
+          renderStudyCard(s, spec)))));
+    }
+    return h('div', { class: 'asc-case-body' }, ...items.map((s) => renderStudyCard(s, spec)));
+  }
+
+  // The tabbed case panel. Tabs are built only for sections that carry data, driven
+  // by the per-specialty ``SPECIALTY_UI`` config (one code path, never a render fork
+  // per specialty — PRD §6). State (active tab) lives on ``state._caseTab`` keyed by
+  // task so it survives re-renders within a task.
   function renderCasePanel() {
     const c = multimodalCase();
     if (!c) return null;
+    const spec = caseSpecialty();
+    const ui = SPECIALTY_UI[spec] || DEFAULT_SPECIALTY_UI;
     const demo = c.demographics || {};
     const who = [demo.sex, demo.age_band ? ('age ' + demo.age_band) : null].filter(Boolean).join(', ');
-
-    const tabs = [];
-    // Patient overview (always present).
-    const overview = h('div', { class: 'asc-case-body' },
-      h('div', { class: 'asc-case-patient' }, who ? ('Patient: ' + who) : 'Patient (de-identified)'),
-      (c.problem_list && c.problem_list.length)
-        ? h('div', { class: 'asc-case-sub' }, 'Active problems: ' + c.problem_list.map((p) => p.condition + (p.since ? ' (since ' + p.since + ')' : '')).join('; '))
-        : null,
-      h('div', { class: 'asc-case-note-meta' }, 'De-identified · relative dates · no imaging'));
-    tabs.push({ key: 'overview', label: 'Patient', body: overview });
-
-    if (c.lab_panels && c.lab_panels.length) {
-      tabs.push({ key: 'labs', label: 'Labs', body: h('div', { class: 'asc-case-body' }, renderLabsTrend(c.lab_panels)) });
-    }
-    if (c.notes && c.notes.length) {
-      tabs.push({ key: 'notes', label: 'EHR' + (c.notes.length > 1 ? ' (' + c.notes.length + ')' : ''),
-        body: h('div', { class: 'asc-case-body' }, ...c.notes.map((n) => h('div', { class: 'asc-case-note' },
-          h('div', { class: 'asc-case-note-meta' }, '[' + (n.note_type || 'Note') + ' — ' + (n.author_role || 'clinician') + ']'),
-          h('div', { class: 'asc-case-note-text' }, (n.text || '').trim())))) });
-    }
     const meds = c.medications || [];
-    if (meds.length) {
-      tabs.push({ key: 'meds', label: 'Meds', body: h('div', { class: 'asc-case-body' },
-        h('ul', { class: 'asc-case-list' }, ...meds.map((m) => h('li', {},
-          [m.drug, m.dose, m.route, m.freq].filter(Boolean).join(' '))))) });
-    }
     const vitals = c.vitals || {};
     const vkeys = Object.keys(vitals).filter((k) => vitals[k] !== null && vitals[k] !== undefined && vitals[k] !== '');
-    if (vkeys.length) {
-      tabs.push({ key: 'vitals', label: 'Vitals', body: h('div', { class: 'asc-case-body' },
-        h('div', { class: 'asc-case-vitals' }, ...vkeys.map((k) => h('span', { class: 'asc-vital' },
-          h('span', { class: 'asc-vital-k' }, k), ' ', h('span', { class: 'asc-vital-v' }, String(vitals[k])))))) });
-    }
+    const studies = c.studies || [];
+
+    const tabs = [];
+    ui.forEach((t) => {
+      if (t.kind === 'overview') {
+        tabs.push({ key: 'overview', label: 'Patient', body: h('div', { class: 'asc-case-body' },
+          h('div', { class: 'asc-case-patient' }, who ? ('Patient: ' + who) : 'Patient (de-identified)'),
+          (c.problem_list && c.problem_list.length)
+            ? h('div', { class: 'asc-case-sub' }, 'Active problems: ' + c.problem_list.map((p) => p.condition + (p.since ? ' (since ' + p.since + ')' : '')).join('; '))
+            : null,
+          h('div', { class: 'asc-case-note-meta' }, 'De-identified · relative dates · structured studies')) });
+      } else if (t.kind === 'labs' && c.lab_panels && c.lab_panels.length) {
+        tabs.push({ key: 'labs', label: t.label || 'Labs', body: h('div', { class: 'asc-case-body' }, renderLabsTrend(c.lab_panels)) });
+      } else if (t.kind === 'study') {
+        const body = renderStudyTab(studies, t);
+        if (body) tabs.push({ key: t.key, label: t.label, body: body });
+      } else if (t.kind === 'notes' && c.notes && c.notes.length) {
+        tabs.push({ key: 'notes', label: 'EHR' + (c.notes.length > 1 ? ' (' + c.notes.length + ')' : ''),
+          body: h('div', { class: 'asc-case-body' }, ...c.notes.map((n) => h('div', { class: 'asc-case-note' },
+            h('div', { class: 'asc-case-note-meta' }, '[' + (n.note_type || 'Note') + ' — ' + (n.author_role || 'clinician') + ']'),
+            h('div', { class: 'asc-case-note-text' }, (n.text || '').trim())))) });
+      } else if (t.kind === 'meds' && meds.length) {
+        tabs.push({ key: 'meds', label: 'Meds', body: h('div', { class: 'asc-case-body' },
+          h('ul', { class: 'asc-case-list' }, ...meds.map((m) => h('li', {},
+            [m.drug, m.dose, m.route, m.freq].filter(Boolean).join(' '))))) });
+      } else if (t.kind === 'vitals' && vkeys.length) {
+        tabs.push({ key: 'vitals', label: 'Vitals', body: h('div', { class: 'asc-case-body' },
+          h('div', { class: 'asc-case-vitals' }, ...vkeys.map((k) => h('span', { class: 'asc-vital' },
+            h('span', { class: 'asc-vital-k' }, k), ' ', h('span', { class: 'asc-vital-v' }, String(vitals[k])))))) });
+      }
+    });
+    if (!tabs.length) return null;
 
     const tid = state.task && state.task.task_id;
     if (!state._caseTab || state._caseTabTask !== tid) { state._caseTab = tabs[0].key; state._caseTabTask = tid; }
@@ -693,8 +936,16 @@
       tabRow.appendChild(btn);
     });
 
+    // Specialty chip (deterministic color — nephrology green, cardiology orange,
+    // oncology pink; PRD §6). Accent comes from the cached /specialties listing so
+    // a new specialty needs no frontend change.
+    const specMeta = ((state.specialties || []).find((s) => s.specialty === spec)) || {};
+    const specChip = h('span', { class: 'asc-chip asc-chip-specialty asc-chip-' + (specMeta.accent || 'green') },
+      h('span', { class: 'asc-chip-dot', 'aria-hidden': 'true' }),
+      h('span', {}, spec.charAt(0).toUpperCase() + spec.slice(1)));
     const panel = h('div', { class: 'asc-card asc-case-card' },
       h('div', { class: 'asc-case-head' },
+        specChip,
         h('span', { class: 'asc-badge asc-badge-accent' }, 'Multimodal case'),
         h('span', { class: 'asc-case-source' }, (c.case_source === 'real_deid' ? 'Real (de-identified)' : 'Synthetic'))),
       tabRow, bodyHost);
@@ -1257,17 +1508,78 @@
         legacyCards)));
   }
 
+  // ─── V3/V4 specialty picker (Specialty Hyper-Personalization PRD §1) ────────
+  // An inline selector on the same view, before the case loads — styled with the
+  // existing ``.asc-ver-card``/chip vocabulary (no new component). Each option has
+  // its palette dot (nephrology green · cardiology orange · oncology pink) + a
+  // one-line scope blurb. The choice sets ``state.portalSpecialty`` (persisted) and
+  // is sent on every task fetch. Reads GET /specialties, so enabling a 4th specialty
+  // later needs NO frontend change.
+  function chooseSpecialty(sp) {
+    setPortalSpecialty(sp);
+    state.specialtyChosen = true;
+    renderEvalView();
+  }
+  async function renderSpecialtyPicker() {
+    stopTimer();
+    if (!state.specialties) {
+      try { const d = await api('/specialties'); state.specialties = (d && d.specialties) || []; }
+      catch (e) { state.specialties = []; }
+    }
+    const ver = getPortalVersion();
+    const last = getPortalSpecialty();
+    const enabled = (state.specialties || []).filter((s) => s.enabled);
+    const cards = h('div', { class: 'asc-ver-cards' });
+    (enabled.length ? enabled : [{ specialty: 'nephrology', accent: 'green', blurb: '', buckets: [] }]).forEach((s) => {
+      const nBuckets = (s.buckets || []).length;
+      const card = h('div', {
+        class: 'asc-ver-card' + (last === s.specialty ? ' last-used' : ''),
+        role: 'button', tabindex: '0',
+        onClick: () => chooseSpecialty(s.specialty),
+        onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseSpecialty(s.specialty); } },
+      },
+        h('div', { class: 'asc-ver-card-head' },
+          h('span', { class: 'asc-ver-card-icon ' + specialtyDot(s.specialty), 'aria-hidden': 'true' }),
+          h('div', {},
+            h('div', { class: 'asc-ver-card-title' },
+              s.specialty.charAt(0).toUpperCase() + s.specialty.slice(1),
+              last === s.specialty ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null),
+            h('div', { class: 'asc-ver-card-blurb' }, s.blurb || ''))),
+        nBuckets ? h('ul', { class: 'asc-ver-card-list' }, (s.buckets || []).slice(0, 4).map((b) => h('li', {}, b.label || b.id))) : null,
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
+          'Grade ' + s.specialty.charAt(0).toUpperCase() + s.specialty.slice(1) + ' →'));
+      cards.appendChild(card);
+    });
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-ver-home' },
+        h('div', { class: 'asc-exp-badge', style: 'margin-bottom:14px' },
+          h('span', { class: 'asc-exp-badge-label' }, ver === 'v4' ? 'V4 · Real Cases' : 'V3 · Seamless'),
+          h('button', { class: 'asc-btn-link', type: 'button',
+            onClick: () => { state.portalChosen = false; renderEvalView(); } }, 'Change experience')),
+        h('h1', { class: 'asc-ver-home-title' }, 'Choose a specialty'),
+        h('p', { class: 'asc-ver-home-sub' },
+          'Each specialty serves hard, model-breaking cases in the modality it lives in — cardiology in the ECG/echo, oncology in the pathology and molecular panel. Same fast flow across all of them.'),
+        cards)));
+  }
+
   // Small read-only indicator inside the workspace: which experience this task
   // is being graded under, with a one-tap route back to the home chooser.
   function renderExperienceBadge() {
     const v = draftVersion();
     const meta = { v4: ['', 'Real · De-identified Cases'], v3: ['', 'Synthetic Multimodal'], v2: ['', 'V2 · Assisted'], v1: ['', 'V1 · Classic'] }[v] || ['', 'V1 · Classic'];
+    // V3/V4 also carry the chosen specialty + a one-tap route back to the picker.
+    const specLink = (v === 'v3' || v === 'v4')
+      ? h('button', { class: 'asc-btn-link', type: 'button',
+          onClick: () => { state.specialtyChosen = false; renderEvalView(); } },
+          'Change specialty')
+      : null;
     return h('div', { class: 'asc-exp-badge' },
       h('span', { class: 'asc-exp-badge-label' }, meta[0] + meta[1]),
       h('button', {
         class: 'asc-btn-link', type: 'button',
         onClick: () => { state.portalChosen = false; renderEvalView(); },
-      }, 'Change experience'));
+      }, 'Change experience'),
+      specLink);
   }
 
   // ─── §6 semantic case-tag chips (V3/V4) ─────────────────────────────────────
@@ -1276,7 +1588,7 @@
   // difficulty (hard=pink, medium=orange, easy=green), lime=multimodal,
   // orange=reasoning (model), pink=grounding (attention). Color always pairs
   // with the text label — never the sole carrier.
-  const SPECIALTY_DOT = { nephrology: 'asc-dot-green', cardiology: 'asc-dot-orange' };
+  const SPECIALTY_DOT = { nephrology: 'asc-dot-green', cardiology: 'asc-dot-orange', oncology: 'asc-dot-pink' };
   const _SPECIALTY_CYCLE = ['asc-dot-lime', 'asc-dot-green', 'asc-dot-orange', 'asc-dot-pink'];
   function specialtyDot(spec) {
     const s = (spec || '').toLowerCase();

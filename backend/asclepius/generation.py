@@ -238,7 +238,8 @@ def _multimodal_archetypes(specialty: str) -> List[Dict[str, Any]]:
 
 
 async def _gen_multimodal_items(
-    specialty: str, archetypes: List[Dict[str, Any]], start_idx: int, want: int
+    specialty: str, archetypes: List[Dict[str, Any]], start_idx: int, want: int,
+    *, require_faulty_reasoning: bool = False, require_catastrophic: bool = False,
 ) -> Dict[str, Any]:
     """Produce ``run_prompt_gen``-shaped output for the multimodal path: each item
     is a rendered case prompt carrying its structured ``_case`` + ``_question`` +
@@ -249,7 +250,15 @@ async def _gen_multimodal_items(
     model = None
     for j in range(max(1, want)):
         arche = archetypes[(start_idx + j) % len(archetypes)]
-        cg = await generate_case(arche, specialty=specialty)
+        # Force ~half of a batch to carry a faulty-reasoning path when required, and
+        # rotate one catastrophic-action case per batch (PRD §8.2/§8.3). Only pass
+        # the flags when set so the default call signature is unchanged.
+        _extra: Dict[str, Any] = {}
+        if require_faulty_reasoning and (j % 2 == 0):
+            _extra["require_faulty_reasoning"] = True
+        if require_catastrophic and (j == 0):
+            _extra["require_catastrophic"] = True
+        cg = await generate_case(arche, specialty=specialty, **_extra)
         # skipped=True means the LLM is UNAVAILABLE — stop (the caller disables
         # generation only if nothing at all was produced). A returned-but-empty
         # case (skipped=False, case=None) is a per-item parse/schema failure: emit
@@ -290,12 +299,31 @@ async def generate_tasks(
     buyer_request_id: Optional[str] = None,
     multimodal: bool = False,
     created_by: Optional[str] = None,
+    require_faulty_reasoning: Optional[bool] = None,
+    require_catastrophic: bool = False,
+    measure_difficulty: Optional[bool] = None,
 ) -> Dict[str, Any]:
-    """Generate up to ``n`` validated nephrology tasks. Returns
+    """Generate up to ``n`` validated tasks for ``specialty``. Returns
     ``{job_id, created, accepted, dropped, shortfall, corpus_version}``.
+
+    ``require_faulty_reasoning`` (PRD §8.2): force a fraction of cases to admit a
+    plausible-but-wrongly-reasoned path to the right answer (the reasoning trace
+    carries the signal). ``require_catastrophic`` (PRD §8.3): make one case per batch
+    hinge on an unsafe action (the ``unsafe_recommendation`` critical negative).
+    ``measure_difficulty`` (PRD §9): run the live frontier empirical-difficulty
+    measurement + gate; defaults to ``ASCLEPIUS_MEASURE_EMPIRICAL_DIFFICULTY``.
 
     Raises :class:`SpecialtyNotEnabled` (unknown/disabled specialty) and
     :class:`GenerationDisabled` (no LLM available — never emit ungated tasks)."""
+    from asclepius.constants import (
+        require_faulty_reasoning_default, measure_empirical_difficulty_enabled,
+        require_measured_difficulty, min_empirical_difficulty,
+    )
+    from asclepius.cases import case_type_signature
+    if require_faulty_reasoning is None:
+        require_faulty_reasoning = require_faulty_reasoning_default()
+    if measure_difficulty is None:
+        measure_difficulty = measure_empirical_difficulty_enabled()
     cfg = get_specialty_config(specialty)  # raises SpecialtyNotEnabled
     meta = corpus.corpus_metadata(specialty)
     n = max(0, int(n or 0))
@@ -357,7 +385,11 @@ async def generate_tasks(
         exemplars: List[Dict[str, Any]] = []
         if multimodal:
             # Archetype-driven case generation feeds the SAME downstream gates.
-            pg = await _gen_multimodal_items(specialty, mm_archetypes, idx, want)
+            pg = await _gen_multimodal_items(
+                specialty, mm_archetypes, idx, want,
+                require_faulty_reasoning=bool(require_faulty_reasoning),
+                require_catastrophic=bool(require_catastrophic),
+            )
         else:
             exemplars = corpus.sample_exemplars(specialty, bucket.id, k)
             failure_modes = [e.get("ai_failure_mode") for e in exemplars]
@@ -604,6 +636,29 @@ async def generate_tasks(
                 # hard case).
                 insert_difficulty = "hard"
 
+                # Stage 3d: empirical-difficulty gate (PRD §9, the prime directive).
+                # Measure the frontier-model failure rate (both axes) when enabled;
+                # below-floor cases are dropped (routed back to regeneration). When
+                # measurement is disabled/unavailable the case carries a DECLARED
+                # difficulty (hardness-judge proxy, measured=False) and is not gated.
+                if measure_difficulty:
+                    from asclepius.empirical_difficulty import measure_empirical_difficulty
+                    empirical = await measure_empirical_difficulty(case, p.get("_question") or "")
+                    if (empirical.get("measured") and require_measured_difficulty()
+                            and not empirical.get("passes_gate")):
+                        dropped["below_empirical_difficulty"] += 1
+                        continue
+                else:
+                    empirical = {
+                        "value": None,
+                        "declared": (hardness or {}).get("score"),
+                        "measured": False, "both_axes": True,
+                        "floor": min_empirical_difficulty(),
+                        "note": "live empirical measurement disabled "
+                                "(ASCLEPIUS_MEASURE_EMPIRICAL_DIFFICULTY off); "
+                                "declared from the hardness-judge proxy (PRD §9)",
+                    }
+
             # Accept: stamp provenance + insert as an ordinary internal-bank task.
             generation = {
                 "engine": ASCLEPIUS_ENGINE,
@@ -637,6 +692,13 @@ async def generate_tasks(
                 generation["case_id"] = case.get("case_id")
                 generation["seed_archetype_id"] = p.get("_archetype_id")
                 generation["modality"] = "multimodal"
+                # Buyer-facing case metadata (PRD §2): modality signature + the
+                # documented failure the case targets + the empirical difficulty.
+                generation["case_type"] = case_type_signature(case)
+                generation["subtopic"] = p.get("subtopic")
+                generation["ai_failure_mode"] = p.get("ai_failure_mode")
+                generation["empirical_difficulty"] = empirical
+                generation["require_faulty_reasoning"] = bool(require_faulty_reasoning)
                 # Persist the question so future runs can rebuild this case's novelty
                 # signature (Two-Model PRD WS-C) without re-parsing the rendered prompt.
                 generation["question"] = p.get("_question")

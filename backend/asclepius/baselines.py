@@ -49,10 +49,66 @@ def _provider_of(model: Optional[str]) -> Optional[str]:
         return None
 
 
-def _prompt_hash(system: str, user: str) -> str:
-    """One hash over (system + "\n" + user) so a buyer can verify BOTH frontier
-    answers were produced from byte-identical input."""
-    return hashlib.sha256((system + "\n" + user).encode("utf-8")).hexdigest()
+def _prompt_hash(system: str, user: str, image_sha256: Optional[str] = None) -> str:
+    """One hash over (system + "\n" + user [+ "\n" + image_sha256]) so a buyer can
+    verify BOTH frontier answers were produced from byte-identical input — INCLUDING
+    the image (V4 Image Embedding PRD §5.3). The pair-divergence guard then also
+    catches a case where the two models somehow received different images."""
+    base = system + "\n" + user
+    if image_sha256:
+        base += "\n" + image_sha256
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()
+
+
+def _case_has_image(task: Dict[str, Any]) -> bool:
+    """Cheap check (no disk read / base64) for whether the task carries a V4 image
+    asset — used where only a boolean is needed so we don't load the bytes twice."""
+    case = (task or {}).get("case") or {}
+    if case.get("case_source") != "real_deid":
+        return False
+    try:
+        from asclepius.cases import study_has_valid_asset
+        return any(study_has_valid_asset(s) for s in (case.get("studies") or []))
+    except Exception:  # pragma: no cover
+        return False
+
+
+def _case_image_for_baseline(task: Dict[str, Any]):
+    """Return (image_block, sha256, mime) for the case's PRIMARY image-bearing study
+    (V4 Image PRD §5.2), or (None, None, None) for a text-only case. Loads the cleaned
+    asset bytes ONCE so the SAME bytes reach both providers. V4-only by construction —
+    images never live on a non-real case."""
+    case = (task or {}).get("case") or {}
+    if case.get("case_source") != "real_deid":
+        return (None, None, None)
+    for s in case.get("studies") or []:
+        a = (s or {}).get("asset") if isinstance(s, dict) else None
+        if not (isinstance(a, dict) and a.get("sha256")):
+            continue
+        try:
+            import base64
+            from asclepius.assets import load_asset
+            from ai.llm_client import image_block
+            data, mime = load_asset(a)
+            b64 = base64.b64encode(data).decode("ascii")
+            return (image_block(mime, b64), a.get("sha256"), mime)
+        except Exception as exc:  # a missing/corrupt blob → treat as text-only, logged
+            log.warning("baseline image load failed for %s: %s", a.get("asset_id"), exc)
+            return (None, None, None)
+    return (None, None, None)
+
+
+# Image-case baseline system (V4 Image PRD §5.4): tell the model the IMAGE is the
+# primary data and to ground the answer in what it SEES — this is what surfaces the
+# pixel-grounding failure the data is meant to capture.
+_BASELINE_SYSTEM_IMAGE = (
+    "You are an expert physician answering a clinical question. The PRIMARY data is the "
+    "ATTACHED IMAGE (an ECG strip, an echo/CT/PET still, or a pathology image) — read it "
+    "directly and ground your answer in WHAT YOU SEE in the image, not only the text "
+    "findings. Then integrate the labs, notes, medications, and problem list. Give your "
+    "best, concise clinical answer and plan, confidently as a specialist would; do not "
+    "hedge with disclaimers. Base your answer only on the information provided."
+)
 
 
 # ── Batch-balanced A/B placement (PRD §A2) ───────────────────────────────────
@@ -121,10 +177,14 @@ async def run_baselines(
     models = models or baseline_models()
     prompt = (task or {}).get("prompt") or ""
     task_id = (task or {}).get("task_id")
+    # V4 vision A/B (V4 Image PRD §5): load the case's primary image ONCE and send the
+    # SAME bytes to both providers via the vision path; the image sha256 folds into the
+    # prompt_hash so "same prompt, same image" is enforceable, not assumed.
+    image_block, image_sha, _image_mime = _case_image_for_baseline(task)
+    system = _BASELINE_SYSTEM_IMAGE if image_block else _BASELINE_SYSTEM
     # Compute the shared input hash ONCE — every model answers byte-identical input
-    # (same system + same rendered case, no hints/archetype/answer key). Both rows
-    # carry it so a buyer can prove the pair was answered from the same prompt.
-    prompt_hash = _prompt_hash(_BASELINE_SYSTEM, prompt)
+    # (same system + same rendered case + same image, no hints/archetype/answer key).
+    prompt_hash = _prompt_hash(system, prompt, image_sha)
     runs: List[Dict[str, Any]] = []
     try:
         from ai.llm_client import call_llm, first_text
@@ -134,6 +194,27 @@ async def run_baselines(
                                                   error=f"import:{exc}", provider=_provider_of(m),
                                                   prompt_hash=prompt_hash))
         return runs
+
+    # Vision preflight (V4 Image PRD §5.1): for an image case BOTH models must be
+    # vision-capable. A misconfigured non-vision model records an errored run with an
+    # actionable message → the pair degrades to needs_baseline rather than silently
+    # grading the image case text-only.
+    if image_block:
+        from ai.model_config import is_vision_capable
+        incapable = [m for m in models if not is_vision_capable(m)]
+        if incapable:
+            for m in models:
+                runs.append(store.insert_baseline_run(
+                    task_id=task_id, model=m, response_text=None,
+                    error=(f"vision_incapable: model {incapable} cannot accept an image; an image "
+                           f"case needs two vision-capable baseline models (set "
+                           f"ASCLEPIUS_BASELINE_MODELS to vision-capable ids)"),
+                    provider=_provider_of(m), prompt_hash=prompt_hash))
+            return runs
+
+    def _content(_p):
+        # Vision path: a text block + the identical image block; else plain text.
+        return ([{"type": "text", "text": _p}, image_block] if image_block else _p)
     # Call the frontier models CONCURRENTLY (they are independent; sequential
     # in-request calls stacked their latencies and risked a gateway timeout on the
     # admin's grade-real-models request). Each _one() degrades to an error dict — the
@@ -143,8 +224,8 @@ async def run_baselines(
         try:
             resp, rec = await call_llm(
                 role="asclepius_baseline",
-                system=_BASELINE_SYSTEM,
-                messages=[{"role": "user", "content": prompt}],
+                system=system,
+                messages=[{"role": "user", "content": _content(prompt)}],
                 prompt_id="asclepius_baseline",
                 purpose="asclepius_baseline_capture",
                 model=model,  # per-model override → router picks the provider by id
@@ -332,13 +413,23 @@ async def assemble_ab_pair(store: Any, task: Dict[str, Any]) -> tuple:
         ``legacy_fallback`` + ``fallback_reason``. Reuses the surviving Anthropic answer.
       * **Shortfall:** ``[]`` → caller marks ``needs_baseline``. NEVER a gold stand-in."""
     is_v4 = (task or {}).get("case_source") == "real_deid"
+    has_image = _case_has_image(task)  # cheap check — do NOT load the bytes here
 
-    # Rung 0 — V4 BAA gate (§A7).
+    # Rung 0 — V4 BAA gate (§A7). For an IMAGE case the vision A/B is the whole point
+    # (V4 Image PRD §5.7): two-frontier SHOULD be on so OpenAI + Anthropic each ground
+    # the SAME pixels. Log the explicit config decision when it is off — an
+    # Anthropic-only image pair is lower value (carried on ``ab_source``).
     if is_v4 and not two_frontier_v4_enabled():
+        if has_image:
+            log.warning(
+                "V4 IMAGE case %s ran WITHOUT two-frontier: the vision A/B needs "
+                "ASCLEPIUS_TWO_FRONTIER_V4=1 so OpenAI + Anthropic both read the same image "
+                "(logged config decision, PRD §5.7). Using the Anthropic-only vision pair.",
+                (task or {}).get("task_id"))
         pair, why = await _anthropic_only_pair(store, task)
         return pair, {"ab_source": "anthropic_only_v4" if pair else None,
                       "fallback_reason": None if pair else (why or "anthropic_unavailable"),
-                      "alert": False, "fallback_rate": None}
+                      "alert": False, "fallback_rate": None, "image_case": has_image}
 
     # Rung 1 — two-frontier.
     runs = await run_baselines(store, task, models=baseline_models())

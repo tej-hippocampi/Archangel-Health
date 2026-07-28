@@ -100,27 +100,37 @@ def test_multimodal_archetypes_present_and_wellformed():
     from asclepius.generation import _multimodal_archetypes
     neph = _multimodal_archetypes("nephrology")
     card = _multimodal_archetypes("cardiology")
-    # Full Appendix A nephrology set + a cardiology multimodal set.
+    onc = _multimodal_archetypes("oncology")
+    # Full nephrology set + cardiology + oncology multimodal sets (PRD §4/§5/§7).
     assert len(neph) >= 10, len(neph)
     assert len(card) >= 4, len(card)
-    seen_topics = set()
-    for a in neph + card:
-        assert a.get("topic") and a["topic"] not in seen_topics, a.get("topic")
-        seen_topics.add(a["topic"])
-        mm = a.get("multimodal") or {}
-        assert mm.get("panels"), a["topic"]          # at least one lab panel to reason across
-        assert mm.get("hard_hook"), a["topic"]       # the data-integration trap
-        assert mm.get("ground_truth_spec"), a["topic"]  # the fixed answer key spec
-        # No imaging modality is ever seeded (PRD §2).
-        blob = (json.dumps(mm)).lower()
-        assert "dicom" not in blob and "imaging" not in blob, a["topic"]
+    assert len(onc) >= 4, len(onc)
+    for group in (neph, card, onc):
+        seen_topics = set()
+        for a in group:
+            assert a.get("topic") and a["topic"] not in seen_topics, a.get("topic")
+            seen_topics.add(a["topic"])
+            mm = a.get("multimodal") or {}
+            assert mm.get("panels"), a["topic"]          # at least one lab panel to reason across
+            assert mm.get("hard_hook"), a["topic"]       # the data-integration trap
+            assert mm.get("ground_truth_spec"), a["topic"]  # the fixed answer key spec
+            # No raw DICOM/whole-slide is ever seeded. NOTE: structured IMAGING studies
+            # (CT/MRI/PET as findings text) ARE now a first-class modality per the
+            # Specialty Hyper-Personalization PRD §3 — only DICOM/raw pixels are barred.
+            blob = json.dumps(mm).lower()
+            assert "dicom" not in blob and "whole-slide" not in blob, a["topic"]
+    # Cardiology/oncology archetypes seed the RIGHT study modality (PRD §3).
+    for a in card:
+        assert (a.get("multimodal") or {}).get("studies"), a["topic"]
+    for a in onc:
+        assert (a.get("multimodal") or {}).get("studies"), a["topic"]
 
 
 def test_multimodal_archetype_failure_domains_valid():
     """Each multimodal archetype's failure_domain must be one the corpus declares,
     so the hardness judge gets valid domain context."""
     from asclepius.generation import _multimodal_archetypes, load_hardness_config
-    for sp in ("nephrology", "cardiology"):
+    for sp in ("nephrology", "cardiology", "oncology"):
         domains = {f["name"] for f in (load_hardness_config(sp).get("failure_domains") or [])}
         for a in _multimodal_archetypes(sp):
             assert a.get("failure_domain") in domains, (sp, a.get("topic"), a.get("failure_domain"))

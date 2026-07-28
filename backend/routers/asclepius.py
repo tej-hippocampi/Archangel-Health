@@ -25,10 +25,10 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import (
-    APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request,
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request,
     UploadFile,
 )
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from asclepius import agreement as asc_agreement
 from asclepius import auth as asc_auth
@@ -100,6 +100,8 @@ from asclepius.constants import (
     relax_multimodal_gates,
     ab_source,
     non_circumvention_notice as _non_circumvention_notice,
+    require_measured_difficulty,
+    min_empirical_difficulty,
 )
 from asclepius.schemas import (
     BatchFromRequest,
@@ -191,6 +193,11 @@ def _blind_task(task: Dict[str, Any]) -> Dict[str, Any]:
         # rendered case is already in ``prompt`` regardless.
         "modality": task.get("modality") or "text",
         "case": asc_cases.public_case(task.get("case")),
+        # Empirical difficulty (Specialty Hyper-Personalization PRD §9): the
+        # frontier-model failure rate + whether it was LIVE-measured. Not an answer
+        # key — surfaced so admin/QA + the buyer export can see the difficulty.
+        "empirical_difficulty": task.get("empirical_difficulty"),
+        "difficulty_measured": bool(task.get("difficulty_measured")),
     }
     return out
 
@@ -647,6 +654,96 @@ async def list_specialties(_user: Dict[str, Any] = Depends(asc_auth.get_current_
     return {"specialties": asc_specialties.list_specialties()}
 
 
+# ─── V4 image assets (V4 Image Embedding PRD §3–§4) ──────────────────────────
+@router.post("/assets/ingest")
+async def ingest_image_asset(
+    file: UploadFile = File(...),
+    task_id: str = Form(...),
+    modality: str = Form(...),
+    label: str = Form(""),
+    findings: str = Form(""),
+    page: int = Form(1),
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Ingest a PNG/JPEG/PDF and attach it as a StudyAsset to a V4 (real de-identified)
+    case's study (PRD §3). Enforces PNG/JPEG/PDF only (415), size/dim caps, PDF→raster,
+    metadata strip, content-addressed store + dedupe. The image BYTES go to the asset
+    store; only the reference is written to the case. Images NEVER enter V1/V2/V3."""
+    from asclepius import assets as asc_assets
+    store = _store()
+    task = store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="task_not_found")
+    case = task.get("case") or {}
+    # V4 WALL (PRD §3.5 / §11): an image can only attach to a real de-identified case.
+    if case.get("case_source") != "real_deid":
+        raise HTTPException(status_code=400, detail="image_only_on_real_deid_v4_case")
+    data = await file.read()
+    try:
+        asset = asc_assets.process_upload(data, file.content_type or "", page=page)
+    except asc_assets.UnsupportedMediaType as exc:
+        raise HTTPException(status_code=415, detail={"error": "unsupported_media_type", "message": str(exc)})
+    except asc_assets.ImageTooLarge as exc:
+        raise HTTPException(status_code=413, detail={"error": "image_too_large", "message": str(exc)})
+    except asc_assets.AssetError as exc:
+        raise HTTPException(status_code=422, detail={"error": "asset_error", "message": str(exc)})
+    modality = (modality or "other").strip().lower()
+    studies = list(case.get("studies") or [])
+    # Attach to the first study of this modality that has no asset yet, else append a
+    # new study. ``findings`` stays required (the reasoning anchor, PRD §2).
+    target = next((s for s in studies if isinstance(s, dict)
+                   and str(s.get("modality", "")).lower() == modality and not s.get("asset")), None)
+    if target is None:
+        target = {"modality": modality, "label": label or modality.upper(),
+                  "findings": findings or "(structured findings pending)", "measurements": [], "asset": None}
+        studies.append(target)
+    if findings:
+        target["findings"] = findings
+    if label:
+        target["label"] = label
+    target["asset"] = asset
+    case["studies"] = studies
+    # Validate the updated case still clears the (extended) multimodal gate.
+    try:
+        asc_cases.assert_multimodal_content(case)
+    except asc_cases.MultimodalContentError as exc:
+        raise HTTPException(status_code=422, detail={"error": "case_content", "message": str(exc)})
+    store.update_task_case(task_id, case)
+    # Index the asset so serving resolves it in one indexed lookup (never a task scan)
+    # and the V4 wall can be enforced on the serve path.
+    store.insert_asset_ref(asset_id=asset["asset_id"], sha256=asset["sha256"],
+                           mime=asset["mime"], task_id=task_id, case_source="real_deid")
+    # Return the reference only — never the bytes, store path, or partner id.
+    return {"asset_id": asset["asset_id"], "sha256": asset["sha256"], "mime": asset["mime"],
+            "modality": modality, "task_id": task_id,
+            "case_type": asc_cases.case_type_signature(case)}
+
+
+@router.get("/assets/{asset_id}")
+async def get_asset(asset_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+    """Stream a cleaned image asset by id (PRD §4). Authenticated (evaluator/admin);
+    the served bytes carry no provider/model, no partner identity, and no residual
+    metadata (stripped at ingest). The store path is never exposed."""
+    from asclepius import assets as asc_assets
+    store = _store()
+    ref = asc_assets.find_asset_by_id(store, asset_id)
+    if not ref:
+        raise HTTPException(status_code=404, detail="asset_not_found")
+    # V4 real-data wall (PRD §4 / EHR PRD §9.5): every image asset lives on a
+    # real_deid case, so a non-real-data-approved evaluator must NOT fetch it by id —
+    # the wall never depends on the asset_id being unguessable.
+    _require_real_data_access({"case_source": ref.get("case_source") or "real_deid"}, user)
+    try:
+        data, mime = asc_assets.load_asset(ref)
+    except asc_assets.AssetError:
+        raise HTTPException(status_code=404, detail="asset_unavailable")
+    return Response(content=data, media_type=mime, headers={
+        "Cache-Control": "private, max-age=3600",
+        "Content-Length": str(len(data)),
+        "X-Content-Type-Options": "nosniff",
+    })
+
+
 @router.get("/tasks")
 async def list_tasks(
     specialty: Optional[str] = None,
@@ -744,6 +841,7 @@ def _autofill_specialty(user: Dict[str, Any]) -> str:
 def _value_aware_next(
     store: Any, user: Dict[str, Any], specialty: Optional[str], *, hard_only: bool = False,
     real_only: bool = False, multimodal_only: bool = False,
+    require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
 ) -> Optional[Dict[str, Any]]:
     """Value-aware routing (Value-per-Minute PRD B3) — assisted flows. Serves the
     eligible task with the highest expected value-per-minute for THIS contributor
@@ -751,10 +849,13 @@ def _value_aware_next(
     on the oldest task, preserving FIFO fairness within an equal-value cohort.
     ``hard_only`` (WS2) restricts the candidate set to hard cases (the V3 queue);
     ``real_only`` is the V4 wall (EHR PRD §9.5); ``multimodal_only`` restricts V3
-    to structured cases (the multimodal-by-default queue)."""
+    to structured cases (the multimodal-by-default queue). The empirical-difficulty
+    gate (PRD §9) restricts to live-measured-above-floor cases when required."""
     candidates = store.eligible_tasks_for_evaluator(
         evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
         real_only=real_only, multimodal_only=multimodal_only,
+        require_measured_difficulty=require_measured_difficulty,
+        min_empirical_difficulty=min_empirical_difficulty,
     )
     if not candidates:
         return None
@@ -771,7 +872,7 @@ def _value_aware_next(
 
 def _query_next(
     store: Any, user: Dict[str, Any], *, portal_version: Optional[str] = None,
-    fallback: bool = True,
+    fallback: bool = True, specialty: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     # Value-aware routing is an ASSISTED-flow enhancement (V2 + V3). V1 (and any
     # request that does not explicitly declare an assisted flow) keeps the exact
@@ -802,16 +903,24 @@ def _query_next(
     # showing the clinician an empty "queue cleared" screen. Set the env to 0 to
     # disable the preference entirely.
     multimodal_pref = portal_version == "v3" and v3_multimodal_only()
+    # Empirical-difficulty serving gate (Specialty Hyper-Personalization PRD §9):
+    # when required, serve only cases whose frontier-failure rate was live-measured
+    # above the floor. Default OFF so authored/declared seeds still serve in dev.
+    require_measured = require_measured_difficulty()
+    ed_floor = min_empirical_difficulty()
 
     def _classic(specialty: Optional[str], mm_only: bool) -> Optional[Dict[str, Any]]:
         return store.next_task_for_evaluator(
             evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
             real_only=real_only, multimodal_only=mm_only,
+            require_measured_difficulty=require_measured, min_empirical_difficulty=ed_floor,
         )
 
     def _pick(specialty: Optional[str], mm_only: bool) -> Optional[Dict[str, Any]]:
         return (_value_aware_next(store, user, specialty, hard_only=hard_only,
-                                  real_only=real_only, multimodal_only=mm_only)
+                                  real_only=real_only, multimodal_only=mm_only,
+                                  require_measured_difficulty=require_measured,
+                                  min_empirical_difficulty=ed_floor)
                 if value_aware else _classic(specialty, mm_only))
 
     def _pick_pref(specialty: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -827,8 +936,16 @@ def _query_next(
                 return got
         return _pick(specialty, False)
 
-    pick = _pick_pref(user.get("specialty"))
-    if not pick and not user.get("specialty"):
+    # Specialty selection (Specialty Hyper-Personalization PRD §1): the V3 picker
+    # sends ``?specialty=`` to drive task fetch. An explicit, ENABLED specialty
+    # overrides the evaluator's default specialty; anything unknown/disabled falls
+    # back to the evaluator's own specialty (never silently serves the wrong one).
+    chosen = None
+    if specialty and asc_specialties.is_enabled(specialty):
+        chosen = specialty.strip().lower()
+    serve_specialty = chosen or user.get("specialty")
+    pick = _pick_pref(serve_specialty)
+    if not pick and not serve_specialty:
         # admins/QA (and SSO-provisioned clinicians) with no specialty see any queue
         pick = _pick_pref(None)
     return pick
@@ -915,7 +1032,8 @@ async def _seed_tasks_from_corpus(store: Any, specialty: str, batch: int, *, har
 
 
 async def _autofill_queue(
-    store: Any, user: Dict[str, Any], *, portal_version: Optional[str] = None
+    store: Any, user: Dict[str, Any], *, portal_version: Optional[str] = None,
+    specialty: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     if not _autofill_enabled():
         return None
@@ -923,7 +1041,11 @@ async def _autofill_queue(
     # fabricated. An empty V4 queue stays empty until a partner bundle ingests.
     if portal_version == REAL_CASE_PORTAL_VERSION:
         return None
-    specialty = _autofill_specialty(user)
+    # The V3 picker's chosen specialty (PRD §1) drives WHICH specialty is generated,
+    # overriding the evaluator's default when it names an enabled specialty.
+    specialty_override = specialty
+    specialty = (specialty_override if (specialty_override and asc_specialties.is_enabled(specialty_override))
+                 else _autofill_specialty(user))
     cooldown = _autofill_cooldown_sec()
     # V3 multimodal-by-default: a text/hard seed in the queue must NOT count as
     # "already filled" — otherwise the seed short-circuits the re-check below and a
@@ -938,7 +1060,8 @@ async def _autofill_queue(
         # Another request may have filled the queue (or just attempted) while we
         # waited on the lock — re-check before spending LLM budget. Under the
         # multimodal preference this looks for a multimodal case specifically.
-        task = _query_next(store, user, portal_version=portal_version, fallback=not mm_pref)
+        task = _query_next(store, user, portal_version=portal_version,
+                           fallback=not mm_pref, specialty=specialty_override)
         if task:
             return task
         if time.monotonic() - _autofill_last_attempt.get(specialty, 0.0) < cooldown:
@@ -990,7 +1113,9 @@ async def _autofill_queue(
             # multimodal cases — real labs + EHR notes + an authored A/B pair, and NO
             # LLM required — so the seamless queue shows genuine structured cases even
             # with generation unavailable. Every other flow keeps the text corpus seed.
-            if created == 0 and mm_pref and specialty == "nephrology":
+            if created == 0 and mm_pref:
+                # Every specialty with an authored gold set (nephrology, cardiology,
+                # oncology) seeds real structured cases with NO LLM required (PRD §7).
                 from asclepius.gold_cases import load_gold_cases
                 res = load_gold_cases(store, specialty=specialty)
                 created = res["loaded"]
@@ -1012,21 +1137,39 @@ async def _autofill_queue(
         except Exception:  # never let generation break the evaluator's queue request
             log.exception("asclepius autofill failed")
             return None
-    return _query_next(store, user, portal_version=portal_version)
+    return _query_next(store, user, portal_version=portal_version, specialty=specialty_override)
 
 
-def _ensure_gold_cases(store: Any, user: Dict[str, Any]) -> int:
-    """Load the ratified GOLD nephrology multimodal cases so V3 always has real
-    structured cases to serve — independent of the ASCLEPIUS_AUTOFILL flag AND the LLM
-    (these are static, pre-authored, ready-to-serve tasks with an A/B pair). Only loads
-    when the evaluator would be served nephrology (their specialty, or none). Idempotent
-    (already-present cases are skipped). Returns the number newly loaded."""
-    sp = (user.get("specialty") or "").strip().lower()
-    if sp and sp != "nephrology":
-        return 0
+def _ensure_gold_cases(store: Any, user: Dict[str, Any], specialty: Optional[str] = None) -> int:
+    """Load the ratified GOLD multimodal cases so V3 always has real structured cases
+    to serve — independent of the ASCLEPIUS_AUTOFILL flag AND the LLM (these are
+    static, pre-authored, ready-to-serve tasks with an A/B pair). Loads the gold set
+    for the SERVED specialty (the picker's choice, else the evaluator's specialty,
+    else all enabled specialties for an admin/QA with none). Idempotent (already-
+    present cases are skipped). Returns the number newly loaded (Specialty
+    Hyper-Personalization PRD §1/§7)."""
+    sp = (specialty or user.get("specialty") or "").strip().lower()
+    # Memoize per STORE instance so the idempotent seed runs once per specialty per
+    # process — NOT on every /tasks/next poll (load_gold_cases does per-case SELECTs).
+    # Attached to the store so a test's fresh_store() (a new instance) re-seeds cleanly.
+    ensured = getattr(store, "_gold_ensured", None)
+    if ensured is None:
+        ensured = set()
+        try:
+            setattr(store, "_gold_ensured", ensured)
+        except Exception:  # pragma: no cover
+            pass
     try:
         from asclepius.gold_cases import load_gold_cases
-        return int(load_gold_cases(store).get("loaded", 0))
+        targets = [sp] if sp else [c["specialty"] for c in asc_specialties.list_specialties() if c.get("enabled")]
+        targets = [t for t in targets if t and t not in ensured]
+        if not targets:
+            return 0
+        loaded = 0
+        for t in targets:
+            loaded += int(load_gold_cases(store, specialty=t).get("loaded", 0))
+            ensured.add(t)  # mark only after a successful load
+        return loaded
     except Exception:  # never let seeding break the queue request
         log.exception("asclepius: gold-case seeding failed")
         return 0
@@ -1040,9 +1183,26 @@ async def next_task(
         "(serves the highest expected value-per-minute task for you). Absent or "
         "'v1' keeps the classic oldest-first queue unchanged.",
     ),
+    specialty: Optional[str] = Query(
+        None,
+        description="The V3 specialty picker's choice (nephrology|cardiology|"
+        "oncology). Drives which specialty's cases are served/generated; an unknown "
+        "or disabled value falls back to the evaluator's own specialty.",
+    ),
     user: Dict[str, Any] = Depends(asc_auth.get_current_user),
 ):
     store = _store()
+    # Normalize the picker's specialty to an enabled one, else ignore it (never
+    # serve the wrong specialty on a typo).
+    sel_specialty = specialty.strip().lower() if specialty else None
+    if sel_specialty and not asc_specialties.is_enabled(sel_specialty):
+        sel_specialty = None
+    # When the V3 picker names a specialty, guarantee its authored GOLD cases are
+    # present (idempotent, no LLM) so the picker always serves that specialty's real
+    # cases regardless of the multimodal-preference/autofill settings (PRD §1/§7).
+    # Never for V4 — the real-case wall must not be fed synthetic gold cases.
+    if sel_specialty and portal_version != REAL_CASE_PORTAL_VERSION:
+        _ensure_gold_cases(store, user, sel_specialty)
     # V3 multimodal-by-default: PREFER a structured case. Critically, a text/hard
     # seed already in the queue must NOT stop us from generating a multimodal case —
     # otherwise the seed is served forever and generation never fires (the V3-shows-
@@ -1051,23 +1211,23 @@ async def next_task(
     # the text queue, so V3 is never empty.
     mm_pref = portal_version == "v3" and v3_multimodal_only()
     if mm_pref:
-        task = _query_next(store, user, portal_version=portal_version, fallback=False)
+        task = _query_next(store, user, portal_version=portal_version, fallback=False, specialty=sel_specialty)
         if not task:
-            task = await _autofill_queue(store, user, portal_version=portal_version)
+            task = await _autofill_queue(store, user, portal_version=portal_version, specialty=sel_specialty)
         if not task:
-            # GUARANTEED structured cases: load the ratified GOLD nephrology cases and
-            # serve one. This does NOT depend on ASCLEPIUS_AUTOFILL or the LLM — the
-            # gold cases are static, pre-authored, ready-to-serve tasks — so V3 shows a
-            # real case even when autofill is off and no API key is configured.
-            _ensure_gold_cases(store, user)
-            task = _query_next(store, user, portal_version=portal_version, fallback=False)
+            # GUARANTEED structured cases: load the ratified GOLD cases for the served
+            # specialty and serve one. This does NOT depend on ASCLEPIUS_AUTOFILL or
+            # the LLM — the gold cases are static, pre-authored, ready-to-serve tasks —
+            # so V3 shows a real case even when autofill is off and no API key is set.
+            _ensure_gold_cases(store, user, sel_specialty)
+            task = _query_next(store, user, portal_version=portal_version, fallback=False, specialty=sel_specialty)
         if not task:
-            task = _query_next(store, user, portal_version=portal_version, fallback=True)
+            task = _query_next(store, user, portal_version=portal_version, fallback=True, specialty=sel_specialty)
     else:
-        task = _query_next(store, user, portal_version=portal_version)
+        task = _query_next(store, user, portal_version=portal_version, specialty=sel_specialty)
         if not task:
             # Empty queue -> auto-generate a fresh batch via the engine, then serve.
-            task = await _autofill_queue(store, user, portal_version=portal_version)
+            task = await _autofill_queue(store, user, portal_version=portal_version, specialty=sel_specialty)
     return {"task": _blind_task(task) if task else None}
 
 

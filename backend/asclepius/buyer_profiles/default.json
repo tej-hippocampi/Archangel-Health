@@ -42,7 +42,14 @@
         "ip_cleared": "ip_cleared",
         "contains_phi": "contains_phi",
         "captured_at": "captured_at",
-        "portal_version": "portal_version"
+        "portal_version": "portal_version",
+        "specialty": "specialty",
+        "taxonomy_bucket": "taxonomy_bucket",
+        "subtopic": "subtopic",
+        "case_type": "case_type",
+        "ai_failure_mode": "ai_failure_mode",
+        "empirical_difficulty": "empirical_difficulty",
+        "empirical_difficulty_measured": "empirical_difficulty_measured"
       },
       "chat": {
         "type": "type",
@@ -76,7 +83,14 @@
         "ip_cleared": "ip_cleared",
         "contains_phi": "contains_phi",
         "captured_at": "captured_at",
-        "portal_version": "portal_version"
+        "portal_version": "portal_version",
+        "specialty": "specialty",
+        "taxonomy_bucket": "taxonomy_bucket",
+        "subtopic": "subtopic",
+        "case_type": "case_type",
+        "ai_failure_mode": "ai_failure_mode",
+        "empirical_difficulty": "empirical_difficulty",
+        "empirical_difficulty_measured": "empirical_difficulty_measured"
       }
     },
     "ideal_answer": {
@@ -107,7 +121,14 @@
       "ip_cleared": "ip_cleared",
       "contains_phi": "contains_phi",
       "captured_at": "captured_at",
-      "portal_version": "portal_version"
+      "portal_version": "portal_version",
+      "specialty": "specialty",
+      "taxonomy_bucket": "taxonomy_bucket",
+      "subtopic": "subtopic",
+      "case_type": "case_type",
+      "ai_failure_mode": "ai_failure_mode",
+      "empirical_difficulty": "empirical_difficulty",
+      "empirical_difficulty_measured": "empirical_difficulty_measured"
     },
     "reasoning_trace": {
       "type": "type",
@@ -131,7 +152,14 @@
       "ip_cleared": "ip_cleared",
       "contains_phi": "contains_phi",
       "captured_at": "captured_at",
-      "portal_version": "portal_version"
+      "portal_version": "portal_version",
+      "specialty": "specialty",
+      "taxonomy_bucket": "taxonomy_bucket",
+      "subtopic": "subtopic",
+      "case_type": "case_type",
+      "ai_failure_mode": "ai_failure_mode",
+      "empirical_difficulty": "empirical_difficulty",
+      "empirical_difficulty_measured": "empirical_difficulty_measured"
     },
     "rubric": {
       "type": "type",
@@ -157,7 +185,14 @@
       "ip_cleared": "ip_cleared",
       "contains_phi": "contains_phi",
       "captured_at": "captured_at",
-      "portal_version": "portal_version"
+      "portal_version": "portal_version",
+      "specialty": "specialty",
+      "taxonomy_bucket": "taxonomy_bucket",
+      "subtopic": "subtopic",
+      "case_type": "case_type",
+      "ai_failure_mode": "ai_failure_mode",
+      "empirical_difficulty": "empirical_difficulty",
+      "empirical_difficulty_measured": "empirical_difficulty_measured"
     }
   },
   "schemas": {
