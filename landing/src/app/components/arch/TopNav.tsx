@@ -13,9 +13,7 @@ import type { ArchPath } from "./ArchShell";
 const DATA_SUB = [
   { label: "All data buyers", to: "/data" },
   { label: "Reasoning cases", to: "/data#02-1" },
-  { label: "Clinical environments", to: "/data#02-2" },
-  { label: "Benchmarks", to: "/data#02-3" },
-  { label: "Physical AI", to: "/data#02-4" },
+  { label: "Beyond reasoning data", to: "/data#02-2" },
 ];
 
 export function TopNav({

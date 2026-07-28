@@ -6,7 +6,6 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { EnvDiagram } from "../EnvDiagram";
 import { useFocusTrap } from "@/app/components/LandingContactModals";
 import type { ShellActions } from "../ArchShell";
 
@@ -37,7 +36,7 @@ const SAMPLE_RECORD = {
     { specialty: "nephrology", board_certified: true, position: "B" },
   ],
   adjudication: { divergence_score: 7.4, method: "multi_rater_adjudication" },
-  outcome_90d: "Dialysis avoided — renal function recovered.",
+  outcome_90d: "Dialysis avoided. Renal function recovered.",
   supervision: {
     preference_pair: { chosen: "expert_resolution", rejected: "plausible_hard_negative" },
     ideal_answer: "complete expert resolution (SFT)",
@@ -155,7 +154,7 @@ function SampleDrawer({ onClose }: { onClose: () => void }) {
         </div>
         <div className="drawer-foot">
           <button type="button" className="btn btn-primary" onClick={downloadSchema}>Download schema</button>
-          <span className="drawer-note">Illustrative sample — real records ship schema-validated with full provenance.</span>
+          <span className="drawer-note">Illustrative sample. Real records ship schema-validated with full provenance.</span>
         </div>
       </div>
     </>
@@ -174,6 +173,20 @@ const BENCH_NAMES = [
   "MedAgentsBench",
 ];
 
+// Generalized categories, not the full internal product list — each one
+// stands for a cluster of named offerings (evals, environments, reward
+// models, safety sets, etc.) without itemizing them on the page.
+const CATALOG = [
+  "Specialty evals",
+  "Multimodal & behavioral evals",
+  "RL environments",
+  "Reasoning traces & preference pairs",
+  "Reward models & graders",
+  "Safety & outcome validation",
+  "Conversational voice data",
+  "Physical & surgical AI",
+];
+
 export function DataPage(_props: { actions: ShellActions }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -183,7 +196,7 @@ export function DataPage(_props: { actions: ShellActions }) {
         <p className="crumb chrome reveal"><span className="root">Archangel</span><span className="sep">/</span><span className="here">02 · Data buyers</span></p>
         <div className="reveal">
           <h2>Medicine is complex. <span className="quiet">Our data reduces it.</span></h2>
-          <p className="lede">The cases that break frontier models — and the expert reasoning that resolves them.</p>
+          <p className="lede">The cases that break frontier models. The expert reasoning that resolves them.</p>
         </div>
 
         {/* ============ 02.1 — Difficult reasoning cases ============ */}
@@ -244,10 +257,10 @@ export function DataPage(_props: { actions: ShellActions }) {
             </div>
             <div className="outcome-row" aria-hidden="true">
               <span className="chrome">Outcome · 90d</span>
-              <span>Dialysis avoided — renal function recovered.</span>
+              <span>Dialysis avoided. Renal function recovered.</span>
             </div>
             <div className="case-attest" aria-hidden="true">
-              Reviewed — board-certified specialist
+              Reviewed by a board-certified specialist
               <span className="dot dot-green" />
             </div>
           </figure>
@@ -266,7 +279,7 @@ export function DataPage(_props: { actions: ShellActions }) {
             <div className="derive" role="listitem">
               <span className="chrome chrome-box">PRM</span>
               <h3>Reasoning trace</h3>
-              <p>Step-level expert reasoning — exactly where a model’s chain goes wrong, and why.</p>
+              <p>Step-level expert reasoning: exactly where a model’s chain goes wrong, and why.</p>
             </div>
             <div className="derive" role="listitem">
               <span className="chrome chrome-box">Provenance</span>
@@ -292,7 +305,7 @@ export function DataPage(_props: { actions: ShellActions }) {
             <div className="pipe-stop"><span className="dot dot-faint" /><span className="label">Shipped</span></div>
           </div>
         </div>
-        <p className="stage-caption reveal">Illustrative sample record — every real record ships
+        <p className="stage-caption reveal">Illustrative sample record. Every real record ships
         de-identified, schema-validated, with full provenance.</p>
 
         {/* ungated sample + preserved quality report */}
@@ -306,110 +319,44 @@ export function DataPage(_props: { actions: ShellActions }) {
             </div>
           </div>
           <div className="qc reveal">
-            <p className="qc-title chrome">Quality report — every record</p>
+            <p className="qc-title chrome">Quality report · every record</p>
             <ul className="qc-list">
               <li><span className="dot dot-green" />Difficulty scored against frontier models</li>
               <li><span className="dot dot-green" />Contamination-checked against public benchmarks</li>
               <li><span className="dot dot-green" />Guideline-grounded, with citations</li>
-              <li><span className="dot dot-pink" />No PHI — context-preserving de-identification</li>
+              <li><span className="dot dot-pink" />No PHI: context-preserving de-identification</li>
               <li><span className="dot dot-green" />Watermarked &amp; traceable, licensed per end-buyer</li>
               <li><span className="dot dot-green" />IP-cleared, contributor credentials verified</li>
             </ul>
           </div>
         </div>
 
-        {/* ============ 02.2 — Difficult clinical environments ============ */}
-        <p className="crumb chrome reveal sub-crumb" id="02-2"><span className="root">02.2</span><span className="sep">/</span><span className="here">Clinical environments</span></p>
+        {/* ============ 02.2 — Beyond reasoning data ============ */}
+        <p className="crumb chrome reveal sub-crumb" id="02-2"><span className="root">02.2</span><span className="sep">/</span><span className="here">Beyond reasoning data</span></p>
         <div className="reveal">
-          <h3 style={{ fontSize: "1.4rem" }}>Being a doctor isn’t producing the answer.</h3>
-          <p className="lede">It’s navigating everything around it — over time, through other people.</p>
-        </div>
-
-        <div className="r-cards">
-          <div className="derive reveal">
-            <span className="chrome chrome-box"><span className="dot dot-green" />Longitudinal</span>
-            <h3>The case doesn’t end at the decision.</h3>
-            <p>Outcome linked, so the reward is real.</p>
-          </div>
-          <div className="derive reveal">
-            <span className="chrome chrome-box"><span className="dot dot-pink" />Multi-stakeholder</span>
-            <h3>Medicine is a negotiation.</h3>
-            <p>Payers, referrals, follow-up, adherence.</p>
-          </div>
-          <div className="derive reveal">
-            <span className="chrome chrome-box"><span className="dot dot-orange" />Sequential</span>
-            <h3>Information has to be earned.</h3>
-            <p>The agent decides what to ask and order.</p>
-          </div>
+          <h3 style={{ fontSize: "clamp(1.7rem, 3vw, 2.5rem)", fontWeight: 400, letterSpacing: "-0.015em" }}>
+            Reasoning data is where we’re deepest. <span className="quiet">It’s not where we stop.</span>
+          </h3>
+          <p className="lede">
+            We’re embedded deep into health systems, with a close relationship to the
+            physicians who generate this data every day.
+          </p>
         </div>
 
         <div className="env-statement reveal">
-          <p className="big">A clinical RL environment — a gym for medical agents.</p>
-          <p className="sub">Verifiable rewards from real outcomes and physician-ratified rubrics.</p>
+          <p className="big">Ask for what you need. If it’s clinical data, we can build it.</p>
+          <p className="sub">Select any category below; we scope and pilot within weeks.</p>
         </div>
 
-        <EnvDiagram />
-
-        {/* ============ 02.3 — Benchmarks ============ */}
-        <p className="crumb chrome reveal sub-crumb" id="02-3"><span className="root">02.3</span><span className="sep">/</span><span className="here">Benchmarks</span></p>
-        <div className="reveal">
-          <h3 style={{ fontSize: "1.4rem" }}>Climb the benchmarks. Then build the next ones.</h3>
+        <div className="chip-row" aria-label="Data product categories">
+          {CATALOG.map((c) => (
+            <span className="chip" key={c}>{c}</span>
+          ))}
         </div>
 
-        {/* Block A — the benchmark grid, names only. A masthead, not a table. */}
-        <div className="bench-climb">
-          <span className="chrome reveal">We help labs climb</span>
-          <div className="bench-grid">
-            {BENCH_NAMES.map((name, i) => (
-              <span className="bench-name reveal" key={name} style={{ transitionDelay: `${i * 40}ms` }}>{name}</span>
-            ))}
-          </div>
-          <p className="bench-suite reveal">
-            <span className="chrome">Agentic-EHR suite — MedAgentBench · EHR-Complex · FHIR-AgentBench · EHRAgent</span>
-          </p>
-        </div>
-
-        {/* Block B — rubrics and evals attached, beside the eval pack. */}
-        <div className="split bench-rubrics">
-          <div className="reveal">
-            <p className="lede-strong">Rubrics and evals attached.</p>
-            <p className="lede bench-claim-sub">Every dataset ships with the rubric and eval that prove the climb.</p>
-          </div>
-          <div className="c-card eval-pack reveal">
-            <span className="chrome chrome-box"><span className="dot dot-lime" />Eval pack</span>
-            <p>Rubric records + grader + score.py + validity report. Re-licensed per model release.</p>
-          </div>
-        </div>
-
-        {/* Block C — building the next ones. */}
-        <div className="bench-next reveal">
-          <p className="lede-strong">Benchmarks saturate. We author the next ones.</p>
-          <p className="lede bench-claim-sub">Physician-grounded evaluations of clinical reasoning and clinical application.</p>
-        </div>
-
-        {/* ============ 02.4 — Physical AI ============ */}
-        <p className="crumb chrome reveal sub-crumb" id="02-4"><span className="root">02.4</span><span className="sep">/</span><span className="here">Physical AI</span></p>
-        <div className="reveal">
-          <h3 style={{ fontSize: "1.4rem" }}>Surgical data isn’t in any EHR.</h3>
-          <p className="lede">We’re building hardware to capture it — training data for robotic surgery and physical AI medical products.</p>
-          <p style={{ marginTop: "1rem" }}>
-            <span className="chrome chrome-box"><span className="dot dot-faint" />In development</span>
-          </p>
-          <p className="chrome bench-suite" style={{ marginTop: "1.1rem" }}>Tactile · Force · Motion · Sensing</p>
-        </div>
-
-        <div className="c-card wave-card reveal" aria-hidden="true">
-          <span className="label">Instrument contact — the signal no chart records.</span>
-          <svg viewBox="0 0 900 160" preserveAspectRatio="none" style={{ marginTop: "0.9rem" }}>
-            <line className="wave-base" x1="0" y1="80" x2="900" y2="80" />
-            <path
-              className="wave-path"
-              pathLength={1}
-              d="M0 80 H120 C 150 80, 165 40, 190 46 C 215 52, 222 96, 250 92 C 278 88, 285 30, 320 34 C 355 38, 360 104, 400 98 C 440 92, 450 56, 490 60 C 530 64, 540 88, 580 84 C 620 80, 640 24, 680 30 C 720 36, 730 92, 770 88 C 810 84, 830 72, 900 76"
-            />
-            <circle className="wave-pulse" cx="320" cy="34" r="6" />
-          </svg>
-        </div>
+        <p className="reveal" style={{ marginTop: "1.6rem" }}>
+          <span className="chrome">Already helping labs climb</span> {BENCH_NAMES.join(" · ")}
+        </p>
       </section>
 
       {drawerOpen && <SampleDrawer onClose={() => setDrawerOpen(false)} />}

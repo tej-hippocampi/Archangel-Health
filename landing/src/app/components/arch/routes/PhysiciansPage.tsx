@@ -17,7 +17,7 @@ const FRICTION = [
   { tag: "Time", line: "10–15 minutes per case. Async, no minimums, no shifts." },
   { tag: "Not patient care", line: "Annotation of de-identified cases. No patient contact, no clinical liability." },
   { tag: "Who qualifies", line: "Board-certified or board-eligible. Credentials verified before your first case." },
-  { tag: "Specialties", line: "Nephrology, cardiology, primary care medicine, oncology, radiology — more opening." },
+  { tag: "Specialties", line: "Nephrology, cardiology, primary care medicine, oncology, radiology. More opening." },
   { tag: "Attribution", line: "Your credentials travel with every record you ratify." },
 ];
 
@@ -81,7 +81,7 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
           <p className="lede pay-band-lede">The AI being built now will practice alongside you. You decide what it learns.</p>
           <div className="pay-figure">
             <PayFigure />
-            <span className="label">Varies per task — difficulty, specialty, depth.</span>
+            <span className="label">Varies per task: difficulty, specialty, depth.</span>
           </div>
         </div>
 
@@ -113,7 +113,7 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
           <button type="button" className="btn btn-primary" onClick={actions.openPhysicianOnboard}>
             Become a contributor
           </button>
-          <p className="cta-note">Onboarding takes a few minutes — your personal link is created instantly.</p>
+          <p className="cta-note">Onboarding takes a few minutes. Your personal link is created instantly.</p>
         </div>
       </section>
     </div>
