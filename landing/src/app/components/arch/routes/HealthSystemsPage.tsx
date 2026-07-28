@@ -10,7 +10,7 @@ import type { ShellActions } from "../ArchShell";
 
 const FLOW = [
   { chrome: "Stage 1", title: "Your record", sub: "" },
-  { chrome: "Stage 2", title: "De-identified", sub: "Expert Determination — dates shifted, not deleted" },
+  { chrome: "Stage 2", title: "De-identified", sub: "Expert Determination: dates shifted, not deleted" },
   { chrome: "Stage 3", title: "Watermarked", sub: "& traceable" },
   { chrome: "Stage 4", title: "Licensed", sub: "to a named end-buyer" },
   { chrome: "Stage 5", title: "Never resold", sub: "beyond license" },

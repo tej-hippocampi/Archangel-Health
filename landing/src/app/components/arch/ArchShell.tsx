@@ -37,27 +37,27 @@ export const ARCH_PATHS: ArchPath[] = ["/", "/research", "/data", "/health-syste
 
 const TITLES: Record<ArchPath, { title: string; desc: string }> = {
   "/": {
-    title: "Archangel Health — Frontier Data to Power Clinical and Medical AI",
-    desc: "Expert clinical reasoning over real, de-identified cases — training data for clinical and medical AI.",
+    title: "Archangel Health · Frontier Data to Power Clinical and Medical AI",
+    desc: "A network of hundreds of board-certified physicians behind 20+ clinical data products, plus fully bespoke collection. Training data for clinical and medical AI.",
   },
   "/research": {
-    title: "Research — Archangel Health",
-    desc: "Publishing on how frontier models fail clinical reasoning — and how to measure it.",
+    title: "Research · Archangel Health",
+    desc: "Frontier models still fail hard clinical cases. See the first gold-run leaderboard, what broke, and the methodology behind the score.",
   },
   "/data": {
-    title: "Data buyers — Archangel Health",
-    desc: "The cases that break frontier models — and the expert reasoning that resolves them.",
+    title: "Data buyers · Archangel Health",
+    desc: "The cases that break frontier models. The expert reasoning that resolves them.",
   },
   "/health-systems": {
-    title: "Health systems — Archangel Health",
+    title: "Health systems · Archangel Health",
     desc: "Longitudinal, de-identified patient data is the raw material for medical AI. Expert Determination, watermarked, never resold.",
   },
   "/physicians": {
-    title: "Physicians & experts — Archangel Health",
+    title: "Physicians & experts · Archangel Health",
     desc: "Work through real de-identified cases, judge AI reasoning, and earn $150–$300+/hour for your expertise.",
   },
   "/mission": {
-    title: "Mission — Archangel Health",
+    title: "Mission · Archangel Health",
     desc: "Doctors earn from their judgment. Models learn from it. Team, mission, and contact.",
   },
 };
@@ -228,7 +228,7 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
   const handleMailto = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     const email = e.currentTarget.href.replace("mailto:", "").split("?")[0];
     const done = (copied: boolean) => {
-      setToast(copied ? `Email copied — ${email}` : `Email us: ${email}`);
+      setToast(copied ? `Email copied: ${email}` : `Email us: ${email}`);
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setToast(null), 4200);
     };
@@ -259,7 +259,7 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
     <a
       className={className}
       href="/"
-      aria-label="Archangel Health — home"
+      aria-label="Archangel Health, home"
       onClick={(e) => {
         e.preventDefault();
         navigate("/");

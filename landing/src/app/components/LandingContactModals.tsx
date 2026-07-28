@@ -39,9 +39,9 @@ const COPY: Record<LeadKind, LeadCopy> = {
     emailPlaceholder: "you@company.com",
     messageLabel: "What are you building, and what do you need?",
     messagePlaceholder:
-      "e.g., improving our medical model's reasoning on hard cases — targeting HealthBench Hard",
+      "e.g., improving our medical model's reasoning on hard cases, targeting HealthBench Hard",
     submit: "Request data →",
-    success: "Got it — we'll reply within 24h with a scoped sample.",
+    success: "Got it. We'll reply within 24h with a scoped sample.",
   },
   provide_data: {
     heading: "Provide de-identified data",
@@ -54,7 +54,7 @@ const COPY: Record<LeadKind, LeadCopy> = {
     trust:
       "We only work with de-identified data and will walk you through the process. Nothing is shared without an agreement in place.",
     submit: "Provide data →",
-    success: "Thanks — we'll reach out within 24h to walk through your data and de-identification process.",
+    success: "Thanks. We'll reach out within 24h to walk through your data and de-identification process.",
   },
 };
 
@@ -457,7 +457,7 @@ export function PhysicianOnboardModal({
           {redirecting ? (
             <div className="am-success">
               <span className="am-check" aria-hidden="true">✓</span>
-              <p className="am-success-text">Link created — taking you to onboarding…</p>
+              <p className="am-success-text">Link created. Taking you to onboarding…</p>
             </div>
           ) : (
             <>
@@ -503,7 +503,7 @@ export function PhysicianOnboardModal({
                   )}
                   <p className="am-trust">
                     Credentials are verified during onboarding. We'll also email you the
-                    link so you can resume any time — it stays valid for 7 days.
+                    link so you can resume any time. It stays valid for 7 days.
                   </p>
                 </div>
 

@@ -17,7 +17,7 @@ const FRICTION = [
   { tag: "Time", line: "10–15 minutes per case. Async, no minimums, no shifts." },
   { tag: "Not patient care", line: "Annotation of de-identified cases. No patient contact, no clinical liability." },
   { tag: "Who qualifies", line: "Board-certified or board-eligible. Credentials verified before your first case." },
-  { tag: "Specialties", line: "Nephrology, cardiology, primary care medicine, oncology, radiology — more opening." },
+  { tag: "Specialties", line: "Nephrology, cardiology, primary care medicine, oncology, radiology. More opening." },
   { tag: "Attribution", line: "Your credentials travel with every record you ratify." },
 ];
 
@@ -86,7 +86,7 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
               <div className="earn-way">
                 <span className="chrome chrome-box"><span className="dot dot-green" />Annotate</span>
                 <PayFigure />
-                <span className="label">Per case — varies by difficulty, specialty, depth.</span>
+                <span className="label">Per case: varies by difficulty, specialty, depth.</span>
               </div>
               <div className="earn-way">
                 <span className="chrome chrome-box"><span className="dot dot-green" />Refer</span>
@@ -125,7 +125,7 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
           <button type="button" className="btn btn-primary" onClick={actions.openPhysicianOnboard}>
             Become a contributor
           </button>
-          <p className="cta-note">Onboarding takes a few minutes — your personal link is created instantly. Refer colleagues from your dashboard once you're in.</p>
+          <p className="cta-note">Onboarding takes a few minutes. Your personal link is created instantly. Refer colleagues from your dashboard once you're in.</p>
         </div>
       </section>
     </div>
