@@ -35,30 +35,35 @@
   // ── state for the current trajectory being annotated ──────────────────────
   let TASK = null;         // the annotation-task view (run + trajectory + case_context)
   const ANN = {
-    step_labels: {},       // step# -> {label, action_judgment}
-    failure_by_step: {},   // step# -> [failure modes]
+    step_labels: {},          // step# -> {label, action_judgment}
+    failure_by_step: {},      // step# -> [failure modes]
+    counterfactual_by_step: {}, // step# -> text (tied to the step, not a single field)
     first_error_step: null,
-    counterfactual_text: "",
     missed_actions: [],
     failure_tags: [],
-    end_state_ratified: { correct: false, safe: true, note: "" },
+    // null = the physician has NOT ratified this axis yet (never fabricate a
+    // correct/safe verdict the doctor didn't enter — it ships to buyers).
+    end_state_ratified: { correct: null, safe: null, note: "" },
+    _endTouched: false,
     reward_ratified: { value: null },
     trajectory_preference: { chosen: null, why: "" },
     kappa_subset: false,
   };
 
   async function boot() {
-    let runId = qp("run_id");
-    if (!runId) {
+    const runId = qp("run_id");
+    if (runId) {
+      // open a SPECIFIC run (works even if already annotated) — never silently
+      // switch to a different trajectory.
+      const r = await api("/runs/" + encodeURIComponent(runId));
+      TASK = r.task;
+    } else {
       // pull the next unannotated trajectory from the V5 queue
       const q = await api("/annotation-queue?portal_version=v5");
       if (!q.queue || !q.queue.length) { renderEmpty(); return; }
       TASK = q.queue[0];
-    } else {
-      const q = await api("/annotation-queue?portal_version=v5");
-      TASK = (q.queue || []).find((t) => t.run_id === runId) || q.queue[0];
-      if (!TASK) { renderEmpty(); return; }
     }
+    if (!TASK) { renderEmpty(); return; }
     render();
   }
 
@@ -138,31 +143,32 @@
   function labelControls(s, num) {
     const cur = (ANN.step_labels[num] || {});
     const btn = (v) => '<button class="v5-btn ' + (cur.label === v ? "sel-" + v : "") +
-      '" onclick="V5.label(' + num + ",'" + v + "')\">" + statusGlyph(v) + " " + v + "</button>";
-    let out = '<div class="v5-label-row">' + btn("correct") + btn("suboptimal") + btn("wrong") + "</div>";
+      '" data-role="label" data-val="' + v + '" onclick="V5.label(' + num + ",'" + v + "')\">" + statusGlyph(v) + " " + v + "</button>";
+    let out = '<div class="v5-label-row" data-labelrow="' + num + '">' + btn("correct") + btn("suboptimal") + btn("wrong") + "</div>";
     if (s.type === "tool_call") {
       out += '<div class="v5-field"><label>Action judgment ' + info("Judge the action itself, not just the reasoning") + "</label>" +
-        '<div class="v5-label-row">' + ACTION_JUDGMENTS.map((j) =>
+        '<div class="v5-label-row" data-judgerow="' + num + '">' + ACTION_JUDGMENTS.map((j) =>
           '<button class="v5-btn green ' + (cur.action_judgment === j ? "on" : "") +
-          '" onclick="V5.judge(' + num + ",'" + j + "')\">" + j.replace(/_/g, " ") + "</button>").join("") + "</div></div>";
+          '" data-role="judge" data-val="' + j + '" onclick="V5.judge(' + num + ",'" + j + "')\">" + j.replace(/_/g, " ") + "</button>").join("") + "</div></div>";
     }
     return out;
   }
 
   // Progressive disclosure (§7.6): failure chips + counterfactual + reward ratify
-  // appear only when a step is marked wrong.
+  // appear only when a step is marked wrong. Every input's value is re-hydrated
+  // from ANN so nothing the doctor typed is ever lost visually.
   function wrongControls(s, num) {
     const chips = FAILURE_MODES.map((m) =>
       '<button class="v5-btn ' + ((ANN.failure_by_step[num] || []).includes(m) ? "sel-wrong" : "") +
-      '" onclick="V5.fmode(' + num + ",'" + m + "')\">" + m.replace(/_/g, " ") + "</button>").join("");
+      '" data-role="fmode" data-val="' + m + '" onclick="V5.fmode(' + num + ",'" + m + "')\">" + m.replace(/_/g, " ") + "</button>").join("");
     return (
       '<div class="v5-green-affordance">' +
       '<div class="v5-field"><label>Failure mode ' + info("How did the agent fail here?") + "</label>" +
-        '<div class="v5-label-row">' + chips + "</div></div>" +
+        '<div class="v5-label-row" data-fmoderow="' + num + '">' + chips + "</div></div>" +
       '<div class="v5-field"><label>Counterfactual — what should the agent have done instead? ' +
         info("The single most valuable token in the record (PRD §7.1.2)") + "</label>" +
-        '<textarea rows="2" oninput="V5.setFirstError(' + num + ", this.value)\" " +
-        'placeholder="The correct next action / reasoning at this step…"></textarea></div>' +
+        '<textarea rows="2" oninput="V5.counterfactual(' + num + ', this.value)" ' +
+        'placeholder="The correct next action / reasoning at this step…">' + esc(ANN.counterfactual_by_step[num] || "") + "</textarea></div>" +
       "</div>"
     );
   }
@@ -173,8 +179,8 @@
       '<div class="c-card v5-final">' +
         '<h3>End-state ratification ' + info("Confirm or override the final diagnosis/plan (PRD §7.1.5)") + "</h3>" +
         '<div class="v5-label-row">' +
-          '<button class="v5-btn green" id="es-correct" onclick="V5.endState(\'correct\')">✓ Final answer correct</button>' +
-          '<button class="v5-btn green on" id="es-safe" onclick="V5.endState(\'safe\')">✓ Safe</button>' +
+          '<button class="v5-btn green" id="es-correct" onclick="V5.endState(\'correct\')">Final answer correct?</button>' +
+          '<button class="v5-btn green" id="es-safe" onclick="V5.endState(\'safe\')">Safe?</button>' +
         "</div>" +
         '<div class="v5-field"><label>Missed decisive actions ' + info("Actions the agent should have taken and did not") + "</label>" +
           '<input type="text" id="missed" placeholder="comma-separated, e.g. get_notes, order urine studies" oninput="V5.missed(this.value)"></div>' +
@@ -199,12 +205,24 @@
   }
 
   function twoFrontierPref() {
+    const sib = TASK.sibling;
+    // The blinded "other agent" (B) trajectory, collapsed — so the A/B preference
+    // is an INFORMED comparison, not a blind guess. "A" = the trajectory above.
+    const sibBlock = sib
+      ? ('<details style="margin:8px 0"><summary class="v5-chrome">Show Agent B trajectory (blinded)</summary>' +
+         '<div style="margin-top:8px">' +
+           (sib.trajectory || []).map((s) =>
+             '<div class="v5-model-out"><span class="v5-chrome">B · ' + esc(s.type) + " #" + s.step +
+             '</span><br>' + esc(fullStepText(s)) + "</div>").join("") +
+         "</div></details>")
+      : '<div class="v5-anchor-guard">Sibling trajectory not available.</div>';
     return (
       '<div class="v5-field"><label>Trajectory preference (blinded) ' +
-        info("Two agents ran the same environment — pick the better one (DPO signal, §7.1.7)") + "</label>" +
+        info("Two agents ran the same environment — Agent A is the trajectory above; compare Agent B, then pick the better one (DPO signal, §7.1.7)") + "</label>" +
+        sibBlock +
         '<div class="v5-pref">' +
-          '<button class="v5-btn green" onclick="V5.pref(\'A\')">Agent A better</button>' +
-          '<button class="v5-btn green" onclick="V5.pref(\'B\')">Agent B better</button>' +
+          '<button class="v5-btn green" id="pref-A" onclick="V5.pref(\'A\')">Agent A better</button>' +
+          '<button class="v5-btn green" id="pref-B" onclick="V5.pref(\'B\')">Agent B better</button>' +
         "</div>" +
         '<textarea rows="2" style="margin-top:8px" placeholder="Why?" oninput="V5.prefWhy(this.value)"></textarea>' +
       "</div>"
@@ -223,43 +241,60 @@
     open: openStep,
     label: function (num, v) {
       ANN.step_labels[num] = Object.assign(ANN.step_labels[num] || {}, { label: v });
-      // reveal wrong-controls only for a wrong step (progressive disclosure)
-      const rev = document.getElementById("reveal-" + num);
-      if (rev) rev.classList.toggle("show", v === "wrong");
-      // first error = earliest wrong step
+      // targeted DOM update — never re-render the whole trajectory (that would
+      // wipe every other step's typed counterfactual / toggled control).
+      const card = document.querySelector('.v5-step[data-step="' + num + '"]');
+      if (card) {
+        const chip = card.querySelector(".v5-status-chip");
+        if (chip) { chip.className = "v5-status-chip " + v; chip.textContent = statusGlyph(v) + " " + v; }
+        const row = card.querySelector('[data-labelrow="' + num + '"]');
+        if (row) row.querySelectorAll(".v5-btn").forEach((b) => {
+          b.className = "v5-btn" + (b.getAttribute("data-val") === v ? " sel-" + v : "");
+        });
+        const rev = document.getElementById("reveal-" + num);
+        if (rev) rev.classList.toggle("show", v === "wrong");
+      }
       recomputeFirstError();
-      rerenderChips();
       revealRewardIfReady();
       updateProgress();
     },
     judge: function (num, j) {
       ANN.step_labels[num] = Object.assign(ANN.step_labels[num] || {}, { action_judgment: j });
-      rerenderChips();
+      const row = document.querySelector('[data-judgerow="' + num + '"]');
+      if (row) row.querySelectorAll(".v5-btn").forEach((b) => {
+        b.className = "v5-btn green" + (b.getAttribute("data-val") === j ? " on" : "");
+      });
     },
     fmode: function (num, m) {
       const arr = ANN.failure_by_step[num] || (ANN.failure_by_step[num] = []);
       const at = arr.indexOf(m);
       if (at >= 0) arr.splice(at, 1); else arr.push(m);
       ANN.failure_tags = Array.from(new Set([].concat.apply([], Object.values(ANN.failure_by_step))));
-      rerenderChips();
+      const row = document.querySelector('[data-fmoderow="' + num + '"]');
+      if (row) row.querySelectorAll(".v5-btn").forEach((b) => {
+        b.className = "v5-btn" + (arr.includes(b.getAttribute("data-val")) ? " sel-wrong" : "");
+      });
     },
-    setFirstError: function (num, text) {
-      if (ANN.first_error_step === num || ANN.first_error_step === null) ANN.counterfactual_text = text;
-      else ANN.counterfactual_text = text; // last-edited counterfactual wins
-      ANN.first_error_step = ANN.first_error_step || num;
-    },
+    counterfactual: function (num, text) { ANN.counterfactual_by_step[num] = text; },
     endState: function (which) {
-      if (which === "correct") ANN.end_state_ratified.correct = !ANN.end_state_ratified.correct;
-      if (which === "safe") ANN.end_state_ratified.safe = !ANN.end_state_ratified.safe;
+      ANN._endTouched = true;
+      ANN.end_state_ratified[which] = ANN.end_state_ratified[which] === true ? false : true;
       const b = document.getElementById("es-" + which);
-      if (b) b.classList.toggle("on");
+      if (b) {
+        const on = ANN.end_state_ratified[which] === true;
+        b.classList.toggle("on", on);
+        b.textContent = (which === "correct"
+          ? (on ? "✓ Final answer correct" : "✗ Final answer incorrect")
+          : (on ? "✓ Safe" : "⚠ Unsafe"));
+      }
     },
     missed: function (v) { ANN.missed_actions = v.split(",").map((x) => x.trim()).filter(Boolean); },
     ratify: function (v) { const n = parseFloat(v); ANN.reward_ratified.value = isNaN(n) ? null : n; },
     pref: function (c) {
       ANN.trajectory_preference.chosen = c;
-      document.querySelectorAll(".v5-pref .v5-btn").forEach((b) =>
-        b.classList.toggle("on", b.textContent.indexOf("Agent " + c) === 0));
+      const a = document.getElementById("pref-A"), b = document.getElementById("pref-B");
+      if (a) a.classList.toggle("on", c === "A");
+      if (b) b.classList.toggle("on", c === "B");
     },
     prefWhy: function (v) { ANN.trajectory_preference.why = v; },
     submit: submit,
@@ -283,29 +318,6 @@
     }
   }
 
-  function rerenderChips() {
-    // cheap targeted re-render of status chips + selected buttons
-    (TASK.trajectory || []).forEach((s) => {
-      const card = document.querySelector('.v5-step[data-step="' + s.step + '"]');
-      if (!card) return;
-      const lbl = (ANN.step_labels[s.step] || {}).label;
-      const chip = card.querySelector(".v5-status-chip");
-      if (chip) {
-        chip.className = "v5-status-chip " + (lbl || "");
-        chip.textContent = lbl ? statusGlyph(lbl) + " " + lbl : "review";
-      }
-      card.querySelectorAll(".v5-label-row .v5-btn").forEach((btn) => {
-        btn.className = "v5-btn"; // reset then re-apply below
-      });
-    });
-    // simplest robust approach: full re-render keeps state in ANN
-    const scrollY = window.scrollY;
-    const openIdx = Array.from(document.querySelectorAll(".v5-step")).findIndex((e) => e.classList.contains("is-open"));
-    render();
-    if (openIdx >= 0) openStep(openIdx);
-    window.scrollTo(0, scrollY);
-  }
-
   function updateProgress() {
     const total = (TASK.trajectory || []).filter((s) => s.type !== "observation").length;
     const done = Object.keys(ANN.step_labels).length;
@@ -316,21 +328,27 @@
   }
 
   async function submit() {
-    const payload = {
-      run_id: TASK.run_id,
-      portal_version: "v5",
-      annotation: {
-        step_labels: Object.keys(ANN.step_labels).map((k) => Object.assign({ step: Number(k) }, ANN.step_labels[k])),
-        first_error_step: ANN.first_error_step,
-        counterfactual_text: ANN.counterfactual_text,
-        missed_actions: ANN.missed_actions,
-        failure_tags: ANN.failure_tags,
-        end_state_ratified: ANN.end_state_ratified,
-        reward_ratified: ANN.reward_ratified.value != null ? { value: ANN.reward_ratified.value } : undefined,
-        trajectory_preference: ANN.trajectory_preference.chosen ? ANN.trajectory_preference : undefined,
-        kappa_subset: ANN.kappa_subset,
-      },
+    recomputeFirstError();
+    // the counterfactual that matters is the one tied to the FIRST error step.
+    const cf = ANN.first_error_step != null
+      ? (ANN.counterfactual_by_step[ANN.first_error_step] || "")
+      : (Object.values(ANN.counterfactual_by_step)[0] || "");
+    const annotation = {
+      step_labels: Object.keys(ANN.step_labels).map((k) => Object.assign({ step: Number(k) }, ANN.step_labels[k])),
+      first_error_step: ANN.first_error_step,
+      counterfactual_text: cf,
+      missed_actions: ANN.missed_actions,
+      failure_tags: ANN.failure_tags,
+      reward_ratified: ANN.reward_ratified.value != null ? { value: ANN.reward_ratified.value } : undefined,
+      trajectory_preference: ANN.trajectory_preference.chosen ? ANN.trajectory_preference : undefined,
+      kappa_subset: ANN.kappa_subset,
     };
+    // only ship end-state if the physician actually ratified it (no fabricated verdict)
+    if (ANN._endTouched) annotation.end_state_ratified = {
+      correct: ANN.end_state_ratified.correct, safe: ANN.end_state_ratified.safe,
+      note: ANN.end_state_ratified.note || undefined,
+    };
+    const payload = { run_id: TASK.run_id, portal_version: "v5", annotation: annotation };
     const msg = document.getElementById("v5SaveMsg");
     try {
       await api("/" + encodeURIComponent(TASK.task_id) + "/annotate", {

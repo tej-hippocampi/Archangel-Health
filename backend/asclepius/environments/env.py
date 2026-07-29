@@ -93,6 +93,8 @@ class ClinicalEnv:
             decision_offset_days=dp,
             observable_panels=observable,
             deid_recheck=bool(self.compiled.get("deid_recheck_required")),
+            observable_notes=self.compiled.get("observable_notes"),
+            observable_studies=self.compiled.get("observable_studies"),
         )
         self._registry = ToolRegistry(self.allowed_tools, self._state)
         # Reset ALL mutable episode state.
@@ -184,13 +186,18 @@ class ClinicalEnv:
         return observation, reward, self._terminated, self._truncated, info
 
     # ─── verify (PRD §4.5 / §5) ────────────────────────────────────────────────
-    def verify(self, *, rubric: bool = False) -> Dict[str, Any]:
+    def verify(self) -> Dict[str, Any]:
         """Post-episode trajectory-level reward (PRD §5). Returns the full
         ``verification`` block; ``verification['reward']`` is the sparse scalar.
-        Set ``rubric=True`` to run the async rubric layer (see ``verify.score``)."""
+
+        Synchronous: scores the deterministic + critical-negative + offline
+        rubric-proxy layers. To run the LLM/PRM RULER judge, await
+        ``verify.score_async(env)`` (the rollout does this)."""
+        if self._state is None:
+            raise RuntimeError("verify() called before reset()")
         from .verify import score
 
-        return score(self, run_rubric=rubric)
+        return score(self)
 
     # ─── Accessors used by verify / rollout ────────────────────────────────────
     @property

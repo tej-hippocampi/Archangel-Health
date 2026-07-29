@@ -246,5 +246,8 @@ class ToolRegistry:
                 "ServiceRequest", "MedicationRequest") else True
             return {"kind": kind, "fhir": resource, "valid": valid, "echo": echo,
                     "observation": f"recorded {name}: {echo}"}
-        except TypeError as exc:
+        except Exception as exc:
+            # Never crash a live episode on a malformed tool argument (a model may
+            # emit a non-string panel, a bad type, an unexpected key): return an
+            # error observation the agent must handle.
             return {"kind": "error", "observation": f"bad input to '{name}': {exc}"}

@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Optional
 
-from ..agreement import cohens_kappa
 from ..constants import (
     ASCLEPIUS_TAXONOMY_VERSION,
     ENV_EXPORT_MODES,
@@ -67,12 +66,12 @@ def to_jsonl(records: List[Dict[str, Any]], mode: str) -> str:
 
 # ─── Manifest / datasheet (PRD §9) ────────────────────────────────────────────
 def build_manifest(records: List[Dict[str, Any]], *, mode: str,
-                   specialty: Optional[str] = None) -> Dict[str, Any]:
+                   specialty: Optional[str] = None,
+                   kappa_stats: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     mode = normalize_env_export_mode(mode)
     histogram: Dict[str, int] = {}
     diffs: List[float] = []
     annotated = 0
-    kappa_pairs = []
     for r in records:
         tt = r.get("task_type")
         histogram[tt] = histogram.get(tt, 0) + 1
@@ -80,16 +79,13 @@ def build_manifest(records: List[Dict[str, Any]], *, mode: str,
         d = ((prov.get("difficulty") or {}).get("empirical"))
         if isinstance(d, (int, float)):
             diffs.append(float(d))
-        ann = r.get("physician_annotation")
-        if ann:
+        if r.get("physician_annotation"):
             annotated += 1
-            # κ over the double-annotated subset uses end-state ratification as the
-            # single verdict axis (reuse the same κ machinery as V1–V4, §7.4).
-            es = ann.get("end_state_ratified") or {}
-            if ann.get("kappa_subset") and "correct" in es:
-                kappa_pairs.append((str(es.get("correct")), str(es.get("correct"))))
     mean_diff = round(sum(diffs) / len(diffs), 3) if diffs else None
     tool_names = sorted({t for r in records for t in _tools_used(r)})
+    # κ comes from REAL double-annotation (computed by the caller over the store);
+    # never fabricated from a single rater's own verdict.
+    ks = kappa_stats or {}
     return {
         "taxonomy_version": ASCLEPIUS_TAXONOMY_VERSION,
         "mode": mode,
@@ -104,7 +100,9 @@ def build_manifest(records: List[Dict[str, Any]], *, mode: str,
         "annotation_coverage": {
             "annotated_records": annotated,
             "coverage_rate": round(annotated / len(records), 3) if records else 0.0,
-            "kappa": cohens_kappa(kappa_pairs) if kappa_pairs else None,
+            "kappa": ks.get("kappa"),
+            "n_double_annotated": ks.get("n_double_annotated", 0),
+            "kappa_note": ks.get("note"),
         },
         "reproducible": True,
         "note": "Ships the tool schema + verifier spec so the environment can be re-run (PRD §9).",
@@ -156,13 +154,14 @@ def build_datasheet(records: List[Dict[str, Any]], manifest: Dict[str, Any]) -> 
 
 
 def export_bundle(records: List[Dict[str, Any]], *, mode: str = "raw",
-                  specialty: Optional[str] = None, watermark: Optional[str] = None) -> Dict[str, Any]:
+                  specialty: Optional[str] = None, watermark: Optional[str] = None,
+                  kappa_stats: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Assemble the full bundle. Returns a dict {jsonl, manifest, datasheet}; the
     router streams it or ``export.py`` zips + watermarks it per buyer."""
     mode = normalize_env_export_mode(mode)
     if specialty:
         records = [r for r in records if r.get("specialty") == specialty]
-    manifest = build_manifest(records, mode=mode, specialty=specialty)
+    manifest = build_manifest(records, mode=mode, specialty=specialty, kappa_stats=kappa_stats)
     if watermark:
         manifest["watermark"] = watermark
     return {

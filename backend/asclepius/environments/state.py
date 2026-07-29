@@ -17,6 +17,7 @@ Works on plain dicts (that's what the codebase passes around — see ``cases.py`
 
 from __future__ import annotations
 
+import copy
 from typing import Any, Dict, List, Optional
 
 from ..cases import as_dict
@@ -39,9 +40,24 @@ class EHRState:
         decision_offset_days: Optional[int] = None,
         observable_panels: Optional[List[str]] = None,
         deid_recheck: bool = False,
+        observable_notes: Optional[List[str]] = None,
+        observable_studies: Optional[List[str]] = None,
     ):
-        self.case: Dict[str, Any] = as_dict(case) or {}
+        # Deep-copy so each episode owns its state — a downstream consumer that
+        # mutates a returned lab/note list can never corrupt the shared case dict
+        # (compile stores one case object reused across every reset()).
+        self.case: Dict[str, Any] = copy.deepcopy(as_dict(case) or {})
         self.case_source: str = self.case.get("case_source") or "synthetic"
+        # On a real case, notes/studies carry no per-item timing, so they are
+        # returned ONLY if their type/modality is in these allowlists (fail-closed
+        # against post-decision-point answer leakage). None = allow all (gold/
+        # synthetic, which have no future zone).
+        self._allowed_note_types = (
+            None if observable_notes is None else {str(x).strip().lower() for x in observable_notes}
+        )
+        self._allowed_study_modalities = (
+            None if observable_studies is None else {str(x).strip().lower() for x in observable_studies}
+        )
         # The decision point (PRD §8.4.1): the instant the agent is dropped in.
         # Everything is defined relative to this. For a synthetic/gold case the
         # whole authored chart is "then", so day 0 with no future zone.
@@ -92,12 +108,26 @@ class EHRState:
         try:
             from .. import deid_verify  # lazy — dev envs may lack heavy deps
 
+            # Probe the real verifier entrypoints, in order. ``verify_deid`` is the
+            # public API; ``residual_identifiers`` is the low-level scanner. If NO
+            # verifier is found, fail CLOSED (withhold) — never silently pass raw
+            # text through on a real case just because the API was refactored.
             findings = None
-            for fn in ("scan_text", "find_phi", "residual_identifiers", "verify_text"):
+            probed = False
+            for fn in ("residual_identifiers", "verify_deid", "scan_text", "find_phi"):
                 f = getattr(deid_verify, fn, None)
                 if callable(f):
-                    findings = f(text)
+                    probed = True
+                    result = f(text)
+                    # verify_deid returns a report; residual_identifiers a list.
+                    if isinstance(result, dict):
+                        findings = result.get("findings") or result.get("residual") or (
+                            not result.get("ok", True) and result)
+                    else:
+                        findings = result
                     break
+            if not probed:
+                return "[withheld: no de-identification verifier available; failing closed]"
             if findings:
                 return "[withheld: residual-identifier check flagged this note; case quarantined]"
         except Exception:
@@ -114,13 +144,10 @@ class EHRState:
         if self._observable_panels is not None:
             now = [p for p in vis if p.get("panel") in set(self._observable_panels)]
         else:
-            # Default: the earliest panel(s) present at the decision point are the
-            # "results available now"; deeper panels must be earned via get_labs.
-            if vis:
-                min_off = min(self._panel_offset(p) for p in vis)
-                now = [p for p in vis if self._panel_offset(p) == min_off]
-            else:
-                now = []
+            # Default: only the FIRST presenting panel is visible; deeper panels —
+            # including same-offset panels — must be earned via get_labs (PRD §13,
+            # "information must be earned"). Never dump the whole lab set at reset.
+            now = [vis[0]] if vis else []
         for p in now:
             self.revealed["panels"].add(p.get("panel"))
         return {
@@ -155,11 +182,12 @@ class EHRState:
     def get_labs(self, panel: Optional[str] = None) -> Dict[str, Any]:
         """Return a lab panel by name (or a directory of available panels). Only
         panels at/before the decision point are ever visible (temporal gate)."""
+        panel = None if panel is None else str(panel)
         self.revealed["tools"].append(f"get_labs:{panel or '*'}")
         vis = self._visible_panels()
         if not panel:
             return {"available_panels": [p.get("panel") for p in vis]}
-        want = (panel or "").strip().lower()
+        want = panel.strip().lower()
         for p in vis:
             name = (p.get("panel") or "").strip().lower()
             if name == want or want in name:
@@ -169,10 +197,21 @@ class EHRState:
         return {"panel": panel, "results": [], "status": "not_available"}
 
     def get_notes(self, note_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        note_type = None if note_type is None else str(note_type)
         self.revealed["tools"].append(f"get_notes:{note_type or '*'}")
+        # Fail-closed temporal gate for real cases: notes carry no per-item timing,
+        # so a note is returned only if its type is allow-listed (never leak a
+        # post-decision note that states the outcome). None allowlist = allow all.
+        allow = self._allowed_note_types
+        if allow is not None and not allow:
+            return [{"status": "not_available",
+                     "detail": "notes are withheld pending decision-point timing verification"}]
         out = []
         for n in self.case.get("notes") or []:
-            if note_type and (n.get("note_type") or "").strip().lower() != note_type.strip().lower():
+            nt = (n.get("note_type") or "").strip().lower()
+            if allow is not None and nt not in allow:
+                continue
+            if note_type and nt != note_type.strip().lower():
                 continue
             out.append(
                 {
@@ -184,10 +223,18 @@ class EHRState:
         return out
 
     def get_studies(self, modality: Optional[str] = None) -> List[Dict[str, Any]]:
+        modality = None if modality is None else str(modality)
         self.revealed["tools"].append(f"get_studies:{modality or '*'}")
+        allow = self._allowed_study_modalities
+        if allow is not None and not allow:
+            return [{"status": "not_available",
+                     "detail": "studies are withheld pending decision-point timing verification"}]
         out = []
         for s in self.case.get("studies") or []:
-            if modality and (s.get("modality") or "").strip().lower() != modality.strip().lower():
+            sm = (s.get("modality") or "").strip().lower()
+            if allow is not None and sm not in allow:
+                continue
+            if modality and sm != modality.strip().lower():
                 continue
             out.append(
                 {
@@ -207,8 +254,13 @@ class EHRState:
         self.revealed["tools"].append(f"get_timeline:{window or '*'}")
         vis = self._visible_panels()
         if window is not None:
-            lo = self.decision_offset_days - abs(int(window))
-            vis = [p for p in vis if self._panel_offset(p) >= lo]
+            try:
+                w = abs(int(window))
+            except (TypeError, ValueError):
+                w = None
+            if w is not None:
+                lo = self.decision_offset_days - w
+                vis = [p for p in vis if self._panel_offset(p) >= lo]
         buckets: Dict[int, List[Dict[str, Any]]] = {}
         for p in vis:
             buckets.setdefault(self._panel_offset(p), []).append(self._panel_public(p))

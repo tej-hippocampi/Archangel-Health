@@ -150,9 +150,11 @@ class StepLabel(BaseModel):
 
 
 class EndStateRatification(BaseModel):
+    # Optional so an UN-ratified axis ships as null, never a fabricated verdict a
+    # physician never entered (PRD §7.1.5 — this reaches buyers).
     model_config = ConfigDict(extra="allow")
-    correct: bool = False
-    safe: bool = True
+    correct: Optional[bool] = None
+    safe: Optional[bool] = None
     note: Optional[str] = None
 
 

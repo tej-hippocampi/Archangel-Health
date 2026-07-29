@@ -28,21 +28,20 @@ from ..cases import as_dict
 from . import catalog
 
 # The per-case critical-negative flags the verifier hard-fails on (PRD §5.1) are
-# derived from the case's own text — no separate rubric needed — via two lenses:
-#   * AVOID: the CORRECT answer / hard_hook naming an action to avoid ("do not
-#     give X", "avoid X").
-#   * RECOMMEND: the INTENDED-FLAWED candidate answer / failure-mode label RECO-
-#     MMENDING the unsafe action ("give X", "SIADH → 3% saline"). The flawed
-#     answer's recommended intervention IS the critical negative.
-_AVOID_PATTERNS = [
-    re.compile(r"(?:do not|don't|never|avoid(?:ed)?|must not|should not)\s+(?:give\s+|administer\s+|start\s+|order\s+|bolus\s+)?([a-z0-9][a-z0-9 %\-/]{2,36})", re.IGNORECASE),
-]
+# derived ONLY from the RECOMMEND lens: the INTENDED-FLAWED candidate answer /
+# failure-mode label recommending the unsafe action ("give X", "SIADH → 3% saline").
+# The flawed answer's recommended intervention IS the critical negative.
+#
+# We deliberately do NOT parse "do not X" out of the CORRECT answer: that lens
+# reliably captured the CORRECT action ("do not correct sodium too rapidly" →
+# "correct sodium"), hard-failing correct trajectories to reward 0. The flawed
+# candidate is a clean source because it is, by construction, the wrong path.
 _RECOMMEND_PATTERNS = [
     re.compile(r"(?:give|administer|start|bolus|push|treat with|order)\s+([a-z0-9][a-z0-9 %\-/]{2,36})", re.IGNORECASE),
     re.compile(r"[→>]\s*([a-z0-9][a-z0-9 %\-/]{2,36})", re.IGNORECASE),  # "SIADH → 3% saline"
 ]
-_STOPWORDS = {"the", "further", "additional", "a", "an", "more", "this", "that", "them", "it",
-              "fluids" if False else "", "to", "and", "with"}
+_STOPWORDS = {"the", "further", "additional", "a", "an", "more", "this", "that",
+              "them", "it", "fluids", "to", "and", "with", ""}
 
 
 def _apply(patterns, text: str) -> List[str]:
@@ -60,14 +59,8 @@ def _apply(patterns, text: str) -> List[str]:
 def _extract_critical_negatives(
     case: Dict[str, Any], recommend_hint: Optional[str] = None,
 ) -> List[str]:
-    avoid_text = " ".join(
-        str(x) for x in [
-            (case.get("ground_truth") or {}).get("answer"),
-            (case.get("ground_truth") or {}).get("rationale"),
-            case.get("hard_hook"),
-        ] if x
-    )
-    flags = _apply(_AVOID_PATTERNS, avoid_text) + _apply(_RECOMMEND_PATTERNS, recommend_hint or "")
+    # Only the flawed-path hint feeds the flags — never the correct answer.
+    flags = _apply(_RECOMMEND_PATTERNS, recommend_hint or "")
     seen, out = set(), []
     for f in flags:
         k = f.lower()
@@ -84,7 +77,7 @@ class CompileError(ValueError):
 
 
 # ─── Ground-truth resolution (PRD §8.4.3) ─────────────────────────────────────
-def _resolve_ground_truth(case: Dict[str, Any], task_type: str) -> Dict[str, Any]:
+def _resolve_ground_truth(case: Dict[str, Any], task_type: str, dp: int = 0) -> Dict[str, Any]:
     """Tiered ground truth with a recorded source + confidence. For gold/synthetic
     the authored ``ground_truth`` is authoritative (confidence 1.0). For real
     cases the priority is linked-outcome > treating-physician-action >
@@ -97,7 +90,7 @@ def _resolve_ground_truth(case: Dict[str, Any], task_type: str) -> Dict[str, Any
         # A real case has NO authored answer key by construction. The strongest
         # signal is the linked outcome (future zone); absent that, the treating
         # physician's action; absent that, a physician annotator's ratified answer.
-        if _has_future_outcome(case):
+        if _has_future_outcome(case, dp):
             source, confidence = "linked_outcome", 0.9
         elif gt.get("answer"):
             source, confidence = "treating_physician_action", 0.6
@@ -119,10 +112,10 @@ def _resolve_ground_truth(case: Dict[str, Any], task_type: str) -> Dict[str, Any
     }
 
 
-def _has_future_outcome(case: Dict[str, Any]) -> bool:
+def _has_future_outcome(case: Dict[str, Any], dp: int = 0) -> bool:
     for p in case.get("lab_panels") or []:
         try:
-            if int(p.get("collected_offset_days") or 0) > 0:
+            if int(p.get("collected_offset_days") or 0) > dp:
                 return True
         except (TypeError, ValueError):
             continue
@@ -144,7 +137,13 @@ def _decision_offset(case: Dict[str, Any], explicit: Optional[int]) -> int:
         except (TypeError, ValueError):
             continue
     non_future = [o for o in offsets if o <= 0]
-    return max(non_future) if non_future else 0
+    if non_future:
+        return max(non_future)
+    # All-positive offsets (e.g. hospital day 1..N not normalized to the decision
+    # point): drop the agent in at the LATEST timepoint so labs aren't all treated
+    # as "future" and withheld. Ingestion should normalize to the decision point;
+    # this is the safe fallback when it hasn't.
+    return max(offsets) if offsets else 0
 
 
 # ─── Verifiability qualification filter (PRD §8.4.4) ──────────────────────────
@@ -196,7 +195,7 @@ def compile_environment(
     case_source = c.get("case_source") or "synthetic"
 
     dp = _decision_offset(c, decision_offset_days)
-    gt = _resolve_ground_truth(c, task_type)
+    gt = _resolve_ground_truth(c, task_type, dp)
 
     ok_cov, missing = _coverage_ok(c, task_type)
     if not ok_cov:
@@ -222,7 +221,12 @@ def compile_environment(
         "decision_point": {"offset_days": dp},
         "observable_state": {"panels": observable_panels},
         "earnable_map": earnable,
-        "held_out_outcome": {"has_future": _has_future_outcome(c)},
+        "held_out_outcome": {"has_future": _has_future_outcome(c, dp)},
+        # On a REAL case, notes/studies carry no per-item timing in the schema, so
+        # state.py fail-CLOSES: it returns a note/study only if its type/modality is
+        # in these allowlists. Gold/synthetic (no future zone) allow all (None).
+        "observable_notes": None if not is_real else [],
+        "observable_studies": None if not is_real else [],
         "ground_truth": gt,
         "critical_negatives": _extract_critical_negatives(c, recommend_hint=critical_hint_text),
         "allowed_tools": catalog.allowed_tools(task_type),

@@ -166,15 +166,34 @@ def save_annotation(store, run_id: str, annotation: Dict[str, Any],
     ann = dict(annotation or {})
     if annotator_ref and not ann.get("annotator_credential_ref"):
         ann["annotator_credential_ref"] = annotator_ref
-    # Reward validation (PRD §7.1.6): stamp the auto-reward the physician ratified.
-    auto = (row.get("verification") or {}).get("reward")
+
+    verification = dict(row.get("verification") or {})
+    auto = verification.get("auto_reward", verification.get("reward"))
     rr = ann.get("reward_ratified") or {}
-    if auto is not None and "auto_value" not in rr:
+    if rr.get("value") is not None:
+        # Reward validation (PRD §7.1.6): the physician-corrected reward becomes the
+        # PRIMARY shipped reward so a graded/expert buyer trains on the corrected
+        # label — not the stale auto value. The auto value is preserved alongside.
         rr["auto_value"] = auto
-        rr["overrode_auto"] = bool(rr.get("value") is not None and rr.get("value") != auto)
+        rr["overrode_auto"] = bool(auto is not None and float(rr["value"]) != float(auto))
         ann["reward_ratified"] = rr
-    store.update_env_run(run_id, physician_annotation=ann)
-    return {"run_id": run_id, "physician_annotation": ann}
+        verification["auto_reward"] = auto
+        verification["reward"] = float(rr["value"])
+        verification["reward_source"] = "physician"
+    elif auto is not None and rr:
+        rr["auto_value"] = auto
+        ann["reward_ratified"] = rr
+
+    # Double-annotation log (PRD §7.4 κ): append every annotator's submission so the
+    # inter-annotator κ is computed from REAL independent verdicts, not fabricated.
+    annotations = list(row.get("annotations") or [])
+    annotations = [a for a in annotations if a.get("annotator_ref") != annotator_ref]
+    annotations.append({"annotator_ref": annotator_ref, "annotation": ann})
+
+    store.update_env_run(run_id, physician_annotation=ann, annotations=annotations,
+                         verification=verification)
+    return {"run_id": run_id, "physician_annotation": ann,
+            "n_annotators": len({a.get("annotator_ref") for a in annotations})}
 
 
 # ─── Reward model (PRD §7.5) ──────────────────────────────────────────────────
@@ -192,29 +211,82 @@ def export(store, *, mode: str = "raw", specialty: Optional[str] = None,
            watermark: Optional[str] = None) -> Dict[str, Any]:
     from .export_env import export_bundle
 
+    # Newest-first; dedupe by the unique per-trajectory task_id so a re-rolled
+    # (env, provider) doesn't ship two records with the same key.
     runs = store.list_env_runs(specialty=specialty, mode="rollout", limit=10000)
-    records = [_row_to_record(r) for r in runs if r.get("trajectory")]
-    return export_bundle(records, mode=mode, specialty=specialty, watermark=watermark)
+    records, seen = [], set()
+    for r in runs:
+        if not r.get("trajectory"):
+            continue
+        rec = _row_to_record(r)
+        if rec["task_id"] in seen:
+            continue
+        seen.add(rec["task_id"])
+        records.append(rec)
+
+    kappa_stats = _double_annotation_kappa(store, specialty=specialty)
+    return export_bundle(records, mode=mode, specialty=specialty, watermark=watermark,
+                         kappa_stats=kappa_stats)
+
+
+def _double_annotation_kappa(store, *, specialty: Optional[str] = None) -> Dict[str, Any]:
+    """Compute a REAL inter-annotator κ (PRD §7.4) from runs that TWO physicians
+    independently annotated — never fabricate agreement from a single rater. Uses
+    end-state ``correct`` as the verdict axis (mirrors the V1–V4 κ machinery)."""
+    from ..agreement import cohens_kappa
+
+    pairs = []
+    n_double = 0
+    for row in store.list_env_runs(specialty=specialty, mode="rollout", limit=10000):
+        anns = row.get("annotations") or []
+        verdicts = []
+        for a in anns:
+            es = ((a.get("annotation") or {}).get("end_state_ratified") or {})
+            v = es.get("correct")
+            if v is not None:
+                verdicts.append(str(bool(v)))
+        if len(verdicts) >= 2:
+            n_double += 1
+            # take the first two independent verdicts as the rater pair for this item
+            pairs.append((verdicts[0], verdicts[1]))
+    return {
+        "kappa": cohens_kappa(pairs) if pairs else None,
+        "n_double_annotated": n_double,
+        "note": None if pairs else "no double-annotated runs yet (κ requires ≥2 independent annotators per run)",
+    }
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 def _row_to_record(row: Dict[str, Any]) -> Dict[str, Any]:
-    rec = {
-        "task_id": row.get("task_id"),
+    compiled = row.get("compiled") or {}
+    env_id = row.get("task_id")
+    provider = row.get("provider")
+    task_type = row.get("task_type") or "diagnostic_workup"
+    # A two-frontier environment produces TWO trajectories under one env id. The
+    # exported record's task_id MUST be unique per trajectory or a buyer keying on
+    # task_id collides/drops one frontier — and raw mode has no provenance to
+    # disambiguate. So make it unique here, and keep the env id in provenance.
+    suffix = provider or (row.get("run_id") or "")[-6:]
+    unique_task_id = f"{env_id}-{suffix}" if suffix else env_id
+
+    # Never ship an empty prompt: rebuild from the compiled case, and fall back to a
+    # visibly-labeled stem if the case/question are both absent.
+    prompt = catalog.build_prompt(compiled.get("case") or {}, compiled.get("question") or "", task_type)
+    if not (prompt or "").strip():
+        prompt = f"[{task_type}] {compiled.get('question') or 'clinical decision task'}"
+
+    prov = dict(row.get("provenance") or {})
+    prov["environment_id"] = env_id
+    return {
+        "task_id": unique_task_id,
         "specialty": row.get("specialty"),
-        "task_type": row.get("task_type"),
-        "prompt": (row.get("compiled") or {}).get("question") or "",
+        "task_type": task_type,
+        "prompt": prompt,
         "trajectory": row.get("trajectory") or [],
         "verification": row.get("verification"),
-        "provenance": row.get("provenance"),
+        "provenance": prov,
         "physician_annotation": row.get("physician_annotation"),
     }
-    # Rebuild the prompt from the compiled env so raw export carries the real stem.
-    compiled = row.get("compiled") or {}
-    if compiled.get("case"):
-        rec["prompt"] = catalog.build_prompt(compiled.get("case"), compiled.get("question") or "",
-                                             row.get("task_type") or "diagnostic_workup")
-    return rec
 
 
 def _clean(rec: Dict[str, Any]) -> Dict[str, Any]:

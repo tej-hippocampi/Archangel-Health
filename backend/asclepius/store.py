@@ -597,7 +597,8 @@ class AsclepiusStore:
                     trajectory_json          TEXT,            -- the §1 record's trajectory
                     verification_json        TEXT,            -- §5 reward block
                     provenance_json          TEXT,
-                    physician_annotation_json TEXT,           -- §7 crown-jewel data
+                    physician_annotation_json TEXT,           -- §7 latest/primary annotation
+                    annotations_json         TEXT,            -- ALL annotator submissions (κ subset)
                     empirical_difficulty     REAL,
                     difficulty_measured      INTEGER NOT NULL DEFAULT 0,
                     passes_difficulty_gate   INTEGER,
@@ -609,6 +610,9 @@ class AsclepiusStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_env_runs_task ON env_runs(task_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_env_runs_specialty ON env_runs(specialty)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_env_runs_mode ON env_runs(mode)")
+            # annotations_json added after the table shipped — guard for existing DBs.
+            if "annotations_json" not in cols("env_runs"):
+                conn.execute("ALTER TABLE env_runs ADD COLUMN annotations_json TEXT")
 
             task_cols = cols("tasks")
             if "grounding_mode" not in task_cols:
@@ -3241,6 +3245,7 @@ class AsclepiusStore:
         verification: Optional[Dict[str, Any]] = None,
         provenance: Optional[Dict[str, Any]] = None,
         physician_annotation: Optional[Dict[str, Any]] = None,
+        annotations: Optional[List[Dict[str, Any]]] = None,
         empirical_difficulty: Optional[float] = None,
         difficulty_measured: bool = False,
         passes_difficulty_gate: Optional[bool] = None,
@@ -3252,9 +3257,9 @@ class AsclepiusStore:
                 """INSERT INTO env_runs
                    (run_id, task_id, specialty, task_type, case_id, case_source, provider,
                     model, ab_source, mode, compiled_json, trajectory_json, verification_json,
-                    provenance_json, physician_annotation_json, empirical_difficulty,
+                    provenance_json, physician_annotation_json, annotations_json, empirical_difficulty,
                     difficulty_measured, passes_difficulty_gate, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (rid, task_id, specialty, task_type, case_id, case_source, provider, model,
                  ab_source, mode,
                  json.dumps(compiled) if compiled is not None else None,
@@ -3262,6 +3267,7 @@ class AsclepiusStore:
                  json.dumps(verification) if verification is not None else None,
                  json.dumps(provenance) if provenance is not None else None,
                  json.dumps(physician_annotation) if physician_annotation is not None else None,
+                 json.dumps(annotations) if annotations is not None else None,
                  empirical_difficulty, 1 if difficulty_measured else 0,
                  (None if passes_difficulty_gate is None else (1 if passes_difficulty_gate else 0)),
                  now, now),
@@ -3271,7 +3277,8 @@ class AsclepiusStore:
     @staticmethod
     def _env_run_row(row: sqlite3.Row) -> Dict[str, Any]:
         rec = dict(row)
-        for col in ("compiled", "trajectory", "verification", "provenance", "physician_annotation"):
+        for col in ("compiled", "trajectory", "verification", "provenance",
+                    "physician_annotation", "annotations"):
             raw = rec.pop(f"{col}_json", None)
             rec[col] = json.loads(raw) if raw else None
         rec["difficulty_measured"] = bool(rec.get("difficulty_measured"))
@@ -3322,7 +3329,8 @@ class AsclepiusStore:
     def update_env_run(self, run_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
         if not fields:
             return self.get_env_run(run_id)
-        json_cols = {"compiled", "trajectory", "verification", "provenance", "physician_annotation"}
+        json_cols = {"compiled", "trajectory", "verification", "provenance",
+                     "physician_annotation", "annotations"}
         sets, params = [], []
         for key, val in fields.items():
             if key in json_cols:

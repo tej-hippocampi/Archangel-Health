@@ -138,7 +138,21 @@ async def annotation_queue(
     store = _store()
     runs = store.list_env_runs(specialty=specialty, mode="rollout", has_annotation=False, limit=200)
     return {"portal_version": ENV_PORTAL_VERSION,
-            "queue": [_annotation_task_view(r) for r in runs]}
+            "queue": [_annotation_task_view(r, store) for r in runs]}
+
+
+@router.get("/runs/{run_id}")
+async def get_run_for_annotation(
+    run_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+):
+    """Fetch ONE trajectory's annotation view by run_id (regardless of whether it
+    is already annotated) so a physician can open/re-open a specific run — the
+    queue only lists UNannotated runs, so re-opening must not route through it."""
+    store = _store()
+    row = store.get_env_run(run_id)
+    if not row or row.get("mode") != "rollout":
+        raise HTTPException(404, "rollout run not found")
+    return {"task": _annotation_task_view(row, store)}
 
 
 @router.post("/{task_id}/annotate")
@@ -216,19 +230,32 @@ def _run_view(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _annotation_task_view(row: Dict[str, Any]) -> Dict[str, Any]:
+def _annotation_task_view(row: Dict[str, Any], store=None) -> Dict[str, Any]:
     """The context a physician needs to annotate one trajectory (PRD §7.2)."""
     compiled = row.get("compiled") or {}
     view = _run_view(row)
+    verification = row.get("verification") or {}
     view.update({
         "prompt": service.catalog.build_prompt(
             compiled.get("case") or {}, compiled.get("question") or "",
             row.get("task_type") or "diagnostic_workup"),
         "trajectory": row.get("trajectory") or [],
-        "auto_reward": (row.get("verification") or {}).get("reward"),
-        "verification": row.get("verification"),
+        # the ENVIRONMENT's auto-reward (before any physician override) — this is
+        # what the anchoring guard hides until the doctor enters step labels.
+        "auto_reward": verification.get("auto_reward", verification.get("reward")),
+        "verification": verification,
+        "existing_annotation": row.get("physician_annotation"),
         "case_context": _case_context(compiled.get("case") or {}),
     })
+    # Two-frontier: attach the BLINDED sibling trajectory so the physician can make
+    # a real A/B preference (§7.1.7). "A" = this run, "B" = the sibling; provider is
+    # stripped (same blinding as V1–V4 answer A/B).
+    if store is not None and row.get("ab_source") == "two_frontier":
+        siblings = [s for s in store.list_env_runs(task_id=row.get("task_id"), mode="rollout", limit=10)
+                    if s.get("run_id") != row.get("run_id") and s.get("trajectory")]
+        if siblings:
+            sib = siblings[0]
+            view["sibling"] = {"run_id": sib.get("run_id"), "trajectory": sib.get("trajectory") or []}
     return view
 
 
