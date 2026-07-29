@@ -282,11 +282,19 @@ class CommunityStore:
         before_id: Optional[int] = None,
         after_id: Optional[int] = None,
         limit: int = 50,
-    ) -> List[Dict[str, Any]]:
-        """One page of TOP-LEVEL messages, ascending id. ``before_id`` pages
-        history upward (infinite scroll); ``after_id`` serves the polling
-        fallback. Deleted messages are included only when they still anchor a
-        live thread (the client renders a tombstone)."""
+    ) -> tuple:
+        """One page of TOP-LEVEL messages, ascending id. Returns
+        ``(messages, has_more)``. ``before_id`` pages history upward (infinite
+        scroll); ``after_id`` serves the polling fallback and pages FORWARD
+        (oldest-first) so a burst larger than ``limit`` is delivered in order
+        with ``has_more`` set, never with a silent gap (audit finding).
+
+        ``has_more`` is computed from the RAW row count (a limit+1 sentinel
+        row) BEFORE the tombstone filter below — otherwise a page containing a
+        reply-less deleted message under-fills and paging dead-ends with older
+        history still unreachable (audit finding). Deleted messages are kept
+        only when they still anchor a live thread (client renders a tombstone).
+        """
         limit = max(1, min(int(limit or 50), 200))
         clauses = ["channel_id = ?", "parent_message_id IS NULL"]
         params: List[Any] = [channel_id]
@@ -296,28 +304,35 @@ class CommunityStore:
         if after_id is not None:
             clauses.append("id > ?")
             params.append(int(after_id))
+        order = "ASC" if after_id is not None else "DESC"
         sql = (
             "SELECT * FROM community_messages WHERE "
             + " AND ".join(clauses)
-            + " ORDER BY id DESC LIMIT ?"
+            + f" ORDER BY id {order} LIMIT ?"
         )
-        params.append(limit)
+        params.append(limit + 1)
         with self._conn() as conn:
             rows = conn.execute(sql, params).fetchall()
-        out = [self._message_row(r) for r in rows][::-1]
-        live = [m for m in out if not m["deleted"]]
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        out = [self._message_row(r) for r in rows]
+        if order == "DESC":
+            out = out[::-1]
         deleted_ids = [m["id"] for m in out if m["deleted"]]
         keep_tombstones = set()
         if deleted_ids:
             with self._conn() as conn:
                 qmarks = ",".join("?" * len(deleted_ids))
-                rows = conn.execute(
+                trows = conn.execute(
                     f"SELECT DISTINCT parent_message_id AS pid FROM community_messages "
                     f"WHERE parent_message_id IN ({qmarks}) AND deleted_at IS NULL",
                     deleted_ids,
                 ).fetchall()
-            keep_tombstones = {r["pid"] for r in rows}
-        return [m for m in out if not m["deleted"] or m["id"] in keep_tombstones]
+            keep_tombstones = {r["pid"] for r in trows}
+        return (
+            [m for m in out if not m["deleted"] or m["id"] in keep_tombstones],
+            has_more,
+        )
 
     def list_thread(self, parent_message_id: int) -> List[Dict[str, Any]]:
         with self._conn() as conn:
@@ -414,29 +429,38 @@ class CommunityStore:
         return {r["channel_id"]: int(r["last_read_message_id"]) for r in rows}
 
     def unread_counts(self, user_id: str) -> Dict[str, Dict[str, int]]:
-        """Per-channel ``{unread, mentions}`` — messages (incl. thread replies)
-        past the read cursor, authored by someone else, not deleted."""
+        """Per-channel ``{unread, mentions}`` — TOP-LEVEL messages past the
+        read cursor, authored by someone else, not deleted.
+
+        Top-level only, deliberately: the read cursor advances via top-level
+        message ids, so counting thread replies would strand a badge no read
+        action could ever clear (audit finding). Reply activity is surfaced by
+        the root's reply count in the channel, and reply @mentions still reach
+        the member through the email digest. Counting happens in SQL — no row
+        materialization on this hot path (badge + channel list)."""
         cursors = self.read_cursors(user_id)
+        # user ids are ``u-<hex>``; escape anyway so LIKE metachars are inert.
+        like = ('%"' + user_id.replace("\\", "\\\\").replace("%", "\\%")
+                .replace("_", "\\_") + '"%')
         out: Dict[str, Dict[str, int]] = {}
         with self._conn() as conn:
             for ch in self.list_channels():
                 last = cursors.get(ch["id"], 0)
-                rows = conn.execute(
+                row = conn.execute(
                     """
-                    SELECT id, mentions_json FROM community_messages
+                    SELECT COUNT(*) AS unread,
+                           COALESCE(SUM(CASE WHEN mentions_json LIKE ? ESCAPE '\\'
+                                             THEN 1 ELSE 0 END), 0) AS mentions
+                    FROM community_messages
                     WHERE channel_id = ? AND id > ? AND deleted_at IS NULL
-                      AND author_user_id != ?
+                      AND author_user_id != ? AND parent_message_id IS NULL
                     """,
-                    (ch["id"], last, user_id),
-                ).fetchall()
-                mentions = 0
-                for r in rows:
-                    try:
-                        if user_id in json.loads(r["mentions_json"] or "[]"):
-                            mentions += 1
-                    except Exception:
-                        pass
-                out[ch["slug"]] = {"unread": len(rows), "mentions": mentions}
+                    (like, ch["id"], last, user_id),
+                ).fetchone()
+                out[ch["slug"]] = {
+                    "unread": int(row["unread"] or 0),
+                    "mentions": int(row["mentions"] or 0),
+                }
         return out
 
     # ─── Search ───────────────────────────────────────────────────────────────

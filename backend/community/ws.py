@@ -5,6 +5,15 @@ community event (three fixed channels, small membership — fan-out filtering
 would be premature). REST handlers call :func:`broadcast` after a successful
 write; the client's polling fallback covers a dropped socket (PRD §4).
 
+Hardening (audit findings):
+  * Sends fan out CONCURRENTLY and each is bounded by ``SEND_TIMEOUT_SEC`` —
+    a stalled client (half-open TCP, full kernel buffer) can no longer wedge
+    every write endpoint behind one sequential ``await send_json``.
+  * When ``broadcast`` reaps a failed socket, the presence bookkeeping runs
+    through the same last-connection logic as a normal disconnect and a
+    presence event is emitted — a died-mid-broadcast user no longer stays
+    "online" forever.
+
 Presence is connection-derived: a user is "online" while they hold ≥1 open
 socket. Typing indicators are ephemeral relays — never persisted.
 """
@@ -18,6 +27,8 @@ from typing import Any, Dict, List, Optional, Set
 from fastapi import WebSocket
 
 log = logging.getLogger("community.ws")
+
+SEND_TIMEOUT_SEC = 5.0
 
 
 class Hub:
@@ -35,7 +46,9 @@ class Hub:
 
     async def disconnect(self, ws: WebSocket) -> Optional[str]:
         """Unregister a socket. Returns the user_id if this was their LAST
-        connection (a presence transition), else None."""
+        connection (a presence transition), else None. Safe to call for a
+        socket ``broadcast`` already reaped (returns None — the reaper owned
+        the presence transition)."""
         async with self._lock:
             user_id = self._sockets.pop(ws, None)
             if user_id is None:
@@ -47,24 +60,42 @@ class Hub:
         async with self._lock:
             return sorted(set(self._sockets.values()))
 
+    async def _send_one(self, sock: WebSocket, event: Dict[str, Any]) -> bool:
+        try:
+            await asyncio.wait_for(sock.send_json(event), timeout=SEND_TIMEOUT_SEC)
+            return True
+        except Exception:
+            return False
+
     async def broadcast(self, event: Dict[str, Any], *, exclude: Optional[WebSocket] = None) -> None:
-        """Send one event to every connected socket. A failed send drops that
-        socket (its reader loop will observe the disconnect and clean up)."""
+        """Send one event to every connected socket, concurrently, each send
+        bounded by ``SEND_TIMEOUT_SEC``. A socket that fails or times out is
+        reaped here; if that was its user's last connection, a presence event
+        follows so other clients see them go offline."""
         async with self._lock:
             targets = [s for s in self._sockets.keys() if s is not exclude]
-        dead: Set[WebSocket] = set()
-        for sock in targets:
-            try:
-                await sock.send_json(event)
-            except Exception:
-                dead.add(sock)
+        if not targets:
+            return
+        results = await asyncio.gather(
+            *(self._send_one(s, event) for s in targets), return_exceptions=False
+        )
+        dead = [s for s, ok in zip(targets, results) if not ok]
+        if not dead:
+            return
+        went_offline: Set[str] = set()
+        async with self._lock:
+            for sock in dead:
+                user_id = self._sockets.pop(sock, None)
+                if user_id is not None and user_id not in self._sockets.values():
+                    went_offline.add(user_id)
         for sock in dead:
             try:
-                await sock.close()
+                await asyncio.wait_for(sock.close(), timeout=SEND_TIMEOUT_SEC)
             except Exception:
                 pass
-            async with self._lock:
-                self._sockets.pop(sock, None)
+        if went_offline:
+            # Recursion is bounded: each level strictly shrinks the socket set.
+            await self.broadcast({"type": "presence", "online": await self.online_user_ids()})
 
 
 hub = Hub()

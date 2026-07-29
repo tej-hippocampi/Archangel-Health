@@ -7,17 +7,23 @@ Every upload passes through here BEFORE any byte reaches the asset store:
     ``asclepius.assets`` strip), then OCR'd (pytesseract) and the recovered
     text run through the §7 PHI scanner. A screenshot of an EHR screen is the
     single most likely leak in a physician chat.
-  * **PDFs** — text extracted (pdfminer.six) and scanned; the document is
-    rewritten page-by-page (PyPDF2) so document-info/XMP metadata is dropped.
-    A PDF whose text cannot be extracted is REJECTED (fail closed: we will not
-    store what we cannot scan).
+  * **PDFs** — text extracted (pdfminer.six) and scanned; a textless PDF (a
+    scan/fax) is rasterized and OCR'd page-by-page instead, or refused when
+    the OCR toolchain is unavailable (fail closed: we will not store what we
+    cannot scan). The document is rewritten (PyPDF2) so document-info/XMP
+    metadata is dropped.
   * **Plain text (txt/csv/md)** — decoded and scanned directly.
 
 On any PHI hit the upload is rejected with the same masked, category-only
-explanation as a blocked message; nothing is stored. When the OCR engine is
-unavailable, behavior follows ``COMMUNITY_OCR_STRICT`` (default off: store
-with a logged warning, mirroring the platform's advisory burn-in scan; set to
-1 to fail closed).
+explanation as a blocked message; nothing is stored.
+
+**Fail-closed by default** (audit finding): this is the highest-risk surface
+in the product (PRD §7), so when the OCR engine is unavailable image uploads
+are REFUSED (with a message telling the physician to paste the finding as
+text), and a PDF whose text cannot be extracted (a scan/fax) is OCR'd
+page-by-page or refused. Deployments that explicitly accept advisory-only
+screening can set ``COMMUNITY_OCR_STRICT=0`` — the control degrades only by
+operator choice, never silently.
 """
 
 from __future__ import annotations
@@ -58,7 +64,10 @@ def max_attachment_bytes() -> int:
 
 
 def ocr_strict() -> bool:
-    return (os.getenv("COMMUNITY_OCR_STRICT") or "").strip().lower() in ("1", "true", "yes", "on")
+    """Default ON: no screening → no upload (PRD §7 fail-closed). Set
+    ``COMMUNITY_OCR_STRICT=0`` to explicitly accept advisory-only behavior."""
+    raw = (os.getenv("COMMUNITY_OCR_STRICT") or "1").strip().lower()
+    return raw not in ("0", "false", "no", "off")
 
 
 def _reject(code: str, message: str, categories: Optional[List[str]] = None) -> AttachmentRejected:
@@ -116,6 +125,21 @@ def _process_image(data: bytes, mime: str) -> Tuple[bytes, str]:
     return clean, out_mime
 
 
+def _ocr_pdf_text(data: bytes, *, max_pages: int = 10) -> Optional[str]:
+    """OCR a textless (scanned) PDF page-by-page. Returns the recovered text,
+    or None when the raster/OCR toolchain is unavailable."""
+    try:
+        import pytesseract
+        from pdf2image import convert_from_bytes
+    except Exception:
+        return None
+    try:
+        pages = convert_from_bytes(data, dpi=200, first_page=1, last_page=max_pages)
+        return "\n".join(pytesseract.image_to_string(p) or "" for p in pages)
+    except Exception:
+        return None
+
+
 def _process_pdf(data: bytes) -> Tuple[bytes, str]:
     """Extract + scan text, then rewrite the document without metadata."""
     try:
@@ -127,6 +151,18 @@ def _process_pdf(data: bytes) -> Tuple[bytes, str]:
             "This PDF could not be screened for identifiers, so it was not uploaded. "
             "Export it again or paste the relevant text instead.",
         )
+    if not text.strip():
+        # No text layer — a scanned chart or fax, exactly the highest-risk
+        # artifact (audit finding: pdfminer returns "" here, it does not
+        # raise). OCR the rendered pages; with no OCR toolchain, refuse.
+        text = _ocr_pdf_text(data)
+        if text is None:
+            raise _reject(
+                "attachment_unscannable",
+                "This PDF has no extractable text (it looks like a scan) and image "
+                "screening is unavailable, so it was not uploaded. Attach the page "
+                "as a PNG/JPEG screenshot or paste the relevant text instead.",
+            )
     findings = phi_gate.scan_text(text)
     if findings:
         raise _phi_reject(phi_gate.categories_of(findings))
@@ -153,11 +189,20 @@ def _process_pdf(data: bytes) -> Tuple[bytes, str]:
 
 
 def _process_text(data: bytes, mime: str) -> Tuple[bytes, str]:
-    text = data.decode("utf-8", errors="replace")
+    """Decode (BOM-aware), scan, and store the CANONICAL UTF-8 encoding of
+    exactly the text that was scanned — never the original bytes. Storing the
+    original allowed a UTF-16 file to be scanned as mojibake (identifiers
+    invisible to the scanner) yet served intact (audit finding)."""
+    if data.startswith(b"\xff\xfe") or data.startswith(b"\xfe\xff"):
+        text = data.decode("utf-16", errors="replace")
+    elif data.startswith(b"\xef\xbb\xbf"):
+        text = data.decode("utf-8-sig", errors="replace")
+    else:
+        text = data.decode("utf-8", errors="replace")
     findings = phi_gate.scan_text(text)
     if findings:
         raise _phi_reject(phi_gate.categories_of(findings))
-    return data, mime
+    return text.encode("utf-8"), mime
 
 
 def process_attachment(data: bytes, mime: str) -> Tuple[bytes, str]:

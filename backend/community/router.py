@@ -359,14 +359,16 @@ async def channel_messages(
     channel = cstore.get_channel_by_slug(slug)
     if not channel:
         raise HTTPException(status_code=404, detail="Unknown channel")
-    msgs = cstore.list_messages(channel["id"], before_id=before, after_id=after, limit=limit)
+    msgs, has_more = cstore.list_messages(
+        channel["id"], before_id=before, after_id=after, limit=limit
+    )
     serialized = _serialize_messages(msgs, member_map(), channel["slug"])
     return {
         "channel": channel["slug"],
         "messages": serialized,
-        # History pages (default + ``before``) may have older messages above;
-        # ``after`` polls are inherently complete up to "now".
-        "has_more": after is None and len(msgs) >= limit,
+        # Computed by the store from the RAW row count, pre-tombstone-filter
+        # (audit finding); meaningful for history pages AND ``after`` polls.
+        "has_more": has_more,
     }
 
 
@@ -460,8 +462,12 @@ async def post_message(
         "attachments": len(attachments), "mentions": len(mentions),
     })
 
-    # The author has obviously read their own message.
-    cstore.set_read(user["id"], channel["id"], msg["id"])
+    # The author has obviously read their own message — but ONLY a top-level
+    # post may advance the cursor: a thread reply's id is greater than every
+    # unseen top-level message, so advancing on it would silently mark the
+    # whole channel read (audit finding).
+    if parent_id is None:
+        cstore.set_read(user["id"], channel["id"], msg["id"])
 
     cnotify.queue_for_message(
         cstore, message=msg, channel=channel, member_ids=list(members.keys())
@@ -472,7 +478,10 @@ async def post_message(
     return serialized
 
 
-@router.patch("/messages/{message_id}")
+@router.patch(
+    "/messages/{message_id}",
+    dependencies=[Depends(rate_limiter("community_edit", 30, 60))],
+)
 async def edit_message(
     message_id: int,
     body: MessageEdit,
@@ -511,7 +520,10 @@ async def edit_message(
     return serialized
 
 
-@router.delete("/messages/{message_id}")
+@router.delete(
+    "/messages/{message_id}",
+    dependencies=[Depends(rate_limiter("community_delete", 30, 60))],
+)
 async def delete_message(
     message_id: int,
     request: Request,
@@ -545,7 +557,10 @@ async def delete_message(
 _EMOJI_FORBIDDEN = re.compile(r"[A-Za-z0-9<>&\"'`=\\/]")
 
 
-@router.post("/messages/{message_id}/reactions")
+@router.post(
+    "/messages/{message_id}/reactions",
+    dependencies=[Depends(rate_limiter("community_react", 60, 60))],
+)
 async def toggle_reaction(
     message_id: int,
     body: ReactionIn,
@@ -647,13 +662,17 @@ async def search(
     cstore = _cstore()
     channels_by_id = {c["id"]: c for c in cstore.list_channels()}
     members = member_map()
-    results = []
-    for msg in cstore.search_messages(q):
-        ch = channels_by_id.get(msg["channel_id"])
-        if not ch:
-            continue
-        results.append(_serialize_messages([msg], members, ch["slug"])[0])
-    return {"query": q, "results": results}
+    hits = [m for m in cstore.search_messages(q) if m["channel_id"] in channels_by_id]
+    # Serialize per channel group (batched reply/reaction lookups), then
+    # restore the newest-first hit order.
+    serialized: Dict[int, Dict[str, Any]] = {}
+    by_channel: Dict[str, List[Dict[str, Any]]] = {}
+    for m in hits:
+        by_channel.setdefault(m["channel_id"], []).append(m)
+    for cid, group in by_channel.items():
+        for s in _serialize_messages(group, members, channels_by_id[cid]["slug"]):
+            serialized[s["id"]] = s
+    return {"query": q, "results": [serialized[m["id"]] for m in hits]}
 
 
 # ─── Attachments (PRD §4, §7.4) ───────────────────────────────────────────────
@@ -712,11 +731,15 @@ async def download_attachment(
     att = _cstore().get_attachment(asset_id)
     if not att:
         raise HTTPException(status_code=404, detail="Attachment not found")
-    # An attachment bound to a deleted message is gone with the message.
     if att.get("message_id"):
+        # Bound to a message: gone with the message if it was deleted.
         msg = _cstore().get_message(att["message_id"])
         if not msg or msg.get("deleted"):
             raise HTTPException(status_code=404, detail="Attachment not found")
+    elif att.get("uploader_user_id") != user["id"]:
+        # Uploaded but never posted: visible to its uploader only (audit
+        # finding — a pending upload is not yet shared with the community).
+        raise HTTPException(status_code=404, detail="Attachment not found")
     from asclepius.assets import AssetError, load_asset
     try:
         data, _mime = load_asset(att["sha256"])
@@ -774,18 +797,66 @@ async def reactivate_member(
 
 
 # ─── WebSocket (PRD §4, §6) ───────────────────────────────────────────────────
+# Browser WebSockets cannot send an Authorization header, and putting the
+# 7-day JWT in the URL would land it in access/proxy logs. So the client first
+# exchanges its JWT (over a normal authenticated POST) for a SHORT-LIVED,
+# SINGLE-USE ticket and connects with ``?ticket=``. ``?token=`` remains
+# accepted for API clients; both paths run the identical §1 gate.
+_WS_TICKET_TTL_SEC = 60
+_ws_tickets: Dict[str, tuple] = {}  # ticket -> (user_id, expires_monotonic)
+_ws_tickets_lock = __import__("threading").Lock()
+
+
+def _mint_ws_ticket(user_id: str) -> str:
+    import secrets as _secrets
+    import time as _time
+    ticket = _secrets.token_urlsafe(24)
+    now = _time.monotonic()
+    with _ws_tickets_lock:
+        # opportunistic prune so the map cannot grow unboundedly
+        for t in [t for t, (_u, exp) in _ws_tickets.items() if exp < now]:
+            _ws_tickets.pop(t, None)
+        _ws_tickets[ticket] = (user_id, now + _WS_TICKET_TTL_SEC)
+    return ticket
+
+
+def _redeem_ws_ticket(ticket: str) -> Optional[str]:
+    import time as _time
+    with _ws_tickets_lock:
+        entry = _ws_tickets.pop(ticket, None)  # single use
+    if not entry:
+        return None
+    user_id, expires = entry
+    return user_id if _time.monotonic() <= expires else None
+
+
+@router.post("/ws-ticket")
+async def ws_ticket(user: Dict[str, Any] = Depends(require_member)):
+    return {"ticket": _mint_ws_ticket(user["id"]), "expires_in": _WS_TICKET_TTL_SEC}
+
+
+# Per-socket typing relay floor — a client cannot flood every member's socket
+# with typing broadcasts (audit finding).
+_TYPING_MIN_INTERVAL_SEC = 1.0
+
+
 @router.websocket("/ws")
 async def community_ws(websocket: WebSocket):
-    """Real-time delivery. Browser WebSockets cannot send an Authorization
-    header, so the Asclepius JWT arrives as ``?token=``; it is validated with
-    the same decode + store lookup + §1 gate as every REST call. A failed gate
-    closes with 4401/4403 and never joins the hub."""
+    """Real-time delivery. Auth = a single-use ``?ticket=`` (preferred) or a
+    bearer ``?token=``; both are validated with the same store lookup + §1
+    gate as every REST call. A failed gate closes with 4401/4403 and never
+    joins the hub."""
     await websocket.accept()
-    token = websocket.query_params.get("token") or ""
-    payload = asc_auth.decode_token(token)
     user = None
-    if payload:
-        user = _astore().get_user_by_id(payload.get("sub", ""))
+    ticket = websocket.query_params.get("ticket") or ""
+    if ticket:
+        uid = _redeem_ws_ticket(ticket)
+        if uid:
+            user = _astore().get_user_by_id(uid)
+    else:
+        payload = asc_auth.decode_token(websocket.query_params.get("token") or "")
+        if payload:
+            user = _astore().get_user_by_id(payload.get("sub", ""))
     if not user or not user.get("active"):
         await websocket.close(code=4401)
         return
@@ -793,9 +864,12 @@ async def community_ws(websocket: WebSocket):
         await websocket.close(code=4403)
         return
 
+    import time as _time
+
     members = member_map()
     me_member = members.get(user["id"]) or dict(_GHOST_MEMBER)
     first = await hub.connect(websocket, user["id"])
+    last_typing_relay = 0.0
     try:
         await websocket.send_json({"type": "hello", "online": await hub.online_user_ids()})
         if first:
@@ -812,15 +886,22 @@ async def community_ws(websocket: WebSocket):
                 event = json.loads(raw)
             except (TypeError, ValueError):
                 continue
+            if not isinstance(event, dict):
+                continue
             etype = event.get("type")
             if etype == "ping":
                 await websocket.send_json({"type": "pong"})
             elif etype == "typing":
+                now = _time.monotonic()
+                if now - last_typing_relay < _TYPING_MIN_INTERVAL_SEC:
+                    continue
+                last_typing_relay = now
                 slug = str(event.get("channel") or "")[:64]
+                thread_root = event.get("thread_root")
                 await hub.broadcast({
                     "type": "typing",
                     "channel": slug,
-                    "thread_root": event.get("thread_root"),
+                    "thread_root": thread_root if isinstance(thread_root, int) else None,
                     "user_id": user["id"],
                     "name": me_member.get("display_name") or "Someone",
                 }, exclude=websocket)

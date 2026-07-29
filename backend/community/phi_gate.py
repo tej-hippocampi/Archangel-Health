@@ -51,6 +51,11 @@ _NUM_DATE = r"(?:\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}|\d{4}-\d{2}-\d{2})"
 # category wins (e.g. "DOB 3/4/62" reports ``dob``, not ``exact_date``).
 _PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = [
     ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
+    # Medicare Beneficiary Identifier (format-anchored, e.g. 1EG4-TE5-MK73).
+    (
+        "account_number",
+        re.compile(r"\b[0-9][A-Z][A-Z0-9]\d-?[A-Z][A-Z0-9]\d-?[A-Z]{2}\d{2}\b"),
+    ),
     ("email", re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")),
     (
         "dob",
@@ -60,11 +65,16 @@ _PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = [
             re.I,
         ),
     ),
+    # Identifier tails REQUIRE at least one digit: "MRN 84921734" is an
+    # identifier; "the payout policy changed" and "never post MRN values" are
+    # ordinary English and must not block (audit finding — a pure-alpha tail
+    # false-blocked legitimate messages and fed the repeat-offender counter).
     (
         "mrn",
         re.compile(
             r"\b(?:MRN|MBI|medical\s+record(?:\s*(?:number|no\.?|#))?|"
-            r"chart\s*(?:number|no\.?|#))\s*[:#]?\s*[A-Za-z0-9][A-Za-z0-9\-]{3,}\b",
+            r"chart\s*(?:number|no\.?|#))\s*[:#]?\s*"
+            r"(?=[A-Za-z0-9\-]*\d)[A-Za-z0-9][A-Za-z0-9\-]{3,}\b",
             re.I,
         ),
     ),
@@ -72,7 +82,8 @@ _PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = [
         "account_number",
         re.compile(
             r"\b(?:account|acct|policy|member\s*(?:id|number)|insurance\s*(?:id|number)|"
-            r"subscriber\s*(?:id|number))\s*(?:no\.?|#)?\s*[:#]?\s*[A-Za-z0-9][A-Za-z0-9\-]{3,}\b",
+            r"subscriber\s*(?:id|number))\s*(?:no\.?|#)?\s*[:#]?\s*"
+            r"(?=[A-Za-z0-9\-]*\d)[A-Za-z0-9][A-Za-z0-9\-]{3,}\b",
             re.I,
         ),
     ),
@@ -80,9 +91,20 @@ _PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = [
         "phone",
         re.compile(r"(?<!\d)(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)"),
     ),
-    # Exact calendar dates (Safe Harbor: all date elements except year).
-    ("exact_date", re.compile(r"\b\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}\b")),
-    ("exact_date", re.compile(r"\b\d{4}-\d{2}-\d{2}\b")),
+    # Exact calendar dates (Safe Harbor: all date elements except year). The
+    # numeric form requires a PLAUSIBLE month/day pair (M/D/Y or D/M/Y) so a
+    # dose-titration schedule like "25-50-100" is never mistaken for a date
+    # (audit finding).
+    (
+        "exact_date",
+        re.compile(
+            r"\b(?:"
+            r"(?:0?[1-9]|1[0-2])[/\-](?:0?[1-9]|[12]\d|3[01])"   # M/D
+            r"|(?:0?[1-9]|[12]\d|3[01])[/\-](?:0?[1-9]|1[0-2])"  # D/M
+            r")[/\-]\d{2,4}\b"
+        ),
+    ),
+    ("exact_date", re.compile(r"\b\d{4}-(?:0?[1-9]|1[0-2])-(?:0?[1-9]|[12]\d|3[01])\b")),
     (
         "exact_date",
         re.compile(
@@ -136,6 +158,13 @@ _SHARED_KIND_MAP = {
     "name": "patient_name",
 }
 
+# Shared-scanner kinds our own span patterns already evaluate with EQUAL OR
+# STRICTER rules. For these, our verdict is authoritative — re-adding the
+# looser shared hit would resurrect its false positives (e.g. the shared MRN
+# pattern accepts a pure-word tail, blocking "never post MRN values here";
+# audit finding). Any kind outside this set still nets a whole-text finding.
+_SHARED_KINDS_COVERED = {"email", "phone", "ssn", "mbi", "mrn", "date", "long_number"}
+
 
 def _overlaps(a: Tuple[int, int], b: Tuple[int, int]) -> bool:
     return a[0] < b[1] and b[0] < a[1]
@@ -177,7 +206,7 @@ def scan_text(text: Optional[str]) -> List[Dict[str, Any]]:
             shared_kinds = set(residual_identifiers(text))
         except Exception:  # pragma: no cover — the shared scanner must never 500 a post
             shared_kinds = set()
-        for kind in sorted(shared_kinds):
+        for kind in sorted(shared_kinds - _SHARED_KINDS_COVERED):
             findings.append({"category": _SHARED_KIND_MAP.get(kind, kind),
                              "span": [0, len(text)]})
     return findings

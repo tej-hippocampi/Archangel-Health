@@ -673,6 +673,201 @@ def test_ws_never_broadcasts_blocked_phi():
         assert evt["message"]["body"] == "clean follow-up message"
 
 
+# ─── Audit-fix regressions ────────────────────────────────────────────────────
+AUDIT_ALLOWED = [
+    # identifier keywords followed by ordinary words must NOT block (the
+    # pattern tail now requires a digit)
+    "the payout policy changed last week",
+    "never post MRN values here, use the case id",
+    "check the medical record first before grading",
+    "my account balance question for the team",
+    # dose titration is not a calendar date
+    "titrated 25-50-100 over three weeks",
+]
+
+
+@pytest.mark.parametrize("body", AUDIT_ALLOWED)
+def test_audit_false_positives_now_pass(body):
+    _, _, doc, _ = setup_world()
+    r = post_msg(doc, "general", body)
+    assert r.status_code == 200, r.json()
+
+
+AUDIT_BLOCKED = [
+    ("dialyzed 25/12/2024 at the unit", "exact_date"),   # D/M/Y form
+    ("medicare id 1EG4-TE5-MK73 on file", "account_number"),  # MBI format
+    ("chart # 55x21 attached", "mrn"),
+]
+
+
+@pytest.mark.parametrize("body,category", AUDIT_BLOCKED)
+def test_audit_identifiers_still_blocked(body, category):
+    _, _, doc, _ = setup_world()
+    r = post_msg(doc, "general", body)
+    assert r.status_code == 422
+    assert category in r.json()["detail"]["categories"]
+
+
+def test_has_more_survives_tombstone_underfill():
+    """A deleted, reply-less message inside a page must not end pagination
+    (audit finding: has_more was computed after the tombstone filter)."""
+    _, _, doc, admin = setup_world()
+    ids = [post_msg(doc, "general", f"note {chr(97 + i)}").json()["id"] for i in range(5)]
+    client.delete(f"{BASE}/messages/{ids[-1]}", headers=headers_for(admin))
+    r = client.get(f"{BASE}/channels/general/messages?limit=3", headers=headers_for(doc))
+    page = r.json()
+    # the deleted newest message vanishes and the page under-fills (2 of 3) —
+    # but has_more still reports the older history as reachable
+    assert page["has_more"] is True
+    assert [m["id"] for m in page["messages"]] == ids[2:4]
+    # and the next page up delivers it
+    r = client.get(f"{BASE}/channels/general/messages?limit=3&before={ids[2]}",
+                   headers=headers_for(doc))
+    assert [m["id"] for m in r.json()["messages"]] == ids[0:2]
+
+
+def test_after_poll_pages_forward_without_gap():
+    """``after`` polls deliver oldest-first with has_more, so a burst larger
+    than one page can be drained in order (audit finding: newest-N left a
+    silent hole)."""
+    _, _, doc, _ = setup_world()
+    ids = [post_msg(doc, "general", f"burst {chr(97 + i)}").json()["id"] for i in range(5)]
+    r = client.get(f"{BASE}/channels/general/messages?after=0&limit=2",
+                   headers=headers_for(doc))
+    page = r.json()
+    assert [m["id"] for m in page["messages"]] == ids[:2]
+    assert page["has_more"] is True
+    r = client.get(f"{BASE}/channels/general/messages?after={ids[1]}&limit=2",
+                   headers=headers_for(doc))
+    assert [m["id"] for m in r.json()["messages"]] == ids[2:4]
+
+
+def test_unread_counts_top_level_only():
+    """Thread replies must not strand the unread badge (audit finding: the
+    read cursor can only ever advance to top-level ids)."""
+    astore, _, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    root = post_msg(other, "general", "root message").json()
+    client.post(f"{BASE}/channels/general/read",
+                json={"last_read_message_id": root["id"]}, headers=headers_for(doc))
+    assert client.get(f"{BASE}/badge", headers=headers_for(doc)).json()["unread"] == 0
+    # a thread reply arrives — the badge must remain clearable/zero
+    post_msg(other, "general", "a reply", parent_message_id=root["id"])
+    assert client.get(f"{BASE}/badge", headers=headers_for(doc)).json()["unread"] == 0
+
+
+def test_thread_reply_does_not_advance_read_cursor():
+    """Replying in an old thread must not mark unseen top-level messages read
+    (audit finding)."""
+    astore, _, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    old_root = post_msg(other, "general", "an old question").json()
+    client.post(f"{BASE}/channels/general/read",
+                json={"last_read_message_id": old_root["id"]}, headers=headers_for(doc))
+    post_msg(other, "general", "unseen one")
+    post_msg(other, "general", "unseen two")
+    assert client.get(f"{BASE}/badge", headers=headers_for(doc)).json()["unread"] == 2
+    post_msg(doc, "general", "my reply", parent_message_id=old_root["id"])
+    assert client.get(f"{BASE}/badge", headers=headers_for(doc)).json()["unread"] == 2
+
+
+def test_ws_ticket_flow_single_use():
+    _, _, doc, _ = setup_world()
+    ticket = client.post(f"{BASE}/ws-ticket", headers=headers_for(doc)).json()["ticket"]
+    with client.websocket_connect(f"{BASE}/ws?ticket={ticket}") as ws:
+        assert ws.receive_json()["type"] == "hello"
+    # single use: replaying the ticket is refused
+    with client.websocket_connect(f"{BASE}/ws?ticket={ticket}") as ws:
+        with pytest.raises(Exception):
+            ws.receive_json()
+    # non-members cannot mint tickets
+    astore = fresh_store()
+    buyer = make_user(astore, role="buyer")
+    assert client.post(f"{BASE}/ws-ticket", headers=headers_for(buyer)).status_code == 403
+
+
+def test_unposted_attachment_visible_to_uploader_only():
+    astore, _, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    asset_id = client.post(
+        f"{BASE}/attachments",
+        files={"file": ("labs.txt", b"Cr 1.9 trending", "text/plain")},
+        headers=headers_for(doc)).json()["asset_id"]
+    assert client.get(f"{BASE}/attachments/{asset_id}",
+                      headers=headers_for(doc)).status_code == 200
+    assert client.get(f"{BASE}/attachments/{asset_id}",
+                      headers=headers_for(other)).status_code == 404
+
+
+def test_attachment_utf16_text_is_scanned_and_canonicalized():
+    """A UTF-16 text file must be decoded before scanning (audit finding: the
+    scan saw mojibake while the original bytes were stored intact)."""
+    _, _, doc, _ = setup_world()
+    dirty = "note SSN 123-45-6789 follow up".encode("utf-16")
+    r = client.post(f"{BASE}/attachments",
+                    files={"file": ("note.txt", dirty, "text/plain")},
+                    headers=headers_for(doc))
+    assert r.status_code == 422
+    assert "ssn" in r.json()["detail"]["categories"]
+    # clean UTF-16 uploads store the canonical UTF-8 of the scanned text
+    clean = "Cr 1.9 K 5.8 trending".encode("utf-16")
+    r = client.post(f"{BASE}/attachments",
+                    files={"file": ("labs.txt", clean, "text/plain")},
+                    headers=headers_for(doc))
+    assert r.status_code == 200
+    got = client.get(f"{BASE}/attachments/{r.json()['asset_id']}",
+                     headers=headers_for(doc))
+    assert got.content.decode("utf-8") == "Cr 1.9 K 5.8 trending"
+
+
+# A minimal valid one-page PDF with NO text layer (a stand-in for a scan/fax).
+_TEXTLESS_PDF = (
+    b"%PDF-1.4\n"
+    b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+    b"2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n"
+    b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\n"
+    b"trailer<</Root 1 0 R>>\n%%EOF\n"
+)
+
+
+def test_textless_pdf_fails_closed_without_ocr(monkeypatch):
+    """An image-only/scanned PDF must never bypass the PHI gate (audit
+    finding: pdfminer returns '' for scans — it does not raise)."""
+    _, _, doc, _ = setup_world()
+    from community import attachments as catt
+    monkeypatch.setattr(catt, "_ocr_pdf_text", lambda data, **kw: None)  # no OCR toolchain
+    r = client.post(f"{BASE}/attachments",
+                    files={"file": ("scan.pdf", _TEXTLESS_PDF, "application/pdf")},
+                    headers=headers_for(doc))
+    assert r.status_code == 422
+    assert r.json()["detail"]["code"] == "attachment_unscannable"
+    # with OCR available, recovered text goes through the same PHI gate
+    monkeypatch.setattr(catt, "_ocr_pdf_text", lambda data, **kw: "MRN 99887766")
+    r = client.post(f"{BASE}/attachments",
+                    files={"file": ("scan.pdf", _TEXTLESS_PDF, "application/pdf")},
+                    headers=headers_for(doc))
+    assert r.status_code == 422
+    assert r.json()["detail"]["code"] == "phi_detected"
+
+
+def test_image_upload_fails_closed_when_ocr_unavailable(monkeypatch):
+    """OCR screening is a fail-closed control by default (audit finding);
+    COMMUNITY_OCR_STRICT=0 is the explicit advisory opt-out."""
+    _, _, doc, _ = setup_world()
+    from community import attachments as catt
+    monkeypatch.setattr(catt, "_ocr_image_text", lambda b: (None, "engine down"))
+    r = client.post(f"{BASE}/attachments",
+                    files={"file": ("ecg.png", _png_bytes(), "image/png")},
+                    headers=headers_for(doc))
+    assert r.status_code == 422
+    assert r.json()["detail"]["code"] == "attachment_unscannable"
+    monkeypatch.setenv("COMMUNITY_OCR_STRICT", "0")
+    r = client.post(f"{BASE}/attachments",
+                    files={"file": ("ecg.png", _png_bytes(), "image/png")},
+                    headers=headers_for(doc))
+    assert r.status_code == 200
+
+
 # ─── No public path in (§9.3) ─────────────────────────────────────────────────
 def test_no_registration_or_invite_routes():
     for path in (f"{BASE}/register", f"{BASE}/signup", f"{BASE}/invite", f"{BASE}/join"):
