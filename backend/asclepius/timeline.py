@@ -324,11 +324,43 @@ def normalize_timeline(
             n = dict(n)
             new_text, k, unres = rewrite_note_dates(n.get("text") or "", index)
             n["text"] = new_text
+            # Structured note timing → relative offset (the narrative temporal
+            # cutoff for V5). Only when the note carries a parseable ``collected_at``;
+            # the raw date is destroyed here and never reaches the case/export.
+            raw = n.pop("collected_at", None)
+            if not isinstance(n.get("collected_offset_days"), int):
+                d = parse_datetime(raw)
+                if d is not None:
+                    n["collected_offset_days"] = (d - index).days
+                    report["note_dates_rewritten"] += 0  # not a text rewrite; offset only
+                elif raw is not None:
+                    report["unresolved"].append(_mask(str(raw)))
             report["note_dates_rewritten"] += k
             report["unresolved"].extend(unres)
             notes.append(n)
         if notes:
             case["notes"] = notes
+        # Studies carry the same structured timing (a post-decision path/molecular
+        # report is where the outcome is written) + free-text findings to rewrite.
+        studies = []
+        for s in case.get("studies") or []:
+            s = dict(s)
+            for field in ("findings", "impression"):
+                if isinstance(s.get(field), str) and s.get(field):
+                    nv, c, unres = rewrite_note_dates(s[field], index)
+                    s[field] = nv
+                    report["note_dates_rewritten"] += c
+                    report["unresolved"].extend(unres)
+            raw = s.pop("collected_at", None)
+            if not isinstance(s.get("collected_offset_days"), int):
+                d = parse_datetime(raw)
+                if d is not None:
+                    s["collected_offset_days"] = (d - index).days
+                elif raw is not None:
+                    report["unresolved"].append(_mask(str(raw)))
+            studies.append(s)
+        if studies:
+            case["studies"] = studies
         vitals = case.get("vitals") or {}
         if vitals:
             vit = {}

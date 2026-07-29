@@ -40,23 +40,20 @@ class EHRState:
         decision_offset_days: Optional[int] = None,
         observable_panels: Optional[List[str]] = None,
         deid_recheck: bool = False,
-        observable_notes: Optional[List[str]] = None,
-        observable_studies: Optional[List[str]] = None,
+        enforce_item_cutoff: Optional[bool] = None,
     ):
         # Deep-copy so each episode owns its state — a downstream consumer that
         # mutates a returned lab/note list can never corrupt the shared case dict
         # (compile stores one case object reused across every reset()).
         self.case: Dict[str, Any] = copy.deepcopy(as_dict(case) or {})
         self.case_source: str = self.case.get("case_source") or "synthetic"
-        # On a real case, notes/studies carry no per-item timing, so they are
-        # returned ONLY if their type/modality is in these allowlists (fail-closed
-        # against post-decision-point answer leakage). None = allow all (gold/
-        # synthetic, which have no future zone).
-        self._allowed_note_types = (
-            None if observable_notes is None else {str(x).strip().lower() for x in observable_notes}
-        )
-        self._allowed_study_modalities = (
-            None if observable_studies is None else {str(x).strip().lower() for x in observable_studies}
+        # On a REAL case the notes/studies temporal cutoff is enforced by their
+        # ``collected_offset_days`` (populated by ``timeline`` from the note date):
+        # a note/study AFTER the decision point is held out, and one with UNKNOWN
+        # timing (None) is withheld fail-closed. Gold/synthetic have no future zone,
+        # so unknown timing is visible. Default: enforce iff the case is real.
+        self._enforce_item_cutoff = (
+            (self.case_source == "real_deid") if enforce_item_cutoff is None else bool(enforce_item_cutoff)
         )
         # The decision point (PRD §8.4.1): the instant the agent is dropped in.
         # Everything is defined relative to this. For a synthetic/gold case the
@@ -97,6 +94,25 @@ class EHRState:
 
     def _future_panels(self) -> List[Dict[str, Any]]:
         return [p for p in (self.case.get("lab_panels") or []) if self._is_future(self._panel_offset(p))]
+
+    # ─── Note/study temporal gate (PRD §8.4.2 — narratives) ───────────────────
+    def _item_offset(self, item: Dict[str, Any]) -> Optional[int]:
+        v = item.get("collected_offset_days")
+        if v is None:
+            return None
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return None
+
+    def _item_visible(self, item: Dict[str, Any]) -> bool:
+        """A note/study is visible unless it post-dates the decision point. On a real
+        case, UNKNOWN timing (offset None) is withheld fail-closed — we never surface
+        a narrative we cannot prove is pre-decision (that's where the outcome hides)."""
+        off = self._item_offset(item)
+        if off is None:
+            return not self._enforce_item_cutoff
+        return off <= self.decision_offset_days
 
     # ─── PHI re-check at the tool boundary (PRD §8.4.5) ───────────────────────
     def _scrub_guard(self, text: str) -> str:
@@ -199,19 +215,17 @@ class EHRState:
     def get_notes(self, note_type: Optional[str] = None) -> List[Dict[str, Any]]:
         note_type = None if note_type is None else str(note_type)
         self.revealed["tools"].append(f"get_notes:{note_type or '*'}")
-        # Fail-closed temporal gate for real cases: notes carry no per-item timing,
-        # so a note is returned only if its type is allow-listed (never leak a
-        # post-decision note that states the outcome). None allowlist = allow all.
-        allow = self._allowed_note_types
-        if allow is not None and not allow:
-            return [{"status": "not_available",
-                     "detail": "notes are withheld pending decision-point timing verification"}]
+        # Temporal cutoff by note timing (real cases): a post-decision note — where
+        # the outcome is written — is never returned; unknown-timing notes are
+        # withheld fail-closed on real cases (PRD §8.4.2).
+        withheld = 0
         out = []
         for n in self.case.get("notes") or []:
             nt = (n.get("note_type") or "").strip().lower()
-            if allow is not None and nt not in allow:
-                continue
             if note_type and nt != note_type.strip().lower():
+                continue
+            if not self._item_visible(n):
+                withheld += 1
                 continue
             out.append(
                 {
@@ -220,21 +234,22 @@ class EHRState:
                     "text": self._scrub_guard(n.get("text") or ""),
                 }
             )
+        if not out and withheld:
+            return [{"status": "not_available",
+                     "detail": "notes at/after the decision point are held out (temporal cutoff)"}]
         return out
 
     def get_studies(self, modality: Optional[str] = None) -> List[Dict[str, Any]]:
         modality = None if modality is None else str(modality)
         self.revealed["tools"].append(f"get_studies:{modality or '*'}")
-        allow = self._allowed_study_modalities
-        if allow is not None and not allow:
-            return [{"status": "not_available",
-                     "detail": "studies are withheld pending decision-point timing verification"}]
+        withheld = 0
         out = []
         for s in self.case.get("studies") or []:
             sm = (s.get("modality") or "").strip().lower()
-            if allow is not None and sm not in allow:
-                continue
             if modality and sm != modality.strip().lower():
+                continue
+            if not self._item_visible(s):
+                withheld += 1
                 continue
             out.append(
                 {
@@ -245,6 +260,9 @@ class EHRState:
                     "impression": s.get("impression"),
                 }
             )
+        if not out and withheld:
+            return [{"status": "not_available",
+                     "detail": "studies at/after the decision point are held out (temporal cutoff)"}]
         return out
 
     def get_timeline(self, window: Optional[int] = None) -> Dict[str, Any]:

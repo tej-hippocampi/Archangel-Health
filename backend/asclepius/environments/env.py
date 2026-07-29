@@ -93,8 +93,8 @@ class ClinicalEnv:
             decision_offset_days=dp,
             observable_panels=observable,
             deid_recheck=bool(self.compiled.get("deid_recheck_required")),
-            observable_notes=self.compiled.get("observable_notes"),
-            observable_studies=self.compiled.get("observable_studies"),
+            # notes/studies temporal cutoff enforced by their offsets on real cases
+            enforce_item_cutoff=bool(self.compiled.get("enforce_item_cutoff")),
         )
         self._registry = ToolRegistry(self.allowed_tools, self._state)
         # Reset ALL mutable episode state.

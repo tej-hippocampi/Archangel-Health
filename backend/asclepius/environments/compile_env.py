@@ -222,11 +222,11 @@ def compile_environment(
         "observable_state": {"panels": observable_panels},
         "earnable_map": earnable,
         "held_out_outcome": {"has_future": _has_future_outcome(c, dp)},
-        # On a REAL case, notes/studies carry no per-item timing in the schema, so
-        # state.py fail-CLOSES: it returns a note/study only if its type/modality is
-        # in these allowlists. Gold/synthetic (no future zone) allow all (None).
-        "observable_notes": None if not is_real else [],
-        "observable_studies": None if not is_real else [],
+        # On a REAL case, state.py enforces the notes/studies temporal cutoff by
+        # their ``collected_offset_days`` (populated by ``timeline`` from the note
+        # date): post-decision or unknown-timing narratives are held out. Gold/
+        # synthetic have no future zone, so this is off.
+        "enforce_item_cutoff": is_real,
         "ground_truth": gt,
         "critical_negatives": _extract_critical_negatives(c, recommend_hint=critical_hint_text),
         "allowed_tools": catalog.allowed_tools(task_type),
@@ -274,9 +274,18 @@ def _earnable_map(case: Dict[str, Any], dp: int, observable: List[str]) -> Dict[
         name = p.get("panel")
         if name not in obs:
             panels.append(name)
+    def _not_future(item):
+        v = item.get("collected_offset_days")
+        if v is None:
+            return True  # unknown timing is advertised; state.py fail-closes at read time
+        try:
+            return int(v) <= dp
+        except (TypeError, ValueError):
+            return True
+
     return {
         "labs": panels,
-        "notes": [n.get("note_type") for n in (case.get("notes") or [])],
-        "studies": [s.get("modality") for s in (case.get("studies") or [])],
+        "notes": [n.get("note_type") for n in (case.get("notes") or []) if _not_future(n)],
+        "studies": [s.get("modality") for s in (case.get("studies") or []) if _not_future(s)],
         "medications": bool(case.get("medications")),
     }

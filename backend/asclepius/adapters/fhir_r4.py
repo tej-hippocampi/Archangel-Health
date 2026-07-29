@@ -239,12 +239,21 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
                 if t:
                     texts.append(t)
             note_type = _codeable_text(res.get("type")) or ("Report" if rt == "DiagnosticReport" else "Progress")
+            # Carry the note's authoring date (DocumentReference.date /
+            # Composition.date / DiagnosticReport.effective[DateTime]) so
+            # ``timeline.normalize_timeline`` can convert it to a relative
+            # ``collected_offset_days`` — the temporal cutoff for narratives. The raw
+            # date is destroyed by timeline; it never survives to the case/export.
+            note_date = _effective(res) or (res.get("date") or "")
             for t in texts:
-                frag["notes"].append({
+                note = {
                     "note_type": note_type[:40],
                     "author_role": (specialty or "clinician").lower(),
                     "text": t.strip(),
-                })
+                }
+                if note_date:
+                    note["collected_at"] = note_date
+                frag["notes"].append(note)
 
     # Age band: birthDate against the bundle's latest observation date — the age
     # AT THE ENCOUNTER, banded (never an exact age or the birth date itself).
