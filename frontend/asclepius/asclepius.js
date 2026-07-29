@@ -37,7 +37,7 @@
     // Community integration state (Community PRD boundary — every field optional,
     // degrades silently if the community backend is unbuilt). unread drives the
     // badge; handoffToken is pre-minted so the new tab can open synchronously.
-    community: { unread: 0, handoffToken: null, unavailable: false, pollTimer: null },
+    community: { unread: 0, handoffToken: null, unavailable: false, unreadUnavailable: false, pollTimer: null },
     adminTab: 'tasks',     // tasks | buyers | exports | metrics
     // Org → contributor drill-down state, shared shape across Exports + Metrics.
     browse: {
@@ -148,6 +148,7 @@
     localStorage.removeItem(TOKEN_KEY);
     stopTimer();
     stopCommunityPolling();
+    resetCommunityState(); // bump generation now so any in-flight fetch is voided
     teardownSidePanel();
     renderHeader();
     renderLogin('Your session expired. Please sign in again.');
@@ -199,6 +200,8 @@
     state.view = view;
     // The header nav (Evaluate / Admin console) always lands back inside the
     // Tasks side-panel destination — the Guide is a peer, not a sub-view of it.
+    // Leaving the Guide this way must also stop its scroll-spy observer.
+    if (state.panel === 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
     state.panel = 'tasks';
     renderHeader();
     renderSidePanel();
@@ -250,6 +253,7 @@
   ];
 
   let chromeMetricsBound = false;
+  let communityGen = 0; // session generation — see resetCommunityState()
 
   // Deterministic specialty → accent-dot color (palette only). Purely cosmetic
   // wayfinding; any specialty maps stably to one of the four console accents.
@@ -289,9 +293,18 @@
       // Insert as a body child so it is never inside the header or #ascRoot.
       document.body.appendChild(rail);
     }
-    // Bind the resize→re-measure listener exactly once for the app's lifetime,
-    // so repeated sign-in/out cycles never stack duplicate listeners.
-    if (!chromeMetricsBound) { window.addEventListener('resize', syncChromeMetrics); chromeMetricsBound = true; }
+    // Bind the re-measure listeners exactly once for the app's lifetime, so
+    // repeated sign-in/out cycles never stack duplicates. Re-measure on resize,
+    // on full load, and once web fonts settle — the header's height changes when
+    // Instrument Sans / IBM Plex Mono swap in, and the rail is pinned to it.
+    if (!chromeMetricsBound) {
+      window.addEventListener('resize', syncChromeMetrics);
+      window.addEventListener('load', syncChromeMetrics);
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(syncChromeMetrics).catch(function () {});
+      }
+      chromeMetricsBound = true;
+    }
     clear(rail);
 
     const nav = h('nav', { class: 'asc-rail-nav', 'aria-label': 'Sections' });
@@ -306,6 +319,9 @@
         type: 'button',
         class: 'asc-rail-item' + (active ? ' active' : ''),
         'aria-current': active ? 'page' : null,
+        // aria-label carries the accessible name even in the icon-collapsed rail,
+        // where the visible label span is display:none (and thus off the a11y tree).
+        'aria-label': item.external ? item.label + ' (opens in a new tab)' : item.label,
         title: item.external ? item.label + ' (opens in a new tab)' : item.label,
         onClick: () => setPanel(item.dest),
       }, children));
@@ -383,27 +399,37 @@
   // falls back to its own session cookie.
   async function refreshCommunityHandoff() {
     if (state.community.unavailable) return;
+    const gen = communityGen;
     try {
       const res = await fetch('/community/handoff', {
         method: 'POST',
         headers: state.token ? { 'Authorization': 'Bearer ' + state.token } : {},
         credentials: 'include',
       });
+      if (gen !== communityGen) return; // session changed mid-flight — drop result
       if (res.status === 404) { state.community.unavailable = true; return; }
       if (!res.ok) return;
       const data = await res.json().catch(() => null);
+      if (gen !== communityGen) return; // re-check after the second await
       if (data && data.token) state.community.handoffToken = data.token;
     } catch (_) { /* network error — keep any existing token, open bare otherwise */ }
   }
 
   async function refreshCommunityUnread() {
+    if (state.community.unreadUnavailable) return;
+    const gen = communityGen;
     try {
       const res = await fetch('/community/unread', {
         headers: state.token ? { 'Authorization': 'Bearer ' + state.token } : {},
         credentials: 'include',
       });
-      if (!res.ok) return; // 404/500 → leave badge as-is (hidden by default)
+      if (gen !== communityGen) return; // session changed mid-flight — drop result
+      // 404 → the unread endpoint isn't deployed; back off permanently for this
+      // session (mirrors handoff) so we don't hammer a missing route every 60s.
+      if (res.status === 404) { state.community.unreadUnavailable = true; return; }
+      if (!res.ok) return; // transient (500/timeout) → leave badge as-is, retry next tick
       const data = await res.json().catch(() => null);
+      if (gen !== communityGen) return; // re-check after the second await
       const total = data && typeof data.total === 'number' ? data.total : 0;
       if (total !== state.community.unread) {
         state.community.unread = Math.max(0, total | 0);
@@ -413,8 +439,11 @@
   }
 
   function pollCommunityOnce() {
-    refreshCommunityUnread();
-    refreshCommunityHandoff();
+    if (!state.community.unreadUnavailable) refreshCommunityUnread();
+    if (!state.community.unavailable) refreshCommunityHandoff();
+    // Both endpoints confirmed absent (community backend unbuilt) → stop polling
+    // entirely; there is nothing left to fetch this session.
+    if (state.community.unreadUnavailable && state.community.unavailable) stopCommunityPolling();
   }
 
   // Poll every 60s while the portal is open (integration contract §3).
@@ -599,10 +628,16 @@
     try { history.replaceState(null, '', '#' + id); } catch (_) { /* ignore */ }
   }
 
+  function prefersReducedMotion() {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; }
+  }
+
   function scrollToSection(id) {
     const el = document.getElementById(id);
     if (!el) return;
-    el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    // Honor reduced-motion for programmatic scroll — the JS smooth option ignores
+    // the CSS scroll-behavior override, so gate it explicitly.
+    el.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     setGuideHash(id);
     // Move focus for keyboard/AT users without yanking the scroll position.
     try { el.focus({ preventScroll: true }); } catch (_) { el.focus(); }
@@ -757,10 +792,27 @@
   function enterApp() {
     state.view = 'eval';
     state.panel = 'tasks';
+    // Fresh community state for this session. On a shared device, a prior user's
+    // unread count or (more importantly) their signed handoff token must never
+    // bleed into the next login before the first poll overwrites it.
+    resetCommunityState();
     renderHeader();
     renderSidePanel();
     startCommunityPolling();
     renderEvalView();
+  }
+
+  // Bumping the generation invalidates any community fetch that is still in
+  // flight: its late-resolving .then() sees a newer generation and drops its
+  // result, so a hung request from a previous user can never write that user's
+  // unread count — or, critically, their signed handoff token — into this
+  // session's state on a shared device.
+  function resetCommunityState() {
+    communityGen++;
+    state.community.unread = 0;
+    state.community.handoffToken = null;
+    state.community.unavailable = false;       // handoff endpoint
+    state.community.unreadUnavailable = false; // unread endpoint
   }
 
   function logout() {
@@ -773,6 +825,7 @@
     try { localStorage.setItem(SUPPRESS_SSO_KEY, '1'); } catch (_) { /* ignore */ }
     stopTimer();
     stopCommunityPolling();
+    resetCommunityState(); // bump generation now so any in-flight fetch is voided
     teardownSidePanel();
     renderHeader();
     renderLogin();
@@ -780,6 +833,10 @@
 
   // ─── Login screen ────────────────────────────────────────────────────────--
   function renderLogin(errorMsg) {
+    // Defensive: the login screen is never behind the portal chrome. Every caller
+    // already tears the rail down, but guarantee it here so a stray path can't
+    // leave an orphaned rail over the sign-in form.
+    teardownSidePanel();
     document.getElementById('ascHeader').setAttribute('hidden', '');
     // Accepts an email OR a username/id (e.g. the `mockadmin` sandbox login), so
     // it's a plain text field, not type=email (which would block a username).

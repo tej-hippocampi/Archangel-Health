@@ -1992,6 +1992,8 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
   .asc-rail-foot { display: none; }   /* sign out remains in the header */
   .asc-rail-badge { position: absolute; top: 6px; right: calc(50% - 20px); margin: 0; padding: 0 5px; }
   body.asc-has-rail .asc-main { padding-left: 16px; padding-bottom: 84px; }
+  /* Lift toasts clear of the bottom tab bar so they never sit under it. */
+  body.asc-has-rail .asc-toast-region { bottom: 76px; }
 }
 
 /* ═══ Instruction Manual (Guide) ═══════════════════════════════════════ */
