@@ -177,6 +177,20 @@
         onClick: () => switchView('admin'),
       }, 'Admin console'));
     }
+    // Community (Community PRD §1): verified contributors + staff only — the
+    // server decides via /api/community/badge; the item renders only for
+    // eligible users and opens the workspace in a NEW TAB at /community.
+    if (state.communityEligible) {
+      const badgeCount = state.communityUnread || 0;
+      nav.appendChild(h('button', {
+        class: 'asc-nav-btn asc-nav-community',
+        'aria-label': 'Community' + (badgeCount ? ' — ' + badgeCount + ' unread' : ''),
+        onClick: () => window.open('/community', '_blank', 'noopener'),
+      }, 'Community',
+        badgeCount > 0
+          ? h('span', { class: 'asc-community-badge' }, badgeCount > 99 ? '99+' : String(badgeCount))
+          : null));
+    }
 
     const badge = document.getElementById('ascUserBadge');
     clear(badge);
@@ -270,13 +284,44 @@
     const isAdmin = state.user.role === 'admin' || state.user.role === 'qa_reviewer';
     state.view = 'eval';
     renderHeader();
+    startCommunityBadge();
     if (isAdmin) renderEvalView();
     else renderEvalView();
+  }
+
+  // ─── Community unread badge (Community PRD §4: in-app badge on the portal
+  // Community item). Soft endpoint: eligibility is decided server-side. ────────
+  async function refreshCommunityBadge() {
+    if (!state.token) return;
+    try {
+      const res = await fetch('/api/community/badge', {
+        headers: { 'Authorization': 'Bearer ' + state.token },
+      });
+      if (!res.ok) return;
+      const d = await res.json();
+      const changed = (state.communityEligible !== !!d.eligible)
+        || (state.communityUnread !== (d.unread || 0));
+      state.communityEligible = !!d.eligible;
+      state.communityUnread = d.unread || 0;
+      if (changed && state.user) renderHeader();
+    } catch (e) { /* transient — badge is best-effort */ }
+  }
+  function startCommunityBadge() {
+    refreshCommunityBadge();
+    if (!state._communityBadgeTimer) {
+      state._communityBadgeTimer = setInterval(refreshCommunityBadge, 60000);
+    }
   }
 
   function logout() {
     state.token = null;
     state.user = null;
+    state.communityEligible = false;
+    state.communityUnread = 0;
+    if (state._communityBadgeTimer) {
+      clearInterval(state._communityBadgeTimer);
+      state._communityBadgeTimer = null;
+    }
     localStorage.removeItem(TOKEN_KEY);
     // Suppress the silent doctor-portal SSO on the next boot so signing out
     // actually lands on the sign-in form (otherwise an active doctor session

@@ -97,6 +97,17 @@
 }
 .asc-nav-btn:hover { background: var(--card-in); color: var(--asc-text); }
 .asc-nav-btn.active { background: var(--ink); color: var(--card); }
+/* Community item unread badge (Community PRD §4) — lime pill, mono count. */
+.asc-nav-community { display: inline-flex; align-items: center; gap: 7px; }
+.asc-community-badge {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: var(--r-chip);
+  background: var(--lime);
+  color: var(--ink);
+}
 .asc-header-right {
   margin-left: auto;
   display: flex;
