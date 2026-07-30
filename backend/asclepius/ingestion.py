@@ -681,6 +681,23 @@ def _distinctive_tokens(text: str) -> List[str]:
             if w not in _COMPLETENESS_STOPWORDS and len(w) >= 3]
 
 
+# Ordinary clinical vocabulary that a lone token would flag on by coincidence — a
+# problem list saying "anemia" is not a leaked answer key (Audit §M1).
+_COMMON_CLINICAL_TOKENS = frozenset("""
+    acute chronic renal kidney cardiac disease syndrome failure injury infection
+    anemia patient history normal abnormal elevated decreased positive negative
+    treatment therapy diagnosis management follow biopsy blood urine serum
+""".split())
+
+
+def _is_checkable_single_token(tok: str) -> bool:
+    """A lone token is worth checking when it is DISTINCTIVE: long enough not to be an
+    abbreviation collision, and not ordinary clinical vocabulary. Short decisive
+    acronyms (PGNMID, MGRS) are exactly the answers most damaging to leak, and the
+    >=2-token rule skipped them (Audit §M1)."""
+    return len(tok) >= 4 and tok not in _COMMON_CLINICAL_TOKENS
+
+
 def _longest_contiguous_run(needle: List[str], hay_padded: str) -> int:
     """Longest contiguous run of ``needle`` tokens appearing as a whole-token span in
     ``hay_padded`` (which is the space-joined hay wrapped in sentinel spaces so a match
@@ -721,11 +738,22 @@ def assert_no_answer_leakage(case: Dict[str, Any], sealed: Optional[Dict[str, An
     hay = " ".join(_distinctive_tokens(render_case_prompt(case, "")))
     hay_padded = " " + hay + " "
 
+    hay_tokens = set(hay.split())  # whole-token membership for the single-token check
     answer_key = sealed.get("answer_key") if isinstance(sealed, dict) else sealed
     for leaf in _sealed_leaf_strings(answer_key):
         toks = _distinctive_tokens(leaf)
-        if len(toks) < 2:
-            continue  # single-token leaves handled by the rarity-gated check (M1)
+        if not toks:
+            continue
+        if len(toks) == 1:
+            # A distinctive single-token answer (PGNMID, MGRS) leaks if it appears as a
+            # WHOLE token in the model-visible case (Audit §M1). Whole-token only — a
+            # substring match on a short token would fire inside longer words, and this
+            # path raises a hard error.
+            if _is_checkable_single_token(toks[0]) and toks[0] in hay_tokens:
+                raise AnswerLeakageError(
+                    "sealed answer key leaked: distinctive single-token answer present "
+                    "in the model-visible case (Buyer Response PRD §3 B1)")
+            continue
         need = max(2, -(-len(toks) * 8 // 10))  # ceil(0.8 * len)
         if _longest_contiguous_run(toks, hay_padded) >= need:
             raise AnswerLeakageError(

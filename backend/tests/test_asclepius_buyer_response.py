@@ -392,10 +392,14 @@ def test_short_sealed_answer_leak_detected():
                             "model_visible": True}]}
     with pytest.raises(I.AnswerLeakageError):
         I.assert_no_answer_leakage(leak_case, sealed)
-    # A single-token answer is NOT flagged (would false-positive on differentials).
-    I.assert_no_answer_leakage(
-        {"notes": [{"text": "amyloidosis is on the differential", "model_visible": True}]},
-        {"answer_key": {"dx": "amyloidosis"}})
+    # V4 Build Spec §M1: a DISTINCTIVE single-token answer (a decisive diagnosis name)
+    # IS now flagged when it appears whole in the visible case — the >=2-token rule
+    # used to skip exactly the acronyms most damaging to leak. Only ORDINARY clinical
+    # vocabulary stays safe (see the dedicated Phase 8 tests).
+    with pytest.raises(I.AnswerLeakageError):
+        I.assert_no_answer_leakage(
+            {"notes": [{"text": "amyloidosis is on the differential", "model_visible": True}]},
+            {"answer_key": {"dx": "amyloidosis"}})
 
 
 # ─── Credentials (Buyer Response PRD §6 E1) ───────────────────────────────────
