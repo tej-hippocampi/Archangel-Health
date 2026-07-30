@@ -270,6 +270,12 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any],
     # preference -> process -> environment ladder.
     prov["signal_ceiling"] = _signal_ceiling(task)
     prov["supervision_type"] = _supervision_type(task, submission)
+    # The physician-named decisive action becomes the record's verifiable outcome
+    # (Audit §13) — the boolean, human-free verifier a buyer can turn into an RLVR
+    # reward: the decisive test must precede the final answer.
+    if task.get("decisive_action"):
+        prov["verifiable_outcome"] = {**task["decisive_action"],
+                                      "verifier": "decisive_action_precedes_final_answer"}
     prov.update(_ladder_position(task, submission))
     return prov
 
@@ -307,6 +313,12 @@ def _signal_ceiling(task: Dict[str, Any]) -> Dict[str, Any]:
 
 def _supervision_type(task: Dict[str, Any], submission: Dict[str, Any]) -> str:
     if task.get("has_environment") or (submission.get("payload") or {}).get("tool_calls"):
+        return "environment_verifiable"
+    # A physician-named decisive action is itself a verifiable outcome (Audit §13):
+    # the reward function can check the trajectory ordered the decisive test before
+    # its final answer, no human in the loop. That lifts the record onto the
+    # environment-verifiable rung even without a live tool environment.
+    if task.get("decisive_action") or task.get("has_verifiable_outcome"):
         return "environment_verifiable"
     if (submission.get("payload") or {}).get("reasoning_steps"):
         return "process_supervision"

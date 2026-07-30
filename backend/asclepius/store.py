@@ -660,6 +660,13 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE tasks ADD COLUMN modality TEXT NOT NULL DEFAULT 'text'")
             if "case_json" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN case_json TEXT")
+            # Decisive action (Buyer Response PRD §9.2 / Audit §13): the physician-named
+            # verifiable outcome that turns a preference label into an RLVR reward.
+            # supervision.DecisiveAction + packaging read it, but nothing wrote it —
+            # so has_verifiable_outcome was false on every record. Persisted from the
+            # submission, keyed to the task.
+            if "decisive_action_json" not in task_cols:
+                conn.execute("ALTER TABLE tasks ADD COLUMN decisive_action_json TEXT")
             # Buyer Response PRD §7 F1: an agreement observation records whether the
             # second annotator was BLINDED. Only blinded observations enter the κ
             # computation (an unblinded second rater measures anchoring, not
@@ -1704,6 +1711,16 @@ class AsclepiusStore:
             return None
         return self._task_row(row)
 
+    def set_task_decisive_action(self, task_id: str, action: Dict[str, Any]) -> None:
+        """Persist the physician-named verifiable outcome (Audit §13), written from the
+        submission — never by an admin or a model: only the clinician who reasoned
+        through the case can say which step the answer depends on."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE tasks SET decisive_action_json = ? WHERE task_id = ?",
+                (json.dumps(action) if action else None, task_id),
+            )
+
     @staticmethod
     def _task_row(row: sqlite3.Row) -> Dict[str, Any]:
         rec = dict(row)
@@ -1712,6 +1729,9 @@ class AsclepiusStore:
         rec["generation"] = json.loads(rec.pop("generation_json", "null") or "null")
         # Multimodal case (may be absent on legacy rows / text tasks).
         rec["case"] = json.loads(rec.pop("case_json", "null") or "null")
+        # Decisive action (Audit §13): deserialize so packaging/export see a dict,
+        # not a JSON string. Absent on legacy rows / tasks nobody named one for.
+        rec["decisive_action"] = json.loads(rec.pop("decisive_action_json", "null") or "null")
         return rec
 
     def list_tasks(

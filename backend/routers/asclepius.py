@@ -1672,6 +1672,23 @@ async def submit(
         payload={"task_id": body.task_id, "verdict": body.verdict, "time_spent_sec": body.time_spent_sec},
     )
 
+    # Decisive action (Audit §13): if the clinician named the verifiable outcome —
+    # the test/action the correct answer depends on — persist it onto the task so
+    # every packaged record from it ships an environment-verifiable outcome. Written
+    # ONLY from the physician's own submission, never by an admin or a model.
+    da = payload.get("decisive_action") or {}
+    da_action = str(da.get("action") or "").strip()
+    if da_action and len(da_action.split()) >= 2:
+        store.set_task_decisive_action(body.task_id, {
+            "action": da_action,
+            "tool_name": (da.get("tool_name") or "").strip() or None,
+            "must_precede_final_answer": bool(da.get("must_precede_final_answer", True)),
+            "rationale": (da.get("rationale") or "").strip(),
+            "physician_authored": True,
+            "author_id_hashed": user["id_hashed"],
+            "authored_at": _utcnow_iso(),
+        })
+
     # Real submit progress (BUG-5): run the genuinely-slow multi-stage pipeline
     # (validate → package → LLM consistency → LLM grounding → agreement → store)
     # as a BACKGROUND job when the client opts in, returning 202 + submission_id

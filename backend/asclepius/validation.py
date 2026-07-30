@@ -432,6 +432,14 @@ def validate_submission(
         if not ok:
             issues.extend(reasons)
 
+    # 7b. Decisive action (Buyer Response PRD §9.2 / Audit §13): skippable by design —
+    # a physician who cannot name one must not be forced to invent one, and a
+    # fabricated decisive action is worse than none. But if one IS named it must
+    # specify a real test/action; a one-word "labs" is not a verifiable outcome.
+    da_action = str(((payload.get("decisive_action") or {}).get("action")) or "").strip()
+    if da_action and len(da_action.split()) < 2:
+        issues.append("decisive_action_underspecified")
+
     # 8. license / rights attestation present on every emitted record (opt §1.4)
     for r in records:
         if not (r.get("license") or "").strip():

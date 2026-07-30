@@ -1009,6 +1009,8 @@
       chosen_revision: { edited: false, revised_text: null, why_better_tags: [], why_better_notes: '', evidence_anchor: emptyAnchor() },
       rejected_critique: { error_tags: [], severities: {}, why_worse: '', error_tag_anchors: {}, error_tag_reasons: {}, failure_tags: [] },
       from_scratch: { ideal_answer: '', approach_notes: '', reasoning_steps: [], evidence_anchor: emptyAnchor() },
+      // Decisive action (Audit §13): physician-named verifiable outcome, skippable.
+      decisive_action: { action: '', tool_name: '', rationale: '', must_precede_final_answer: true },
       reasoning_steps: [],
       // §1 substage machine (Evaluation UX Overhaul) — V3/V4 only. ``substage``
       // is the persisted position INSIDE stage==='compare'; the *_done flags are
@@ -1052,6 +1054,7 @@
     if (!draft.independent_answer) draft.independent_answer = { text: '', evidence_anchor: emptyAnchor(), captured_at: null };
     if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
     if (!Array.isArray(draft.rubric)) draft.rubric = [];
+    if (!draft.decisive_action) draft.decisive_action = { action: '', tool_name: '', rationale: '', must_precede_final_answer: true };
     if (draft.rubricSeeded === undefined) draft.rubricSeeded = false;
     if (!draft.stage) draft.stage = 'prompt_review';
     // §1 substage machine backfill (all additive; an in-flight draft resumes at
@@ -3848,9 +3851,39 @@
     const hint = h('span', { class: 'asc-submit-hint', id: 'ascSubmitHint' });
     const card = sectionCard('confidence', null,
       confPills,
+      renderDecisiveActionField(),
       h('div', { class: 'asc-submit-row' }, hint, submitBtn));
     setTimeout(updateSubmitState, 0);
     return card;
+  }
+
+  // Decisive action (Audit §13) — one skippable field: the test or action the
+  // correct answer depends on. This turns a preference label into a verifiable
+  // reward. Optional by design: a physician who can't name one leaves it blank, and
+  // a fabricated decisive action is worse than none.
+  function renderDecisiveActionField() {
+    const d = state.draft;
+    if (!isV3()) return null;   // V3/V4 evaluation screen only
+    d.decisive_action = d.decisive_action || { action: '', tool_name: '', rationale: '' };
+    const da = d.decisive_action;
+    const action = h('textarea', {
+      class: 'asc-input', rows: '2',
+      placeholder: 'e.g. order pronase-digested paraffin immunofluorescence',
+      value: da.action || '',
+    });
+    action.addEventListener('input', () => { da.action = action.value; saveDraft(); });
+    const tool = h('input', {
+      class: 'asc-input', placeholder: 'Optional tool/order name (e.g. order_pronase_if)',
+      value: da.tool_name || '',
+    });
+    tool.addEventListener('input', () => { da.tool_name = tool.value; saveDraft(); });
+    return h('div', { class: 'asc-field', style: 'margin-top:16px' },
+      h('label', { class: 'asc-label' },
+        'Which test or action, if the clinician skips it, makes the correct answer unreachable?'),
+      h('div', { class: 'asc-card-sub', style: 'margin:2px 0 8px' },
+        'Optional. Naming it lets us verify a model actually ordered the decisive step '
+        + 'rather than guessing. Leave blank if none applies.'),
+      action, tool);
   }
 
   // ─── §14 Rubric — build the scoring guide, one criterion at a time ──────────
@@ -5511,6 +5544,19 @@
         evidence_anchors: anchorsForSubmit(d.from_scratch.evidence_anchor),
       };
       payload.reasoning_steps = payload.from_scratch.reasoning_steps;
+    }
+    // Decisive action (Audit §13): the physician-named verifiable outcome — the test
+    // or action the correct answer depends on. Skippable by design, so it's only sent
+    // when the clinician actually named one; a fabricated one is worse than none.
+    const da = d.decisive_action || {};
+    const daAction = (da.action || '').trim();
+    if (daAction) {
+      payload.decisive_action = {
+        action: daAction,
+        tool_name: (da.tool_name || '').trim() || null,
+        must_precede_final_answer: da.must_precede_final_answer !== false,
+        rationale: (da.rationale || '').trim(),
+      };
     }
     return payload;
   }

@@ -468,6 +468,11 @@ class SubmissionIn(BaseModel):
     # rate is monitorable and rubber-stamping is catchable. Suggestions are
     # NEVER applied server-side — this is provenance only.
     assist: Optional[Dict[str, Any]] = None
+    # Decisive action (Buyer Response PRD §9.2 / Audit §13): the physician-named
+    # verifiable outcome — {action, tool_name?, must_precede_final_answer?,
+    # rationale?}. Skippable; when present it's persisted onto the task so every
+    # packaged record ships an environment-verifiable outcome.
+    decisive_action: Optional[Dict[str, Any]] = None
 
 
 class PrelabelRequest(BaseModel):
