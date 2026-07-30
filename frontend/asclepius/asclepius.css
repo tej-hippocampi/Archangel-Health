@@ -97,6 +97,7 @@
 }
 .asc-nav-btn:hover { background: var(--card-in); color: var(--asc-text); }
 .asc-nav-btn.active { background: var(--ink); color: var(--card); }
+/* Community unread badge lives on the side-panel rail (.asc-rail-badge). */
 .asc-header-right {
   margin-left: auto;
   display: flex;
@@ -1804,3 +1805,447 @@
 /* ─── §7 single flag control ───────────────────────────────────────────── */
 .asc-flag-invalid { color: var(--pink-deep); }
 .asc-flag-invalid:hover { color: var(--pink); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDE PANEL (left rail) + INSTRUCTION MANUAL (Guide)
+   Doctor-Dashboard PRD. Console tokens only, product scale. The rail is a
+   persistent fixed chrome element beneath the sticky header; the manual is a
+   two-column scroll-spy document. Fully responsive + print-friendly.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root { --asc-rail-w: 220px; }
+
+/* ─── The rail ─────────────────────────────────────────────────────────── */
+.asc-rail {
+  position: fixed;
+  top: var(--asc-header-h, 57px);
+  left: 0;
+  bottom: 0;
+  width: var(--asc-rail-w);
+  z-index: 90;                 /* below the sticky header (100) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-3);
+  background: var(--canvas);
+  border-right: 1px solid var(--hairline);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.asc-rail-nav { display: flex; flex-direction: column; gap: 2px; }
+
+.asc-rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  transition: background .16s cubic-bezier(.4,0,.2,1), color .16s cubic-bezier(.4,0,.2,1);
+}
+.asc-rail-item:hover { background: var(--card-in); color: var(--ink); }
+.asc-rail-item.active {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow-card);
+  border-color: var(--hairline);
+}
+.asc-rail-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 22%; bottom: 22%;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--ink);
+}
+.asc-rail-ico {
+  flex: none;
+  width: 20px; height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+.asc-rail-ico svg { width: 20px; height: 20px; display: block; }
+.asc-rail-label { flex: 1 1 auto; min-width: 0; }
+
+/* Community unread badge — lime dot + mono count; hidden at 0 (JS sets hidden). */
+.asc-rail-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 1px 7px 1px 6px;
+  border-radius: var(--r-chip);
+  background: var(--lime-wash);
+  border: 1px solid var(--lime-line);
+}
+.asc-rail-badge[hidden] { display: none; }
+.asc-rail-badge-n {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+/* Rail footer — physician identity + sign out (full-width rail only). */
+.asc-rail-foot {
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.asc-rail-user { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.asc-rail-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.asc-rail-spec {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.asc-rail-spec > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asc-rail-signout {
+  align-self: flex-start;
+  padding: 5px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-chip);
+  background: transparent;
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background .16s cubic-bezier(.4,0,.2,1), color .16s cubic-bezier(.4,0,.2,1);
+}
+.asc-rail-signout:hover { background: var(--card-in); color: var(--ink); }
+
+/* Shift the main content clear of the rail. */
+body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
+
+/* ─── Rail: icon-collapsed (700–1100px) ────────────────────────────────── */
+@media (max-width: 1100px) and (min-width: 701px) {
+  :root { --asc-rail-w: 68px; }
+  .asc-rail { padding: var(--sp-4) 10px; align-items: center; }
+  .asc-rail-item { justify-content: center; gap: 0; padding: 10px; }
+  .asc-rail-label { display: none; }
+  .asc-rail-item.active::before { top: 18%; bottom: 18%; }
+  .asc-rail-foot { display: none; }   /* sign out remains in the header */
+  /* Collapse the badge to a corner dot (no count) over the icon. */
+  .asc-rail-badge { position: absolute; top: 4px; right: 4px; margin: 0; padding: 0; gap: 0; background: none; border: none; }
+  .asc-rail-badge-n { display: none; }
+}
+
+/* ─── Rail: mobile bottom tab bar (≤700px) ─────────────────────────────── */
+@media (max-width: 700px) {
+  .asc-rail {
+    top: auto; left: 0; right: 0; bottom: 0;
+    width: 100%; height: 60px;
+    flex-direction: row;
+    gap: 0;
+    padding: 0;
+    border-right: none;
+    border-top: 1px solid var(--hairline);
+    background: rgba(251, 252, 250, 0.92);
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    z-index: 120;
+    overflow: visible;
+  }
+  .asc-rail-nav { flex-direction: row; flex: 1; gap: 0; }
+  .asc-rail-item {
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 8px 4px;
+    border-radius: 0;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+  .asc-rail-item.active { background: transparent; box-shadow: none; border-color: transparent; color: var(--ink); }
+  .asc-rail-item.active::before { left: 22%; right: 22%; top: 0; bottom: auto; width: auto; height: 2px; border-radius: 0 0 2px 2px; }
+  .asc-rail-label { display: block; flex: none; }
+  .asc-rail-foot { display: none; }   /* sign out remains in the header */
+  .asc-rail-badge { position: absolute; top: 6px; right: calc(50% - 20px); margin: 0; padding: 0 5px; }
+  body.asc-has-rail .asc-main { padding-left: 16px; padding-bottom: 84px; }
+  /* Lift toasts clear of the bottom tab bar so they never sit under it. */
+  body.asc-has-rail .asc-toast-region { bottom: 76px; }
+}
+
+/* ═══ Instruction Manual (Guide) ═══════════════════════════════════════ */
+.asc-guide {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 34rem);
+  gap: 44px;
+  max-width: 1000px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+/* Sticky, scroll-spy table of contents. */
+.asc-guide-toc {
+  position: sticky;
+  top: calc(var(--asc-header-h, 57px) + 20px);
+  align-self: start;
+  max-height: calc(100vh - var(--asc-header-h, 57px) - 40px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.asc-guide-toc-head { margin-bottom: 10px; padding-left: 12px; }
+.asc-guide-toc-list { list-style: none; display: flex; flex-direction: column; gap: 1px; }
+.asc-guide-toc-link {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 5px 12px;
+  border-left: 2px solid transparent;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 1.35;
+  transition: background .14s ease, color .14s ease, border-color .14s ease;
+}
+.asc-guide-toc-link:hover { background: var(--card-in); color: var(--ink); }
+.asc-guide-toc-link.active {
+  color: var(--ink);
+  border-left-color: var(--ink);
+  background: var(--card);
+  font-weight: 500;
+}
+.asc-guide-toc-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+  flex: none;
+}
+.asc-guide-toc-link.active .asc-guide-toc-num { color: var(--ink-soft); }
+.asc-guide-toc-txt { min-width: 0; }
+
+/* Mobile TOC dropdown (hidden on desktop). */
+.asc-guide-toc-select {
+  display: none;
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+/* Content column. */
+.asc-guide-content { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.asc-guide-intro { padding: 4px 0 6px; }
+.asc-guide-h1 { font-size: var(--t-display); margin: 8px 0 6px; }
+.asc-guide-sub { color: var(--ink-soft); font-size: var(--t-body); max-width: 34rem; }
+.asc-guide-meta { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+.asc-guide-meta-hint { color: var(--ink-faint); }
+
+/* Section card. */
+.asc-guide-section { padding: 22px 24px; scroll-margin-top: calc(var(--asc-header-h, 57px) + 18px); outline: none; }
+.asc-guide-section:focus-visible { box-shadow: var(--shadow-card), 0 0 0 2px var(--ink); }
+.asc-guide-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.asc-guide-sec-chrome { color: var(--ink-faint); }
+.asc-guide-anchor {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--ink-faint);
+  text-decoration: none;
+  opacity: 0;
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: opacity .14s ease, color .14s ease;
+}
+.asc-guide-section:hover .asc-guide-anchor,
+.asc-guide-anchor:focus-visible { opacity: 1; }
+.asc-guide-anchor:hover { color: var(--ink); }
+.asc-guide-sec-title { font-size: var(--t-h3); font-weight: 500; margin: 6px 0 14px; letter-spacing: 0; }
+
+/* The three lines. */
+.asc-guide-lines { display: flex; flex-direction: column; gap: 9px; }
+.asc-guide-line { display: grid; grid-template-columns: 42px 1fr; gap: 12px; align-items: baseline; }
+.asc-guide-line-tag { color: var(--ink-soft); padding-top: 1px; }
+.asc-guide-line-txt { color: var(--ink); font-size: var(--t-body); line-height: 1.5; }
+.asc-guide-line.is-how {
+  padding: 9px 12px;
+  margin-top: 2px;
+  border-left: 2px solid var(--green);
+  background: var(--green-wash);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.asc-guide-line.is-how .asc-guide-line-tag { color: var(--green-deep); }
+.asc-guide-line.is-how .asc-guide-line-txt { font-weight: 500; }
+
+/* Good / weak example, two-up. */
+.asc-guide-eg { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.asc-guide-eg-col { padding: 12px 14px; border-radius: var(--r-sm); border: 1px solid var(--hairline); background: var(--card-in); }
+.asc-guide-eg-good { border-left: 2px solid var(--green); }
+.asc-guide-eg-weak { border-left: 2px solid var(--pink); }
+.asc-guide-eg-head { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+.asc-guide-eg-good .chrome { color: var(--green-deep); }
+.asc-guide-eg-weak .chrome { color: var(--pink-deep); }
+.asc-guide-eg-txt { font-size: var(--t-sm); line-height: 1.5; color: var(--ink); }
+
+/* Callouts. */
+.asc-guide-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hairline);
+}
+.asc-guide-callout.is-why { background: var(--lime-wash); border-color: var(--lime-line); }
+.asc-guide-callout.is-mistake { background: var(--pink-wash); border-color: var(--pink-line); }
+.asc-guide-callout-tag { color: var(--ink-soft); }
+.asc-guide-callout.is-mistake .asc-guide-callout-tag { color: var(--pink-deep); }
+.asc-guide-callout-txt { font-size: var(--t-sm); line-height: 1.5; color: var(--ink); }
+
+/* Progressive-disclosure detail. */
+.asc-guide-detail { margin-top: 14px; border-top: 1px solid var(--hairline); padding-top: 10px; }
+.asc-guide-detail-sum {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.asc-guide-detail-sum::-webkit-details-marker { display: none; }
+.asc-guide-detail-sum::before {
+  content: '＋';
+  font-family: var(--mono);
+  color: var(--ink-faint);
+}
+.asc-guide-detail[open] .asc-guide-detail-sum::before { content: '－'; }
+.asc-guide-detail-sum:hover { color: var(--ink); }
+.asc-guide-detail-p { font-size: var(--t-sm); line-height: 1.6; color: var(--ink-soft); margin-top: 10px; }
+
+/* Checklist (section 15). */
+.asc-guide-checklist { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.asc-guide-checklist li { display: flex; align-items: flex-start; gap: 10px; font-size: var(--t-body); color: var(--ink); }
+.asc-guide-check {
+  flex: none;
+  width: 18px; height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: var(--green-wash);
+  color: var(--green-deep);
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 1px;
+}
+
+/* Note / contact (section 16). */
+.asc-guide-note {
+  padding: 14px 16px;
+  border-left: 2px solid var(--ink);
+  background: var(--card-in);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: var(--t-body);
+  line-height: 1.55;
+  color: var(--ink);
+}
+.asc-guide-channel { font-weight: 600; }
+.asc-guide-link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--hairline-strong); text-underline-offset: 2px; }
+.asc-guide-link:hover { text-decoration-color: var(--ink); }
+
+/* Wireframe figures — monochrome ink, accent classes only where semantic. */
+.asc-guide-fig { margin-top: 16px; }
+.asc-guide-fig-inner {
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: var(--card-in);
+}
+.asc-guide-fig svg { width: 100%; height: auto; display: block; }
+.asc-guide-fig rect { fill: rgba(26, 27, 26, 0.10); }
+.asc-guide-fig .wf { fill: var(--ink); }
+.asc-guide-fig .wbox { fill: none; stroke: var(--hairline-strong); stroke-width: 1; }
+.asc-guide-fig .wln { fill: rgba(26, 27, 26, 0.15); }
+.asc-guide-fig .wpill { fill: rgba(26, 27, 26, 0.12); }
+.asc-guide-fig .wtrend { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.asc-guide-fig .wdot { fill: var(--green); }
+.asc-guide-fig .wnum { fill: var(--ink); }
+.asc-guide-fig .wmark { fill: var(--green); }
+.asc-guide-fig .wmark2 { fill: var(--pink); }
+.asc-guide-fig .wgreenfill { fill: var(--green); }
+.asc-guide-fig .wpinkfill { fill: var(--pink); }
+.asc-guide-fig .wpinkfill2 { fill: var(--pink); }
+.asc-guide-fig .wgreenline { stroke: var(--green); stroke-width: 1.5; }
+.asc-guide-fig .wpinkline { stroke: var(--pink); stroke-width: 1.5; }
+.asc-guide-fig text { font-family: var(--mono); font-size: 9px; fill: var(--ink-soft); }
+.asc-guide-fig .wtx { fill: var(--ink-soft); font-size: 10px; }
+.asc-guide-fig .wtc { fill: var(--ink); font-size: 8px; text-anchor: middle; }
+.asc-guide-fig .wtn { fill: var(--card); font-size: 9px; text-anchor: middle; }
+.asc-guide-fig .wflag { fill: var(--pink); font-size: 9px; text-anchor: end; }
+
+/* ─── Guide responsive ─────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .asc-guide { grid-template-columns: 1fr; gap: 0; }
+  .asc-guide-toc { display: none; }
+  .asc-guide-toc-select { display: block; }
+  .asc-guide-eg { grid-template-columns: 1fr; }
+}
+
+/* ─── Reduced motion ───────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .asc-rail-item, .asc-guide-toc-link, .asc-guide-anchor, .asc-rail-signout { transition: none; }
+}
+
+/* ─── Print — a clean, single-column manual (scoped to the Guide only, so
+       printing an eval/admin view keeps its normal chrome) ────────────────── */
+@media print {
+  .asc-rail, .asc-toast-region { display: none !important; }
+  body.asc-view-guide .asc-header,
+  body.asc-view-guide .asc-guide-toc,
+  body.asc-view-guide .asc-guide-toc-select { display: none !important; }
+  body.asc-view-guide.asc-has-rail .asc-main { padding: 0 !important; }
+  body.asc-view-guide::before { display: none; }
+  body.asc-view-guide .asc-guide { display: block; max-width: none; }
+  body.asc-view-guide .asc-guide-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border: 1px solid var(--hairline-strong);
+    box-shadow: none;
+    margin-bottom: 12px;
+  }
+  /* Disclosures are force-opened via the beforeprint handler; hide their toggles. */
+  body.asc-view-guide .asc-guide-detail-sum,
+  body.asc-view-guide .asc-guide-anchor { display: none; }
+}

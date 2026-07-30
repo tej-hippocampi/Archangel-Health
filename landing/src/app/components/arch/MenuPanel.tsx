@@ -17,16 +17,14 @@ type Row = {
 };
 
 const ROWS: Row[] = [
-  { path: "/research", title: "Research", chrome: "01 · Research", comingSoon: true },
+  { path: "/research", title: "Research", chrome: "01 · Research" },
   {
     path: "/data",
     title: "Data buyers",
     chrome: "02 · Data buyers",
     sub: [
       { label: "Reasoning cases", num: "02.1", hash: "02-1" },
-      { label: "Clinical environments", num: "02.2", hash: "02-2" },
-      { label: "Benchmarks", num: "02.3", hash: "02-3" },
-      { label: "Physical AI", num: "02.4", hash: "02-4" },
+      { label: "Beyond reasoning data", num: "02.2", hash: "02-2" },
     ],
   },
   { path: "/health-systems", title: "Health systems", chrome: "03 · Health systems" },

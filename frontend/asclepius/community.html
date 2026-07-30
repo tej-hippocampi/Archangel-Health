@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asclepius Community</title>
+  <!-- Console design system — self-hosted fonts + shared tokens, no network fonts. -->
+  <link rel="stylesheet" href="/static/asclepius/clinical-fonts.css" />
+  <link rel="stylesheet" href="/static/asclepius/_tokens.css" />
+  <link rel="stylesheet" href="/static/asclepius/_base.css" />
+  <link rel="stylesheet" href="/static/asclepius/community.css" />
+</head>
+<body class="cm-body">
+  <main id="cmRoot" class="cm-root" aria-live="polite">
+    <div class="cm-loading">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p>Opening the community…</p>
+    </div>
+  </main>
+  <!-- Toast region -->
+  <div class="cm-toast-region" id="cmToasts" aria-live="assertive" aria-atomic="true"></div>
+  <script src="/static/asclepius/community.js" defer></script>
+</body>
+</html>

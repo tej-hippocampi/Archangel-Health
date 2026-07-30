@@ -32,7 +32,12 @@
     token: localStorage.getItem(TOKEN_KEY) || null,
     user: null,
     taxonomy: null,
-    view: 'eval',          // 'eval' | 'admin'
+    view: 'eval',          // 'eval' | 'admin'  (header-level: evaluate vs admin console)
+    panel: 'tasks',        // side-panel destination: 'tasks' | 'guide' (Community is external nav)
+    // Community integration state (Community PRD boundary — every field optional,
+    // degrades silently if the community backend is unbuilt). unread drives the
+    // badge; handoffToken is pre-minted so the new tab can open synchronously.
+    community: { unread: 0, handoffToken: null, unavailable: false, unreadUnavailable: false, pollTimer: null },
     adminTab: 'tasks',     // tasks | buyers | exports | metrics
     // Org → contributor drill-down state, shared shape across Exports + Metrics.
     browse: {
@@ -142,6 +147,9 @@
     state.user = null;
     localStorage.removeItem(TOKEN_KEY);
     stopTimer();
+    stopCommunityPolling();
+    resetCommunityState(); // bump generation now so any in-flight fetch is voided
+    teardownSidePanel();
     renderHeader();
     renderLogin('Your session expired. Please sign in again.');
   }
@@ -177,6 +185,8 @@
         onClick: () => switchView('admin'),
       }, 'Admin console'));
     }
+    // Community entry lives in the persistent SIDE PANEL (per the Community
+    // PRD §1 and the Side Panel PRD), not the header — see renderSidePanel().
 
     const badge = document.getElementById('ascUserBadge');
     clear(badge);
@@ -190,10 +200,530 @@
   function switchView(view) {
     if (view === 'admin' && state.view !== 'admin') saveDraft();
     state.view = view;
+    // The header nav (Evaluate / Admin console) always lands back inside the
+    // Tasks side-panel destination — the Guide is a peer, not a sub-view of it.
+    // Leaving the Guide this way must also stop its scroll-spy observer.
+    if (state.panel === 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
+    state.panel = 'tasks';
     renderHeader();
+    renderSidePanel();
     if (view === 'eval') renderEvalView();
     else renderAdminView();
   }
+
+  // ─── Side panel destination router (Tasks / Guide; Community is external) ────
+  // Tasks re-enters the existing header view (eval or admin); Guide renders the
+  // in-portal Instruction Manual. Community never routes here — it opens a tab.
+  function setPanel(dest) {
+    if (dest === 'community') { openCommunity(); return; }
+    if (dest !== 'tasks' && dest !== 'guide') return;
+    if (dest === state.panel) return; // already here — no needless re-render/refetch
+    saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
+    // Leaving the Guide: stop the scroll-spy observer so it never watches the
+    // detached section nodes that setRoot() is about to replace.
+    if (dest !== 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
+    state.panel = dest;
+    renderSidePanel();
+    if (dest === 'guide') {
+      renderGuide();
+    } else if (state.view === 'admin') {
+      renderAdminView();
+    } else {
+      renderEvalView();
+    }
+    updateHeaderProgress();
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     SIDE PANEL — a persistent left rail (Tasks / Community / Guide) that lives
+     OUTSIDE #ascRoot, so the per-view setRoot() re-renders never wipe it. Built
+     once, then updated in place. Collapses to icons < 1100px; becomes a bottom
+     tab bar on mobile (all handled in CSS).
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  // Inline, token-palette icons (stroke = currentColor, no fills). 20×20 grid.
+  const RAIL_ICONS = {
+    tasks: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 4h9M7 10h9M7 16h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M3.2 4.2l1 1 1.4-1.7M3.2 10.2l1 1 1.4-1.7M3.2 16.2l1 1 1.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    community: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 15V6a1.5 1.5 0 011.5-1.5h9A1.5 1.5 0 0116 6v5.5A1.5 1.5 0 0114.5 13H7l-3 2.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.5 8.5h5M7.5 10.5h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    guide: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 4.5A1.5 1.5 0 015.5 3H10v14H5.5A1.5 1.5 0 014 15.5v-11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 3h4.5A1.5 1.5 0 0116 4.5v11a1.5 1.5 0 01-1.5 1.5H10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 7h1.5M6.5 9.5h1.5M12 7h1.5M12 9.5h1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  };
+
+  const RAIL_ITEMS = [
+    { dest: 'tasks',     label: 'Tasks' },
+    { dest: 'community', label: 'Community', external: true },
+    { dest: 'guide',     label: 'Guide' },
+  ];
+
+  let chromeMetricsBound = false;
+  let communityGen = 0; // session generation — see resetCommunityState()
+
+  // Deterministic specialty → accent-dot color (palette only). Purely cosmetic
+  // wayfinding; any specialty maps stably to one of the four console accents.
+  function specialtyDotColor(spec) {
+    const s = String(spec || '').toLowerCase();
+    const accents = ['dot-green', 'dot-orange', 'dot-pink', 'dot-lime'];
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) & 0xffff;
+    return accents[hash % accents.length];
+  }
+
+  // Best-effort human display name. The session user has no guaranteed `name`
+  // field (email is the identity), so fall back to a title-cased email local part.
+  function railDisplayName() {
+    const u = state.user || {};
+    const explicit = u.name || u.full_name || u.display_name;
+    if (explicit) return String(explicit);
+    const email = String(u.email || '');
+    const local = email.split('@')[0] || 'Clinician';
+    const pretty = local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+    return pretty ? ('Dr. ' + pretty) : 'Clinician';
+  }
+
+  function railItemActive(dest) { return dest === 'guide' ? state.panel === 'guide' : state.panel === 'tasks' && dest === 'tasks'; }
+
+  function renderSidePanel() {
+    if (!state.user) { teardownSidePanel(); return; }
+    document.body.classList.add('asc-has-rail');
+    // Mark the guide view so the print stylesheet can scope its aggressive
+    // header/padding overrides to the manual only (never to eval/admin prints).
+    document.body.classList.toggle('asc-view-guide', state.panel === 'guide');
+    syncChromeMetrics();
+
+    let rail = document.getElementById('ascRail');
+    if (!rail) {
+      rail = h('aside', { class: 'asc-rail', id: 'ascRail', 'aria-label': 'Portal navigation' });
+      // Insert as a body child so it is never inside the header or #ascRoot.
+      document.body.appendChild(rail);
+    }
+    // Bind the re-measure listeners exactly once for the app's lifetime, so
+    // repeated sign-in/out cycles never stack duplicates. Re-measure on resize,
+    // on full load, and once web fonts settle — the header's height changes when
+    // Instrument Sans / IBM Plex Mono swap in, and the rail is pinned to it.
+    if (!chromeMetricsBound) {
+      window.addEventListener('resize', syncChromeMetrics);
+      window.addEventListener('load', syncChromeMetrics);
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(syncChromeMetrics).catch(function () {});
+      }
+      chromeMetricsBound = true;
+    }
+    clear(rail);
+
+    const nav = h('nav', { class: 'asc-rail-nav', 'aria-label': 'Sections' });
+    RAIL_ITEMS.forEach((item) => {
+      const active = railItemActive(item.dest);
+      const children = [
+        h('span', { class: 'asc-rail-ico', 'aria-hidden': 'true', html: RAIL_ICONS[item.dest] }),
+        h('span', { class: 'asc-rail-label' }, item.label),
+      ];
+      if (item.dest === 'community') children.push(communityBadgeEl());
+      nav.appendChild(h('button', {
+        type: 'button',
+        class: 'asc-rail-item' + (active ? ' active' : ''),
+        'aria-current': active ? 'page' : null,
+        // aria-label carries the accessible name even in the icon-collapsed rail,
+        // where the visible label span is display:none (and thus off the a11y tree).
+        'aria-label': item.external ? item.label + ' (opens in a new tab)' : item.label,
+        title: item.external ? item.label + ' (opens in a new tab)' : item.label,
+        onClick: () => setPanel(item.dest),
+      }, children));
+    });
+
+    const specColor = specialtyDotColor(state.user.specialty);
+    const foot = h('div', { class: 'asc-rail-foot' },
+      h('div', { class: 'asc-rail-user' },
+        h('span', { class: 'asc-rail-name', title: railDisplayName() }, railDisplayName()),
+        state.user.specialty
+          ? h('span', { class: 'asc-rail-spec' },
+              h('span', { class: 'dot ' + specColor, 'aria-hidden': 'true' }),
+              h('span', {}, state.user.specialty))
+          : null),
+      h('button', { type: 'button', class: 'asc-rail-signout', onClick: logout }, 'Sign out'));
+
+    rail.appendChild(nav);
+    rail.appendChild(foot);
+  }
+
+  function teardownSidePanel() {
+    if (guideObserver) { guideObserver.disconnect(); guideObserver = null; }
+    const rail = document.getElementById('ascRail');
+    if (rail) rail.remove();
+    document.body.classList.remove('asc-has-rail', 'asc-view-guide');
+  }
+
+  // Pin the fixed rail directly beneath the (variable-height) sticky header by
+  // publishing the header height as a CSS var. Called on render + resize.
+  function syncChromeMetrics() {
+    const header = document.getElementById('ascHeader');
+    const hVisible = header && !header.hasAttribute('hidden');
+    const hh = hVisible ? header.offsetHeight : 0;
+    // Only publish a real measurement. If layout isn't ready (offsetHeight 0),
+    // clear the var so the CSS fallback (57px) applies instead of pinning the
+    // rail to 0 and tucking its first item under the header.
+    if (hh > 0) document.documentElement.style.setProperty('--asc-header-h', hh + 'px');
+    else document.documentElement.style.removeProperty('--asc-header-h');
+  }
+
+  /* ── Community integration (Community PRD boundary; all endpoints optional) ── */
+
+  function communityBadgeEl() {
+    const n = state.community.unread | 0;
+    const badge = h('span', {
+      class: 'asc-rail-badge', id: 'ascCommunityBadge',
+      hidden: n <= 0,
+      'aria-label': n > 0 ? (n + ' unread') : null,
+    },
+      h('span', { class: 'dot dot-lime', 'aria-hidden': 'true' }),
+      h('span', { class: 'asc-rail-badge-n' }, n > 99 ? '99+' : String(n)));
+    return badge;
+  }
+
+  function updateCommunityBadge() {
+    const rail = document.getElementById('ascRail');
+    if (!rail) return;
+    const old = document.getElementById('ascCommunityBadge');
+    if (old) old.replaceWith(communityBadgeEl());
+  }
+
+  // Open the Community in a NEW TAB. window.open is called synchronously inside
+  // the click gesture (never after an await) so it is never popup-blocked; a
+  // pre-minted handoff token, if we have one, rides along to skip a second login.
+  // noopener per the integration contract.
+  function openCommunity() {
+    const t = state.community.handoffToken;
+    // Handoff codes are SINGLE-USE server-side: consume it here so a second
+    // click inside the refresh window opens bare (same-origin session covers
+    // it) instead of sending an already-spent code, and pre-mint the next one.
+    state.community.handoffToken = null;
+    const url = t ? ('/community?t=' + encodeURIComponent(t)) : '/community';
+    window.open(url, '_blank', 'noopener');
+    refreshCommunityHandoff();
+  }
+
+  // Mint a short-lived signed handoff token (reuses the Asclepius session). Kept
+  // fresh by the poll loop so openCommunity() always has a recent one ready.
+  // Degrades silently: any failure just means the community tab opens bare and
+  // falls back to its own session cookie.
+  async function refreshCommunityHandoff() {
+    if (state.community.unavailable) return;
+    const gen = communityGen;
+    try {
+      const res = await fetch('/community/handoff', {
+        method: 'POST',
+        headers: state.token ? { 'Authorization': 'Bearer ' + state.token } : {},
+        credentials: 'include',
+      });
+      if (gen !== communityGen) return; // session changed mid-flight — drop result
+      if (res.status === 404) { state.community.unavailable = true; return; }
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      if (gen !== communityGen) return; // re-check after the second await
+      if (data && data.token) state.community.handoffToken = data.token;
+    } catch (_) { /* network error — keep any existing token, open bare otherwise */ }
+  }
+
+  async function refreshCommunityUnread() {
+    if (state.community.unreadUnavailable) return;
+    const gen = communityGen;
+    try {
+      const res = await fetch('/community/unread', {
+        headers: state.token ? { 'Authorization': 'Bearer ' + state.token } : {},
+        credentials: 'include',
+      });
+      if (gen !== communityGen) return; // session changed mid-flight — drop result
+      // 404 → the unread endpoint isn't deployed; back off permanently for this
+      // session (mirrors handoff) so we don't hammer a missing route every 60s.
+      if (res.status === 404) { state.community.unreadUnavailable = true; return; }
+      if (!res.ok) return; // transient (500/timeout) → leave badge as-is, retry next tick
+      const data = await res.json().catch(() => null);
+      if (gen !== communityGen) return; // re-check after the second await
+      const total = data && typeof data.total === 'number' ? data.total : 0;
+      if (total !== state.community.unread) {
+        state.community.unread = Math.max(0, total | 0);
+        updateCommunityBadge();
+      }
+    } catch (_) { /* degrade silently — never surface a community error in the rail */ }
+  }
+
+  function pollCommunityOnce() {
+    if (!state.community.unreadUnavailable) refreshCommunityUnread();
+    if (!state.community.unavailable) refreshCommunityHandoff();
+    // Both endpoints confirmed absent (community backend unbuilt) → stop polling
+    // entirely; there is nothing left to fetch this session.
+    if (state.community.unreadUnavailable && state.community.unavailable) stopCommunityPolling();
+  }
+
+  // Poll every 60s while the portal is open (integration contract §3).
+  function startCommunityPolling() {
+    stopCommunityPolling();
+    pollCommunityOnce();
+    state.community.pollTimer = setInterval(pollCommunityOnce, 60000);
+  }
+  function stopCommunityPolling() {
+    if (state.community.pollTimer) { clearInterval(state.community.pollTimer); state.community.pollTimer = null; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     INSTRUCTION MANUAL (Guide) — renders window.ASC_MANUAL (structured data)
+     through this one component. Two columns: a sticky scroll-spy TOC + the
+     sections. Three-line sections, good/weak examples, collapsed detail,
+     per-section anchors, a reading-time estimate, and a print stylesheet.
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  let guideObserver = null;
+
+  function renderGuide() {
+    const manual = window.ASC_MANUAL;
+    if (!manual || !Array.isArray(manual.sections)) {
+      setRoot(h('div', { class: 'asc-wrap' },
+        h('div', { class: 'asc-card asc-card-pad' },
+          h('div', { class: 'asc-inline-error' }, 'The instruction manual failed to load.'))));
+      return;
+    }
+    if (guideObserver) { guideObserver.disconnect(); guideObserver = null; }
+
+    const sections = manual.sections;
+
+    // Sticky TOC (desktop) — one link per section, scroll-spy highlights.
+    const tocList = h('ul', { class: 'asc-guide-toc-list' });
+    sections.forEach((sec) => {
+      tocList.appendChild(h('li', {},
+        h('a', {
+          class: 'asc-guide-toc-link', href: '#' + sec.id, dataset: { tocId: sec.id },
+          onClick: () => { setGuideHash(sec.id); },
+        },
+          h('span', { class: 'asc-guide-toc-num' }, sec.num),
+          h('span', { class: 'asc-guide-toc-txt' }, sec.title))));
+    });
+    const toc = h('nav', { class: 'asc-guide-toc', 'aria-label': 'Contents' },
+      h('div', { class: 'chrome asc-guide-toc-head' }, 'Contents'),
+      tocList);
+
+    // Mobile TOC — a dropdown that jumps to a section.
+    const mobileSelect = h('select', {
+      class: 'asc-guide-toc-select', 'aria-label': 'Jump to section',
+      onChange: (e) => { const id = e.target.value; if (id) scrollToSection(id); },
+    }, h('option', { value: '' }, 'Jump to a section…'),
+       ...sections.map((s) => h('option', { value: s.id }, s.num + ' · ' + s.title)));
+
+    // Content column: intro header + every section.
+    const content = h('div', { class: 'asc-guide-content' });
+    content.appendChild(h('header', { class: 'asc-guide-intro' },
+      h('div', { class: 'chrome chrome-strong' }, 'INSTRUCTION MANUAL'),
+      h('h1', { class: 'asc-guide-h1' }, manual.title),
+      manual.subtitle ? h('p', { class: 'asc-guide-sub' }, manual.subtitle) : null,
+      h('div', { class: 'asc-guide-meta' },
+        h('span', { class: 'chip' },
+          h('span', { class: 'dot dot-lime', 'aria-hidden': 'true' }),
+          (manual.readingTimeMin || 5) + ' min read'),
+        h('span', { class: 'asc-guide-meta-hint chrome' }, 'V3 · V4 tasks')),
+      mobileSelect));
+
+    sections.forEach((sec) => content.appendChild(guideSection(sec)));
+
+    const layout = h('div', { class: 'asc-guide' }, toc, content);
+    setRoot(layout);
+
+    // Scroll-spy: highlight the section nearest the top of the viewport.
+    setupGuideScrollSpy(sections);
+
+    // Deep-link: if the URL already targets a section, jump to it after mount.
+    const hash = (location.hash || '').replace('#', '');
+    if (hash && sections.some((s) => s.id === hash)) {
+      requestAnimationFrame(() => scrollToSection(hash));
+    } else {
+      const main = document.getElementById('ascRoot');
+      if (main) main.scrollIntoView({ block: 'start' });
+    }
+  }
+
+  function guideSection(sec) {
+    const card = h('section', { class: 'asc-card asc-guide-section', id: sec.id, tabindex: '-1' });
+
+    // Chrome micro-label + anchored title.
+    card.appendChild(h('div', { class: 'asc-guide-sec-head' },
+      h('span', { class: 'chrome asc-guide-sec-chrome' }, sec.num + ' · ' + (sec.chromeLabel || sec.title)),
+      h('a', {
+        class: 'asc-guide-anchor', href: '#' + sec.id,
+        'aria-label': 'Link to “' + sec.title + '”', title: 'Copy link to this section',
+        onClick: () => { setGuideHash(sec.id); },
+      }, '#')));
+    card.appendChild(h('h2', { class: 'asc-guide-sec-title' }, sec.title));
+
+    // Body: the three-line form, or a list / note where the section calls for it.
+    if (Array.isArray(sec.list)) {
+      const ul = h('ul', { class: 'asc-guide-checklist' });
+      sec.list.forEach((item) => ul.appendChild(h('li', {},
+        h('span', { class: 'asc-guide-check', 'aria-hidden': 'true' }, '✓'),
+        h('span', {}, item))));
+      card.appendChild(ul);
+    } else if (sec.note) {
+      card.appendChild(h('blockquote', { class: 'asc-guide-note' }, guideNoteNodes(sec.note)));
+    } else {
+      card.appendChild(guideThreeLines(sec));
+    }
+
+    if (sec.wireframe) { const fig = guideWireframe(sec.wireframe); if (fig) card.appendChild(fig); }
+
+    if (sec.example) card.appendChild(guideExample(sec.example));
+
+    (sec.callouts || []).forEach((c) => card.appendChild(guideCallout(c)));
+
+    if (sec.detail) card.appendChild(guideDetail(sec.detail));
+
+    return card;
+  }
+
+  function guideThreeLines(sec) {
+    const wrap = h('div', { class: 'asc-guide-lines' });
+    const line = (tag, cls, text) => h('div', { class: 'asc-guide-line ' + cls },
+      h('span', { class: 'chrome asc-guide-line-tag' }, tag),
+      h('span', { class: 'asc-guide-line-txt' }, text));
+    if (sec.what) wrap.appendChild(line('WHAT', 'is-what', sec.what));
+    if (sec.why) wrap.appendChild(line('WHY', 'is-why', sec.why));
+    if (sec.how) wrap.appendChild(line('HOW', 'is-how', sec.how));
+    return wrap;
+  }
+
+  function guideExample(ex) {
+    return h('div', { class: 'asc-guide-eg' },
+      h('div', { class: 'asc-guide-eg-col asc-guide-eg-good' },
+        h('div', { class: 'asc-guide-eg-head' },
+          h('span', { class: 'dot dot-green', 'aria-hidden': 'true' }),
+          h('span', { class: 'chrome' }, 'STRONG')),
+        h('p', { class: 'asc-guide-eg-txt' }, ex.good)),
+      h('div', { class: 'asc-guide-eg-col asc-guide-eg-weak' },
+        h('div', { class: 'asc-guide-eg-head' },
+          h('span', { class: 'dot dot-pink', 'aria-hidden': 'true' }),
+          h('span', { class: 'chrome' }, 'WEAK')),
+        h('p', { class: 'asc-guide-eg-txt' }, ex.weak)));
+  }
+
+  function guideCallout(c) {
+    const isMistake = c.kind === 'mistake';
+    return h('div', { class: 'asc-guide-callout ' + (isMistake ? 'is-mistake' : 'is-why') },
+      h('span', { class: 'chrome asc-guide-callout-tag' }, isMistake ? 'COMMON MISTAKE' : 'WHY THIS MATTERS'),
+      h('span', { class: 'asc-guide-callout-txt' }, c.text));
+  }
+
+  function guideDetail(detail) {
+    const paras = Array.isArray(detail) ? detail : [detail];
+    const d = h('details', { class: 'asc-guide-detail' },
+      h('summary', { class: 'asc-guide-detail-sum' }, 'Show detail'));
+    paras.forEach((p) => d.appendChild(h('p', { class: 'asc-guide-detail-p' }, p)));
+    return d;
+  }
+
+  // Linkify a note: bold #channel tokens, mailto: for email addresses.
+  function guideNoteNodes(text) {
+    const nodes = [];
+    const re = /(#[a-z0-9-]+|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})/gi;
+    let last = 0, m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) nodes.push(text.slice(last, m.index));
+      const tok = m[0];
+      if (tok[0] === '#') nodes.push(h('strong', { class: 'asc-guide-channel' }, tok));
+      else nodes.push(h('a', { class: 'asc-guide-link', href: 'mailto:' + tok }, tok));
+      last = m.index + tok.length;
+    }
+    if (last < text.length) nodes.push(text.slice(last));
+    return nodes;
+  }
+
+  // Update the URL hash without a scroll jump (native anchor handles scrolling).
+  function setGuideHash(id) {
+    try { history.replaceState(null, '', '#' + id); } catch (_) { /* ignore */ }
+  }
+
+  function prefersReducedMotion() {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; }
+  }
+
+  function scrollToSection(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    // Honor reduced-motion for programmatic scroll — the JS smooth option ignores
+    // the CSS scroll-behavior override, so gate it explicitly.
+    el.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    setGuideHash(id);
+    // Move focus for keyboard/AT users without yanking the scroll position.
+    try { el.focus({ preventScroll: true }); } catch (_) { el.focus(); }
+  }
+
+  function setupGuideScrollSpy(sections) {
+    if (!('IntersectionObserver' in window)) return;
+    const setActive = (id) => {
+      document.querySelectorAll('.asc-guide-toc-link').forEach((a) => {
+        a.classList.toggle('active', a.dataset.tocId === id);
+        if (a.dataset.tocId === id) a.setAttribute('aria-current', 'true');
+        else a.removeAttribute('aria-current');
+      });
+    };
+    guideObserver = new IntersectionObserver((entries) => {
+      // Choose the entry closest to the top band that is intersecting.
+      const visible = entries.filter((e) => e.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (visible.length) setActive(visible[0].target.id);
+    }, { rootMargin: '-38% 0px -55% 0px', threshold: 0 });
+    sections.forEach((s) => { const el = document.getElementById(s.id); if (el) guideObserver.observe(el); });
+    if (sections.length) setActive(sections[0].id);
+  }
+
+  // ── Labeled token-palette SVG wireframes (monochrome ink; accent classes only
+  //    where the green/pink semantics carry meaning). Recognizable, not literal. ──
+  function guideWireframe(kind) {
+    const svg = GUIDE_WIREFRAMES[kind];
+    if (!svg) return null;
+    return h('figure', { class: 'asc-guide-fig', 'aria-hidden': 'true' },
+      h('div', { class: 'asc-guide-fig-inner', html: svg }));
+  }
+
+  const GUIDE_WIREFRAMES = {
+    casePanel:
+      '<svg viewBox="0 0 300 104" role="img">' +
+      '<g class="wl">' +
+      '<rect x="8" y="10" width="46" height="16" rx="4"/><rect x="58" y="10" width="40" height="16" rx="4" class="wf"/>' +
+      '<rect x="102" y="10" width="42" height="16" rx="4"/><rect x="148" y="10" width="40" height="16" rx="4"/><rect x="192" y="10" width="44" height="16" rx="4"/>' +
+      '<rect x="8" y="36" width="284" height="60" rx="6" class="wbox"/>' +
+      '<polyline points="24,80 60,66 96,72 132,50 168,58 204,40 240,46 276,30" class="wtrend"/>' +
+      '<circle cx="132" cy="50" r="3.5" class="wdot"/></g></svg>',
+    compare:
+      '<svg viewBox="0 0 300 104" role="img"><g class="wl">' +
+      '<rect x="8" y="10" width="134" height="84" rx="6" class="wbox"/>' +
+      '<rect x="158" y="10" width="134" height="84" rx="6" class="wbox"/>' +
+      '<text x="20" y="28" class="wtx">A</text><text x="170" y="28" class="wtx">B</text>' +
+      '<rect x="20" y="40" width="110" height="7" rx="3.5" class="wln"/>' +
+      '<rect x="20" y="54" width="90" height="7" rx="3.5" class="wln wmark"/>' +
+      '<rect x="20" y="68" width="100" height="7" rx="3.5" class="wln"/>' +
+      '<rect x="170" y="40" width="110" height="7" rx="3.5" class="wln"/>' +
+      '<rect x="170" y="54" width="90" height="7" rx="3.5" class="wln wmark2"/>' +
+      '<rect x="170" y="68" width="100" height="7" rx="3.5" class="wln"/></g></svg>',
+    verdict:
+      '<svg viewBox="0 0 300 76" role="img"><g class="wl">' +
+      '<rect x="8" y="20" width="88" height="36" rx="8" class="wbox wgreenline"/>' +
+      '<text x="52" y="43" class="wtc">A is better</text>' +
+      '<rect x="106" y="20" width="88" height="36" rx="8" class="wbox"/>' +
+      '<text x="150" y="43" class="wtc">B is better</text>' +
+      '<rect x="204" y="20" width="88" height="36" rx="8" class="wbox wpinkline"/>' +
+      '<text x="248" y="43" class="wtc">Both inadequate</text></g></svg>',
+    reasoning:
+      '<svg viewBox="0 0 300 104" role="img"><g class="wl">' +
+      '<circle cx="20" cy="20" r="8" class="wnum"/><text x="20" y="24" class="wtn">1</text><rect x="38" y="14" width="240" height="10" rx="5" class="wln"/>' +
+      '<circle cx="20" cy="46" r="8" class="wnum"/><text x="20" y="50" class="wtn">2</text><rect x="38" y="40" width="220" height="10" rx="5" class="wln"/>' +
+      '<circle cx="20" cy="72" r="8" class="wnum wpinkfill"/><text x="20" y="76" class="wtn">3</text><rect x="38" y="66" width="128" height="10" rx="5" class="wln wmark2"/>' +
+      '<text x="292" y="75" class="wflag">first break</text></g></svg>',
+    rubric:
+      '<svg viewBox="0 0 300 104" role="img"><g class="wl">' +
+      '<rect x="8" y="12" width="284" height="26" rx="6" class="wbox"/>' +
+      '<rect x="18" y="21" width="180" height="8" rx="4" class="wln"/>' +
+      '<rect x="212" y="18" width="70" height="14" rx="7" class="wpill wgreenfill"/>' +
+      '<rect x="8" y="44" width="284" height="26" rx="6" class="wbox"/>' +
+      '<rect x="18" y="53" width="150" height="8" rx="4" class="wln"/>' +
+      '<rect x="212" y="50" width="70" height="14" rx="7" class="wpill"/>' +
+      '<rect x="8" y="76" width="284" height="26" rx="6" class="wbox wpinkline"/>' +
+      '<rect x="18" y="85" width="160" height="8" rx="4" class="wln wmark2"/>' +
+      '<rect x="204" y="82" width="78" height="14" rx="7" class="wpill wpinkfill2"/></g></svg>',
+  };
 
   // ─── Auth / bootstrap ────────────────────────────────────────────────────--
   async function boot() {
@@ -267,11 +797,29 @@
   }
 
   function enterApp() {
-    const isAdmin = state.user.role === 'admin' || state.user.role === 'qa_reviewer';
     state.view = 'eval';
+    state.panel = 'tasks';
+    // Fresh community state for this session. On a shared device, a prior user's
+    // unread count or (more importantly) their signed handoff token must never
+    // bleed into the next login before the first poll overwrites it.
+    resetCommunityState();
     renderHeader();
-    if (isAdmin) renderEvalView();
-    else renderEvalView();
+    renderSidePanel();
+    startCommunityPolling();
+    renderEvalView();
+  }
+
+  // Bumping the generation invalidates any community fetch that is still in
+  // flight: its late-resolving .then() sees a newer generation and drops its
+  // result, so a hung request from a previous user can never write that user's
+  // unread count — or, critically, their signed handoff token — into this
+  // session's state on a shared device.
+  function resetCommunityState() {
+    communityGen++;
+    state.community.unread = 0;
+    state.community.handoffToken = null;
+    state.community.unavailable = false;       // handoff endpoint
+    state.community.unreadUnavailable = false; // unread endpoint
   }
 
   function logout() {
@@ -283,12 +831,19 @@
     // would re-exchange straight back in, trapping the user on that identity).
     try { localStorage.setItem(SUPPRESS_SSO_KEY, '1'); } catch (_) { /* ignore */ }
     stopTimer();
+    stopCommunityPolling();
+    resetCommunityState(); // bump generation now so any in-flight fetch is voided
+    teardownSidePanel();
     renderHeader();
     renderLogin();
   }
 
   // ─── Login screen ────────────────────────────────────────────────────────--
   function renderLogin(errorMsg) {
+    // Defensive: the login screen is never behind the portal chrome. Every caller
+    // already tears the rail down, but guarantee it here so a stray path can't
+    // leave an orphaned rail over the sign-in form.
+    teardownSidePanel();
     document.getElementById('ascHeader').setAttribute('hidden', '');
     // Accepts an email OR a username/id (e.g. the `mockadmin` sandbox login), so
     // it's a plain text field, not type=email (which would block a username).
@@ -1272,8 +1827,8 @@
     const header = document.getElementById('ascHeader');
     if (!header) return;
     let host = document.getElementById('ascHeaderProgress');
-    const active = !!(state.user && state.view === 'eval' && state.portalChosen
-      && state.task && state.draft && state.draft.stage && isV3());
+    const active = !!(state.user && state.view === 'eval' && state.panel === 'tasks'
+      && state.portalChosen && state.task && state.draft && state.draft.stage && isV3());
     if (!active) { if (host) host.remove(); return; }
     if (!host) {
       const fill = h('div', { class: 'asc-hp-fill', id: 'ascHeaderProgressFill' });
@@ -7157,6 +7712,19 @@
   // Persist draft on tab close / hide.
   window.addEventListener('beforeunload', saveDraft);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveDraft(); });
+
+  // Expand every manual disclosure for printing, then restore — so a printed /
+  // PDF'd guide carries its full depth, not just the three-line summaries.
+  window.addEventListener('beforeprint', () => {
+    document.querySelectorAll('.asc-guide-detail').forEach((d) => {
+      if (!d.open) { d.open = true; d.dataset.printAutoOpened = '1'; }
+    });
+  });
+  window.addEventListener('afterprint', () => {
+    document.querySelectorAll('.asc-guide-detail[data-print-auto-opened]').forEach((d) => {
+      d.open = false; delete d.dataset.printAutoOpened;
+    });
+  });
 
   // ─── Go ────────────────────────────────────────────────────────────────────
   boot();

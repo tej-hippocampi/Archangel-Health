@@ -23,9 +23,9 @@ const TEAM = [
 ];
 
 const CONTACTS = [
-  { tag: "General", subject: "Hello — Archangel Health" },
-  { tag: "Partnerships", subject: "Partnership — Archangel Health" },
-  { tag: "Press", subject: "Press — Archangel Health" },
+  { tag: "General", subject: "Hello · Archangel Health" },
+  { tag: "Partnerships", subject: "Partnership · Archangel Health" },
+  { tag: "Press", subject: "Press · Archangel Health" },
 ];
 
 export function MissionPage({ actions }: { actions: ShellActions }) {
