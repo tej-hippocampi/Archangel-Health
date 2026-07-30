@@ -23,6 +23,11 @@
       border-bottom: 1px solid var(--hairline); padding: var(--sp-3) var(--sp-5);
       display: flex; align-items: center; gap: var(--sp-4); }
     .v5-header h1 { font-size: var(--t-h3); margin: 0; font-weight: 600; }
+    .v5-back { text-decoration: none; color: var(--ink-soft); font-size: 1.1rem;
+      border: 1px solid var(--hairline); border-radius: var(--r-chip);
+      width: 28px; height: 28px; display: inline-flex; align-items: center;
+      justify-content: center; flex: none; }
+    .v5-back:hover { border-color: var(--hairline-strong); color: var(--ink); }
     .v5-progress { flex: 1; height: 4px; background: var(--card-in); border-radius: 999px; overflow: hidden; }
     .v5-progress > i { display: block; height: 100%; width: 0; background: var(--green); transition: width .3s; }
     .v5-layout { display: grid; grid-template-columns: 340px 1fr; gap: var(--sp-5);
@@ -95,6 +100,7 @@
 </head>
 <body class="v5-body">
   <div class="v5-header">
+    <a class="v5-back" href="/asclepius" title="Back to the evaluation portal">←</a>
     <span class="v5-chrome">Asclepius · V5</span>
     <h1>Trajectory Annotation</h1>
     <div class="v5-progress" aria-label="steps reviewed"><i id="v5Bar"></i></div>

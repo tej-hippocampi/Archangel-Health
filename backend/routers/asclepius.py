@@ -63,6 +63,7 @@ from asclepius.constants import (
     PORTAL_VERSIONS,
     SINGLE_TURN_PORTAL_VERSIONS,
     DEFAULT_PORTAL_VERSION,
+    ENV_PORTAL_VERSION,
     PREFERENCE_VARIANTS,
     REAL_CASE_PORTAL_VERSION,
     SYNTHETIC_PORTAL_VERSIONS,
@@ -1340,8 +1341,17 @@ def _derive_portal_version(task: Dict[str, Any], claimed: Optional[str]) -> str:
             status_code=400,
             detail="portal_version 'v4' is reserved for real-case tasks; this task is synthetic.",
         )
-    # Single-turn stamping stays within v1–v4. V5 (the agentic tier) is never
-    # stamped onto a single-turn submission — it has its own /environments surface.
+    # Single-turn stamping stays within v1–v4. V5 (the agentic tier) is a different
+    # KIND of task with its own /environments surface, queue, and env_runs table — it
+    # is never stamped onto a single-turn submission. An explicit v5 claim here is a
+    # client bug, so it is REJECTED rather than silently relabeled: quietly stamping
+    # it v3 would attribute agentic work to V3 and corrupt the buyer's provenance.
+    if claimed == ENV_PORTAL_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail=("portal_version 'v5' is the agentic environments tier; it is not a "
+                    "single-turn evaluation flow. Use /api/asclepius/environments/*."),
+        )
     pv = normalize_portal_version(claimed)
     return pv if pv in SINGLE_TURN_PORTAL_VERSIONS else DEFAULT_PORTAL_VERSION
 
@@ -2226,8 +2236,17 @@ async def create_export(
     body: ExportRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
 ):
     store = _store()
-    if body.portal_version is not None and body.portal_version not in PORTAL_VERSIONS:
-        raise HTTPException(status_code=400, detail="Invalid portal_version")
+    # SINGLE_TURN only: this builds a V1–V4 preference/ideal-answer bundle. A V5
+    # (agentic trajectory) export is a different artifact with its own endpoint,
+    # /api/asclepius/environments/export — accepting 'v5' here would silently
+    # produce an empty V1–V4 bundle labeled as the agentic tier.
+    if body.portal_version is not None and body.portal_version not in SINGLE_TURN_PORTAL_VERSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=("Invalid portal_version. V5 (agentic trajectories) exports via "
+                    "/api/asclepius/environments/export?mode=raw|graded|expert."
+                    if body.portal_version == ENV_PORTAL_VERSION else "Invalid portal_version"),
+        )
     if body.modality is not None and body.modality not in asc_cases.MODALITIES:
         raise HTTPException(status_code=400, detail="Invalid modality")
     if body.case_source is not None and body.case_source not in asc_cases.CASE_SOURCES:

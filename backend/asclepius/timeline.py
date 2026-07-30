@@ -275,7 +275,8 @@ def _assign_offset(
 
 
 def normalize_timeline(
-    fragments: Dict[str, Any], *, index_event: Optional[str] = None
+    fragments: Dict[str, Any], *, index_event: Optional[str] = None,
+    vitals_at: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Convert an assembled case's shifted calendar timeline to relative integer
     day offsets (PRD §7). Returns ``(case_fragments, report)``.
@@ -364,24 +365,41 @@ def normalize_timeline(
     if meds:
         case["medications"] = meds
 
-    # Free-text rewriting (notes + any string vitals values).
+    # Structured note/study timing → relative offset. This runs UNCONDITIONALLY,
+    # outside the ``index is not None`` guard below: ``_assign_offset`` always DELETES
+    # the raw calendar key, and ``ClinicalNote``/``Study`` are ``extra="forbid"`` — so
+    # leaving a raw ``collected_at`` behind when no anchor could be established would
+    # make ``ClinicalCase(**case)`` raise and break ingestion outright.
+    notes = [
+        _assign_offset(dict(n), index, report,
+                       date_keys=("collected_at", "authored_on", "recorded_at"))
+        for n in case.get("notes") or []
+    ]
+    if notes:
+        case["notes"] = notes
+    studies = [
+        _assign_offset(dict(s), index, report,
+                       date_keys=("collected_at", "effective_at", "recorded_at"))
+        for s in case.get("studies") or []
+    ]
+    if studies:
+        case["studies"] = studies
+
+    # Free-text rewriting (notes, study findings, and any string vitals values).
     if index is not None:
-        notes = []
+        rewritten = []
         for n in case.get("notes") or []:
             n = dict(n)
             new_text, k, unres = rewrite_note_dates(n.get("text") or "", index)
             n["text"] = new_text
-            # Structured note timing → relative offset (the narrative temporal
-            # cutoff for V5). The raw date is destroyed and never reaches the export.
-            _assign_offset(n, index, report, date_keys=("collected_at", "authored_on", "recorded_at"))
             report["note_dates_rewritten"] += k
             report["unresolved"].extend(unres)
-            notes.append(n)
-        if notes:
-            case["notes"] = notes
-        # Studies carry the same structured timing (a post-decision path/molecular
-        # report is where the outcome is written) + free-text findings to rewrite.
-        studies = []
+            rewritten.append(n)
+        if rewritten:
+            case["notes"] = rewritten
+        # A post-decision path/molecular report is where the outcome is written, so
+        # its free text is rewritten on the same terms as a note's.
+        rewritten_studies = []
         for s in case.get("studies") or []:
             s = dict(s)
             for field in ("findings", "impression"):
@@ -390,10 +408,9 @@ def normalize_timeline(
                     s[field] = nv
                     report["note_dates_rewritten"] += c
                     report["unresolved"].extend(unres)
-            studies.append(_assign_offset(s, index, report,
-                                         date_keys=("collected_at", "effective_at", "recorded_at")))
-        if studies:
-            case["studies"] = studies
+            rewritten_studies.append(s)
+        if rewritten_studies:
+            case["studies"] = rewritten_studies
         vitals = case.get("vitals") or {}
         if vitals:
             vit = {}
@@ -406,15 +423,17 @@ def normalize_timeline(
                 else:
                     vit[k] = v
             # Vitals are one flat dict, so they carry ONE timing marker for the set,
-            # sourced from the latest vital-sign date the adapter saw (``_vitals_at``).
-            # V5 gates the whole set on it; the key is stripped before any agent read.
-            vitals_at = case.pop("_vitals_at", None)
-            if vitals_at is not None and not isinstance(vit.get("collected_offset_days"), int):
-                d = parse_datetime(vitals_at)
+            # sourced from the latest vital-sign date the adapter saw. Passed in
+            # explicitly (like ``index_event``) because the caller strips underscore-
+            # prefixed fragment metadata before calling us. V5 gates the whole set on
+            # it; the key is stripped before any agent read.
+            marker = vitals_at if vitals_at is not None else case.pop("_vitals_at", None)
+            if marker is not None and not isinstance(vit.get("collected_offset_days"), int):
+                d = parse_datetime(marker)
                 if d is not None:
                     vit["collected_offset_days"] = (d - index).days
                 else:
-                    report["unresolved"].append(_mask(str(vitals_at)))
+                    report["unresolved"].append(_mask(str(marker)))
             case["vitals"] = vit
         else:
             case.pop("_vitals_at", None)
