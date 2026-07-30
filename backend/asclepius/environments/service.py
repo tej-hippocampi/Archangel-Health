@@ -196,6 +196,25 @@ def save_annotation(store, run_id: str, annotation: Dict[str, Any],
             "n_annotators": len({a.get("annotator_ref") for a in annotations})}
 
 
+# ─── Reward-integrity gate (anti-reward-hacking, PRD §7.5 guardrail) ──────────
+def certify_environment(store, task_id: str) -> Dict[str, Any]:
+    """Run the hackability probe against a compiled environment and record the
+    verdict. An environment whose reward a padded-but-hollow trajectory can match is
+    NOT shippable — this is the per-environment proof that the reward tracks
+    substance rather than verbosity, and it is what a buyer evaluates."""
+    from .verify import probe_hackability
+
+    env_row = store.get_environment(task_id)
+    if not env_row:
+        raise ValueError(f"no environment for task_id {task_id!r}")
+    compiled = env_row.get("compiled") or {}
+    probe = probe_hackability(compiled)
+    compiled = dict(compiled)
+    compiled["hackability_probe"] = probe
+    store.update_env_run(env_row["run_id"], compiled=compiled)
+    return {"task_id": task_id, **probe}
+
+
 # ─── Reward model (PRD §7.5) ──────────────────────────────────────────────────
 def train_reward_model(store, *, specialty: Optional[str] = None) -> Dict[str, Any]:
     from .reward_model import train_prm
@@ -225,8 +244,32 @@ def export(store, *, mode: str = "raw", specialty: Optional[str] = None,
         records.append(rec)
 
     kappa_stats = _double_annotation_kappa(store, specialty=specialty)
+    kappa_stats["reward_integrity"] = _reward_integrity_summary(store, specialty=specialty)
     return export_bundle(records, mode=mode, specialty=specialty, watermark=watermark,
                          kappa_stats=kappa_stats)
+
+
+def _reward_integrity_summary(store, *, specialty: Optional[str] = None) -> Dict[str, Any]:
+    """Aggregate the per-environment hackability verdicts for the manifest, so a buyer
+    can see that the shipped rewards were proven non-gameable (and exactly how many
+    were tested)."""
+    envs = store.list_env_runs(specialty=specialty, mode="generated", limit=10000)
+    probed = [(e.get("compiled") or {}).get("hackability_probe") for e in envs]
+    probed = [p for p in probed if isinstance(p, dict)]
+    if not probed:
+        return {"tested": 0, "shippable": None,
+                "note": "no environments certified yet (POST /environments/{task_id}/certify)"}
+    gameable = [p for p in probed if p.get("gameable")]
+    margins = [p.get("margin") for p in probed if isinstance(p.get("margin"), (int, float))]
+    return {
+        "tested": len(probed),
+        "n_environments": len(envs),
+        "gameable": len(gameable),
+        "shippable": not gameable,
+        "min_margin": round(min(margins), 3) if margins else None,
+        "mean_margin": round(sum(margins) / len(margins), 3) if margins else None,
+        "method": "padded-hollow vs terse-correct trajectory through the real verifier",
+    }
 
 
 def _double_annotation_kappa(store, *, specialty: Optional[str] = None) -> Dict[str, Any]:
@@ -326,7 +369,9 @@ class _ReplayEnv:
     def __init__(self, compiled: Dict[str, Any], trajectory: List[Dict[str, Any]]):
         self.compiled = compiled
         self.trajectory = trajectory
-        self.step_rewards = [0.0] * len(trajectory)
+        # Re-scoring a STORED trajectory: no live shaping rewards exist, so the keyed
+        # dense list starts empty and verify attaches only the terminal reward.
+        self.step_rewards: List[Dict[str, Any]] = []
         self.specialty = compiled.get("specialty") or "general"
         self.task_type = compiled.get("task_template") or "diagnostic_workup"
         self.emitted = self._rebuild_emitted(trajectory)

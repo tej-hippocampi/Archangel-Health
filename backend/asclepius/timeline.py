@@ -246,6 +246,34 @@ def _collect_structured_dates(fragments: Dict[str, Any]) -> List[date]:
     return found
 
 
+def _assign_offset(
+    item: Dict[str, Any], index: Optional[date], report: Dict[str, Any], *, date_keys: Tuple[str, ...]
+) -> Dict[str, Any]:
+    """Convert an item's raw calendar date (any of ``date_keys``) into a relative
+    ``collected_offset_days`` and DELETE the raw date. Shared by notes, studies,
+    problems, and medications so every chart item gets its recording time on the
+    same axis as ``lab_panels`` — which is what lets the V5 environment enforce one
+    temporal cutoff across the whole chart (Clinical RL Environments PRD §8.4.2).
+
+    An already-relative integer offset is left untouched (synthetic-style input).
+    An unparseable date is recorded as MASKED-unresolved and the offset is left
+    ``None`` (unknown), which the environment treats as fail-closed on real cases.
+    The resolved calendar date never survives this function."""
+    raw = None
+    for k in date_keys:
+        v = item.pop(k, None)
+        if raw is None and v is not None:
+            raw = v
+    if isinstance(item.get("collected_offset_days"), int):
+        return item
+    d = parse_datetime(raw)
+    if d is not None and index is not None:
+        item["collected_offset_days"] = (d - index).days
+    elif raw is not None:
+        report["unresolved"].append(_mask(str(raw)))
+    return item
+
+
 def normalize_timeline(
     fragments: Dict[str, Any], *, index_event: Optional[str] = None
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -298,24 +326,43 @@ def normalize_timeline(
                     raise TimelineError("dated lab panels present but no index anchor could be established")
                 lp["collected_offset_days"] = (d - index).days
                 report["panels_converted"] += 1
+            elif raw is not None or off is not None:
+                # A date WAS supplied but could not be parsed. Do NOT invent day 0 —
+                # that fails OPEN (a post-decision panel would read as pre-decision
+                # and leak the answer downstream). Leave the offset UNKNOWN (absent)
+                # so the V5 temporal gate withholds it fail-closed on real cases.
+                report["unresolved"].append(_mask(str(raw if raw is not None else off)))
             else:
-                if raw is not None or off is not None:
-                    report["unresolved"].append(_mask(str(raw if raw is not None else off)))
+                # No timing supplied at all — the synthetic/authored convention is
+                # "everything is at the index", so day 0 (unchanged behavior).
                 lp["collected_offset_days"] = 0
         new_panels.append(lp)
     case["lab_panels"] = new_panels
 
     # problem_list.since: a full date generalizes to the year (a bare year is
-    # Safe-Harbor-fine and clinically useful: "since 2019").
+    # Safe-Harbor-fine and clinically useful: "since 2019"). Separately, the
+    # chart-RECORDING time becomes a relative offset: a problem recorded AFTER the
+    # decision point is the answer itself, so V5 must be able to hold it out.
     probs = []
     for p in case.get("problem_list") or []:
         p = dict(p)
         d = parse_datetime(p.get("since"))
         if d is not None:
             p["since"] = str(d.year)
-        probs.append(p)
+        probs.append(_assign_offset(p, index, report,
+                                    date_keys=("recorded_at", "recorded_date", "collected_at")))
     if probs:
         case["problem_list"] = probs
+
+    # medications: the ORDER time becomes a relative offset. A drug started after
+    # the decision point IS the diagnosis (tolvaptan → SIADH, rasburicase → tumor
+    # lysis), so it must be gateable by the environment.
+    meds = []
+    for m in case.get("medications") or []:
+        meds.append(_assign_offset(dict(m), index, report,
+                                   date_keys=("authored_on", "ordered_at", "collected_at")))
+    if meds:
+        case["medications"] = meds
 
     # Free-text rewriting (notes + any string vitals values).
     if index is not None:
@@ -325,16 +372,8 @@ def normalize_timeline(
             new_text, k, unres = rewrite_note_dates(n.get("text") or "", index)
             n["text"] = new_text
             # Structured note timing → relative offset (the narrative temporal
-            # cutoff for V5). Only when the note carries a parseable ``collected_at``;
-            # the raw date is destroyed here and never reaches the case/export.
-            raw = n.pop("collected_at", None)
-            if not isinstance(n.get("collected_offset_days"), int):
-                d = parse_datetime(raw)
-                if d is not None:
-                    n["collected_offset_days"] = (d - index).days
-                    report["note_dates_rewritten"] += 0  # not a text rewrite; offset only
-                elif raw is not None:
-                    report["unresolved"].append(_mask(str(raw)))
+            # cutoff for V5). The raw date is destroyed and never reaches the export.
+            _assign_offset(n, index, report, date_keys=("collected_at", "authored_on", "recorded_at"))
             report["note_dates_rewritten"] += k
             report["unresolved"].extend(unres)
             notes.append(n)
@@ -351,14 +390,8 @@ def normalize_timeline(
                     s[field] = nv
                     report["note_dates_rewritten"] += c
                     report["unresolved"].extend(unres)
-            raw = s.pop("collected_at", None)
-            if not isinstance(s.get("collected_offset_days"), int):
-                d = parse_datetime(raw)
-                if d is not None:
-                    s["collected_offset_days"] = (d - index).days
-                elif raw is not None:
-                    report["unresolved"].append(_mask(str(raw)))
-            studies.append(s)
+            studies.append(_assign_offset(s, index, report,
+                                         date_keys=("collected_at", "effective_at", "recorded_at")))
         if studies:
             case["studies"] = studies
         vitals = case.get("vitals") or {}
@@ -372,8 +405,21 @@ def normalize_timeline(
                     vit[k] = nv
                 else:
                     vit[k] = v
+            # Vitals are one flat dict, so they carry ONE timing marker for the set,
+            # sourced from the latest vital-sign date the adapter saw (``_vitals_at``).
+            # V5 gates the whole set on it; the key is stripped before any agent read.
+            vitals_at = case.pop("_vitals_at", None)
+            if vitals_at is not None and not isinstance(vit.get("collected_offset_days"), int):
+                d = parse_datetime(vitals_at)
+                if d is not None:
+                    vit["collected_offset_days"] = (d - index).days
+                else:
+                    report["unresolved"].append(_mask(str(vitals_at)))
             case["vitals"] = vit
+        else:
+            case.pop("_vitals_at", None)
     else:
+        case.pop("_vitals_at", None)
         # No anchor: only acceptable when nothing carries a date at all. If any
         # date-like token exists in the notes, we cannot rewrite → unresolved.
         for n in case.get("notes") or []:

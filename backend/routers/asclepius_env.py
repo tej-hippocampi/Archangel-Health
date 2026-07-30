@@ -106,6 +106,19 @@ async def verify_environment(
 
 
 # ─── Export (PRD §9, §10) ─────────────────────────────────────────────────────
+@router.post("/{task_id}/certify")
+async def certify_environment(
+    task_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Reward-integrity gate: score a padded-but-hollow trajectory against a
+    terse-correct one. ``shippable: false`` means the reward is gameable and the
+    environment must be repaired before it ships (PRD §7.5 guardrail)."""
+    try:
+        return service.certify_environment(_store(), task_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+
+
 @router.get("/export")
 async def export_environments(
     mode: str = Query("raw"), specialty: Optional[str] = None,

@@ -104,6 +104,7 @@ def build_manifest(records: List[Dict[str, Any]], *, mode: str,
             "n_double_annotated": ks.get("n_double_annotated", 0),
             "kappa_note": ks.get("note"),
         },
+        "reward_integrity": ks.get("reward_integrity"),
         "reproducible": True,
         "note": "Ships the tool schema + verifier spec so the environment can be re-run (PRD §9).",
     }

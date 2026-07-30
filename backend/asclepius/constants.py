@@ -220,9 +220,64 @@ def normalize_env_export_mode(value) -> str:
 
 
 def env_max_steps() -> int:
-    """The episode step cap (``truncated=True`` when hit). PRD §4.5 / §6.
-    ``ASCLEPIUS_ENV_MAX_STEPS`` (default 24 — a 6–12 step trajectory with room)."""
-    return max(4, _env_int("ASCLEPIUS_ENV_MAX_STEPS", 24))
+    """The maximum number of AGENT ACTIONS per episode (``truncated=True`` when hit)
+    — NOT the number of trajectory entries. One action appends 2–3 trajectory steps
+    (tool_call + observation [+ final_output]), so a lab sizing a training budget
+    reasons about actions, which is what it controls. PRD §4.5 / §6.
+    ``ASCLEPIUS_ENV_MAX_STEPS`` (default 12 — a 6–12 action episode)."""
+    return max(2, _env_int("ASCLEPIUS_ENV_MAX_STEPS", 12))
+
+
+# ─── V5 reward composition weights (PRD §5) ───────────────────────────────────
+# The reward is base(deterministic) refined by rubric and/or outcome. Weights are
+# env-overridable so a buyer can re-weight the tiers WITHOUT a code change (each
+# triple is normalized, so partial overrides can't silently un-sum to 1.0).
+def env_reward_weights() -> dict:
+    """``{"base","rubric","outcome"}`` for each active-layer combination."""
+    return {
+        "base_rubric_outcome": _normalized_weights(
+            _env_float("ASCLEPIUS_ENV_W_BASE_BRO", 0.6),
+            _env_float("ASCLEPIUS_ENV_W_RUBRIC_BRO", 0.2),
+            _env_float("ASCLEPIUS_ENV_W_OUTCOME_BRO", 0.2),
+        ),
+        "base_rubric": _normalized_weights(
+            _env_float("ASCLEPIUS_ENV_W_BASE_BR", 0.75),
+            _env_float("ASCLEPIUS_ENV_W_RUBRIC_BR", 0.25),
+            0.0,
+        ),
+        "base_outcome": _normalized_weights(
+            _env_float("ASCLEPIUS_ENV_W_BASE_BO", 0.7),
+            0.0,
+            _env_float("ASCLEPIUS_ENV_W_OUTCOME_BO", 0.3),
+        ),
+    }
+
+
+def _normalized_weights(base: float, rubric: float, outcome: float) -> dict:
+    total = (base or 0) + (rubric or 0) + (outcome or 0)
+    if total <= 0:
+        return {"base": 1.0, "rubric": 0.0, "outcome": 0.0}
+    return {"base": base / total, "rubric": rubric / total, "outcome": outcome / total}
+
+
+# ─── V5 answer-check strictness (PRD §5.1, anti-reward-hacking) ────────────────
+def env_answer_datum_match_ratio() -> float:
+    """Fraction of a ``key_data`` datum's distinctive tokens that must appear for
+    that decisive element to count as engaged. ``ASCLEPIUS_ENV_DATUM_MATCH`` (0.5)."""
+    return min(1.0, max(0.1, _env_float("ASCLEPIUS_ENV_DATUM_MATCH", 0.5)))
+
+
+def env_answer_require_all_key_data() -> bool:
+    """Whether ``engaged_decisive_data`` requires EVERY decisive datum, or a majority.
+
+    Default OFF (majority), calibrated against ground truth: the authored gold ANSWER
+    itself does not restate every ``key_data`` entry (several describe context, e.g.
+    "saline already given"), so requiring all of them scores the correct answer as a
+    failure — which would systematically depress every reward we ship. The decisive
+    elements are still reported and scored individually (``key_data_hits``); this flag
+    only sets the pass bar. ``ASCLEPIUS_ENV_REQUIRE_ALL_KEY_DATA=1`` to tighten."""
+    return (os.getenv("ASCLEPIUS_ENV_REQUIRE_ALL_KEY_DATA", "0").strip().lower()
+            in ("1", "true", "yes", "on"))
 
 # Where the task (prompt + candidate answers) originated. ``partner_ehr`` (EHR
 # PRD): a real, de-identified case ingested from a data partner's secure upload.

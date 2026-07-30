@@ -77,8 +77,16 @@ class Verification(BaseModel):
     method: str = "deterministic"
     checks: List[VerificationCheck] = Field(default_factory=list)
     reward: float = 0.0
-    # Dense per-step credit (PRD §5 "support per-step rewards"): step_index → reward.
-    step_rewards: Optional[List[float]] = None
+    # Dense per-step credit (PRD §5 "support per-step rewards"), KEYED to trajectory
+    # step numbers: ``[{"step": n, "action": k, "reward": r}]``. Keyed rather than
+    # positional because one agent action appends 2–3 trajectory rows, so a bare list
+    # index is NOT a trajectory step — a consumer doing credit assignment on the
+    # positional form would attribute rewards to the wrong steps.
+    step_rewards: Optional[List[Dict[str, Any]]] = None
+    # Derived convenience only — do not use for credit assignment.
+    step_rewards_flat: Optional[List[float]] = None
+    # The trajectory step the episode (terminal) reward is attached to.
+    terminal_step: Optional[int] = None
     hard_failed: bool = False
 
 

@@ -240,6 +240,27 @@ def compile_environment(
     }
 
 
+def _offset_of(item: Dict[str, Any]) -> Optional[int]:
+    """Mirror of ``state.EHRState._item_offset``: an absent/unparseable offset is
+    UNKNOWN (``None``), never day 0 — inventing 0 here would advertise a
+    post-decision item as earnable."""
+    v = item.get("collected_offset_days")
+    if v is None:
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _not_future(item: Dict[str, Any], dp: int) -> bool:
+    """Advertise an item unless it is KNOWN to post-date the decision point.
+    Unknown timing is still advertised here (the map is a coverage hint, not the
+    gate) — ``state.py`` fail-closes it at read time on real cases."""
+    off = _offset_of(item)
+    return off is None or off <= dp
+
+
 def _observable_now_panels(case: Dict[str, Any], dp: int) -> List[str]:
     """Only the FIRST presenting panel is visible at reset; every deeper panel —
     including panels at the same day-offset — must be EARNED via ``get_labs``
@@ -247,45 +268,27 @@ def _observable_now_panels(case: Dict[str, Any], dp: int) -> List[str]:
     is what makes a §0.5-authored case (all panels at offset 0) non-trivial."""
     vis = []
     for idx, p in enumerate(case.get("lab_panels") or []):
-        try:
-            off = int(p.get("collected_offset_days") or 0)
-        except (TypeError, ValueError):
-            off = 0
-        if off > dp:
+        off = _offset_of(p)
+        if off is not None and off > dp:
             continue
-        vis.append((off, idx, p.get("panel")))
+        # an unknown-timing panel sorts last: never make it the presenting panel
+        # when a timing-verified one exists.
+        vis.append((0 if off is not None else 1, off if off is not None else 0, idx, p.get("panel")))
     if not vis:
         return []
-    # earliest offset, then earliest declared order → the presenting panel only.
-    vis.sort(key=lambda t: (t[0], t[1]))
-    return [vis[0][2]]
+    # timing-verified first, then earliest offset, then declared order.
+    vis.sort(key=lambda t: (t[0], t[1], t[2]))
+    return [vis[0][3]]
 
 
 def _earnable_map(case: Dict[str, Any], dp: int, observable: List[str]) -> Dict[str, Any]:
     obs = set(observable)
-    panels = []
-    for p in case.get("lab_panels") or []:
-        try:
-            off = int(p.get("collected_offset_days") or 0)
-        except (TypeError, ValueError):
-            off = 0
-        if off > dp:  # future zone — never earnable
-            continue
-        name = p.get("panel")
-        if name not in obs:
-            panels.append(name)
-    def _not_future(item):
-        v = item.get("collected_offset_days")
-        if v is None:
-            return True  # unknown timing is advertised; state.py fail-closes at read time
-        try:
-            return int(v) <= dp
-        except (TypeError, ValueError):
-            return True
-
+    panels = [p.get("panel") for p in (case.get("lab_panels") or [])
+              if _not_future(p, dp) and p.get("panel") not in obs]
     return {
         "labs": panels,
-        "notes": [n.get("note_type") for n in (case.get("notes") or []) if _not_future(n)],
-        "studies": [s.get("modality") for s in (case.get("studies") or []) if _not_future(s)],
-        "medications": bool(case.get("medications")),
+        "notes": [n.get("note_type") for n in (case.get("notes") or []) if _not_future(n, dp)],
+        "studies": [s.get("modality") for s in (case.get("studies") or []) if _not_future(s, dp)],
+        "problems": [p.get("condition") for p in (case.get("problem_list") or []) if _not_future(p, dp)],
+        "medications": [m.get("drug") for m in (case.get("medications") or []) if _not_future(m, dp)],
     }

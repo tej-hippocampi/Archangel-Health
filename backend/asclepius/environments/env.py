@@ -38,6 +38,9 @@ class ClinicalEnv:
 
     def __init__(self, compiled: Dict[str, Any], *, max_steps: Optional[int] = None):
         self.compiled = compiled
+        # ``max_steps`` caps AGENT ACTIONS (step() calls), not trajectory entries. One
+        # action appends 2–3 trajectory rows (tool_call + observation [+ final_output]),
+        # so capping on rows would silently halve a lab's configured budget.
         self.max_steps = int(max_steps) if max_steps else env_max_steps()
         self.task_type = compiled.get("task_template") or "diagnostic_workup"
         self.specialty = compiled.get("specialty") or "general"
@@ -48,9 +51,11 @@ class ClinicalEnv:
         self._seed: Optional[int] = None
         self._rng = random.Random()
         self.trajectory: List[Dict[str, Any]] = []
-        self.step_rewards: List[float] = []
+        # Dense per-STEP rewards keyed to trajectory step numbers (see step_reward_map).
+        self.step_rewards: List[Dict[str, Any]] = []
         self.emitted: List[Dict[str, Any]] = []  # {tool, input, fhir, valid} per action/final
-        self._step_no = 0
+        self._step_no = 0      # trajectory row index (2–3 per action)
+        self._action_no = 0    # agent decisions — what max_steps governs
         self._terminated = False
         self._truncated = False
         self._final_action: Optional[Dict[str, Any]] = None
@@ -80,12 +85,22 @@ class ClinicalEnv:
 
     # ─── reset (PRD §4.5) ──────────────────────────────────────────────────────
     def reset(self, seed: Optional[int] = None) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Load the task+case, hide withheld fields, return the opening
-        observation. Fully clears mutable episode state so a seeded replay is
-        deterministic (PRD §4.5 — 'reset() must fully clear mutable episode state')."""
+        """Load the task+case, hide withheld fields, return the opening observation.
+        Fully clears mutable episode state (PRD §4.5).
+
+        **Determinism, stated precisely.** The environment itself is deterministic:
+        the compiled env is immutable, the withheld/observable partition is fixed by
+        the compiler, and every tool is a pure read over a per-episode deep copy — so
+        the same action sequence always yields the same observations and reward,
+        seeded or not. ``seed`` controls the ONE genuinely arbitrary choice the env
+        makes (which panel is presented at reset when the compiler left it
+        unspecified, and tie-breaking among equally-good ``get_labs`` matches), and is
+        echoed in ``info`` so a buyer can record it. Any remaining run-to-run variance
+        comes from the AGENT (LLM sampling), not from here."""
         self._seed = seed
-        if seed is not None:
-            self._rng.seed(seed)
+        # A fresh Random per reset — reusing a generator would make episode N depend
+        # on episode N-1, which is exactly what a seeded replay must not do.
+        self._rng = random.Random(seed)
         dp = (self.compiled.get("decision_point") or {}).get("offset_days")
         observable = (self.compiled.get("observable_state") or {}).get("panels")
         self._state = EHRState(
@@ -95,6 +110,7 @@ class ClinicalEnv:
             deid_recheck=bool(self.compiled.get("deid_recheck_required")),
             # notes/studies temporal cutoff enforced by their offsets on real cases
             enforce_item_cutoff=bool(self.compiled.get("enforce_item_cutoff")),
+            rng=self._rng,
         )
         self._registry = ToolRegistry(self.allowed_tools, self._state)
         # Reset ALL mutable episode state.
@@ -102,6 +118,7 @@ class ClinicalEnv:
         self.step_rewards = []
         self.emitted = []
         self._step_no = 0
+        self._action_no = 0
         self._terminated = False
         self._truncated = False
         self._final_action = None
@@ -115,6 +132,8 @@ class ClinicalEnv:
             "action_space": self.action_space(),
             "seed": seed,
             "max_steps": self.max_steps,
+            "max_steps_unit": "agent_actions",
+            "deterministic": True,
         }
         return observation, info
 
@@ -139,6 +158,8 @@ class ClinicalEnv:
         atype = action.get("type") or ("tool_call" if action.get("tool") else "thought")
         reward = 0.0
         info: Dict[str, Any] = {}
+        self._action_no += 1
+        first_step_no = self._step_no + 1   # the trajectory row this action starts at
 
         if atype == "thought":
             self._step_no += 1
@@ -177,12 +198,23 @@ class ClinicalEnv:
                                         "content": _as_obs_text(result.get("echo") or tool_input)})
                 self._terminated = True
 
-        # Max-step cap → truncate (PRD §4.5).
-        if not self._terminated and self._step_no >= self.max_steps:
+        # Max-step cap → truncate. Counted in AGENT ACTIONS (step() calls), not
+        # trajectory rows — one action appends 2–3 rows, so capping on rows would
+        # halve the budget a lab configured (PRD §4.5).
+        if not self._terminated and self._action_no >= self.max_steps:
             self._truncated = True
 
-        self.step_rewards.append(reward)
-        info.update({"step_no": self._step_no, "terminated": self._terminated, "truncated": self._truncated})
+        # Dense reward KEYED to the trajectory step it belongs to. A bare positional
+        # list silently misaligns: this action appended 2–3 trajectory rows, so index
+        # N of a flat list is not trajectory step N. Consumers doing per-step credit
+        # assignment need the mapping, so it is the stored form.
+        self.step_rewards.append({
+            "step": first_step_no,          # the tool_call/thought row this action emitted
+            "action": self._action_no,
+            "reward": round(reward, 4),
+        })
+        info.update({"step_no": self._step_no, "action_no": self._action_no,
+                     "terminated": self._terminated, "truncated": self._truncated})
         return observation, reward, self._terminated, self._truncated, info
 
     # ─── verify (PRD §4.5 / §5) ────────────────────────────────────────────────
@@ -204,6 +236,23 @@ class ClinicalEnv:
     def state(self) -> Optional[EHRState]:
         return self._state
 
+    @property
+    def terminated(self) -> bool:
+        return self._terminated
+
+    @property
+    def truncated(self) -> bool:
+        return self._truncated
+
+    @property
+    def action_count(self) -> int:
+        """Agent decisions taken — the unit ``max_steps`` caps."""
+        return self._action_no
+
+    def step_reward_map(self) -> Dict[int, float]:
+        """``{trajectory_step: reward}`` — the canonical dense-reward view."""
+        return {r["step"]: r["reward"] for r in self.step_rewards if isinstance(r, dict)}
+
     def final_action(self) -> Optional[Dict[str, Any]]:
         return self._final_action
 
@@ -213,22 +262,77 @@ class ClinicalEnv:
     def checks(self) -> List[Dict[str, Any]]:
         return [dict(c) for c in (self.compiled.get("checks") or [])]
 
+    def render(self):
+        """Human-readable episode dump (Gymnasium ``render`` with
+        ``render_mode="ansi"`` semantics)."""
+        lines = [f"[{self.specialty}/{self.task_type}] {self.prompt()}"]
+        rewards = self.step_reward_map()
+        for s in self.trajectory:
+            r = rewards.get(s.get("step"))
+            tag = f"  ({r:+.2f})" if r else ""
+            body = s.get("content") if s.get("type") != "tool_call" else f"{s.get('tool')} {s.get('input')}"
+            lines.append(f"  {s.get('step'):>3} {s.get('type'):<13} {str(body)[:110]}{tag}")
+        return "\n".join(lines)
+
+    def close(self):
+        """Release episode state. The env holds no external resources (the case is an
+        in-memory deep copy), so this simply drops it."""
+        self._state = None
+        self._registry = None
+
     def as_gym(self):
-        """Wrap in a real ``gymnasium.Env`` if gymnasium is installed (optional —
-        we mirror the API so this is not required to run)."""
+        """A real ``gymnasium.Env`` wrapper, when gymnasium is installed.
+
+        Declares ``action_space``/``observation_space`` as gymnasium ``Space`` objects
+        so a consumer's introspection (RLlib/SB3/CleanRL wrappers all do this) works,
+        and forwards ``render``/``close``. Our tool schemas are structured dicts rather
+        than fixed-shape tensors, so the spaces are ``Sequence``/``Dict``-flavoured:
+        the tool-name ``Discrete`` is the trainable head and the argument payload rides
+        alongside. ``ClinicalEnv`` already mirrors the API, so this wrapper is only
+        needed by code that requires an ``isinstance(env, gym.Env)`` check."""
         try:
             import gymnasium as gym
+            from gymnasium import spaces
         except Exception as exc:  # pragma: no cover
             raise RuntimeError("gymnasium is not installed; ClinicalEnv already mirrors the API") from exc
 
         env_self = self
+        tool_names = list(self.allowed_tools)
 
         class _GymWrap(gym.Env):
+            metadata = {"render_modes": ["ansi"]}
+
+            def __init__(self):
+                super().__init__()
+                self.render_mode = "ansi"
+                # tool choice is the discrete decision; arguments are free-form text
+                self.action_space = spaces.Dict({
+                    "tool": spaces.Discrete(len(tool_names) or 1),
+                    "input": spaces.Text(max_length=4096),
+                })
+                self.observation_space = spaces.Dict({
+                    "prompt": spaces.Text(max_length=8192),
+                    "observation": spaces.Text(max_length=32768),
+                })
+                self.tool_names = tool_names
+
             def reset(self, *, seed=None, options=None):
+                super().reset(seed=seed)
                 return env_self.reset(seed=seed)
 
             def step(self, action):
+                # accept either our native dict or a Discrete index + input payload
+                if isinstance(action, dict) and isinstance(action.get("tool"), int):
+                    idx = action["tool"]
+                    action = {"tool": tool_names[idx] if 0 <= idx < len(tool_names) else None,
+                              "input": action.get("input") or {}}
                 return env_self.step(action)
+
+            def render(self):
+                return env_self.render()
+
+            def close(self):
+                return env_self.close()
 
         return _GymWrap()
 
