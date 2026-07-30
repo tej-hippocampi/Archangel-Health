@@ -26,7 +26,7 @@ import os
 import secrets
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from passlib.context import CryptContext
@@ -36,6 +36,13 @@ _pwd = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 def _utcnow_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat()
+
+
+def _iso_minus_seconds(seconds: int) -> str:
+    """ISO timestamp ``seconds`` in the past — the cutoff for age-based sweeps
+    (e.g. reconciling sealed keys unbound longer than an hour)."""
+    return (datetime.utcnow() - timedelta(seconds=max(0, seconds))).replace(
+        microsecond=0).isoformat()
 
 
 def _new_id(prefix: str) -> str:
@@ -531,14 +538,23 @@ class AsclepiusStore:
                 """
                 CREATE TABLE IF NOT EXISTS sealed_ground_truth (
                     sealed_id      TEXT PRIMARY KEY,
-                    ingest_case_id TEXT NOT NULL,
+                    -- NULLABLE on purpose (Audit §H1): the key is STAGED first, keyed
+                    -- on (upload_id, patient_key), then bound to the case row once it
+                    -- exists. A crash between the two leaves the key on disk unbound,
+                    -- never an ingested case with no answer key.
+                    ingest_case_id TEXT,
                     upload_id      TEXT,
+                    patient_key    TEXT,            -- staging key before binding
                     payload_enc    TEXT NOT NULL,   -- field_crypto-encrypted JSON
-                    created_at     TEXT NOT NULL
+                    created_at     TEXT NOT NULL,
+                    bound_at       TEXT
                 )
                 """
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sealed_case ON sealed_ground_truth(ingest_case_id)")
+            # NOTE: the (upload_id, patient_key) staging index is created in _migrate,
+            # AFTER the guarded rebuild adds patient_key — an existing DB has not been
+            # migrated yet at this point, so the column may not exist here.
 
             # ── Frontier-model failure capture (FEAT-1) ──────────────────────
             # ``baseline_runs``: a frontier model's VERBATIM cold answer to a case,
@@ -675,6 +691,41 @@ class AsclepiusStore:
             # unblinded observation is written with blinded=0 and excluded.
             if "blinded" not in cols("agreement"):
                 conn.execute("ALTER TABLE agreement ADD COLUMN blinded INTEGER NOT NULL DEFAULT 1")
+
+            # Sealed-key ordering (Audit §H1). The original table declared
+            # ingest_case_id NOT NULL, which forced "insert case → then store key" and
+            # left a crash-window where an ingested case had no answer key. Relax it to
+            # nullable + add the (upload_id, patient_key) staging columns by rebuilding
+            # the table (SQLite can't ALTER a NOT NULL away). Guarded on patient_key so
+            # it runs exactly once; existing rows are preserved and treated as bound.
+            if "patient_key" not in cols("sealed_ground_truth"):
+                conn.execute("ALTER TABLE sealed_ground_truth RENAME TO sealed_ground_truth_old")
+                conn.execute(
+                    """
+                    CREATE TABLE sealed_ground_truth (
+                        sealed_id      TEXT PRIMARY KEY,
+                        ingest_case_id TEXT,
+                        upload_id      TEXT,
+                        patient_key    TEXT,
+                        payload_enc    TEXT NOT NULL,
+                        created_at     TEXT NOT NULL,
+                        bound_at       TEXT
+                    )
+                    """
+                )
+                conn.execute(
+                    """INSERT INTO sealed_ground_truth
+                       (sealed_id, ingest_case_id, upload_id, patient_key, payload_enc,
+                        created_at, bound_at)
+                       SELECT sealed_id, ingest_case_id, upload_id, NULL, payload_enc,
+                              created_at, created_at
+                         FROM sealed_ground_truth_old"""
+                )
+                conn.execute("DROP TABLE sealed_ground_truth_old")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_sealed_case ON sealed_ground_truth(ingest_case_id)")
+            # The staging index is created here (not in _init_schema) so it lands after
+            # the column exists on both fresh (created above) and migrated DBs. Idempotent.
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sealed_stage ON sealed_ground_truth(upload_id, patient_key)")
 
             # Admin review queue (Audit PRD §21). review_status is NULLABLE on purpose:
             # NULL means "no check raised anything", which is NOT "reviewed and cleared"
@@ -1380,7 +1431,11 @@ class AsclepiusStore:
     ) -> Dict[str, Any]:
         """Store the adjudicated answer key ENCRYPTED at rest, keyed to the ingest
         case. Same field_crypto pattern as the raw partner blob — the payload is
-        never written in cleartext when a key is configured."""
+        never written in cleartext when a key is configured.
+
+        NOTE (Audit §H1): the crash-safe ingest path stages then binds
+        (``stage_sealed_ground_truth`` → ``bind_sealed_ground_truth``). This
+        one-shot insert is retained for callers that already have a case id."""
         from field_crypto import encrypt_field
         sid = _new_id("sealed")
         now = _utcnow_iso()
@@ -1388,11 +1443,94 @@ class AsclepiusStore:
         with self._conn() as conn:
             conn.execute(
                 """INSERT INTO sealed_ground_truth
-                   (sealed_id, ingest_case_id, upload_id, payload_enc, created_at)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (sid, ingest_case_id, upload_id, blob, now),
+                   (sealed_id, ingest_case_id, upload_id, payload_enc, created_at, bound_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (sid, ingest_case_id, upload_id, blob, now, now),
             )
         return {"sealed_id": sid, "ingest_case_id": ingest_case_id}
+
+    def stage_sealed_ground_truth(
+        self, *, upload_id: Optional[str], patient_key: Optional[str],
+        payload: Dict[str, Any],
+    ) -> str:
+        """Stage the sealed answer key BEFORE the case row exists (Audit §H1), keyed
+        on (upload_id, patient_key) with a NULL ingest_case_id. Encrypted at rest,
+        exactly like the bound path. Returns the ``sealed_id`` to bind once the case
+        is inserted. A crash after this and before binding leaves the key on disk,
+        unbound — the strictly better failure than an ingested case with no key."""
+        from field_crypto import encrypt_field
+        sid = _new_id("sealed")
+        now = _utcnow_iso()
+        blob = encrypt_field(json.dumps(payload))
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO sealed_ground_truth
+                   (sealed_id, ingest_case_id, upload_id, patient_key, payload_enc,
+                    created_at, bound_at)
+                   VALUES (?, NULL, ?, ?, ?, ?, NULL)""",
+                (sid, upload_id, patient_key, blob, now),
+            )
+        return sid
+
+    def bind_sealed_ground_truth(self, sealed_id: str, ingest_case_id: str) -> None:
+        """Bind a staged key to its case row (Audit §H1). Idempotent; a bind that
+        never lands leaves the row unbound for reconciliation to catch."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE sealed_ground_truth SET ingest_case_id = ?, bound_at = ? "
+                "WHERE sealed_id = ?",
+                (ingest_case_id, now, sealed_id),
+            )
+
+    def reconcile_sealed_ground_truth(self, *, older_than_seconds: int = 3600) -> Dict[str, Any]:
+        """Recover sealed keys left UNBOUND by a crash between staging and binding
+        (Audit §H1). For each unbound row older than the threshold, try to bind it to
+        its case by (upload_id, patient_key); if the case is found, bind it and raise a
+        blocking ``sealed_key_unbound`` review reason on that case (a human confirms the
+        recovered key before the case is annotated). A row with no matching case is
+        reported as an orphan — the key exists but its case never landed."""
+        cutoff = _iso_minus_seconds(older_than_seconds)
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT sealed_id, upload_id, patient_key, created_at "
+                "FROM sealed_ground_truth "
+                "WHERE ingest_case_id IS NULL AND created_at <= ?",
+                (cutoff,),
+            ).fetchall()
+        bound, orphans = 0, []
+        for r in rows:
+            rec = dict(r)
+            case = None
+            with self._conn() as conn:
+                crow = conn.execute(
+                    "SELECT ingest_case_id, status FROM ingest_cases "
+                    "WHERE upload_id = ? AND patient_key = ? "
+                    "ORDER BY created_at ASC LIMIT 1",
+                    (rec.get("upload_id"), rec.get("patient_key")),
+                ).fetchone()
+                if crow:
+                    case = dict(crow)
+            if case:
+                self.bind_sealed_ground_truth(rec["sealed_id"], case["ingest_case_id"])
+                # Hold the recovered case for review — a key that had to be reconciled
+                # is a blocking signal until a human confirms the adjudication.
+                existing = self.get_ingest_case(case["ingest_case_id"]) or {}
+                reasons = list(existing.get("review") or [])
+                if not any(x.get("reason") == "sealed_key_unbound" for x in reasons):
+                    reasons.append({"reason": "sealed_key_unbound", "severity": "blocking",
+                                    "detail": "sealed answer key was recovered by "
+                                    "reconciliation after an interrupted ingest",
+                                    "raised_at": _utcnow_iso()})
+                self.update_ingest_case(
+                    case["ingest_case_id"], status="needs_review",
+                    review_status="needs_review", review_json=reasons)
+                bound += 1
+            else:
+                orphans.append({"sealed_id": rec["sealed_id"], "upload_id": rec.get("upload_id"),
+                                "reason": "sealed_key_unbound", "severity": "blocking",
+                                "detail": "staged answer key has no matching ingest case"})
+        return {"checked": len(rows), "bound": bound, "orphans": orphans}
 
     def get_sealed_ground_truth(
         self, ingest_case_id: str, *, actor: Optional[str] = None,

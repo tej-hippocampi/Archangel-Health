@@ -237,6 +237,16 @@ def recover_interrupted_uploads(store: Any) -> int:
             handled += 1
         except Exception as exc:  # pragma: no cover - defensive per-upload
             log.warning("ingest recovery: upload %s failed to reprocess: %s", uid, exc)
+    # Sealed-key reconciliation (Audit §H1): a crash between staging a key and binding
+    # it to its case leaves the key on disk unbound. Re-bind those to their cases (or
+    # report true orphans) so no adjudication is stranded. Best-effort; never raises.
+    try:
+        rec = store.reconcile_sealed_ground_truth()
+        if rec.get("bound") or rec.get("orphans"):
+            log.info("sealed reconciliation: bound %d, %d orphan(s)",
+                     rec.get("bound", 0), len(rec.get("orphans") or []))
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("sealed reconciliation failed: %s", exc)
     if handled:
         log.info("ingest recovery: handled %d interrupted upload(s)", handled)
     return handled
@@ -622,37 +632,42 @@ def _dicom_entries_to_studies(
     return per_patient, outcomes, produced
 
 
-def _store_sealed_ground_truth(store: Any, ingest_case_id: str, upload_id: str,
-                               sealed: Optional[Dict[str, Any]], pk: str) -> bool:
-    """Persist the sealed answer key encrypted, keyed to the ingest case (Buyer
-    Response PRD §3 B1). Returns True on success, False on storage failure.
-
-    A storage failure must SURFACE, not silently drop an answer key we then cannot
-    diff against the physician's independent answer: the caller re-classifies the case
-    as quarantined so it never ships as cleanly-ingested with a lost answer key. Only
-    the audit ``log_event`` is best-effort."""
+def _stage_sealed_ground_truth(store: Any, upload_id: str, patient_key: str,
+                               sealed: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Stage the sealed answer key BEFORE the case row (Audit §H1), returning the
+    ``sealed_id`` to bind later. Returns None when there is no key to stage OR when
+    staging failed — the caller distinguishes the two (a truthy ``sealed`` with a
+    None ref means storage failed, and it quarantines rather than shipping a case
+    whose adjudication was lost)."""
     if not sealed:
-        return True
+        return None
     try:
-        store.insert_sealed_ground_truth(
-            ingest_case_id=ingest_case_id, upload_id=upload_id, payload=sealed)
+        return store.stage_sealed_ground_truth(
+            upload_id=upload_id, patient_key=patient_key, payload=sealed)
     except Exception as exc:
-        log.error("sealed ground truth storage failed for %s: %s", ingest_case_id, exc)
-        try:
-            store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
-                            event_type="sealed_storage_failed",
-                            payload={"upload_id": upload_id, "error": str(exc)})
-        except Exception:  # pragma: no cover
-            pass
-        return False
+        log.error("sealed ground truth staging failed for upload %s patient %s: %s",
+                  upload_id, patient_key, exc)
+        return None
+
+
+def _bind_sealed_ground_truth(store: Any, sealed_ref: Optional[str],
+                              ingest_case_id: str, upload_id: str, pk: str) -> None:
+    """Bind a staged key to its case row (Audit §H1). A bind that fails to land is
+    NOT fatal: the key is still on disk under (upload_id, patient_key), and
+    reconciliation re-binds it — the strictly better failure than losing the key."""
+    if not sealed_ref:
+        return
+    try:
+        store.bind_sealed_ground_truth(sealed_ref, ingest_case_id)
+    except Exception as exc:  # pragma: no cover - defensive; reconciliation recovers
+        log.error("sealed ground truth bind failed for %s: %s", ingest_case_id, exc)
+        return
     try:
         store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
                         event_type="sealed_ground_truth_ingested",
-                        payload={"upload_id": upload_id,
-                                 "patient_key": opaque_patient_key(pk)})
+                        payload={"upload_id": upload_id, "patient_key": opaque_patient_key(pk)})
     except Exception:  # pragma: no cover - audit is best-effort
         pass
-    return True
 
 
 class AnswerLeakageError(BundleRejected):
@@ -875,6 +890,10 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
         sealed = merged.get("_sealed_ground_truth")
         eval_task = merged.get("_eval_task") or {}
         case_provenance = merged.get("_case_provenance")
+        # Sealed-key ordering (Audit §H1): STAGE the answer key before the case row so
+        # a crash between the two can never leave an ingested case with no key. Bound
+        # to the case id once it's inserted, in both the ingested and quarantine paths.
+        sealed_ref = _stage_sealed_ground_truth(store, upload_id, opaque_patient_key(pk), sealed)
         if sealed:
             report["sealed_present"] = True
         if eval_task:
@@ -884,6 +903,14 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
         # succeeds, the raw merge only when normalization itself failed.
         quarantine_body = {k: v for k, v in merged.items() if not str(k).startswith("_")}
         try:
+            # Staging the sealed key must have succeeded (Audit §H1): a truthy sealed
+            # with no ref means storage failed. Raise here so the existing except
+            # quarantines through the path that already works — never ship a case whose
+            # adjudication could not be stored.
+            if sealed and sealed_ref is None:
+                raise cf.CaseIngestError(
+                    "sealed answer key could not be stored; quarantining rather than "
+                    "shipping a case whose adjudication was lost")
             normalized, treport = normalize_timeline(
                 quarantine_body,
                 index_event=manifest.get("index_event") or merged.get("_index_event"),
@@ -958,22 +985,11 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                                           status=case_status, report=report,
                                           review_status=("needs_review" if review_reasons else None),
                                           review_json=review_reasons or None)
-            # Answer-key storage must succeed for the case to ship as ingested: if it
-            # fails we re-classify the case as quarantined rather than shipping it
-            # cleanly with a lost adjudication (Buyer Response PRD §3 B1).
-            if not _store_sealed_ground_truth(store, ic["ingest_case_id"], upload_id, sealed, pk):
-                report["quarantine_reason"] = (
-                    "sealed answer key could not be stored; quarantining rather than "
-                    "shipping a case whose adjudication was lost")
-                store.update_ingest_case(ic["ingest_case_id"], status="quarantined",
-                                         report_json=report)
-                quarantined += 1
-                store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
-                                event_type="case_quarantined",
-                                payload={"upload_id": upload_id,
-                                         "patient_key": opaque_patient_key(pk),
-                                         "reason": "sealed_storage_failed"})
-                continue
+            # Bind the pre-staged answer key to the case row now that it exists
+            # (Audit §H1). Staging already succeeded (checked at the top of the try),
+            # so the key is on disk; binding is a safe UPDATE, and a bind that somehow
+            # fails leaves the key recoverable by reconciliation — never a lost key.
+            _bind_sealed_ground_truth(store, sealed_ref, ic["ingest_case_id"], upload_id, pk)
             if blocking:
                 needs_review += 1
             else:
@@ -1003,10 +1019,11 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                 specialty=specialty, case=quarantine_body,
                 status="quarantined", report=report)
             quarantined += 1
-            # Sealed answer key is stored separately + encrypted even for a
-            # quarantined case (it is still the referring institution's adjudication,
-            # used for §7 F3 external-agreement once the case is reviewed).
-            _store_sealed_ground_truth(store, ic["ingest_case_id"], upload_id, sealed, pk)
+            # The pre-staged answer key binds to the quarantined case too (Audit §H1):
+            # it is still the referring institution's adjudication, used for §7 F3
+            # external-agreement once the case is reviewed. If staging itself failed,
+            # sealed_ref is None and there is simply nothing to bind.
+            _bind_sealed_ground_truth(store, sealed_ref, ic["ingest_case_id"], upload_id, pk)
             store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
                             event_type="case_quarantined",
                             payload={"upload_id": upload_id,
