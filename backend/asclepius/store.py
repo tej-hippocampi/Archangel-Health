@@ -686,11 +686,12 @@ class AsclepiusStore:
             # Buyer Response PRD §7 F1: an agreement observation records whether the
             # second annotator was BLINDED. Only blinded observations enter the κ
             # computation (an unblinded second rater measures anchoring, not
-            # agreement). Existing rows default to blinded=1 (they predate the flag,
-            # and the second-annotator flow was blind by construction); a future
-            # unblinded observation is written with blinded=0 and excluded.
+            # agreement). NULLABLE with NO DEFAULT (Audit §H2): a legacy row whose
+            # blinding was never verified stays NULL and is EXCLUDED from κ — not
+            # silently asserted blinded. Every new observation is written with an
+            # explicit 0/1 by insert_agreement, so only pre-flag rows are NULL.
             if "blinded" not in cols("agreement"):
-                conn.execute("ALTER TABLE agreement ADD COLUMN blinded INTEGER NOT NULL DEFAULT 1")
+                conn.execute("ALTER TABLE agreement ADD COLUMN blinded INTEGER")
 
             # Sealed-key ordering (Audit §H1). The original table declared
             # ingest_case_id NOT NULL, which forced "insert case → then store key" and

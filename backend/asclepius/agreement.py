@@ -95,13 +95,12 @@ def should_double_label(task: Dict[str, Any], *, current_rate: float,
 
 
 def _blinded_only(observations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Drop observations explicitly marked unblinded (Buyer Response PRD §7 F1): an
-    unblinded observation is not evidence and must not inflate κ. A row with no
-    ``blinded`` key is a legacy observation and is kept (the flag did not exist when
-    it was written); an explicit falsy ``blinded`` (bool ``False`` OR the SQLite int
-    ``0``) is excluded. Truthiness — not identity — so the DB ``0``/``1`` ints are
-    handled, not just Python bools."""
-    return [o for o in observations if bool(o.get("blinded", True))]
+    """Keep only observations EXPLICITLY recorded as blinded (Audit §H2). A
+    missing/NULL flag is a legacy row whose blinding was never verified — EXCLUDED,
+    not assumed blinded. κ is the number a buyer audits; a metric that quietly absorbs
+    unverifiable observations is worth less than one reporting a smaller honest n.
+    Matches ``True`` and the SQLite int ``1`` only — never a NULL or a falsy 0."""
+    return [o for o in observations if o.get("blinded") in (True, 1)]
 
 
 def jaccard(a: Sequence[str], b: Sequence[str]) -> float:
@@ -194,7 +193,12 @@ def aggregate_kappa(observations: List[Dict[str, Any]], *,
     """
     min_n = min_n or kappa_min_n()
     blinded = _blinded_only(observations)
-    excluded_unblinded = len(observations) - len(blinded)
+    # Report the two exclusion reasons SEPARATELY (Audit §H2): an explicit unblinded
+    # observation (measured anchoring) is a different, honest exclusion from a legacy
+    # row whose blinding was never verified. Collapsing them hides how much of the
+    # dropped n is unverifiable rather than genuinely unblinded.
+    excluded_unblinded = sum(1 for o in observations if o.get("blinded") in (False, 0))
+    excluded_unverified = sum(1 for o in observations if o.get("blinded") is None)
     pairs = [(o.get("verdict_a"), o.get("verdict_b")) for o in blinded]
     usable = [p for p in pairs if p[0] is not None and p[1] is not None]
     n = len(usable)
@@ -240,6 +244,7 @@ def aggregate_kappa(observations: List[Dict[str, Any]], *,
         "by_specialty_meta": by_specialty_meta,
         "n": n,
         "excluded_unblinded": excluded_unblinded,
+        "excluded_unverified": excluded_unverified,
         "observed_agreement": observed,
     }
 
