@@ -260,6 +260,11 @@ async def provider_upload(
         ok, why = asc_ingestion.ingest_storage_durable()
         if not ok:
             raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
+        # Audit PRD §P2: the DERIVED image blobs must be as durable as the raw upload.
+        from asclepius import assets as asc_assets
+        ok, why = asc_assets.asset_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
 
     cap = asc_ingestion.max_zip_bytes()
     raw_files: List[Dict[str, Any]] = []

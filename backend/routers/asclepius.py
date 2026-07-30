@@ -3232,6 +3232,12 @@ async def partner_upload(
         ok, why = asc_ingestion.ingest_storage_durable()
         if not ok:
             raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
+        # Audit PRD §P2: the DERIVED image blobs must be as durable as the raw upload.
+        # Losing a blob leaves a case with neither the image nor its withheld caption.
+        from asclepius import assets as asc_assets
+        ok, why = asc_assets.asset_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
     link = _validate_upload_token(store, t)
     cap = int(link.get("max_bytes") or asc_ingestion.max_zip_bytes())
     # Read at most cap+1 bytes so a valid-token holder cannot OOM the process with a
