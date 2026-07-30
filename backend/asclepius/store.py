@@ -522,6 +522,24 @@ class AsclepiusStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_upload ON ingest_cases(upload_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_status ON ingest_cases(status)")
 
+            # ── Sealed ground truth (Buyer Response PRD §3 B1) ───────────────
+            # The partner's adjudicated answer key, held SEPARATELY from the case,
+            # ENCRYPTED at rest (field_crypto), keyed to the ingest case, readable
+            # only by the adjudication surface, audited on ingest and on every read.
+            # It must never enter the case body, task.prompt, or any export profile.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sealed_ground_truth (
+                    sealed_id      TEXT PRIMARY KEY,
+                    ingest_case_id TEXT NOT NULL,
+                    upload_id      TEXT,
+                    payload_enc    TEXT NOT NULL,   -- field_crypto-encrypted JSON
+                    created_at     TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sealed_case ON sealed_ground_truth(ingest_case_id)")
+
             # ── Frontier-model failure capture (FEAT-1) ──────────────────────
             # ``baseline_runs``: a frontier model's VERBATIM cold answer to a case,
             # the on-policy artifact that proves a case is hard.
@@ -1315,6 +1333,60 @@ class AsclepiusStore:
                 f"UPDATE ingest_cases SET {', '.join(sets)} WHERE ingest_case_id = ?", tuple(params)
             )
 
+    # ─── Sealed ground truth (Buyer Response PRD §3 B1) ──────────────────────
+    def insert_sealed_ground_truth(
+        self, *, ingest_case_id: str, upload_id: Optional[str],
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Store the adjudicated answer key ENCRYPTED at rest, keyed to the ingest
+        case. Same field_crypto pattern as the raw partner blob — the payload is
+        never written in cleartext when a key is configured."""
+        from field_crypto import encrypt_field
+        sid = _new_id("sealed")
+        now = _utcnow_iso()
+        blob = encrypt_field(json.dumps(payload))
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO sealed_ground_truth
+                   (sealed_id, ingest_case_id, upload_id, payload_enc, created_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (sid, ingest_case_id, upload_id, blob, now),
+            )
+        return {"sealed_id": sid, "ingest_case_id": ingest_case_id}
+
+    def get_sealed_ground_truth(
+        self, ingest_case_id: str, *, actor: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Decrypt + return the sealed answer key for an ingest case, emitting an
+        audit event on EVERY read (Buyer Response PRD §3 B1). Only the adjudication
+        surface should call this — never render_case_prompt, an export profile, or a
+        baseline runner."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM sealed_ground_truth WHERE ingest_case_id = ? "
+                "ORDER BY created_at DESC LIMIT 1", (ingest_case_id,),
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        from field_crypto import decrypt_field
+        payload = json.loads(decrypt_field(rec.get("payload_enc")) or "null")
+        self.log_event(entity_type="sealed_ground_truth", entity_id=ingest_case_id,
+                       event_type="sealed_ground_truth_read", actor=actor,
+                       payload={"sealed_id": rec.get("sealed_id")})
+        return {"sealed_id": rec.get("sealed_id"), "ingest_case_id": ingest_case_id,
+                "upload_id": rec.get("upload_id"), "payload": payload}
+
+    def get_sealed_ground_truth_raw(self, ingest_case_id: str) -> Optional[str]:
+        """Return the ON-DISK (still-encrypted) payload token WITHOUT decrypting or
+        auditing — used by tests to assert the content is unreadable at rest."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT payload_enc FROM sealed_ground_truth WHERE ingest_case_id = ? "
+                "ORDER BY created_at DESC LIMIT 1", (ingest_case_id,),
+            ).fetchone()
+        return dict(row)["payload_enc"] if row else None
+
     def get_ingest_case(self, ingest_case_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(
@@ -1450,13 +1522,21 @@ class AsclepiusStore:
         return self.get_user_by_email(email)  # type: ignore[return-value]
 
     def annotator_block(self, user: Dict[str, Any]) -> Dict[str, Any]:
-        """The credential block copied onto every emitted record (PRD §6.2)."""
+        """The credential block copied onto every emitted record (PRD §6.2).
+
+        Emits the credential under the canonical key ``credential`` (singular) AND
+        the deprecated alias ``credentials`` (plural) for one release. Two names for
+        one concept is exactly the mechanism that produced the buyer's finding
+        (Buyer Response PRD §6 E1: ``store.annotator_block`` wrote ``credentials``
+        while the contributor rollup wrote ``credential``), so both are emitted here
+        during the migration and packaging reads either."""
         cred = user.get("board_cert") or (
             f"board_certified_{user.get('specialty')}" if user.get("specialty") else "unspecified"
         )
         return {
             "id_hashed": user.get("id_hashed") or "",
-            "credentials": cred,
+            "credential": cred,       # canonical (Buyer Response PRD §6 E1)
+            "credentials": cred,      # deprecated alias — kept for one release
             "specialty": user.get("specialty"),
             "years_experience": user.get("years_experience"),
         }

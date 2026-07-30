@@ -450,7 +450,14 @@ def _datasheet_md(*, export_id: str, profile_name: str, counts: Dict[str, Any],
                   records: List[Dict[str, Any]], contributors: List[Dict[str, Any]],
                   scope: Optional[Dict[str, Any]] = None,
                   eval_pack: Optional[Dict[str, Any]] = None) -> str:
-    credentials = sorted({(r.get("payload") or {}).get("annotator_credential") or "unspecified" for r in records})
+    # No ``or "unspecified"`` fallback (Buyer Response PRD §6 E1): packaging now
+    # fails closed when a credential cannot be resolved, so a None here would be a
+    # bug, not a routine gap. Drop any stray None rather than manufacture a
+    # confident-looking "unspecified" that contradicts the aggregate section.
+    credentials = sorted({
+        c for r in records
+        if (c := (r.get("payload") or {}).get("annotator_credential"))
+    })
     specialties = sorted(counts["by_specialty"].keys())
     type_lines = "\n".join(f"- `{k}`: {v}" for k, v in sorted(counts["by_type"].items()))
     contrib_lines = "\n".join(

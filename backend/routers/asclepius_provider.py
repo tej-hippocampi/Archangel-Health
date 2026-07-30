@@ -223,25 +223,12 @@ async def provider_password(
 
 
 def _bundle_zip(files: List[Dict[str, Any]], *, specialty: Optional[str]) -> bytes:
-    """Turn the uploaded file(s) into ONE .zip bundle for the shared pipeline. A
-    single already-zip upload is passed through untouched; loose files are packed
-    into a fresh zip (with a manifest.json carrying the provider's specialty when
-    the bundle doesn't already include one)."""
-    # Pass a single, genuinely-zip upload through untouched. Key off the real PK
-    # magic bytes — NOT the extension — so a mis-named single file (e.g. a CSV
-    # called "data.zip") is still wrapped into a valid bundle rather than handed to
-    # the unpacker as a non-zip and rejected.
-    if len(files) == 1 and files[0]["content"][:2] == b"PK":
-        return files[0]["content"]
-    has_manifest = any(os.path.basename(f["filename"]).lower() == "manifest.json" for f in files)
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        for f in files:
-            z.writestr(os.path.basename(f["filename"]) or "file", f["content"])
-        if not has_manifest and specialty:
-            import json as _json
-            z.writestr("manifest.json", _json.dumps({"specialty": specialty}))
-    return buf.getvalue()
+    """Turn the uploaded file(s) into ONE .zip bundle for the shared pipeline.
+
+    Thin alias for ``asclepius.ingestion.wrap_loose_files`` — the single packing
+    implementation shared with the magic-link door (Buyer Response PRD §2 A1), so
+    the two upload doors can never drift into accepting different files again."""
+    return asc_ingestion.wrap_loose_files(files, specialty=specialty)
 
 
 @router.post("/provider/uploads",

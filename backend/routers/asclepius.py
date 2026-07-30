@@ -3233,11 +3233,21 @@ async def partner_upload(
         if not ok:
             raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
     link = _validate_upload_token(store, t)
-    data = await file.read()
-    if len(data) > int(link.get("max_bytes") or asc_ingestion.max_zip_bytes()):
+    raw = await file.read()
+    cap = int(link.get("max_bytes") or asc_ingestion.max_zip_bytes())
+    if len(raw) > cap:
         raise HTTPException(status_code=413, detail="Upload exceeds the link's size cap")
-    if data[:2] != b"PK":
-        raise HTTPException(status_code=400, detail="Only .zip bundles are accepted")
+    # Buyer Response PRD §2 A1: accept a bare partner file (.json / .csv / .hl7 /
+    # .txt) through the magic link, not only a pre-zipped bundle. Both upload doors
+    # now wrap loose files with the SAME implementation, so the exact file we mail a
+    # partner lands identically regardless of which URL they used. A rejection with
+    # a message about "zip magic bytes" meant nothing to a hospital IT team.
+    data = asc_ingestion.wrap_loose_files(
+        [{"filename": file.filename or "file", "content": raw}],
+        specialty=(link.get("specialty") or None),
+    )
+    if len(data) > cap:
+        raise HTTPException(status_code=413, detail="Upload exceeds the link's size cap")
     digest = asc_ingestion.sha256_hex(data)
     # ── Order matters for data safety (see the 410 incident) ──────────────────
     # 1. Persist the encrypted bytes to DURABLE storage FIRST, under a fresh id.
