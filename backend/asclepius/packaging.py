@@ -45,6 +45,13 @@ class PackagingError(ValueError):
     less damaging than an inconsistent claim."""
 
 
+def _years_band(years: Any) -> Optional[str]:
+    """Band an exact years-of-experience integer (Buyer Response PRD §6 E2). Kept
+    local to avoid a hard dependency on credentials.py from packaging."""
+    from asclepius.credentials import years_experience_band
+    return years_experience_band(years)
+
+
 def _annotator_credential(submission: Dict[str, Any], store: Any = None) -> Optional[str]:
     """Resolve the record-level credential from the source of truth, never from an
     optional/unhydrated dict (Buyer Response PRD §6 E1).
@@ -223,7 +230,12 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any],
         # credentialing (the premium signal) — hydrated + fail-closed above
         "annotator_credential": credential,
         "annotator_specialty": annotator.get("specialty"),
-        "annotator_years_experience": annotator.get("years_experience"),
+        # Years of experience ships as a BAND, never the exact integer (Buyer Response
+        # PRD §6 E2): an exact year + specialty + state is close to identifying in a
+        # small subspecialty. The key is kept (buyer profiles map it) but the value is
+        # banded.
+        "annotator_years_experience": _years_band(annotator.get("years_experience")),
+        "annotator_years_experience_band": _years_band(annotator.get("years_experience")),
         "annotator_id_hashed": annotator.get("id_hashed"),
         # lineage
         "submission_id": submission.get("submission_id"),

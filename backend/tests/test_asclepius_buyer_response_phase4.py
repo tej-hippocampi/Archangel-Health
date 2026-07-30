@@ -54,6 +54,17 @@ def test_years_experience_banded():
     assert CR.years_experience_band(None) is None
 
 
+def test_shipped_record_bands_years_not_exact():
+    """The packaged record ships a years BAND, never the exact integer (§6 E2)."""
+    annot = {"credential": "board_certified_nephrology", "specialty": "nephrology",
+             "id_hashed": "h1", "years_experience": 12}
+    recs = package_submission(_task(), _submission([], annot))
+    pref = [r for r in recs if r["type"] == "preference"][0]
+    assert pref["annotator_years_experience"] == "10-14"
+    assert pref["annotator_years_experience_band"] == "10-14"
+    assert pref["annotator_years_experience"] != 12
+
+
 # ─── §5 citations ─────────────────────────────────────────────────────────────
 def _task():
     return {"task_id": "t1", "specialty": "nephrology", "prompt": "manage hyperkalemia",
