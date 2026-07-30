@@ -120,6 +120,17 @@ def test_dicom_header_deid():
     assert "StudyInstanceUID" in rep["remapped"]
 
 
+# ─── audit fix: file_meta AE-title PHI stripped ───────────────────────────────
+def test_dicom_file_meta_ae_title_stripped():
+    ds = _make_ds()
+    ds.file_meta.SourceApplicationEntityTitle = "UCDAVIS_PACS_STATION"
+    clean, rep = D.deidentify_dicom(ds)
+    assert "SourceApplicationEntityTitle" not in clean.file_meta
+    import io
+    buf = io.BytesIO(); clean.save_as(buf, little_endian=True, implicit_vr=False)
+    assert b"UCDAVIS_PACS_STATION" not in buf.getvalue()
+
+
 # ─── test 19 ──────────────────────────────────────────────────────────────────
 def test_dicom_unknown_private_tag_removed():
     ds = _make_ds(private=True)
@@ -182,6 +193,24 @@ def test_imaging_only_bundle_now_valid():
     assert len(cases) == 1
     studies = cases[0]["case"]["studies"]
     assert studies and studies[0].get("asset")
+
+
+# ─── crash-safety: an undecodable DICOM must not strand the upload ────────────
+def test_undecodable_dicom_does_not_crash_upload():
+    """A DICOM that de-ids fine but whose pixels cannot be rendered downgrades that
+    ONE entry to unreadable — process_upload (a background task) must never raise or
+    leave the upload non-terminal."""
+    ds = _make_ds(bia="NO")
+    del ds.PixelData  # header intact, pixels gone → render will fail
+    good = _make_ds(bia="NO", series_uid=generate_uid())
+    store = _store()
+    summary = _ingest(store, _zip({"broken.dcm": _dcm_bytes(ds),
+                                   "ok.dcm": _dcm_bytes(good)}))
+    files = summary.get("files") or store.get_ingest_upload(summary["upload_id"])["files"]
+    assert any("rejected_unreadable" in json.dumps(o) for o in files)
+    # terminal status reached (never stuck in 'parsing'); the good image still lands.
+    assert store.get_ingest_upload(summary["upload_id"])["status"] in ("ingested", "quarantined", "rejected")
+    assert summary["status"] == "ingested"
 
 
 # ─── test 24 ──────────────────────────────────────────────────────────────────

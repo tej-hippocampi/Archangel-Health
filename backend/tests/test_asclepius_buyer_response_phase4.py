@@ -129,6 +129,26 @@ def test_unblinded_observation_excluded():
     assert agg["excluded_unblinded"] == 40
 
 
+def test_blinded_column_round_trip_excludes_unblinded(tmp_path, monkeypatch):
+    """The blinded flag persists to the agreement table and an int-0 (unblinded) row
+    is excluded from κ (audit fix: the filter must handle SQLite 0/1, not just bools)."""
+    import os
+    monkeypatch.setenv("ASCLEPIUS_DB_PATH", str(tmp_path / "agg.db"))
+    from asclepius import store as asc_store
+    st = asc_store.reset_store_for_tests(db_path=str(tmp_path / "agg.db"))
+    st.upsert_agreement(task_id="t-blind", specialty="neph", sub_a="a", sub_b="b",
+                        verdict_a="A_better", verdict_b="B_better", tags_a=[], tags_b=[],
+                        jaccard_tags=0.0, verdict_agree=False, n_labels=1, flagged=False, blinded=False)
+    st.upsert_agreement(task_id="t-open", specialty="neph", sub_a="a", sub_b="b",
+                        verdict_a="A_better", verdict_b="A_better", tags_a=[], tags_b=[],
+                        jaccard_tags=1.0, verdict_agree=True, n_labels=1, flagged=False, blinded=True)
+    obs = st.list_agreement_observations()
+    assert {o["blinded"] for o in obs} == {0, 1}
+    agg = AG.aggregate_kappa(obs)
+    assert agg["n"] == 1  # only the blinded row counts
+    assert agg["excluded_unblinded"] == 1
+
+
 def test_kappa_min_n_gate():
     """n < 30 → null WITH a reason string, not a bare null."""
     obs = [{"verdict_a": "A_better", "verdict_b": "A_better", "blinded": True}] * 12

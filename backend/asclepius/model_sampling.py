@@ -120,7 +120,11 @@ def provider_family(model_or_provider: Optional[str]) -> Optional[str]:
     if not model_or_provider:
         return None
     s = str(model_or_provider).lower()
-    if any(k in s for k in ("gpt", "openai", "o1", "o3", "o4")):
+    # Anchor the o-series to token boundaries (``o1``/``o3``/``o4``/``o4-mini``) so a
+    # SKU that merely CONTAINS "o1"/"o3" as a substring is not misclassified as OpenAI
+    # (which would break judge recusal). "gpt"/"openai" are distinctive enough as bare
+    # substrings.
+    if "gpt" in s or "openai" in s or re.search(r"\bo[1-4]\b", s):
         return "openai"
     if any(k in s for k in ("claude", "anthropic")):
         return "anthropic"

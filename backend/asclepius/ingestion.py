@@ -585,9 +585,19 @@ def _dicom_entries_to_studies(
             outcomes.append({"name": name, "kind": "dicom",
                              "outcome": "archived_only: large series, not a designated key image"})
             continue
-        frag = dicom_deid.to_study_fragment(
-            ds, render=(risk == "clear"), needs_review=(risk == "suspect"),
-            specialty=specialty)
+        # Rendering can fail on undecodable/compressed pixel data or a missing
+        # decoder — that must NEVER crash process_upload (a background task that must
+        # always land a terminal status). A render failure downgrades this ONE entry
+        # to an unreadable outcome; the rest of the bundle continues.
+        try:
+            frag = dicom_deid.to_study_fragment(
+                ds, render=(risk == "clear"), needs_review=(risk == "suspect"),
+                specialty=specialty)
+        except Exception as exc:
+            log.warning("dicom render/fragment failed for %s: %s", name, exc)
+            outcomes.append({"name": name, "kind": "dicom",
+                             "outcome": f"rejected_unreadable: could not render pixels ({exc})"})
+            continue
         study = {k: v for k, v in frag.items() if not str(k).startswith("_")}
         per_patient.setdefault(pk, []).append({"studies": [study], "_dicom": True})
         if risk == "clear" and cf_case_has_asset(study):
@@ -600,26 +610,36 @@ def _dicom_entries_to_studies(
 
 
 def _store_sealed_ground_truth(store: Any, ingest_case_id: str, upload_id: str,
-                               sealed: Optional[Dict[str, Any]], pk: str) -> None:
+                               sealed: Optional[Dict[str, Any]], pk: str) -> bool:
     """Persist the sealed answer key encrypted, keyed to the ingest case (Buyer
-    Response PRD §3 B1). Emits an audit event on ingest. Best-effort about the
-    audit, never about the storage — a store failure must surface, not silently drop
-    an answer key we then cannot diff against the physician's independent answer."""
+    Response PRD §3 B1). Returns True on success, False on storage failure.
+
+    A storage failure must SURFACE, not silently drop an answer key we then cannot
+    diff against the physician's independent answer: the caller re-classifies the case
+    as quarantined so it never ships as cleanly-ingested with a lost answer key. Only
+    the audit ``log_event`` is best-effort."""
     if not sealed:
-        return
+        return True
     try:
         store.insert_sealed_ground_truth(
             ingest_case_id=ingest_case_id, upload_id=upload_id, payload=sealed)
-    except Exception as exc:  # pragma: no cover - defensive
+    except Exception as exc:
         log.error("sealed ground truth storage failed for %s: %s", ingest_case_id, exc)
+        try:
+            store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                            event_type="sealed_storage_failed",
+                            payload={"upload_id": upload_id, "error": str(exc)})
+        except Exception:  # pragma: no cover
+            pass
+        return False
+    try:
         store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
-                        event_type="sealed_storage_failed",
-                        payload={"upload_id": upload_id, "error": str(exc)})
-        return
-    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
-                    event_type="sealed_ground_truth_ingested",
-                    payload={"upload_id": upload_id,
-                             "patient_key": opaque_patient_key(pk)})
+                        event_type="sealed_ground_truth_ingested",
+                        payload={"upload_id": upload_id,
+                                 "patient_key": opaque_patient_key(pk)})
+    except Exception:  # pragma: no cover - audit is best-effort
+        pass
+    return True
 
 
 class AnswerLeakageError(BundleRejected):
@@ -644,6 +664,8 @@ def assert_no_answer_leakage(case: Dict[str, Any], sealed: Optional[Dict[str, An
     disabled."""
     if not sealed:
         return
+    import re as _re
+
     from asclepius.cases import render_case_prompt
 
     # The model-visible surface is exactly what render_case_prompt emits (it already
@@ -651,15 +673,49 @@ def assert_no_answer_leakage(case: Dict[str, Any], sealed: Optional[Dict[str, An
     visible = render_case_prompt(case, "")
     for ref in case.get("source_refs") or []:
         visible += " " + str(ref.get("title") or "")
-    hay = " ".join(w for w in __import__("re").findall(r"[a-z0-9]+", visible.lower())
+    hay = " ".join(w for w in _re.findall(r"[a-z0-9]+", visible.lower())
                    if w not in _COMPLETENESS_STOPWORDS and len(w) >= 3)
-    sealed_text = json.dumps(sealed.get("answer_key") if isinstance(sealed, dict) else sealed,
-                             ensure_ascii=False)
-    for window in _distinctive_windows(sealed_text):
-        if window and window in hay:
-            raise AnswerLeakageError(
-                "sealed answer key leaked into the model-visible case: matched a "
-                "distinctive span; refusing to ship (Buyer Response PRD §3 B1)")
+
+    def _distinctive(text: str) -> List[str]:
+        return [w for w in _re.findall(r"[a-z0-9]+", str(text or "").lower())
+                if w not in _COMPLETENESS_STOPWORDS and len(w) >= 3]
+
+    # Check EACH leaf string value of the answer key, not the serialized JSON blob:
+    # a short decisive answer ("membranous nephropathy") produces < 5 tokens and its
+    # 5-token windows over the serialized dict interleave JSON scaffolding, so the
+    # blob approach silently misses it (audit finding). For a leaf we require the
+    # whole distinctive phrase (up to 5 tokens) to appear contiguously in the visible
+    # case; a leaf with a single distinctive token is skipped (too weak — a lone word
+    # like a differential diagnosis legitimately appears and would false-positive).
+    answer_key = sealed.get("answer_key") if isinstance(sealed, dict) else sealed
+    for leaf in _sealed_leaf_strings(answer_key):
+        toks = _distinctive(leaf)
+        if len(toks) < 2:
+            continue
+        n = 5 if len(toks) >= 5 else len(toks)
+        for i in range(0, len(toks) - n + 1):
+            window = " ".join(toks[i:i + n])
+            if window and window in hay:
+                raise AnswerLeakageError(
+                    "sealed answer key leaked into the model-visible case: matched a "
+                    "distinctive span; refusing to ship (Buyer Response PRD §3 B1)")
+
+
+def _sealed_leaf_strings(obj: Any) -> List[str]:
+    """Every leaf string value inside the sealed answer key (recursively), so the
+    leakage guard checks the ANSWER content, not JSON scaffolding tokens."""
+    out: List[str] = []
+    if isinstance(obj, str):
+        out.append(obj)
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            out.extend(_sealed_leaf_strings(v))
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            out.extend(_sealed_leaf_strings(v))
+    elif obj is not None:
+        out.append(str(obj))
+    return out
 
 
 def _patient_key_of(fragment: Dict[str, Any], entry_name: str, manifest: Dict[str, Any]) -> str:
@@ -742,8 +798,14 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     # is known.
     dicom_entries = [e for e in bundle["entries"] if e.get("kind") == "dicom"]
     if dicom_entries:
-        d_per_patient, d_outcomes, d_produced = _dicom_entries_to_studies(
-            dicom_entries, manifest, specialty)
+        try:
+            d_per_patient, d_outcomes, d_produced = _dicom_entries_to_studies(
+                dicom_entries, manifest, specialty)
+        except Exception as exc:  # never strand the upload on a DICOM surprise
+            log.warning("dicom batch processing failed for upload %s: %s", upload_id, exc)
+            d_per_patient, d_produced = {}, False
+            d_outcomes = [{"name": e.get("name"), "kind": "dicom",
+                           "outcome": f"rejected_unreadable: {exc}"} for e in dicom_entries]
         for pk, frags in d_per_patient.items():
             per_patient.setdefault(pk, []).extend(frags)
         file_outcomes.extend(d_outcomes)
@@ -851,8 +913,23 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                                           patient_key=opaque_patient_key(pk),
                                           specialty=specialty, case=case,
                                           status="ingested", report=report)
+            # Answer-key storage must succeed for the case to ship as ingested: if it
+            # fails we re-classify the case as quarantined rather than shipping it
+            # cleanly with a lost adjudication (Buyer Response PRD §3 B1).
+            if not _store_sealed_ground_truth(store, ic["ingest_case_id"], upload_id, sealed, pk):
+                report["quarantine_reason"] = (
+                    "sealed answer key could not be stored; quarantining rather than "
+                    "shipping a case whose adjudication was lost")
+                store.update_ingest_case(ic["ingest_case_id"], status="quarantined",
+                                         report_json=report)
+                quarantined += 1
+                store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
+                                event_type="case_quarantined",
+                                payload={"upload_id": upload_id,
+                                         "patient_key": opaque_patient_key(pk),
+                                         "reason": "sealed_storage_failed"})
+                continue
             ingested += 1
-            _store_sealed_ground_truth(store, ic["ingest_case_id"], upload_id, sealed, pk)
             store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
                             event_type="case_ingested",
                             payload={"upload_id": upload_id,
@@ -886,6 +963,26 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                             payload={"upload_id": upload_id,
                                      "patient_key": opaque_patient_key(pk),
                                      "reason": str(exc)})
+        except Exception as exc:  # infra error (store/DB/log) — never strand the upload
+            # process_upload must always land a terminal status. An unexpected error
+            # (DB write, log_event, crypto) is recorded as a per-patient quarantine
+            # rather than escaping the BackgroundTask and leaving the upload stuck in
+            # 'parsing' forever.
+            log.warning("ingest: unexpected error for patient %s in upload %s: %s",
+                        opaque_patient_key(pk), upload_id, exc)
+            try:
+                report["quarantine_reason"] = f"unexpected ingest error: {exc}"
+                ic = store.insert_ingest_case(
+                    upload_id=upload_id, patient_key=opaque_patient_key(pk),
+                    specialty=specialty, case=quarantine_body,
+                    status="quarantined", report=report)
+                quarantined += 1
+                store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
+                                event_type="case_quarantined",
+                                payload={"upload_id": upload_id, "reason": "ingest_error"})
+            except Exception:  # pragma: no cover - last-resort; do not re-raise
+                log.exception("ingest: could not even quarantine patient %s in upload %s",
+                              opaque_patient_key(pk), upload_id)
 
     status = "ingested" if ingested else ("quarantined" if quarantined else "rejected")
     reason = None if ingested else (

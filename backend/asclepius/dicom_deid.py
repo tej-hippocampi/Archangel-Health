@@ -137,13 +137,26 @@ def deidentify_dicom(ds, *, date_shift_days: Optional[int] = None) -> Tuple[Any,
             del ds[elem.tag]
             removed.append(kw)
 
-        # File-meta identifiers also carry the SOP instance UID — remap it too.
+        # File-meta identifiers: remap the SOP instance UID, and REMOVE the AE-title
+        # elements — SourceApplicationEntityTitle / Sending / ReceivingApplication
+        # AE titles routinely encode the sending institution or station name (PHI-
+        # adjacent) and survive the main-dataset scrub because they live in file_meta.
         meta = getattr(ds, "file_meta", None)
-        if meta is not None and "MediaStorageSOPInstanceUID" in meta:
-            try:
-                meta.MediaStorageSOPInstanceUID = remap_uid(str(meta.MediaStorageSOPInstanceUID))
-            except Exception:  # pragma: no cover
-                pass
+        if meta is not None:
+            if "MediaStorageSOPInstanceUID" in meta:
+                try:
+                    meta.MediaStorageSOPInstanceUID = remap_uid(str(meta.MediaStorageSOPInstanceUID))
+                except Exception:  # pragma: no cover
+                    pass
+            for ae_kw in ("SourceApplicationEntityTitle", "SendingApplicationEntityTitle",
+                          "ReceivingApplicationEntityTitle", "PrivateInformation",
+                          "PrivateInformationCreatorUID"):
+                if ae_kw in meta:
+                    try:
+                        del meta[ae_kw]
+                        remapped.append("file_meta:" + ae_kw)
+                    except Exception:  # pragma: no cover
+                        pass
 
         report = {"removed": sorted(set(removed)), "remapped": sorted(set(remapped)),
                   "retained": sorted(set(retained)), "date_shift_days": date_shift_days}
@@ -206,6 +219,23 @@ def burned_in_risk(ds) -> Tuple[str, str]:
     return "clear", "BurnedInAnnotation=NO and no border text detected"
 
 
+def _first_numeric(value: Any) -> Optional[float]:
+    """First numeric value from a DICOM element that may be a single DSfloat, a
+    MultiValue/list, or None. Returns None when nothing numeric is present — never
+    raises, so a malformed WindowCenter degrades to the modality default instead of
+    crashing the render."""
+    if value is None:
+        return None
+    try:
+        if isinstance(value, str):
+            return float(value)
+        if hasattr(value, "__len__") and not isinstance(value, (str, bytes)):
+            return float(value[0]) if len(value) else None
+        return float(value)
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
 def render_dicom_to_png(ds, *, window: Optional[Tuple[float, float]] = None) -> bytes:
     """Apply Modality LUT (RescaleSlope/Intercept) → VOI LUT (window center/width) →
     8-bit PNG. Windowing is clinical, not cosmetic: the same CT slice at a stroke
@@ -226,13 +256,8 @@ def render_dicom_to_png(ds, *, window: Optional[Tuple[float, float]] = None) -> 
     if window is not None:
         wc, wl = window[0], window[1]
     else:
-        wcs = getattr(ds, "WindowCenter", None)
-        wws = getattr(ds, "WindowWidth", None)
-        if wcs is not None and wws is not None:
-            wc = float(wcs[0] if isinstance(wcs, (list, tuple)) or hasattr(wcs, "__len__")
-                       and not isinstance(wcs, str) else wcs)
-            wl = float(wws[0] if isinstance(wws, (list, tuple)) or hasattr(wws, "__len__")
-                       and not isinstance(wws, str) else wws)
+        wc = _first_numeric(getattr(ds, "WindowCenter", None))
+        wl = _first_numeric(getattr(ds, "WindowWidth", None))
     if wc is not None and wl and wl > 0:
         lo, hi = wc - wl / 2.0, wc + wl / 2.0
         arr = np.clip(arr, lo, hi)
@@ -257,15 +282,10 @@ def window_applied(ds, window: Optional[Tuple[float, float]] = None) -> Optional
     cannot silently make a finding invisible."""
     if window is not None:
         return {"center": window[0], "width": window[1], "source": "explicit"}
-    wcs = getattr(ds, "WindowCenter", None)
-    wws = getattr(ds, "WindowWidth", None)
-    if wcs is not None and wws is not None:
-        try:
-            c = float(wcs[0]) if hasattr(wcs, "__len__") and not isinstance(wcs, str) else float(wcs)
-            w = float(wws[0]) if hasattr(wws, "__len__") and not isinstance(wws, str) else float(wws)
-            return {"center": c, "width": w, "source": "file"}
-        except Exception:
-            return None
+    c = _first_numeric(getattr(ds, "WindowCenter", None))
+    w = _first_numeric(getattr(ds, "WindowWidth", None))
+    if c is not None and w is not None:
+        return {"center": c, "width": w, "source": "file"}
     return {"center": None, "width": None, "source": "modality_default"}
 
 

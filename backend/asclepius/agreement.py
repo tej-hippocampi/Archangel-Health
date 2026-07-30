@@ -98,8 +98,10 @@ def _blinded_only(observations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Drop observations explicitly marked unblinded (Buyer Response PRD §7 F1): an
     unblinded observation is not evidence and must not inflate κ. A row with no
     ``blinded`` key is a legacy observation and is kept (the flag did not exist when
-    it was written); an explicit ``blinded == False`` is excluded."""
-    return [o for o in observations if o.get("blinded", True) is not False]
+    it was written); an explicit falsy ``blinded`` (bool ``False`` OR the SQLite int
+    ``0``) is excluded. Truthiness — not identity — so the DB ``0``/``1`` ints are
+    handled, not just Python bools."""
+    return [o for o in observations if bool(o.get("blinded", True))]
 
 
 def jaccard(a: Sequence[str], b: Sequence[str]) -> float:

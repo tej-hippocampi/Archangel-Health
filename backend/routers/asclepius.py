@@ -3233,8 +3233,11 @@ async def partner_upload(
         if not ok:
             raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
     link = _validate_upload_token(store, t)
-    raw = await file.read()
     cap = int(link.get("max_bytes") or asc_ingestion.max_zip_bytes())
+    # Read at most cap+1 bytes so a valid-token holder cannot OOM the process with a
+    # multi-GB POST before the cap is enforced (matches the account door's bounded
+    # read). Reject as soon as the cap is exceeded, before buffering the whole body.
+    raw = await file.read(cap + 1)
     if len(raw) > cap:
         raise HTTPException(status_code=413, detail="Upload exceeds the link's size cap")
     # Buyer Response PRD §2 A1: accept a bare partner file (.json / .csv / .hl7 /

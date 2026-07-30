@@ -63,6 +63,33 @@ _INTERPRETIVE_MARKERS = (
     "positive for", "negative for", "absent", "duplicated", "cast",
 )
 
+# A study TITLE that names a diagnosis is a leaked answer even without a hedge word
+# ("Crescentic glomerulonephritis", "Amyloidosis") — the label is emitted model-
+# visible regardless of study_findings_policy, so it must be demoted too (§3 B2). We
+# cannot enumerate every diagnosis, so we detect diagnosis MORPHOLOGY + common
+# oncologic/renal terms. False positives cost a blander label; a false negative leaks
+# the answer, so we bias toward demotion.
+_DIAGNOSIS_MORPHOLOGY = (
+    "itis", "osis", "pathy", "emia", "aemia", "oma ", "carcinoma", "sarcoma",
+    "lymphoma", "leukemia", "melanoma", "adenoma", "nephritis", "glomerulo",
+    "amyloid", "malignan", "neoplas", "metasta", "carcinom", "nephropathy",
+    "vasculitis", "myeloma", "gammopathy", "mgrs", "pgnmid",
+)
+
+
+def _looks_diagnostic(text: str) -> bool:
+    """True when a study title reads as a diagnosis/interpretation rather than a
+    neutral modality descriptor (§3 B2). Combines the hedge/interpretive markers with
+    diagnosis morphology so a bare-diagnosis title is demoted out of the label."""
+    low = (text or "").lower()
+    if any(m in low for m in _INTERPRETIVE_MARKERS):
+        return True
+    # A word ending in a diagnosis suffix (…itis/…osis/…pathy/…oma/…emia).
+    import re
+    if re.search(r"\b[a-z]{3,}(itis|osis|pathy|emia|aemia|oma|nephropathy|sclerosis)\b", low):
+        return True
+    return any(m in low for m in _DIAGNOSIS_MORPHOLOGY)
+
 
 class FhirParseError(ValueError):
     """Not a parseable FHIR R4 Bundle — the bundle entry should quarantine."""
@@ -221,8 +248,9 @@ def _split_media_caption(res: Dict[str, Any]) -> Tuple[str, str]:
     note_texts = [str((n or {}).get("text") or "").strip()
                   for n in (res.get("note") or []) if (n or {}).get("text")]
     findings = " ".join(t for t in note_texts if t).strip()
-    if title and _has_interpretive_language(title):
-        # The title itself leaks a finding — demote it and use a neutral fallback.
+    if title and _looks_diagnostic(title):
+        # The title itself leaks a finding/diagnosis — demote it and use a neutral
+        # modality-derived fallback (§3 B2: better a blander label than a leaked one).
         findings = (title + (" " + findings if findings else "")).strip()
         modality = _modality_of(res, "")
         title = {"pathology": "Pathology image", "ecg": "ECG", "echo": "Echocardiogram",
@@ -401,6 +429,12 @@ _CONCLUSION_INTERPRETIVE_MARKERS = (
     "criteria for", "concerning for", "suggests", "suggestive of", "consistent with",
     "significance", "raises the", "favor", "likely represents", "in keeping with",
     "compatible with", "worrisome for", "in the context of",
+    # Direct-assertion diagnostic phrasing — a conclusion that NAMES the diagnosis is
+    # the reasoning leap the case tests, not an objective result (Buyer Response §2 A6).
+    "diagnostic of", "diagnostic for", "characteristic of", "pathognomonic",
+    "no evidence of", "represents a", "represents ", "positive for a",
+    "positive for an", "negative for a", "most consistent with", "in favor of",
+    "indicative of", "confirms", "confirming",
 )
 
 
@@ -443,7 +477,11 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
     if not isinstance(raw, dict) or raw.get("resourceType") != "Bundle":
         raise FhirParseError("not a FHIR R4 Bundle (resourceType != 'Bundle')")
 
-    resources = [e.get("resource") for e in raw.get("entry") or [] if isinstance(e.get("resource"), dict)]
+    # Guard each entry: a malformed bundle can carry a non-dict entry (a JSON null or
+    # string). ``e.get`` on a non-dict would raise AttributeError and discard the
+    # WHOLE bundle; instead we skip only the bad entry.
+    resources = [e.get("resource") for e in (raw.get("entry") or [])
+                 if isinstance(e, dict) and isinstance(e.get("resource"), dict)]
 
     frag: Dict[str, Any] = {
         "demographics": {}, "lab_panels": [], "notes": [], "medications": [],
@@ -589,9 +627,26 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
             note_type = _codeable_text(res.get("type")) or ("Report" if rt == "DiagnosticReport" else "Progress")
             role = (specialty or "clinician").lower()
             for t in texts:
-                frag["notes"].append({
-                    "note_type": note_type[:40], "author_role": role, "text": t.strip(),
-                })
+                if rt == "DiagnosticReport":
+                    # A DiagnosticReport narrative body routinely EMBEDS the
+                    # impression/conclusion inline (§2 A6) — split it the same way as
+                    # the structured conclusion so the interpretive sentence in the
+                    # body is withheld too, not just the separate conclusion field.
+                    objective, interpretive = _split_report_conclusion(t.strip())
+                    if objective:
+                        frag["notes"].append({
+                            "note_type": note_type[:40], "author_role": role,
+                            "text": objective, "model_visible": True})
+                    if interpretive:
+                        frag["notes"].append({
+                            "note_type": (note_type[:28] + " interpretation"),
+                            "author_role": role, "text": interpretive,
+                            "model_visible": False,
+                            "withheld_reason": "interpretive_conclusion"})
+                else:
+                    frag["notes"].append({
+                        "note_type": note_type[:40], "author_role": role, "text": t.strip(),
+                    })
             # DiagnosticReport.conclusion is answer-bearing (Buyer Response PRD §2 A6):
             # split the objective result from the interpretive tail and gate the
             # latter. The objective finding always ships; the interpretation is

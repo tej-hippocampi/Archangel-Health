@@ -660,6 +660,15 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE tasks ADD COLUMN modality TEXT NOT NULL DEFAULT 'text'")
             if "case_json" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN case_json TEXT")
+            # Buyer Response PRD §7 F1: an agreement observation records whether the
+            # second annotator was BLINDED. Only blinded observations enter the κ
+            # computation (an unblinded second rater measures anchoring, not
+            # agreement). Existing rows default to blinded=1 (they predate the flag,
+            # and the second-annotator flow was blind by construction); a future
+            # unblinded observation is written with blinded=0 and excluded.
+            if "blinded" not in cols("agreement"):
+                conn.execute("ALTER TABLE agreement ADD COLUMN blinded INTEGER NOT NULL DEFAULT 1")
+
             if "case_source" not in task_cols:
                 # Real EHR Ingestion PRD §9.5: 'synthetic' | 'real_deid' as a first-
                 # class COLUMN so the V4 routing wall filters in SQL (a real case is
@@ -3005,21 +3014,23 @@ class AsclepiusStore:
         self, *, task_id: str, specialty: Optional[str], sub_a: str, sub_b: str,
         verdict_a: Optional[str], verdict_b: Optional[str],
         tags_a: List[str], tags_b: List[str], jaccard_tags: float,
-        verdict_agree: bool, n_labels: int, flagged: bool,
+        verdict_agree: bool, n_labels: int, flagged: bool, blinded: bool = True,
     ) -> None:
+        # ``blinded`` (Buyer Response PRD §7 F1): whether the second annotator was
+        # blind to the first's verdict. Only blinded observations enter κ.
         with self._conn() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO agreement
                   (task_id, specialty, sub_a, sub_b, verdict_a, verdict_b, tags_a_json,
-                   tags_b_json, jaccard_tags, verdict_agree, n_labels, flagged, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   tags_b_json, jaccard_tags, verdict_agree, n_labels, flagged, blinded, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     task_id, specialty, sub_a, sub_b, verdict_a, verdict_b,
                     json.dumps(tags_a or []), json.dumps(tags_b or []),
                     jaccard_tags, 1 if verdict_agree else 0, int(n_labels),
-                    1 if flagged else 0, _utcnow_iso(),
+                    1 if flagged else 0, 1 if blinded else 0, _utcnow_iso(),
                 ),
             )
 

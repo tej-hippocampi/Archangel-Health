@@ -332,6 +332,54 @@ def test_full_bundle_end_to_end():
     assert "sealed_ground_truth" not in case
 
 
+# ─── Audit hardening regressions ──────────────────────────────────────────────
+def test_direct_assertion_conclusion_withheld():
+    """A DiagnosticReport conclusion that NAMES the diagnosis (no hedge word) is
+    withheld from the model, not shipped as an objective note (audit fix, §2 A6)."""
+    for sentence in ("Findings are diagnostic of IgA nephropathy.",
+                     "No evidence of malignancy.",
+                     "This represents crescentic glomerulonephritis."):
+        obj, interp = fhir_r4._split_report_conclusion(sentence)
+        assert interp and not obj, (sentence, obj, interp)
+
+
+def test_diagnostic_media_title_demoted():
+    """A bare-diagnosis Media title is demoted out of the always-visible label
+    (audit fix, §3 B2) while a neutral modality descriptor is kept."""
+    label, findings = fhir_r4._split_media_caption(
+        {"content": {"title": "Crescentic glomerulonephritis"}, "note": []})
+    assert "glomerulonephritis" not in label.lower()
+    assert "glomerulonephritis" in findings.lower()
+    # A neutral descriptor is preserved.
+    keep_label, _ = fhir_r4._split_media_caption(
+        {"content": {"title": "Routine frozen IF, C3"}, "note": []})
+    assert keep_label == "Routine frozen IF, C3"
+
+
+def test_malformed_bundle_entry_skipped_not_fatal():
+    """A non-dict entry (null/string) skips only that entry, not the whole bundle
+    (audit fix)."""
+    bundle = _bundle_json()
+    bundle["entry"].insert(0, None)
+    bundle["entry"].insert(0, "garbage")
+    frag = fhir_r4.parse(json.dumps(bundle), specialty="nephrology")
+    assert len(frag["studies"]) == 5  # the good resources still parse
+
+
+def test_short_sealed_answer_leak_detected():
+    """A short (2-token) sealed answer appearing in the visible case is caught by the
+    leakage guard (audit fix, §3 B1)."""
+    sealed = {"answer_key": {"diagnosis": "membranous nephropathy"}}
+    leak_case = {"notes": [{"text": "The biopsy shows membranous nephropathy pattern.",
+                            "model_visible": True}]}
+    with pytest.raises(I.AnswerLeakageError):
+        I.assert_no_answer_leakage(leak_case, sealed)
+    # A single-token answer is NOT flagged (would false-positive on differentials).
+    I.assert_no_answer_leakage(
+        {"notes": [{"text": "amyloidosis is on the differential", "model_visible": True}]},
+        {"answer_key": {"dx": "amyloidosis"}})
+
+
 # ─── Credentials (Buyer Response PRD §6 E1) ───────────────────────────────────
 def _cred_task():
     return {"task_id": "t1", "specialty": "nephrology",
