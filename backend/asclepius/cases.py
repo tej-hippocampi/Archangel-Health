@@ -120,11 +120,23 @@ class ClinicalNote(BaseModel):
     note_type: str = "Progress"            # H&P | Progress | Consult | Nursing
     author_role: str = "clinician"
     text: str = ""
+    # RELATIVE day (0 = index/decision point, negative = earlier), mirroring
+    # ``LabPanel``. ``None`` = timing unknown. Populated by ``timeline`` from the
+    # note's ``collected_at`` on real de-identified cases so the V5 environment can
+    # enforce the temporal cutoff on narratives (a post-decision note is where the
+    # outcome is written). Synthetic/gold notes leave this ``None`` (no future zone).
+    collected_offset_days: Optional[int] = None
 
 
 class ProblemItem(BaseModel):
     condition: str
     since: Optional[str] = None            # generalized ("2019", "chronic") — never a date
+    # RELATIVE day the problem was RECORDED (0 = index/decision point, negative =
+    # earlier), mirroring ``LabPanel``/``ClinicalNote``. ``None`` = unknown.
+    # Critical for V5: a problem added AFTER the decision point is literally the
+    # answer ("cast nephropathy"), so the environment must be able to hold it out.
+    # ``since`` is clinical onset (generalized); this is chart-recording time.
+    collected_offset_days: Optional[int] = None
 
 
 class MedicationItem(BaseModel):
@@ -132,6 +144,10 @@ class MedicationItem(BaseModel):
     dose: Optional[str] = None
     route: Optional[str] = None
     freq: Optional[str] = None
+    # RELATIVE day the medication was ORDERED (see ProblemItem). Critical for V5: a
+    # drug started after the decision point IS the diagnosis (tolvaptan → SIADH,
+    # rasburicase → tumor lysis), so it must be holdable-out. ``None`` = unknown.
+    collected_offset_days: Optional[int] = None
 
 
 class Demographics(BaseModel):
@@ -186,6 +202,10 @@ class Study(BaseModel):
     measurements: List[LabResult] = Field(default_factory=list)
     impression: Optional[str] = None
     asset: Optional[StudyAsset] = None      # NEW (V4): optional real image reference
+    # RELATIVE day of the study (see ClinicalNote.collected_offset_days). ``None`` =
+    # unknown timing; set by ``timeline`` on real cases so a post-decision study
+    # (e.g. the outcome path report) is held out by the V5 temporal cutoff.
+    collected_offset_days: Optional[int] = None
 
 
 class ClinicalCase(BaseModel):

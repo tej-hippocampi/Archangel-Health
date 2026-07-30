@@ -1964,13 +1964,18 @@
       ],
     },
     {
-      v: 'v5', label: 'Real Longitudinal Cases', tag: 'Coming soon', dot: 'asc-dot-faint',
-      comingSoon: true,
-      blurb: 'Follow one real patient across time — multiple visits, evolving labs, and what actually happened next.',
+      // V5 — the AGENTIC tier (Clinical RL Environments PRD). A different KIND of
+      // task, not a variant of the single-turn flow, so selecting it navigates to
+      // its own surface instead of calling chooseVersion(): the single-turn queue,
+      // submit path, and portal_version stamping are never touched by V5.
+      v: 'v5', label: 'V5 · Agent Trajectories', tag: 'New', dot: 'asc-dot-orange',
+      route: '/asclepius/v5/annotate',
+      blurb: 'Review an AI agent working a case step by step — label each move and write what it should have done instead.',
       bullets: [
-        'A real patient followed across multiple timepoints',
-        'Reason about how the case evolves, not a single snapshot',
-        'Outcomes linked past the decision',
+        'Watch an agent order tests and reason across multiple steps',
+        'Label each step correct / suboptimal / wrong',
+        'Mark the first error and write the correct next action',
+        'Validate the environment’s auto-reward against your judgment',
       ],
     },
   ];
@@ -2001,6 +2006,14 @@
     state.portalChosen = true;
     renderEvalView();
   }
+  // A version option may either enter the single-turn flow (chooseVersion) or, for a
+  // tier that is a different KIND of task (V5 agentic), navigate to its own surface.
+  // V5 deliberately does NOT go through setPortalVersion(), so 'v5' can never end up
+  // in the single-turn queue params or on a single-turn submission.
+  function selectVersion(o) {
+    if (o.route) { window.location.href = o.route; return; }
+    chooseVersion(o.v);
+  }
   function versionCard(o, last, approved) {
     const locked = !!(o.requiresRealData && !approved);
     const soon = !!o.comingSoon;
@@ -2011,9 +2024,9 @@
       role: soon ? null : 'button',
       tabindex: soon ? null : '0',
       'aria-disabled': inert ? 'true' : null,
-      onClick: inert ? null : () => chooseVersion(o.v),
+      onClick: inert ? null : () => selectVersion(o),
       onKeydown: inert ? null : (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseVersion(o.v); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectVersion(o); }
       },
     },
       h('div', { class: 'asc-ver-card-head' },

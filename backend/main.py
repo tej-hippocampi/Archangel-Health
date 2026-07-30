@@ -2417,6 +2417,19 @@ async def asclepius_portal():
         return HTMLResponse(content=f.read())
 
 
+@app.get("/asclepius/v5/annotate", response_class=HTMLResponse)
+async def asclepius_v5_annotate_page():
+    """Asclepius V5 — clinical RL trajectory annotation surface (Clinical RL
+    Environments PRD §7). A new content TYPE inside the same evaluator portal
+    design system (§7.6), not a new app. Served unauthenticated by design (like
+    /asclepius); the page JS gates on the Asclepius token. Optional ``?run_id=``
+    query param opens a specific trajectory; otherwise it pulls the next
+    unannotated one from the V5 queue. No PHI (de-identified context only)."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/v5/annotate.html")
+    with open(html_path) as f:
+        return HTMLResponse(content=f.read())
+
+
 @app.get("/community", response_class=HTMLResponse)
 async def community_page():
     """Asclepius Community — private colleague workspace for verified
@@ -6007,6 +6020,17 @@ app.include_router(telehealth_router)
 app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
 app.include_router(asclepius_buyer_router)
+# V5 Clinical RL Environments (agentic tier). Additive; mounted defensively so a
+# missing optional dependency disables V5 rather than crashing the app. V1–V4 are
+# unaffected (the environments live in their own env_runs table + /environments routes).
+try:
+    from routers.asclepius_env import router as asclepius_env_router
+
+    app.include_router(asclepius_env_router)
+except Exception as _asc_env_exc:  # pragma: no cover
+    __import__("logging").getLogger("asclepius.boot").warning(
+        "Asclepius V5 environments router not mounted: %s", _asc_env_exc
+    )
 app.include_router(community_router)
 app.include_router(community_page_router)
 app.include_router(leads_router)
