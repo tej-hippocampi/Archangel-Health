@@ -34,7 +34,9 @@ from audit import audit_log
 from community import attachments as catt
 from community import notify as cnotify
 from community import phi_gate
-from community.schema import DmMessageIn, DmOpen, MessageEdit, MessageIn, ReactionIn, ReadIn
+from community.schema import (
+    DmMessageIn, DmOpen, HandoffRedeem, MessageEdit, MessageIn, ReactionIn, ReadIn,
+)
 from community.store import get_community_store
 from community.ws import hub
 from ratelimit import rate_limiter
@@ -1000,6 +1002,77 @@ async def reactivate_member(
     _cstore().unban_member(user_id)
     _audit(request, admin, "community.member_reactivate", "ok", {"target_user_id": user_id})
     return {"ok": True}
+
+
+# ─── Portal side-panel integration (Side Panel PRD contract) ──────────────────
+# The portal's persistent side panel (merged on main) polls two UNPREFIXED
+# routes every 60s: ``GET /community/unread`` → {total} for the rail badge,
+# and ``POST /community/handoff`` → {token} — a short-lived, single-use code
+# it appends as ``/community?t=…`` so the new tab is signed in even when
+# localStorage isn't shared. The community page redeems the code for a real
+# Asclepius session via ``POST /api/community/handoff/redeem``.
+page_router = APIRouter(tags=["community"])
+
+_HANDOFF_TTL_SEC = 300  # outlives the portal's 60s refresh cadence
+_handoff_tokens: Dict[str, tuple] = {}  # token -> (user_id, expires_monotonic)
+_handoff_lock = __import__("threading").Lock()
+
+
+def _mint_handoff(user_id: str) -> str:
+    import secrets as _secrets
+    import time as _time
+    token = _secrets.token_urlsafe(24)
+    now = _time.monotonic()
+    with _handoff_lock:
+        for t in [t for t, (_u, exp) in _handoff_tokens.items() if exp < now]:
+            _handoff_tokens.pop(t, None)
+        _handoff_tokens[token] = (user_id, now + _HANDOFF_TTL_SEC)
+    return token
+
+
+def _redeem_handoff(token: str) -> Optional[str]:
+    import time as _time
+    with _handoff_lock:
+        entry = _handoff_tokens.pop(token, None)  # single use
+    if not entry:
+        return None
+    user_id, expires = entry
+    return user_id if _time.monotonic() <= expires else None
+
+
+@page_router.get("/community/unread")
+async def portal_unread(
+    user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_user_optional),
+):
+    """Rail-badge total for the portal side panel. Soft for non-members
+    (0, not an error) so the panel never surfaces a community error."""
+    if not user or not _passes_gate(user):
+        return {"total": 0}
+    cstore = _cstore()
+    counts = cstore.unread_counts(user["id"])
+    return {
+        "total": sum(c["unread"] for c in counts.values())
+                 + cstore.dm_unread_total(user["id"]),
+    }
+
+
+@page_router.post("/community/handoff")
+async def portal_handoff(user: Dict[str, Any] = Depends(require_member)):
+    return {"token": _mint_handoff(user["id"]), "expires_in": _HANDOFF_TTL_SEC}
+
+
+@router.post(
+    "/handoff/redeem",
+    dependencies=[Depends(rate_limiter("community_handoff", 10, 60))],
+)
+async def redeem_handoff(body: HandoffRedeem):
+    """Exchange a portal handoff code for an Asclepius session. The code is
+    single-use and short-lived; the §1 gate is re-checked at redemption."""
+    uid = _redeem_handoff((body.token or "").strip())
+    user = _astore().get_user_by_id(uid) if uid else None
+    if not user or not _passes_gate(user):
+        raise HTTPException(status_code=401, detail="Handoff expired — sign in through the portal.")
+    return {"token": asc_auth.create_token(user)}
 
 
 # ─── WebSocket (PRD §4, §6) ───────────────────────────────────────────────────

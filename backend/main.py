@@ -72,6 +72,7 @@ from routers.messaging import router as messaging_router
 from routers.telehealth import router as telehealth_router
 from routers.asclepius import router as asclepius_router
 from community.router import router as community_router
+from community.router import page_router as community_page_router
 from routers.asclepius_provider import router as asclepius_provider_router
 from routers.asclepius_buyer import router as asclepius_buyer_router
 from routers.leads import router as leads_router
@@ -6007,6 +6008,7 @@ app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
 app.include_router(asclepius_buyer_router)
 app.include_router(community_router)
+app.include_router(community_page_router)
 app.include_router(leads_router)
 
 # Gold Standard — conversation-capture training data (Data Training tab). Mounted

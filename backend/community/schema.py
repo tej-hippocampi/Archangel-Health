@@ -31,6 +31,10 @@ class ReadIn(BaseModel):
     last_read_message_id: int = Field(ge=0)
 
 
+class HandoffRedeem(BaseModel):
+    token: str = Field(min_length=1, max_length=128)
+
+
 class DmOpen(BaseModel):
     user_id: str = Field(min_length=1, max_length=64)
 

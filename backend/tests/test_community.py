@@ -74,7 +74,14 @@ def make_verified_physician(store, *, specialty="nephrology", years=17, org="Riv
 
 
 def setup_world():
-    """Fresh asclepius + community stores; returns (astore, cstore, physician, admin)."""
+    """Fresh asclepius + community stores; returns (astore, cstore, physician, admin).
+
+    Also clears the process-global WS hub: sockets left behind by a previous
+    test (client side closed, server reader not yet reaped) otherwise get
+    reaped mid-broadcast during THIS test, injecting presence noise and close
+    latency into order-sensitive receives (observed flake)."""
+    from community.ws import hub as _hub
+    _hub._sockets.clear()
     astore = fresh_store()
     cstore = fresh_community()
     doc = make_verified_physician(astore)
@@ -1071,6 +1078,51 @@ def test_dm_soft_delete():
     assert row["deleted"] and row["body"] == ""
     r = client.get(f"{BASE}/dms/{dm_id}/messages", headers=headers_for(other))
     assert mid not in [m["id"] for m in r.json()["messages"]]
+
+
+# ─── Portal side-panel integration (Side Panel PRD contract) ──────────────────
+def test_portal_unread_soft_totals():
+    astore, _, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    post_msg(other, "general", "one")
+    dm_id = open_dm(other, doc).json()["id"]
+    post_dm(other, dm_id, "two")
+    r = client.get("/community/unread", headers=headers_for(doc))
+    assert r.status_code == 200
+    assert r.json() == {"total": 2}  # channel unread + dm unread
+    # soft for non-members and the unauthenticated — never an error the rail
+    # would have to handle
+    buyer = make_user(astore, role="buyer")
+    assert client.get("/community/unread", headers=headers_for(buyer)).json() == {"total": 0}
+    assert client.get("/community/unread").json() == {"total": 0}
+
+
+def test_portal_handoff_mint_and_redeem():
+    astore, _, doc, _ = setup_world()
+    r = client.post("/community/handoff", headers=headers_for(doc))
+    assert r.status_code == 200
+    code = r.json()["token"]
+    # redeem → a working Asclepius session for the community
+    r = client.post(f"{BASE}/handoff/redeem", json={"token": code})
+    assert r.status_code == 200
+    jwt = r.json()["token"]
+    me = client.get(f"{BASE}/me", headers={"Authorization": "Bearer " + jwt})
+    assert me.status_code == 200
+    # single use: replay fails
+    assert client.post(f"{BASE}/handoff/redeem", json={"token": code}).status_code == 401
+    # garbage fails
+    assert client.post(f"{BASE}/handoff/redeem", json={"token": "nope"}).status_code == 401
+    # non-members cannot mint
+    buyer = make_user(astore, role="buyer")
+    assert client.post("/community/handoff", headers=headers_for(buyer)).status_code == 403
+
+
+def test_portal_handoff_gate_rechecked_at_redemption():
+    """A code minted before a ban must not open the community after it."""
+    astore, cstore, doc, admin = setup_world()
+    code = client.post("/community/handoff", headers=headers_for(doc)).json()["token"]
+    client.post(f"{BASE}/admin/members/{doc['id']}/deactivate", headers=headers_for(admin))
+    assert client.post(f"{BASE}/handoff/redeem", json={"token": code}).status_code == 401
 
 
 # ─── No public path in (§9.3) ─────────────────────────────────────────────────

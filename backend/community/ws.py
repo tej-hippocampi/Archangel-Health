@@ -84,11 +84,15 @@ class Hub:
                 user_id = self._sockets.pop(sock, None)
                 if user_id is not None and user_id not in self._sockets.values():
                     went_offline.add(user_id)
-        for sock in dead:
+        # Close the reaped sockets CONCURRENTLY with a tight bound — a batch of
+        # dead sockets must never stack serial 5s timeouts inside the awaiting
+        # write request (this fan-out sits on the message-post path).
+        async def _close_quiet(sock: WebSocket) -> None:
             try:
-                await asyncio.wait_for(sock.close(), timeout=SEND_TIMEOUT_SEC)
+                await asyncio.wait_for(sock.close(), timeout=1.0)
             except Exception:
                 pass
+        await asyncio.gather(*(_close_quiet(s) for s in dead))
         if went_offline:
             # Recursion is bounded: each level strictly shrinks the socket set.
             await self.broadcast({"type": "presence", "online": await self.online_user_ids()})

@@ -222,8 +222,33 @@
   }
 
   // ─── Boot ──────────────────────────────────────────────────────────────────
+  // Portal handoff (§1): the side panel opens /community?t=<code>. Redeem the
+  // single-use code for an Asclepius session, then strip it from the URL so it
+  // never lingers in the address bar or gets bookmarked. Falls back silently
+  // to any existing same-origin session token.
+  async function redeemHandoff() {
+    let code = null;
+    try { code = new URLSearchParams(location.search).get('t'); } catch (e) { code = null; }
+    if (!code) return;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* ignore */ }
+    try {
+      const res = await fetch(API + '/handoff/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: code }),
+      });
+      if (!res.ok) return;
+      const d = await res.json().catch(() => null);
+      if (d && d.token) {
+        state.token = d.token;
+        try { localStorage.setItem(TOKEN_KEY, d.token); } catch (e) { /* quota */ }
+      }
+    } catch (e) { /* network — fall back to the stored session */ }
+  }
+
   async function boot() {
     try { state.token = localStorage.getItem(TOKEN_KEY) || null; } catch (e) { state.token = null; }
+    await redeemHandoff();
     if (!state.token) return renderSignedOut();
     try {
       const me = await api('/me');
