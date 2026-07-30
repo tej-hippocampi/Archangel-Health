@@ -3023,6 +3023,48 @@ class AsclepiusStore:
                 ),
             )
 
+    def external_adjudication_pairs(self) -> List[tuple]:
+        """(partner_verdict, physician_verdict) pairs for external-adjudication
+        agreement (Buyer Response PRD §7 F3). Reads the ``external_adjudication`` table
+        when present; returns [] otherwise so the export degrades to a null-with-reason
+        stat rather than failing. The table is populated by the adjudication surface
+        as physicians answer cases that carry a sealed partner adjudication."""
+        try:
+            with self._conn() as conn:
+                rows = conn.execute(
+                    "SELECT partner_verdict, physician_verdict FROM external_adjudication "
+                    "WHERE partner_verdict IS NOT NULL AND physician_verdict IS NOT NULL"
+                ).fetchall()
+        except Exception:
+            return []
+        return [(dict(r)["partner_verdict"], dict(r)["physician_verdict"]) for r in rows]
+
+    def record_external_adjudication(
+        self, *, ingest_case_id: str, partner_verdict: Optional[str],
+        physician_verdict: Optional[str], physician_hashed: Optional[str] = None,
+    ) -> None:
+        """Record a physician's independent verdict against the partner's sealed
+        adjudication for a case (Buyer Response PRD §7 F3)."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS external_adjudication (
+                    ingest_case_id   TEXT PRIMARY KEY,
+                    partner_verdict  TEXT,
+                    physician_verdict TEXT,
+                    physician_hashed TEXT,
+                    created_at       TEXT NOT NULL
+                )""")
+            conn.execute(
+                """INSERT INTO external_adjudication
+                   (ingest_case_id, partner_verdict, physician_verdict, physician_hashed, created_at)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(ingest_case_id) DO UPDATE SET
+                     partner_verdict=excluded.partner_verdict,
+                     physician_verdict=excluded.physician_verdict,
+                     physician_hashed=excluded.physician_hashed""",
+                (ingest_case_id, partner_verdict, physician_verdict, physician_hashed, now))
+
     def list_agreement_observations(self, *, specialty: Optional[str] = None) -> List[Dict[str, Any]]:
         clauses, params = [], []
         if specialty:

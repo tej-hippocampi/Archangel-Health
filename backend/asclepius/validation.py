@@ -101,6 +101,61 @@ def is_valid_anchor(anchor: Optional[Dict[str, Any]]) -> bool:
     return True
 
 
+_DOI_RE = re.compile(r"\b10\.\d{4,9}/\S+\b", re.I)
+_PMID_RE = re.compile(r"\b(?:pmid[:\s]*)?\d{6,9}\b", re.I)
+_URL_RE = re.compile(r"\bhttps?://\S+\b", re.I)
+
+
+def is_resolvable_identifier(identifier: Optional[str]) -> bool:
+    """True when an anchor identifier is something a buyer can actually FOLLOW — a
+    DOI, a PMID, or a URL (Buyer Response PRD §5 D1). An anchor nobody can follow is
+    not an anchor, and a buyer will spot-check three of them."""
+    s = (identifier or "").strip()
+    if not s:
+        return False
+    return bool(_DOI_RE.search(s) or _URL_RE.search(s)
+                or (s.lower().startswith("pmid") and _PMID_RE.search(s))
+                or (s.isdigit() and 6 <= len(s) <= 9))
+
+
+def grounding_tier(anchor: Optional[Dict[str, Any]], *, library_id: Optional[str] = None) -> str:
+    """Grade an anchor into a value tier (Buyer Response PRD §5 D2): guideline >
+    primary > consensus > textbook > unverified. Free text with nothing resolvable is
+    ``unverified`` and MUST NOT count as grounded.
+
+    A named authoritative source (a guideline with a section, a specific paper, a
+    society consensus, a reference work) resolves by NAME — a ``library_id`` always
+    resolves, and so does a non-empty identifier on a known source_type. An UNKNOWN /
+    ``other`` source_type resolves only with a real DOI / PMID / URL, so a hand-typed
+    citation with nothing followable is ``unverified``."""
+    if not anchor or not isinstance(anchor, dict):
+        return "unverified"
+    st = (anchor.get("source_type") or "").strip().lower()
+    ident = anchor.get("identifier")
+    named = bool(library_id) or bool((ident or "").strip())
+    known = {
+        "guideline": "guideline",
+        "primary_literature": "primary", "primary": "primary", "fda_label": "primary",
+        "expert_consensus": "consensus", "consensus": "consensus",
+        "textbook": "textbook", "reference": "textbook",
+    }
+    if st in known:
+        return known[st] if named else "unverified"
+    # Unknown / 'other' source_type: only a truly resolvable identifier counts.
+    if bool(library_id) or is_resolvable_identifier(ident):
+        return "primary"
+    return "unverified"
+
+
+def anchor_is_grounded(anchor: Optional[Dict[str, Any]], *, library_id: Optional[str] = None) -> bool:
+    """An anchor counts toward grounded only if it is valid AND carries a resolvable
+    identifier or a library id (Buyer Response PRD §5 D1/D2) — the ``unverified`` tier
+    never counts."""
+    if not is_valid_anchor(anchor):
+        return False
+    return grounding_tier(anchor, library_id=library_id) != "unverified"
+
+
 def all_anchors(obj: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Every evidence anchor carried by an object (a chosen_revision, from_scratch,
     reasoning step, or independent_answer), MERGING the multi-citation

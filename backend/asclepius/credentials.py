@@ -83,6 +83,76 @@ def generalized_blurb(ship: Dict[str, Any], *, fallback_specialty: Optional[str]
     return sentence
 
 
+# ─── Structured record-level credential block (Buyer Response PRD §6 E2) ──────
+# Fields that must NEVER appear at ANY tier of the structured block — the buyer must
+# be able to trust the credential without being able to route around us to the
+# physician (disintermediation risk). ``years_experience`` becomes a BAND: an exact
+# integer plus specialty plus state is close to identifying in a small subspecialty.
+_NEVER_IN_CREDENTIAL_BLOCK = (
+    "npi", "name", "legal_name", "full_name", "institution", "organization", "email",
+    "years_experience", "years_in_active_practice", "medical_license_number",
+    "license_number", "license", "city", "address", "phone",
+)
+
+
+def years_experience_band(years: Any) -> Optional[str]:
+    """Collapse exact years of experience into a band (Buyer Response PRD §6 E2). An
+    exact integer never ships — it is close to identifying in a small subspecialty."""
+    if years in (None, ""):
+        return None
+    try:
+        y = int(years)
+    except (TypeError, ValueError):
+        return None
+    if y < 0:
+        return None
+    for lo, hi in ((0, 1), (2, 4), (5, 9), (10, 14), (15, 19), (20, 24)):
+        if y <= hi:
+            return f"{lo}-{hi}"
+    return "25+"
+
+
+def structured_credential_block(
+    *, id_hashed: str, credential: str, ship: Optional[Dict[str, Any]] = None,
+    verify: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """The record-level structured credential block (Buyer Response PRD §6 E2):
+    board certification is VERIFIABLE, identity is NOT. Emits board_certified,
+    certifying_board, board_specialty, subspecialty, certification_status, the
+    third-party verification method + authority (the credibility move: someone
+    auditable verified the credential, without the buyer being able to verify WHICH
+    physician), a years-experience BAND, and license/NPI-verified booleans — never the
+    NPI, name, institution, email, exact years, or license number themselves."""
+    ship = ship or {}
+    verify = verify or {}
+    subs = ship.get("subspecialties") or []
+    if isinstance(subs, str):
+        subs = [subs] if subs.strip() else []
+    block = {
+        "id_hashed": id_hashed,
+        "credential": credential,
+        "board_certified": bool(ship.get("board_certifications")),
+        "certifying_board": ship.get("certifying_board"),
+        "board_specialty": ship.get("primary_specialty"),
+        "subspecialty": [str(s) for s in subs[:3]],
+        "certification_status": ship.get("certification_status") or (
+            "active" if ship.get("board_certifications") else None),
+        "certification_verified_at": ship.get("certification_verified_at"),
+        "verification_method": ship.get("verification_method") or (
+            "ABMS_certification_matters" if ship.get("credentials_verified") else None),
+        "verification_authority": ship.get("verification_authority") or (
+            "American Board of Medical Specialties" if ship.get("credentials_verified") else None),
+        "years_experience_band": years_experience_band(ship.get("years_in_active_practice")),
+        "practice_setting": ship.get("practice_setting"),
+        "state_licensed": bool(verify.get("license_state")),
+        "npi_verified": bool(ship.get("credentials_verified") or verify.get("npi")),
+    }
+    # Belt-and-suspenders: guarantee no identifying key leaked into the block.
+    for k in _NEVER_IN_CREDENTIAL_BLOCK:
+        block.pop(k, None)
+    return block
+
+
 # ─── Independent verification handles (from Tier B) ───────────────────────────
 def verification_handles(verify: Dict[str, Any]) -> Dict[str, Any]:
     """Public, independent lookup handles a lab can use to verify the credential

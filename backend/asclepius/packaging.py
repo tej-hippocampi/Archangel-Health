@@ -118,6 +118,12 @@ def _anchor(a: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         out["url"] = a.get("url")
     if a.get("citation_confirmed") is not None:
         out["citation_confirmed"] = bool(a.get("citation_confirmed"))
+    # Grounding tier (Buyer Response PRD §5 D2): buyers price tiers, so the binary
+    # grounded flag is not enough — a named guideline is worth more than free text.
+    # A library citation (carrying a url/library id) always resolves; a hand-typed
+    # one must carry a resolvable DOI/PMID/URL or it is 'unverified'.
+    from asclepius.validation import grounding_tier as _tier
+    out["grounding_tier"] = _tier(a, library_id=a.get("library_id") or a.get("url"))
     # §11 (additive): capture provenance — present only when the V3/V4 UI set it,
     # so V1/V2 records stay byte-identical.
     if a.get("entry_method"):
@@ -246,7 +252,67 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any],
     gen = _generation_provenance(task)
     if gen is not None:
         prov["generation"] = gen
+    # Signal ceiling (Buyer Response PRD §8): name what bounds this record's signal —
+    # volunteering it is the credibility move, and it makes the physician-authored
+    # upsell obvious. Ladder position (§9.3): where this record sits on the
+    # preference -> process -> environment ladder.
+    prov["signal_ceiling"] = _signal_ceiling(task)
+    prov["supervision_type"] = _supervision_type(task, submission)
+    prov.update(_ladder_position(task, submission))
     return prov
+
+
+# ─── Signal ceiling + supervision ladder (Buyer Response PRD §8, §9) ──────────
+def _answer_mode(task: Dict[str, Any]) -> str:
+    """model_pair (current V3 A/B) | physician_authored | physician_corrected."""
+    mode = (task.get("answer_mode") or (task.get("generation") or {}).get("answer_mode")
+            or "model_pair")
+    return str(mode)
+
+
+def _signal_ceiling(task: Dict[str, Any]) -> Dict[str, Any]:
+    mode = _answer_mode(task)
+    gen = task.get("generation") or {}
+    ab_source = gen.get("ab_source") or task.get("ab_source")
+    same_family = bool(ab_source in ("legacy_fallback", "anthropic_only_v4",
+                                     "same_family", "anthropic_only"))
+    families: List[str] = []
+    for c in task.get("candidate_answers") or []:
+        fam = c.get("generator_family") or c.get("generator_model")
+        if fam:
+            families.append(str(fam))
+    physician_authored = mode in ("physician_authored", "physician_corrected")
+    return {
+        "mode": mode,
+        "bounded_by": ("physician" if physician_authored else "best_of_two_frontier_models"),
+        "generators": families,
+        "same_family_fallback": same_family,
+        "human_contribution": ("authored_reference" if physician_authored
+                               else "selection_and_critique"),
+        "physician_authored_content": physician_authored,
+    }
+
+
+def _supervision_type(task: Dict[str, Any], submission: Dict[str, Any]) -> str:
+    if task.get("has_environment") or (submission.get("payload") or {}).get("tool_calls"):
+        return "environment_verifiable"
+    if (submission.get("payload") or {}).get("reasoning_steps"):
+        return "process_supervision"
+    return "pairwise_preference"
+
+
+def _ladder_position(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, Any]:
+    payload = submission.get("payload") or {}
+    has_env = bool(task.get("has_environment"))
+    has_tools = bool(payload.get("tool_calls"))
+    has_verifiable = bool(task.get("decisive_action") or task.get("has_verifiable_outcome"))
+    n_turns = int(task.get("n_turns") or 1)
+    return {
+        "has_environment": has_env,
+        "has_tool_calls": has_tools,
+        "has_verifiable_outcome": has_verifiable,
+        "n_turns": n_turns,
+    }
 
 
 # ─── step_note → step_error_tag (Eval UX Overhaul §13) ───────────────────────
