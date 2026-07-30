@@ -879,3 +879,23 @@ def test_community_page_shell_served():
     r = client.get("/community")
     assert r.status_code == 200
     assert "community" in r.text.lower()
+
+
+def test_app_lifespan_boots_and_stops_community():
+    """Production-boot insurance: the ``startup_community`` hook must init the
+    store (seeding the three channels) and start the digest loop, and shutdown
+    must stop it. The rest of the suite never runs lifespan (module-level
+    TestClient), so a boot-time regression here would only surface in prod."""
+    from fastapi.testclient import TestClient as TC
+
+    from community import notify as n
+
+    fresh_community()
+    with TC(app) as booted:
+        assert getattr(app.state, "community_store", None) is not None
+        slugs = [c["slug"] for c in app.state.community_store.list_channels()]
+        assert slugs == ["general", "task-announcements", "questions-help"]
+        assert n._loop_task is not None and not n._loop_task.done()
+        # the app is actually serving while the loop runs
+        assert booted.get("/community").status_code == 200
+    assert n._loop_task is None  # stop_digest_loop ran on shutdown
