@@ -517,6 +517,88 @@ def cf_case_has_asset(study: Dict[str, Any]) -> bool:
     return study_has_valid_asset(study)
 
 
+def key_image_series_cap() -> int:
+    """Above this many instances in one series, the partner (or an annotator) MUST
+    designate key images — the 1-5 instances the reasoning depends on (Buyer Response
+    PRD §4 C2). Without it, one CT study produces 200 assets, blows the prompt budget,
+    and buries the finding, so a large series is archived-only until key images are
+    named."""
+    try:
+        return max(1, int(os.getenv("ASCLEPIUS_KEY_IMAGE_SERIES_CAP", "5")))
+    except ValueError:
+        return 5
+
+
+def _dicom_entries_to_studies(
+    dicom_entries: List[Dict[str, Any]], manifest: Dict[str, Any], specialty: str,
+) -> Tuple[Dict[str, List[Dict[str, Any]]], List[Dict[str, Any]], bool]:
+    """Turn DICOM bundle entries into per-patient Study fragments (Buyer Response PRD
+    §4 C1-C3). Each entry: de-identify (PS3.15 Annex E) → burned-in risk → render/
+    archive. Returns (per_patient_frags, file_outcomes, produced_any_gradable).
+
+    Key-image discipline (§4 C2): a series larger than the cap promotes an asset ONLY
+    for instances the manifest designates as key images; the rest are archived so a
+    200-instance CT does not produce 200 gradable assets."""
+    from asclepius import dicom_deid
+
+    key_ids = {str(k).strip().lower() for k in (manifest.get("key_images") or [])}
+    cap = key_image_series_cap()
+
+    # First pass: parse + de-id, group by series, so we know each series' size.
+    parsed: List[Dict[str, Any]] = []
+    series_counts: Dict[str, int] = {}
+    for e in dicom_entries:
+        name = e.get("name")
+        try:
+            ds = dicom_deid.read(e["data"])
+            clean, dreport = dicom_deid.deidentify_dicom(ds)
+        except dicom_deid.DicomDeidError as exc:
+            parsed.append({"name": name, "error": str(exc)})
+            continue
+        series = str(getattr(clean, "SeriesInstanceUID", "") or name)
+        sop = str(getattr(clean, "SOPInstanceUID", "") or "")
+        series_counts[series] = series_counts.get(series, 0) + 1
+        parsed.append({"name": name, "ds": clean, "series": series, "sop": sop,
+                       "report": dreport})
+
+    per_patient: Dict[str, List[Dict[str, Any]]] = {}
+    outcomes: List[Dict[str, Any]] = []
+    produced = False
+    pk = str(manifest.get("patient_key") or "default")
+    for p in parsed:
+        name = p["name"]
+        if p.get("error"):
+            outcomes.append({"name": name, "kind": "dicom",
+                             "outcome": f"rejected_unreadable: {p['error']}"})
+            continue
+        ds = p["ds"]
+        risk, why = dicom_deid.burned_in_risk(ds)
+        if risk == "blocked":
+            outcomes.append({"name": name, "kind": "dicom",
+                             "outcome": f"rejected_burned_in_phi: {why}"})
+            continue
+        # Key-image gate: a large series promotes an asset only for designated images.
+        is_key = (series_counts.get(p["series"], 1) <= cap
+                  or (name or "").lower() in key_ids
+                  or p["sop"].lower() in key_ids)
+        if not is_key:
+            outcomes.append({"name": name, "kind": "dicom",
+                             "outcome": "archived_only: large series, not a designated key image"})
+            continue
+        frag = dicom_deid.to_study_fragment(
+            ds, render=(risk == "clear"), needs_review=(risk == "suspect"),
+            specialty=specialty)
+        study = {k: v for k, v in frag.items() if not str(k).startswith("_")}
+        per_patient.setdefault(pk, []).append({"studies": [study], "_dicom": True})
+        if risk == "clear" and cf_case_has_asset(study):
+            produced = True
+            outcomes.append({"name": name, "kind": "dicom", "outcome": "parsed"})
+        else:
+            outcomes.append({"name": name, "kind": "dicom",
+                             "outcome": f"needs_burnin_review: {why}"})
+    return per_patient, outcomes, produced
+
+
 def _store_sealed_ground_truth(store: Any, ingest_case_id: str, upload_id: str,
                                sealed: Optional[Dict[str, Any]], pk: str) -> None:
     """Persist the sealed answer key encrypted, keyed to the ingest case (Buyer
@@ -654,15 +736,25 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     file_outcomes: List[Dict[str, Any]] = []
     imaging_rejected = 0
     parsed_any = False
+    # DICOM is no longer an automatic rejection (Buyer Response PRD §4 C3, retiring the
+    # "no imaging" invariant, dated 2026-07): de-identify (PS3.15 Annex E) → burned-in
+    # risk → render/archive. Handled as a batch so series size (key-image discipline)
+    # is known.
+    dicom_entries = [e for e in bundle["entries"] if e.get("kind") == "dicom"]
+    if dicom_entries:
+        d_per_patient, d_outcomes, d_produced = _dicom_entries_to_studies(
+            dicom_entries, manifest, specialty)
+        for pk, frags in d_per_patient.items():
+            per_patient.setdefault(pk, []).extend(frags)
+        file_outcomes.extend(d_outcomes)
+        parsed_any = parsed_any or d_produced
     for e in bundle["entries"]:
         name, kind = e.get("name"), e.get("kind")
         if kind == "manifest":
             file_outcomes.append({"name": name, "kind": kind, "outcome": "used"})
             continue
         if kind == "dicom":
-            imaging_rejected += 1
-            file_outcomes.append({"name": name, "kind": kind, "outcome": "rejected_imaging"})
-            continue
+            continue  # handled in the batch above
         if kind in ("rejected", "unsupported"):
             file_outcomes.append({"name": name, "kind": kind,
                                   "outcome": e.get("reason") or "unsupported"})
@@ -681,10 +773,17 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
 
     if not parsed_any:
         store.update_ingest_upload(upload_id, files_json=file_outcomes)
-        if imaging_rejected and imaging_rejected == sum(
-            1 for e in bundle["entries"] if e.get("kind") != "manifest"
+        # The "imaging-only bundle is rejected wholesale" invariant is RETIRED (Buyer
+        # Response PRD §4 C3, 2026-07): a pathology or radiology case may legitimately
+        # be imaging-only. What we require instead is at least one GRADABLE study — a
+        # cleared/reviewer-approved asset. A bundle whose only DICOMs were blocked or
+        # left pending burned-in review produced nothing gradable and is rejected with
+        # that reason, not a blanket "imaging is never gradable".
+        if dicom_entries and not any(
+            e.get("kind") not in ("manifest", "dicom") for e in bundle["entries"]
         ):
-            return _fail("bundle contained only imaging (never a gradable modality)")
+            return _fail("no gradable study in the bundle: every image was blocked or "
+                         "left pending burned-in review (needs a cleared/approved asset)")
         return _fail("no parseable clinical content in the bundle")
 
     # Per patient: assemble → normalize → verify → hard guard → land or quarantine.

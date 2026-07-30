@@ -1,0 +1,318 @@
+"""DICOM ingestion + de-identification (Buyer Response PRD §4).
+
+A DICOM file is NOT "an image with a header". Four distinct PHI channels the
+free-text ``residual_identifiers`` scanner sees none of:
+
+  1. Header tags (PatientName/ID/BirthDate, StudyDate, AccessionNumber,
+     InstitutionName, ReferringPhysicianName, StudyDescription, and unbounded
+     private vendor tags).
+  2. Burned-in pixel PHI (name/MRN rendered INTO the pixels — no header scrub touches
+     it; ``BurnedInAnnotation`` is unreliable).
+  3. UIDs (Study/Series/SOPInstanceUID are re-identification keys back to the partner
+     PACS; they must be REMAPPED consistently, not removed, or the series collapses).
+  4. Structured-report narrative content (PHI risk AND, per §3, potentially the answer).
+
+This implements the spirit of PS3.15 Annex E Basic Application Level Confidentiality
+Profile with an explicit retain/remove/remap policy table and an ALLOWLIST default of
+REMOVE — private vendor tags are unbounded, so a blocklist can only ever be behind.
+"""
+from __future__ import annotations
+
+import hashlib
+import logging
+from typing import Any, Dict, List, Optional, Tuple
+
+log = logging.getLogger("asclepius.dicom_deid")
+
+# A stable, private UID root for our deterministic surrogates. Same original UID →
+# same surrogate, so a study's series hierarchy survives de-identification.
+_UID_ROOT = "2.25"  # the UUID-derived DICOM root arc
+
+
+class DicomDeidError(ValueError):
+    """A DICOM file cannot be made safe → the entry quarantines rather than degrading."""
+
+
+# ─── Policy per PS3.15 Annex E ────────────────────────────────────────────────
+# Three dispositions; the DEFAULT for any tag not named here is REMOVE.
+#   REMOVE  - deleted outright
+#   REMAP   - replaced with a deterministic surrogate (UIDs; dates via the case shift)
+#   RETAIN  - clinically load-bearing and non-identifying
+RETAIN = frozenset({
+    "Modality", "SOPClassUID", "PhotometricInterpretation", "SamplesPerPixel",
+    "Rows", "Columns", "BitsAllocated", "BitsStored", "HighBit", "PixelRepresentation",
+    "PlanarConfiguration", "PixelData", "WindowCenter", "WindowWidth",
+    "RescaleSlope", "RescaleIntercept", "RescaleType", "PixelSpacing",
+    "SliceThickness", "SpacingBetweenSlices", "ImageOrientationPatient",
+    "ImagePositionPatient", "KVP", "ContrastBolusAgent", "BodyPartExamined",
+    "ViewPosition", "ImageType", "TransferSyntaxUID", "NumberOfFrames",
+    "BurnedInAnnotation",  # retained as a SIGNAL (never trusted as absence of PHI)
+    "VOILUTFunction",
+})
+# UIDs remapped to keep the study/series hierarchy intact.
+REMAP_UIDS = frozenset({
+    "StudyInstanceUID", "SeriesInstanceUID", "SOPInstanceUID",
+    "FrameOfReferenceUID", "SynchronizationFrameOfReferenceUID",
+})
+# Dates/times remapped (blanked here in the standalone path; the bundle path applies
+# the same day-shift the rest of the case uses so intervals survive).
+REMAP_DATES = frozenset({
+    "StudyDate", "SeriesDate", "AcquisitionDate", "ContentDate", "StudyTime",
+    "SeriesTime", "AcquisitionTime", "ContentTime",
+})
+
+# Modalities that MOST OFTEN carry burned-in pixel PHI.
+_HIGH_RISK_MODALITIES = frozenset({"US", "SC", "OT", "XC"})
+
+# DICOM Modality → Study modality (asclepius.cases.STUDY_MODALITIES).
+_MODALITY_MAP = {
+    "CT": "ct", "MR": "mri", "PT": "pet", "PET": "pet", "NM": "pet",
+    "XA": "cath", "US": "other", "CR": "other", "DX": "other", "MG": "other",
+    "SM": "pathology", "GM": "pathology", "ECG": "ecg", "US_ECHO": "echo",
+}
+
+
+def read(data: bytes):
+    """Parse DICOM bytes → a pydicom Dataset. Raises DicomDeidError on a non-DICOM or
+    unreadable file."""
+    try:
+        import io
+        import pydicom
+        return pydicom.dcmread(io.BytesIO(data), force=True)
+    except Exception as exc:  # pragma: no cover - depends on pydicom
+        raise DicomDeidError(f"not a readable DICOM file: {exc}") from exc
+
+
+def remap_uid(original: str) -> str:
+    """Deterministic surrogate UID: same original → same surrogate (so a study's
+    series hierarchy survives), never reversible to the partner PACS."""
+    digest = hashlib.sha256(("asclepius-dicom-uid:" + str(original)).encode()).hexdigest()
+    # Build a numeric-only suffix under our root, capped to the 64-char UID limit.
+    num = str(int(digest[:24], 16))
+    uid = f"{_UID_ROOT}.{num}"
+    return uid[:64]
+
+
+def deidentify_dicom(ds, *, date_shift_days: Optional[int] = None) -> Tuple[Any, Dict[str, Any]]:
+    """(cleaned_dataset, report). Apply the allowlist policy: RETAIN load-bearing
+    non-identifying tags, REMAP UIDs (and dates by the case shift when given), and
+    REMOVE everything else — including every private/unknown tag. Raises
+    DicomDeidError when the file cannot be made safe."""
+    try:
+        removed: List[str] = []
+        remapped: List[str] = []
+        retained: List[str] = []
+
+        # Remove ALL private tags first (unbounded, vendor-specific).
+        try:
+            ds.remove_private_tags()
+        except Exception:  # pragma: no cover
+            pass
+
+        for elem in list(ds):
+            kw = elem.keyword or ""
+            if not kw:
+                # An unknown/unnamed (e.g. private, repeating-group) element → REMOVE.
+                del ds[elem.tag]
+                removed.append(str(elem.tag))
+                continue
+            if kw == "PixelData" or kw in RETAIN:
+                retained.append(kw)
+                continue
+            if kw in REMAP_UIDS:
+                try:
+                    ds[elem.tag].value = remap_uid(str(elem.value))
+                    remapped.append(kw)
+                except Exception:
+                    del ds[elem.tag]
+                    removed.append(kw)
+                continue
+            if kw in REMAP_DATES:
+                # Standalone path blanks dates; the bundle path shifts by the case's
+                # day offset so intervals survive (never a real calendar date).
+                ds[elem.tag].value = ""
+                remapped.append(kw)
+                continue
+            # DEFAULT: REMOVE. Allowlist, never a blocklist.
+            del ds[elem.tag]
+            removed.append(kw)
+
+        # File-meta identifiers also carry the SOP instance UID — remap it too.
+        meta = getattr(ds, "file_meta", None)
+        if meta is not None and "MediaStorageSOPInstanceUID" in meta:
+            try:
+                meta.MediaStorageSOPInstanceUID = remap_uid(str(meta.MediaStorageSOPInstanceUID))
+            except Exception:  # pragma: no cover
+                pass
+
+        report = {"removed": sorted(set(removed)), "remapped": sorted(set(remapped)),
+                  "retained": sorted(set(retained)), "date_shift_days": date_shift_days}
+        return ds, report
+    except DicomDeidError:
+        raise
+    except Exception as exc:
+        raise DicomDeidError(f"de-identification failed: {exc}") from exc
+
+
+def _ocr_border_text(ds) -> bool:
+    """OCR the top/bottom 12% of the rendered image for any text (where overlays
+    essentially always sit). Best-effort: returns False when OCR/pixels unavailable
+    (the caller's fail-closed rules still apply)."""
+    try:
+        import io
+        import numpy as np
+        import pytesseract
+        from PIL import Image
+
+        png = render_dicom_to_png(ds)
+        im = Image.open(io.BytesIO(png)).convert("L")
+        w, h = im.size
+        band = max(1, int(h * 0.12))
+        arr = np.asarray(im)
+        top = Image.fromarray(arr[:band, :])
+        bot = Image.fromarray(arr[-band:, :])
+        text = (pytesseract.image_to_string(top) + " " + pytesseract.image_to_string(bot))
+        return len(text.strip()) >= 3
+    except Exception:
+        return False
+
+
+def burned_in_risk(ds) -> Tuple[str, str]:
+    """('clear' | 'suspect' | 'blocked', reason). Layered, because every single
+    signal is individually unreliable:
+
+      1. BurnedInAnnotation == 'YES'                         -> blocked
+      2. Modality in HIGH_RISK (US, SC, OT, XC) and no explicit 'NO' -> suspect
+      3. OCR over the border regions finds text              -> suspect
+      4. Otherwise                                            -> clear
+
+    Fail closed: a MISSING BurnedInAnnotation is 'suspect', not 'clear' — the tag is
+    optional and widely unpopulated, so treating absence as absence of PHI inverts the
+    safe default on exactly the modalities that most often carry it. 'suspect' routes
+    to human review, never auto-ingest; 'blocked' rejects the entry."""
+    bia = str(getattr(ds, "BurnedInAnnotation", "") or "").strip().upper()
+    modality = str(getattr(ds, "Modality", "") or "").strip().upper()
+    if bia == "YES":
+        return "blocked", "BurnedInAnnotation=YES (declared burned-in PHI)"
+    if modality in _HIGH_RISK_MODALITIES and bia != "NO":
+        return "suspect", f"high-risk modality {modality} without an explicit BurnedInAnnotation=NO"
+    if bia != "NO":
+        # Missing/blank annotation → fail closed to suspect regardless of modality.
+        if _ocr_border_text(ds):
+            return "suspect", "text detected in the image border regions (OCR)"
+        return "suspect", "BurnedInAnnotation is absent; cannot certify no burned-in PHI"
+    if _ocr_border_text(ds):
+        return "suspect", "text detected in the image border regions (OCR)"
+    return "clear", "BurnedInAnnotation=NO and no border text detected"
+
+
+def render_dicom_to_png(ds, *, window: Optional[Tuple[float, float]] = None) -> bytes:
+    """Apply Modality LUT (RescaleSlope/Intercept) → VOI LUT (window center/width) →
+    8-bit PNG. Windowing is clinical, not cosmetic: the same CT slice at a stroke
+    window vs a bone window supports different diagnoses. Uses the file's
+    WindowCenter/WindowWidth when present unless an explicit ``window`` is given."""
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    arr = ds.pixel_array.astype("float64")
+    # Modality LUT (rescale to output units).
+    slope = float(getattr(ds, "RescaleSlope", 1) or 1)
+    intercept = float(getattr(ds, "RescaleIntercept", 0) or 0)
+    arr = arr * slope + intercept
+    # VOI LUT (windowing).
+    wc = wl = None
+    if window is not None:
+        wc, wl = window[0], window[1]
+    else:
+        wcs = getattr(ds, "WindowCenter", None)
+        wws = getattr(ds, "WindowWidth", None)
+        if wcs is not None and wws is not None:
+            wc = float(wcs[0] if isinstance(wcs, (list, tuple)) or hasattr(wcs, "__len__")
+                       and not isinstance(wcs, str) else wcs)
+            wl = float(wws[0] if isinstance(wws, (list, tuple)) or hasattr(wws, "__len__")
+                       and not isinstance(wws, str) else wws)
+    if wc is not None and wl and wl > 0:
+        lo, hi = wc - wl / 2.0, wc + wl / 2.0
+        arr = np.clip(arr, lo, hi)
+    # Normalize to 8-bit.
+    amin, amax = float(arr.min()), float(arr.max())
+    if amax > amin:
+        arr = (arr - amin) / (amax - amin) * 255.0
+    else:
+        arr = np.zeros_like(arr)
+    img = Image.fromarray(arr.astype("uint8"))
+    if getattr(ds, "PhotometricInterpretation", "") == "MONOCHROME1":
+        from PIL import ImageOps
+        img = ImageOps.invert(img.convert("L"))
+    buf = io.BytesIO()
+    img.convert("L").save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def window_applied(ds, window: Optional[Tuple[float, float]] = None) -> Optional[Dict[str, Any]]:
+    """Record WHICH window was applied to a render (Buyer Response PRD §4 C2), so a
+    case that turns on a specific window is auditable and a default-windowed render
+    cannot silently make a finding invisible."""
+    if window is not None:
+        return {"center": window[0], "width": window[1], "source": "explicit"}
+    wcs = getattr(ds, "WindowCenter", None)
+    wws = getattr(ds, "WindowWidth", None)
+    if wcs is not None and wws is not None:
+        try:
+            c = float(wcs[0]) if hasattr(wcs, "__len__") and not isinstance(wcs, str) else float(wcs)
+            w = float(wws[0]) if hasattr(wws, "__len__") and not isinstance(wws, str) else float(wws)
+            return {"center": c, "width": w, "source": "file"}
+        except Exception:
+            return None
+    return {"center": None, "width": None, "source": "modality_default"}
+
+
+def study_modality(ds, specialty: str = "") -> str:
+    modality = str(getattr(ds, "Modality", "") or "").strip().upper()
+    return _MODALITY_MAP.get(modality, "other")
+
+
+def to_study_fragment(ds, *, render: bool, needs_review: bool, specialty: str,
+                      windows: Optional[List[Tuple[float, float]]] = None) -> Dict[str, Any]:
+    """Build a Study fragment from a cleaned DICOM (Buyer Response PRD §4 C2).
+
+    * ``render`` (risk clear): render to PNG asset(s) — one per requested window, each
+      labelled — and promote the PNG to ``Study.asset`` (the model-facing raster). The
+      cleaned DICOM is the archival original (never a gradable MIME).
+    * ``needs_review`` (risk suspect): NO resolvable asset is promoted; the study is
+      flagged for the burned-in review queue so it can never auto-ingest as gradable.
+    """
+    from asclepius import assets
+
+    modality = study_modality(ds, specialty)
+    label = str(getattr(ds, "BodyPartExamined", "") or "").strip() or modality.upper()
+    frag: Dict[str, Any] = {
+        "modality": modality, "label": label, "findings": "", "measurements": [],
+    }
+    render_windows = windows or [None]  # type: ignore[list-item]
+    assets_out: List[Dict[str, Any]] = []
+    if render and not needs_review:
+        for win in render_windows:
+            png = render_dicom_to_png(ds, window=win)
+            stored = assets.process_upload(png, "image/png", source="partner_deidentified")
+            wa = window_applied(ds, win)
+            assets_out.append({
+                "asset_id": stored["asset_id"], "sha256": stored["sha256"],
+                "mime": stored["mime"], "width": stored.get("width"),
+                "height": stored.get("height"), "byte_size": stored.get("byte_size") or 0,
+                "window": wa,
+            })
+        if assets_out:
+            # Primary asset promoted to Study.asset; the rest are recorded on the
+            # fragment for multi-window studies.
+            primary = dict(assets_out[0])
+            window_meta = primary.pop("window", None)
+            frag["asset"] = {k: v for k, v in primary.items()}
+            frag["_render_window"] = window_meta
+            if len(assets_out) > 1:
+                frag["_extra_window_assets"] = assets_out[1:]
+    if needs_review:
+        frag["_needs_burnin_review"] = True
+    return frag

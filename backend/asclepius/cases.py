@@ -8,7 +8,10 @@ model + the text serialization that becomes ``task.prompt`` so packaging, export
 and every existing buyer profile keep working unchanged.
 
 Design invariants (PRD §2 rules):
-  * **No imaging.** There is no image field; images are never a gradable modality.
+  * **Imaging IS a gradable modality now** (Buyer Response PRD §3/§4, 2026-07 — this
+    supersedes the original "no imaging" rule). A :class:`Study` may carry a real
+    de-identified image ``asset`` (raster via the V4 image path, or a DICOM rendered
+    to PNG at ingest); the bytes still never live on the case, only the reference.
   * **Trends via relative offsets.** Labs carry ``collected_offset_days`` (0 =
     index day, −7 = a week earlier) — the clinically-vital interval survives, the
     identifying calendar date never exists.

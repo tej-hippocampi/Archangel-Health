@@ -579,6 +579,10 @@ def test_numeric_patient_key_does_not_kill_case():
 
 # ─── Imaging policy (PRD §11 criterion 5) ─────────────────────────────────────
 def test_dicom_entry_rejected_rest_ingests():
+    # Buyer Response PRD §4 C3 (2026-07): DICOM is no longer auto-rejected. A DICOM
+    # that cannot be made a gradable image (here: an unreadable/emtpy stub that fails
+    # burned-in screening) goes through the DICOM path — needs review or unreadable —
+    # while the rest of the bundle still lands. It is never "rejected_imaging".
     link = _mint(_admin_h())
     zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV,
                "scan.dcm": b"\x00" * 128 + b"DICM" + b"\x00" * 64})
@@ -588,7 +592,9 @@ def test_dicom_entry_rejected_rest_ingests():
     detail = client.get(f"/api/asclepius/ingestion/uploads/{res['upload_id']}",
                         headers=_admin_h()).json()
     outcomes = {f["name"]: f["outcome"] for f in detail["files"]}
-    assert outcomes["scan.dcm"] == "rejected_imaging"
+    assert outcomes["scan.dcm"] != "rejected_imaging"
+    assert any(k in outcomes["scan.dcm"]
+               for k in ("needs_burnin_review", "rejected_unreadable", "archived_only"))
 
 
 def test_imaging_only_bundle_rejected():

@@ -24,6 +24,10 @@ twilio==9.10.9
 # Email (SendGrid Web API)
 sendgrid>=6.12.5
 
+# DICOM ingestion + de-identification (Buyer Response PRD §4)
+pydicom>=3.0.0
+numpy>=1.26.0
+
 # PDF parsing
 PyPDF2==3.0.1
 pdfminer.six>=20260107
