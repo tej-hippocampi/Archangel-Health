@@ -1,0 +1,166 @@
+"""Community email digests (PRD §4): @mentions + #task-announcements posts.
+
+Notifications are QUEUED durably (``community_notifications``) at write time
+and flushed as one digest email per user by a background loop (interval
+``COMMUNITY_DIGEST_INTERVAL_SEC``, default 300s) via the shared
+``email_utils`` transport. A digest snippet is read from the live message row
+at flush time — so an edited message digests its current text and a deleted
+message digests nothing. Message bodies have already passed the §7 PHI gate,
+and the snippet is capped anyway.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import html
+import logging
+import os
+from typing import Any, Dict, List, Optional
+
+from community.store import CommunityStore, get_community_store
+
+log = logging.getLogger("community.notify")
+
+_KIND_LABELS = {
+    "mention": "mentioned you",
+    "announcement": "posted in #task-announcements",
+    "dm": "sent you a direct message",
+}
+_SNIPPET_LEN = 140
+
+
+def digest_interval_sec() -> int:
+    try:
+        return max(15, int(os.getenv("COMMUNITY_DIGEST_INTERVAL_SEC", "300")))
+    except (TypeError, ValueError):
+        return 300
+
+
+def queue_for_message(
+    cstore: CommunityStore,
+    *,
+    message: Dict[str, Any],
+    channel: Dict[str, Any],
+    member_ids: List[str],
+) -> None:
+    """Enqueue digest notifications for one just-persisted message: every
+    mentioned member, plus (for a top-level #task-announcements post) every
+    member. Never the author; each user at most once per message."""
+    author = message["author_user_id"]
+    queued: set = set()
+    for uid in message.get("mentions") or []:
+        if uid != author and uid in member_ids and uid not in queued:
+            cstore.enqueue_notification(user_id=uid, kind="mention", message_id=message["id"])
+            queued.add(uid)
+    if channel.get("slug") == "task-announcements" and not message.get("parent_message_id"):
+        for uid in member_ids:
+            if uid != author and uid not in queued:
+                cstore.enqueue_notification(user_id=uid, kind="announcement", message_id=message["id"])
+                queued.add(uid)
+
+
+def enqueue_dm(cstore: CommunityStore, *, recipient_id: str, message: Dict[str, Any]) -> None:
+    """Queue a digest entry for a received direct message. The digest email
+    goes only to the conversation's other participant — the snippet is their
+    own message to read, and the body has already passed the §7 PHI gate."""
+    if recipient_id != message["author_user_id"]:
+        cstore.enqueue_notification(user_id=recipient_id, kind="dm", message_id=message["id"])
+
+
+def _snippet(body: str) -> str:
+    text = " ".join((body or "").split())
+    if len(text) > _SNIPPET_LEN:
+        text = text[: _SNIPPET_LEN - 1].rstrip() + "…"
+    return text
+
+
+async def flush_pending(
+    cstore: Optional[CommunityStore] = None,
+    *,
+    resolve_member: Any = None,
+) -> int:
+    """Send one digest email per user with unsent notifications; mark them
+    sent. ``resolve_member(user_id) -> {email, display_name} | None`` is
+    injected by the router (it owns the member map). Returns emails sent."""
+    from email_utils import send_html_email  # local import — optional transport
+
+    cstore = cstore or get_community_store()
+    pending = cstore.unsent_notifications()
+    if not pending:
+        return 0
+
+    by_user: Dict[str, List[Dict[str, Any]]] = {}
+    for n in pending:
+        by_user.setdefault(n["user_id"], []).append(n)
+
+    sent_count = 0
+    for user_id, items in by_user.items():
+        member = resolve_member(user_id) if resolve_member else None
+        if not member or not member.get("email"):
+            # No longer a member (deactivated, role change): drop silently but
+            # mark handled so the queue can't grow unboundedly.
+            cstore.mark_notifications_sent([n["id"] for n in items])
+            continue
+        rows: List[str] = []
+        handled_ids: List[int] = []
+        for n in items:
+            handled_ids.append(n["id"])
+            msg = cstore.get_message(n["message_id"])
+            if not msg or msg.get("deleted"):
+                continue
+            actor = resolve_member(msg["author_user_id"]) if resolve_member else None
+            actor_name = (actor or {}).get("display_name") or "A colleague"
+            label = _KIND_LABELS.get(n["kind"], "posted")
+            rows.append(
+                "<li style='margin:6px 0'><strong>{}</strong> {}: {}</li>".format(
+                    html.escape(actor_name),
+                    html.escape(label),
+                    html.escape(_snippet(msg.get("body") or "")),
+                )
+            )
+        if rows:
+            body = (
+                "<p>While you were away in the Asclepius Community:</p>"
+                "<ul>" + "".join(rows) + "</ul>"
+                "<p><a href='{}/community'>Open the community</a> to reply.</p>"
+                "<p style='color:#8b8d89;font-size:12px'>Colleague discussion only — "
+                "no patient-identifiable information is permitted in the community.</p>"
+            ).format(html.escape(os.getenv("PUBLIC_BASE_URL", "").rstrip("/")))
+            ok = await send_html_email(
+                member["email"],
+                "Asclepius Community — new activity for you",
+                body,
+            )
+            if ok:
+                sent_count += 1
+            else:
+                log.warning("community digest email failed for one recipient (will not retry)")
+        cstore.mark_notifications_sent(handled_ids)
+    return sent_count
+
+
+_loop_task: Optional[asyncio.Task] = None
+
+
+def start_digest_loop(*, resolve_member: Any) -> None:
+    """Start (once) the background digest flusher. Called from app startup."""
+    global _loop_task
+    if _loop_task is not None and not _loop_task.done():
+        return
+
+    async def _run() -> None:
+        while True:
+            await asyncio.sleep(digest_interval_sec())
+            try:
+                await flush_pending(resolve_member=resolve_member)
+            except Exception:  # pragma: no cover — the loop must survive
+                log.warning("community digest flush failed", exc_info=True)
+
+    _loop_task = asyncio.get_running_loop().create_task(_run())
+
+
+def stop_digest_loop() -> None:
+    global _loop_task
+    if _loop_task is not None:
+        _loop_task.cancel()
+        _loop_task = None

@@ -71,6 +71,8 @@ from routers.triage_explain import router as triage_explain_router
 from routers.messaging import router as messaging_router
 from routers.telehealth import router as telehealth_router
 from routers.asclepius import router as asclepius_router
+from community.router import router as community_router
+from community.router import page_router as community_page_router
 from routers.asclepius_provider import router as asclepius_provider_router
 from routers.asclepius_buyer import router as asclepius_buyer_router
 from routers.leads import router as leads_router
@@ -2411,6 +2413,20 @@ async def asclepius_portal():
     top-level tab in the doctor portal (embedded via iframe) or directly. Static
     assets load from /static/asclepius/. No PHI."""
     html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/index.html")
+    with open(html_path) as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/community", response_class=HTMLResponse)
+async def community_page():
+    """Asclepius Community — private colleague workspace for verified
+    contributor physicians (Community PRD §1). The HTML shell is served
+    unauthenticated by design (like /asclepius): the page JS presents the
+    existing Asclepius session token and every API/WS call enforces the
+    verified-contributor gate server-side. There is no public registration
+    route, no invite link, and no join form — the only way in is a verified
+    contributor account arriving from the doctor portal (PRD §1, §9.3)."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/community.html")
     with open(html_path) as f:
         return HTMLResponse(content=f.read())
 
@@ -5907,6 +5923,33 @@ async def startup_team_scheduler():
     app.state.postop_nightly_task = asyncio.create_task(_postop_nightly_retier_loop())
 
 
+@app.on_event("startup")
+async def startup_community():
+    """Asclepius Community (Community PRD): init the standalone store (seeds the
+    three fixed channels) and start the mention/announcement email-digest loop.
+    Isolated from the team scheduler above — demo-mode early returns there must
+    not disable the community."""
+    try:
+        from community.store import get_community_store as _get_cstore
+        from community import notify as _cnotify
+        from community.router import resolve_member_for_notify as _resolve_member
+
+        app.state.community_store = _get_cstore()
+        _cnotify.start_digest_loop(resolve_member=_resolve_member)
+    except Exception:
+        _auth_logger.warning("[community] startup init failed; community disabled", exc_info=True)
+
+
+@app.on_event("shutdown")
+async def shutdown_community():
+    try:
+        from community import notify as _cnotify
+
+        _cnotify.stop_digest_loop()
+    except Exception:
+        pass
+
+
 @app.on_event("shutdown")
 async def shutdown_team_scheduler():
     for attr in (
@@ -5964,6 +6007,8 @@ app.include_router(telehealth_router)
 app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
 app.include_router(asclepius_buyer_router)
+app.include_router(community_router)
+app.include_router(community_page_router)
 app.include_router(leads_router)
 
 # Gold Standard — conversation-capture training data (Data Training tab). Mounted

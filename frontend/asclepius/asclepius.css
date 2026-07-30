@@ -97,6 +97,7 @@
 }
 .asc-nav-btn:hover { background: var(--card-in); color: var(--asc-text); }
 .asc-nav-btn.active { background: var(--ink); color: var(--card); }
+/* Community unread badge lives on the side-panel rail (.asc-rail-badge). */
 .asc-header-right {
   margin-left: auto;
   display: flex;
