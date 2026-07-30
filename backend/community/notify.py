@@ -24,6 +24,7 @@ log = logging.getLogger("community.notify")
 _KIND_LABELS = {
     "mention": "mentioned you",
     "announcement": "posted in #task-announcements",
+    "dm": "sent you a direct message",
 }
 _SNIPPET_LEN = 140
 
@@ -56,6 +57,14 @@ def queue_for_message(
             if uid != author and uid not in queued:
                 cstore.enqueue_notification(user_id=uid, kind="announcement", message_id=message["id"])
                 queued.add(uid)
+
+
+def enqueue_dm(cstore: CommunityStore, *, recipient_id: str, message: Dict[str, Any]) -> None:
+    """Queue a digest entry for a received direct message. The digest email
+    goes only to the conversation's other participant — the snippet is their
+    own message to read, and the body has already passed the §7 PHI gate."""
+    if recipient_id != message["author_user_id"]:
+        cstore.enqueue_notification(user_id=recipient_id, kind="dm", message_id=message["id"])
 
 
 def _snippet(body: str) -> str:

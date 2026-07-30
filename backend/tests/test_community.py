@@ -868,6 +868,211 @@ def test_image_upload_fails_closed_when_ocr_unavailable(monkeypatch):
     assert r.status_code == 200
 
 
+# ─── Direct messages (user-requested extension) ───────────────────────────────
+def open_dm(user, peer):
+    return client.post(f"{BASE}/dms", json={"user_id": peer["id"]}, headers=headers_for(user))
+
+
+def post_dm(user, dm_id, body, **kw):
+    return client.post(f"{BASE}/dms/{dm_id}/messages", json={"body": body, **kw},
+                       headers=headers_for(user))
+
+
+def test_dm_open_is_idempotent_and_symmetric():
+    astore, _, doc, _ = setup_world()
+    other = make_verified_physician(astore, specialty="cardiology")
+    a = open_dm(doc, other)
+    assert a.status_code == 200
+    b = open_dm(other, doc)  # same conversation from the other side
+    assert b.json()["id"] == a.json()["id"]
+    assert a.json()["peer"]["user_id"] == other["id"]
+    assert b.json()["peer"]["user_id"] == doc["id"]
+    # cannot DM yourself
+    assert open_dm(doc, doc).status_code == 400
+    # cannot DM someone who cannot enter the community
+    buyer = make_user(astore, role="buyer")
+    assert open_dm(doc, buyer).status_code == 404
+
+
+def test_dm_roundtrip_and_listing():
+    astore, _, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    dm_id = open_dm(doc, other).json()["id"]
+    r = post_dm(doc, dm_id, "quick question on the transplant case set")
+    assert r.status_code == 200
+    assert r.json()["dm"] == dm_id and r.json()["channel"] is None
+    # peer sees it, with unread
+    r = client.get(f"{BASE}/dms", headers=headers_for(other))
+    convo = next(d for d in r.json()["dms"] if d["id"] == dm_id)
+    assert convo["unread"] == 1
+    assert convo["peer"]["user_id"] == doc["id"]
+    r = client.get(f"{BASE}/dms/{dm_id}/messages", headers=headers_for(other))
+    assert [m["body"] for m in r.json()["messages"]] == [
+        "quick question on the transplant case set"]
+    # reading clears the badge
+    last = r.json()["messages"][-1]["id"]
+    client.post(f"{BASE}/dms/{dm_id}/read", json={"last_read_message_id": last},
+                headers=headers_for(other))
+    r = client.get(f"{BASE}/badge", headers=headers_for(other))
+    assert r.json()["dm_unread"] == 0
+
+
+def test_dm_badge_includes_dm_unread():
+    astore, _, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    dm_id = open_dm(doc, other).json()["id"]
+    post_dm(doc, dm_id, "ping one")
+    post_dm(doc, dm_id, "ping two")
+    b = client.get(f"{BASE}/badge", headers=headers_for(other)).json()
+    assert b["dm_unread"] == 2
+    assert b["unread"] >= 2  # DM unread counts toward the portal badge total
+
+
+def test_dm_participant_isolation_on_every_path():
+    """The privacy invariant: a non-participant — INCLUDING an admin — gets
+    404 on every route that could reach DM content."""
+    astore, _, doc, admin = setup_world()
+    other = make_verified_physician(astore)
+    third = make_verified_physician(astore, specialty="oncology")
+    dm_id = open_dm(doc, other).json()["id"]
+    mid = post_dm(doc, dm_id, "between the two of us: rubric axis 3 is broken").json()["id"]
+
+    for outsider in (third, admin):
+        hdrs = headers_for(outsider)
+        assert client.get(f"{BASE}/dms/{dm_id}/messages", headers=hdrs).status_code == 404
+        assert client.post(f"{BASE}/dms/{dm_id}/messages", json={"body": "hi"},
+                           headers=hdrs).status_code == 404
+        assert client.post(f"{BASE}/dms/{dm_id}/read", json={"last_read_message_id": mid},
+                           headers=hdrs).status_code == 404
+        # by message id: react / edit / delete / thread all 404 (no oracle)
+        assert client.post(f"{BASE}/messages/{mid}/reactions", json={"emoji": "👀"},
+                           headers=hdrs).status_code == 404
+        assert client.patch(f"{BASE}/messages/{mid}", json={"body": "x"},
+                            headers=hdrs).status_code == 404
+        assert client.delete(f"{BASE}/messages/{mid}", headers=hdrs).status_code == 404
+        assert client.get(f"{BASE}/messages/{mid}/thread", headers=hdrs).status_code == 404
+        # search never surfaces someone else's DM content
+        r = client.get(f"{BASE}/search?q=rubric+axis+3", headers=hdrs)
+        assert all(m["id"] != mid for m in r.json()["results"])
+    # …while a participant CAN search their own DM
+    r = client.get(f"{BASE}/search?q=rubric+axis+3", headers=headers_for(other))
+    assert any(m["id"] == mid and m["dm"] == dm_id for m in r.json()["results"])
+
+
+def test_dm_attachment_participants_only():
+    astore, _, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    third = make_verified_physician(astore)
+    dm_id = open_dm(doc, other).json()["id"]
+    asset_id = client.post(
+        f"{BASE}/attachments",
+        files={"file": ("labs.txt", b"Cr 1.9 trending", "text/plain")},
+        headers=headers_for(doc)).json()["asset_id"]
+    r = post_dm(doc, dm_id, "labs attached", attachment_ids=[asset_id])
+    assert r.status_code == 200
+    assert client.get(f"{BASE}/attachments/{asset_id}",
+                      headers=headers_for(other)).status_code == 200
+    assert client.get(f"{BASE}/attachments/{asset_id}",
+                      headers=headers_for(third)).status_code == 404
+
+
+def test_dm_phi_blocked_and_never_stored():
+    """1:1 case discussion is exactly where an identifier will be pasted —
+    the identical server-side gate, before persistence, category-only."""
+    astore, cstore, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    dm_id = open_dm(doc, other).json()["id"]
+    r = post_dm(doc, dm_id, "patient name is John Smith, MRN 84921734")
+    assert r.status_code == 422
+    detail = r.json()["detail"]
+    assert detail["code"] == "phi_detected"
+    assert "John Smith" not in json.dumps(detail) and "84921734" not in json.dumps(detail)
+    with sqlite3.connect(cstore.db_path) as conn:
+        n = conn.execute("SELECT COUNT(*) FROM community_messages").fetchone()[0]
+    assert n == 0
+    assert cstore.block_count(doc["id"]) == 1
+    # audited with categories only
+    evs = [e for e in audit_events("community.phi_block") if e["actor_id"] == doc["id"]]
+    assert evs and "John" not in evs[-1]["detail_json"]
+    # clinical content flows normally
+    assert post_dm(doc, dm_id, "K 6.1, gave insulin/D50 — recheck in 2h").status_code == 200
+
+
+def test_dm_no_threads():
+    astore, _, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    dm_id = open_dm(doc, other).json()["id"]
+    mid = post_dm(doc, dm_id, "first").json()["id"]
+    # the DM post schema has no parent_message_id — a reply lands flat
+    r = post_dm(other, dm_id, "second", parent_message_id=mid)
+    assert r.status_code == 200
+    assert r.json()["parent_message_id"] is None
+
+
+def test_dm_digest_queued_for_recipient_only():
+    astore, cstore, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    dm_id = open_dm(doc, other).json()["id"]
+    post_dm(doc, dm_id, "are you around for a curbside?")
+    pending = cstore.unsent_notifications()
+    assert [(n["user_id"], n["kind"]) for n in pending] == [(other["id"], "dm")]
+    import asyncio
+    from community.router import resolve_member_for_notify
+    sent = asyncio.run(
+        cnotify.flush_pending(cstore, resolve_member=resolve_member_for_notify))
+    assert sent == 1
+
+
+def _recv_until(ws, want_type, tries=10):
+    """Drain a socket until an event of the wanted type arrives. The hub is
+    process-global across the test module, so presence events from other
+    tests' sockets being reaped can interleave — order-strict receives flake."""
+    seen = []
+    for _ in range(tries):
+        evt = ws.receive_json()
+        seen.append(evt)
+        if evt.get("type") == want_type:
+            return evt, seen
+    raise AssertionError(f"never received {want_type}; saw {[e.get('type') for e in seen]}")
+
+
+def test_dm_ws_delivery_targeted():
+    """DM events reach the participants' sockets and NEVER a third member's."""
+    astore, _, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    third = make_verified_physician(astore)
+    dm_id = open_dm(doc, other).json()["id"]
+    with client.websocket_connect(f"{BASE}/ws?token={token_for(other)}") as ws_peer, \
+         client.websocket_connect(f"{BASE}/ws?token={token_for(third)}") as ws_third:
+        _recv_until(ws_peer, "hello")
+        _recv_until(ws_third, "hello")
+        post_dm(doc, dm_id, "realtime dm check")
+        evt, _seen = _recv_until(ws_peer, "message.created")
+        assert evt["message"]["dm"] == dm_id
+        assert evt["message"]["body"] == "realtime dm check"
+        # The third member must receive NOTHING for this DM. Post a channel
+        # message and drain the third socket up to it: the only
+        # message.created it ever sees is the public one.
+        post_msg(doc, "general", "public follow-up")
+        evt3, seen3 = _recv_until(ws_third, "message.created")
+        assert evt3["message"]["body"] == "public follow-up"
+        assert all(
+            (e.get("message") or {}).get("dm") != dm_id for e in seen3
+        ), "DM event leaked to a non-participant socket"
+
+
+def test_dm_soft_delete():
+    astore, cstore, doc, _ = setup_world()
+    other = make_verified_physician(astore)
+    dm_id = open_dm(doc, other).json()["id"]
+    mid = post_dm(doc, dm_id, "typo msg").json()["id"]
+    assert client.delete(f"{BASE}/messages/{mid}", headers=headers_for(doc)).status_code == 200
+    row = cstore.get_message(mid)
+    assert row["deleted"] and row["body"] == ""
+    r = client.get(f"{BASE}/dms/{dm_id}/messages", headers=headers_for(other))
+    assert mid not in [m["id"] for m in r.json()["messages"]]
+
+
 # ─── No public path in (§9.3) ─────────────────────────────────────────────────
 def test_no_registration_or_invite_routes():
     for path in (f"{BASE}/register", f"{BASE}/signup", f"{BASE}/invite", f"{BASE}/join"):

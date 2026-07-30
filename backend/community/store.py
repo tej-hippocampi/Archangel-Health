@@ -134,6 +134,15 @@ class CommunityStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_cnotif_unsent
                     ON community_notifications(emailed_at, user_id);
+                CREATE TABLE IF NOT EXISTS community_dms (
+                    id TEXT PRIMARY KEY,
+                    user_a TEXT NOT NULL,
+                    user_b TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE (user_a, user_b)
+                );
+                CREATE INDEX IF NOT EXISTS idx_cdm_a ON community_dms(user_a);
+                CREATE INDEX IF NOT EXISTS idx_cdm_b ON community_dms(user_b);
                 CREATE TABLE IF NOT EXISTS community_bans (
                     user_id TEXT PRIMARY KEY,
                     banned_by TEXT NOT NULL,
@@ -463,17 +472,95 @@ class CommunityStore:
                 }
         return out
 
-    # ─── Search ───────────────────────────────────────────────────────────────
-    def search_messages(self, query: str, *, limit: int = 50) -> List[Dict[str, Any]]:
-        q = (query or "").strip()
-        if not q:
-            return []
-        like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    # ─── Direct messages (conversations) ──────────────────────────────────────
+    # A DM is a private two-person conversation. Its messages live in
+    # ``community_messages`` with ``channel_id`` set to the DM id (``dm-…``),
+    # so the whole message pipeline — PHI gate, reactions, edit/delete, soft
+    # delete, read cursors, audit — is shared with channels. VISIBILITY is the
+    # caller's job: the router checks participant membership on every path
+    # that can reach a message by id.
+    def get_or_create_dm(self, user_x: str, user_y: str) -> Dict[str, Any]:
+        if user_x == user_y:
+            raise ValueError("cannot open a conversation with yourself")
+        a, b = sorted([user_x, user_y])
+        dm_id = "dm-" + uuid.uuid4().hex[:16]
+        with self._conn() as conn:
+            # Race-safe get-or-create: two simultaneous opens both reach the
+            # INSERT; ON CONFLICT DO NOTHING lets the loser fall through to
+            # the SELECT instead of raising a UNIQUE violation.
+            conn.execute(
+                "INSERT INTO community_dms (id, user_a, user_b, created_at) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(user_a, user_b) DO NOTHING",
+                (dm_id, a, b, _utcnow_iso()),
+            )
+            row = conn.execute(
+                "SELECT * FROM community_dms WHERE user_a = ? AND user_b = ?", (a, b)
+            ).fetchone()
+        return dict(row)
+
+    def get_dm(self, dm_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM community_dms WHERE id = ?", (dm_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_dms_for(self, user_id: str) -> List[Dict[str, Any]]:
+        """The user's conversations, most-recent-activity first, each with the
+        peer id, the last live message id/time, and the unread count (messages
+        past the user's read cursor, authored by the peer, not deleted)."""
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM community_messages WHERE deleted_at IS NULL "
-                "AND body LIKE ? ESCAPE '\\' ORDER BY id DESC LIMIT ?",
-                (like, max(1, min(int(limit or 50), 100))),
+                """
+                SELECT d.*,
+                       (SELECT MAX(m.id) FROM community_messages m
+                         WHERE m.channel_id = d.id AND m.deleted_at IS NULL) AS last_message_id,
+                       (SELECT m2.created_at FROM community_messages m2
+                         WHERE m2.channel_id = d.id AND m2.deleted_at IS NULL
+                         ORDER BY m2.id DESC LIMIT 1) AS last_message_at,
+                       COALESCE((SELECT r.last_read_message_id FROM community_reads r
+                         WHERE r.user_id = ? AND r.channel_id = d.id), 0) AS cursor
+                FROM community_dms d
+                WHERE d.user_a = ? OR d.user_b = ?
+                """,
+                (user_id, user_id, user_id),
+            ).fetchall()
+            out = []
+            for r in rows:
+                d = dict(r)
+                d["peer_user_id"] = d["user_b"] if d["user_a"] == user_id else d["user_a"]
+                unread_row = conn.execute(
+                    "SELECT COUNT(*) AS n FROM community_messages "
+                    "WHERE channel_id = ? AND id > ? AND deleted_at IS NULL AND author_user_id != ?",
+                    (d["id"], int(d["cursor"] or 0), user_id),
+                ).fetchone()
+                d["unread"] = int(unread_row["n"] or 0)
+                d.pop("cursor", None)
+                out.append(d)
+        out.sort(key=lambda d: (d.get("last_message_id") or 0), reverse=True)
+        return out
+
+    def dm_unread_total(self, user_id: str) -> int:
+        return sum(d["unread"] for d in self.list_dms_for(user_id))
+
+    # ─── Search ───────────────────────────────────────────────────────────────
+    def search_messages(
+        self, query: str, *, channel_ids: List[str], limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """Search ONLY within the given channel/DM ids — the caller passes the
+        set the user is allowed to see (public channels + their own DMs), so a
+        query can never surface someone else's direct messages."""
+        q = (query or "").strip()
+        if not q or not channel_ids:
+            return []
+        like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        qmarks = ",".join("?" * len(channel_ids))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM community_messages WHERE deleted_at IS NULL "
+                f"AND channel_id IN ({qmarks}) "
+                f"AND body LIKE ? ESCAPE '\\' ORDER BY id DESC LIMIT ?",
+                (*channel_ids, like, max(1, min(int(limit or 50), 100))),
             ).fetchall()
         return [self._message_row(r) for r in rows]
 

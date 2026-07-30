@@ -110,6 +110,19 @@
 }
 .cm-chan-lock { color: var(--ink-faint); font-size: 0.75rem; }
 
+/* direct messages in the rail — peer names in sans, not mono uppercase */
+.cm-dm-row .cm-dm-name {
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.cm-rail-hint {
+  padding: 2px var(--sp-3) var(--sp-1);
+  font-size: 0.6875rem;
+  color: var(--ink-faint);
+}
+
 /* members in the rail */
 .cm-member-row {
   display: flex;
@@ -130,6 +143,22 @@
 .cm-presence.online { background: var(--green); }
 .cm-member-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-member-row-spec { font-family: var(--mono); font-size: 0.625rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
+
+.cm-member-filter-row { padding: 0 var(--sp-3) var(--sp-2); }
+.cm-member-filter {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.cm-member-filter:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 
 .cm-rail-foot {
   border-top: 1px solid var(--hairline);

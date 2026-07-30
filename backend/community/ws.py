@@ -67,13 +67,9 @@ class Hub:
         except Exception:
             return False
 
-    async def broadcast(self, event: Dict[str, Any], *, exclude: Optional[WebSocket] = None) -> None:
-        """Send one event to every connected socket, concurrently, each send
-        bounded by ``SEND_TIMEOUT_SEC``. A socket that fails or times out is
-        reaped here; if that was its user's last connection, a presence event
-        follows so other clients see them go offline."""
-        async with self._lock:
-            targets = [s for s in self._sockets.keys() if s is not exclude]
+    async def _deliver(self, targets: List[WebSocket], event: Dict[str, Any]) -> None:
+        """Concurrent, timeout-bounded fan-out to a target list, with dead
+        sockets reaped and presence transitions emitted."""
         if not targets:
             return
         results = await asyncio.gather(
@@ -96,6 +92,29 @@ class Hub:
         if went_offline:
             # Recursion is bounded: each level strictly shrinks the socket set.
             await self.broadcast({"type": "presence", "online": await self.online_user_ids()})
+
+    async def broadcast(self, event: Dict[str, Any], *, exclude: Optional[WebSocket] = None) -> None:
+        """Send one event to every connected socket."""
+        async with self._lock:
+            targets = [s for s in self._sockets.keys() if s is not exclude]
+        await self._deliver(targets, event)
+
+    async def send_to_users(
+        self,
+        user_ids: List[str],
+        event: Dict[str, Any],
+        *,
+        exclude: Optional[WebSocket] = None,
+    ) -> None:
+        """Send one event ONLY to the given users' sockets — the delivery
+        primitive for direct messages: a DM event never rides the broadcast."""
+        want = set(user_ids or [])
+        async with self._lock:
+            targets = [
+                s for s, uid in self._sockets.items()
+                if uid in want and s is not exclude
+            ]
+        await self._deliver(targets, event)
 
 
 hub = Hub()

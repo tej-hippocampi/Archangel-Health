@@ -113,5 +113,29 @@ text-layer PDFs, and all messaging work regardless.
   them; this is stated in the community footer.
 * **Channels are fixed** (v1): `#general`, `#task-announcements` (admin-post,
   threaded replies open to all), `#questions-help`. Seeding is idempotent on
-  boot. DMs, voice/video, and user-created channels are deliberately out of
-  scope for v1.
+  boot. Voice/video and user-created channels are deliberately out of scope.
+
+## Direct messages
+
+Added at the product owner's request (the original PRD deferred DMs to v2).
+Physicians open a colleague's profile → **Send a message**; conversations
+appear in a "Direct messages" rail section with unread pills and presence.
+
+DMs share the channel message pipeline — the identical §7 PHI gate on every
+DM write (a 1:1 case discussion is exactly where an identifier gets pasted),
+the same soft delete, metadata-only audit, attachment screening, and email
+digests (recipient only). Two invariants make them private:
+
+* **Participant-only access** on every path that can reach a message by id —
+  history, post, read, edit, delete, reactions, thread, attachment download,
+  and search (scoped in SQL to public channels + the caller's own DMs). A
+  non-participant gets the same 404 as a nonexistent message. This includes
+  **admins**: there is no admin read access to others' DMs, and consequently
+  no moderation inside DMs in this version — moderation applies to channels,
+  plus community-wide deactivation.
+* **Targeted WebSocket delivery**: DM events (`message.created/updated/
+  deleted`, reactions, typing) are sent only to the two participants'
+  sockets, never the broadcast.
+
+No threads inside DMs; unread counts feed the same portal badge
+(`dm_unread` + channel unread).

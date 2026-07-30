@@ -17,11 +17,13 @@
     me: null,           // my member profile
     isAdmin: false,
     channels: [],       // [{slug,name,description,post_policy,unread,mentions}]
-    active: 'general',
-    msgs: {},           // slug -> {list:[], hasMore:bool, loaded:bool}
+    dms: [],            // [{id, peer, unread, last_message_id, last_message_at}]
+    active: 'general',  // channel slug OR a dm id ("dm-…") — keys never collide
+    msgs: {},           // container key (slug or dm id) -> {list, hasMore, loaded}
     members: [],
     membersById: {},
     online: new Set(),
+    memberFilter: '',   // specialty filter for the member directory (§4)
     thread: null,       // {rootId, root, replies}
     sidePanel: null,    // null | 'thread' | 'member'
     sideMember: null,
@@ -233,9 +235,10 @@
       if (e.status === 403) return renderGate();
       return renderError(e.message);
     }
-    await Promise.all([loadChannels(), loadMembers()]);
+    await Promise.all([loadChannels(), loadMembers(), loadDms()]);
     const hash = (location.hash || '').replace(/^#/, '');
-    if (hash && state.channels.some((c) => c.slug === hash)) state.active = hash;
+    if (hash && (state.channels.some((c) => c.slug === hash)
+        || state.dms.some((d) => d.id === hash))) state.active = hash;
     renderApp();
     await openChannel(state.active, { force: true });
     connectWs();
@@ -276,6 +279,22 @@
   async function loadChannels() {
     const d = await api('/channels');
     state.channels = d.channels || [];
+  }
+  async function loadDms() {
+    const d = await api('/dms');
+    state.dms = d.dms || [];
+  }
+  function isDmKey(key) { return typeof key === 'string' && key.indexOf('dm-') === 0; }
+  function activeDm() { return state.dms.find((d) => d.id === state.active) || null; }
+  function messagesUrl(key) {
+    return isDmKey(key)
+      ? '/dms/' + encodeURIComponent(key) + '/messages'
+      : '/channels/' + encodeURIComponent(key) + '/messages';
+  }
+  function readUrl(key) {
+    return isDmKey(key)
+      ? '/dms/' + encodeURIComponent(key) + '/read'
+      : '/channels/' + encodeURIComponent(key) + '/read';
   }
   async function loadMembers() {
     const d = await api('/members');
@@ -342,13 +361,60 @@
     }
     scrollBox.appendChild(chSection);
 
+    // direct messages (user-requested extension)
+    const dmSection = h('div', { class: 'cm-rail-section' },
+      h('div', { class: 'cm-rail-label' },
+        h('span', { class: 'chrome' }, 'Direct messages')));
+    if (!state.dms.length) {
+      dmSection.appendChild(h('div', { class: 'cm-rail-hint' },
+        'Open a colleague’s profile to start one.'));
+    }
+    for (const d of state.dms) {
+      const peer = d.peer || {};
+      const isActive = d.id === state.active;
+      dmSection.appendChild(h('button', {
+        class: 'cm-chan cm-dm-row' + (isActive ? ' active' : ''),
+        'aria-current': isActive ? 'page' : null,
+        onClick: () => openDm(d.id),
+      },
+        h('span', {
+          class: 'cm-presence' + (state.online.has(peer.user_id) ? ' online' : ''),
+          'aria-hidden': 'true',
+        }),
+        h('span', { class: 'cm-chan-name cm-dm-name' }, peer.display_name || 'Former member'),
+        d.unread > 0 && !isActive
+          ? h('span', { class: 'cm-chan-unread' }, d.unread > 99 ? '99+' : String(d.unread))
+          : null));
+    }
+    scrollBox.appendChild(dmSection);
+
     // members
     const online = state.members.filter((m) => state.online.has(m.user_id)).length;
+    // Specialty filter (PRD §4: member directory with specialty filter)
+    const shown = state.members.filter((m) =>
+      !state.memberFilter || (m.specialty || '').toLowerCase() === state.memberFilter);
+    const specialties = Array.from(new Set(state.members
+      .filter((m) => !m.is_staff && m.specialty)
+      .map((m) => m.specialty.toLowerCase()))).sort();
+    const filterSel = h('select', {
+      class: 'cm-member-filter',
+      'aria-label': 'Filter members by specialty',
+      onChange: (e) => { state.memberFilter = e.target.value; renderRail(); },
+    },
+      h('option', { value: '' }, 'All specialties'),
+      specialties.map((s) => h('option',
+        { value: s, selected: state.memberFilter === s ? 'selected' : null },
+        s.charAt(0).toUpperCase() + s.slice(1))));
+
     const mSection = h('div', { class: 'cm-rail-section' },
       h('div', { class: 'cm-rail-label' },
-        h('span', { class: 'chrome' }, 'Members (' + state.members.length + ')'),
-        h('span', { class: 'chrome' }, online + ' online')));
-    for (const m of state.members) {
+        h('span', { class: 'chrome' },
+          'Members (' + (state.memberFilter
+            ? shown.length + '/' + state.members.length
+            : state.members.length) + ')'),
+        h('span', { class: 'chrome' }, online + ' online')),
+      specialties.length > 1 ? h('div', { class: 'cm-member-filter-row' }, filterSel) : null);
+    for (const m of shown) {
       mSection.appendChild(h('button', {
         class: 'cm-member-row',
         onClick: () => openMember(m.user_id),
@@ -380,10 +446,19 @@
     const head = document.getElementById('cmHead');
     if (!head) return;
     clear(head);
-    const ch = activeChannel();
-    if (!ch) return;
-    head.appendChild(h('span', { class: 'cm-head-name' }, '#' + ch.slug));
-    head.appendChild(h('span', { class: 'cm-head-desc' }, ch.description || ''));
+    if (isDmKey(state.active)) {
+      const d = activeDm();
+      const peer = (d && d.peer) || {};
+      head.appendChild(h('span', { class: 'cm-head-name' }, peer.display_name || 'Conversation'));
+      head.appendChild(h('span', { class: 'cm-head-desc' },
+        'Direct messages are between the two of you.'
+        + (peer.blurb ? ' ' + peer.blurb : '')));
+    } else {
+      const ch = activeChannel();
+      if (!ch) return;
+      head.appendChild(h('span', { class: 'cm-head-name' }, '#' + ch.slug));
+      head.appendChild(h('span', { class: 'cm-head-desc' }, ch.description || ''));
+    }
     const searchWrap = h('div', { class: 'cm-search' });
     const input = h('input', {
       type: 'search', placeholder: 'Search messages…', 'aria-label': 'Search messages',
@@ -394,22 +469,22 @@
     head.appendChild(searchWrap);
   }
 
-  // ─── Channel open + history ────────────────────────────────────────────────
-  async function openChannel(slug, opts) {
+  // ─── Channel / DM open + history ───────────────────────────────────────────
+  async function openContainer(key, opts) {
     opts = opts || {};
-    if (state.active === slug && !opts.force && state.msgs[slug] && state.msgs[slug].loaded) {
+    if (state.active === key && !opts.force && state.msgs[key] && state.msgs[key].loaded) {
       return;
     }
-    state.active = slug;
-    try { history.replaceState(null, '', '#' + slug); } catch (e) { /* ignore */ }
+    state.active = key;
+    try { history.replaceState(null, '', '#' + key); } catch (e) { /* ignore */ }
     renderRail();
     renderHead();
     renderComposer();
-    if (!state.msgs[slug] || opts.force) {
-      state.msgs[slug] = { list: [], hasMore: false, loaded: false };
+    if (!state.msgs[key] || opts.force) {
+      state.msgs[key] = { list: [], hasMore: false, loaded: false };
       try {
-        const d = await api('/channels/' + encodeURIComponent(slug) + '/messages?limit=50');
-        state.msgs[slug] = { list: d.messages || [], hasMore: !!d.has_more, loaded: true };
+        const d = await api(messagesUrl(key) + '?limit=50');
+        state.msgs[key] = { list: d.messages || [], hasMore: !!d.has_more, loaded: true };
       } catch (e) {
         toast(e.message, 'error');
         return;
@@ -417,6 +492,17 @@
     }
     renderMessages({ stickBottom: true });
     markReadIfAtBottom(true);
+  }
+  function openChannel(slug, opts) { return openContainer(slug, opts); }
+  function openDm(dmId, opts) { return openContainer(dmId, opts); }
+
+  async function startDmWith(userId) {
+    try {
+      const d = await api('/dms', { method: 'POST', body: { user_id: userId } });
+      if (!state.dms.some((x) => x.id === d.id)) state.dms.unshift(d);
+      closeSide();
+      await openDm(d.id, { force: true });
+    } catch (e) { toast(e.message, 'error'); }
   }
 
   let loadingOlder = false;
@@ -432,8 +518,7 @@
       const oldest = st.list[0].id;
       const prevHeight = scroll.scrollHeight;
       try {
-        const d = await api('/channels/' + encodeURIComponent(state.active) +
-          '/messages?limit=50&before=' + oldest);
+        const d = await api(messagesUrl(state.active) + '?limit=50&before=' + oldest);
         const seen = new Set(st.list.map((m) => m.id));
         const older = (d.messages || []).filter((m) => !seen.has(m.id));
         st.list = older.concat(st.list);
@@ -459,8 +544,17 @@
     const st = state.msgs[state.active] || { list: [] };
     const atBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 60;
     clear(scroll);
+    const inDm = isDmKey(state.active);
     if (!st.list.length) {
-      const copy = EMPTY_COPY[state.active] || ['Nothing here yet', 'Start the conversation.'];
+      let copy;
+      if (inDm) {
+        const peer = (activeDm() || {}).peer || {};
+        copy = ['A private conversation',
+          'This is the beginning of your direct messages with '
+          + (peer.display_name || 'this colleague') + '. Colleague discussion only — no PHI.'];
+      } else {
+        copy = EMPTY_COPY[state.active] || ['Nothing here yet', 'Start the conversation.'];
+      }
       scroll.appendChild(h('div', { class: 'cm-empty' },
         h('div', { class: 'cm-empty-title' }, copy[0]),
         h('p', {}, copy[1])));
@@ -474,7 +568,7 @@
           h('span', { class: 'chrome' }, fmtDay(m.created_at))));
         lastDay = day;
       }
-      scroll.appendChild(messageEl(m, { context: 'channel' }));
+      scroll.appendChild(messageEl(m, { context: inDm ? 'dm' : 'channel' }));
     }
     if (opts.stickBottom || atBottom) scroll.scrollTop = scroll.scrollHeight;
   }
@@ -504,7 +598,9 @@
 
   function messageEl(m, opts) {
     opts = opts || {};
-    const inThread = opts.context === 'thread';
+    // DMs have no threads, so the reply affordances hide there like in the
+    // thread panel itself.
+    const inThread = opts.context === 'thread' || opts.context === 'dm';
     if (m.deleted) {
       return h('div', { class: 'cm-msg', 'data-mid': m.id },
         h('div', { class: 'cm-avatar acc-green', style: 'visibility:hidden' }, ''),
@@ -723,6 +819,17 @@
     const wrap = document.getElementById('cmComposerWrap');
     if (!wrap) return;
     clear(wrap);
+    if (isDmKey(state.active)) {
+      const d = activeDm();
+      const peer = (d && d.peer) || {};
+      wrap.appendChild(buildComposer({
+        key: 'dm:' + state.active,
+        placeholder: 'Message ' + (peer.display_name || 'colleague') + '…',
+        onSend: (body, cs) => sendDmMessage(state.active, body, cs),
+        typingMeta: { dm: state.active },
+      }));
+      return;
+    }
     const ch = activeChannel();
     if (!ch) return;
     if (ch.post_policy === 'admin' && !state.isAdmin) {
@@ -964,6 +1071,16 @@
     ingestMessage(msg);
   }
 
+  async function sendDmMessage(dmId, body, cs) {
+    const msg = await api('/dms/' + encodeURIComponent(dmId) + '/messages', {
+      method: 'POST',
+      body: { body, attachment_ids: cs.attachments.map((a) => a.asset_id) },
+    });
+    ingestMessage(msg);
+    const d = state.dms.find((x) => x.id === dmId);
+    if (d) { d.last_message_id = msg.id; d.last_message_at = msg.created_at; }
+  }
+
   // ─── Threads ───────────────────────────────────────────────────────────────
   async function openThread(rootId) {
     try {
@@ -1037,6 +1154,13 @@
           h('div', { class: 'cm-profile-name' }, m.display_name,
             m.verified ? h('span', { class: 'cm-verified', title: 'Credential-verified' }) : null),
           h('div', { class: 'chrome' }, state.online.has(m.user_id) ? 'online' : 'offline'))),
+      state.me && m.user_id !== state.me.user_id
+        ? h('button', {
+            class: 'cm-btn cm-btn-primary',
+            style: 'width:100%;justify-content:center;margin-bottom:var(--sp-4)',
+            onClick: () => startDmWith(m.user_id),
+          }, 'Send a message')
+        : null,
       m.blurb ? h('div', { class: 'cm-profile-blurb' }, m.blurb) : null,
       h('dl', { class: 'cm-profile-rows' }, profileRows(m))));
     side.appendChild(body);
@@ -1103,7 +1227,7 @@
         pop.appendChild(h('button', { class: 'cm-search-hit', role: 'option',
           onClick: () => { closeSearchPop(wrap); jumpToMessage(m); } },
           h('div', { class: 'cm-search-hit-meta' },
-            h('span', { class: 'chrome chrome-strong' }, '#' + m.channel),
+            h('span', { class: 'chrome chrome-strong' }, m.dm ? 'DM' : '#' + m.channel),
             h('span', { class: 'chrome' }, (m.author && m.author.display_name) || ''),
             h('span', { class: 'chrome' }, fmtDay(m.created_at))),
           h('div', { class: 'cm-search-hit-body' }, m.body)));
@@ -1112,17 +1236,17 @@
     }, 300);
   }
   async function jumpToMessage(m) {
+    const key = m.dm || m.channel;
     const targetId = m.parent_message_id || m.id;
-    await openChannel(m.channel, { force: true });
+    await openContainer(key, { force: true });
     // walk history until the message is in the loaded page (bounded)
     let tries = 0;
     while (tries++ < 6) {
-      const st = state.msgs[m.channel];
+      const st = state.msgs[key];
       if (st.list.some((x) => x.id === targetId) || !st.hasMore) break;
       const oldest = st.list.length ? st.list[0].id : null;
       if (!oldest) break;
-      const d = await api('/channels/' + encodeURIComponent(m.channel) +
-        '/messages?limit=100&before=' + oldest);
+      const d = await api(messagesUrl(key) + '?limit=100&before=' + oldest);
       st.list = (d.messages || []).concat(st.list);
       st.hasMore = !!d.has_more;
     }
@@ -1146,17 +1270,23 @@
     const atBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 60;
     if (!atBottom && !force) return;
     const lastId = st.list[st.list.length - 1].id;
-    const ch = activeChannel();
-    if (!ch) return;
-    if (ch.unread === 0 && !force) return;
+    const key = state.active;
+    const container = isDmKey(key) ? activeDm() : activeChannel();
+    if (!container) return;
+    if ((container.unread || 0) === 0 && !force) return;
     if (readTimer) clearTimeout(readTimer);
     readTimer = setTimeout(async () => {
       try {
-        const d = await api('/channels/' + encodeURIComponent(ch.slug) + '/read',
+        const d = await api(readUrl(key),
           { method: 'POST', body: { last_read_message_id: lastId } });
-        for (const c of state.channels) {
-          const u = (d.unread || {})[c.slug];
-          if (u) { c.unread = u.unread; c.mentions = u.mentions; }
+        if (isDmKey(key)) {
+          const dm = state.dms.find((x) => x.id === key);
+          if (dm) dm.unread = 0;
+        } else {
+          for (const c of state.channels) {
+            const u = (d.unread || {})[c.slug];
+            if (u) { c.unread = u.unread; c.mentions = u.mentions; }
+          }
         }
         renderRail();
       } catch (e) { /* transient */ }
@@ -1209,24 +1339,23 @@
     ws.onerror = () => { try { ws.close(); } catch (err) { /* already */ } };
   }
 
-  async function catchUpChannel(slug) {
-    const st = state.msgs[slug];
+  async function catchUpChannel(key) {
+    const st = state.msgs[key];
     if (!st || !st.loaded) return;
     let guard = 0;
     while (guard++ < 10) {
       const lastId = st.list.length ? st.list[st.list.length - 1].id : 0;
       let d;
       try {
-        d = await api('/channels/' + encodeURIComponent(slug) +
-          '/messages?after=' + lastId + '&limit=100');
+        d = await api(messagesUrl(key) + '?after=' + lastId + '&limit=100');
       } catch (e) { return; }
       for (const m of d.messages || []) ingestMessage(m);
       if (!d.has_more) break;
     }
   }
   async function resyncLoadedChannels() {
-    for (const slug in state.msgs) await catchUpChannel(slug);
-    try { await loadChannels(); renderRail(); } catch (e) { /* transient */ }
+    for (const key in state.msgs) await catchUpChannel(key);
+    try { await loadChannels(); await loadDms(); renderRail(); } catch (e) { /* transient */ }
     if (state.thread) {
       try {
         const t = await api('/messages/' + state.thread.rootId + '/thread');
@@ -1249,6 +1378,7 @@
           renderThreadPanel();
         }
         await loadChannels();
+        await loadDms();
         renderRail();
       } catch (e) { /* transient */ }
     }, 5000);
@@ -1282,7 +1412,8 @@
       case 'reaction': applyReactions(ev.message_id, ev.reactions); break;
       case 'typing': {
         if (state.me && ev.user_id === state.me.user_id) break;
-        const key = ev.thread_root ? 'th:' + ev.thread_root : 'ch:' + ev.channel;
+        const key = ev.dm ? 'dm:' + ev.dm
+          : (ev.thread_root ? 'th:' + ev.thread_root : 'ch:' + ev.channel);
         state.typing[key] = { name: ev.name, until: Date.now() + 4000 };
         renderTyping();
         break;
@@ -1293,7 +1424,7 @@
   function renderTyping() {
     const el = document.getElementById('cmTyping');
     if (!el) return;
-    const key = 'ch:' + state.active;
+    const key = (isDmKey(state.active) ? 'dm:' : 'ch:') + state.active;
     const t = state.typing[key];
     if (t && t.until > Date.now()) {
       el.textContent = t.name + ' is typing…';
@@ -1305,6 +1436,30 @@
 
   function ingestMessage(msg) {
     if (!msg) return;
+    // Direct messages: their own container, no threads.
+    if (msg.dm) {
+      const st = state.msgs[msg.dm];
+      if (st && st.loaded && !st.list.some((m) => m.id === msg.id)) {
+        st.list.push(msg);
+        st.list.sort((a, b) => a.id - b.id);
+        if (msg.dm === state.active) renderMessages({});
+      }
+      let dm = state.dms.find((x) => x.id === msg.dm);
+      if (!dm) {
+        // first message of a conversation someone just opened with us
+        loadDms().then(renderRail).catch(() => { /* transient */ });
+      } else {
+        dm.last_message_id = msg.id;
+        dm.last_message_at = msg.created_at;
+        const mine = state.me && msg.author && msg.author.user_id === state.me.user_id;
+        const viewing = msg.dm === state.active && !document.hidden;
+        if (!mine && !viewing) dm.unread = (dm.unread || 0) + 1;
+        state.dms.sort((a, b) => (b.last_message_id || 0) - (a.last_message_id || 0));
+        renderRail();
+      }
+      if (msg.dm === state.active) markReadIfAtBottom();
+      return;
+    }
     // thread replies live in the thread panel + bump the root's teaser
     if (msg.parent_message_id) {
       const st = state.msgs[msg.channel];

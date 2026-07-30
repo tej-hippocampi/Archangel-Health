@@ -29,3 +29,12 @@ class ReactionIn(BaseModel):
 
 class ReadIn(BaseModel):
     last_read_message_id: int = Field(ge=0)
+
+
+class DmOpen(BaseModel):
+    user_id: str = Field(min_length=1, max_length=64)
+
+
+class DmMessageIn(BaseModel):
+    body: str = Field(default="", max_length=MAX_BODY_LEN)
+    attachment_ids: List[str] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)

@@ -34,7 +34,7 @@ from audit import audit_log
 from community import attachments as catt
 from community import notify as cnotify
 from community import phi_gate
-from community.schema import MessageEdit, MessageIn, ReactionIn, ReadIn
+from community.schema import DmMessageIn, DmOpen, MessageEdit, MessageIn, ReactionIn, ReadIn
 from community.store import get_community_store
 from community.ws import hub
 from ratelimit import rate_limiter
@@ -244,11 +244,39 @@ def resolve_member_for_notify(user_id: str) -> Optional[Dict[str, Any]]:
     return member_map(include_email=True).get(user_id)
 
 
+# ─── Message container resolution / access control ────────────────────────────
+def _container_of(msg: Dict[str, Any]) -> tuple:
+    """Resolve a message's container: ``("channel", row)`` or ``("dm", row)``
+    or ``(None, None)``."""
+    cid = msg.get("channel_id") or ""
+    if cid.startswith("dm-"):
+        dm = _cstore().get_dm(cid)
+        return ("dm", dm) if dm else (None, None)
+    channel = next((c for c in _cstore().list_channels() if c["id"] == cid), None)
+    return ("channel", channel) if channel else (None, None)
+
+
+def _require_message_access(user: Dict[str, Any], msg: Dict[str, Any]) -> tuple:
+    """THE visibility rule for anything reached by message id (edit, delete,
+    react, thread, attachment download): channel messages are visible to every
+    member; a DM message is visible ONLY to its two participants — including
+    to admins, who have no read access to others' private conversations. A
+    non-participant gets the same 404 as a nonexistent message (no oracle)."""
+    kind, container = _container_of(msg)
+    if kind is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if kind == "dm" and user["id"] not in (container["user_a"], container["user_b"]):
+        raise HTTPException(status_code=404, detail="Message not found")
+    return kind, container
+
+
 # ─── Serialization ────────────────────────────────────────────────────────────
 def _serialize_messages(
     msgs: List[Dict[str, Any]],
     members: Dict[str, Dict[str, Any]],
-    channel_slug: str,
+    channel_slug: Optional[str],
+    *,
+    dm_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     cstore = _cstore()
     ids = [m["id"] for m in msgs]
@@ -261,6 +289,7 @@ def _serialize_messages(
         out.append({
             "id": m["id"],
             "channel": channel_slug,
+            "dm": dm_id,
             "parent_message_id": m.get("parent_message_id"),
             "author": public_member(members.get(m["author_user_id"])) or dict(_GHOST_MEMBER),
             "body": "" if deleted else m["body"],
@@ -276,8 +305,23 @@ def _serialize_messages(
     return out
 
 
-def _serialize_one(msg: Dict[str, Any], channel_slug: str) -> Dict[str, Any]:
-    return _serialize_messages([msg], member_map(), channel_slug)[0]
+def _serialize_one_resolved(msg: Dict[str, Any]) -> Dict[str, Any]:
+    """Serialize a single message with its container resolved (slug or dm)."""
+    kind, container = _container_of(msg)
+    slug = container["slug"] if kind == "channel" else None
+    dm_id = container["id"] if kind == "dm" else None
+    return _serialize_messages([msg], member_map(), slug, dm_id=dm_id)[0]
+
+
+async def _emit_message_event(event_type: str, serialized: Dict[str, Any],
+                              dm: Optional[Dict[str, Any]]) -> None:
+    """Channel events broadcast to every member; DM events go ONLY to the two
+    participants (never the broadcast — PRD-level privacy invariant)."""
+    event = {"type": event_type, "message": serialized}
+    if dm:
+        await hub.send_to_users([dm["user_a"], dm["user_b"]], event)
+    else:
+        await hub.broadcast(event)
 
 
 def _audit(request: Optional[Request], user: Dict[str, Any], action: str, outcome: str,
@@ -492,6 +536,7 @@ async def edit_message(
     msg = cstore.get_message(message_id)
     if not msg or msg.get("deleted"):
         raise HTTPException(status_code=404, detail="Message not found")
+    kind, container = _require_message_access(user, msg)
     if msg["author_user_id"] != user["id"]:
         raise HTTPException(status_code=403, detail="You can only edit your own messages")
 
@@ -500,8 +545,7 @@ async def edit_message(
         raise HTTPException(status_code=400, detail="Message is empty")
 
     # ── §7: PHI gate on the edit path too — an edit is a write. ──
-    channel = next((c for c in cstore.list_channels() if c["id"] == msg["channel_id"]), None)
-    slug = channel["slug"] if channel else None
+    slug = container["slug"] if kind == "channel" else "dm"
     findings = phi_gate.scan_text(text)
     if findings:
         raise _phi_block(request, user, "edit", findings, slug)
@@ -515,8 +559,9 @@ async def edit_message(
 
     _audit(request, user, "community.message_edit", "ok",
            {"channel": slug, "message_id": message_id})
-    serialized = _serialize_one(updated, slug or "")
-    await hub.broadcast({"type": "message.updated", "message": serialized})
+    serialized = _serialize_one_resolved(updated)
+    await _emit_message_event("message.updated", serialized,
+                              container if kind == "dm" else None)
     return serialized
 
 
@@ -533,23 +578,27 @@ async def delete_message(
     msg = cstore.get_message(message_id)
     if not msg or msg.get("deleted"):
         raise HTTPException(status_code=404, detail="Message not found")
+    kind, container = _require_message_access(user, msg)
     if msg["author_user_id"] != user["id"] and not _is_admin(user):
         raise HTTPException(status_code=403, detail="You can only delete your own messages")
 
     cstore.soft_delete_message(message_id, deleted_by=user["id"])
-    channel = next((c for c in cstore.list_channels() if c["id"] == msg["channel_id"]), None)
-    slug = channel["slug"] if channel else ""
+    slug = container["slug"] if kind == "channel" else None
     _audit(request, user, "community.message_delete", "ok", {
-        "channel": slug, "message_id": message_id,
+        "channel": slug or "dm", "message_id": message_id,
         "moderator": msg["author_user_id"] != user["id"],
     })
     event = {
         "type": "message.deleted",
         "id": message_id,
         "channel": slug,
+        "dm": container["id"] if kind == "dm" else None,
         "parent_message_id": msg.get("parent_message_id"),
     }
-    await hub.broadcast(event)
+    if kind == "dm":
+        await hub.send_to_users([container["user_a"], container["user_b"]], event)
+    else:
+        await hub.broadcast(event)
     return {"ok": True, "id": message_id}
 
 
@@ -573,16 +622,21 @@ async def toggle_reaction(
     msg = cstore.get_message(message_id)
     if not msg or msg.get("deleted"):
         raise HTTPException(status_code=404, detail="Message not found")
+    kind, container = _require_message_access(user, msg)
     added = cstore.toggle_reaction(message_id, user["id"], emoji)
     reactions = cstore.reactions_for([message_id]).get(message_id) or []
-    channel = next((c for c in cstore.list_channels() if c["id"] == msg["channel_id"]), None)
-    await hub.broadcast({
+    event = {
         "type": "reaction",
         "message_id": message_id,
-        "channel": channel["slug"] if channel else "",
+        "channel": container["slug"] if kind == "channel" else None,
+        "dm": container["id"] if kind == "dm" else None,
         "parent_message_id": msg.get("parent_message_id"),
         "reactions": reactions,
-    })
+    }
+    if kind == "dm":
+        await hub.send_to_users([container["user_a"], container["user_b"]], event)
+    else:
+        await hub.broadcast(event)
     return {"ok": True, "added": added, "reactions": reactions}
 
 
@@ -595,13 +649,14 @@ async def thread(message_id: int, user: Dict[str, Any] = Depends(require_member)
         raise HTTPException(status_code=404, detail="Message not found")
     if root.get("parent_message_id"):
         root = cstore.get_message(root["parent_message_id"]) or root
-    channel = next((c for c in cstore.list_channels() if c["id"] == root["channel_id"]), None)
-    slug = channel["slug"] if channel else ""
+    kind, container = _require_message_access(user, root)
+    slug = container["slug"] if kind == "channel" else None
+    dm_id = container["id"] if kind == "dm" else None
     members = member_map()
     replies = cstore.list_thread(root["id"])
     return {
-        "root": _serialize_messages([root], members, slug)[0],
-        "replies": _serialize_messages(replies, members, slug),
+        "root": _serialize_messages([root], members, slug, dm_id=dm_id)[0],
+        "replies": _serialize_messages(replies, members, slug, dm_id=dm_id),
     }
 
 
@@ -627,13 +682,152 @@ async def badge(user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_us
     the portal can decide whether to render the item at all."""
     if not user or not _passes_gate(user):
         return {"eligible": False, "unread": 0, "mentions": 0}
-    counts = _cstore().unread_counts(user["id"])
+    cstore = _cstore()
+    counts = cstore.unread_counts(user["id"])
+    dm_unread = cstore.dm_unread_total(user["id"])
     return {
         "eligible": True,
-        "unread": sum(c["unread"] for c in counts.values()),
+        "unread": sum(c["unread"] for c in counts.values()) + dm_unread,
         "mentions": sum(c["mentions"] for c in counts.values()),
+        "dm_unread": dm_unread,
         "channels": counts,
     }
+
+
+# ─── Direct messages (user-requested extension beyond the v1 PRD scope) ───────
+# Every DM shares the channel message pipeline — the same §7 PHI gate on every
+# write, the same soft delete, the same audit trail (metadata only). The two
+# invariants that make DMs private: participant-only access on every message-id
+# path (``_require_message_access``), and targeted WS delivery
+# (``hub.send_to_users``) so a DM never rides the broadcast.
+def _dm_or_404(dm_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
+    dm = _cstore().get_dm(dm_id)
+    if not dm or user["id"] not in (dm["user_a"], dm["user_b"]):
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return dm
+
+
+def _dm_summary(dm: Dict[str, Any], user_id: str,
+                members: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    peer_id = dm["user_b"] if dm["user_a"] == user_id else dm["user_a"]
+    return {
+        "id": dm["id"],
+        "peer": public_member(members.get(peer_id)) or dict(_GHOST_MEMBER),
+        "last_message_id": dm.get("last_message_id"),
+        "last_message_at": dm.get("last_message_at"),
+        "unread": int(dm.get("unread") or 0),
+    }
+
+
+@router.get("/dms")
+async def list_dms(user: Dict[str, Any] = Depends(require_member)):
+    members = member_map()
+    return {
+        "dms": [
+            _dm_summary(d, user["id"], members)
+            for d in _cstore().list_dms_for(user["id"])
+        ]
+    }
+
+
+@router.post("/dms")
+async def open_dm(
+    body: DmOpen,
+    request: Request,
+    user: Dict[str, Any] = Depends(require_member),
+):
+    """Get-or-create the conversation with another member. The peer must pass
+    the same §1 gate (verified contributor or staff) — you cannot DM an
+    account that cannot itself enter the community."""
+    if body.user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="You cannot message yourself")
+    members = member_map()
+    if body.user_id not in members:
+        raise HTTPException(status_code=404, detail="Member not found")
+    cstore = _cstore()
+    existed = cstore.get_or_create_dm(user["id"], body.user_id)
+    # Re-read through list_dms_for so the summary carries unread/last-message.
+    dm = next((d for d in cstore.list_dms_for(user["id"]) if d["id"] == existed["id"]), existed)
+    if dm is existed:
+        dm = dict(dm, unread=0, last_message_id=None, last_message_at=None)
+    _audit(request, user, "community.dm_open", "ok", {"dm_id": existed["id"]})
+    return _dm_summary(dm, user["id"], members)
+
+
+@router.get("/dms/{dm_id}/messages")
+async def dm_messages(
+    dm_id: str,
+    before: Optional[int] = Query(default=None, ge=1),
+    after: Optional[int] = Query(default=None, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+    user: Dict[str, Any] = Depends(require_member),
+):
+    dm = _dm_or_404(dm_id, user)
+    msgs, has_more = _cstore().list_messages(
+        dm["id"], before_id=before, after_id=after, limit=limit
+    )
+    return {
+        "dm": dm["id"],
+        "messages": _serialize_messages(msgs, member_map(), None, dm_id=dm["id"]),
+        "has_more": has_more,
+    }
+
+
+@router.post(
+    "/dms/{dm_id}/messages",
+    dependencies=[Depends(rate_limiter("community_post", 30, 60))],
+)
+async def post_dm_message(
+    dm_id: str,
+    body: DmMessageIn,
+    request: Request,
+    user: Dict[str, Any] = Depends(require_member),
+):
+    dm = _dm_or_404(dm_id, user)
+    text = (body.body or "").strip()
+    if not text and not body.attachment_ids:
+        raise HTTPException(status_code=400, detail="Message is empty")
+
+    # ── §7: the identical PHI gate — a 1:1 case discussion is exactly where
+    # an identifier will eventually be pasted. BEFORE persistence/delivery. ──
+    findings = phi_gate.scan_text(text)
+    if findings:
+        raise _phi_block(request, user, "message", findings, "dm")
+
+    attachments = _resolve_attachments(body.attachment_ids, user)
+    cstore = _cstore()
+    msg = cstore.insert_message(
+        channel_id=dm["id"],
+        author_user_id=user["id"],
+        body=text,
+        parent_message_id=None,  # no threads inside DMs
+        mentions=[],
+        attachments=attachments,
+    )
+    _audit(request, user, "community.message_create", "ok", {
+        "channel": "dm", "dm_id": dm["id"], "message_id": msg["id"],
+        "attachments": len(attachments),
+    })
+    cstore.set_read(user["id"], dm["id"], msg["id"])
+
+    peer_id = dm["user_b"] if dm["user_a"] == user["id"] else dm["user_a"]
+    cnotify.enqueue_dm(cstore, recipient_id=peer_id, message=msg)
+
+    serialized = _serialize_messages([msg], member_map(), None, dm_id=dm["id"])[0]
+    await hub.send_to_users([dm["user_a"], dm["user_b"]],
+                            {"type": "message.created", "message": serialized})
+    return serialized
+
+
+@router.post("/dms/{dm_id}/read")
+async def mark_dm_read(
+    dm_id: str,
+    body: ReadIn,
+    user: Dict[str, Any] = Depends(require_member),
+):
+    dm = _dm_or_404(dm_id, user)
+    _cstore().set_read(user["id"], dm["id"], body.last_read_message_id)
+    return {"ok": True, "dm_unread": _cstore().dm_unread_total(user["id"])}
 
 
 # ─── Members ──────────────────────────────────────────────────────────────────
@@ -661,16 +855,25 @@ async def search(
 ):
     cstore = _cstore()
     channels_by_id = {c["id"]: c for c in cstore.list_channels()}
+    my_dms = {d["id"]: d for d in cstore.list_dms_for(user["id"])}
     members = member_map()
-    hits = [m for m in cstore.search_messages(q) if m["channel_id"] in channels_by_id]
-    # Serialize per channel group (batched reply/reaction lookups), then
+    # §4: "search across messages the user can see" — the public channels plus
+    # THEIR OWN direct messages, enforced in SQL (someone else's DM content can
+    # never match).
+    visible_ids = list(channels_by_id.keys()) + list(my_dms.keys())
+    hits = cstore.search_messages(q, channel_ids=visible_ids)
+    # Serialize per container group (batched reply/reaction lookups), then
     # restore the newest-first hit order.
     serialized: Dict[int, Dict[str, Any]] = {}
-    by_channel: Dict[str, List[Dict[str, Any]]] = {}
+    by_container: Dict[str, List[Dict[str, Any]]] = {}
     for m in hits:
-        by_channel.setdefault(m["channel_id"], []).append(m)
-    for cid, group in by_channel.items():
-        for s in _serialize_messages(group, members, channels_by_id[cid]["slug"]):
+        by_container.setdefault(m["channel_id"], []).append(m)
+    for cid, group in by_container.items():
+        if cid in channels_by_id:
+            rows = _serialize_messages(group, members, channels_by_id[cid]["slug"])
+        else:
+            rows = _serialize_messages(group, members, None, dm_id=cid)
+        for s in rows:
             serialized[s["id"]] = s
     return {"query": q, "results": [serialized[m["id"]] for m in hits]}
 
@@ -732,10 +935,13 @@ async def download_attachment(
     if not att:
         raise HTTPException(status_code=404, detail="Attachment not found")
     if att.get("message_id"):
-        # Bound to a message: gone with the message if it was deleted.
+        # Bound to a message: gone with the message if it was deleted, and
+        # subject to the message's visibility (a DM attachment is served only
+        # to the conversation's participants).
         msg = _cstore().get_message(att["message_id"])
         if not msg or msg.get("deleted"):
             raise HTTPException(status_code=404, detail="Attachment not found")
+        _require_message_access(user, msg)
     elif att.get("uploader_user_id") != user["id"]:
         # Uploaded but never posted: visible to its uploader only (audit
         # finding — a pending upload is not yet shared with the community).
@@ -896,6 +1102,18 @@ async def community_ws(websocket: WebSocket):
                 if now - last_typing_relay < _TYPING_MIN_INTERVAL_SEC:
                     continue
                 last_typing_relay = now
+                name = me_member.get("display_name") or "Someone"
+                dm_field = event.get("dm")
+                if isinstance(dm_field, str) and dm_field.startswith("dm-"):
+                    # DM typing relays ONLY to the conversation peer.
+                    dm = _cstore().get_dm(dm_field)
+                    if dm and user["id"] in (dm["user_a"], dm["user_b"]):
+                        peer = dm["user_b"] if dm["user_a"] == user["id"] else dm["user_a"]
+                        await hub.send_to_users([peer], {
+                            "type": "typing", "dm": dm_field,
+                            "user_id": user["id"], "name": name,
+                        })
+                    continue
                 slug = str(event.get("channel") or "")[:64]
                 thread_root = event.get("thread_root")
                 await hub.broadcast({
@@ -903,7 +1121,7 @@ async def community_ws(websocket: WebSocket):
                     "channel": slug,
                     "thread_root": thread_root if isinstance(thread_root, int) else None,
                     "user_id": user["id"],
-                    "name": me_member.get("display_name") or "Someone",
+                    "name": name,
                 }, exclude=websocket)
     finally:
         last_of_user = await hub.disconnect(websocket)
