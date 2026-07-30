@@ -5861,6 +5861,16 @@ async def startup_team_scheduler():
     except Exception:
         _auth_logger.exception("[asclepius] temperature configuration assertion failed")
         raise
+    # Audit PRD §C1: probe the tesseract BINARY at boot. LOG, never raise — a missing
+    # binary must degrade DICOM burned-in screening to manual review, not refuse boot.
+    try:
+        from asclepius.dicom_deid import ocr_available
+        if not ocr_available():
+            _auth_logger.error(
+                "[asclepius] tesseract is NOT installed. DICOM burned-in PHI screening "
+                "will route every study to manual review. Install tesseract-ocr.")
+    except Exception:
+        _auth_logger.exception("[asclepius] OCR availability probe failed")
     # PRD-4: warn loudly if PHI email would go through a non-BAA transport.
     try:
         from email_utils import active_email_vendor, email_phi_allowed

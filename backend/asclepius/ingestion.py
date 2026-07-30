@@ -579,7 +579,7 @@ def _dicom_entries_to_studies(
         try:
             frag = dicom_deid.to_study_fragment(
                 ds, render=(risk == "clear"), needs_review=(risk == "suspect"),
-                specialty=specialty)
+                specialty=specialty, risk=risk, reason=why)
         except Exception as exc:
             log.warning("dicom render/fragment failed for %s: %s", name, exc)
             outcomes.append({"name": name, "kind": "dicom",

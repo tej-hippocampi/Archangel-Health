@@ -237,6 +237,10 @@ class Study(BaseModel):
     measurements: List[LabResult] = Field(default_factory=list)
     impression: Optional[str] = None
     asset: Optional[StudyAsset] = None      # NEW (V4): optional real image reference
+    # Burned-in-PHI screening provenance for a DICOM-derived study (Audit PRD §M2):
+    # {method: ocr+tag|tag_only, burned_in_risk, reason, reviewed_by_hashed}. None for
+    # non-DICOM studies. Travels with the record so the screening method is auditable.
+    phi_screening: Optional[Dict[str, Any]] = None
 
 
 class ClinicalCase(BaseModel):

@@ -35,6 +35,12 @@ def _iso(monkeypatch, tmp_path):
     monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
     monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", str(tmp_path / "assets"))
     monkeypatch.setenv("DATA_ENCRYPTION_KEY", _KEY)
+    # These tests exercise the CLEAR/ingested path, which requires OCR to be
+    # available and find no border text (the deployed-with-tesseract happy path).
+    # The CI container has no tesseract binary, so simulate a successful, empty OCR
+    # read; the OCR-unavailable behavior is covered in test_asclepius_v4_phase2_ocr.
+    from asclepius import dicom_deid as _dd
+    monkeypatch.setattr(_dd, "_ocr_border_text", lambda ds: False)
     yield
 
 

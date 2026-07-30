@@ -167,14 +167,35 @@ def deidentify_dicom(ds, *, date_shift_days: Optional[int] = None) -> Tuple[Any,
         raise DicomDeidError(f"de-identification failed: {exc}") from exc
 
 
+class OcrUnavailable(RuntimeError):
+    """OCR could not run. Distinct from 'OCR ran and found no text' — collapsing the
+    two is what let an unchecked image be reported as clear (Audit PRD §C1)."""
+
+
+def ocr_available() -> bool:
+    """Boot-time probe: is the tesseract BINARY present? The pip package installing
+    successfully says nothing about the binary, which is the gap that made C1
+    invisible — pytesseract shells out to a system binary pip cannot install."""
+    try:
+        import pytesseract
+        pytesseract.get_tesseract_version()
+        return True
+    except Exception:
+        return False
+
+
 def _ocr_border_text(ds) -> bool:
-    """OCR the top/bottom 12% of the rendered image for any text (where overlays
-    essentially always sit). Best-effort: returns False when OCR/pixels unavailable
-    (the caller's fail-closed rules still apply)."""
+    """True when text is found in the top/bottom 12% border bands.
+
+    Raises OcrUnavailable when the check could not be performed at all (tesseract
+    binary missing, pixel data unreadable, render failure). The caller MUST treat
+    that as 'suspect', never 'clear': an unchecked image is not a safe image, and
+    this is the only layer that inspects pixels rather than trusting a sender-declared
+    tag (Audit PRD §C1)."""
     try:
         import io
+
         import numpy as np
-        import pytesseract
         from PIL import Image
 
         png = render_dicom_to_png(ds)
@@ -184,39 +205,54 @@ def _ocr_border_text(ds) -> bool:
         arr = np.asarray(im)
         top = Image.fromarray(arr[:band, :])
         bot = Image.fromarray(arr[-band:, :])
-        text = (pytesseract.image_to_string(top) + " " + pytesseract.image_to_string(bot))
-        return len(text.strip()) >= 3
-    except Exception:
-        return False
+    except Exception as exc:
+        raise OcrUnavailable(f"could not render/inspect pixels: {exc}") from exc
+
+    try:
+        import pytesseract
+        text = pytesseract.image_to_string(top) + " " + pytesseract.image_to_string(bot)
+    except Exception as exc:  # TesseractNotFoundError et al.
+        raise OcrUnavailable(f"tesseract unavailable: {exc}") from exc
+
+    return len(text.strip()) >= 3
 
 
 def burned_in_risk(ds) -> Tuple[str, str]:
     """('clear' | 'suspect' | 'blocked', reason). Layered, because every single
     signal is individually unreliable:
 
-      1. BurnedInAnnotation == 'YES'                         -> blocked
-      2. Modality in HIGH_RISK (US, SC, OT, XC) and no explicit 'NO' -> suspect
-      3. OCR over the border regions finds text              -> suspect
-      4. Otherwise                                            -> clear
+      1. BurnedInAnnotation == 'YES'                          -> blocked
+      2. Modality in HIGH_RISK (US, SC, OT, XC) and no 'NO'   -> suspect
+      3. OCR over the border regions finds text               -> suspect
+      3b. OCR COULD NOT RUN                                   -> suspect (Audit §C1)
+      4. Missing BurnedInAnnotation                           -> suspect
+      5. BurnedInAnnotation=NO and OCR found nothing          -> clear
 
-    Fail closed: a MISSING BurnedInAnnotation is 'suspect', not 'clear' — the tag is
-    optional and widely unpopulated, so treating absence as absence of PHI inverts the
-    safe default on exactly the modalities that most often carry it. 'suspect' routes
-    to human review, never auto-ingest; 'blocked' rejects the entry."""
+    OCR now runs BEFORE the missing-annotation branch so a missing tag WITH detectable
+    text reports the specific reason. Critically, 'OCR could not run' is a distinct
+    outcome from 'OCR ran and found nothing' — the former routes to human review (an
+    unchecked image is not a safe image, the same 'trust the partner's flag' failure
+    the FHIR path refuses), the latter is the only path to 'clear'."""
     bia = str(getattr(ds, "BurnedInAnnotation", "") or "").strip().upper()
     modality = str(getattr(ds, "Modality", "") or "").strip().upper()
+
     if bia == "YES":
         return "blocked", "BurnedInAnnotation=YES (declared burned-in PHI)"
     if modality in _HIGH_RISK_MODALITIES and bia != "NO":
         return "suspect", f"high-risk modality {modality} without an explicit BurnedInAnnotation=NO"
-    if bia != "NO":
-        # Missing/blank annotation → fail closed to suspect regardless of modality.
-        if _ocr_border_text(ds):
-            return "suspect", "text detected in the image border regions (OCR)"
-        return "suspect", "BurnedInAnnotation is absent; cannot certify no burned-in PHI"
-    if _ocr_border_text(ds):
+
+    try:
+        found = _ocr_border_text(ds)
+    except OcrUnavailable as exc:
+        # The ONLY pixel-level check could not run. A sender-declared NO is not
+        # sufficient alone — route to human review (Audit PRD §C1).
+        return "suspect", f"burned-in PHI screening unavailable ({exc}); manual review required"
+
+    if found:
         return "suspect", "text detected in the image border regions (OCR)"
-    return "clear", "BurnedInAnnotation=NO and no border text detected"
+    if bia != "NO":
+        return "suspect", "BurnedInAnnotation is absent; cannot certify no burned-in PHI"
+    return "clear", "BurnedInAnnotation=NO and OCR found no border text"
 
 
 def _first_numeric(value: Any) -> Optional[float]:
@@ -295,7 +331,8 @@ def study_modality(ds, specialty: str = "") -> str:
 
 
 def to_study_fragment(ds, *, render: bool, needs_review: bool, specialty: str,
-                      windows: Optional[List[Tuple[float, float]]] = None) -> Dict[str, Any]:
+                      windows: Optional[List[Tuple[float, float]]] = None,
+                      risk: Optional[str] = None, reason: Optional[str] = None) -> Dict[str, Any]:
     """Build a Study fragment from a cleaned DICOM (Buyer Response PRD §4 C2).
 
     * ``render`` (risk clear): render to PNG asset(s) — one per requested window, each
@@ -303,13 +340,21 @@ def to_study_fragment(ds, *, render: bool, needs_review: bool, specialty: str,
       cleaned DICOM is the archival original (never a gradable MIME).
     * ``needs_review`` (risk suspect): NO resolvable asset is promoted; the study is
       flagged for the burned-in review queue so it can never auto-ingest as gradable.
-    """
+
+    Records ``phi_screening`` on the study (Audit PRD §M2): the method (``ocr+tag``
+    when the tesseract binary is present, else ``tag_only``), the risk, and the reason
+    — so a buyer asking "how do you know there is no burned-in PHI?" has a per-record
+    answer, and ``tag_only`` is self-evidently weaker than ``ocr+tag``."""
     from asclepius import assets
 
     modality = study_modality(ds, specialty)
     label = str(getattr(ds, "BodyPartExamined", "") or "").strip() or modality.upper()
     frag: Dict[str, Any] = {
         "modality": modality, "label": label, "findings": "", "measurements": [],
+        "phi_screening": {
+            "method": "ocr+tag" if ocr_available() else "tag_only",
+            "burned_in_risk": risk, "reason": reason, "reviewed_by_hashed": None,
+        },
     }
     render_windows = windows or [None]  # type: ignore[list-item]
     assets_out: List[Dict[str, Any]] = []
