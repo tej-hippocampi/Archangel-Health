@@ -391,8 +391,13 @@
   // noopener per the integration contract.
   function openCommunity() {
     const t = state.community.handoffToken;
+    // Handoff codes are SINGLE-USE server-side: consume it here so a second
+    // click inside the refresh window opens bare (same-origin session covers
+    // it) instead of sending an already-spent code, and pre-mint the next one.
+    state.community.handoffToken = null;
     const url = t ? ('/community?t=' + encodeURIComponent(t)) : '/community';
     window.open(url, '_blank', 'noopener');
+    refreshCommunityHandoff();
   }
 
   // Mint a short-lived signed handoff token (reuses the Asclepius session). Kept

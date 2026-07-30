@@ -225,18 +225,33 @@ class CommunityStore:
                     parent_message_id,
                     body,
                     json.dumps(mentions or []),
-                    json.dumps(attachments or []),
+                    "[]",
                     now,
                 ),
             )
             mid = cur.lastrowid
-            # Bind any referenced attachment rows to this message.
+            # ATOMICALLY claim each referenced attachment (audit finding: two
+            # concurrent posts by the same uploader could both pass the
+            # router's "already posted" check). The conditional UPDATE is the
+            # arbiter — only attachments this message actually won are
+            # recorded on it, so a lost race drops the ref instead of listing
+            # an attachment that belongs to another message.
+            claimed = []
             for att in attachments or []:
-                if att.get("asset_id"):
-                    conn.execute(
-                        "UPDATE community_attachments SET message_id = ? WHERE asset_id = ?",
-                        (mid, att["asset_id"]),
-                    )
+                if not att.get("asset_id"):
+                    continue
+                res = conn.execute(
+                    "UPDATE community_attachments SET message_id = ? "
+                    "WHERE asset_id = ? AND message_id IS NULL",
+                    (mid, att["asset_id"]),
+                )
+                if res.rowcount:
+                    claimed.append(att)
+            if claimed:
+                conn.execute(
+                    "UPDATE community_messages SET attachments_json = ? WHERE id = ?",
+                    (json.dumps(claimed), mid),
+                )
         return self.get_message(mid)  # type: ignore[return-value]
 
     def get_message(self, message_id: int) -> Optional[Dict[str, Any]]:

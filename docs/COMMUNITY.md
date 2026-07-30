@@ -14,7 +14,7 @@ no third-party chat SDK. It is **additive**: nothing in the evaluation flow
 | HTTP + WS surface | `/api/community/*`, `WS /api/community/ws` (mounted in `main.py`) |
 | Page shell | `GET /community` → `frontend/asclepius/community.html` |
 | Frontend app | `frontend/asclepius/community.js` + `community.css` (vanilla SPA, console tokens) |
-| Portal entry | "Community" item in the portal header (`asclepius.js`), opens a new tab; unread badge polls `/api/community/badge` |
+| Portal entry | "Community" item in the portal SIDE PANEL (`asclepius.js`), opens a new tab at `/community?t=<handoff>`; the rail badge polls `GET /community/unread` and `POST /community/handoff` mints the short-lived single-use handoff code (redeemed by the page via `POST /api/community/handoff/redeem`) |
 | Persistence | Own SQLite DB (`COMMUNITY_DB_PATH`, default `backend/community.db`) — never touches `asclepius.db` or `team.db` |
 | Tests | `backend/tests/test_community.py` |
 
@@ -34,6 +34,12 @@ The only way in:
 The gate runs **server-side on every REST call and the WebSocket**, not just
 at page load. Ineligible users get a clean "Community access is for verified
 contributors." screen.
+
+Unread endpoints, two tiers: `GET /community/unread` → `{total}` is the
+portal-rail contract (soft — non-members get 0); `GET /api/community/badge`
+is the detailed variant (`unread`/`mentions`/`dm_unread`/per-channel) kept as
+API surface for richer clients and as the semantic anchor for the unread
+tests. Both share one computation.
 
 WebSocket auth: the client exchanges its JWT for a **single-use, 60s ticket**
 (`POST /api/community/ws-ticket`) and connects with `?ticket=` — the long-lived
