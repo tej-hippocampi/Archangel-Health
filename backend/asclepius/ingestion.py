@@ -175,9 +175,21 @@ def purge_expired_raw(store: Any) -> int:
     derived case, not the partner file). Called opportunistically on ingestion
     activity — no cron needed at pod scale. Returns files deleted."""
     cutoff = time.time() - raw_retention_days() * 86400
+    # Retain-raw (Audit §9.4): an upload whose entries ALL failed to parse keeps its
+    # raw blob past the window so it can be re-run after a parser fix. Skip those paths.
+    retained: set = set()
+    try:
+        for u in store.list_uploads_with_retained_raw():
+            rp = u.get("raw_path")
+            if rp:
+                retained.add(os.path.basename(rp))
+    except Exception:  # pragma: no cover - defensive; never block a purge on this
+        retained = set()
     deleted = 0
     for p in quarantine_root().glob("*.zip.enc"):
         try:
+            if p.name in retained:
+                continue
             if p.stat().st_mtime < cutoff:
                 p.unlink()
                 deleted += 1
@@ -237,19 +249,47 @@ def recover_interrupted_uploads(store: Any) -> int:
             handled += 1
         except Exception as exc:  # pragma: no cover - defensive per-upload
             log.warning("ingest recovery: upload %s failed to reprocess: %s", uid, exc)
-    # Sealed-key reconciliation (Audit §H1): a crash between staging a key and binding
-    # it to its case leaves the key on disk unbound. Re-bind those to their cases (or
-    # report true orphans) so no adjudication is stranded. Best-effort; never raises.
-    try:
-        rec = store.reconcile_sealed_ground_truth()
-        if rec.get("bound") or rec.get("orphans"):
-            log.info("sealed reconciliation: bound %d, %d orphan(s)",
-                     rec.get("bound", 0), len(rec.get("orphans") or []))
-    except Exception as exc:  # pragma: no cover - defensive
-        log.warning("sealed reconciliation failed: %s", exc)
+    # Terminal-state reconciliation (Audit §9.3): recover_interrupted_uploads only
+    # revisits NON-terminal uploads; this catches cases that reached a terminal state
+    # but are internally inconsistent (unbound sealed key, missing asset blob).
+    reconcile_ingested_cases(store)
     if handled:
         log.info("ingest recovery: handled %d interrupted upload(s)", handled)
     return handled
+
+
+def reconcile_ingested_cases(store: Any) -> Dict[str, Any]:
+    """Reconcile TERMINAL cases that are internally inconsistent (Audit §9.3). Two
+    defects the ingest-time checks cannot see because they develop after the fact:
+    a sealed key left unbound by a crash (§H1), and an asset blob that has since gone
+    missing/corrupt on disk (§P2). Both hold the affected case for admin review.
+    Runs at startup (via recover_interrupted_uploads) and can be scheduled nightly.
+    Best-effort; never raises. Returns counts for the admin ingestion card."""
+    out: Dict[str, Any] = {"sealed_bound": 0, "sealed_orphans": 0,
+                           "assets_missing": 0, "assets_corrupt": 0, "cases_held": 0}
+    try:
+        rec = store.reconcile_sealed_ground_truth()
+        out["sealed_bound"] = rec.get("bound", 0)
+        out["sealed_orphans"] = len(rec.get("orphans") or [])
+        out["cases_held"] += out["sealed_bound"]
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("sealed reconciliation failed: %s", exc)
+    try:
+        from asclepius import assets
+        rep = assets.verify_case_assets(store)
+        for m in (rep.get("missing") or []) + (rep.get("corrupt") or []):
+            cid = m.get("ingest_case_id")
+            if cid and store.hold_ingest_case_for_review(
+                    cid, m.get("reason") or "asset_blob_missing",
+                    m.get("detail") or "asset blob is missing or corrupt on disk"):
+                out["cases_held"] += 1
+        out["assets_missing"] = len(rep.get("missing") or [])
+        out["assets_corrupt"] = len(rep.get("corrupt") or [])
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("asset reconciliation failed: %s", exc)
+    if out["cases_held"] or out["sealed_orphans"]:
+        log.info("ingested-case reconciliation: %s", out)
+    return out
 
 
 # ─── Malware scan hook ────────────────────────────────────────────────────────
@@ -812,8 +852,13 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     if not upload:
         return {"error": "upload not found"}
 
-    def _fail(reason: str) -> Dict[str, Any]:
-        store.update_ingest_upload(upload_id, status="rejected", reason=reason)
+    def _fail(reason: str, *, retain_raw: bool = False) -> Dict[str, Any]:
+        # retain_raw (Audit §9.4): keep the raw blob past the retention window when the
+        # rejection is a fixable parser gap (every entry failed), so it can be re-run.
+        fields: Dict[str, Any] = {"status": "rejected", "reason": reason}
+        if retain_raw:
+            fields["retain_raw"] = 1
+        store.update_ingest_upload(upload_id, **fields)
         store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                         event_type="upload_rejected", payload={"reason": reason})
         # Auto-notify the sender their upload didn't come through (no PHI). Best
@@ -838,9 +883,13 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
         raw = load_raw(upload["raw_path"])
         bundle = unpack_bundle(raw)
     except BundleRejected as exc:
-        return _fail(str(exc))
+        # Partner-facing reason is the actionable copy (Audit §9.1), never the raw
+        # "bad magic bytes" text; the specific detail is retained in the audit log.
+        log.info("upload %s unreadable: %s", upload_id, exc)
+        return _fail(UNREADABLE_UPLOAD_MESSAGE)
     except Exception as exc:  # unreadable blob, key rotation issue, …
-        return _fail(f"could not read/unpack the upload: {exc}")
+        log.warning("upload %s could not be read/unpacked: %s", upload_id, exc)
+        return _fail(UNREADABLE_UPLOAD_MESSAGE)
 
     manifest = bundle["manifest"]
     specialty = (manifest.get("specialty")
@@ -905,8 +954,9 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
             e.get("kind") not in ("manifest", "dicom") for e in bundle["entries"]
         ):
             return _fail("no gradable study in the bundle: every image was blocked or "
-                         "left pending burned-in review (needs a cleared/approved asset)")
-        return _fail("no parseable clinical content in the bundle")
+                         "left pending burned-in review (needs a cleared/approved asset)",
+                         retain_raw=True)
+        return _fail("no parseable clinical content in the bundle", retain_raw=True)
 
     # Per patient: assemble → normalize → verify → hard guard → land or quarantine.
     ingested, quarantined, needs_review = 0, 0, 0

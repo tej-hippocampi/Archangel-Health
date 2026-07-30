@@ -3275,6 +3275,18 @@ async def partner_upload(
     )
     if len(data) > cap:
         raise HTTPException(status_code=413, detail="Upload exceeds the link's size cap")
+    # Import-link hardening (Audit §9.1): reject a STRUCTURALLY-unreadable upload
+    # synchronously with actionable copy — a hospital IT team must be told what to DO,
+    # never that the "zip magic bytes" were wrong. Only a corrupt archive fails here;
+    # a bare .json/.csv/.hl7/.txt was wrapped above and unpacks fine, and a readable
+    # bundle with no gradable content is handled (and explained) by the pipeline.
+    try:
+        asc_ingestion.unpack_bundle(data)
+    except asc_ingestion.BundleRejected:
+        store.log_event(entity_type="ingest_link", entity_id=link["link_id"],
+                        event_type="upload_unreadable",
+                        payload={"filename": (file.filename or "")[:120]})
+        raise HTTPException(status_code=400, detail=asc_ingestion.UNREADABLE_UPLOAD_MESSAGE)
     digest = asc_ingestion.sha256_hex(data)
     # ── Order matters for data safety (see the 410 incident) ──────────────────
     # 1. Persist the encrypted bytes to DURABLE storage FIRST, under a fresh id.
@@ -3324,9 +3336,26 @@ async def partner_upload_status(upload_id: str, t: Optional[str] = Query(None)):
     upload = store.get_ingest_upload(upload_id)
     if not upload or upload.get("link_id") != link["link_id"]:
         raise HTTPException(status_code=404, detail="Upload not found")
+    # Content summary (Audit §9.2): once terminal, tell the partner WHAT came through
+    # — patient cases, lab results, images, notes — aggregate counts only, no PHI, so
+    # the status page reads "Received. 1 patient case · 33 lab results · 5 images · 8
+    # notes." rather than a bare status token.
+    summary = None
+    if upload["status"] in ("ingested", "needs_review", "quarantined"):
+        cases = store.list_ingest_cases(upload_id=upload_id)
+        landed = [c for c in cases if c.get("status") in ("ingested", "needs_review")]
+        labs = images = notes = 0
+        for c in landed:
+            case = c.get("case") or {}
+            for p in case.get("lab_panels") or []:
+                labs += len(p.get("results") or []) or 1
+            images += sum(1 for s in (case.get("studies") or []) if (s or {}).get("asset"))
+            notes += len(case.get("notes") or [])
+        summary = {"cases": len(landed), "lab_results": labs, "images": images, "notes": notes}
     return {"upload_id": upload_id, "status": upload["status"],
             "reason": upload.get("reason"),
-            "filename": upload.get("filename"), "sha256": upload.get("sha256")}
+            "filename": upload.get("filename"), "sha256": upload.get("sha256"),
+            "summary": summary}
 
 
 def _validate_upload_token_lenient(store: Any, token: Optional[str]) -> Dict[str, Any]:
@@ -3501,6 +3530,16 @@ async def get_ingestion_upload(
     upload.pop("raw_path", None)  # server-side path is not admin-relevant
     upload["cases"] = store.list_ingest_cases(upload_id=upload_id)
     return upload
+
+
+@router.post("/ingestion/reconcile")
+async def run_ingestion_reconcile(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """Run terminal-state reconciliation on demand (Audit §9.3): re-bind unbound sealed
+    keys and hold cases with missing/corrupt asset blobs. Also runs at startup and can
+    be scheduled nightly. Returns the counts the admin ingestion card surfaces."""
+    store = _store()
+    counts = asc_ingestion.reconcile_ingested_cases(store)
+    return {"reconcile": counts}
 
 
 @router.get("/ingestion/uploads/{upload_id}/review")

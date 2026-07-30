@@ -831,6 +831,11 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE ingest_upload_links ADD COLUMN contact_email TEXT")
             if "failure_notified_at" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN failure_notified_at TEXT")
+            # Retain-raw (Audit §9.4): when every entry in a bundle failed to parse,
+            # the raw blob is kept past the normal retention window so it can be re-run
+            # after a parser fix rather than purged on schedule.
+            if "retain_raw" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN retain_raw INTEGER NOT NULL DEFAULT 0")
 
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
@@ -1320,7 +1325,7 @@ class AsclepiusStore:
         return self.get_ingest_upload(uid)  # type: ignore[return-value]
 
     def update_ingest_upload(self, upload_id: str, **fields: Any) -> None:
-        allowed = {"status", "reason", "files_json", "raw_path"}
+        allowed = {"status", "reason", "files_json", "raw_path", "retain_raw"}
         sets, params = [], []
         for k, v in fields.items():
             if k not in allowed:
@@ -1484,6 +1489,29 @@ class AsclepiusStore:
                 (ingest_case_id, now, sealed_id),
             )
 
+    def hold_ingest_case_for_review(self, ingest_case_id: str, reason: str,
+                                    detail: str, *, severity: str = "blocking") -> bool:
+        """Add a review reason to an already-terminal case and hold it out of the
+        annotation queue (Audit §9.3). Idempotent per reason code; returns True if a
+        new reason was added. Used by post-hoc reconciliation (unbound sealed key,
+        missing asset blob) to flag a case that reached a terminal state but is
+        internally inconsistent — a defect the ingest-time checks could not see."""
+        existing = self.get_ingest_case(ingest_case_id)
+        if not existing:
+            return False
+        reasons = list(existing.get("review") or [])
+        if any(x.get("reason") == reason for x in reasons):
+            return False
+        reasons.append({"reason": reason, "severity": severity, "detail": detail,
+                        "raised_at": _utcnow_iso()})
+        fields: Dict[str, Any] = {"review_status": "needs_review", "review_json": reasons}
+        # A blocking reason also flips the case status so the queue-hold SQL excludes
+        # it; an advisory one leaves the case where it is.
+        if severity == "blocking" and existing.get("status") == "ingested":
+            fields["status"] = "needs_review"
+        self.update_ingest_case(ingest_case_id, **fields)
+        return True
+
     def reconcile_sealed_ground_truth(self, *, older_than_seconds: int = 3600) -> Dict[str, Any]:
         """Recover sealed keys left UNBOUND by a crash between staging and binding
         (Audit §H1). For each unbound row older than the threshold, try to bind it to
@@ -1516,16 +1544,10 @@ class AsclepiusStore:
                 self.bind_sealed_ground_truth(rec["sealed_id"], case["ingest_case_id"])
                 # Hold the recovered case for review — a key that had to be reconciled
                 # is a blocking signal until a human confirms the adjudication.
-                existing = self.get_ingest_case(case["ingest_case_id"]) or {}
-                reasons = list(existing.get("review") or [])
-                if not any(x.get("reason") == "sealed_key_unbound" for x in reasons):
-                    reasons.append({"reason": "sealed_key_unbound", "severity": "blocking",
-                                    "detail": "sealed answer key was recovered by "
-                                    "reconciliation after an interrupted ingest",
-                                    "raised_at": _utcnow_iso()})
-                self.update_ingest_case(
-                    case["ingest_case_id"], status="needs_review",
-                    review_status="needs_review", review_json=reasons)
+                self.hold_ingest_case_for_review(
+                    case["ingest_case_id"], "sealed_key_unbound",
+                    "sealed answer key was recovered by reconciliation after an "
+                    "interrupted ingest")
                 bound += 1
             else:
                 orphans.append({"sealed_id": rec["sealed_id"], "upload_id": rec.get("upload_id"),
@@ -1618,6 +1640,16 @@ class AsclepiusStore:
                 (upload_id,),
             )
             return cur.rowcount
+
+    def list_uploads_with_retained_raw(self) -> List[Dict[str, Any]]:
+        """Uploads whose raw blob is retained past the normal window (Audit §9.4) —
+        every entry failed to parse, so the file is kept for re-run after a fix. The
+        retention purge skips these paths."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT upload_id, raw_path FROM ingest_uploads WHERE retain_raw = 1"
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def list_uploads_in_status(self, statuses: List[str]) -> List[Dict[str, Any]]:
         """Uploads currently sitting in any of ``statuses`` — used by startup

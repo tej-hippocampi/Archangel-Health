@@ -5851,9 +5851,44 @@
     const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));
     const casesCard = h('div', { class: 'asc-card', id: 'ascIngestCases' }, loadingCard('Loading ingested cases…'));
     body.appendChild(mintCard);
+    body.appendChild(renderReconcileCard());
     body.appendChild(uploadsCard);
     body.appendChild(casesCard);
     loadIngestionLists();
+  }
+
+  // Terminal-state reconciliation (V4 Build Spec §9.3): re-bind unbound sealed keys
+  // and hold cases whose asset blob went missing. Runs at startup + nightly; this is
+  // the on-demand trigger with a live count readout.
+  function renderReconcileCard() {
+    const out = h('div', { class: 'asc-card-sub', style: 'margin-top:10px' },
+      'Checks ingested cases for an unbound answer key or a missing image blob — defects that develop after ingest.');
+    const btn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm' }, 'Run reconciliation');
+    btn.addEventListener('click', async () => {
+      btn.setAttribute('disabled', ''); btn.textContent = 'Reconciling…';
+      try {
+        const res = await api('/ingestion/reconcile', { method: 'POST', body: {} });
+        const c = res.reconcile || {};
+        clear(out);
+        out.appendChild(h('div', {},
+          'Sealed keys re-bound: ' + (c.sealed_bound || 0)
+          + ' · orphaned keys: ' + (c.sealed_orphans || 0)
+          + ' · missing image blobs: ' + (c.assets_missing || 0)
+          + ' · corrupt blobs: ' + (c.assets_corrupt || 0)
+          + ' · cases held for review: ' + (c.cases_held || 0) + '.'));
+        if ((c.cases_held || 0) > 0) loadIngestionLists();
+        toast('Reconciliation complete.', 'success');
+      } catch (e) {
+        toast('Reconciliation failed: ' + (e.detail || e.message || ''), 'error');
+      } finally {
+        btn.removeAttribute('disabled'); btn.textContent = 'Run reconciliation';
+      }
+    });
+    return h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Integrity reconciliation'),
+        h('div', { class: 'asc-card-sub' }, 'Terminal-state consistency check for ingested real cases.'))),
+      h('div', { class: 'asc-card-pad' }, btn, out));
   }
 
   // Cached uploads (used to filter the promote list by partner/file search).
