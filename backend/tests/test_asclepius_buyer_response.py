@@ -271,15 +271,33 @@ def test_eval_task_captured():
 
 
 def test_required_modality_missing_quarantines():
-    """Drop the pronase Media → the case quarantines rather than shipping unanswerable."""
+    """Remove ALL pronase evidence (the Media AND any note naming pronase/paraffin
+    IF — a synonym) → the case quarantines rather than shipping unanswerable. The
+    completeness haystack now resolves 'pronase IF' from a note too (Audit PRD §P1),
+    so a faithful drop must strip every mention."""
     store = _store()
     bundle = _bundle_json()
-    bundle["entry"] = [e for e in bundle["entry"]
-                       if e["resource"].get("id") != "media-pronase"]
+    kept = []
+    for e in bundle["entry"]:
+        r = e["resource"]
+        if r.get("resourceType") == "Media" and r.get("id") == "media-pronase":
+            continue
+        if r.get("resourceType") == "DocumentReference":
+            for cc in r.get("content") or []:
+                att = cc.get("attachment") or {}
+                if att.get("data"):
+                    txt = base64.b64decode(att["data"]).decode("utf-8", "replace").lower()
+                    if "pronase" in txt or "paraffin" in txt:
+                        att["data"] = base64.b64encode(
+                            b"Renal biopsy tissue received; adequate for evaluation.").decode()
+        kept.append(e)
+    bundle["entry"] = kept
     summary = _ingest(store, json.dumps(bundle).encode())
     assert summary["status"] == "quarantined", summary
     ic = _ingested_case(store, summary)
-    assert "pronase" in json.dumps(ic["report"].get("missing_modalities") or []).lower()
+    missing = json.dumps((ic["report"].get("completeness") or {}).get("missing")
+                         or ic["report"].get("missing_modalities") or []).lower()
+    assert "pronase" in missing
 
 
 def test_synthetic_flag_never_trusted():

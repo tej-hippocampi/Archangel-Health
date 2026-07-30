@@ -234,10 +234,10 @@ def build() -> dict:
                  "it. State why the initial infection-related hypothesis is a trap.")},
             {"url": f"{FHIR_BASE}/difficulty", "valueString": "frontier-hard"},
             {"url": f"{FHIR_BASE}/required-modalities",
-             "valueString": ("longitudinal labs, clinical notes, urine microscopy, "
-                             "light microscopy biopsy, routine immunofluorescence, "
-                             "pronase immunofluorescence, electron microscopy, "
-                             "flow cytometry")},
+             # '+'-delimited technique tokens, matching how the real partner bundle
+             # writes them (Audit PRD §P1); resolved via _MODALITY_SYNONYMS.
+             "valueString": ("longitudinal labs + clinical notes + urine microscopy + "
+                             "LM + routine IF + pronase IF + EM + hematology studies")},
         ],
     })
 

@@ -21,7 +21,14 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from typing import Any, Dict, List, Optional, Tuple
+
+# Separators a partner plausibly writes a required-modalities declaration with. The
+# real PGNMID bundle uses ' + '; the original ,/; split turned the whole declaration
+# into one unmatchable token and quarantined a valid case (Audit PRD §P1). ' and '
+# only splits before a lowercase word so "H and E" / "kappa and lambda" survive.
+_MODALITY_DELIMS = re.compile(r"[,;+\n]| and (?=[a-z])", re.I)
 
 from asclepius.case_formats import age_to_band
 from asclepius.cases import STUDY_ASSET_MIMES
@@ -85,7 +92,6 @@ def _looks_diagnostic(text: str) -> bool:
     if any(m in low for m in _INTERPRETIVE_MARKERS):
         return True
     # A word ending in a diagnosis suffix (…itis/…osis/…pathy/…oma/…emia).
-    import re
     if re.search(r"\b[a-z]{3,}(itis|osis|pathy|emia|aemia|oma|nephropathy|sclerosis)\b", low):
         return True
     return any(m in low for m in _DIAGNOSIS_MORPHOLOGY)
@@ -214,7 +220,6 @@ def _modality_of(res: Dict[str, Any], specialty: str) -> str:
     """Map a FHIR Media to a Study modality. Nephrology pathology (biopsy IF/EM/LM,
     urine microscopy) maps to ``pathology``; imaging keywords map to their modality;
     everything else is ``other``."""
-    import re
 
     text = " ".join([
         _codeable_text(res.get("modality")), _codeable_text(res.get("type")),
@@ -370,14 +375,15 @@ def _basic_disposition(res: Dict[str, Any]) -> str:
 
 
 def _parse_required_modalities(value: Any) -> List[str]:
-    """Normalize the ``required-modalities`` extension into a list of tokens. The
-    extension may be a list, or a comma/semicolon-delimited string."""
+    """Normalize the required-modalities extension into tokens.
+
+    Partners write this as prose. The real bundle uses ' + ' as the separator; the
+    original ,/; split turned the entire declaration into one unmatchable token and
+    quarantined a valid case (Audit PRD §P1). Split on every separator a human
+    plausibly uses."""
     if value is None:
         return []
-    if isinstance(value, list):
-        items = [str(v) for v in value]
-    else:
-        items = [p for p in str(value).replace(";", ",").split(",")]
+    items = value if isinstance(value, list) else _MODALITY_DELIMS.split(str(value))
     return [t.strip() for t in items if t and t.strip()]
 
 
@@ -449,7 +455,6 @@ def _split_report_conclusion(conclusion: str) -> Tuple[str, str]:
     Sentence-level split: any sentence carrying interpretive/hedge language is
     interpretive; the rest is objective. If none is flagged, the whole conclusion is
     objective (nothing is withheld gratuitously)."""
-    import re
 
     text = (conclusion or "").strip()
     if not text:

@@ -25,6 +25,7 @@ import io
 import json
 import logging
 import os
+import re
 import shlex
 import subprocess
 import time
@@ -432,84 +433,70 @@ _COMPLETENESS_STOPWORDS = frozenset({
     "clinical", "serial", "required", "study", "studies", "panel", "panels", "test",
     "tests", "imaging", "image", "images", "data",
 })
-# Declared-modality tokens satisfied by the mere PRESENCE of a category (there is no
-# distinctive keyword to look for — a bundle that declares "labs" is satisfied by any
-# lab panel, one that declares "notes" by any note).
-_CATEGORY_LAB_TOKENS = frozenset({"labs", "lab", "laboratory", "labwork", "bloodwork"})
-_CATEGORY_NOTE_TOKENS = frozenset({"notes", "note", "documentation", "history"})
-# "Weak" modality words describe a technique class that many studies share (an
-# ``immunofluorescence`` panel, a ``microscopy`` image), so they are NOT distinctive
-# enough to prove a specific declared study was delivered — "pronase
-# immunofluorescence" must be matched by "pronase", not by any "immunofluorescence"
-# mention elsewhere. A declared modality with distinctive (strong) tokens requires
-# ALL of them; one with only weak tokens is satisfied by any weak-token match.
-_WEAK_MODALITY_WORDS = frozenset({
-    "immunofluorescence", "microscopy", "biopsy", "imaging", "cytometry",
-    "panel", "study", "report", "stain", "staining",
-})
+# A declared token we cannot confidently resolve is NOT a missing modality. Synonyms
+# let the common abbreviations resolve; anything still unresolved is reported as
+# unverified rather than treated as absent (Audit PRD §P1).
+_MODALITY_SYNONYMS = {
+    "lm": ("light microscopy", "pas", "h&e", "hematoxylin"),
+    "em": ("electron microscopy", "ultrastructural"),
+    "if": ("immunofluorescence",),
+    "routine if": ("frozen if", "immunofluorescence"),
+    "pronase if": ("pronase", "paraffin immunofluorescence"),
+    "urine microscopy": ("urine sediment", "sediment", "urinalysis"),
+    "hematology studies": ("flow cytometry", "spep", "free light chain", "immunofixation"),
+    "longitudinal labs": ("labs", "laboratory"),
+    "clinical notes": ("note", "progress", "consult", "discharge"),
+}
 
 
-def _tok(s: Any) -> set:
-    import re
-    return {w for w in re.findall(r"[a-z0-9]+", str(s or "").lower()) if len(w) >= 2}
-
-
-def _delivered_modality_corpus(case: Dict[str, Any]) -> set:
-    """Every token that evidences a delivered modality — study modality/label/
-    findings, lab panel names + analytes, note types + text, problems."""
-    toks: set = set()
+def _completeness_haystack(case: Dict[str, Any]) -> str:
+    """Everything a declared modality could legitimately name. Declarations are
+    TECHNIQUES ('pronase IF', 'EM'); Study.modality is a coarse ENUM ('pathology').
+    Matching modality alone can never satisfy them, so the label and findings — where
+    the technique is actually named — are part of the haystack."""
+    bits: List[str] = []
     for s in case.get("studies") or []:
-        for f in (s.get("modality"), s.get("label"), s.get("findings")):
-            toks |= _tok(f)
+        bits += [str(s.get("modality") or ""), str(s.get("label") or ""),
+                 str(s.get("findings") or "")]
     for p in case.get("lab_panels") or []:
-        toks |= _tok(p.get("panel"))
+        bits.append(str(p.get("panel") or ""))
         for r in p.get("results") or []:
-            toks |= _tok(r.get("analyte"))
+            bits.append(str(r.get("analyte") or ""))
     for n in case.get("notes") or []:
-        # note_type only, NOT the free-text body — a study's delivery must be proven
-        # by the study/report itself, not by a note that merely mentions a modality
-        # was performed (a note saying "EM was done" is not the EM finding).
-        toks |= _tok(n.get("note_type"))
-    for pr in case.get("problem_list") or []:
-        toks |= _tok(pr.get("condition"))
-    return toks
+        bits += [str(n.get("note_type") or ""), str(n.get("text") or "")]
+    if case.get("lab_panels"):
+        bits.append("labs longitudinal laboratory")
+    if case.get("notes"):
+        bits.append("clinical notes note")
+    if case.get("medications"):
+        bits.append("medications")
+    return " ".join(bits).lower()
 
 
-def completeness_missing(declared: List[str], case: Dict[str, Any]) -> List[str]:
-    """Declared-vs-delivered check (Buyer Response PRD §2 A4). A declared modality is
-    DELIVERED when its distinctive token(s) appear in the delivered corpus (or, for a
-    pure category like "labs"/"notes", when that category is present). Fail closed:
-    an unmatched declared modality is reported missing, so a case whose decisive
-    evidence is absent quarantines rather than shipping as an easier case than the
-    author intended."""
-    corpus = _delivered_modality_corpus(case)
-    has_labs = bool(case.get("lab_panels"))
-    has_notes = bool(case.get("notes"))
-    missing: List[str] = []
-    for decl in declared or []:
-        tokens = _tok(decl)
-        distinctive = {t for t in tokens if t not in _COMPLETENESS_STOPWORDS}
-        cat_lab = tokens & _CATEGORY_LAB_TOKENS
-        cat_note = tokens & _CATEGORY_NOTE_TOKENS
-        # Strong tokens are the distinctive ones that are NOT category or weak
-        # modality-class words — the specific evidence a declared modality points at.
-        strong = distinctive - _CATEGORY_LAB_TOKENS - _CATEGORY_NOTE_TOKENS - _WEAK_MODALITY_WORDS
-        weak = distinctive & _WEAK_MODALITY_WORDS
-        if strong:
-            # Require ALL strong tokens — "pronase immunofluorescence" is delivered
-            # only if "pronase" is present, not merely some other IF panel.
-            if not strong.issubset(corpus):
-                missing.append(decl)
+def completeness_check(declared: List[str], case: Dict[str, Any]) -> Dict[str, Any]:
+    """Tri-state completeness (Buyer Response PRD §2 A4, corrected — Audit PRD §P1).
+
+    Returns ``{present, missing, unresolved}``. Only ``missing`` — a token we
+    RECOGNISED and confirmed absent — may quarantine. An ``unresolved`` token means our
+    matcher did not understand the partner's wording, which is a fact about our parser,
+    not about their data; quarantining on it rejects good cases (exactly what happened
+    to the real PGNMID bundle) and hides the parser gap behind a clinical-sounding
+    rejection."""
+    hay = _completeness_haystack(case)
+    present, missing, unresolved = [], [], []
+    for tok in declared or []:
+        t = tok.strip().lower()
+        if not t:
             continue
-        if cat_lab and not has_labs:
-            missing.append(decl)
-        elif cat_note and not has_notes:
-            missing.append(decl)
-        elif weak and not (weak & corpus):
-            missing.append(decl)
-        elif not cat_lab and not cat_note and not weak and not (distinctive & corpus):
-            missing.append(decl)
-    return missing
+        candidates = (t,) + tuple(_MODALITY_SYNONYMS.get(t, ()))
+        recognised = t in _MODALITY_SYNONYMS or len(t.split()) <= 4
+        if any(c in hay for c in candidates):
+            present.append(tok)
+        elif recognised:
+            missing.append(tok)
+        else:
+            unresolved.append(tok)
+    return {"present": present, "missing": missing, "unresolved": unresolved}
 
 
 def cf_case_has_asset(study: Dict[str, Any]) -> bool:
@@ -648,57 +635,61 @@ class AnswerLeakageError(BundleRejected):
     invalidates every score computed from the case."""
 
 
-def _distinctive_windows(text: str, n: int = 5) -> List[str]:
-    import re
-    toks = [w for w in re.findall(r"[a-z0-9]+", str(text or "").lower())
+def _distinctive_tokens(text: str) -> List[str]:
+    return [w for w in re.findall(r"[a-z0-9]+", str(text or "").lower())
             if w not in _COMPLETENESS_STOPWORDS and len(w) >= 3]
-    return [" ".join(toks[i:i + n]) for i in range(0, max(0, len(toks) - n + 1))]
+
+
+def _longest_contiguous_run(needle: List[str], hay_padded: str) -> int:
+    """Longest contiguous run of ``needle`` tokens appearing as a whole-token span in
+    ``hay_padded`` (which is the space-joined hay wrapped in sentinel spaces so a match
+    respects token boundaries — 'a b c' never matches inside 'xa b cx')."""
+    best = 0
+    for i in range(len(needle)):
+        j = i
+        while j < len(needle) and (" " + " ".join(needle[i:j + 1]) + " ") in hay_padded:
+            j += 1
+        best = max(best, j - i)
+    return best
 
 
 def assert_no_answer_leakage(case: Dict[str, Any], sealed: Optional[Dict[str, Any]]) -> None:
-    """Post-condition: no distinctive sealed-answer string appears anywhere in the
-    model-visible case (Buyer Response PRD §3 B1). Runs after ``deidentify()``,
-    before the case is stored. Substring matching on normalized text over distinctive
-    spans only (>=5 tokens, stopwords stripped) — matching short phrases would
-    false-positive on ordinary clinical language, and a check that cries wolf gets
-    disabled."""
+    """Post-condition (Buyer Response PRD §3 B1): the SEALED answer-key resource must
+    not have leaked into the model-visible case. Runs after ``deidentify()``, before
+    the case is stored.
+
+    The failure mode this guards is the sealed ``Basic`` being MERGED into the case
+    body during parsing (a note, a study finding). It must NOT quarantine a real
+    de-identified record whose clinical notes legitimately state the diagnosis — a
+    pathology report says "Final: <diagnosis>" and a problem list carries the known
+    condition, and the adjudicated answer key naturally restates those same facts.
+    Quarantining on that coincidence rejects real hospital data, the exact
+    two-conditions-one-check anti-pattern the audit calls out (§17).
+
+    The distinguisher: a genuine merge reproduces a whole answer-key LEAF nearly
+    verbatim; a clinical coincidence reproduces only the diagnosis NAME, a fraction of
+    the leaf. So we flag only when a sealed leaf is SUBSTANTIALLY REPRODUCED (>=80% of
+    its distinctive tokens appear as one contiguous run). ``source_refs`` are excluded
+    because they are never rendered into the model prompt (annotator-only, §H4)."""
     if not sealed:
         return
-    import re as _re
-
     from asclepius.cases import render_case_prompt
 
-    # The model-visible surface is exactly what render_case_prompt emits (it already
-    # honors model_visible notes + study_findings_policy), plus source_refs titles.
-    visible = render_case_prompt(case, "")
-    for ref in case.get("source_refs") or []:
-        visible += " " + str(ref.get("title") or "")
-    hay = " ".join(w for w in _re.findall(r"[a-z0-9]+", visible.lower())
-                   if w not in _COMPLETENESS_STOPWORDS and len(w) >= 3)
+    # Model-visible surface ONLY — render_case_prompt already honors model_visible
+    # notes + study_findings_policy. source_refs are NOT model-visible.
+    hay = " ".join(_distinctive_tokens(render_case_prompt(case, "")))
+    hay_padded = " " + hay + " "
 
-    def _distinctive(text: str) -> List[str]:
-        return [w for w in _re.findall(r"[a-z0-9]+", str(text or "").lower())
-                if w not in _COMPLETENESS_STOPWORDS and len(w) >= 3]
-
-    # Check EACH leaf string value of the answer key, not the serialized JSON blob:
-    # a short decisive answer ("membranous nephropathy") produces < 5 tokens and its
-    # 5-token windows over the serialized dict interleave JSON scaffolding, so the
-    # blob approach silently misses it (audit finding). For a leaf we require the
-    # whole distinctive phrase (up to 5 tokens) to appear contiguously in the visible
-    # case; a leaf with a single distinctive token is skipped (too weak — a lone word
-    # like a differential diagnosis legitimately appears and would false-positive).
     answer_key = sealed.get("answer_key") if isinstance(sealed, dict) else sealed
     for leaf in _sealed_leaf_strings(answer_key):
-        toks = _distinctive(leaf)
+        toks = _distinctive_tokens(leaf)
         if len(toks) < 2:
-            continue
-        n = 5 if len(toks) >= 5 else len(toks)
-        for i in range(0, len(toks) - n + 1):
-            window = " ".join(toks[i:i + n])
-            if window and window in hay:
-                raise AnswerLeakageError(
-                    "sealed answer key leaked into the model-visible case: matched a "
-                    "distinctive span; refusing to ship (Buyer Response PRD §3 B1)")
+            continue  # single-token leaves handled by the rarity-gated check (M1)
+        need = max(2, -(-len(toks) * 8 // 10))  # ceil(0.8 * len)
+        if _longest_contiguous_run(toks, hay_padded) >= need:
+            raise AnswerLeakageError(
+                "sealed answer key leaked into the model-visible case: a sealed leaf "
+                "was substantially reproduced; refusing to ship (Buyer Response PRD §3 B1)")
 
 
 def _sealed_leaf_strings(obj: Any) -> List[str]:
@@ -895,16 +886,20 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                 "case_provenance": case_provenance,
                 "study_findings_policy": "hidden" if any_asset else "visible",
             }).model_dump()
-            # Declared-vs-delivered completeness (Buyer Response PRD §2 A4): a case
-            # missing its decisive evidence quarantines rather than shipping an
-            # unanswerable case that manufactures a false model failure.
-            missing = completeness_missing(declared_mods, case)
-            if missing:
-                report["missing_modalities"] = missing
+            # Declared-vs-delivered completeness (Buyer Response PRD §2 A4; corrected
+            # to tri-state — Audit PRD §P1). Only a RECOGNISED-and-absent token
+            # quarantines. An UNRESOLVED token is a parser gap, not missing evidence:
+            # ingest, flag as unverified, and (Phase 4) surface it as an ADVISORY
+            # review reason — quarantining on it rejects good hospital data.
+            comp = completeness_check(declared_mods, case)
+            report["completeness"] = comp
+            if comp["missing"]:
+                report["missing_modalities"] = comp["missing"]
                 raise cf.CaseIngestError(
-                    f"bundle declares required modalities not delivered: {sorted(missing)}; "
+                    f"bundle declares required modalities not delivered: {sorted(comp['missing'])}; "
                     f"the case's decisive evidence is absent — quarantining rather than "
                     f"shipping an unanswerable case")
+            case["completeness_status"] = "unverified" if comp["unresolved"] else "verified"
             # Post-condition (Buyer Response PRD §3 B1): no distinctive sealed-answer
             # span may appear in the model-visible case. Runs after deidentify(),
             # before the case is stored.

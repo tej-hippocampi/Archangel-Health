@@ -2767,7 +2767,7 @@
           },
           {
             "url": "https://archangel.health/fhir/StructureDefinition/required-modalities",
-            "valueString": "longitudinal labs, clinical notes, urine microscopy, light microscopy biopsy, routine immunofluorescence, pronase immunofluorescence, electron microscopy, flow cytometry"
+            "valueString": "longitudinal labs + clinical notes + urine microscopy + LM + routine IF + pronase IF + EM + hematology studies"
           }
         ]
       }

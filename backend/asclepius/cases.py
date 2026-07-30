@@ -280,6 +280,11 @@ class ClinicalCase(BaseModel):
     # so existing V3 cases (whose findings ARE the evidence) are unchanged; the V4
     # image path sets "hidden" so the model must read the pixels, not the caption.
     study_findings_policy: Literal["hidden", "visible", "post_hoc"] = "visible"
+    # Tri-state completeness outcome (Audit PRD §P1): "verified" (all declared
+    # modalities resolved), "unverified" (a declared token we could not parse — a
+    # parser gap, NOT missing evidence; surfaced as an advisory review reason), or
+    # None (no declaration). A truly-absent recognised modality quarantines instead.
+    completeness_status: Optional[str] = None
     # ── internal-only generation/QA metadata (never shipped raw) ──
     ground_truth: Optional[GroundTruth] = None
     hard_hook: Optional[str] = None
