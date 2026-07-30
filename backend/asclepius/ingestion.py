@@ -38,6 +38,7 @@ from pydantic import ValidationError
 from asclepius import case_formats as cf
 from asclepius import deid_verify
 from asclepius.cases import ClinicalCase
+from asclepius.store import _utcnow_iso
 from asclepius.timeline import TimelineError, normalize_timeline
 
 log = logging.getLogger("asclepius.ingestion")
@@ -499,6 +500,31 @@ def completeness_check(declared: List[str], case: Dict[str, Any]) -> Dict[str, A
     return {"present": present, "missing": missing, "unresolved": unresolved}
 
 
+# ─── Admin review queue (Audit PRD §20-§21) ──────────────────────────────────
+def _raise_review(reasons: List[Dict[str, Any]], reason: str, severity: str,
+                  detail: str) -> None:
+    """Append a review reason instead of logging it into a void (Audit PRD §21.2).
+    ``blocking`` holds the case out of the annotation queue (a physician must not see
+    it yet); ``advisory`` does not (the case is clinically intact, only a claim about
+    it is unverified — holding it would rebuild the completeness bug with a nicer UI)."""
+    reasons.append({"reason": reason, "severity": severity, "detail": detail,
+                    "raised_at": _utcnow_iso()})
+
+
+def _upload_status_from_cases(ingested: int, quarantined: int, needs_review: int) -> str:
+    """Upload status is the WORST state among its cases, with needs_review ranked
+    ABOVE ingested (Audit PRD §21.3). A partner upload where one case needs review
+    must not render as a clean green row — an unreviewed blocking flag that looks
+    finished is exactly the failure this whole spec is about."""
+    if ingested == 0 and quarantined == 0 and needs_review == 0:
+        return "rejected"
+    if needs_review:
+        return "needs_review"
+    if ingested:
+        return "ingested"
+    return "quarantined"
+
+
 def cf_case_has_asset(study: Dict[str, Any]) -> bool:
     from asclepius.cases import study_has_valid_asset
     return study_has_valid_asset(study)
@@ -840,7 +866,7 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
         return _fail("no parseable clinical content in the bundle")
 
     # Per patient: assemble → normalize → verify → hard guard → land or quarantine.
-    ingested, quarantined = 0, 0
+    ingested, quarantined, needs_review = 0, 0, 0
     for pk, parts in per_patient.items():
         merged = _merge_fragments(parts)
         report: Dict[str, Any] = {"patient_key": opaque_patient_key(pk)}
@@ -904,10 +930,34 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
             # span may appear in the model-visible case. Runs after deidentify(),
             # before the case is stored.
             assert_no_answer_leakage(case, sealed)
+            # Admin review queue (Audit PRD §21). Collect the three "unknown" states
+            # that used to have nowhere to go and route them to a human. Blocking
+            # reasons hold the case out of the annotation queue; advisory reasons
+            # ingest cleanly (the case is intact, only a claim about it is unverified).
+            review_reasons: List[Dict[str, Any]] = []
+            for st in (case.get("studies") or []):
+                phi = st.get("phi_screening") or {}
+                if phi.get("burned_in_risk") == "suspect":
+                    _raise_review(review_reasons, "burned_in_phi_unverified", "blocking",
+                                  phi.get("reason")
+                                  or f"study '{st.get('label') or st.get('modality')}': "
+                                     "burned-in PHI could not be screened")
+                elif phi.get("method") == "tag_only":
+                    _raise_review(review_reasons, "deid_partner_flag_only", "advisory",
+                                  f"study '{st.get('label') or st.get('modality')}': "
+                                  "OCR screening unavailable; cleared on DICOM tags alone")
+            if comp["unresolved"]:
+                _raise_review(review_reasons, "completeness_unverified", "advisory",
+                              "could not resolve declared modalities against delivered "
+                              f"evidence: {sorted(comp['unresolved'])}")
+            blocking = [r for r in review_reasons if r["severity"] == "blocking"]
+            case_status = "needs_review" if blocking else "ingested"
             ic = store.insert_ingest_case(upload_id=upload_id,
                                           patient_key=opaque_patient_key(pk),
                                           specialty=specialty, case=case,
-                                          status="ingested", report=report)
+                                          status=case_status, report=report,
+                                          review_status=("needs_review" if review_reasons else None),
+                                          review_json=review_reasons or None)
             # Answer-key storage must succeed for the case to ship as ingested: if it
             # fails we re-classify the case as quarantined rather than shipping it
             # cleanly with a lost adjudication (Buyer Response PRD §3 B1).
@@ -924,15 +974,19 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                                          "patient_key": opaque_patient_key(pk),
                                          "reason": "sealed_storage_failed"})
                 continue
-            ingested += 1
+            if blocking:
+                needs_review += 1
+            else:
+                ingested += 1
             store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
-                            event_type="case_ingested",
+                            event_type=("case_needs_review" if blocking else "case_ingested"),
                             payload={"upload_id": upload_id,
                                      "patient_key": opaque_patient_key(pk),
                                      "panels": len(case.get("lab_panels") or []),
                                      "notes": len(case.get("notes") or []),
                                      "studies": len(case.get("studies") or []),
                                      "source_refs": len(case.get("source_refs") or []),
+                                     "review_reasons": [r["reason"] for r in review_reasons],
                                      "sealed_stored": bool(sealed)})
         except (cf.CaseIngestError, TimelineError, ValidationError, AnswerLeakageError) as exc:
             # ValidationError (BUG-1 hardening): a real bundle whose structure
@@ -979,17 +1033,24 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                 log.exception("ingest: could not even quarantine patient %s in upload %s",
                               opaque_patient_key(pk), upload_id)
 
-    status = "ingested" if ingested else ("quarantined" if quarantined else "rejected")
-    reason = None if ingested else (
-        "all cases quarantined — review findings" if quarantined else "nothing ingested")
+    status = _upload_status_from_cases(ingested, quarantined, needs_review)
+    reason = None
+    if status == "needs_review":
+        reason = "one or more cases held for admin review"
+    elif status == "quarantined":
+        reason = "all cases quarantined — review findings"
+    elif status == "rejected":
+        reason = "nothing ingested"
     store.update_ingest_upload(upload_id, status=status, reason=reason, files_json=file_outcomes)
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="upload_processed",
                     payload={"status": status, "ingested": ingested,
-                             "quarantined": quarantined, "imaging_rejected": imaging_rejected})
+                             "quarantined": quarantined, "needs_review": needs_review,
+                             "imaging_rejected": imaging_rejected})
     purge_expired_raw(store)
     return {"status": status, "ingested": ingested, "quarantined": quarantined,
-            "imaging_rejected": imaging_rejected, "files": file_outcomes}
+            "needs_review": needs_review, "imaging_rejected": imaging_rejected,
+            "files": file_outcomes}
 
 
 def sha256_hex(data: bytes) -> str:

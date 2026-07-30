@@ -108,6 +108,15 @@ class QuarantineOverrideRequest(BaseModel):
     reason: str
 
 
+class ReviewClearRequest(BaseModel):
+    """Admin clearance of a blocking review reason (Audit PRD §21.5). Clearing a
+    burned-in-PHI flag is an affirmative human statement that the image carries no
+    PHI, so a note is MANDATORY — it must be attributable, not a silent unblock."""
+
+    note: str
+    reason: Optional[str] = None  # which reason code was cleared (audit breadcrumb)
+
+
 class PromoteCaseRequest(BaseModel):
     """Promote an ingested real case to a gradable V4 task (EHR PRD §9)."""
 

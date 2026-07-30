@@ -669,6 +669,16 @@ class AsclepiusStore:
             if "blinded" not in cols("agreement"):
                 conn.execute("ALTER TABLE agreement ADD COLUMN blinded INTEGER NOT NULL DEFAULT 1")
 
+            # Admin review queue (Audit PRD §21). review_status is NULLABLE on purpose:
+            # NULL means "no check raised anything", which is NOT "reviewed and cleared"
+            # — the same fail-open lesson as the blinded flag; never backfill a verdict
+            # onto rows that were never assessed.
+            if "review_status" not in cols("ingest_cases"):
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN review_status TEXT")     # NULL|needs_review|cleared|rejected
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN review_json TEXT")       # [{reason,severity,detail,raised_at}]
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN reviewed_by_hashed TEXT")
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN reviewed_at TEXT")
+
             if "case_source" not in task_cols:
                 # Real EHR Ingestion PRD §9.5: 'synthetic' | 'real_deid' as a first-
                 # class COLUMN so the V4 routing wall filters in SQL (a real case is
@@ -1276,11 +1286,17 @@ class AsclepiusStore:
         rec["files"] = json.loads(rec.pop("files_json") or "[]")
         return rec
 
-    def list_ingest_uploads(self, *, limit: int = 200, offset: int = 0) -> List[Dict[str, Any]]:
+    def list_ingest_uploads(self, *, limit: int = 200, offset: int = 0,
+                            status: Optional[str] = None) -> List[Dict[str, Any]]:
+        where, params = "", []
+        if status:
+            where = "WHERE status = ? "
+            params.append(status)
+        params += [max(1, limit), max(0, offset)]
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM ingest_uploads ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (max(1, limit), max(0, offset)),
+                f"SELECT * FROM ingest_uploads {where}ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                tuple(params),
             ).fetchall()
         out = []
         for r in rows:
@@ -1289,9 +1305,14 @@ class AsclepiusStore:
             out.append(rec)
         return out
 
-    def count_ingest_uploads(self) -> int:
-        """Total upload rows — lets the admin UI paginate over full history."""
+    def count_ingest_uploads(self, *, status: Optional[str] = None) -> int:
+        """Total upload rows — lets the admin UI paginate over full history.
+        With ``status`` set, counts only rows in that state (drives the filter chips)."""
         with self._conn() as conn:
+            if status:
+                return int(conn.execute(
+                    "SELECT COUNT(*) FROM ingest_uploads WHERE status = ?", (status,)
+                ).fetchone()[0])
             return int(conn.execute("SELECT COUNT(*) FROM ingest_uploads").fetchone()[0])
 
     def mark_upload_failure_notified(self, upload_id: str) -> None:
@@ -1308,6 +1329,7 @@ class AsclepiusStore:
     def insert_ingest_case(
         self, *, upload_id: str, patient_key: Optional[str], specialty: Optional[str],
         case: Optional[Dict[str, Any]], status: str, report: Optional[Dict[str, Any]],
+        review_status: Optional[str] = None, review_json: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         cid = _new_id("icase")
         now = _utcnow_iso()
@@ -1315,21 +1337,23 @@ class AsclepiusStore:
             conn.execute(
                 """INSERT INTO ingest_cases
                    (ingest_case_id, upload_id, patient_key, specialty, case_json,
-                    status, report_json, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    status, report_json, review_status, review_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (cid, upload_id, patient_key, specialty,
                  json.dumps(case) if case else None, status,
-                 json.dumps(report) if report else None, now, now),
+                 json.dumps(report) if report else None, review_status,
+                 json.dumps(review_json) if review_json else None, now, now),
             )
         return self.get_ingest_case(cid)  # type: ignore[return-value]
 
     def update_ingest_case(self, ingest_case_id: str, **fields: Any) -> None:
-        allowed = {"status", "case_json", "report_json", "task_id", "override_reason"}
+        allowed = {"status", "case_json", "report_json", "task_id", "override_reason",
+                   "review_status", "review_json", "reviewed_by_hashed", "reviewed_at"}
         sets, params = [], []
         for k, v in fields.items():
             if k not in allowed:
                 continue
-            if k in ("case_json", "report_json") and not isinstance(v, (str, type(None))):
+            if k in ("case_json", "report_json", "review_json") and not isinstance(v, (str, type(None))):
                 v = json.dumps(v)
             sets.append(f"{k} = ?")
             params.append(v)
@@ -1406,6 +1430,7 @@ class AsclepiusStore:
         rec = dict(row)
         rec["case"] = json.loads(rec.pop("case_json") or "null")
         rec["report"] = json.loads(rec.pop("report_json") or "null")
+        rec["review"] = json.loads((rec.get("review_json") or "null") or "null")
         return rec
 
     def list_ingest_cases(
@@ -1431,6 +1456,7 @@ class AsclepiusStore:
             rec = dict(r)
             rec["case"] = json.loads(rec.pop("case_json") or "null")
             rec["report"] = json.loads(rec.pop("report_json") or "null")
+            rec["review"] = json.loads((rec.get("review_json") or "null") or "null")
             out.append(rec)
         return out
 
@@ -1752,6 +1778,15 @@ class AsclepiusStore:
             "t.case_source = 'real_deid'" if real_only
             else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
         )
+        # Admin review queue (Audit PRD §21.6): a task whose ingest case still carries
+        # an unresolved BLOCKING review reason (ingest_cases.status = 'needs_review')
+        # must never be served for annotation — a physician must not label a case whose
+        # image may still carry burned-in PHI. Clearing/rejecting flips that status, so
+        # this releases the case the moment a human resolves it.
+        clauses.append(
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id "
+            "AND ic.status = 'needs_review')"
+        )
         where = " AND ".join(clauses)
         with self._conn() as conn:
             row = conn.execute(
@@ -1813,6 +1848,13 @@ class AsclepiusStore:
         clauses.append(
             "t.case_source = 'real_deid'" if real_only
             else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
+        )
+        # Hold blocking-review cases out of the candidate set too (Audit PRD §21.6) —
+        # same rule as next_task_for_evaluator, so value-aware routing never ranks a
+        # case a human has not yet cleared.
+        clauses.append(
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id "
+            "AND ic.status = 'needs_review')"
         )
         where = " AND ".join(clauses)
         with self._conn() as conn:

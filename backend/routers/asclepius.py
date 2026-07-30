@@ -113,6 +113,7 @@ from asclepius.schemas import (
     ContributorCredentialsIn,
     CreateUserRequest,
     PromoteCaseRequest,
+    ReviewClearRequest,
     UploadPromoteRequest,
     QuarantineOverrideRequest,
     RealDataApprovalRequest,
@@ -130,7 +131,7 @@ from asclepius.schemas import (
     SubmissionIn,
     TaskUploadRequest,
 )
-from asclepius.store import get_store
+from asclepius.store import get_store, _utcnow_iso
 from ratelimit import rate_limiter
 from asclepius.validation import compute_dedupe_hash, grounding_status, is_grounded, residual_identifiers
 
@@ -3359,13 +3360,25 @@ def _contact_email_for_upload(store: Any, upload: Dict[str, Any]) -> Optional[st
 async def list_ingestion_uploads(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    status: Optional[str] = Query(None),
     _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Paginated over FULL history (newest first). Returns the page plus the
-    grand total so the admin UI can page through every upload ever received."""
+    grand total so the admin UI can page through every upload ever received.
+
+    ``status`` (Audit PRD §21.5) narrows to one state — ``needs_review`` surfaces
+    the admin review queue. ``counts`` always carries the per-status totals so the
+    filter chips render real numbers regardless of the active filter."""
     store = _store()
-    total = store.count_ingest_uploads()
-    uploads = store.list_ingest_uploads(limit=limit, offset=offset)
+    total = store.count_ingest_uploads(status=status)
+    counts = {
+        "all": store.count_ingest_uploads(),
+        "ingested": store.count_ingest_uploads(status="ingested"),
+        "needs_review": store.count_ingest_uploads(status="needs_review"),
+        "quarantined": store.count_ingest_uploads(status="quarantined"),
+        "rejected": store.count_ingest_uploads(status="rejected"),
+    }
+    uploads = store.list_ingest_uploads(limit=limit, offset=offset, status=status)
     for u in uploads:
         u["partner_label"] = _partner_label_for_upload(store, u)
         # How many ingested cases are ready to promote from THIS upload file —
@@ -3377,7 +3390,8 @@ async def list_ingestion_uploads(
         u["contact_email"] = _contact_email_for_upload(store, u)
         u["failure_notified"] = bool(u.get("failure_notified_at"))
         u.pop("raw_path", None)  # server-side path is not admin-relevant
-    return {"uploads": uploads, "total": total, "limit": limit, "offset": offset}
+    return {"uploads": uploads, "total": total, "limit": limit, "offset": offset,
+            "counts": counts, "status": status}
 
 
 def _upload_past_raw_retention(upload: Dict[str, Any]) -> bool:
@@ -3470,6 +3484,100 @@ async def get_ingestion_upload(
     upload.pop("raw_path", None)  # server-side path is not admin-relevant
     upload["cases"] = store.list_ingest_cases(upload_id=upload_id)
     return upload
+
+
+@router.get("/ingestion/uploads/{upload_id}/review")
+async def get_upload_review(
+    upload_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """The admin review queue for one upload (Audit PRD §21.5): every case that
+    raised a review reason, with its reasons split blocking-first so the UI renders
+    the PHI hold above the advisory note. A case with no reasons is omitted."""
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    out = []
+    for c in store.list_ingest_cases(upload_id=upload_id):
+        reasons = c.get("review") or []
+        if not reasons:
+            continue
+        blocking = [r for r in reasons if r.get("severity") == "blocking"]
+        advisory = [r for r in reasons if r.get("severity") != "blocking"]
+        out.append({
+            "ingest_case_id": c["ingest_case_id"],
+            "status": c.get("status"),
+            "review_status": c.get("review_status"),
+            "reviewed_by_hashed": c.get("reviewed_by_hashed"),
+            "reviewed_at": c.get("reviewed_at"),
+            # Blocking reasons first, always (§21.7) — a certifier must see the PHI
+            # hold before the advisory note.
+            "reasons": blocking + advisory,
+            "blocking_count": len(blocking),
+            "studies": (c.get("case") or {}).get("studies") or [],
+        })
+    return {"upload_id": upload_id, "cases": out}
+
+
+def _review_actor_hashed(admin: Dict[str, Any]) -> str:
+    """Hash the clearing admin's id the same way the store hashes user ids
+    (sha256[:16]) so a cleared flag is attributable without storing the raw id."""
+    return hashlib.sha256(str(admin.get("id") or "").encode("utf-8")).hexdigest()[:16]
+
+
+@router.post("/ingestion/cases/{ingest_case_id}/review/clear")
+async def clear_case_review(
+    ingest_case_id: str, body: ReviewClearRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Clear a case's blocking review reasons (Audit PRD §21.5). A note is
+    mandatory (the schema enforces presence; we reject whitespace-only here) and the
+    action stamps ``reviewed_by_hashed`` + ``reviewed_at``. Clearing all blocking
+    reasons flips the case back to ``ingested`` so it re-enters the annotation queue;
+    advisory reasons are retained on the record but never held the case."""
+    if not (body.note or "").strip():
+        raise HTTPException(status_code=400, detail="A review note is required to clear a case.")
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic or ic.get("status") != "needs_review":
+        raise HTTPException(status_code=404, detail="Case is not awaiting review")
+    reasons = list(ic.get("review") or [])
+    cleared_at = _utcnow_iso()
+    actor = _review_actor_hashed(admin)
+    # Drop the blocking reasons (the human has affirmatively resolved them); keep
+    # advisory reasons as a record. If any advisory remains, the case is still
+    # 'ingested' (advisory never held it) with review_status 'cleared'.
+    remaining = [r for r in reasons if r.get("severity") != "blocking"]
+    store.update_ingest_case(
+        ingest_case_id, status="ingested", review_status="cleared",
+        review_json=remaining, reviewed_by_hashed=actor, reviewed_at=cleared_at)
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="review_cleared", actor=admin["id"],
+                    payload={"note": body.note, "reason": body.reason,
+                             "cleared_blocking": [r.get("reason") for r in reasons
+                                                  if r.get("severity") == "blocking"]})
+    return {"status": "ingested", "review_status": "cleared",
+            "reviewed_by_hashed": actor, "reviewed_at": cleared_at}
+
+
+@router.post("/ingestion/cases/{ingest_case_id}/review/reject")
+async def reject_case_review(
+    ingest_case_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Reject a case awaiting review (Audit PRD §21.5) — the reviewer found the flag
+    is real (e.g. the image does carry burned-in PHI). The case is quarantined, never
+    served for annotation, and the action is attributable."""
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic or ic.get("status") != "needs_review":
+        raise HTTPException(status_code=404, detail="Case is not awaiting review")
+    actor = _review_actor_hashed(admin)
+    store.update_ingest_case(
+        ingest_case_id, status="quarantined", review_status="rejected",
+        reviewed_by_hashed=actor, reviewed_at=_utcnow_iso())
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="review_rejected", actor=admin["id"])
+    return {"status": "quarantined", "review_status": "rejected"}
 
 
 @router.post("/ingestion/uploads/{upload_id}/retry")

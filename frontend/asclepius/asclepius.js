@@ -5816,6 +5816,23 @@
   const _UPLOADS_PAGE = 50;
   let _uploadsOffset = 0;
   let _uploadsTotal = 0;
+  // Admin review queue (V4 Build Spec §21.5): the active status filter for the
+  // uploads table. null == All. `needs_review` surfaces the review queue.
+  let _uploadsStatus = null;
+
+  // Every other status on this screen is a real word — render 'Needs review',
+  // never the raw `needs_review` token (§21.7).
+  const UPLOAD_STATUS_LABEL = {
+    ingested: 'Ready', needs_review: 'Needs review', quarantined: 'Quarantined',
+    rejected: 'Rejected', received: 'Received', parsing: 'Parsing', failed: 'Failed',
+  };
+  const uploadStatusLabel = (s) => UPLOAD_STATUS_LABEL[s] || s || '—';
+  // `asc-badge-accent` already exists and is unused in this table, so no CSS change.
+  const uploadBadgeClass = (s) => (
+    s === 'ingested' ? 'asc-badge-green'
+      : s === 'needs_review' ? 'asc-badge-accent'
+        : s === 'quarantined' ? 'asc-badge-amber'
+          : s === 'rejected' ? 'asc-badge-red' : 'asc-badge-gray');
 
   async function loadIngestionLists() {
     const up = document.getElementById('ascIngestUploads');
@@ -5839,23 +5856,56 @@
     const up = document.getElementById('ascIngestUploads');
     if (!up) return;
     try {
-      const data = await api('/ingestion/uploads?limit=' + _UPLOADS_PAGE + '&offset=' + Math.max(0, offset));
+      const q = '/ingestion/uploads?limit=' + _UPLOADS_PAGE + '&offset=' + Math.max(0, offset)
+        + (_uploadsStatus ? '&status=' + encodeURIComponent(_uploadsStatus) : '');
+      const data = await api(q);
       const uploads = data.uploads || [];
+      const counts = data.counts || {};
       _uploadsOffset = data.offset || 0;
       _uploadsTotal = data.total || 0;
       clear(up);
       up.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' },
-        'Partner uploads (' + _uploadsTotal + ')')));
-      if (!_uploadsTotal) {
+        'Partner uploads (' + (counts.all != null ? counts.all : _uploadsTotal) + ')')));
+      // Filter chips (default All). Counts come from the server so they hold across
+      // pages and the active filter.
+      const chipDefs = [
+        { key: null, label: 'All', n: counts.all },
+        { key: 'ingested', label: 'Ready', n: counts.ingested },
+        { key: 'needs_review', label: 'Needs review', n: counts.needs_review },
+        { key: 'quarantined', label: 'Quarantined', n: counts.quarantined },
+        { key: 'rejected', label: 'Rejected', n: counts.rejected },
+      ];
+      const chips = chipDefs.map((d) => {
+        const active = (_uploadsStatus || null) === (d.key || null);
+        // `.active.err` is the design-system pink emphasis — use it for the review
+        // chip when there's a real queue so the hold is visible even unselected.
+        const accent = d.key === 'needs_review' && (d.n || 0) > 0;
+        const chip = h('button', {
+          class: 'asc-chip' + (active ? ' active' : '') + (accent ? ' err' : ''),
+        }, d.label + (d.n != null ? ' (' + d.n + ')' : ''));
+        chip.addEventListener('click', () => { _uploadsStatus = d.key || null; renderUploadsTable(0); });
+        return chip;
+      });
+      up.appendChild(h('div', { class: 'asc-chips asc-card-pad', style: 'padding-top:0' }, chips));
+      if (!uploads.length) {
         up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
-          'No uploads yet — mint a link above and send it to the partner.')));
+          _uploadsStatus ? ('No uploads with status "' + uploadStatusLabel(_uploadsStatus) + '".')
+                         : 'No uploads yet — mint a link above and send it to the partner.')));
         return;
       }
-      const rows = uploads.map((u) => {
+      const rows = [];
+      uploads.forEach((u) => {
         const dlBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
           onClick: () => downloadBlob('/ingestion/uploads/' + u.upload_id + '/download', u.filename || (u.upload_id + '.zip')) },
           '⬇ Download file');
         const actions = [dlBtn];
+        // A held upload gets a Review action that expands an inline drawer (never a
+        // modal — the table already renders rows).
+        if (u.status === 'needs_review') {
+          const rbtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Review');
+          rbtn.addEventListener('click', () => toggleReviewDrawer(u, rbtn));
+          actions.push(rbtn);
+        }
         if (u.status !== 'ingested') {
           const canNotify = !!u.contact_email;
           const nbtn = h('button', {
@@ -5867,12 +5917,17 @@
           if (!canNotify) nbtn.disabled = true;
           actions.push(nbtn);
         }
-        return h('tr', {},
+        const row = h('tr', { 'data-upload': u.upload_id },
           h('td', {}, fmtDate(u.created_at)),
           h('td', {}, u.partner_label || u.partner_id || '—'),
           h('td', { class: 'asc-mono' }, (u.filename || '') + ' · ' + Math.round((u.size_bytes || 0) / 1024) + 'KB'),
-          h('td', {}, h('span', { class: 'asc-badge ' + (u.status === 'ingested' ? 'asc-badge-green' : (u.status === 'quarantined' ? 'asc-badge-amber' : (u.status === 'rejected' ? 'asc-badge-red' : 'asc-badge-gray'))) }, u.status)),
+          h('td', {}, h('span', { class: 'asc-badge ' + uploadBadgeClass(u.status) }, uploadStatusLabel(u.status))),
           h('td', {}, h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' }, actions)));
+        rows.push(row);
+        // Placeholder row the drawer expands into, kept adjacent for correct order.
+        const drawer = h('tr', { class: 'asc-review-drawer-row', 'data-drawer-for': u.upload_id, style: 'display:none' },
+          h('td', { colspan: '5', style: 'padding:0' }, h('div', { class: 'asc-review-drawer' })));
+        rows.push(drawer);
       });
       up.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
         h('thead', {}, h('tr', {}, ['When', 'Partner', 'File', 'Status', ''].map((c) => h('th', {}, c)))),
@@ -5904,6 +5959,172 @@
     }
   }
 
+  // ── Admin review queue drawer (V4 Build Spec §21.5-§21.7) ────────────────────
+  // Expands inline under a `needs_review` row. Blocking reasons render ABOVE
+  // advisory, always. A blocking image row outlines the top/bottom 12% bands in the
+  // design-system flag colour so a reviewer certifies "no PHI" from pixels, not a
+  // filename. The advisory row states the case is already in the annotation queue.
+  async function toggleReviewDrawer(upload, btn) {
+    const drawerRow = document.querySelector('tr[data-drawer-for="' + upload.upload_id + '"]');
+    if (!drawerRow) return;
+    if (drawerRow.style.display !== 'none') {
+      drawerRow.style.display = 'none';
+      if (btn) btn.textContent = 'Review';
+      return;
+    }
+    drawerRow.style.display = '';
+    if (btn) btn.textContent = 'Hide review';
+    const host = drawerRow.querySelector('.asc-review-drawer');
+    clear(host);
+    host.appendChild(loadingCard('Loading review reasons…'));
+    let data;
+    try {
+      data = await api('/ingestion/uploads/' + upload.upload_id + '/review');
+    } catch (e) {
+      clear(host);
+      host.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Could not load review reasons.'));
+      return;
+    }
+    renderReviewDrawer(host, upload, data.cases || []);
+  }
+
+  function renderReviewDrawer(host, upload, cases) {
+    clear(host);
+    if (!cases.length) {
+      host.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
+        'Nothing left to review on this upload.')));
+      return;
+    }
+    const box = h('div', { class: 'asc-card-pad', style: 'display:flex;flex-direction:column;gap:14px' });
+    cases.forEach((c) => box.appendChild(renderReviewCase(upload, c)));
+    host.appendChild(box);
+  }
+
+  function renderReviewCase(upload, c) {
+    const reasons = c.reasons || [];              // already blocking-first from the API
+    const blocking = reasons.filter((r) => r.severity === 'blocking');
+    const advisory = reasons.filter((r) => r.severity !== 'blocking');
+    const studiesByAsset = {};
+    (c.studies || []).forEach((s) => { if (s && s.asset && s.asset.asset_id) studiesByAsset[s.asset.asset_id] = s; });
+
+    const wrap = h('div', { class: 'asc-review-case', style: 'border:1px solid var(--asc-line);border-radius:10px;padding:12px' });
+    wrap.appendChild(h('div', { class: 'asc-card-sub asc-mono', style: 'margin-bottom:8px' },
+      'case ' + c.ingest_case_id + (c.review_status ? ' · ' + c.review_status : '')));
+
+    // Blocking reasons FIRST — the PHI hold outranks the advisory note.
+    blocking.forEach((r) => {
+      const block = h('div', { style: 'margin-bottom:12px' });
+      block.appendChild(h('div', { style: 'display:flex;align-items:center;gap:8px' },
+        h('span', { class: 'asc-badge asc-badge-red' }, 'Blocking'),
+        h('strong', {}, reasonTitle(r.reason))));
+      block.appendChild(h('div', { class: 'asc-card-sub', style: 'margin:4px 0 8px' }, r.detail || ''));
+      // Show a study image with the top/bottom bands flagged, when we have one.
+      const firstStudy = (c.studies || [])[0];
+      const withAsset = (c.studies || []).find((s) => s && s.asset && s.asset.asset_id);
+      if (withAsset) {
+        block.appendChild(renderBandedImage(withAsset));
+      } else {
+        block.appendChild(h('div', { class: 'asc-inline-warn' },
+          'No render is available for this study — its pixels were withheld from the content store '
+          + 'until a human clears them. Download the original bundle above to inspect the source image '
+          + 'before certifying no PHI.'));
+      }
+      wrap.appendChild(block);
+    });
+
+    // Advisory reasons — the case is clinically intact and, if not otherwise held,
+    // already in the annotation queue. Nobody needs to chase it.
+    advisory.forEach((r) => {
+      const adv = h('div', { style: 'margin-bottom:10px' });
+      adv.appendChild(h('div', { style: 'display:flex;align-items:center;gap:8px' },
+        h('span', { class: 'asc-badge asc-badge-gray' }, 'Advisory'),
+        h('strong', {}, reasonTitle(r.reason))));
+      adv.appendChild(h('div', { class: 'asc-card-sub', style: 'margin:4px 0' }, r.detail || ''));
+      adv.appendChild(h('div', { class: 'asc-card-sub' },
+        blocking.length ? 'This note travels with the case; it did not hold it.'
+                        : 'This case is already in the annotation queue — no action needed.'));
+      wrap.appendChild(adv);
+    });
+
+    // Actions. Only a blocking hold needs clear/reject; a pure-advisory case just
+    // gets an Acknowledge that closes the drawer.
+    const status = h('div', { style: 'margin-top:8px' });
+    const actions = h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' });
+    if (blocking.length) {
+      const clearBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'No PHI — clear');
+      clearBtn.addEventListener('click', () => clearReview(upload, c, status));
+      const rejectBtn = h('button', { class: 'asc-btn asc-btn-danger asc-btn-sm' }, 'PHI present — reject case');
+      rejectBtn.addEventListener('click', () => rejectReview(upload, c, status));
+      actions.appendChild(clearBtn);
+      actions.appendChild(rejectBtn);
+    } else {
+      const ackBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm' }, 'Acknowledge');
+      ackBtn.addEventListener('click', () => renderUploadsTable(_uploadsOffset));
+      actions.appendChild(ackBtn);
+    }
+    wrap.appendChild(actions);
+    wrap.appendChild(status);
+    return wrap;
+  }
+
+  function reasonTitle(code) {
+    return ({
+      burned_in_phi_unverified: 'Burned-in PHI could not be screened',
+      asset_blob_missing: 'Image asset is missing from storage',
+      sealed_key_unbound: 'Sealed answer key is unbound',
+      completeness_unverified: 'Declared evidence could not be verified',
+      deid_partner_flag_only: 'Image cleared on DICOM tags alone (no OCR)',
+    })[code] || code;
+  }
+
+  // Render a study image at review size with the top and bottom 12% bands outlined
+  // in the design-system flag colour — the regions where burned-in PHI lives.
+  function renderBandedImage(study) {
+    const frame = h('div', { style: 'position:relative;max-width:420px;border:1px solid var(--asc-line);border-radius:8px;overflow:hidden;background:var(--asc-surface-2)' });
+    const img = h('img', { alt: (study.label || study.modality || 'clinical') + ' image', style: 'display:block;width:100%;height:auto' });
+    frame.appendChild(img);
+    const band = (top) => h('div', { style: 'position:absolute;left:0;right:0;height:12%;'
+      + (top ? 'top:0;' : 'bottom:0;')
+      + 'border:2px solid var(--pink-deep);background:var(--pink-wash);pointer-events:none' });
+    frame.appendChild(band(true));
+    frame.appendChild(band(false));
+    fetchAssetBlobUrl(study.asset.asset_id).then((url) => { img.src = url; }).catch(() => {
+      frame.appendChild(h('div', { class: 'asc-inline-warn' }, 'Could not load the image.'));
+    });
+    return frame;
+  }
+
+  async function clearReview(upload, c, status) {
+    const note = window.prompt('Certify no burned-in PHI in this image. Enter a review note (required):');
+    if (note == null) return;                     // cancelled
+    if (!note.trim()) { toast('A review note is required to clear a case.', 'error'); return; }
+    clear(status);
+    status.appendChild(loadingCard('Clearing…'));
+    try {
+      await api('/ingestion/cases/' + c.ingest_case_id + '/review/clear',
+        { method: 'POST', body: { note: note, reason: (c.reasons && c.reasons[0] && c.reasons[0].reason) || null } });
+      toast('Case cleared — back in the annotation queue.', 'success');
+      loadIngestionLists();
+    } catch (e) {
+      clear(status);
+      status.appendChild(h('div', { class: 'asc-inline-error' }, e.detail || e.message || 'Clear failed.'));
+    }
+  }
+
+  async function rejectReview(upload, c, status) {
+    if (!window.confirm('Reject this case? It will be quarantined and never served for annotation.')) return;
+    clear(status);
+    status.appendChild(loadingCard('Rejecting…'));
+    try {
+      await api('/ingestion/cases/' + c.ingest_case_id + '/review/reject', { method: 'POST' });
+      toast('Case rejected and quarantined.', 'success');
+      loadIngestionLists();
+    } catch (e) {
+      clear(status);
+      status.appendChild(h('div', { class: 'asc-inline-error' }, e.detail || e.message || 'Reject failed.'));
+    }
+  }
+
   // Group ingested cases by the partner upload they came from, filtered by a
   // partner/file search box. Promote runs on the WHOLE file: prepare a sample →
   // review → extend case creation to the rest.
@@ -5926,7 +6147,10 @@
   function renderPromoteList(listBox, query) {
     clear(listBox);
     const q = (query || '').trim().toLowerCase();
-    const eligible = (_ingestUploads || []).filter((u) => (u.ingested_case_count || 0) > 0
+    // Include held uploads too (V4 §4.7) so a `needs_review` file is visible here —
+    // with a "Held for review" marker instead of a promote button — rather than
+    // silently vanishing while an unresolved blocking reason keeps its cases out.
+    const eligible = (_ingestUploads || []).filter((u) => ((u.ingested_case_count || 0) > 0 || u.status === 'needs_review')
       && (!q || (u.partner_label || '').toLowerCase().includes(q)
               || (u.partner_id || '').toLowerCase().includes(q)
               || (u.filename || '').toLowerCase().includes(q)));
@@ -5937,17 +6161,28 @@
     }
     eligible.forEach((u) => {
       const st = h('div', { style: 'margin-top:10px' });
-      const promoteBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Promote to V4 task');
-      promoteBtn.addEventListener('click', () => openPromoteReview(u, st));
+      const ready = (u.ingested_case_count || 0) > 0;
+      // A blocking review reason keeps its cases out of promotion — show a
+      // "Held for review" marker in place of the button until it's cleared.
+      const action = ready
+        ? (() => {
+            const b = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Promote to V4 task');
+            b.addEventListener('click', () => openPromoteReview(u, st));
+            return b;
+          })()
+        : h('span', { class: 'asc-badge asc-badge-accent', title: 'A case in this upload is held for admin review — clear it in Partner uploads above.' }, 'Held for review');
+      const sub = ready
+        ? (u.ingested_case_count || 0) + ' case(s) ready · uploaded ' + fmtDate(u.created_at)
+        : 'Held for review · uploaded ' + fmtDate(u.created_at);
       listBox.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
         h('div', { style: 'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center' },
           h('div', {},
             h('strong', {}, (u.partner_label || u.partner_id || 'partner')),
             h('div', { class: 'asc-card-sub asc-mono' }, u.filename || ''),
-            h('div', { class: 'asc-card-sub' }, (u.ingested_case_count || 0) + ' case(s) ready · uploaded ' + fmtDate(u.created_at))),
+            h('div', { class: 'asc-card-sub' }, sub)),
           h('div', { style: 'display:flex;gap:8px;align-items:center' },
             h('span', { class: 'asc-badge-real' }, 'real · V4'),
-            promoteBtn)),
+            action)),
         st));
     });
   }
