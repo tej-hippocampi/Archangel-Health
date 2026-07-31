@@ -262,10 +262,17 @@ def test_assist_hint_not_rendered_v3():
 
 # ─── Test 7 ───────────────────────────────────────────────────────────────────
 def test_no_resplit_button():
-    """§5: the split already ran automatically on mount. Both call sites drop
-    the button; the auto-fire and ``autoSplitChosen`` itself stay (§16)."""
-    assert "Re-split from answer" not in JS_CODE
-    assert "resplitBtn" not in JS_CODE
+    """§5: on V3/V4 the split already ran automatically on mount, so the button
+    only ever restated something that had happened. The auto-fire and
+    ``autoSplitChosen`` itself stay (§16).
+
+    Scoped to the V3/V4 section: ``renderStepsCard`` is the V1/V2 card (it sits
+    inside ``if (!isV3())``) and keeps its control — see
+    ``test_v1_v2_step_renderers_are_untouched``.
+    """
+    section = _code(_body_of("renderReasoningSection"))
+    assert "Re-split from answer" not in section
+    assert "resplitBtn" not in section
     for fn in ("renderReasoningSection", "renderStepsCard"):
         body = _body_of(fn)
         assert "autoSplitChosen(listId, false)" in body, (
@@ -288,10 +295,11 @@ def test_split_in_flight_shows_a_skeleton():
 
 
 def test_no_dangling_resplit_copy():
-    """§5: the empty-list fallback used to point at a control that no longer
-    exists."""
-    assert "use “Re-split from answer”" not in JS_CODE
-    assert "No steps yet — add steps manually." in JS_CODE
+    """§5: the V3/V4 empty-list fallback used to point at a control that no
+    longer exists on that surface."""
+    listv3 = _code(_body_of("renderStepsListV3"))
+    assert "use “Re-split from answer”" not in listv3
+    assert "No steps yet — add steps manually." in listv3
 
 
 # ─── Test 8 ───────────────────────────────────────────────────────────────────
@@ -530,11 +538,11 @@ def test_original_not_truncated_in_js():
     """§8: the full ``original_text`` goes into the DOM and CSS ellipsises it at
     the true edge of the bar. An 80-character cut is wrong at every width except
     the one it happened to be chosen for."""
-    assert ".slice(0, 80)" not in JS, "the hard 80-char truncation is still there"
-    assert "asc-step-original-preview" in JS
-    # Both renderers (V3/V4 and the classic list) were identical and both change.
-    assert JS.count("asc-step-original-sum") == 2
-    assert JS.count("h('span', { class: 'asc-step-original-preview' }, s.original_text || '')") == 2
+    row = _code(_body_of("buildStepRowV3"))
+    assert ".slice(0, 80)" not in row, "the hard 80-char truncation is still there"
+    assert "h('span', { class: 'asc-step-original-preview' }, s.original_text || '')" in row
+    # Exactly one renderer changes: the V1/V2 list keeps its own markup.
+    assert JS.count("asc-step-original-sum") == 1
 
     # The CSS half — `min-width: 0` is what actually lets a flex child shrink
     # far enough for text-overflow to engage.
@@ -1319,3 +1327,78 @@ def test_specialty_popover_escape_rules_executed():
     assert out["backdrop"] is None, "a backdrop click should dismiss a dismissable picker"
     assert out["survivedInnerClick"], "a click inside the card must not dismiss the sheet"
     assert out["clean"] and out["listenersLeft"] == 0, "every path must clean up"
+
+
+def test_v1_v2_step_renderers_are_untouched():
+    """§0.1, the strongest form: V1 (classic) and V2 (assisted) are shipped
+    surfaces. This PRD is a V3/V4 change, so the two renderers that only V1/V2
+    can reach — ``renderStepsCard`` and ``renderStepsList``, both behind
+    ``if (!isV3())`` — must be byte-identical to the base branch apart from
+    comments.
+
+    Written as a diff against git rather than as a list of things to look for,
+    because the failure mode is a change nobody thought to check for.
+    """
+    base = subprocess.run(
+        ["git", "show", "main:frontend/asclepius/asclepius.js"],
+        capture_output=True, text=True, cwd=str(_FRONTEND),
+    )
+    if base.returncode != 0:
+        pytest.skip("no git baseline available")
+
+    # Premise check — these two must still be unreachable from V3/V4:
+    #   renderRationale  --if (!isV3())-->  renderStepsCard  -->  renderStepsList
+    #   repaintSteps     --else branch--->  renderStepsList
+    # If either becomes reachable from V3/V4 this test is guarding the wrong
+    # thing, so assert the shape rather than trusting it.
+    rationale = _body_of("renderRationale")
+    v1v2_branch = rationale[
+        rationale.index("if (!isV3())") : rationale.index("const list = compareSubstages()")
+    ]
+    assert "renderStepsCard(" in v1v2_branch, (
+        "renderStepsCard is no longer called from the !isV3() branch — re-check "
+        "this test's premise"
+    )
+    assert "renderStepsCard(" not in _body_of("renderReasoningSection")
+    assert _body_of("repaintSteps").count("renderStepsList(listId)") == 1, (
+        "repaintSteps should route V3/V4 to renderStepsListV3 and only V1/V2 to "
+        "renderStepsList"
+    )
+    assert "if (isV3()) renderStepsListV3(listId);" in _body_of("repaintSteps")
+
+    for fn in ("renderStepsCard", "renderStepsList"):
+        # Compare code only: stripping a comment leaves a blank line behind, so
+        # drop those too — the assertion is about behaviour, not layout.
+        def strip(src):
+            return [ln for ln in _code(src).splitlines() if ln.strip()]
+        old = strip(_extract_function(base.stdout, fn))
+        new = strip(_extract_function(JS, fn))
+        assert old == new, (
+            f"{fn} (V1/V2 only) changed. This PRD ships V3/V4; a V2 regression "
+            "here is invisible to every other test in this file."
+        )
+
+    # The V1/V2 controls this PRD removes from V3/V4 are still present there.
+    card = _code(_body_of("renderStepsCard"))
+    assert "↻ Re-split from answer" in card, (
+        "V1/V2 lost its re-split control — it is the only way to re-run a bad "
+        "split on that surface, where nothing auto-fires a second time"
+    )
+    classic_list = _code(_body_of("renderStepsList"))
+    assert ".slice(0, 80)" in classic_list, "V1/V2's original-bar markup changed"
+    assert "use “Re-split from answer”" in classic_list
+
+
+def test_v2_compare_stage_is_untouched():
+    """The other half of the §0.1 guard: V2's compare surface. §3 and §4 remove
+    the diff and the assist hint on V3/V4 only, so every V2 path through these
+    functions must still reach the code it always did."""
+    compare = _body_of("renderCompareStage")
+    assert "id: 'ascDiffToggle'" in compare, "V2 lost its diff toggle"
+    assert "state.showFullText = !state.showFullText;" in compare
+    hint = _body_of("renderAssistHint")
+    assert "'Model thinks '" in hint, "V2 lost the weaker-answer hint"
+    answers = _body_of("renderAnswersInto")
+    assert "computeAnswerDiff()" in answers, "V2 lost the A/B diff"
+    # V1 (classic) still gets plain text, exactly as before.
+    assert "!isAssisted()" in answers

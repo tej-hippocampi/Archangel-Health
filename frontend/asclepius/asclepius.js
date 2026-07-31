@@ -4855,8 +4855,13 @@
       class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
       onClick: () => { activeSteps().push(newAuthoredStep()); saveDraft(); renderStepsList(listId); updateSubmitState(); },
     }, '+ Add step');
-    // §5: no "Re-split from answer" here either — the auto-split below already
-    // ran; the control only ever restated it.
+    // V1/V2 (classic) keeps its re-split control. The Eval UI Overhaul §5 removal
+    // is scoped to the V3/V4 accordion, where the split auto-fires on mount; here
+    // it is still the only way to re-run a bad split.
+    const resplitBtn = canAutoSplit ? h('button', {
+      class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+      onClick: () => autoSplitChosen(listId, true),
+    }, '↻ Re-split from answer') : null;
 
     const card = h('div', { class: 'asc-subcard' },
       h('div', { class: 'asc-subcard-head' }, '↳ Reasoning steps ',
@@ -4864,7 +4869,7 @@
           canAutoSplit ? 'confirm each step, or edit it to correct it' : (required ? '(each step needs a citation)' : '(optional)'))),
       h('div', { class: 'asc-subcard-body' },
         h('div', { class: 'asc-steps', id: listId }),
-        h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn),
+        h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn, resplitBtn),
       ));
     setTimeout(() => {
       renderStepsList(listId);
@@ -4985,12 +4990,11 @@
 
       // Collapsed "original:" reference — the AI's split step we're correcting.
       const originalBox = hasOriginal
-        // §8: full text in, CSS ellipsis at the true edge — an 80-char cut is
-        // wrong at every width except the one it was chosen for.
+        // V1/V2 (classic) keeps the original 80-char JS truncation. The §8
+        // fill-the-width fix is scoped to the V3/V4 renderer.
         ? h('details', { class: 'asc-step-original' },
-            h('summary', { class: 'asc-step-original-sum' },
-              h('span', { class: 'asc-step-original-tag' }, 'original'),
-              h('span', { class: 'asc-step-original-preview' }, s.original_text || '')),
+            h('summary', {}, 'original: ' + ((s.original_text || '').length > 80
+              ? (s.original_text || '').slice(0, 80) + '…' : (s.original_text || ''))),
             h('div', { class: 'asc-step-original-full' }, s.original_text || ''))
         : null;
 
@@ -5075,9 +5079,7 @@
       list.appendChild(h('div', { class: 'asc-step' }, head, suggestHint, ta, reasonWrap, originalBox, critiqueField, stepCite, anchorBlock));
     });
     if (!steps.length) {
-      // §5: the re-split control is gone from this card too, so the copy that
-      // pointed at it goes with it.
-      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually.'));
+      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually, or use “Re-split from answer”.'));
     }
   }
 
