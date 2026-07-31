@@ -1336,7 +1336,14 @@
 /* §2: the specialty picker — a popover, not a page. Law 3: the scrim is
    teal-shifted ink at low alpha, never #000. */
 .asc-sheet {
-  position: fixed; inset: 0; z-index: 60;
+  position: fixed; inset: 0;
+  /* Above EVERY piece of chrome: the sticky header is 100, the desktop rail 90,
+     the mobile bottom rail 120. At a lower value the header renders over the
+     scrim and its nav stays clickable — which would let a physician navigate
+     away from a picker that §2 makes deliberately non-dismissable on first
+     entry. Still below the toast region (1000), so a submit error is never
+     hidden behind the sheet. */
+  z-index: 150;
   display: flex; align-items: center; justify-content: center;
   background: rgba(26, 27, 26, .28);
   backdrop-filter: blur(3px);
@@ -1869,7 +1876,14 @@ body.asc-sheet-open { overflow: hidden; }
   gap: 16px; margin-bottom: 2px; flex-wrap: wrap;
 }
 .asc-rubric-scale { display: flex; align-items: center; gap: 10px; }
-.asc-rubric-scale input[type=range] { width: 160px; max-width: 40vw; }
+.asc-rubric-scale input[type=range] {
+  width: 160px; max-width: 40vw;
+  /* A range input paints in the browser's default blue, and there is no blue in
+     this palette. It was always blue; §10 moved it beside the question, which is
+     what made it loud. Mono chrome, per the wayfinding law — the polarity is
+     already carried by the +/- readout sitting next to it. */
+  accent-color: var(--ink);
+}
 
 .asc-rubric-tier-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .asc-rubric-tier-btn {
@@ -1891,6 +1905,11 @@ body.asc-sheet-open { overflow: hidden; }
 }
 .asc-rubric-recap-text { flex: 1 1 auto; min-width: 0; color: var(--asc-text); }
 .asc-axis-row { flex-wrap: wrap; }
+/* §11: `.asc-sev-pill` capitalizes, which was right when these pills rendered
+   raw enum values (`accuracy` -> `Accuracy`). The options are sentences now, and
+   `capitalize` turns "Got the facts right" into "Got The Facts Right" — which
+   reads as a form label again, the exact thing §11 removes. */
+.asc-axis-row .asc-sev-pill { text-transform: none; }
 
 /* Collapsed accordion steps (§13) reuse .asc-step-collapsed / -text styles. */
 

@@ -26,7 +26,13 @@ class Element extends Node {
     this.parentNode = null;
     this.attributes = {};
     this.dataset = {};
-    this.style = {};
+    // A real CSSStyleDeclaration returns "" for an unset property, never
+    // undefined. Code that saves-and-restores an inline style (scrollByInstant)
+    // depends on that, so the shim has to match it.
+    this.style = new Proxy({}, {
+      get: (t, k) => (typeof k === 'string' && !(k in t) ? '' : t[k]),
+      set: (t, k, v) => { t[k] = v == null ? '' : String(v); return true; },
+    });
     this.hidden = false;
     this.disabled = false;
     this.value = '';
@@ -136,7 +142,23 @@ class Element extends Node {
     return out;
   }
 
-  getBoundingClientRect() { return { top: 0, left: 0, width: 0, height: 0 }; }
+  // No layout engine. A test that actually depends on geometry installs
+  // `globalThis.__measure`, which returns the height of one element; positions
+  // are then derived by summing preceding siblings. Everything else keeps the
+  // zero rect, which is honest about the shim knowing nothing.
+  getBoundingClientRect() {
+    const measure = globalThis.__measure;
+    if (typeof measure !== 'function') return { top: 0, left: 0, width: 0, height: 0 };
+    let top = 0;
+    for (let n = this; n; n = n.parentNode) {
+      const siblings = n.parentNode ? n.parentNode.children : [];
+      for (const s of siblings) {
+        if (s === n) break;
+        top += measure(s);
+      }
+    }
+    return { top, left: 0, width: 0, height: measure(this) };
+  }
   focus() { globalThis.document.activeElement = this; }
   contains(other) {
     for (let n = other; n; n = n.parentNode) if (n === this) return true;
@@ -171,8 +193,16 @@ const document = {
 };
 document.body = new Element('body');
 
+document.documentElement = new Element('html');
+
+// Each entry records the scroll-behavior in effect AT CALL TIME, so a test can
+// tell an instant correction from an animated one.
 const scrollCalls = [];
-const window = { scrollBy: (x, y) => scrollCalls.push([x, y]) };
+const window = {
+  scrollBy: (x, y) => scrollCalls.push({
+    x, y, behavior: document.documentElement.style.scrollBehavior || '(css default)',
+  }),
+};
 
 globalThis.Node = Node;
 globalThis.Element = Element;

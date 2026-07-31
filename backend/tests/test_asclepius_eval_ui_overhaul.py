@@ -368,6 +368,7 @@ def _step_funcs() -> str:
                 "setStepConfirmed",
                 "stepStatusOf",
                 "stepsSkeleton",
+                "scrollByInstant",
                 "repaintStepRow",
                 "renderStepsListV3",
                 "buildStepRowV3",
@@ -432,11 +433,20 @@ def test_open_preserves_scroll():
     out = _harness(
         _step_funcs(),
         """
+        // Model the geometry this is actually about: an expanded row is much
+        // taller than a collapsed one, so closing the row ABOVE the clicked one
+        // moves the clicked row up the page. Without the re-anchor it slides
+        // out from under the cursor — that is the bug §7 is fixing.
+        globalThis.__measure = (el) =>
+          el.classList.contains('asc-step')
+            ? (el.classList.contains('asc-step-collapsed') ? 60 : 260)
+            : 0;
         steps = [0,1,2,3,4,5,6].map((i) => mkStep(i));
         state._openStep = 1;                 // another row is already open
         renderStepsListV3('ascStepsList');
         const before = list.childNodes.slice();
         const row4 = list.querySelector('[data-step-idx="3"]');
+        const topBefore = row4.getBoundingClientRect().top;
         // The Edit link is the second control in the row head's action group.
         const editLink = row4.childNodes[0].childNodes[1].childNodes[1];
 
@@ -448,6 +458,11 @@ def test_open_preserves_scroll():
           changed,
           openStep: state._openStep,
           scrolled: scrollCalls.length,
+          scrollBehaviors: scrollCalls.map((c) => c.behavior),
+          restoredBehavior: document.documentElement.style.scrollBehavior,
+          topBefore,
+          topAfter: after[3].getBoundingClientRect().top,
+          correction: scrollCalls.length ? scrollCalls[0].y : null,
           label: after[3].childNodes[0].childNodes[1].childNodes[1].textContent,
           expanded: after[3].childNodes[0].childNodes[1].childNodes[1].getAttribute('aria-expanded'),
         }));
@@ -459,6 +474,19 @@ def test_open_preserves_scroll():
     )
     assert out["openStep"] == 3
     assert out["scrolled"] == 1, "the clicked row must be re-anchored exactly once"
+    # `_base.css` declares `html { scroll-behavior: smooth }`. A smooth anchor
+    # correction is the same defect wearing a nicer coat — a visible glide
+    # instead of a snap. The property must be suspended across the call, and
+    # put back afterwards so real navigation still animates.
+    assert out["scrollBehaviors"] == ["auto"], (
+        f"the anchor correction animated: {out['scrollBehaviors']}"
+    )
+    assert out["restoredBehavior"] == "", "scroll-behavior was not restored"
+    # Row 1 collapses (260 -> 60) while row 3 expands, so the clicked row moves
+    # 200px UP the document. The correction must cancel exactly that, leaving
+    # the row where the physician's cursor already was.
+    assert out["topBefore"] - out["topAfter"] == 200, "the test geometry stopped modelling the bug"
+    assert out["correction"] == out["topAfter"] - out["topBefore"] == -200
     assert out["label"] == "Close"
     assert out["expanded"] == "true"
 
@@ -1025,8 +1053,12 @@ def test_hyperscript_only_no_innerhtml():
 
 
 def test_no_new_component_vocabulary_beyond_the_prd():
-    """§0.4: no new component vocabulary unless this document specifies it. The
-    classes added here are exactly the ones §2, §5, §8, §9, §10 and §13 name."""
+    """§0.4: no new component vocabulary unless this document specifies it.
+
+    Every class this change introduces is named by §2, §5, §8, §9, §10 or §13,
+    and each must be both styled and emitted — an unstyled class renders naked,
+    a styled-but-unemitted one is dead weight.
+    """
     specified = {
         "asc-sheet", "asc-sheet-card", "asc-sheet-title", "asc-sheet-open",
         "asc-spec-grid", "asc-spec-card", "asc-spec-card-dot", "asc-spec-card-name",
@@ -1036,16 +1068,31 @@ def test_no_new_component_vocabulary_beyond_the_prd():
         "asc-rubric-matter-head", "asc-rubric-scale",
         "asc-exp-links",
     }
-    baseline = subprocess.run(
-        ["git", "show", "HEAD:frontend/asclepius/asclepius.css"],
-        capture_output=True, text=True, cwd=str(_FRONTEND),
-    )
-    if baseline.returncode != 0:
-        pytest.skip("no git baseline available")
-    old = set(re.findall(r"\.(asc-[\w-]+)", baseline.stdout))
-    new = set(re.findall(r"\.(asc-[\w-]+)", CSS))
-    added = new - old
-    assert added <= specified, f"undeclared new component vocabulary: {sorted(added - specified)}"
+    html = (_FRONTEND / "index.html").read_text(encoding="utf-8")
+    for cls in specified:
+        assert f".{cls}" in CSS_CODE or f"body.{cls}" in CSS_CODE, f"{cls} is never styled"
+        assert cls in JS, f"{cls} is styled but never emitted"
+
+    # Nothing beyond the declared set: every asc- class in the stylesheet must
+    # be reachable from the app, so a typo'd or abandoned rule is caught.
+    styled = set(re.findall(r"\.(asc-[\w-]+)", CSS_CODE))
+    emitted = {c for c in styled if c in JS or c in html}
+    orphans = sorted(styled - emitted - _KNOWN_PREEXISTING_ORPHANS)
+    assert not orphans, f"styled but never emitted: {orphans}"
+
+
+# Rules that were already unreferenced before this change. Listed rather than
+# cleaned up: deleting them is not this PRD's job, and an unpinned allowance
+# would let new orphans in unnoticed.
+_KNOWN_PREEXISTING_ORPHANS = {
+    "asc-axis-chip", "asc-blur-lock", "asc-btn-success", "asc-chip-green",
+    "asc-chip-orange", "asc-chip-pink", "asc-divider", "asc-eval-grid",
+    "asc-img-pagenav", "asc-kv", "asc-pre", "asc-progress-fail", "asc-record",
+    "asc-record-type", "asc-row-clickable", "asc-rubric-axis-hist",
+    "asc-rubric-nudge", "asc-rubric-row", "asc-rubric-text", "asc-section-title",
+    "asc-wrap-narrow",
+}
+
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1331,26 +1378,18 @@ def test_specialty_popover_escape_rules_executed():
 
 def test_v1_v2_step_renderers_are_untouched():
     """§0.1, the strongest form: V1 (classic) and V2 (assisted) are shipped
-    surfaces. This PRD is a V3/V4 change, so the two renderers that only V1/V2
-    can reach — ``renderStepsCard`` and ``renderStepsList``, both behind
-    ``if (!isV3())`` — must be byte-identical to the base branch apart from
-    comments.
+    surfaces. This PRD is a V3/V4 change, so the two renderers only V1/V2 can
+    reach — ``renderStepsCard`` and ``renderStepsList`` — must be byte-identical
+    to what shipped before it, comments aside.
 
-    Written as a diff against git rather than as a list of things to look for,
-    because the failure mode is a change nobody thought to check for.
+    Diffed against a committed golden rather than ``git show main:``: once this
+    work merges, main IS the live source, and a test that compares a file to
+    itself passes forever while guarding nothing. The golden also survives CI's
+    shallow checkout, which has no other branch to compare against.
     """
-    base = subprocess.run(
-        ["git", "show", "main:frontend/asclepius/asclepius.js"],
-        capture_output=True, text=True, cwd=str(_FRONTEND),
-    )
-    if base.returncode != 0:
-        pytest.skip("no git baseline available")
-
     # Premise check — these two must still be unreachable from V3/V4:
     #   renderRationale  --if (!isV3())-->  renderStepsCard  -->  renderStepsList
     #   repaintSteps     --else branch--->  renderStepsList
-    # If either becomes reachable from V3/V4 this test is guarding the wrong
-    # thing, so assert the shape rather than trusting it.
     rationale = _body_of("renderRationale")
     v1v2_branch = rationale[
         rationale.index("if (!isV3())") : rationale.index("const list = compareSubstages()")
@@ -1360,25 +1399,25 @@ def test_v1_v2_step_renderers_are_untouched():
         "this test's premise"
     )
     assert "renderStepsCard(" not in _body_of("renderReasoningSection")
-    assert _body_of("repaintSteps").count("renderStepsList(listId)") == 1, (
-        "repaintSteps should route V3/V4 to renderStepsListV3 and only V1/V2 to "
-        "renderStepsList"
-    )
+    assert _body_of("repaintSteps").count("renderStepsList(listId)") == 1
     assert "if (isV3()) renderStepsListV3(listId);" in _body_of("repaintSteps")
 
+    golden = (pathlib.Path(__file__).parent / "fixtures"
+              / "asclepius_v1v2_renderers.js").read_text(encoding="utf-8")
+
+    def strip(src):
+        return "\n".join(ln for ln in _code(src).splitlines() if ln.strip())
+
     for fn in ("renderStepsCard", "renderStepsList"):
-        # Compare code only: stripping a comment leaves a blank line behind, so
-        # drop those too — the assertion is about behaviour, not layout.
-        def strip(src):
-            return [ln for ln in _code(src).splitlines() if ln.strip()]
-        old = strip(_extract_function(base.stdout, fn))
-        new = strip(_extract_function(JS, fn))
-        assert old == new, (
-            f"{fn} (V1/V2 only) changed. This PRD ships V3/V4; a V2 regression "
-            "here is invisible to every other test in this file."
+        live = strip(_extract_function(JS, fn))
+        assert live in golden, (
+            f"{fn} (V1/V2 only) diverged from the pre-change golden. This PRD "
+            f"ships V3/V4; a V2 regression here is invisible to every other test "
+            f"in this file. If the change is deliberate, update "
+            f"tests/fixtures/asclepius_v1v2_renderers.js in the same commit."
         )
 
-    # The V1/V2 controls this PRD removes from V3/V4 are still present there.
+    # The controls this PRD removes from V3/V4 are still present on V1/V2.
     card = _code(_body_of("renderStepsCard"))
     assert "↻ Re-split from answer" in card, (
         "V1/V2 lost its re-split control — it is the only way to re-run a bad "
@@ -1402,3 +1441,207 @@ def test_v2_compare_stage_is_untouched():
     assert "computeAnswerDiff()" in answers, "V2 lost the A/B diff"
     # V1 (classic) still gets plain text, exactly as before.
     assert "!isAssisted()" in answers
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  Production-integration guards
+#
+#  Three defects that every test above was blind to, because each lives in the
+#  seam between this change and code it never touched.
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _z(selector: str) -> int:
+    """The z-index declared on one selector's own rule block."""
+    m = re.search(re.escape(selector) + r"\s*\{(.*?)\}", CSS_CODE, re.S)
+    assert m, f"no rule found for {selector}"
+    z = re.search(r"z-index:\s*(\d+)", m.group(1))
+    assert z, f"{selector} declares no z-index"
+    return int(z.group(1))
+
+
+def test_sheet_sits_above_every_piece_of_chrome():
+    """§2: a modal that the sticky header renders on top of is not a modal.
+
+    ``.asc-header`` is ``position: sticky; z-index: 100`` and holds the nav; the
+    desktop rail is 90 and the mobile bottom rail 120. Below any of those, the
+    scrim does not cover the chrome and its controls stay clickable — which
+    would let a physician navigate away from the first-entry picker that §2
+    makes deliberately non-dismissable.
+    """
+    sheet = _z(".asc-sheet")
+    assert sheet > _z(".asc-header"), "the sticky header renders over the modal scrim"
+    assert sheet > _z(".asc-rail"), "the rail renders over the modal scrim"
+
+    # The mobile rail is re-declared inside a media query, so read it there.
+    mobile = re.search(r"@media \(max-width: 700px\)(.*?)\n\}", CSS_CODE, re.S)
+    if mobile:
+        mz = re.findall(r"z-index:\s*(\d+)", mobile.group(1))
+        for z in mz:
+            assert sheet > int(z), (
+                f"the mobile bottom rail (z-index {z}) renders over the modal"
+            )
+
+    # …but never above the toasts, or a failed submit would be hidden behind it.
+    assert sheet < _z(".asc-toast-region"), "the sheet would cover error toasts"
+
+
+def test_scroll_correction_suspends_smooth_scrolling():
+    """§7: the structural half of the executed assertion in
+    ``test_open_preserves_scroll``.
+
+    The app sets ``html { scroll-behavior: smooth }`` globally, and it is right
+    to — real navigation (``scrollToSubstage``) should glide. But §7's
+    re-anchoring is a correction, not a navigation: it has to be imperceptible.
+    """
+    base = (_FRONTEND / "_base.css").read_text(encoding="utf-8")
+    assert "scroll-behavior: smooth" in base, (
+        "premise changed: if smooth scrolling is gone, re-check whether "
+        "scrollByInstant is still needed"
+    )
+    fn = _body_of("scrollByInstant")
+    assert "root.style.scrollBehavior = 'auto';" in fn
+    assert "root.style.scrollBehavior = prev;" in fn, "the property must be restored"
+    # `behavior: 'instant'` would be the obvious fix and is the wrong one — an
+    # engine that does not know the enum value throws on the conversion.
+    assert "'instant'" not in fn
+
+    row = _body_of("buildStepRowV3")
+    assert "scrollByInstant(" in row
+    assert "window.scrollBy(" not in row, (
+        "the toggle handler calls window.scrollBy directly — that animates"
+    )
+    # Navigation elsewhere is untouched and still glides.
+    assert "behavior: reduce ? 'auto' : 'smooth'" in JS
+
+
+def test_every_specialty_switch_goes_through_the_popover():
+    """§2: there were TWO 'Change specialty' controls — the workspace badge and
+    the empty-queue screen. The second one still routed via
+    ``specialtyChosen = false``, which re-enters ``renderEvalView``'s
+    first-entry branch and mounts the picker NON-dismissable, stranding anyone
+    who opened it just to look.
+    """
+    assert "state.specialtyChosen = false" not in JS_CODE, (
+        "a specialty switch still routes through renderEvalView's required-"
+        "choice branch instead of opening the popover"
+    )
+    assert JS_CODE.count("'Change specialty'") == 2, (
+        "the number of Change-specialty controls changed — re-check each one "
+        "opens the popover"
+    )
+    # Both call sites: dismissable, and they reload only on an actual change.
+    assert JS_CODE.count("renderSpecialtyPicker({ dismissable: true })") == 2
+    assert JS_CODE.count("if (picked && picked !== before) renderEvalView();") == 2
+    # The one required (non-dismissable) mount is first entry, and only that.
+    assert JS_CODE.count("renderSpecialtyPicker({ dismissable: false })") == 1
+    assert "renderSpecialtyPicker({ dismissable: false })" in _body_of("renderEvalView")
+
+
+def test_legacy_single_axis_records_are_unchanged_apart_from_the_new_field():
+    """§11.1 backward compatibility, stated as the thing that actually matters
+    on deploy day.
+
+    Two populations exist the moment this ships: drafts sitting in an
+    evaluator's localStorage, and rubric records already packaged in the
+    database. Both carry ``axis`` and no ``axes``. Nothing about how they
+    normalize may change — the new field is purely additive.
+    """
+    legacy = [
+        {"text": "accounts for urine osmolality 120 mOsm/kg", "points": 9, "axis": "accuracy",
+         "source": "key_data"},
+        {"text": "never gives 3% hypertonic saline at 2 mL/kg/h", "points": -9, "axis": "safety",
+         "source": "error_tag:unsafe"},
+        {"text": "addresses the creatinine 2.4", "points": 5},          # no axis at all
+    ]
+    out = R.normalize_rubric([dict(c) for c in legacy])
+
+    # Every field the old shape produced is byte-identical...
+    assert [c["text"] for c in out] == [c["text"] for c in legacy]
+    assert [c["points"] for c in out] == [9.0, -9.0, 5.0]
+    assert [c["axis"] for c in out] == ["accuracy", "safety", "accuracy"], (
+        "an axis-less criterion must still default to accuracy, exactly as _axis() did"
+    )
+    assert [c["tier"] for c in out] == ["critical", "critical", "important"]
+    assert [c["critical"] for c in out] == [True, True, False]
+    assert [c["source"] for c in out] == ["key_data", "error_tag:unsafe", "manual"]
+    # ...and the only addition is the list, always agreeing with the mirror.
+    assert [c["axes"] for c in out] == [["accuracy"], ["safety"], ["accuracy"]]
+    for c in out:
+        assert c["axes"][0] == c["axis"]
+
+    # The scorecard a buyer sees is unchanged for a legacy rubric.
+    rc = R.rubric_completeness(out)
+    assert rc["n_axes"] == 2 and rc["axes"] == ["accuracy", "safety"]
+
+    # A record already in the database (no `axes` key anywhere) still scores.
+    stored = [{"text": "x 5 mg", "points": 9, "axis": "safety", "tier": "critical",
+               "critical": True, "specific": True}]
+    assert R.rubric_completeness(stored)["n_axes"] == 1
+    assert R.is_premium(stored) is False   # unchanged: one criterion is not premium
+
+
+def test_frontend_submit_upgrades_a_legacy_draft():
+    """The localStorage half of the same concern: a criterion the physician
+    never re-opens (so ``criterionAxes`` never runs on it) must still submit in
+    the new shape. Executed against the expression the payload builder uses."""
+    payload = _body_of("buildSubmissionPayload")
+    expr = re.search(r"(const axs = .*?;)\n", payload, re.S).group(1)
+    out = _run_node("""
+    const cases = [
+      { axis: 'safety' },                       // legacy draft
+      { axes: ['safety', 'accuracy'] },          // new shape
+      { axes: [], axis: 'grounding' },           // half-migrated
+      {},                                        // never had an axis
+    ];
+    console.log(JSON.stringify(cases.map((c) => {
+      """ + expr + """
+      return { axes: axs, axis: axs[0] || c.axis || null };
+    })));
+    """)
+    assert out[0] == {"axes": ["safety"], "axis": "safety"}
+    assert out[1] == {"axes": ["safety", "accuracy"], "axis": "safety"}
+    assert out[2] == {"axes": ["grounding"], "axis": "grounding"}
+    # No axis anywhere stays empty on the wire — the server defaults it, exactly
+    # as it did when the client sent `axis: null`.
+    assert out[3] == {"axes": [], "axis": None}
+
+
+def test_axis_pills_are_not_title_cased():
+    """§11, the part only a browser could catch.
+
+    ``.asc-sev-pill`` sets ``text-transform: capitalize``, and it was right to:
+    those pills used to render raw enum values, so `accuracy` became `Accuracy`.
+    The options are sentences now, and `capitalize` turns "Got the facts right"
+    into "Got The Facts Right" — which reads as a form label again, the exact
+    thing §11 removes. The base rule must stay (other pills still rely on it);
+    the axis row overrides it.
+    """
+    base = re.search(r"\.asc-sev-pill \{(.*?)\}", CSS_CODE, re.S).group(1)
+    assert "text-transform: capitalize" in base, (
+        "premise changed — if the base pill no longer capitalizes, the override "
+        "below is dead code and should go"
+    )
+    assert ".asc-axis-row .asc-sev-pill { text-transform: none; }" in CSS_CODE, (
+        "the axis pills will render Title Cased"
+    )
+    # The labels are authored in sentence case, so the override is what ships them.
+    block = re.search(r"const AXIS_LABELS = \{(.*?)\n  \};", JS, re.S).group(1)
+    for line in block.strip().splitlines():
+        label = re.search(r"\['([^']+)'", line)
+        if label:
+            words = label.group(1).split()
+            assert not any(w[0].isupper() for w in words[1:]), (
+                f"{label.group(1)!r} is already Title Case in the source — the "
+                "labels should read as a sentence"
+            )
+
+
+def test_rubric_slider_is_on_palette():
+    """§0.3: the design system is locked and has no blue in it. A range input
+    paints in the browser's default blue unless told otherwise; §10 moved this
+    one beside the question, which is what made it loud."""
+    rule = re.search(
+        r"\.asc-rubric-scale input\[type=range\] \{(.*?)\}", CSS_CODE, re.S
+    ).group(1)
+    assert "accent-color" in rule, "the slider will paint in browser-default blue"
+    assert "var(--ink)" in rule, "the accent must come from the token palette"

@@ -987,8 +987,16 @@
             : 'No evaluation tasks are waiting for you right now. Check back soon.'),
           h('div', { style: 'margin-top:16px' },
             h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', onClick: renderEvalView }, 'Refresh queue'),
+            // §2: the popover, same as the workspace badge. Routing through
+            // `specialtyChosen = false` would re-enter renderEvalView's
+            // first-entry branch, which mounts the picker NON-dismissable —
+            // stranding a physician who opened it here just to look.
             isSpecScoped ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', style: 'margin-left:8px',
-              onClick: () => { state.specialtyChosen = false; renderEvalView(); } }, 'Change specialty') : null),
+              onClick: async () => {
+                const before = getPortalSpecialty();
+                const picked = await renderSpecialtyPicker({ dismissable: true });
+                if (picked && picked !== before) renderEvalView();
+              } }, 'Change specialty') : null),
         ))));
   }
 
@@ -3741,6 +3749,20 @@
       h('div', {}), h('div', {}), h('div', {}));
   }
 
+  // §7: a scroll-anchor CORRECTION, not a navigation. `_base.css` sets
+  // `html { scroll-behavior: smooth }`, which would make this animate — turning
+  // the jolt into a slower visible glide, which is the same defect wearing a
+  // nicer coat. Suspending the property beats `behavior: 'instant'`: an engine
+  // that doesn't know that enum value throws on the dictionary conversion.
+  function scrollByInstant(dy) {
+    if (!dy) return;
+    const root = document.documentElement;
+    const prev = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    window.scrollBy(0, dy);
+    root.style.scrollBehavior = prev;
+  }
+
   // §7: rebuild exactly ONE step row in place. `renderStepsListV3` clears and
   // rebuilds every row, which collapses the page height and makes the browser
   // drop its scroll anchor — that is the jolt on steps 4–7. An open/close is a
@@ -3881,7 +3903,7 @@
             repaintStepRow(idx, listId);
             const list = document.getElementById(listId || 'ascStepsList');
             const after = list && list.querySelector('[data-step-idx="' + idx + '"]');
-            if (after) window.scrollBy(0, after.getBoundingClientRect().top - anchor);
+            if (after) scrollByInstant(after.getBoundingClientRect().top - anchor);
           },
         }, open ? 'Close' : 'Edit')));
 
