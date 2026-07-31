@@ -48,7 +48,18 @@ import re
 
 import pytest
 
-from tests import _asclepius_harness as harness
+import sys
+from pathlib import Path
+
+# Repo convention (see test_asclepius_rubric.py and siblings): put ``backend/`` on
+# the path before importing project modules. pytest's prepend import mode only
+# adds ``backend/tests``, and the console-script entry point — which is what CI
+# runs — does not add the working directory either. Without this the module
+# imports below raise ModuleNotFoundError in CI while passing locally under
+# ``python -m pytest``, which does add the cwd.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from tests import _asclepius_harness as harness  # noqa: E402
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="playwright is not installed"

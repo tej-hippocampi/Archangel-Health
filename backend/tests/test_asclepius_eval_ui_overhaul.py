@@ -29,9 +29,20 @@ import subprocess
 
 import pytest
 
-from asclepius import rubric as R
-from asclepius.constants import RUBRIC_AXES
-from asclepius.validation import validate_submission
+import sys
+from pathlib import Path
+
+# Repo convention (see test_asclepius_rubric.py and siblings): put ``backend/`` on
+# the path before importing project modules. pytest's prepend import mode only
+# adds ``backend/tests``, and the console-script entry point — which is what CI
+# runs — does not add the working directory either. Without this the module
+# imports below raise ModuleNotFoundError in CI while passing locally under
+# ``python -m pytest``, which does add the cwd.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from asclepius import rubric as R  # noqa: E402
+from asclepius.constants import RUBRIC_AXES  # noqa: E402
+from asclepius.validation import validate_submission  # noqa: E402
 
 _FRONTEND = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
 JS_PATH = _FRONTEND / "asclepius.js"
