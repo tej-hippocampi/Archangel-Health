@@ -26,7 +26,7 @@ import os
 import secrets
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from passlib.context import CryptContext
@@ -36,6 +36,13 @@ _pwd = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 def _utcnow_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat()
+
+
+def _iso_minus_seconds(seconds: int) -> str:
+    """ISO timestamp ``seconds`` in the past — the cutoff for age-based sweeps
+    (e.g. reconciling sealed keys unbound longer than an hour)."""
+    return (datetime.utcnow() - timedelta(seconds=max(0, seconds))).replace(
+        microsecond=0).isoformat()
 
 
 def _new_id(prefix: str) -> str:
@@ -521,6 +528,37 @@ class AsclepiusStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_upload ON ingest_cases(upload_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_status ON ingest_cases(status)")
+            # Serving hot path (Audit §21.6): next_task_for_evaluator /
+            # eligible_tasks_for_evaluator run a NOT EXISTS correlated on ic.task_id to
+            # exclude blocking-review cases. Index task_id so that stays O(log n).
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_task ON ingest_cases(task_id)")
+
+            # ── Sealed ground truth (Buyer Response PRD §3 B1) ───────────────
+            # The partner's adjudicated answer key, held SEPARATELY from the case,
+            # ENCRYPTED at rest (field_crypto), keyed to the ingest case, readable
+            # only by the adjudication surface, audited on ingest and on every read.
+            # It must never enter the case body, task.prompt, or any export profile.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sealed_ground_truth (
+                    sealed_id      TEXT PRIMARY KEY,
+                    -- NULLABLE on purpose (Audit §H1): the key is STAGED first, keyed
+                    -- on (upload_id, patient_key), then bound to the case row once it
+                    -- exists. A crash between the two leaves the key on disk unbound,
+                    -- never an ingested case with no answer key.
+                    ingest_case_id TEXT,
+                    upload_id      TEXT,
+                    patient_key    TEXT,            -- staging key before binding
+                    payload_enc    TEXT NOT NULL,   -- field_crypto-encrypted JSON
+                    created_at     TEXT NOT NULL,
+                    bound_at       TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sealed_case ON sealed_ground_truth(ingest_case_id)")
+            # NOTE: the (upload_id, patient_key) staging index is created in _migrate,
+            # AFTER the guarded rebuild adds patient_key — an existing DB has not been
+            # migrated yet at this point, so the column may not exist here.
 
             # ── Frontier-model failure capture (FEAT-1) ──────────────────────
             # ``baseline_runs``: a frontier model's VERBATIM cold answer to a case,
@@ -682,6 +720,93 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE tasks ADD COLUMN modality TEXT NOT NULL DEFAULT 'text'")
             if "case_json" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN case_json TEXT")
+            # Decisive action (Buyer Response PRD §9.2 / Audit §13): the physician-named
+            # verifiable outcome that turns a preference label into an RLVR reward.
+            # supervision.DecisiveAction + packaging read it, but nothing wrote it —
+            # so has_verifiable_outcome was false on every record. Persisted from the
+            # submission, keyed to the task.
+            if "decisive_action_json" not in task_cols:
+                conn.execute("ALTER TABLE tasks ADD COLUMN decisive_action_json TEXT")
+            # Buyer Response PRD §7 F1: an agreement observation records whether the
+            # second annotator was BLINDED. Only blinded observations enter the κ
+            # computation (an unblinded second rater measures anchoring, not
+            # agreement). NULLABLE with NO DEFAULT (Audit §H2): a legacy row whose
+            # blinding was never verified stays NULL and is EXCLUDED from κ — not
+            # silently asserted blinded. Every new observation is written with an
+            # explicit 0/1 by insert_agreement, so only pre-flag rows are NULL.
+            if "blinded" not in cols("agreement"):
+                conn.execute("ALTER TABLE agreement ADD COLUMN blinded INTEGER")
+
+            # Sealed-key ordering (Audit §H1). The original table declared
+            # ingest_case_id NOT NULL, which forced "insert case → then store key" and
+            # left a crash-window where an ingested case had no answer key. Relax it to
+            # nullable + add the (upload_id, patient_key) staging columns by rebuilding
+            # the table (SQLite can't ALTER a NOT NULL away).
+            #
+            # CRASH-IDEMPOTENT by construction: DDL auto-commits in sqlite3 (it does NOT
+            # roll back with the surrounding transaction), so a rebuild interrupted at
+            # boot must self-heal on the next boot without ever losing a sealed key. We
+            # build a ``_new`` copy (a COMPLETE copy — CREATE + INSERT run back-to-back),
+            # then drop+rename. Recovery invariant: whichever of the two tables HAS ROWS
+            # is authoritative. (Note ``_init_schema`` runs before this and recreates a
+            # missing ``sealed_ground_truth`` as an empty new-schema table, so "original
+            # gone" presents as "main table empty" — hence the row-count test, not a
+            # table-existence test.)
+            tbls = {r["name"] for r in
+                    conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if "sealed_ground_truth_new" in tbls:
+                main_n = (conn.execute("SELECT COUNT(*) FROM sealed_ground_truth").fetchone()[0]
+                          if "sealed_ground_truth" in tbls else 0)
+                if main_n == 0:
+                    # Main is empty — either a fresh recreation (the keys are in _new)
+                    # or there were never any keys; swap _new in, losing nothing.
+                    conn.execute("DROP TABLE IF EXISTS sealed_ground_truth")
+                    conn.execute("ALTER TABLE sealed_ground_truth_new RENAME TO sealed_ground_truth")
+                else:
+                    # Main holds the pre-migration rows → it is authoritative; _new is a
+                    # partial/stale copy. Discard it and let the rebuild below redo it.
+                    conn.execute("DROP TABLE sealed_ground_truth_new")
+            if "patient_key" not in cols("sealed_ground_truth"):
+                conn.execute(
+                    """
+                    CREATE TABLE sealed_ground_truth_new (
+                        sealed_id      TEXT PRIMARY KEY,
+                        ingest_case_id TEXT,
+                        upload_id      TEXT,
+                        patient_key    TEXT,
+                        payload_enc    TEXT NOT NULL,
+                        created_at     TEXT NOT NULL,
+                        bound_at       TEXT
+                    )
+                    """
+                )
+                conn.execute(
+                    """INSERT INTO sealed_ground_truth_new
+                       (sealed_id, ingest_case_id, upload_id, patient_key, payload_enc,
+                        created_at, bound_at)
+                       SELECT sealed_id, ingest_case_id, upload_id, NULL, payload_enc,
+                              created_at, created_at
+                         FROM sealed_ground_truth"""
+                )
+                # Drop-then-rename: if a crash lands between these two, the recovery
+                # clause above finishes the rename next boot (keys are safe in _new).
+                conn.execute("DROP TABLE sealed_ground_truth")
+                conn.execute("ALTER TABLE sealed_ground_truth_new RENAME TO sealed_ground_truth")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_sealed_case ON sealed_ground_truth(ingest_case_id)")
+            # The staging index is created here (not in _init_schema) so it lands after
+            # the column exists on both fresh (created above) and migrated DBs. Idempotent.
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sealed_stage ON sealed_ground_truth(upload_id, patient_key)")
+
+            # Admin review queue (Audit PRD §21). review_status is NULLABLE on purpose:
+            # NULL means "no check raised anything", which is NOT "reviewed and cleared"
+            # — the same fail-open lesson as the blinded flag; never backfill a verdict
+            # onto rows that were never assessed.
+            if "review_status" not in cols("ingest_cases"):
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN review_status TEXT")     # NULL|needs_review|cleared|rejected
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN review_json TEXT")       # [{reason,severity,detail,raised_at}]
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN reviewed_by_hashed TEXT")
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN reviewed_at TEXT")
+
             if "case_source" not in task_cols:
                 # Real EHR Ingestion PRD §9.5: 'synthetic' | 'real_deid' as a first-
                 # class COLUMN so the V4 routing wall filters in SQL (a real case is
@@ -775,6 +900,11 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE ingest_upload_links ADD COLUMN contact_email TEXT")
             if "failure_notified_at" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN failure_notified_at TEXT")
+            # Retain-raw (Audit §9.4): when every entry in a bundle failed to parse,
+            # the raw blob is kept past the normal retention window so it can be re-run
+            # after a parser fix rather than purged on schedule.
+            if "retain_raw" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN retain_raw INTEGER NOT NULL DEFAULT 0")
 
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
@@ -1264,7 +1394,7 @@ class AsclepiusStore:
         return self.get_ingest_upload(uid)  # type: ignore[return-value]
 
     def update_ingest_upload(self, upload_id: str, **fields: Any) -> None:
-        allowed = {"status", "reason", "files_json", "raw_path"}
+        allowed = {"status", "reason", "files_json", "raw_path", "retain_raw"}
         sets, params = [], []
         for k, v in fields.items():
             if k not in allowed:
@@ -1289,11 +1419,17 @@ class AsclepiusStore:
         rec["files"] = json.loads(rec.pop("files_json") or "[]")
         return rec
 
-    def list_ingest_uploads(self, *, limit: int = 200, offset: int = 0) -> List[Dict[str, Any]]:
+    def list_ingest_uploads(self, *, limit: int = 200, offset: int = 0,
+                            status: Optional[str] = None) -> List[Dict[str, Any]]:
+        where, params = "", []
+        if status:
+            where = "WHERE status = ? "
+            params.append(status)
+        params += [max(1, limit), max(0, offset)]
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM ingest_uploads ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (max(1, limit), max(0, offset)),
+                f"SELECT * FROM ingest_uploads {where}ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                tuple(params),
             ).fetchall()
         out = []
         for r in rows:
@@ -1302,9 +1438,14 @@ class AsclepiusStore:
             out.append(rec)
         return out
 
-    def count_ingest_uploads(self) -> int:
-        """Total upload rows — lets the admin UI paginate over full history."""
+    def count_ingest_uploads(self, *, status: Optional[str] = None) -> int:
+        """Total upload rows — lets the admin UI paginate over full history.
+        With ``status`` set, counts only rows in that state (drives the filter chips)."""
         with self._conn() as conn:
+            if status:
+                return int(conn.execute(
+                    "SELECT COUNT(*) FROM ingest_uploads WHERE status = ?", (status,)
+                ).fetchone()[0])
             return int(conn.execute("SELECT COUNT(*) FROM ingest_uploads").fetchone()[0])
 
     def mark_upload_failure_notified(self, upload_id: str) -> None:
@@ -1321,6 +1462,7 @@ class AsclepiusStore:
     def insert_ingest_case(
         self, *, upload_id: str, patient_key: Optional[str], specialty: Optional[str],
         case: Optional[Dict[str, Any]], status: str, report: Optional[Dict[str, Any]],
+        review_status: Optional[str] = None, review_json: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         cid = _new_id("icase")
         now = _utcnow_iso()
@@ -1328,21 +1470,23 @@ class AsclepiusStore:
             conn.execute(
                 """INSERT INTO ingest_cases
                    (ingest_case_id, upload_id, patient_key, specialty, case_json,
-                    status, report_json, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    status, report_json, review_status, review_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (cid, upload_id, patient_key, specialty,
                  json.dumps(case) if case else None, status,
-                 json.dumps(report) if report else None, now, now),
+                 json.dumps(report) if report else None, review_status,
+                 json.dumps(review_json) if review_json else None, now, now),
             )
         return self.get_ingest_case(cid)  # type: ignore[return-value]
 
     def update_ingest_case(self, ingest_case_id: str, **fields: Any) -> None:
-        allowed = {"status", "case_json", "report_json", "task_id", "override_reason"}
+        allowed = {"status", "case_json", "report_json", "task_id", "override_reason",
+                   "review_status", "review_json", "reviewed_by_hashed", "reviewed_at"}
         sets, params = [], []
         for k, v in fields.items():
             if k not in allowed:
                 continue
-            if k in ("case_json", "report_json") and not isinstance(v, (str, type(None))):
+            if k in ("case_json", "report_json", "review_json") and not isinstance(v, (str, type(None))):
                 v = json.dumps(v)
             sets.append(f"{k} = ?")
             params.append(v)
@@ -1355,6 +1499,164 @@ class AsclepiusStore:
                 f"UPDATE ingest_cases SET {', '.join(sets)} WHERE ingest_case_id = ?", tuple(params)
             )
 
+    # ─── Sealed ground truth (Buyer Response PRD §3 B1) ──────────────────────
+    def insert_sealed_ground_truth(
+        self, *, ingest_case_id: str, upload_id: Optional[str],
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Store the adjudicated answer key ENCRYPTED at rest, keyed to the ingest
+        case. Same field_crypto pattern as the raw partner blob — the payload is
+        never written in cleartext when a key is configured.
+
+        NOTE (Audit §H1): the crash-safe ingest path stages then binds
+        (``stage_sealed_ground_truth`` → ``bind_sealed_ground_truth``). This
+        one-shot insert is retained for callers that already have a case id."""
+        from field_crypto import encrypt_field
+        sid = _new_id("sealed")
+        now = _utcnow_iso()
+        blob = encrypt_field(json.dumps(payload))
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO sealed_ground_truth
+                   (sealed_id, ingest_case_id, upload_id, payload_enc, created_at, bound_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (sid, ingest_case_id, upload_id, blob, now, now),
+            )
+        return {"sealed_id": sid, "ingest_case_id": ingest_case_id}
+
+    def stage_sealed_ground_truth(
+        self, *, upload_id: Optional[str], patient_key: Optional[str],
+        payload: Dict[str, Any],
+    ) -> str:
+        """Stage the sealed answer key BEFORE the case row exists (Audit §H1), keyed
+        on (upload_id, patient_key) with a NULL ingest_case_id. Encrypted at rest,
+        exactly like the bound path. Returns the ``sealed_id`` to bind once the case
+        is inserted. A crash after this and before binding leaves the key on disk,
+        unbound — the strictly better failure than an ingested case with no key."""
+        from field_crypto import encrypt_field
+        sid = _new_id("sealed")
+        now = _utcnow_iso()
+        blob = encrypt_field(json.dumps(payload))
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO sealed_ground_truth
+                   (sealed_id, ingest_case_id, upload_id, patient_key, payload_enc,
+                    created_at, bound_at)
+                   VALUES (?, NULL, ?, ?, ?, ?, NULL)""",
+                (sid, upload_id, patient_key, blob, now),
+            )
+        return sid
+
+    def bind_sealed_ground_truth(self, sealed_id: str, ingest_case_id: str) -> None:
+        """Bind a staged key to its case row (Audit §H1). Idempotent; a bind that
+        never lands leaves the row unbound for reconciliation to catch."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE sealed_ground_truth SET ingest_case_id = ?, bound_at = ? "
+                "WHERE sealed_id = ?",
+                (ingest_case_id, now, sealed_id),
+            )
+
+    def hold_ingest_case_for_review(self, ingest_case_id: str, reason: str,
+                                    detail: str, *, severity: str = "blocking") -> bool:
+        """Add a review reason to an already-terminal case and hold it out of the
+        annotation queue (Audit §9.3). Idempotent per reason code; returns True if a
+        new reason was added. Used by post-hoc reconciliation (unbound sealed key,
+        missing asset blob) to flag a case that reached a terminal state but is
+        internally inconsistent — a defect the ingest-time checks could not see."""
+        existing = self.get_ingest_case(ingest_case_id)
+        if not existing:
+            return False
+        reasons = list(existing.get("review") or [])
+        if any(x.get("reason") == reason for x in reasons):
+            return False
+        reasons.append({"reason": reason, "severity": severity, "detail": detail,
+                        "raised_at": _utcnow_iso()})
+        fields: Dict[str, Any] = {"review_status": "needs_review", "review_json": reasons}
+        # A blocking reason also flips the case status so the queue-hold SQL excludes
+        # it; an advisory one leaves the case where it is.
+        if severity == "blocking" and existing.get("status") == "ingested":
+            fields["status"] = "needs_review"
+        self.update_ingest_case(ingest_case_id, **fields)
+        return True
+
+    def reconcile_sealed_ground_truth(self, *, older_than_seconds: int = 3600) -> Dict[str, Any]:
+        """Recover sealed keys left UNBOUND by a crash between staging and binding
+        (Audit §H1). For each unbound row older than the threshold, try to bind it to
+        its case by (upload_id, patient_key); if the case is found, bind it and raise a
+        blocking ``sealed_key_unbound`` review reason on that case (a human confirms the
+        recovered key before the case is annotated). A row with no matching case is
+        reported as an orphan — the key exists but its case never landed."""
+        cutoff = _iso_minus_seconds(older_than_seconds)
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT sealed_id, upload_id, patient_key, created_at "
+                "FROM sealed_ground_truth "
+                "WHERE ingest_case_id IS NULL AND created_at <= ?",
+                (cutoff,),
+            ).fetchall()
+        bound, orphans = 0, []
+        for r in rows:
+            rec = dict(r)
+            case = None
+            with self._conn() as conn:
+                crow = conn.execute(
+                    "SELECT ingest_case_id, status FROM ingest_cases "
+                    "WHERE upload_id = ? AND patient_key = ? "
+                    "ORDER BY created_at ASC LIMIT 1",
+                    (rec.get("upload_id"), rec.get("patient_key")),
+                ).fetchone()
+                if crow:
+                    case = dict(crow)
+            if case:
+                self.bind_sealed_ground_truth(rec["sealed_id"], case["ingest_case_id"])
+                # Hold the recovered case for review — a key that had to be reconciled
+                # is a blocking signal until a human confirms the adjudication.
+                self.hold_ingest_case_for_review(
+                    case["ingest_case_id"], "sealed_key_unbound",
+                    "sealed answer key was recovered by reconciliation after an "
+                    "interrupted ingest")
+                bound += 1
+            else:
+                orphans.append({"sealed_id": rec["sealed_id"], "upload_id": rec.get("upload_id"),
+                                "reason": "sealed_key_unbound", "severity": "blocking",
+                                "detail": "staged answer key has no matching ingest case"})
+        return {"checked": len(rows), "bound": bound, "orphans": orphans}
+
+    def get_sealed_ground_truth(
+        self, ingest_case_id: str, *, actor: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Decrypt + return the sealed answer key for an ingest case, emitting an
+        audit event on EVERY read (Buyer Response PRD §3 B1). Only the adjudication
+        surface should call this — never render_case_prompt, an export profile, or a
+        baseline runner."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM sealed_ground_truth WHERE ingest_case_id = ? "
+                "ORDER BY created_at DESC LIMIT 1", (ingest_case_id,),
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        from field_crypto import decrypt_field
+        payload = json.loads(decrypt_field(rec.get("payload_enc")) or "null")
+        self.log_event(entity_type="sealed_ground_truth", entity_id=ingest_case_id,
+                       event_type="sealed_ground_truth_read", actor=actor,
+                       payload={"sealed_id": rec.get("sealed_id")})
+        return {"sealed_id": rec.get("sealed_id"), "ingest_case_id": ingest_case_id,
+                "upload_id": rec.get("upload_id"), "payload": payload}
+
+    def get_sealed_ground_truth_raw(self, ingest_case_id: str) -> Optional[str]:
+        """Return the ON-DISK (still-encrypted) payload token WITHOUT decrypting or
+        auditing — used by tests to assert the content is unreadable at rest."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT payload_enc FROM sealed_ground_truth WHERE ingest_case_id = ? "
+                "ORDER BY created_at DESC LIMIT 1", (ingest_case_id,),
+            ).fetchone()
+        return dict(row)["payload_enc"] if row else None
+
     def get_ingest_case(self, ingest_case_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(
@@ -1365,6 +1667,7 @@ class AsclepiusStore:
         rec = dict(row)
         rec["case"] = json.loads(rec.pop("case_json") or "null")
         rec["report"] = json.loads(rec.pop("report_json") or "null")
+        rec["review"] = json.loads((rec.get("review_json") or "null") or "null")
         return rec
 
     def list_ingest_cases(
@@ -1390,6 +1693,7 @@ class AsclepiusStore:
             rec = dict(r)
             rec["case"] = json.loads(rec.pop("case_json") or "null")
             rec["report"] = json.loads(rec.pop("report_json") or "null")
+            rec["review"] = json.loads((rec.get("review_json") or "null") or "null")
             out.append(rec)
         return out
 
@@ -1405,6 +1709,16 @@ class AsclepiusStore:
                 (upload_id,),
             )
             return cur.rowcount
+
+    def list_uploads_with_retained_raw(self) -> List[Dict[str, Any]]:
+        """Uploads whose raw blob is retained past the normal window (Audit §9.4) —
+        every entry failed to parse, so the file is kept for re-run after a fix. The
+        retention purge skips these paths."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT upload_id, raw_path FROM ingest_uploads WHERE retain_raw = 1"
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def list_uploads_in_status(self, statuses: List[str]) -> List[Dict[str, Any]]:
         """Uploads currently sitting in any of ``statuses`` — used by startup
@@ -1490,13 +1804,21 @@ class AsclepiusStore:
         return self.get_user_by_email(email)  # type: ignore[return-value]
 
     def annotator_block(self, user: Dict[str, Any]) -> Dict[str, Any]:
-        """The credential block copied onto every emitted record (PRD §6.2)."""
+        """The credential block copied onto every emitted record (PRD §6.2).
+
+        Emits the credential under the canonical key ``credential`` (singular) AND
+        the deprecated alias ``credentials`` (plural) for one release. Two names for
+        one concept is exactly the mechanism that produced the buyer's finding
+        (Buyer Response PRD §6 E1: ``store.annotator_block`` wrote ``credentials``
+        while the contributor rollup wrote ``credential``), so both are emitted here
+        during the migration and packaging reads either."""
         cred = user.get("board_cert") or (
             f"board_certified_{user.get('specialty')}" if user.get("specialty") else "unspecified"
         )
         return {
             "id_hashed": user.get("id_hashed") or "",
-            "credentials": cred,
+            "credential": cred,       # canonical (Buyer Response PRD §6 E1)
+            "credentials": cred,      # deprecated alias — kept for one release
             "specialty": user.get("specialty"),
             "years_experience": user.get("years_experience"),
         }
@@ -1629,6 +1951,16 @@ class AsclepiusStore:
             return None
         return self._task_row(row)
 
+    def set_task_decisive_action(self, task_id: str, action: Dict[str, Any]) -> None:
+        """Persist the physician-named verifiable outcome (Audit §13), written from the
+        submission — never by an admin or a model: only the clinician who reasoned
+        through the case can say which step the answer depends on."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE tasks SET decisive_action_json = ? WHERE task_id = ?",
+                (json.dumps(action) if action else None, task_id),
+            )
+
     @staticmethod
     def _task_row(row: sqlite3.Row) -> Dict[str, Any]:
         rec = dict(row)
@@ -1637,6 +1969,9 @@ class AsclepiusStore:
         rec["generation"] = json.loads(rec.pop("generation_json", "null") or "null")
         # Multimodal case (may be absent on legacy rows / text tasks).
         rec["case"] = json.loads(rec.pop("case_json", "null") or "null")
+        # Decisive action (Audit §13): deserialize so packaging/export see a dict,
+        # not a JSON string. Absent on legacy rows / tasks nobody named one for.
+        rec["decisive_action"] = json.loads(rec.pop("decisive_action_json", "null") or "null")
         return rec
 
     def list_tasks(
@@ -1703,6 +2038,15 @@ class AsclepiusStore:
             "t.case_source = 'real_deid'" if real_only
             else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
         )
+        # Admin review queue (Audit PRD §21.6): a task whose ingest case still carries
+        # an unresolved BLOCKING review reason (ingest_cases.status = 'needs_review')
+        # must never be served for annotation — a physician must not label a case whose
+        # image may still carry burned-in PHI. Clearing/rejecting flips that status, so
+        # this releases the case the moment a human resolves it.
+        clauses.append(
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id "
+            "AND ic.status = 'needs_review')"
+        )
         where = " AND ".join(clauses)
         with self._conn() as conn:
             row = conn.execute(
@@ -1764,6 +2108,13 @@ class AsclepiusStore:
         clauses.append(
             "t.case_source = 'real_deid'" if real_only
             else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
+        )
+        # Hold blocking-review cases out of the candidate set too (Audit PRD §21.6) —
+        # same rule as next_task_for_evaluator, so value-aware routing never ranks a
+        # case a human has not yet cleared.
+        clauses.append(
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id "
+            "AND ic.status = 'needs_review')"
         )
         where = " AND ".join(clauses)
         with self._conn() as conn:
@@ -2965,23 +3316,67 @@ class AsclepiusStore:
         self, *, task_id: str, specialty: Optional[str], sub_a: str, sub_b: str,
         verdict_a: Optional[str], verdict_b: Optional[str],
         tags_a: List[str], tags_b: List[str], jaccard_tags: float,
-        verdict_agree: bool, n_labels: int, flagged: bool,
+        verdict_agree: bool, n_labels: int, flagged: bool, blinded: bool = True,
     ) -> None:
+        # ``blinded`` (Buyer Response PRD §7 F1): whether the second annotator was
+        # blind to the first's verdict. Only blinded observations enter κ.
         with self._conn() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO agreement
                   (task_id, specialty, sub_a, sub_b, verdict_a, verdict_b, tags_a_json,
-                   tags_b_json, jaccard_tags, verdict_agree, n_labels, flagged, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   tags_b_json, jaccard_tags, verdict_agree, n_labels, flagged, blinded, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     task_id, specialty, sub_a, sub_b, verdict_a, verdict_b,
                     json.dumps(tags_a or []), json.dumps(tags_b or []),
                     jaccard_tags, 1 if verdict_agree else 0, int(n_labels),
-                    1 if flagged else 0, _utcnow_iso(),
+                    1 if flagged else 0, 1 if blinded else 0, _utcnow_iso(),
                 ),
             )
+
+    def external_adjudication_pairs(self) -> List[tuple]:
+        """(partner_verdict, physician_verdict) pairs for external-adjudication
+        agreement (Buyer Response PRD §7 F3). Reads the ``external_adjudication`` table
+        when present; returns [] otherwise so the export degrades to a null-with-reason
+        stat rather than failing. The table is populated by the adjudication surface
+        as physicians answer cases that carry a sealed partner adjudication."""
+        try:
+            with self._conn() as conn:
+                rows = conn.execute(
+                    "SELECT partner_verdict, physician_verdict FROM external_adjudication "
+                    "WHERE partner_verdict IS NOT NULL AND physician_verdict IS NOT NULL"
+                ).fetchall()
+        except Exception:
+            return []
+        return [(dict(r)["partner_verdict"], dict(r)["physician_verdict"]) for r in rows]
+
+    def record_external_adjudication(
+        self, *, ingest_case_id: str, partner_verdict: Optional[str],
+        physician_verdict: Optional[str], physician_hashed: Optional[str] = None,
+    ) -> None:
+        """Record a physician's independent verdict against the partner's sealed
+        adjudication for a case (Buyer Response PRD §7 F3)."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS external_adjudication (
+                    ingest_case_id   TEXT PRIMARY KEY,
+                    partner_verdict  TEXT,
+                    physician_verdict TEXT,
+                    physician_hashed TEXT,
+                    created_at       TEXT NOT NULL
+                )""")
+            conn.execute(
+                """INSERT INTO external_adjudication
+                   (ingest_case_id, partner_verdict, physician_verdict, physician_hashed, created_at)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(ingest_case_id) DO UPDATE SET
+                     partner_verdict=excluded.partner_verdict,
+                     physician_verdict=excluded.physician_verdict,
+                     physician_hashed=excluded.physician_hashed""",
+                (ingest_case_id, partner_verdict, physician_verdict, physician_hashed, now))
 
     def list_agreement_observations(self, *, specialty: Optional[str] = None) -> List[Dict[str, Any]]:
         clauses, params = [], []

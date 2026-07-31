@@ -1619,6 +1619,13 @@
   font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--ink-faint); margin-bottom: 4px;
 }
+/* An OPTIONAL capture (not a numbered required gate) — a subtle pill, visually
+   distinct from the "STEP N" chrome so it never reads as a mandatory step. */
+.asc-substage-step--optional {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  background: var(--card-in); border: 1px solid var(--asc-line);
+  color: var(--asc-muted); letter-spacing: 0.09em;
+}
 .asc-substage-title {
   font-size: 16.5px; font-weight: 500; color: var(--asc-text);
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;

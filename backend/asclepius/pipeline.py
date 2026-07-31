@@ -204,7 +204,10 @@ async def process_submission(
 
     # 1. Package
     _progress("packaging", 20, "Packaging training records")
-    packaged = package_submission(task, submission)
+    # Pass the store so packaging can hydrate a missing annotator credential from
+    # the source of truth and fail closed rather than shipping 'unspecified'
+    # (Buyer Response PRD §6 E1).
+    packaged = package_submission(task, submission, store)
 
     # Rubric Rigor FIX-2/FIX-8 (V3/V4 only): run the package-time grader META-EVAL
     # (validity + reliability + hackability) and patch the rubric record before storage.

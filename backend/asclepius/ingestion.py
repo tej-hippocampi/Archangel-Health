@@ -25,6 +25,7 @@ import io
 import json
 import logging
 import os
+import re
 import shlex
 import subprocess
 import time
@@ -37,6 +38,7 @@ from pydantic import ValidationError
 from asclepius import case_formats as cf
 from asclepius import deid_verify
 from asclepius.cases import ClinicalCase
+from asclepius.store import _utcnow_iso
 from asclepius.timeline import TimelineError, normalize_timeline
 
 log = logging.getLogger("asclepius.ingestion")
@@ -173,9 +175,21 @@ def purge_expired_raw(store: Any) -> int:
     derived case, not the partner file). Called opportunistically on ingestion
     activity — no cron needed at pod scale. Returns files deleted."""
     cutoff = time.time() - raw_retention_days() * 86400
+    # Retain-raw (Audit §9.4): an upload whose entries ALL failed to parse keeps its
+    # raw blob past the window so it can be re-run after a parser fix. Skip those paths.
+    retained: set = set()
+    try:
+        for u in store.list_uploads_with_retained_raw():
+            rp = u.get("raw_path")
+            if rp:
+                retained.add(os.path.basename(rp))
+    except Exception:  # pragma: no cover - defensive; never block a purge on this
+        retained = set()
     deleted = 0
     for p in quarantine_root().glob("*.zip.enc"):
         try:
+            if p.name in retained:
+                continue
             if p.stat().st_mtime < cutoff:
                 p.unlink()
                 deleted += 1
@@ -235,9 +249,47 @@ def recover_interrupted_uploads(store: Any) -> int:
             handled += 1
         except Exception as exc:  # pragma: no cover - defensive per-upload
             log.warning("ingest recovery: upload %s failed to reprocess: %s", uid, exc)
+    # Terminal-state reconciliation (Audit §9.3): recover_interrupted_uploads only
+    # revisits NON-terminal uploads; this catches cases that reached a terminal state
+    # but are internally inconsistent (unbound sealed key, missing asset blob).
+    reconcile_ingested_cases(store)
     if handled:
         log.info("ingest recovery: handled %d interrupted upload(s)", handled)
     return handled
+
+
+def reconcile_ingested_cases(store: Any) -> Dict[str, Any]:
+    """Reconcile TERMINAL cases that are internally inconsistent (Audit §9.3). Two
+    defects the ingest-time checks cannot see because they develop after the fact:
+    a sealed key left unbound by a crash (§H1), and an asset blob that has since gone
+    missing/corrupt on disk (§P2). Both hold the affected case for admin review.
+    Runs at startup (via recover_interrupted_uploads) and can be scheduled nightly.
+    Best-effort; never raises. Returns counts for the admin ingestion card."""
+    out: Dict[str, Any] = {"sealed_bound": 0, "sealed_orphans": 0,
+                           "assets_missing": 0, "assets_corrupt": 0, "cases_held": 0}
+    try:
+        rec = store.reconcile_sealed_ground_truth()
+        out["sealed_bound"] = rec.get("bound", 0)
+        out["sealed_orphans"] = len(rec.get("orphans") or [])
+        out["cases_held"] += out["sealed_bound"]
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("sealed reconciliation failed: %s", exc)
+    try:
+        from asclepius import assets
+        rep = assets.verify_case_assets(store)
+        for m in (rep.get("missing") or []) + (rep.get("corrupt") or []):
+            cid = m.get("ingest_case_id")
+            if cid and store.hold_ingest_case_for_review(
+                    cid, m.get("reason") or "asset_blob_missing",
+                    m.get("detail") or "asset blob is missing or corrupt on disk"):
+                out["cases_held"] += 1
+        out["assets_missing"] = len(rep.get("missing") or [])
+        out["assets_corrupt"] = len(rep.get("corrupt") or [])
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("asset reconciliation failed: %s", exc)
+    if out["cases_held"] or out["sealed_orphans"]:
+        log.info("ingested-case reconciliation: %s", out)
+    return out
 
 
 # ─── Malware scan hook ────────────────────────────────────────────────────────
@@ -258,6 +310,54 @@ def malware_scan(path: str) -> Tuple[bool, str]:
         # Fail CLOSED: a configured scanner that cannot run means we cannot claim
         # the file is safe.
         return False, f"malware scanner unavailable ({exc}); upload rejected (fail-closed)"
+
+
+# ─── Loose-file wrapping — single source of truth for BOTH upload doors ───────
+# (Buyer Response PRD §2 A1). The magic-link door (routers/asclepius.py
+# partner_upload) and the account door (routers/asclepius_provider.py
+# provider_upload) used to disagree: the account door WRAPPED loose files into a
+# zip, while the link door REJECTED anything whose first two bytes were not the
+# ``PK`` zip magic. That meant the exact partner file we mailed a health-system
+# succeeded or failed depending only on which URL we happened to send. This is the
+# one packing implementation both doors call before ``store_raw``, so they cannot
+# drift again.
+def wrap_loose_files(files: List[Dict[str, Any]], *, specialty: Optional[str]) -> bytes:
+    """Loose partner files -> one zip for the shared pipeline.
+
+    A genuinely-zip single upload passes through untouched (keyed on the ``PK``
+    magic bytes, NOT the extension, so a mis-named ``.zip`` that is really a CSV
+    still gets wrapped instead of failing the unpacker). Everything else is
+    packed, with a synthesized ``manifest.json`` carrying the specialty when the
+    bundle does not already include one.
+
+    Each file is ``{"filename": str, "content": bytes}``. Extracted from
+    routers/asclepius_provider.py so the magic-link door and the account door
+    cannot drift again.
+    """
+    if len(files) == 1 and (files[0].get("content") or b"")[:2] == b"PK":
+        return files[0]["content"]
+    has_manifest = any(
+        os.path.basename((f.get("filename") or "")).lower() == "manifest.json"
+        for f in files
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in files:
+            z.writestr(os.path.basename(f.get("filename") or "") or "file",
+                       f.get("content") or b"")
+        if not has_manifest and specialty:
+            z.writestr("manifest.json", json.dumps({"specialty": specialty}))
+    return buf.getvalue()
+
+
+# Partner-facing copy for an upload we genuinely cannot read (used by both doors).
+# A hospital IT team must be told what to DO, not that the "zip magic bytes" were
+# wrong — a message that means nothing to them.
+UNREADABLE_UPLOAD_MESSAGE = (
+    "We could not read this upload. Send a .zip, or individual .json / .csv / "
+    ".hl7 / .txt files and we will package them. If the problem persists, contact "
+    "your Archangel Health point of contact and we will take it by secure transfer."
+)
 
 
 # ─── Unpack + classify (PRD §5) ───────────────────────────────────────────────
@@ -332,12 +432,25 @@ def unpack_bundle(zip_bytes: bytes) -> Dict[str, Any]:
 def _merge_fragments(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Merge per-file fragments into ONE case's fragments: lists concatenate,
     demographics/vitals merge (first non-empty wins per key), the latest
-    ``_index_event`` wins."""
+    ``_index_event`` wins.
+
+    ``studies`` and ``source_refs`` (Buyer Response PRD §2 A2/A3) are model-facing
+    case fields and MUST be carried here — without the ``studies`` key, adapter
+    studies were silently dropped during bundle assembly (the bug that would make
+    A2 look fixed in a unit test and still broken in production). Answer-adjacent
+    metadata (sealed key, eval task, case provenance) is carried under underscore
+    keys so ``deidentify``/``_strip_meta`` keep it out of the model-visible body."""
     out: Dict[str, Any] = {"demographics": {}, "lab_panels": [], "notes": [],
-                           "medications": [], "problem_list": [], "vitals": {}}
+                           "medications": [], "problem_list": [], "vitals": {},
+                           "studies": [], "source_refs": []}
     index_event = None
+    sealed = None
+    eval_task = None
+    case_provenance = None
+    synthetic_declared = False
     for p in parts:
-        for k in ("lab_panels", "notes", "medications", "problem_list"):
+        for k in ("lab_panels", "notes", "medications", "problem_list", "studies",
+                  "source_refs"):
             out[k].extend(p.get(k) or [])
         for k, v in (p.get("demographics") or {}).items():
             out["demographics"].setdefault(k, v)
@@ -346,6 +459,13 @@ def _merge_fragments(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
         ie = p.get("_index_event")
         if ie and (index_event is None or str(ie) > str(index_event)):
             index_event = ie
+        if p.get("_sealed_ground_truth") and sealed is None:
+            sealed = p["_sealed_ground_truth"]
+        if p.get("_eval_task") and eval_task is None:
+            eval_task = p["_eval_task"]
+        if p.get("_case_provenance") and case_provenance is None:
+            case_provenance = p["_case_provenance"]
+        synthetic_declared = synthetic_declared or bool(p.get("_synthetic_declared"))
         # the latest vital-sign date across fragments — the timing marker for the
         # merged (flat) vitals set, used by the V5 temporal gate.
         va = p.get("_vitals_at")
@@ -353,6 +473,353 @@ def _merge_fragments(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
             out["_vitals_at"] = va
     if index_event:
         out["_index_event"] = index_event
+    if sealed:
+        out["_sealed_ground_truth"] = sealed
+    if eval_task:
+        out["_eval_task"] = eval_task
+    if case_provenance:
+        out["_case_provenance"] = case_provenance
+    out["_synthetic_declared"] = synthetic_declared
+    return out
+
+
+# ─── Completeness + answer-leakage guards (Buyer Response PRD §2 A4, §3 B1) ────
+_COMPLETENESS_STOPWORDS = frozenset({
+    "the", "and", "of", "a", "an", "with", "for", "in", "on", "to", "longitudinal",
+    "clinical", "serial", "required", "study", "studies", "panel", "panels", "test",
+    "tests", "imaging", "image", "images", "data",
+})
+# A declared token we cannot confidently resolve is NOT a missing modality. Synonyms
+# let the common abbreviations resolve; anything still unresolved is reported as
+# unverified rather than treated as absent (Audit PRD §P1).
+_MODALITY_SYNONYMS = {
+    "lm": ("light microscopy", "pas", "h&e", "hematoxylin"),
+    "em": ("electron microscopy", "ultrastructural"),
+    "if": ("immunofluorescence",),
+    "routine if": ("frozen if", "immunofluorescence"),
+    "pronase if": ("pronase", "paraffin immunofluorescence"),
+    "urine microscopy": ("urine sediment", "sediment", "urinalysis"),
+    "hematology studies": ("flow cytometry", "spep", "free light chain", "immunofixation"),
+    "longitudinal labs": ("labs", "laboratory"),
+    "clinical notes": ("note", "progress", "consult", "discharge"),
+}
+
+
+def _completeness_haystack(case: Dict[str, Any]) -> str:
+    """Everything a declared modality could legitimately name. Declarations are
+    TECHNIQUES ('pronase IF', 'EM'); Study.modality is a coarse ENUM ('pathology').
+    Matching modality alone can never satisfy them, so the label and findings — where
+    the technique is actually named — are part of the haystack."""
+    bits: List[str] = []
+    for s in case.get("studies") or []:
+        bits += [str(s.get("modality") or ""), str(s.get("label") or ""),
+                 str(s.get("findings") or "")]
+    for p in case.get("lab_panels") or []:
+        bits.append(str(p.get("panel") or ""))
+        for r in p.get("results") or []:
+            bits.append(str(r.get("analyte") or ""))
+    for n in case.get("notes") or []:
+        bits += [str(n.get("note_type") or ""), str(n.get("text") or "")]
+    if case.get("lab_panels"):
+        bits.append("labs longitudinal laboratory")
+    if case.get("notes"):
+        bits.append("clinical notes note")
+    if case.get("medications"):
+        bits.append("medications")
+    return " ".join(bits).lower()
+
+
+def completeness_check(declared: List[str], case: Dict[str, Any]) -> Dict[str, Any]:
+    """Tri-state completeness (Buyer Response PRD §2 A4, corrected — Audit PRD §P1).
+
+    Returns ``{present, missing, unresolved}``. Only ``missing`` — a token we
+    RECOGNISED and confirmed absent — may quarantine. An ``unresolved`` token means our
+    matcher did not understand the partner's wording, which is a fact about our parser,
+    not about their data; quarantining on it rejects good cases (exactly what happened
+    to the real PGNMID bundle) and hides the parser gap behind a clinical-sounding
+    rejection."""
+    hay = _completeness_haystack(case)
+    present, missing, unresolved = [], [], []
+    for tok in declared or []:
+        t = tok.strip().lower()
+        if not t:
+            continue
+        candidates = (t,) + tuple(_MODALITY_SYNONYMS.get(t, ()))
+        recognised = t in _MODALITY_SYNONYMS or len(t.split()) <= 4
+        if any(c in hay for c in candidates):
+            present.append(tok)
+        elif recognised:
+            missing.append(tok)
+        else:
+            unresolved.append(tok)
+    return {"present": present, "missing": missing, "unresolved": unresolved}
+
+
+# ─── Admin review queue (Audit PRD §20-§21) ──────────────────────────────────
+def _raise_review(reasons: List[Dict[str, Any]], reason: str, severity: str,
+                  detail: str) -> None:
+    """Append a review reason instead of logging it into a void (Audit PRD §21.2).
+    ``blocking`` holds the case out of the annotation queue (a physician must not see
+    it yet); ``advisory`` does not (the case is clinically intact, only a claim about
+    it is unverified — holding it would rebuild the completeness bug with a nicer UI)."""
+    reasons.append({"reason": reason, "severity": severity, "detail": detail,
+                    "raised_at": _utcnow_iso()})
+
+
+def _upload_status_from_cases(ingested: int, quarantined: int, needs_review: int) -> str:
+    """Upload status is the WORST state among its cases, with needs_review ranked
+    ABOVE ingested (Audit PRD §21.3). A partner upload where one case needs review
+    must not render as a clean green row — an unreviewed blocking flag that looks
+    finished is exactly the failure this whole spec is about."""
+    if ingested == 0 and quarantined == 0 and needs_review == 0:
+        return "rejected"
+    if needs_review:
+        return "needs_review"
+    if ingested:
+        return "ingested"
+    return "quarantined"
+
+
+def cf_case_has_asset(study: Dict[str, Any]) -> bool:
+    from asclepius.cases import study_has_valid_asset
+    return study_has_valid_asset(study)
+
+
+def key_image_series_cap() -> int:
+    """Above this many instances in one series, the partner (or an annotator) MUST
+    designate key images — the 1-5 instances the reasoning depends on (Buyer Response
+    PRD §4 C2). Without it, one CT study produces 200 assets, blows the prompt budget,
+    and buries the finding, so a large series is archived-only until key images are
+    named."""
+    try:
+        return max(1, int(os.getenv("ASCLEPIUS_KEY_IMAGE_SERIES_CAP", "5")))
+    except ValueError:
+        return 5
+
+
+def _dicom_entries_to_studies(
+    dicom_entries: List[Dict[str, Any]], manifest: Dict[str, Any], specialty: str,
+) -> Tuple[Dict[str, List[Dict[str, Any]]], List[Dict[str, Any]], bool]:
+    """Turn DICOM bundle entries into per-patient Study fragments (Buyer Response PRD
+    §4 C1-C3). Each entry: de-identify (PS3.15 Annex E) → burned-in risk → render/
+    archive. Returns (per_patient_frags, file_outcomes, produced_any_gradable).
+
+    Key-image discipline (§4 C2): a series larger than the cap promotes an asset ONLY
+    for instances the manifest designates as key images; the rest are archived so a
+    200-instance CT does not produce 200 gradable assets."""
+    from asclepius import dicom_deid
+
+    key_ids = {str(k).strip().lower() for k in (manifest.get("key_images") or [])}
+    cap = key_image_series_cap()
+
+    # First pass: parse + de-id, group by series, so we know each series' size.
+    parsed: List[Dict[str, Any]] = []
+    series_counts: Dict[str, int] = {}
+    for e in dicom_entries:
+        name = e.get("name")
+        try:
+            ds = dicom_deid.read(e["data"])
+            clean, dreport = dicom_deid.deidentify_dicom(ds)
+        except dicom_deid.DicomDeidError as exc:
+            parsed.append({"name": name, "error": str(exc)})
+            continue
+        series = str(getattr(clean, "SeriesInstanceUID", "") or name)
+        sop = str(getattr(clean, "SOPInstanceUID", "") or "")
+        series_counts[series] = series_counts.get(series, 0) + 1
+        parsed.append({"name": name, "ds": clean, "series": series, "sop": sop,
+                       "report": dreport})
+
+    per_patient: Dict[str, List[Dict[str, Any]]] = {}
+    outcomes: List[Dict[str, Any]] = []
+    produced = False
+    pk = str(manifest.get("patient_key") or "default")
+    for p in parsed:
+        name = p["name"]
+        if p.get("error"):
+            outcomes.append({"name": name, "kind": "dicom",
+                             "outcome": f"rejected_unreadable: {p['error']}"})
+            continue
+        ds = p["ds"]
+        risk, why = dicom_deid.burned_in_risk(ds)
+        if risk == "blocked":
+            outcomes.append({"name": name, "kind": "dicom",
+                             "outcome": f"rejected_burned_in_phi: {why}"})
+            continue
+        # Key-image gate: a large series promotes an asset only for designated images.
+        is_key = (series_counts.get(p["series"], 1) <= cap
+                  or (name or "").lower() in key_ids
+                  or p["sop"].lower() in key_ids)
+        if not is_key:
+            outcomes.append({"name": name, "kind": "dicom",
+                             "outcome": "archived_only: large series, not a designated key image"})
+            continue
+        # Rendering can fail on undecodable/compressed pixel data or a missing
+        # decoder — that must NEVER crash process_upload (a background task that must
+        # always land a terminal status). A render failure downgrades this ONE entry
+        # to an unreadable outcome; the rest of the bundle continues.
+        try:
+            frag = dicom_deid.to_study_fragment(
+                ds, render=(risk == "clear"), needs_review=(risk == "suspect"),
+                specialty=specialty, risk=risk, reason=why)
+        except Exception as exc:
+            log.warning("dicom render/fragment failed for %s: %s", name, exc)
+            outcomes.append({"name": name, "kind": "dicom",
+                             "outcome": f"rejected_unreadable: could not render pixels ({exc})"})
+            continue
+        study = {k: v for k, v in frag.items() if not str(k).startswith("_")}
+        per_patient.setdefault(pk, []).append({"studies": [study], "_dicom": True})
+        if risk == "clear" and cf_case_has_asset(study):
+            produced = True
+            outcomes.append({"name": name, "kind": "dicom", "outcome": "parsed"})
+        else:
+            outcomes.append({"name": name, "kind": "dicom",
+                             "outcome": f"needs_burnin_review: {why}"})
+    return per_patient, outcomes, produced
+
+
+def _stage_sealed_ground_truth(store: Any, upload_id: str, patient_key: str,
+                               sealed: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Stage the sealed answer key BEFORE the case row (Audit §H1), returning the
+    ``sealed_id`` to bind later. Returns None when there is no key to stage OR when
+    staging failed — the caller distinguishes the two (a truthy ``sealed`` with a
+    None ref means storage failed, and it quarantines rather than shipping a case
+    whose adjudication was lost)."""
+    if not sealed:
+        return None
+    try:
+        return store.stage_sealed_ground_truth(
+            upload_id=upload_id, patient_key=patient_key, payload=sealed)
+    except Exception as exc:
+        log.error("sealed ground truth staging failed for upload %s patient %s: %s",
+                  upload_id, patient_key, exc)
+        return None
+
+
+def _bind_sealed_ground_truth(store: Any, sealed_ref: Optional[str],
+                              ingest_case_id: str, upload_id: str, pk: str) -> None:
+    """Bind a staged key to its case row (Audit §H1). A bind that fails to land is
+    NOT fatal: the key is still on disk under (upload_id, patient_key), and
+    reconciliation re-binds it — the strictly better failure than losing the key."""
+    if not sealed_ref:
+        return
+    try:
+        store.bind_sealed_ground_truth(sealed_ref, ingest_case_id)
+    except Exception as exc:  # pragma: no cover - defensive; reconciliation recovers
+        log.error("sealed ground truth bind failed for %s: %s", ingest_case_id, exc)
+        return
+    try:
+        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                        event_type="sealed_ground_truth_ingested",
+                        payload={"upload_id": upload_id, "patient_key": opaque_patient_key(pk)})
+    except Exception:  # pragma: no cover - audit is best-effort
+        pass
+
+
+class AnswerLeakageError(BundleRejected):
+    """A distinctive sealed-answer span appears in the model-visible case (Buyer
+    Response PRD §3 B1). This must FAIL THE INGEST — a leaked answer silently
+    invalidates every score computed from the case."""
+
+
+def _distinctive_tokens(text: str) -> List[str]:
+    return [w for w in re.findall(r"[a-z0-9]+", str(text or "").lower())
+            if w not in _COMPLETENESS_STOPWORDS and len(w) >= 3]
+
+
+# Ordinary clinical vocabulary that a lone token would flag on by coincidence — a
+# problem list saying "anemia" is not a leaked answer key (Audit §M1).
+_COMMON_CLINICAL_TOKENS = frozenset("""
+    acute chronic renal kidney cardiac disease syndrome failure injury infection
+    anemia patient history normal abnormal elevated decreased positive negative
+    treatment therapy diagnosis management follow biopsy blood urine serum
+""".split())
+
+
+def _is_checkable_single_token(tok: str) -> bool:
+    """A lone token is worth checking when it is DISTINCTIVE: long enough not to be an
+    abbreviation collision, and not ordinary clinical vocabulary. Short decisive
+    acronyms (PGNMID, MGRS) are exactly the answers most damaging to leak, and the
+    >=2-token rule skipped them (Audit §M1)."""
+    return len(tok) >= 4 and tok not in _COMMON_CLINICAL_TOKENS
+
+
+def _longest_contiguous_run(needle: List[str], hay_padded: str) -> int:
+    """Longest contiguous run of ``needle`` tokens appearing as a whole-token span in
+    ``hay_padded`` (which is the space-joined hay wrapped in sentinel spaces so a match
+    respects token boundaries — 'a b c' never matches inside 'xa b cx')."""
+    best = 0
+    for i in range(len(needle)):
+        j = i
+        while j < len(needle) and (" " + " ".join(needle[i:j + 1]) + " ") in hay_padded:
+            j += 1
+        best = max(best, j - i)
+    return best
+
+
+def assert_no_answer_leakage(case: Dict[str, Any], sealed: Optional[Dict[str, Any]]) -> None:
+    """Post-condition (Buyer Response PRD §3 B1): the SEALED answer-key resource must
+    not have leaked into the model-visible case. Runs after ``deidentify()``, before
+    the case is stored.
+
+    The failure mode this guards is the sealed ``Basic`` being MERGED into the case
+    body during parsing (a note, a study finding). It must NOT quarantine a real
+    de-identified record whose clinical notes legitimately state the diagnosis — a
+    pathology report says "Final: <diagnosis>" and a problem list carries the known
+    condition, and the adjudicated answer key naturally restates those same facts.
+    Quarantining on that coincidence rejects real hospital data, the exact
+    two-conditions-one-check anti-pattern the audit calls out (§17).
+
+    The distinguisher: a genuine merge reproduces a whole answer-key LEAF nearly
+    verbatim; a clinical coincidence reproduces only the diagnosis NAME, a fraction of
+    the leaf. So we flag only when a sealed leaf is SUBSTANTIALLY REPRODUCED (>=80% of
+    its distinctive tokens appear as one contiguous run). ``source_refs`` are excluded
+    because they are never rendered into the model prompt (annotator-only, §H4)."""
+    if not sealed:
+        return
+    from asclepius.cases import render_case_prompt
+
+    # Model-visible surface ONLY — render_case_prompt already honors model_visible
+    # notes + study_findings_policy. source_refs are NOT model-visible.
+    hay = " ".join(_distinctive_tokens(render_case_prompt(case, "")))
+    hay_padded = " " + hay + " "
+
+    hay_tokens = set(hay.split())  # whole-token membership for the single-token check
+    answer_key = sealed.get("answer_key") if isinstance(sealed, dict) else sealed
+    for leaf in _sealed_leaf_strings(answer_key):
+        toks = _distinctive_tokens(leaf)
+        if not toks:
+            continue
+        if len(toks) == 1:
+            # A distinctive single-token answer (PGNMID, MGRS) leaks if it appears as a
+            # WHOLE token in the model-visible case (Audit §M1). Whole-token only — a
+            # substring match on a short token would fire inside longer words, and this
+            # path raises a hard error.
+            if _is_checkable_single_token(toks[0]) and toks[0] in hay_tokens:
+                raise AnswerLeakageError(
+                    "sealed answer key leaked: distinctive single-token answer present "
+                    "in the model-visible case (Buyer Response PRD §3 B1)")
+            continue
+        need = max(2, -(-len(toks) * 8 // 10))  # ceil(0.8 * len)
+        if _longest_contiguous_run(toks, hay_padded) >= need:
+            raise AnswerLeakageError(
+                "sealed answer key leaked into the model-visible case: a sealed leaf "
+                "was substantially reproduced; refusing to ship (Buyer Response PRD §3 B1)")
+
+
+def _sealed_leaf_strings(obj: Any) -> List[str]:
+    """Every leaf string value inside the sealed answer key (recursively), so the
+    leakage guard checks the ANSWER content, not JSON scaffolding tokens."""
+    out: List[str] = []
+    if isinstance(obj, str):
+        out.append(obj)
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            out.extend(_sealed_leaf_strings(v))
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            out.extend(_sealed_leaf_strings(v))
+    elif obj is not None:
+        out.append(str(obj))
     return out
 
 
@@ -390,8 +857,13 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     if not upload:
         return {"error": "upload not found"}
 
-    def _fail(reason: str) -> Dict[str, Any]:
-        store.update_ingest_upload(upload_id, status="rejected", reason=reason)
+    def _fail(reason: str, *, retain_raw: bool = False) -> Dict[str, Any]:
+        # retain_raw (Audit §9.4): keep the raw blob past the retention window when the
+        # rejection is a fixable parser gap (every entry failed), so it can be re-run.
+        fields: Dict[str, Any] = {"status": "rejected", "reason": reason}
+        if retain_raw:
+            fields["retain_raw"] = 1
+        store.update_ingest_upload(upload_id, **fields)
         store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                         event_type="upload_rejected", payload={"reason": reason})
         # Auto-notify the sender their upload didn't come through (no PHI). Best
@@ -416,9 +888,13 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
         raw = load_raw(upload["raw_path"])
         bundle = unpack_bundle(raw)
     except BundleRejected as exc:
-        return _fail(str(exc))
+        # Partner-facing reason is the actionable copy (Audit §9.1), never the raw
+        # "bad magic bytes" text; the specific detail is retained in the audit log.
+        log.info("upload %s unreadable: %s", upload_id, exc)
+        return _fail(UNREADABLE_UPLOAD_MESSAGE)
     except Exception as exc:  # unreadable blob, key rotation issue, …
-        return _fail(f"could not read/unpack the upload: {exc}")
+        log.warning("upload %s could not be read/unpacked: %s", upload_id, exc)
+        return _fail(UNREADABLE_UPLOAD_MESSAGE)
 
     manifest = bundle["manifest"]
     specialty = (manifest.get("specialty")
@@ -430,15 +906,31 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     file_outcomes: List[Dict[str, Any]] = []
     imaging_rejected = 0
     parsed_any = False
+    # DICOM is no longer an automatic rejection (Buyer Response PRD §4 C3, retiring the
+    # "no imaging" invariant, dated 2026-07): de-identify (PS3.15 Annex E) → burned-in
+    # risk → render/archive. Handled as a batch so series size (key-image discipline)
+    # is known.
+    dicom_entries = [e for e in bundle["entries"] if e.get("kind") == "dicom"]
+    if dicom_entries:
+        try:
+            d_per_patient, d_outcomes, d_produced = _dicom_entries_to_studies(
+                dicom_entries, manifest, specialty)
+        except Exception as exc:  # never strand the upload on a DICOM surprise
+            log.warning("dicom batch processing failed for upload %s: %s", upload_id, exc)
+            d_per_patient, d_produced = {}, False
+            d_outcomes = [{"name": e.get("name"), "kind": "dicom",
+                           "outcome": f"rejected_unreadable: {exc}"} for e in dicom_entries]
+        for pk, frags in d_per_patient.items():
+            per_patient.setdefault(pk, []).extend(frags)
+        file_outcomes.extend(d_outcomes)
+        parsed_any = parsed_any or d_produced
     for e in bundle["entries"]:
         name, kind = e.get("name"), e.get("kind")
         if kind == "manifest":
             file_outcomes.append({"name": name, "kind": kind, "outcome": "used"})
             continue
         if kind == "dicom":
-            imaging_rejected += 1
-            file_outcomes.append({"name": name, "kind": kind, "outcome": "rejected_imaging"})
-            continue
+            continue  # handled in the batch above
         if kind in ("rejected", "unsupported"):
             file_outcomes.append({"name": name, "kind": kind,
                                   "outcome": e.get("reason") or "unsupported"})
@@ -457,22 +949,51 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
 
     if not parsed_any:
         store.update_ingest_upload(upload_id, files_json=file_outcomes)
-        if imaging_rejected and imaging_rejected == sum(
-            1 for e in bundle["entries"] if e.get("kind") != "manifest"
+        # The "imaging-only bundle is rejected wholesale" invariant is RETIRED (Buyer
+        # Response PRD §4 C3, 2026-07): a pathology or radiology case may legitimately
+        # be imaging-only. What we require instead is at least one GRADABLE study — a
+        # cleared/reviewer-approved asset. A bundle whose only DICOMs were blocked or
+        # left pending burned-in review produced nothing gradable and is rejected with
+        # that reason, not a blanket "imaging is never gradable".
+        if dicom_entries and not any(
+            e.get("kind") not in ("manifest", "dicom") for e in bundle["entries"]
         ):
-            return _fail("bundle contained only imaging (never a gradable modality)")
-        return _fail("no parseable clinical content in the bundle")
+            return _fail("no gradable study in the bundle: every image was blocked or "
+                         "left pending burned-in review (needs a cleared/approved asset)",
+                         retain_raw=True)
+        return _fail("no parseable clinical content in the bundle", retain_raw=True)
 
     # Per patient: assemble → normalize → verify → hard guard → land or quarantine.
-    ingested, quarantined = 0, 0
+    ingested, quarantined, needs_review = 0, 0, 0
     for pk, parts in per_patient.items():
         merged = _merge_fragments(parts)
         report: Dict[str, Any] = {"patient_key": opaque_patient_key(pk)}
+        # Answer-adjacent + author metadata pulled OUT before assembling the body —
+        # never merged into a model-visible field (Buyer Response PRD §2 A4, §3 B1).
+        sealed = merged.get("_sealed_ground_truth")
+        eval_task = merged.get("_eval_task") or {}
+        case_provenance = merged.get("_case_provenance")
+        # Sealed-key ordering (Audit §H1): STAGE the answer key before the case row so
+        # a crash between the two can never leave an ingested case with no key. Bound
+        # to the case id once it's inserted, in both the ingested and quarantine paths.
+        sealed_ref = _stage_sealed_ground_truth(store, upload_id, opaque_patient_key(pk), sealed)
+        if sealed:
+            report["sealed_present"] = True
+        if eval_task:
+            report["eval_task"] = {k: v for k, v in eval_task.items() if k != "answer_key"}
         # The quarantined body must be EXACTLY the object the findings describe
         # (spans are offsets into it) — the normalized case once normalization
         # succeeds, the raw merge only when normalization itself failed.
         quarantine_body = {k: v for k, v in merged.items() if not str(k).startswith("_")}
         try:
+            # Staging the sealed key must have succeeded (Audit §H1): a truthy sealed
+            # with no ref means storage failed. Raise here so the existing except
+            # quarantines through the path that already works — never ship a case whose
+            # adjudication could not be stored.
+            if sealed and sealed_ref is None:
+                raise cf.CaseIngestError(
+                    "sealed answer key could not be stored; quarantining rather than "
+                    "shipping a case whose adjudication was lost")
             normalized, treport = normalize_timeline(
                 quarantine_body,
                 index_event=manifest.get("index_event") or merged.get("_index_event"),
@@ -491,48 +1012,148 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                 raise cf.CaseIngestError(
                     f"de-id verification flagged {len(verification['findings'])} finding(s)")
             safe = cf.deidentify(normalized)
-            case = ClinicalCase(**{**safe, "case_source": "real_deid",
-                                   "specialty": safe.get("specialty") or specialty}).model_dump()
+            # Inject author-declared metadata (Buyer Response PRD §2 A3/A4) + compute
+            # the study-findings policy (§3 B2): hidden when any study carries a
+            # resolvable image asset (the real multimodal test), visible otherwise.
+            declared_mods = list(eval_task.get("required_modalities") or [])
+            any_asset = any(cf_case_has_asset(s) for s in (safe.get("studies") or []))
+            case = ClinicalCase(**{
+                **safe, "case_source": "real_deid",
+                "specialty": safe.get("specialty") or specialty,
+                "declared_difficulty": eval_task.get("declared_difficulty"),
+                "required_modalities": declared_mods,
+                "case_provenance": case_provenance,
+                "study_findings_policy": "hidden" if any_asset else "visible",
+            }).model_dump()
+            # Declared-vs-delivered completeness (Buyer Response PRD §2 A4; corrected
+            # to tri-state — Audit PRD §P1). Only a RECOGNISED-and-absent token
+            # quarantines. An UNRESOLVED token is a parser gap, not missing evidence:
+            # ingest, flag as unverified, and (Phase 4) surface it as an ADVISORY
+            # review reason — quarantining on it rejects good hospital data.
+            comp = completeness_check(declared_mods, case)
+            report["completeness"] = comp
+            if comp["missing"]:
+                report["missing_modalities"] = comp["missing"]
+                raise cf.CaseIngestError(
+                    f"bundle declares required modalities not delivered: {sorted(comp['missing'])}; "
+                    f"the case's decisive evidence is absent — quarantining rather than "
+                    f"shipping an unanswerable case")
+            case["completeness_status"] = "unverified" if comp["unresolved"] else "verified"
+            # Post-condition (Buyer Response PRD §3 B1): no distinctive sealed-answer
+            # span may appear in the model-visible case. Runs after deidentify(),
+            # before the case is stored.
+            assert_no_answer_leakage(case, sealed)
+            # Admin review queue (Audit PRD §21). Collect the three "unknown" states
+            # that used to have nowhere to go and route them to a human. Blocking
+            # reasons hold the case out of the annotation queue; advisory reasons
+            # ingest cleanly (the case is intact, only a claim about it is unverified).
+            review_reasons: List[Dict[str, Any]] = []
+            for st in (case.get("studies") or []):
+                phi = st.get("phi_screening") or {}
+                if phi.get("burned_in_risk") == "suspect":
+                    _raise_review(review_reasons, "burned_in_phi_unverified", "blocking",
+                                  phi.get("reason")
+                                  or f"study '{st.get('label') or st.get('modality')}': "
+                                     "burned-in PHI could not be screened")
+                elif phi.get("method") == "tag_only":
+                    _raise_review(review_reasons, "deid_partner_flag_only", "advisory",
+                                  f"study '{st.get('label') or st.get('modality')}': "
+                                  "OCR screening unavailable; cleared on DICOM tags alone")
+            if comp["unresolved"]:
+                _raise_review(review_reasons, "completeness_unverified", "advisory",
+                              "could not resolve declared modalities against delivered "
+                              f"evidence: {sorted(comp['unresolved'])}")
+            blocking = [r for r in review_reasons if r["severity"] == "blocking"]
+            case_status = "needs_review" if blocking else "ingested"
             ic = store.insert_ingest_case(upload_id=upload_id,
                                           patient_key=opaque_patient_key(pk),
                                           specialty=specialty, case=case,
-                                          status="ingested", report=report)
-            ingested += 1
+                                          status=case_status, report=report,
+                                          review_status=("needs_review" if review_reasons else None),
+                                          review_json=review_reasons or None)
+            # Bind the pre-staged answer key to the case row now that it exists
+            # (Audit §H1). Staging already succeeded (checked at the top of the try),
+            # so the key is on disk; binding is a safe UPDATE, and a bind that somehow
+            # fails leaves the key recoverable by reconciliation — never a lost key.
+            _bind_sealed_ground_truth(store, sealed_ref, ic["ingest_case_id"], upload_id, pk)
+            if blocking:
+                needs_review += 1
+            else:
+                ingested += 1
             store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
-                            event_type="case_ingested",
+                            event_type=("case_needs_review" if blocking else "case_ingested"),
                             payload={"upload_id": upload_id,
                                      "patient_key": opaque_patient_key(pk),
                                      "panels": len(case.get("lab_panels") or []),
-                                     "notes": len(case.get("notes") or [])})
-        except (cf.CaseIngestError, TimelineError, ValidationError) as exc:
+                                     "notes": len(case.get("notes") or []),
+                                     "studies": len(case.get("studies") or []),
+                                     "source_refs": len(case.get("source_refs") or []),
+                                     "review_reasons": [r["reason"] for r in review_reasons],
+                                     "sealed_stored": bool(sealed)})
+        except (cf.CaseIngestError, TimelineError, ValidationError, AnswerLeakageError) as exc:
             # ValidationError (BUG-1 hardening): a real bundle whose structure
             # drifts from the ClinicalCase schema — now that the case models are
             # extra="forbid" — quarantines with a readable reason instead of
             # silently dropping the stray field (the old extra="ignore" data loss)
             # OR crashing the background ingest job. Loud, recoverable, never silent.
             report["quarantine_reason"] = str(exc)
+            # The quarantine body is a plain merge that may still carry the raw
+            # ``studies``/``source_refs`` — strip any answer-adjacent metadata was
+            # already excluded (underscore keys). Never let a sealed key ride along.
             ic = store.insert_ingest_case(
                 upload_id=upload_id, patient_key=opaque_patient_key(pk),
                 specialty=specialty, case=quarantine_body,
                 status="quarantined", report=report)
             quarantined += 1
+            # The pre-staged answer key binds to the quarantined case too (Audit §H1):
+            # it is still the referring institution's adjudication, used for §7 F3
+            # external-agreement once the case is reviewed. If staging itself failed,
+            # sealed_ref is None and there is simply nothing to bind.
+            _bind_sealed_ground_truth(store, sealed_ref, ic["ingest_case_id"], upload_id, pk)
             store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
                             event_type="case_quarantined",
                             payload={"upload_id": upload_id,
                                      "patient_key": opaque_patient_key(pk),
                                      "reason": str(exc)})
+        except Exception as exc:  # infra error (store/DB/log) — never strand the upload
+            # process_upload must always land a terminal status. An unexpected error
+            # (DB write, log_event, crypto) is recorded as a per-patient quarantine
+            # rather than escaping the BackgroundTask and leaving the upload stuck in
+            # 'parsing' forever.
+            log.warning("ingest: unexpected error for patient %s in upload %s: %s",
+                        opaque_patient_key(pk), upload_id, exc)
+            try:
+                report["quarantine_reason"] = f"unexpected ingest error: {exc}"
+                ic = store.insert_ingest_case(
+                    upload_id=upload_id, patient_key=opaque_patient_key(pk),
+                    specialty=specialty, case=quarantine_body,
+                    status="quarantined", report=report)
+                quarantined += 1
+                store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
+                                event_type="case_quarantined",
+                                payload={"upload_id": upload_id, "reason": "ingest_error"})
+            except Exception:  # pragma: no cover - last-resort; do not re-raise
+                log.exception("ingest: could not even quarantine patient %s in upload %s",
+                              opaque_patient_key(pk), upload_id)
 
-    status = "ingested" if ingested else ("quarantined" if quarantined else "rejected")
-    reason = None if ingested else (
-        "all cases quarantined — review findings" if quarantined else "nothing ingested")
+    status = _upload_status_from_cases(ingested, quarantined, needs_review)
+    reason = None
+    if status == "needs_review":
+        reason = "one or more cases held for admin review"
+    elif status == "quarantined":
+        reason = "all cases quarantined — review findings"
+    elif status == "rejected":
+        reason = "nothing ingested"
     store.update_ingest_upload(upload_id, status=status, reason=reason, files_json=file_outcomes)
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="upload_processed",
                     payload={"status": status, "ingested": ingested,
-                             "quarantined": quarantined, "imaging_rejected": imaging_rejected})
+                             "quarantined": quarantined, "needs_review": needs_review,
+                             "imaging_rejected": imaging_rejected})
     purge_expired_raw(store)
     return {"status": status, "ingested": ingested, "quarantined": quarantined,
-            "imaging_rejected": imaging_rejected, "files": file_outcomes}
+            "needs_review": needs_review, "imaging_rejected": imaging_rejected,
+            "files": file_outcomes}
 
 
 def sha256_hex(data: bytes) -> str:
