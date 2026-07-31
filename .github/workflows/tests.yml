@@ -42,4 +42,56 @@ jobs:
       - name: Run tests
         # RATE_LIMIT_ENABLED + the Asclepius DB/export temp paths are defaulted in
         # tests/conftest.py; nothing else is needed to boot the app under test.
-        run: pytest -q --durations=10
+        # The rendered-appearance gate lives in its own job below (it needs a
+        # browser), and is deselected here so this job stays browser-free.
+        run: pytest -q --durations=10 --ignore=tests/test_asclepius_visual.py
+
+  visual:
+    # Rendered-appearance gate for the Asclepius eval portal. Split out because it
+    # is the only job needing a browser, and because a browser flake should read as
+    # "the visual gate is red", not as a backend failure.
+    #
+    # This exists because two defects reached main through a fully green suite —
+    # a `text-transform: capitalize` Title-Casing the plain-language rubric axis
+    # options, and the rubric slider painting in the user-agent's default blue in
+    # a palette that has no blue. Neither is visible to a source assertion: one is
+    # paint-only, the other never appears in the CSSOM at all.
+    name: Rendered appearance (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest playwright   # Pillow comes from requirements.txt
+      - name: Install Chromium
+        # --with-deps pulls the system libraries headless Chromium needs; without
+        # it the launch fails and every test in the file SKIPS, which would look
+        # green while checking nothing.
+        run: python -m playwright install --with-deps chromium
+      - name: Run the rendered-appearance gate
+        # A silent skip is the failure mode this job exists to prevent: the file
+        # skips cleanly when no browser is present, which is right for a laptop
+        # and useless here — it would report green while checking nothing. So the
+        # run is failed on any skip.
+        #
+        # `pipefail` matters: without it the pipeline takes tee's exit status and
+        # a genuine test failure would pass silently.
+        run: |
+          set -o pipefail
+          pytest tests/test_asclepius_visual.py -q -rs | tee /tmp/visual.log
+          if grep -qE "[0-9]+ skipped" /tmp/visual.log; then
+            echo "::error::the rendered-appearance gate skipped instead of running \
+          — Chromium was not available to playwright"
+            exit 1
+          fi

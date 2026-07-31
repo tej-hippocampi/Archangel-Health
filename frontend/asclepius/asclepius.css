@@ -1861,6 +1861,15 @@ body.asc-sheet-open { overflow: hidden; }
 /* `.asc-field` is a 6px-gap flex column, so the stem needs no bottom margin of
    its own — the gap already sets the distance to the textarea. */
 .asc-rubric-stem { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* The specific/vague chip is a verdict ON the sentence, not part of it. Sitting
+   mid-line after the toggle it read as a third word; pushed to the field's right
+   edge it reads as the annotation it is, and the stem stays one clean phrase.
+   Only where there is room to push it: once the stem wraps, `margin-left: auto`
+   strands the chip alone on the far right of its own line, and sitting next to
+   the toggle in normal flow reads better than that. */
+@media (min-width: 560px) {
+  .asc-rubric-stem .asc-rubric-spec { margin-left: auto; }
+}
 .asc-rubric-stem-lead { font-size: 14px; color: var(--ink); }
 .asc-rubric-stem-toggle {
   font: inherit; font-size: 14px; font-weight: 600; color: var(--ink);
@@ -1882,9 +1891,17 @@ body.asc-sheet-open { overflow: hidden; }
      between the question and the tier buttons. */
   gap: 16px; margin-bottom: 2px; flex-wrap: wrap;
 }
-.asc-rubric-scale { display: flex; align-items: center; gap: 10px; }
+/* §10 put three controls on one line — slider, readout, auto-fail badge. That
+   fits a desktop card and does NOT fit a phone: below ~400px the row ran past
+   the card and clipped the auto-fail badge, which is the one piece of state
+   here a physician must not miss. So the row wraps, and the slider gives up
+   width first (it is the only element that can shrink without losing meaning). */
+.asc-rubric-scale {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; justify-content: flex-end; min-width: 0;
+}
 .asc-rubric-scale input[type=range] {
-  width: 160px; max-width: 40vw;
+  flex: 0 1 160px; min-width: 88px; max-width: 100%;
   /* A range input paints in the browser's default blue, and there is no blue in
      this palette. It was always blue; §10 moved it beside the question, which is
      what made it loud. Mono chrome, per the wayfinding law — the polarity is
