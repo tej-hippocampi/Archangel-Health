@@ -528,6 +528,10 @@ class AsclepiusStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_upload ON ingest_cases(upload_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_status ON ingest_cases(status)")
+            # Serving hot path (Audit §21.6): next_task_for_evaluator /
+            # eligible_tasks_for_evaluator run a NOT EXISTS correlated on ic.task_id to
+            # exclude blocking-review cases. Index task_id so that stays O(log n).
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_task ON ingest_cases(task_id)")
 
             # ── Sealed ground truth (Buyer Response PRD §3 B1) ───────────────
             # The partner's adjudicated answer key, held SEPARATELY from the case,
@@ -697,13 +701,35 @@ class AsclepiusStore:
             # ingest_case_id NOT NULL, which forced "insert case → then store key" and
             # left a crash-window where an ingested case had no answer key. Relax it to
             # nullable + add the (upload_id, patient_key) staging columns by rebuilding
-            # the table (SQLite can't ALTER a NOT NULL away). Guarded on patient_key so
-            # it runs exactly once; existing rows are preserved and treated as bound.
+            # the table (SQLite can't ALTER a NOT NULL away).
+            #
+            # CRASH-IDEMPOTENT by construction: DDL auto-commits in sqlite3 (it does NOT
+            # roll back with the surrounding transaction), so a rebuild interrupted at
+            # boot must self-heal on the next boot without ever losing a sealed key. We
+            # build a ``_new`` copy (a COMPLETE copy — CREATE + INSERT run back-to-back),
+            # then drop+rename. Recovery invariant: whichever of the two tables HAS ROWS
+            # is authoritative. (Note ``_init_schema`` runs before this and recreates a
+            # missing ``sealed_ground_truth`` as an empty new-schema table, so "original
+            # gone" presents as "main table empty" — hence the row-count test, not a
+            # table-existence test.)
+            tbls = {r["name"] for r in
+                    conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if "sealed_ground_truth_new" in tbls:
+                main_n = (conn.execute("SELECT COUNT(*) FROM sealed_ground_truth").fetchone()[0]
+                          if "sealed_ground_truth" in tbls else 0)
+                if main_n == 0:
+                    # Main is empty — either a fresh recreation (the keys are in _new)
+                    # or there were never any keys; swap _new in, losing nothing.
+                    conn.execute("DROP TABLE IF EXISTS sealed_ground_truth")
+                    conn.execute("ALTER TABLE sealed_ground_truth_new RENAME TO sealed_ground_truth")
+                else:
+                    # Main holds the pre-migration rows → it is authoritative; _new is a
+                    # partial/stale copy. Discard it and let the rebuild below redo it.
+                    conn.execute("DROP TABLE sealed_ground_truth_new")
             if "patient_key" not in cols("sealed_ground_truth"):
-                conn.execute("ALTER TABLE sealed_ground_truth RENAME TO sealed_ground_truth_old")
                 conn.execute(
                     """
-                    CREATE TABLE sealed_ground_truth (
+                    CREATE TABLE sealed_ground_truth_new (
                         sealed_id      TEXT PRIMARY KEY,
                         ingest_case_id TEXT,
                         upload_id      TEXT,
@@ -715,14 +741,17 @@ class AsclepiusStore:
                     """
                 )
                 conn.execute(
-                    """INSERT INTO sealed_ground_truth
+                    """INSERT INTO sealed_ground_truth_new
                        (sealed_id, ingest_case_id, upload_id, patient_key, payload_enc,
                         created_at, bound_at)
                        SELECT sealed_id, ingest_case_id, upload_id, NULL, payload_enc,
                               created_at, created_at
-                         FROM sealed_ground_truth_old"""
+                         FROM sealed_ground_truth"""
                 )
-                conn.execute("DROP TABLE sealed_ground_truth_old")
+                # Drop-then-rename: if a crash lands between these two, the recovery
+                # clause above finishes the rename next boot (keys are safe in _new).
+                conn.execute("DROP TABLE sealed_ground_truth")
+                conn.execute("ALTER TABLE sealed_ground_truth_new RENAME TO sealed_ground_truth")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_sealed_case ON sealed_ground_truth(ingest_case_id)")
             # The staging index is created here (not in _init_schema) so it lands after
             # the column exists on both fresh (created above) and migrated DBs. Idempotent.
