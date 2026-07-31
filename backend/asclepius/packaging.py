@@ -618,7 +618,12 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
         axes: Dict[str, int] = {}
         tiers: Dict[str, int] = {}
         for c in criteria:
-            axes[c["axis"]] = axes.get(c["axis"], 0) + 1
+            # §11: a criterion counts once per axis it scores. `normalize_rubric`
+            # guarantees a non-empty `axes`, so the `axis` fallback is only for
+            # a record shaped by an older writer.
+            for ax in (c.get("axes") or [c.get("axis")]):
+                if ax:
+                    axes[ax] = axes.get(ax, 0) + 1
             tiers[c["tier"]] = tiers.get(c["tier"], 0) + 1
         grounding = grounding_summary(criteria)          # FIX-3
         completeness = rubric_completeness(criteria)     # FIX-4

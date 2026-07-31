@@ -640,7 +640,8 @@ PHYSICIAN-AUTHORED, weighted rubric criteria (HealthBench-shaped). Each criterio
   - text:   what a correct answer must include (positive points) or must never say (negative points)
   - points: signed weight — award POSITIVE points if the answer satisfies a positive criterion; \
 subtract (award the negative) if the answer commits a negative criterion
-  - axis:   accuracy | completeness | safety | reasoning | grounding | communication
+  - axes:   one or more of accuracy | completeness | safety | reasoning | grounding | \
+communication (a criterion may score on several; `axis` is the deprecated first-value mirror)
   - tier:   critical | important | helpful — the criticality band (|points|: critical 8-10, \
 important 4-7, helpful 1-3)
 

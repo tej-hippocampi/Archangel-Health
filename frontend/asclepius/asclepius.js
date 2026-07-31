@@ -929,11 +929,21 @@
     // V3/V4 are the specialty-scoped flows: pick the specialty before the case
     // loads (PRD §1). V1/V2 are text prompts and skip the picker.
     const ver = getPortalVersion();
-    if ((ver === 'v3' || ver === 'v4') && !state.specialtyChosen) { await renderSpecialtyPicker(); return; }
+    const needsSpecialty = (ver === 'v3' || ver === 'v4') && !state.specialtyChosen;
     const wrap = h('div', { class: 'asc-wrap' });
-    wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
-      h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Loading next evaluation…')));
+    const loadCard = h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Loading next evaluation…'));
+    wrap.appendChild(loadCard);
     setRoot(wrap);
+    // §2: no separate route for the picker. The workspace scaffold mounts once;
+    // the picker floats over it and hands control back here, so entry costs one
+    // render instead of two full page transitions.
+    if (needsSpecialty) {
+      stopTimer();
+      loadCard.hidden = true;
+      await renderSpecialtyPicker({ dismissable: false });
+      loadCard.hidden = false;
+    }
     try {
       // Declare the active flow so the server applies it: V3 serves the hard-case
       // queue (difficulty=hard only) with value-aware routing; V2 value-aware;
@@ -1580,7 +1590,9 @@
     const rubric = (state.draft.rubric || []).filter((c) => (c.text || '').trim());
     if (!rubric.length) return { ok: true };
     if (hasCriticalNegative(rubric)) return { ok: true };
-    return { ok: false, msg: 'mark one critical “never” criterion (−8 to −10) to continue' };
+    // §12: name the control the physician actually taps — "must never", set
+    // Critical.
+    return { ok: false, msg: 'mark one “must never” criterion as Critical (−8 to −10) to continue' };
   }
 
   // ─── Rubric Rigor (§C) + Model-Failure Taxonomy (§D) — V3/V4 only ──────────
@@ -1616,7 +1628,11 @@
     const n = crit.length;
     const nPos = crit.filter((c) => (Number(c.points) || 0) > 0).length;
     const nNeg = crit.filter((c) => (Number(c.points) || 0) < 0).length;
-    const axes = new Set(crit.map((c) => c.axis).filter(Boolean));
+    // §11: a criterion can score on several axes, so coverage counts EVERY one.
+    // Reading `c.axis` alone would under-count the moment multi-select ships.
+    // Falls back to the legacy single value for stored/V2-shaped records.
+    const axes = new Set(crit.reduce((acc, c) => acc.concat(
+      (Array.isArray(c.axes) && c.axes.length) ? c.axes : (c.axis ? [c.axis] : [])), []).filter(Boolean));
     const hasCritNeg = hasCriticalNegative(crit);
     const keyCriteria = crit.filter((c) => { const tr = tierForPoints(c.points); return tr === 'critical' || tr === 'important'; });
     const allKeySpecific = keyCriteria.length ? keyCriteria.every((c) => isSpecificText(c.text)) : false;
@@ -2077,77 +2093,134 @@
   }
 
   // ─── V3/V4 specialty picker (Specialty Hyper-Personalization PRD §1) ────────
-  // An inline selector on the same view, before the case loads — styled with the
-  // existing ``.asc-ver-card``/chip vocabulary (no new component). Each option has
-  // its palette dot (nephrology green · cardiology orange · oncology pink) + a
-  // one-line scope blurb. The choice sets ``state.portalSpecialty`` (persisted) and
-  // is sent on every task fetch. Reads GET /specialties, so enabling a 4th specialty
-  // later needs NO frontend change.
+  // A popover over the current view (Eval UI Overhaul §2), shown before the case
+  // loads. Each option is one card: its palette dot (nephrology green ·
+  // cardiology orange · oncology pink) and the specialty name — nothing else.
+  // The choice sets ``state.portalSpecialty`` (persisted) and is sent on every
+  // task fetch. Reads GET /specialties, so enabling a 4th specialty later needs
+  // NO frontend change.
+  //
+  // §2: a pick sets state and nothing else. The picker is a popover now, so a
+  // pick no longer implies a route — the two call sites decide what it means
+  // (first entry continues into the load it is already running; "Change
+  // specialty" reloads only when the specialty actually changed).
   function chooseSpecialty(sp) {
     setPortalSpecialty(sp);
     state.specialtyChosen = true;
-    renderEvalView();
   }
-  async function renderSpecialtyPicker() {
-    stopTimer();
+
+  // §2: three options, reversible. A full-page route reads as a bigger decision
+  // than it is, and the return trip re-renders the whole view. Same data, same
+  // fetch, no navigation — a centred popover over whatever is already on screen.
+  //
+  // Resolves with the chosen specialty, or null if dismissed. ``dismissable``
+  // is false on first entry: the choice is required there, so an escape hatch
+  // would leave the physician looking at a view with no case in it.
+  async function renderSpecialtyPicker(opts) {
+    opts = opts || {};
+    const dismissable = !!opts.dismissable;
     if (!state.specialties) {
       try { const d = await api('/specialties'); state.specialties = (d && d.specialties) || []; }
       catch (e) { state.specialties = []; }
     }
-    const ver = getPortalVersion();
     const last = getPortalSpecialty();
     const enabled = (state.specialties || []).filter((s) => s.enabled);
-    const cards = h('div', { class: 'asc-ver-cards' });
-    (enabled.length ? enabled : [{ specialty: 'nephrology', accent: 'green', blurb: '', buckets: [] }]).forEach((s) => {
-      const nBuckets = (s.buckets || []).length;
-      const card = h('div', {
-        class: 'asc-ver-card' + (last === s.specialty ? ' last-used' : ''),
-        role: 'button', tabindex: '0',
-        onClick: () => chooseSpecialty(s.specialty),
-        onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseSpecialty(s.specialty); } },
-      },
-        h('div', { class: 'asc-ver-card-head' },
-          h('span', { class: 'asc-ver-card-icon ' + specialtyDot(s.specialty), 'aria-hidden': 'true' }),
-          h('div', {},
-            h('div', { class: 'asc-ver-card-title' },
-              s.specialty.charAt(0).toUpperCase() + s.specialty.slice(1),
-              last === s.specialty ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null),
-            h('div', { class: 'asc-ver-card-blurb' }, s.blurb || ''))),
-        nBuckets ? h('ul', { class: 'asc-ver-card-list' }, (s.buckets || []).slice(0, 4).map((b) => h('li', {}, b.label || b.id))) : null,
-        h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
-          'Grade ' + s.specialty.charAt(0).toUpperCase() + s.specialty.slice(1) + ' →'));
-      cards.appendChild(card);
+    const list = enabled.length ? enabled : [{ specialty: 'nephrology', blurb: '', buckets: [] }];
+
+    return new Promise((resolve) => {
+      const restoreFocus = document.activeElement;
+      let settled = false;
+      const close = (value) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener('keydown', onKeydown, true);
+        if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+        document.body.classList.remove('asc-sheet-open');
+        if (restoreFocus && restoreFocus.focus) { try { restoreFocus.focus(); } catch (e) { /* detached */ } }
+        resolve(value);
+      };
+
+      const cards = h('div', { class: 'asc-spec-grid' });
+      list.forEach((s) => {
+        const name = s.specialty.charAt(0).toUpperCase() + s.specialty.slice(1);
+        // The card IS the button — a "Grade Nephrology →" button inside a
+        // clickable card is the same tap described twice.
+        cards.appendChild(h('button', {
+          class: 'asc-spec-card' + (last === s.specialty ? ' last-used' : ''),
+          type: 'button',
+          onClick: () => { chooseSpecialty(s.specialty); close(s.specialty); },
+        },
+          h('span', { class: 'asc-spec-card-dot ' + specialtyDot(s.specialty), 'aria-hidden': 'true' }),
+          h('span', { class: 'asc-spec-card-name' }, name),
+          last === s.specialty ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null));
+      });
+
+      const card = h('div', { class: 'asc-sheet-card' },
+        h('h2', { class: 'asc-sheet-title', id: 'ascSheetTitle' }, 'Choose a specialty'),
+        cards);
+      const sheet = h('div', {
+        class: 'asc-sheet', role: 'dialog', 'aria-modal': 'true',
+        'aria-labelledby': 'ascSheetTitle',
+        onClick: (e) => { if (dismissable && e.target === sheet) close(null); },
+      }, card);
+
+      function onKeydown(e) {
+        if (e.key === 'Escape' && dismissable) { e.preventDefault(); close(null); return; }
+        if (e.key !== 'Tab') return;
+        // Keep Tab inside the dialog — aria-modal is a promise to assistive
+        // tech that has to be true of the focus order too.
+        const focusable = Array.from(sheet.querySelectorAll('button:not([disabled])'));
+        if (!focusable.length) return;
+        const first = focusable[0], lastEl = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); lastEl.focus(); }
+        else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); first.focus(); }
+      }
+
+      document.addEventListener('keydown', onKeydown, true);
+      document.body.classList.add('asc-sheet-open');
+      document.body.appendChild(sheet);
+      const preferred = cards.querySelector('.last-used') || cards.firstChild;
+      if (preferred && preferred.focus) preferred.focus();
     });
-    setRoot(h('div', { class: 'asc-wrap' },
-      h('div', { class: 'asc-ver-home' },
-        h('div', { class: 'asc-exp-badge', style: 'margin-bottom:14px' },
-          h('span', { class: 'asc-exp-badge-label' }, ver === 'v4' ? 'V4 · Real Cases' : 'V3 · Seamless'),
-          h('button', { class: 'asc-btn-link', type: 'button',
-            onClick: () => { state.portalChosen = false; renderEvalView(); } }, 'Change experience')),
-        h('h1', { class: 'asc-ver-home-title' }, 'Choose a specialty'),
-        h('p', { class: 'asc-ver-home-sub' },
-          'Each specialty serves hard, model-breaking cases in the modality it lives in — cardiology in the ECG/echo, oncology in the pathology and molecular panel. Same fast flow across all of them.'),
-        cards)));
   }
 
   // Small read-only indicator inside the workspace: which experience this task
   // is being graded under, with a one-tap route back to the home chooser.
   function renderExperienceBadge() {
     const v = draftVersion();
-    const meta = { v4: ['', 'Real · De-identified Cases'], v3: ['', 'Synthetic Multimodal'], v2: ['', 'V2 · Assisted'], v1: ['', 'V1 · Classic'] }[v] || ['', 'V1 · Classic'];
+    const meta = { v4: 'Real · De-identified Cases', v3: 'Synthetic Multimodal',
+                   v2: 'V2 · Assisted', v1: 'V1 · Classic' }[v] || 'V1 · Classic';
     // V3/V4 also carry the chosen specialty + a one-tap route back to the picker.
     const specLink = (v === 'v3' || v === 'v4')
       ? h('button', { class: 'asc-btn-link', type: 'button',
-          onClick: () => { state.specialtyChosen = false; renderEvalView(); } },
+          onClick: async () => {
+            // §2: opens over the live workspace. Reload only if the specialty
+            // actually changed — re-picking the one you already had must not
+            // throw away the case you are mid-way through.
+            //
+            // The case timer deliberately keeps running: the physician has not
+            // left the case, and if they dismiss the sheet that time really was
+            // spent on this task. (The old full-page route stopped it because it
+            // genuinely left the view.) If they DO switch, the next task's
+            // initDraftForTask restarts the timer from its own draft.
+            const before = getPortalSpecialty();
+            const picked = await renderSpecialtyPicker({ dismissable: true });
+            if (picked && picked !== before) renderEvalView();
+          } },
           'Change specialty')
       : null;
-    return h('div', { class: 'asc-exp-badge' },
-      h('span', { class: 'asc-exp-badge-label' }, meta[0] + meta[1]),
+    // §13: the two links are the same KIND of control, so they read as one
+    // unit. Wrapping them means `space-between` has two children instead of
+    // three — "label left, controls right" — rather than scattering two
+    // related links to opposite edges of the full width.
+    const links = h('div', { class: 'asc-exp-links' },
       h('button', {
         class: 'asc-btn-link', type: 'button',
         onClick: () => { state.portalChosen = false; renderEvalView(); },
       }, 'Change experience'),
       specLink);
+    return h('div', { class: 'asc-exp-badge' },
+      h('span', { class: 'asc-exp-badge-label' }, meta), links);
   }
 
   // ─── §6 semantic case-tag chips (V3/V4) ─────────────────────────────────────
@@ -2355,6 +2428,11 @@
     const el = document.getElementById('ascAssistHint');
     if (!el) return;
     clear(el);
+    // §4 (V3/V4): the model's weaker-answer guess is retained in `assist` — it
+    // still rides the submitted payload for override-rate analysis — but it is
+    // never rendered. Surfacing it anchors the physician before they commit,
+    // which is the exact bias the blinded A/B exists to prevent.
+    if (isV3()) return;
     const a = assistData();
     if (!a) return;
     el.appendChild(h('span', { class: 'asc-assist-chip', 'aria-hidden': 'true' }));
@@ -2396,10 +2474,14 @@
     const answers = h('div', { class: 'asc-answers', id: 'ascAnswers' });
     renderAnswersInto(answers);
 
-    // Diff view (Speed Optimization §3) — assisted flows (V2 + V3). V1 (classic)
-    // shows the full answer text with no diff toggle, exactly as the original.
+    // Diff view (Speed Optimization §3) — V2 only. §3: V3/V4 drop the diff
+    // entirely (toggle, legend and help line). The legend used to be appended
+    // INTO `.asc-answers` — a 2-column grid — which pushed A into cell 2 and B
+    // onto row 2; removing it restores the symmetric side-by-side layout with
+    // no CSS change. V1 (classic) never had a toggle.
     const assisted = isAssisted();
-    const diffToggle = assisted ? h('button', {
+    const showDiff = assisted && !isV3();
+    const diffToggle = showDiff ? h('button', {
       class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button', id: 'ascDiffToggle',
       onClick: () => {
         state.showFullText = !state.showFullText;
@@ -2423,7 +2505,7 @@
       h('div', { class: 'asc-compare-head' },
         h('div', { class: 'asc-card-title' }, 'Compare the answers'),
         diffToggle),
-      assisted ? h('p', { class: 'asc-help', style: 'margin:2px 0 14px' },
+      showDiff ? h('p', { class: 'asc-help', style: 'margin:2px 0 14px' },
         'Shared text is dimmed; passages where the answers diverge are highlighted.') : null,
       answers));
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
@@ -2585,20 +2667,16 @@
   function renderAnswersInto(container) {
     if (!container) return;
     clear(container);
-    // V1 (classic) renders plain full text — no diff, no error-span marks. The
-    // assisted flows (V2 + V3) get the marked A/B diff.
-    const diff = (!isAssisted() || state.showFullText) ? null : computeAnswerDiff();
+    // V1 (classic) renders plain full text — no diff, no error-span marks. V2
+    // keeps the marked A/B diff. §3: V3/V4 render full text side by side — the
+    // highlight asked the physician to trust a machine's notion of "what
+    // differs" before they had read either answer.
+    //
+    // NOTE: this function must only ever append answer CARDS to `container`.
+    // `.asc-answers` is a `1fr 1fr` grid, so any extra child (the old legend)
+    // silently staggers A and B across two rows.
+    const diff = (!isAssisted() || isV3() || state.showFullText) ? null : computeAnswerDiff();
     const a = assistData();
-    // WS5 (V3): brighter, unmissable divergence marking + a one-line legend so the
-    // doctor adjudicates the deltas, not the boilerplate. V2 keeps its subtler diff.
-    container.classList.toggle('asc-answers-v3diff', !!(diff && isV3()));
-    if (diff && isV3()) {
-      container.appendChild(h('div', { class: 'asc-diff-legend' },
-        h('span', { class: 'asc-diff-legend-mark' }, '⬍'),
-        diff.allDivergent
-          ? ' These answers share no text — they diverge throughout, so both are highlighted in full.'
-          : ' Bright passages are where A and B differ — shared text is dimmed.'));
-    }
     (state.task.candidate_answers || []).forEach((c) => {
       container.appendChild(renderAnswerCard(c, diff, a));
     });
@@ -3583,10 +3661,9 @@
         saveDraft(); renderStepsListV3(listId); updateSubmitState();
       },
     }, '+ Add step');
-    const resplitBtn = canAutoSplit ? h('button', {
-      class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
-      onClick: () => autoSplitChosen(listId, true),
-    }, '↻ Re-split from answer') : null;
+    // §5: no "Re-split from answer". The split already runs automatically on
+    // mount (below) — a button for something that already happened is a
+    // decision the physician has to make about nothing.
 
     const hint = h('span', { class: 'asc-submit-hint', id: 'ascStepsContHint' });
     const contBtn = h('button', {
@@ -3608,7 +3685,7 @@
         forBoth ? 'Optionally lay out the reasoning steps behind your ideal answer.'
           : 'Confirm each step, or open it and say what’s off — one step at a time.'),
       h('div', { class: 'asc-steps', id: listId }),
-      h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn, resplitBtn),
+      h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn),
       sectionActions(hint, contBtn));
 
     setTimeout(() => {
@@ -3643,195 +3720,281 @@
     }
   }
 
+  // The status pill for one step. Hoisted out of the list renderer so a single
+  // repainted row (§7) derives its pill identically to a full list render —
+  // two copies of this would drift.
+  function stepStatusOf(s) {
+    if (s.added) return { text: 'added', cls: 'added' };
+    if (s.corrected) {
+      return (s.step_note || '').trim()
+        ? { text: 'corrected ✎', cls: 'corrected' }
+        : { text: 'corrected — say what’s off', cls: 'corrected' };
+    }
+    if (s.confirmed) return { text: 'confirmed ✓', cls: 'confirmed' };
+    return { text: 'pending', cls: 'pending' };
+  }
+
+  // §5: three placeholder rows while the auto-split is in flight. A blank card
+  // reads as "nothing here"; a spinner asks the physician to interpret it.
+  function stepsSkeleton() {
+    return h('div', { class: 'asc-steps-skeleton', 'aria-hidden': 'true' },
+      h('div', {}), h('div', {}), h('div', {}));
+  }
+
+  // §7: rebuild exactly ONE step row in place. `renderStepsListV3` clears and
+  // rebuilds every row, which collapses the page height and makes the browser
+  // drop its scroll anchor — that is the jolt on steps 4–7. An open/close is a
+  // change to at most two rows, so repaint at most two.
+  function repaintStepRow(idx, listId) {
+    if (idx == null || idx < 0) return;
+    const list = document.getElementById(listId || 'ascStepsList');
+    if (!list) return;
+    const node = list.querySelector('[data-step-idx="' + idx + '"]');
+    const s = activeSteps()[idx];
+    if (!node || !s) return;
+    list.replaceChild(buildStepRowV3(s, idx, list.id), node);
+  }
+
   // V3/V4 steps list (§13): single-open accordion; an edited step captures a
   // free-text ``step_note`` (the server derives the error-tag classification);
   // NO tag picker and NO citation block inside step editing.
+  //
+  // §7: keep this for GENUINE list changes (add, insert, remove, re-split).
+  // Never call it for a state toggle — use `repaintStepRow` instead.
   function renderStepsListV3(listId) {
     const list = document.getElementById(listId);
     if (!list) return;
     clear(list);
     const steps = activeSteps();
-    // Grounding-required tasks keep the per-step citation editor (§13's "no
-    // citation block in step editing" yields here: the server hard-gates a
-    // valid anchor on every step, so removing the UI would dead-end submit).
-    const groundingRequired = (state.task.grounding_mode === 'required');
     if (state.splitting) {
-      list.appendChild(h('p', { class: 'asc-help' }, 'Splitting the chosen answer into steps…'));
+      list.appendChild(stepsSkeleton());
       return;
     }
     if (!steps.length) {
-      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually' +
-        (state.draft.verdict !== 'both_inadequate' ? ', or use “Re-split from answer”.' : '.')));
+      // §5: no "Re-split from answer" to point at any more — the split runs
+      // automatically on mount, so the only manual route is adding a step.
+      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually.'));
       syncStepsCont();
       return;
     }
-
-    const statusOf = (s) => {
-      if (s.added) return { text: 'added', cls: 'added' };
-      if (s.corrected) {
-        return (s.step_note || '').trim()
-          ? { text: 'corrected ✎', cls: 'corrected' }
-          : { text: 'corrected — say what’s off', cls: 'corrected' };
-      }
-      if (s.confirmed) return { text: 'confirmed ✓', cls: 'confirmed' };
-      return { text: 'pending', cls: 'pending' };
-    };
 
     // Bulk confirm for model-passed, untouched steps (kept from the pre-graded
     // flow — reading then one tap is still an explicit endorsement).
     const untouchedGood = steps.filter((s) => s.suggested_label === 'good' && !s.confirmed
       && !s.corrected && !s.added && (s.text || '').trim() === (s.original_text || '').trim());
     if (untouchedGood.length > 1) {
-      list.appendChild(h('div', { class: 'asc-step-bulkbar' },
+      const bulkbar = h('div', { class: 'asc-step-bulkbar' },
         h('span', { class: 'asc-step-bulk-label' },
           untouchedGood.length + ' steps look correct to the model — read them, then confirm in one tap.'),
         h('button', {
           class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
           onClick: () => {
+            const touched = untouchedGood.map((s) => steps.indexOf(s));
             untouchedGood.forEach((s) => setStepConfirmed(s, true));
-            saveDraft(); renderStepsListV3(listId); updateSubmitState();
+            saveDraft();
+            // §7 again: repaint only the rows this actually changed, then drop
+            // the bar itself. A full rebuild here would jolt the page exactly
+            // as the per-row toggle used to.
+            touched.forEach((i) => repaintStepRow(i, listId));
+            if (bulkbar.parentNode) bulkbar.parentNode.removeChild(bulkbar);
+            syncStepsCont(); updateSubmitState();
           },
-        }, '✓ Confirm all correct')));
+        }, '✓ Confirm all correct'));
+      list.appendChild(bulkbar);
     }
 
-    steps.forEach((s, idx) => {
-      s.step = idx + 1;
-      const open = state._openStep === idx;
-      const st = statusOf(s);
-      const flaggedBadge = (s.suggested_label === 'bad')
-        ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, 'model · flags this')
-        : (s.suggested_label === 'good')
-          ? h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, 'model · looks correct')
-          : null;
+    steps.forEach((s, idx) => list.appendChild(buildStepRowV3(s, idx, listId)));
+    syncStepsCont();
+  }
 
-      const confirmBtn = h('button', {
-        class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm' + (s.confirmed ? ' active' : ''),
-        type: 'button', hidden: s.corrected || s.added,
-        onClick: (e) => {
-          e.stopPropagation();
-          setStepConfirmed(s, !s.confirmed);
-          if (s.confirmed && state._openStep === idx) state._openStep = null;
-          saveDraft(); renderStepsListV3(listId); updateSubmitState();
-        },
-      }, s.confirmed ? '✓ Confirmed' : '✓ Correct as-is');
+  // One V3/V4 step row, collapsed or expanded. Returns a detached node so both
+  // the full list render and the single-row repaint (§7) go through one path.
+  function buildStepRowV3(s, idx, listId) {
+    // Grounding-required tasks keep the per-step citation editor (§13's "no
+    // citation block in step editing" yields here: the server hard-gates a
+    // valid anchor on every step, so removing the UI would dead-end submit).
+    const groundingRequired = (state.task.grounding_mode === 'required');
+    s.step = idx + 1;
+    const open = state._openStep === idx;
+    const st = stepStatusOf(s);
+    const flaggedBadge = (s.suggested_label === 'bad')
+      ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, 'model · flags this')
+      : (s.suggested_label === 'good')
+        ? h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, 'model · looks correct')
+        : null;
 
-      const head = h('div', { class: 'asc-step-head' },
-        h('div', { style: 'display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap' },
-          h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)),
-          flaggedBadge,
-          h('span', { class: 'asc-step-status ' + st.cls }, st.text)),
-        h('div', { style: 'display:flex;align-items:center;gap:8px' },
-          confirmBtn,
-          h('button', {
-            class: 'asc-btn-link', type: 'button',
-            onClick: () => {
-              state._openStep = open ? null : idx;
-              renderStepsListV3(listId);
-            },
-          }, open ? 'Close' : (s.corrected || s.added ? 'Edit' : 'Open'))));
+    // Repaint just this row's status pill after an in-place mutation.
+    const repaintPill = () => {
+      const pill = row.querySelector('.asc-step-status');
+      const st2 = stepStatusOf(s);
+      if (pill) { pill.textContent = st2.text; pill.className = 'asc-step-status ' + st2.cls; }
+    };
 
-      const row = h('div', {
-        class: 'asc-step' + (open ? '' : ' asc-step-collapsed') + (s.confirmed ? ' is-confirmed' : ''),
-      }, head);
-
-      if (!open) {
-        row.appendChild(h('div', { class: 'asc-step-collapsed-text' }, s.text || ''));
-        if (groundingRequired && (s.text || '').trim() && !isValidAnchor(s.evidence_anchor)) {
-          row.appendChild(h('div', { class: 'asc-anchor-valid asc-anchor-invalid', style: 'margin-top:4px' },
-            '· citation needed — open the step to attach one'));
-        }
-        list.appendChild(row);
-        return;
-      }
-
-      // Expanded editor: the step text + the single free-text "what's off" box.
-      const ta = h('textarea', { class: 'asc-textarea', placeholder: 'Describe this reasoning step…' }, s.text || '');
-      const noteWrap = h('div', { class: 'asc-field', style: 'margin-top:8px' });
-      const note = h('input', {
-        class: 'asc-input',
-        placeholder: 'e.g. treats the creatinine bump as intrinsic AKI — it’s decongestion-related hemoconcentration',
-        value: s.step_note || '',
-      });
-      note.addEventListener('input', () => {
-        s.step_note = note.value;
-        if ((s.step_note || '').trim()) {
-          // The server derives the error-tag classification from this note
-          // (step_note → step_error_tag); the physician never picks a tag.
-          s.label = 'bad'; s.step_reward = 0; s.correction_reason = null;
+    const confirmBtn = h('button', {
+      class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm' + (s.confirmed ? ' active' : ''),
+      type: 'button', hidden: s.corrected || s.added,
+      onClick: (e) => {
+        e.stopPropagation();
+        const wasOpen = state._openStep === idx;
+        setStepConfirmed(s, !s.confirmed);
+        // Confirming an open row collapses it — that IS a structural change to
+        // this row, so it needs a rebuild (of this row only).
+        const collapsing = s.confirmed && wasOpen;
+        if (collapsing) state._openStep = null;
+        saveDraft();
+        if (collapsing) {
+          repaintStepRow(idx, listId);
         } else {
+          // §7 surgical update: three properties change — the button's state
+          // and label, the row's confirmed class, and the status pill.
+          confirmBtn.classList.toggle('active', !!s.confirmed);
+          confirmBtn.textContent = s.confirmed ? '✓ Confirmed' : '✓ Correct as-is';
+          row.classList.toggle('is-confirmed', !!s.confirmed);
+          repaintPill();
+        }
+        syncStepsCont();
+        updateSubmitState();
+      },
+    }, s.confirmed ? '✓ Confirmed' : '✓ Correct as-is');
+
+    const head = h('div', { class: 'asc-step-head' },
+      h('div', { style: 'display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap' },
+        h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)),
+        flaggedBadge,
+        h('span', { class: 'asc-step-status ' + st.cls }, st.text)),
+      h('div', { style: 'display:flex;align-items:center;gap:8px' },
+        confirmBtn,
+        h('button', {
+          // §6: one action, one label. "Has this been touched?" is already
+          // carried by the status pill beside it, and "Edit" names the
+          // physician's intent where "Open" named the widget's mechanics.
+          class: 'asc-btn-link', type: 'button', 'aria-expanded': String(open),
+          onClick: () => {
+            const prev = state._openStep;
+            state._openStep = open ? null : idx;
+            saveDraft();
+            // Anchor on the clicked row: the row above it may change height
+            // when it collapses, and without this the clicked row slides out
+            // from under the cursor.
+            const anchor = row.getBoundingClientRect().top;
+            if (prev != null && prev !== idx) repaintStepRow(prev, listId);
+            repaintStepRow(idx, listId);
+            const list = document.getElementById(listId || 'ascStepsList');
+            const after = list && list.querySelector('[data-step-idx="' + idx + '"]');
+            if (after) window.scrollBy(0, after.getBoundingClientRect().top - anchor);
+          },
+        }, open ? 'Close' : 'Edit')));
+
+    const row = h('div', {
+      class: 'asc-step' + (open ? '' : ' asc-step-collapsed') + (s.confirmed ? ' is-confirmed' : ''),
+      // The handle `repaintStepRow` finds the row by — index alone is not
+      // enough, since the bulk bar is also a child of the list.
+      dataset: { stepIdx: String(idx) },
+    }, head);
+
+    if (!open) {
+      row.appendChild(h('div', { class: 'asc-step-collapsed-text' }, s.text || ''));
+      if (groundingRequired && (s.text || '').trim() && !isValidAnchor(s.evidence_anchor)) {
+        row.appendChild(h('div', { class: 'asc-anchor-valid asc-anchor-invalid', style: 'margin-top:4px' },
+          '· citation needed — open the step to attach one'));
+      }
+      return row;
+    }
+
+    // Expanded editor: the step text + the single free-text "what's off" box.
+    const ta = h('textarea', { class: 'asc-textarea', placeholder: 'Describe this reasoning step…' }, s.text || '');
+    const noteWrap = h('div', { class: 'asc-field', style: 'margin-top:8px' });
+    const note = h('input', {
+      class: 'asc-input',
+      placeholder: 'e.g. treats the creatinine bump as intrinsic AKI — it’s decongestion-related hemoconcentration',
+      value: s.step_note || '',
+    });
+    note.addEventListener('input', () => {
+      s.step_note = note.value;
+      if ((s.step_note || '').trim()) {
+        // The server derives the error-tag classification from this note
+        // (step_note → step_error_tag); the physician never picks a tag.
+        s.label = 'bad'; s.step_reward = 0; s.correction_reason = null;
+      } else {
+        s.label = null; s.step_reward = null;
+      }
+      saveDraft(); syncStepsCont(); updateSubmitState();
+      repaintPill();
+    });
+    noteWrap.appendChild(h('label', { class: 'asc-label' }, 'What’s off with this step?'));
+    noteWrap.appendChild(withMic(note));
+    noteWrap.hidden = !s.corrected;
+
+    const hasOriginal = s.original_text != null;
+    // §8: the FULL original goes into the DOM; CSS ellipsises it at the true
+    // edge of the bar. The old 80-char JS cut was right at exactly one width
+    // and stopped a third of the way across a desktop card.
+    const originalBox = hasOriginal
+      ? h('details', { class: 'asc-step-original', hidden: !s.corrected },
+          h('summary', { class: 'asc-step-original-sum' },
+            h('span', { class: 'asc-step-original-tag' }, 'original'),
+            h('span', { class: 'asc-step-original-preview' }, s.original_text || '')),
+          h('div', { class: 'asc-step-original-full' }, s.original_text || ''))
+      : null;
+
+    const suggestHint = (s.suggested_label === 'bad' && s.suggested_critique)
+      ? h('div', { class: 'asc-step-suggest-hint' }, 'Model: ' + s.suggested_critique)
+      : null;
+
+    ta.addEventListener('input', () => {
+      s.text = ta.value;
+      if (hasOriginal) {
+        if (ta.value.trim() !== (s.original_text || '').trim()) {
+          if (!s.corrected) { s.corrected = true; s.confirmed = false; }
+        } else {
+          s.corrected = false; s.confirmed = false; s.correction_reason = null;
           s.label = null; s.step_reward = null;
         }
-        saveDraft(); syncStepsCont(); updateSubmitState();
-        const pill = row.querySelector('.asc-step-status');
-        const st2 = statusOf(s);
-        if (pill) { pill.textContent = st2.text; pill.className = 'asc-step-status ' + st2.cls; }
-      });
-      noteWrap.appendChild(h('label', { class: 'asc-label' }, 'What’s off with this step?'));
-      noteWrap.appendChild(withMic(note));
-      noteWrap.hidden = !s.corrected;
-
-      const hasOriginal = s.original_text != null;
-      const originalBox = hasOriginal
-        ? h('details', { class: 'asc-step-original', hidden: !s.corrected },
-            h('summary', {}, 'original: ' + ((s.original_text || '').length > 80
-              ? (s.original_text || '').slice(0, 80) + '…' : (s.original_text || ''))),
-            h('div', { class: 'asc-step-original-full' }, s.original_text || ''))
-        : null;
-
-      const suggestHint = (s.suggested_label === 'bad' && s.suggested_critique)
-        ? h('div', { class: 'asc-step-suggest-hint' }, 'Model: ' + s.suggested_critique)
-        : null;
-
-      ta.addEventListener('input', () => {
-        s.text = ta.value;
-        if (hasOriginal) {
-          if (ta.value.trim() !== (s.original_text || '').trim()) {
-            if (!s.corrected) { s.corrected = true; s.confirmed = false; }
-          } else {
-            s.corrected = false; s.confirmed = false; s.correction_reason = null;
-            s.label = null; s.step_reward = null;
-          }
-        }
-        noteWrap.hidden = !s.corrected;
-        if (originalBox) originalBox.hidden = !s.corrected;
-        const pill = row.querySelector('.asc-step-status');
-        const st2 = statusOf(s);
-        if (pill) { pill.textContent = st2.text; pill.className = 'asc-step-status ' + st2.cls; }
-        saveDraft(); syncStepsCont(); updateSubmitState();
-      });
-
-      const rowActions = h('div', { style: 'margin-top:8px;display:flex;gap:10px' },
-        h('button', {
-          class: 'asc-btn-link', type: 'button',
-          onClick: () => {
-            activeSteps().splice(idx + 1, 0, newAuthoredStep());
-            state._openStep = idx + 1;
-            saveDraft(); renderStepsListV3(listId); updateSubmitState();
-          },
-        }, '+ insert below'),
-        h('button', {
-          class: 'asc-btn-link', type: 'button', style: 'color:var(--asc-danger)',
-          onClick: () => {
-            activeSteps().splice(idx, 1);
-            state._openStep = null;
-            saveDraft(); renderStepsListV3(listId); updateSubmitState();
-          },
-        }, 'Remove'));
-
-      // Per-step citation editor ONLY when the task requires grounding (see
-      // groundingRequired above) — everywhere else §13 keeps step editing lean.
-      let anchorBlock = null;
-      if (groundingRequired) {
-        if (!s.evidence_anchor) s.evidence_anchor = emptyAnchor();
-        anchorBlock = renderAnchorBlock(s.evidence_anchor, { label: 'citation for this step', required: true });
-        // Keep the section's Continue honest as the anchor fields are filled.
-        anchorBlock.addEventListener('input', () => setTimeout(() => { syncStepsCont(); updateSubmitState(); }, 0));
-        anchorBlock.addEventListener('change', () => setTimeout(() => { syncStepsCont(); updateSubmitState(); }, 0));
+        // The confirm button is hidden for a corrected step; keep it honest
+        // without rebuilding the row (which would blur the textarea mid-type).
+        confirmBtn.hidden = !!(s.corrected || s.added);
+        confirmBtn.classList.toggle('active', !!s.confirmed);
+        confirmBtn.textContent = s.confirmed ? '✓ Confirmed' : '✓ Correct as-is';
+        row.classList.toggle('is-confirmed', !!s.confirmed);
       }
-      appendChildren(row, [suggestHint, ta, noteWrap, originalBox, anchorBlock, rowActions]);
-      list.appendChild(row);
+      noteWrap.hidden = !s.corrected;
+      if (originalBox) originalBox.hidden = !s.corrected;
+      repaintPill();
+      saveDraft(); syncStepsCont(); updateSubmitState();
     });
-    syncStepsCont();
+
+    const rowActions = h('div', { style: 'margin-top:8px;display:flex;gap:10px' },
+      h('button', {
+        class: 'asc-btn-link', type: 'button',
+        onClick: () => {
+          activeSteps().splice(idx + 1, 0, newAuthoredStep());
+          state._openStep = idx + 1;
+          // A genuine list change — the indices below this row all shift, so
+          // the full renderer is correct here.
+          saveDraft(); renderStepsListV3(listId); updateSubmitState();
+        },
+      }, '+ insert below'),
+      h('button', {
+        class: 'asc-btn-link', type: 'button', style: 'color:var(--asc-danger)',
+        onClick: () => {
+          activeSteps().splice(idx, 1);
+          state._openStep = null;
+          saveDraft(); renderStepsListV3(listId); updateSubmitState();
+        },
+      }, 'Remove'));
+
+    // Per-step citation editor ONLY when the task requires grounding (see
+    // groundingRequired above) — everywhere else §13 keeps step editing lean.
+    let anchorBlock = null;
+    if (groundingRequired) {
+      if (!s.evidence_anchor) s.evidence_anchor = emptyAnchor();
+      anchorBlock = renderAnchorBlock(s.evidence_anchor, { label: 'citation for this step', required: true });
+      // Keep the section's Continue honest as the anchor fields are filled.
+      anchorBlock.addEventListener('input', () => setTimeout(() => { syncStepsCont(); updateSubmitState(); }, 0));
+      anchorBlock.addEventListener('change', () => setTimeout(() => { syncStepsCont(); updateSubmitState(); }, 0));
+    }
+    appendChildren(row, [suggestHint, ta, noteWrap, originalBox, anchorBlock, rowActions]);
+    return row;
   }
 
   // ─── §15 Confidence + submit — mounts ONLY at the confidence substage ───────
@@ -3873,11 +4036,39 @@
   // doctor's tags, and plain-language weights (numeric bands live in the
   // info-dot, not the primary copy).
   const TIER_DEFAULT_PTS = { critical: 9, important: 5, helpful: 2 };
+  // §10: "Must-have" and "Important" are synonyms in ordinary English — nothing
+  // in the words says which outranks the other, so the physician had to learn an
+  // arbitrary mapping. Critical > Major > Minor is a severity scale clinicians
+  // already rank without thinking. The explanations state CONSEQUENCE ("the
+  // answer is wrong without this"), which is checkable, rather than priority,
+  // which is an opinion. The tier KEYS are unchanged, so `tierForPoints`,
+  // `TIER_DEFAULT_PTS`, the backend, and every stored record keep working —
+  // this is a label-only change.
   const TIER_CHOICES = [
-    ['critical', 'Must-have', 'decides correctness on its own'],
-    ['important', 'Important', 'a real quality difference'],
-    ['helpful', 'Nice-to-have', 'polish — good if present'],
+    ['critical', 'Critical', 'the answer is wrong or unsafe without this'],
+    ['important', 'Major', 'the answer is clearly worse without this'],
+    ['helpful', 'Minor', 'a refinement — good, not decisive'],
   ];
+  // §11: "axis" is ML vocabulary a clinician has no reason to know. The enum
+  // keys are the wire format and never change; these are what the physician
+  // reads. [label, explanation] — the explanation is the button's title.
+  const AXIS_LABELS = {
+    accuracy: ['Got the facts right', 'values, doses, findings are correct'],
+    completeness: ['Didn’t miss anything', 'nothing decisive left out'],
+    safety: ['Safe for the patient', 'no harmful action or omission'],
+    reasoning: ['Sound reasoning', 'the logic actually follows'],
+    grounding: ['Backed by evidence', 'guideline or literature support'],
+    communication: ['Clearly explained', 'a colleague could act on it'],
+  };
+  // Every criterion carries `axes` (a list). `axis` is mirrored from `axes[0]`
+  // for backward compatibility with stored records and the V2 path. A criterion
+  // always has at least one axis.
+  function criterionAxes(c) {
+    if (!c) return ['accuracy'];
+    if (!Array.isArray(c.axes) || !c.axes.length) c.axes = c.axis ? [c.axis] : ['accuracy'];
+    c.axis = c.axes[0];
+    return c.axes;
+  }
 
   // 14.4: auto-growing textarea (min 2 rows) — the full criterion text is always
   // visible and editable; nothing clips.
@@ -3945,12 +4136,16 @@
 
     return sectionCard('rubric',
       infoDot('Build the scoring guide', [
-        'Weights: must-have / important / nice-to-have map to high / medium / low points; a “must-never” auto-fails the answer.',
+        'Weights: critical / major / minor map to high / medium / low points; a “must never” auto-fails the answer.',
         'Confirm or edit each drafted criterion, then add your own if something is missing.',
       ]),
       // 14.1: layman's description — no numeric tiers in the primary copy.
+      // §12: the phrase in the UI is "must never" (two words, no hyphen), so
+      // the copy that names it has to match what the physician actually taps.
       h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
-        'List what a correct answer must get right and what it must never do. Each item is weighted by how much it matters. Name at least one “must-never”: the single thing that makes an answer wrong no matter what.'),
+        'List what a correct answer must get right and what it must never do. Each item is weighted by how much it matters. Name at least one ',
+        h('strong', {}, 'must never'),
+        ' — the single thing that makes an answer wrong no matter what.'),
       pinned,
       body);
   }
@@ -3980,22 +4175,38 @@
     };
     ta.addEventListener('input', () => { c.text = ta.value; paintSpec(); saveDraft(); updateSubmitState(); });
 
-    const signRow = h('div', { class: 'asc-sev-pills' });
     const tierRow = h('div', { class: 'asc-rubric-tier-row' });
     const ptsLabel = h('span', { class: 'asc-rubric-pts' });
-    const slider = h('input', { type: 'range', min: '1', max: '10', step: '1', style: 'width:120px' });
+    const slider = h('input', {
+      type: 'range', min: '1', max: '10', step: '1',
+      'aria-label': 'How many points this criterion is worth',
+    });
     const autoFail = h('span', {
       class: 'asc-badge asc-badge-amber', hidden: true,
-      title: 'A “must-never” — the grader hard-fails an answer that does this.',
+      title: 'A “must never” — the grader hard-fails an answer that does this.',
     }, 'auto-fail ✓');
 
     const mag = () => Math.max(1, Math.abs(Number(c.points) || 5));
     const neg = () => (Number(c.points) || 0) < 0;
+    // §9: the polarity toggle IS the sentence stem — "A correct answer [must
+    // never] — give thrombolytics in dissection" reads as one sentence rather
+    // than as two form fields. It still sets the sign of `c.points`, which is
+    // what drives auto-fail and the grader's hard-fail, so no data is lost.
+    // Pink for “must never” (the flag/critical accent); lime for “must”.
+    const stemToggle = h('button', {
+      class: 'asc-rubric-stem-toggle', type: 'button',
+      'aria-label': 'Switch between must and must never',
+      onClick: () => { setPoints(mag(), !neg()); ta.focus(); },
+    }, 'must');
     function paintAll() {
       slider.value = String(mag());
       ptsLabel.textContent = (neg() ? '−' : '+') + mag();
       ptsLabel.className = 'asc-rubric-pts ' + (neg() ? 'neg' : 'pos');
-      Array.from(signRow.children).forEach((b) => b.classList.toggle('active', (b.dataset.sign === 'neg') === neg()));
+      stemToggle.textContent = neg() ? 'must never' : 'must';
+      stemToggle.className = 'asc-rubric-stem-toggle ' + (neg() ? 'neg' : 'pos');
+      stemToggle.title = neg()
+        ? 'This is a “must never” — switch to “must” if the answer is required to do it.'
+        : 'This is a “must” — switch to “must never” if the answer is required NOT to do it.';
       Array.from(tierRow.children).forEach((b) => b.classList.toggle('active', b.dataset.tier === tierForPoints(c.points)));
       autoFail.hidden = !(neg() && tierForPoints(c.points) === 'critical');
       paintSpec();
@@ -4008,12 +4219,6 @@
       saveDraft();
       updateSubmitState();
     };
-    [['pos', 'Must include ✓'], ['neg', 'Must never ✕']].forEach(([sign, label]) => {
-      signRow.appendChild(h('button', {
-        class: 'asc-sev-pill', type: 'button', dataset: { sign },
-        onClick: () => setPoints(mag(), sign === 'neg'),
-      }, label));
-    });
     TIER_CHOICES.forEach(([tier, label, expl]) => {
       tierRow.appendChild(h('button', {
         class: 'asc-rubric-tier-btn', type: 'button', dataset: { tier }, title: expl,
@@ -4024,18 +4229,32 @@
     });
     slider.addEventListener('input', () => setPoints(parseInt(slider.value, 10) || 1, neg()));
 
+    // §11: MULTI-select, in plain words. A criterion routinely scores on more
+    // than one axis — "must never give thrombolytics in dissection" is safety
+    // AND accuracy — and forcing a single pick discards a distinction the buyer
+    // is paying for. `c.axes` is authoritative; `c.axis` mirrors `axes[0]` so
+    // stored records and the V2/backend single-value path keep working.
     const axes = (state.taxonomy.rubric_axes
       || ['accuracy', 'completeness', 'safety', 'reasoning', 'grounding', 'communication']);
+    criterionAxes(c);
     const axisRow = h('div', { class: 'asc-sev-pills asc-axis-row' });
     axes.forEach((ax) => {
+      const [label, expl] = AXIS_LABELS[ax] || [ax, ''];
       axisRow.appendChild(h('button', {
-        class: 'asc-sev-pill' + ((c.axis || 'accuracy') === ax ? ' active' : ''), type: 'button',
+        class: 'asc-sev-pill' + (c.axes.indexOf(ax) !== -1 ? ' active' : ''),
+        type: 'button', title: expl, 'aria-pressed': String(c.axes.indexOf(ax) !== -1),
         onClick: (e) => {
-          c.axis = ax;
-          Array.from(axisRow.children).forEach((b) => b.classList.toggle('active', b === e.currentTarget));
+          const on = c.axes.indexOf(ax) !== -1;
+          if (on && c.axes.length === 1) return;   // a criterion always has ≥1 axis
+          c.axes = on ? c.axes.filter((x) => x !== ax) : c.axes.concat([ax]);
+          c.axis = c.axes[0];                      // legacy single-value mirror
+          e.currentTarget.classList.toggle('active', !on);
+          e.currentTarget.setAttribute('aria-pressed', String(!on));
           saveDraft();
+          // The premium/axis-coverage readout on the finish card counts axes.
+          updateSubmitState();
         },
-      }, ax));
+      }, label));
     });
 
     const citeArea = h('div', { class: 'asc-rubric-cite', hidden: 'hidden' });
@@ -4067,26 +4286,31 @@
       onClick: () => { c.text = ta.value; d.rubricCursor = i + 1; saveDraft(); renderRationale(); },
     }, 'Next →');
 
+    // §9: the stem replaces the "Type" field entirely — the sentence already
+    // answered the question the field was asking.
     card.appendChild(h('div', { class: 'asc-field' },
-      h('label', { class: 'asc-label' }, 'A correct answer… ', specChip),
+      h('div', { class: 'asc-rubric-stem' },
+        h('span', { class: 'asc-rubric-stem-lead' }, 'A correct answer'),
+        stemToggle,
+        specChip),
       ta));
     card.appendChild(h('div', { class: 'asc-field' },
-      h('label', { class: 'asc-label' }, 'Type'), signRow));
+      // §10: the scale sits BESIDE the question, not below the choices — the
+      // tier buttons and the slider are two ways to set ONE value, and the
+      // readout is what makes that obvious.
+      h('div', { class: 'asc-rubric-matter-head' },
+        h('label', { class: 'asc-label' }, 'How much does it matter? ',
+          infoDot('Weights', [
+            'Critical / major / minor map to high / medium / low points.',
+            'A “must never” marked critical is the auto-fail — the grader hard-fails on it.',
+          ])),
+        h('div', { class: 'asc-rubric-scale' }, slider, ptsLabel, autoFail)),
+      tierRow));
     card.appendChild(h('div', { class: 'asc-field' },
-      h('label', { class: 'asc-label' }, 'How much does it matter? ',
-        infoDot('Weights', [
-          'Must-have / important / nice-to-have map to high / medium / low points.',
-          'A “must never” marked must-have is the auto-fail — the grader hard-fails on it.',
-        ])),
-      tierRow,
-      h('div', { style: 'display:flex;align-items:center;gap:10px;margin-top:8px' },
-        slider, ptsLabel, autoFail)));
-    card.appendChild(h('div', { class: 'asc-field' },
-      h('label', { class: 'asc-label' }, 'Which axis does it score? ',
-        infoDot('Axes', [
-          'Accuracy = facts right · completeness = nothing missing · safety = no harm · reasoning = sound logic.',
-          'Grounding = evidence-backed · communication = clear to the reader.',
-        ])),
+      // §11: the label states the job and the options explain themselves, so
+      // the "Axes" tooltip that used to translate the enum is gone.
+      h('label', { class: 'asc-label' }, 'What does this criterion check? ',
+        h('span', { class: 'asc-label-hint' }, '(select all that apply)')),
       axisRow));
     card.appendChild(h('div', { style: 'display:flex;gap:14px;margin-top:4px' }, citeBtn, removeBtn));
     card.appendChild(citeArea);
@@ -4129,7 +4353,7 @@
     const addBtn = h('button', {
       class: 'asc-btn asc-btn-subtle', type: 'button',
       onClick: () => {
-        d.rubric.push({ text: '', points: 5, axis: 'accuracy', source: 'manual' });
+        d.rubric.push({ text: '', points: 5, axes: ['accuracy'], axis: 'accuracy', source: 'manual' });
         d.rubricCursor = d.rubric.length - 1;
         saveDraft(); renderRationale();
       },
@@ -4570,10 +4794,11 @@
 
   // Auto-split the chosen answer into gradable steps — pre-graded when the LLM
   // is available (Speed Optimization §2): each step arrives with a suggested
-  // good/bad label so the doctor spends time only on the flagged ones. Force
-  // re-runs even when steps already exist (the "Re-split" affordance). Degrades
-  // gracefully — offline the steps arrive unlabeled and the doctor grades
-  // manually; on failure the doctor just adds steps.
+  // good/bad label so the doctor spends time only on the flagged ones. ``force``
+  // re-runs even when steps already exist; §5 removed the button that passed it,
+  // so the only live caller is the on-mount auto-fire. Degrades gracefully —
+  // offline the steps arrive unlabeled and the doctor grades manually; on
+  // failure the doctor just adds steps.
   async function autoSplitChosen(listId, force) {
     const text = chosenRefinedText().trim();
     const startedChosen = state.draft.chosen_id;
@@ -4581,7 +4806,13 @@
     if (!force && activeSteps().length) return;
     state.splitting = true;
     const list = document.getElementById(listId);
-    if (list) { clear(list); list.appendChild(h('p', { class: 'asc-help' }, 'Splitting the chosen answer into steps…')); }
+    // §5 (V3/V4): skeleton rows, not a blank card — "this is arriving" without
+    // a spinner to interpret. V1/V2 keep the sentence.
+    if (list) {
+      clear(list);
+      list.appendChild(isV3() ? stepsSkeleton()
+        : h('p', { class: 'asc-help' }, 'Splitting the chosen answer into steps…'));
+    }
     if (isV3()) syncStepsCont(); // §13: Continue stays locked while splitting
     try {
       // Assisted flows (V2 + V3) pre-grade each step (suggested good/bad); V1
@@ -4624,10 +4855,8 @@
       class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
       onClick: () => { activeSteps().push(newAuthoredStep()); saveDraft(); renderStepsList(listId); updateSubmitState(); },
     }, '+ Add step');
-    const resplitBtn = canAutoSplit ? h('button', {
-      class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
-      onClick: () => autoSplitChosen(listId, true),
-    }, '↻ Re-split from answer') : null;
+    // §5: no "Re-split from answer" here either — the auto-split below already
+    // ran; the control only ever restated it.
 
     const card = h('div', { class: 'asc-subcard' },
       h('div', { class: 'asc-subcard-head' }, '↳ Reasoning steps ',
@@ -4635,7 +4864,7 @@
           canAutoSplit ? 'confirm each step, or edit it to correct it' : (required ? '(each step needs a citation)' : '(optional)'))),
       h('div', { class: 'asc-subcard-body' },
         h('div', { class: 'asc-steps', id: listId }),
-        h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn, resplitBtn),
+        h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn),
       ));
     setTimeout(() => {
       renderStepsList(listId);
@@ -4756,9 +4985,12 @@
 
       // Collapsed "original:" reference — the AI's split step we're correcting.
       const originalBox = hasOriginal
+        // §8: full text in, CSS ellipsis at the true edge — an 80-char cut is
+        // wrong at every width except the one it was chosen for.
         ? h('details', { class: 'asc-step-original' },
-            h('summary', {}, 'original: ' + ((s.original_text || '').length > 80
-              ? (s.original_text || '').slice(0, 80) + '…' : (s.original_text || ''))),
+            h('summary', { class: 'asc-step-original-sum' },
+              h('span', { class: 'asc-step-original-tag' }, 'original'),
+              h('span', { class: 'asc-step-original-preview' }, s.original_text || '')),
             h('div', { class: 'asc-step-original-full' }, s.original_text || ''))
         : null;
 
@@ -4843,7 +5075,9 @@
       list.appendChild(h('div', { class: 'asc-step' }, head, suggestHint, ta, reasonWrap, originalBox, critiqueField, stepCite, anchorBlock));
     });
     if (!steps.length) {
-      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually, or use “Re-split from answer”.'));
+      // §5: the re-split control is gone from this card too, so the copy that
+      // pointed at it goes with it.
+      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually.'));
     }
   }
 
@@ -5450,8 +5684,12 @@
       // Rubric capture (FEAT-2): the confirmed weighted criteria (empty when the
       // doctor didn't capture a rubric). Zero-point/empty rows are dropped server-side.
       rubric: (d.rubric || []).filter((c) => (c.text || '').trim()).map((c) => {
+        // §11: `axes` is authoritative; `axis` ships alongside it as `axes[0]`
+        // (deprecated) so older readers and stored records keep working.
+        const axs = (Array.isArray(c.axes) && c.axes.length) ? c.axes.slice() : (c.axis ? [c.axis] : []);
         const entry = {
-          text: (c.text || '').trim(), points: c.points || 0, axis: c.axis || null, source: c.source || 'manual',
+          text: (c.text || '').trim(), points: c.points || 0,
+          axes: axs, axis: axs[0] || c.axis || null, source: c.source || 'manual',
           // Tier (Two-Model PRD WS-B) — the server re-derives from |points| when it
           // doesn't match, so this is a hint, never authoritative.
           tier: tierForPoints(c.points),
