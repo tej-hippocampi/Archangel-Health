@@ -10,6 +10,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Manual re-run. The Asclepius submission pipeline is deliberately
+  # nondeterministic in places (`pipeline._should_sample` spot-checks a
+  # percentage of submissions into QA), and a couple of the websocket tests are
+  # timing-sensitive, so a red run is not always a real regression. Without this
+  # the only way to re-run is an empty commit, which pollutes main's history.
+  workflow_dispatch:
 
 # Cancel superseded runs on the same ref so a force-push doesn't pile up jobs.
 concurrency:
