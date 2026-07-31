@@ -3849,41 +3849,71 @@
       class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascSubmit', onClick: submitEvaluation,
     }, 'Submit evaluation');
     const hint = h('span', { class: 'asc-submit-hint', id: 'ascSubmitHint' });
-    const card = sectionCard('confidence', null,
+    const confidenceCard = sectionCard('confidence', null,
       confPills,
-      renderDecisiveActionField(),
       h('div', { class: 'asc-submit-row' }, hint, submitBtn));
     setTimeout(updateSubmitState, 0);
-    return card;
+    // The decisive-action capture is OPTIONAL, so it lives in its own card ABOVE the
+    // confidence + submit gate — never wedged into the commit moment (Audit §13).
+    const decisive = renderDecisiveActionCard();
+    return decisive ? h('div', {}, decisive, confidenceCard) : confidenceCard;
   }
 
-  // Decisive action (Audit §13) — one skippable field: the test or action the
-  // correct answer depends on. This turns a preference label into a verifiable
-  // reward. Optional by design: a physician who can't name one leaves it blank, and
-  // a fabricated decisive action is worse than none.
-  function renderDecisiveActionField() {
+  // Decisive action (Audit §13): the physician-named verifiable outcome — the test or
+  // action the correct answer depends on. Naming it turns a preference label into a
+  // checkable reward. Its own clearly-OPTIONAL card (not a numbered required step, and
+  // not jammed into the submit gate); a physician who can't name one leaves it blank,
+  // and a fabricated decisive action is worse than none.
+  function renderDecisiveActionCard() {
     const d = state.draft;
     if (!isV3()) return null;   // V3/V4 evaluation screen only
     d.decisive_action = d.decisive_action || { action: '', tool_name: '', rationale: '' };
     const da = d.decisive_action;
-    const action = h('textarea', {
-      class: 'asc-input', rows: '2',
+
+    // Primary field: one free-text question, auto-growing so a long answer never clips.
+    const action = autoGrow(h('textarea', {
+      class: 'asc-textarea',
       placeholder: 'e.g. order pronase-digested paraffin immunofluorescence',
-      value: da.action || '',
-    });
+    }, da.action || ''));
     action.addEventListener('input', () => { da.action = action.value; saveDraft(); });
-    const tool = h('input', {
-      class: 'asc-input', placeholder: 'Optional tool/order name (e.g. order_pronase_if)',
-      value: da.tool_name || '',
-    });
-    tool.addEventListener('input', () => { da.tool_name = tool.value; saveDraft(); });
-    return h('div', { class: 'asc-field', style: 'margin-top:16px' },
-      h('label', { class: 'asc-label' },
-        'Which test or action, if the clinician skips it, makes the correct answer unreachable?'),
-      h('div', { class: 'asc-card-sub', style: 'margin:2px 0 8px' },
-        'Optional. Naming it lets us verify a model actually ordered the decisive step '
-        + 'rather than guessing. Leave blank if none applies.'),
-      action, tool);
+
+    // Secondary field behind progressive disclosure — the default view is one clean
+    // question, not two stacked inputs. Auto-expanded when a resumed draft has a value.
+    const toolInput = h('input', { class: 'asc-input', placeholder: 'e.g. order_pronase_if',
+      value: da.tool_name || '' });
+    toolInput.addEventListener('input', () => { da.tool_name = toolInput.value; saveDraft(); });
+    const toolField = h('div', { class: 'asc-field', style: 'margin-top:12px;margin-bottom:0' },
+      h('label', { class: 'asc-label' }, 'Tool or order name ',
+        h('span', { class: 'asc-label-hint' }, 'optional')),
+      toolInput);
+    const addTool = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+      type: 'button', style: 'margin-top:10px' }, '+ Add a tool or order name');
+    const toolSlot = h('div', {});
+    const paintTool = (shown) => {
+      clear(toolSlot);
+      toolSlot.appendChild(shown ? toolField : addTool);
+    };
+    addTool.addEventListener('click', () => { paintTool(true); setTimeout(() => toolInput.focus(), 0); });
+    paintTool(!!(da.tool_name || '').trim());
+
+    const info = infoDot('Why we ask', [
+      'If you name the decisive step, we can verify a model actually ordered it before '
+      + 'answering — turning this preference label into a checkable reward.',
+      'Skip it when no single step decides the answer. A made-up decisive action is '
+      + 'worse than none.',
+    ]);
+
+    return h('div', { class: 'asc-card asc-card-pad asc-substage' },
+      h('div', { class: 'asc-substage-head' },
+        h('div', { class: 'asc-substage-step asc-substage-step--optional' }, 'Optional'),
+        h('div', { class: 'asc-substage-title' }, 'Decisive action', info)),
+      h('div', { class: 'asc-field', style: 'margin-bottom:0' },
+        h('label', { class: 'asc-label' },
+          'Which test or action, if skipped, makes the correct answer unreachable?'),
+        h('div', { class: 'asc-help', style: 'margin-bottom:8px' },
+          'Free text. Leave blank if none applies.'),
+        action),
+      toolSlot);
   }
 
   // ─── §14 Rubric — build the scoring guide, one criterion at a time ──────────
