@@ -466,6 +466,11 @@ def _merge_fragments(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
         if p.get("_case_provenance") and case_provenance is None:
             case_provenance = p["_case_provenance"]
         synthetic_declared = synthetic_declared or bool(p.get("_synthetic_declared"))
+        # the latest vital-sign date across fragments — the timing marker for the
+        # merged (flat) vitals set, used by the V5 temporal gate.
+        va = p.get("_vitals_at")
+        if va and (out.get("_vitals_at") is None or str(va) > str(out["_vitals_at"])):
+            out["_vitals_at"] = va
     if index_event:
         out["_index_event"] = index_event
     if sealed:
@@ -992,6 +997,9 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
             normalized, treport = normalize_timeline(
                 quarantine_body,
                 index_event=manifest.get("index_event") or merged.get("_index_event"),
+                # passed explicitly: ``quarantine_body`` has the underscore-prefixed
+                # fragment metadata stripped, so the marker would not survive on it.
+                vitals_at=merged.get("_vitals_at"),
             )
             report["timeline"] = treport
             quarantine_body = normalized

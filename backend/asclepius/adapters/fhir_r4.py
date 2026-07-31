@@ -582,6 +582,16 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
             name = _codeable_text(res.get("code")) or "Observation"
             if cat == "vital-signs":
                 frag["vitals"][name] = f"{value} {unit}".strip() if unit else value
+                # Vitals collapse into ONE flat dict, so they carry one timing marker
+                # for the set: the LATEST vital-sign date (the most recent set is what
+                # a "current vitals" read returns). ``timeline`` converts it to a
+                # relative offset so V5 can gate the set. Reserved key, stripped
+                # before the dict is ever returned to an agent.
+                veff = _effective(res)
+                if veff:
+                    prior = frag.get("_vitals_at")
+                    if not prior or str(veff) > str(prior):
+                        frag["_vitals_at"] = str(veff)
                 continue
             if cat != "laboratory":
                 continue
@@ -609,15 +619,29 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
         elif rt == "Condition":
             cond = _codeable_text(res.get("code"))
             if cond:
-                frag["problem_list"].append({
+                problem = {
                     "condition": cond,
                     "since": str(res.get("onsetDateTime") or res.get("recordedDate") or "") or None,
-                })
+                }
+                # The chart-RECORDING date (distinct from clinical onset in ``since``)
+                # → timeline converts it to a relative offset so a problem recorded
+                # AFTER the decision point can be held out by V5 (it IS the answer).
+                recorded = res.get("recordedDate")
+                if recorded:
+                    problem["recorded_at"] = str(recorded)
+                frag["problem_list"].append(problem)
 
         elif rt in ("MedicationStatement", "MedicationRequest"):
             drug = _codeable_text(res.get("medicationCodeableConcept"))
             if drug:
-                frag["medications"].append({"drug": drug, **_dosage_bits(res)})
+                med = {"drug": drug, **_dosage_bits(res)}
+                # The ORDER date → relative offset, so a drug started after the
+                # decision point (which reveals the diagnosis) can be held out.
+                authored = res.get("authoredOn") or res.get("effectiveDateTime") or (
+                    (res.get("effectivePeriod") or {}).get("start"))
+                if authored:
+                    med["authored_on"] = str(authored)
+                frag["medications"].append(med)
 
         elif rt in ("DocumentReference", "Composition", "DiagnosticReport"):
             texts: List[str] = []
@@ -631,6 +655,20 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
                     texts.append(t)
             note_type = _codeable_text(res.get("type")) or ("Report" if rt == "DiagnosticReport" else "Progress")
             role = (specialty or "clinician").lower()
+            # Carry the note's authoring date (DocumentReference.date /
+            # Composition.date / DiagnosticReport.effective[DateTime]) so
+            # ``timeline.normalize_timeline`` can convert it to a relative
+            # ``collected_offset_days`` — the temporal cutoff for narratives (V5). The
+            # raw date is destroyed by timeline; it never survives to the case/export.
+            note_date = _effective(res) or (res.get("date") or "")
+
+            def _note(**kw):
+                # Every note carries the authoring date (V5 timing) AND respects the
+                # objective/interpretive visibility gate (Buyer Response PRD §2 A6).
+                if note_date:
+                    kw["collected_at"] = note_date
+                frag["notes"].append(kw)
+
             for t in texts:
                 if rt == "DiagnosticReport":
                     # A DiagnosticReport narrative body routinely EMBEDS the
@@ -639,19 +677,14 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
                     # body is withheld too, not just the separate conclusion field.
                     objective, interpretive = _split_report_conclusion(t.strip())
                     if objective:
-                        frag["notes"].append({
-                            "note_type": note_type[:40], "author_role": role,
-                            "text": objective, "model_visible": True})
+                        _note(note_type=note_type[:40], author_role=role,
+                              text=objective, model_visible=True)
                     if interpretive:
-                        frag["notes"].append({
-                            "note_type": (note_type[:28] + " interpretation"),
-                            "author_role": role, "text": interpretive,
-                            "model_visible": False,
-                            "withheld_reason": "interpretive_conclusion"})
+                        _note(note_type=(note_type[:28] + " interpretation"),
+                              author_role=role, text=interpretive, model_visible=False,
+                              withheld_reason="interpretive_conclusion")
                 else:
-                    frag["notes"].append({
-                        "note_type": note_type[:40], "author_role": role, "text": t.strip(),
-                    })
+                    _note(note_type=note_type[:40], author_role=role, text=t.strip())
             # DiagnosticReport.conclusion is answer-bearing (Buyer Response PRD §2 A6):
             # split the objective result from the interpretive tail and gate the
             # latter. The objective finding always ships; the interpretation is
@@ -660,17 +693,12 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
                 objective, interpretive = _split_report_conclusion(
                     str(res.get("conclusion") or ""))
                 if objective:
-                    frag["notes"].append({
-                        "note_type": note_type[:40], "author_role": role,
-                        "text": objective, "model_visible": True,
-                    })
+                    _note(note_type=note_type[:40], author_role=role,
+                          text=objective, model_visible=True)
                 if interpretive:
-                    frag["notes"].append({
-                        "note_type": (note_type[:28] + " interpretation"),
-                        "author_role": role, "text": interpretive,
-                        "model_visible": False,
-                        "withheld_reason": "interpretive_conclusion",
-                    })
+                    _note(note_type=(note_type[:28] + " interpretation"),
+                          author_role=role, text=interpretive, model_visible=False,
+                          withheld_reason="interpretive_conclusion")
 
     # Age band: birthDate against the bundle's latest observation date — the age
     # AT THE ENCOUNTER, banded (never an exact age or the birth date itself).
