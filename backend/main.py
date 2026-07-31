@@ -5865,6 +5865,25 @@ async def _postop_nightly_retier_loop() -> None:
 async def startup_team_scheduler():
     # Fail closed in production if secrets are still default/weak (PRD-2 §8).
     assert_production_secrets()
+    # Buyer Response PRD §10 G1: every model-call role must have an explicit
+    # temperature. A KeyError at boot beats a silent provider default (~1.0) baked
+    # into shipped records.
+    try:
+        from asclepius.model_sampling import assert_temperatures_configured
+        assert_temperatures_configured()
+    except Exception:
+        _auth_logger.exception("[asclepius] temperature configuration assertion failed")
+        raise
+    # Audit PRD §C1: probe the tesseract BINARY at boot. LOG, never raise — a missing
+    # binary must degrade DICOM burned-in screening to manual review, not refuse boot.
+    try:
+        from asclepius.dicom_deid import ocr_available
+        if not ocr_available():
+            _auth_logger.error(
+                "[asclepius] tesseract is NOT installed. DICOM burned-in PHI screening "
+                "will route every study to manual review. Install tesseract-ocr.")
+    except Exception:
+        _auth_logger.exception("[asclepius] OCR availability probe failed")
     # PRD-4: warn loudly if PHI email would go through a non-BAA transport.
     try:
         from email_utils import active_email_vendor, email_phi_allowed

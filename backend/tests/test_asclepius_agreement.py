@@ -52,10 +52,13 @@ def test_jaccard():
 
 
 def test_aggregate_kappa_overall_and_by_specialty():
+    # V4 Build Spec §H2: only observations EXPLICITLY recorded as blinded enter κ.
+    # insert_agreement writes an explicit 0/1 on every row, so a real double-labeled
+    # observation carries blinded=1; a bare dict with no flag is now excluded.
     observations = [
-        {"specialty": "nephrology", "verdict_a": "A_better", "verdict_b": "A_better"},
-        {"specialty": "nephrology", "verdict_a": "B_better", "verdict_b": "A_better"},
-        {"specialty": "cardiology", "verdict_a": "B_better", "verdict_b": "B_better"},
+        {"specialty": "nephrology", "verdict_a": "A_better", "verdict_b": "A_better", "blinded": 1},
+        {"specialty": "nephrology", "verdict_a": "B_better", "verdict_b": "A_better", "blinded": 1},
+        {"specialty": "cardiology", "verdict_a": "B_better", "verdict_b": "B_better", "blinded": 1},
     ]
     agg = aggregate_kappa(observations)
     assert agg["n"] == 3

@@ -450,7 +450,14 @@ def _datasheet_md(*, export_id: str, profile_name: str, counts: Dict[str, Any],
                   records: List[Dict[str, Any]], contributors: List[Dict[str, Any]],
                   scope: Optional[Dict[str, Any]] = None,
                   eval_pack: Optional[Dict[str, Any]] = None) -> str:
-    credentials = sorted({(r.get("payload") or {}).get("annotator_credential") or "unspecified" for r in records})
+    # No ``or "unspecified"`` fallback (Buyer Response PRD §6 E1): packaging now
+    # fails closed when a credential cannot be resolved, so a None here would be a
+    # bug, not a routine gap. Drop any stray None rather than manufacture a
+    # confident-looking "unspecified" that contradicts the aggregate section.
+    credentials = sorted({
+        c for r in records
+        if (c := (r.get("payload") or {}).get("annotator_credential"))
+    })
     specialties = sorted(counts["by_specialty"].keys())
     type_lines = "\n".join(f"- `{k}`: {v}" for k, v in sorted(counts["by_type"].items()))
     contrib_lines = "\n".join(
@@ -593,9 +600,11 @@ Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
 - Grounded records: **{grounded}/{counts['total']}** (**{grounded_pct}%**)
 
 ## Inter-annotator agreement (Cohen's κ, opt §1.3)
-- Aggregate κ (double-labeled subset, n={kappa.get('n')}): **{kappa.get('overall')}**
+- Aggregate κ (blinded, double-labeled subset, n={kappa.get('n')}): **{kappa.get('overall')}**{(' — ' + kappa['reason']) if kappa.get('overall') is None and kappa.get('reason') else ''}
+- 95% CI (seeded bootstrap): {kappa.get('ci')}
 - Observed agreement: {kappa.get('observed_agreement')}
 - κ threshold for substantial agreement: {KAPPA_THRESHOLD}
+- Minimum-n gate: {kappa.get('min_n')} · unblinded observations excluded: {kappa.get('excluded_unblinded')}
 - By specialty:
 {kappa_spec_lines}
 
@@ -1125,11 +1134,20 @@ def build_export(
     # 3. stats for the quality report
     contributors = store.contributor_stats()
     kappa = asc_agreement.aggregate_kappa(store.list_agreement_observations())
+    # External adjudication (Buyer Response PRD §7 F3): agreement between the referring
+    # institution's sealed adjudication and our physician's independent answer — a
+    # cross-institution signal, reported separately and under the same 30-obs gate.
+    try:
+        ext_pairs = store.external_adjudication_pairs()
+    except Exception:
+        ext_pairs = []
+    external_adjudication = asc_agreement.external_adjudication_agreement(ext_pairs)
     stats = {
         "status_counts": store.status_counts(),
         "qa_pass_rate": store.qa_pass_rate(),
         "average_agreement": store.average_agreement(),
         "kappa": kappa,
+        "external_adjudication_agreement": external_adjudication,
         "flag_counts": _flag_counts(store),
         "contributors": contributors,
     }

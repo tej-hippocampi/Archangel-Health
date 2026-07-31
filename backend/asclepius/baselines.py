@@ -49,15 +49,16 @@ def _provider_of(model: Optional[str]) -> Optional[str]:
         return None
 
 
-def _prompt_hash(system: str, user: str, image_sha256: Optional[str] = None) -> str:
-    """One hash over (system + "\n" + user [+ "\n" + image_sha256]) so a buyer can
-    verify BOTH frontier answers were produced from byte-identical input — INCLUDING
-    the image (V4 Image Embedding PRD §5.3). The pair-divergence guard then also
-    catches a case where the two models somehow received different images."""
-    base = system + "\n" + user
-    if image_sha256:
-        base += "\n" + image_sha256
-    return hashlib.sha256(base.encode("utf-8")).hexdigest()
+def _prompt_hash(system: str, user: str, image_sha256: Optional[str] = None, *,
+                 temperature: Optional[float] = None, model: Optional[str] = None) -> str:
+    """One hash over the exact inputs that make two records comparable — system, user,
+    image, AND the sampling temperature + model (Buyer Response PRD §10 G1). Two
+    records with the same hash must be genuinely comparable; without temperature and
+    model in the digest the hash asserts a reproducibility it cannot deliver. The
+    version is bumped (v2) so pre-sampling hashes are not silently treated as
+    comparable to new ones."""
+    from asclepius.model_sampling import prompt_hash
+    return prompt_hash(system, user, image_sha256, temperature=temperature, model=model)
 
 
 def _case_has_image(task: Dict[str, Any]) -> bool:
@@ -182,9 +183,15 @@ async def run_baselines(
     # prompt_hash so "same prompt, same image" is enforceable, not assumed.
     image_block, image_sha, _image_mime = _case_image_for_baseline(task)
     system = _BASELINE_SYSTEM_IMAGE if image_block else _BASELINE_SYSTEM
+    # Explicit generation temperature (Buyer Response PRD §10 G1): candidate
+    # generation is deliberately warm (variety is the product), stamped and folded
+    # into the hash so two records with the same hash are genuinely comparable.
+    from asclepius.model_sampling import temperature_for
+    gen_temp = temperature_for("baseline_candidate")
     # Compute the shared input hash ONCE — every model answers byte-identical input
-    # (same system + same rendered case + same image, no hints/archetype/answer key).
-    prompt_hash = _prompt_hash(system, prompt, image_sha)
+    # (same system + same rendered case + same image + same temperature, no
+    # hints/archetype/answer key).
+    prompt_hash = _prompt_hash(system, prompt, image_sha, temperature=gen_temp)
     runs: List[Dict[str, Any]] = []
     try:
         from ai.llm_client import call_llm, first_text
@@ -229,6 +236,7 @@ async def run_baselines(
                 prompt_id="asclepius_baseline",
                 purpose="asclepius_baseline_capture",
                 model=model,  # per-model override → router picks the provider by id
+                temperature=gen_temp,  # explicit, folded into prompt_hash (§10 G1)
             )
             return {"model": model, "resp": resp, "rec": rec, "error": None}
         except Exception as exc:

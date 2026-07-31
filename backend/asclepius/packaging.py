@@ -36,6 +36,49 @@ from asclepius.constants import (
 from asclepius.validation import all_anchors, has_valid_anchor, is_valid_anchor
 
 
+class PackagingError(ValueError):
+    """A submission cannot be packaged into a shippable record (Buyer Response PRD
+    §6 E1). Raised — never defaulted around — when a record's annotator credential
+    cannot be resolved, so we never emit a record that would render 'unspecified'
+    at the record level while the aggregate credential section claims board
+    certification. That contradiction is what the buyer found, and an honest gap is
+    less damaging than an inconsistent claim."""
+
+
+def _years_band(years: Any) -> Optional[str]:
+    """Band an exact years-of-experience integer (Buyer Response PRD §6 E2). Kept
+    local to avoid a hard dependency on credentials.py from packaging."""
+    from asclepius.credentials import years_experience_band
+    return years_experience_band(years)
+
+
+def _annotator_credential(submission: Dict[str, Any], store: Any = None) -> Optional[str]:
+    """Resolve the record-level credential from the source of truth, never from an
+    optional/unhydrated dict (Buyer Response PRD §6 E1).
+
+    The aggregate credential section joins the users table live and gets the real
+    credential; the record-level section used to read ``submission['annotator']``,
+    which is not always hydrated, and an ``or 'unspecified'`` fallback downstream
+    converted a missing join into a confident-looking false claim. Read the canonical
+    ``credential`` (or the deprecated ``credentials`` alias); if it is missing and a
+    store is available, hydrate from the users table by evaluator id."""
+    annotator = submission.get("annotator") or {}
+    cred = annotator.get("credential") or annotator.get("credentials")
+    if cred:
+        return cred
+    if store is not None:
+        uid = submission.get("evaluator_id") or submission.get("user_id")
+        if uid:
+            try:
+                user = store.get_user_by_id(uid)
+            except Exception:  # pragma: no cover - defensive; treated as unresolved
+                user = None
+            if user:
+                block = store.annotator_block(user)
+                return block.get("credential") or block.get("credentials")
+    return None
+
+
 def _candidate_text(task: Dict[str, Any], cid: Optional[str]) -> str:
     if not cid:
         return ""
@@ -82,6 +125,12 @@ def _anchor(a: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         out["url"] = a.get("url")
     if a.get("citation_confirmed") is not None:
         out["citation_confirmed"] = bool(a.get("citation_confirmed"))
+    # Grounding tier (Buyer Response PRD §5 D2): buyers price tiers, so the binary
+    # grounded flag is not enough — a named guideline is worth more than free text.
+    # A library citation (carrying a url/library id) always resolves; a hand-typed
+    # one must carry a resolvable DOI/PMID/URL or it is 'unverified'.
+    from asclepius.validation import grounding_tier as _tier
+    out["grounding_tier"] = _tier(a, library_id=a.get("library_id") or a.get("url"))
     # §11 (additive): capture provenance — present only when the V3/V4 UI set it,
     # so V1/V2 records stay byte-identical.
     if a.get("entry_method"):
@@ -156,9 +205,20 @@ def _specialty_case_fields(task: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, Any]:
+def _provenance(task: Dict[str, Any], submission: Dict[str, Any],
+                store: Any = None) -> Dict[str, Any]:
     annotator = submission.get("annotator") or {}
     payload = submission.get("payload") or {}
+    # Resolve the credential from the source of truth and FAIL CLOSED if it cannot
+    # be established (Buyer Response PRD §6 E1) — a record must never ship claiming
+    # 'unspecified' while the aggregate section claims board certification.
+    credential = _annotator_credential(submission, store)
+    if not credential:
+        raise PackagingError(
+            f"submission {submission.get('submission_id')!r} has no resolvable "
+            f"annotator credential; refusing to emit a record that would render "
+            f"'unspecified' while the aggregate credential section claims board "
+            f"certification (Buyer Response PRD §6 E1)")
     prov = {
         # Which evaluator flow produced this record (Asclepius V2): "v1" classic
         # | "v2" assisted — carried onto every record so admin/buyers segment by
@@ -167,10 +227,15 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, A
         # prompt provenance upgrade (Eval Flow Upgrade §2) — the prompt was
         # reviewed and accepted as clinically valid by the credentialed evaluator.
         "prompt_clinician_reviewed": _prompt_clinician_reviewed(submission),
-        # credentialing (the premium signal)
-        "annotator_credential": annotator.get("credentials"),
+        # credentialing (the premium signal) — hydrated + fail-closed above
+        "annotator_credential": credential,
         "annotator_specialty": annotator.get("specialty"),
-        "annotator_years_experience": annotator.get("years_experience"),
+        # Years of experience ships as a BAND, never the exact integer (Buyer Response
+        # PRD §6 E2): an exact year + specialty + state is close to identifying in a
+        # small subspecialty. The key is kept (buyer profiles map it) but the value is
+        # banded.
+        "annotator_years_experience": _years_band(annotator.get("years_experience")),
+        "annotator_years_experience_band": _years_band(annotator.get("years_experience")),
         "annotator_id_hashed": annotator.get("id_hashed"),
         # lineage
         "submission_id": submission.get("submission_id"),
@@ -199,7 +264,79 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, A
     gen = _generation_provenance(task)
     if gen is not None:
         prov["generation"] = gen
+    # Signal ceiling (Buyer Response PRD §8): name what bounds this record's signal —
+    # volunteering it is the credibility move, and it makes the physician-authored
+    # upsell obvious. Ladder position (§9.3): where this record sits on the
+    # preference -> process -> environment ladder.
+    prov["signal_ceiling"] = _signal_ceiling(task)
+    prov["supervision_type"] = _supervision_type(task, submission)
+    # The physician-named decisive action becomes the record's verifiable outcome
+    # (Audit §13) — the boolean, human-free verifier a buyer can turn into an RLVR
+    # reward: the decisive test must precede the final answer.
+    if task.get("decisive_action"):
+        prov["verifiable_outcome"] = {**task["decisive_action"],
+                                      "verifier": "decisive_action_precedes_final_answer"}
+    prov.update(_ladder_position(task, submission))
     return prov
+
+
+# ─── Signal ceiling + supervision ladder (Buyer Response PRD §8, §9) ──────────
+def _answer_mode(task: Dict[str, Any]) -> str:
+    """model_pair (current V3 A/B) | physician_authored | physician_corrected."""
+    mode = (task.get("answer_mode") or (task.get("generation") or {}).get("answer_mode")
+            or "model_pair")
+    return str(mode)
+
+
+def _signal_ceiling(task: Dict[str, Any]) -> Dict[str, Any]:
+    mode = _answer_mode(task)
+    gen = task.get("generation") or {}
+    ab_source = gen.get("ab_source") or task.get("ab_source")
+    same_family = bool(ab_source in ("legacy_fallback", "anthropic_only_v4",
+                                     "same_family", "anthropic_only"))
+    families: List[str] = []
+    for c in task.get("candidate_answers") or []:
+        fam = c.get("generator_family") or c.get("generator_model")
+        if fam:
+            families.append(str(fam))
+    physician_authored = mode in ("physician_authored", "physician_corrected")
+    return {
+        "mode": mode,
+        "bounded_by": ("physician" if physician_authored else "best_of_two_frontier_models"),
+        "generators": families,
+        "same_family_fallback": same_family,
+        "human_contribution": ("authored_reference" if physician_authored
+                               else "selection_and_critique"),
+        "physician_authored_content": physician_authored,
+    }
+
+
+def _supervision_type(task: Dict[str, Any], submission: Dict[str, Any]) -> str:
+    if task.get("has_environment") or (submission.get("payload") or {}).get("tool_calls"):
+        return "environment_verifiable"
+    # A physician-named decisive action is itself a verifiable outcome (Audit §13):
+    # the reward function can check the trajectory ordered the decisive test before
+    # its final answer, no human in the loop. That lifts the record onto the
+    # environment-verifiable rung even without a live tool environment.
+    if task.get("decisive_action") or task.get("has_verifiable_outcome"):
+        return "environment_verifiable"
+    if (submission.get("payload") or {}).get("reasoning_steps"):
+        return "process_supervision"
+    return "pairwise_preference"
+
+
+def _ladder_position(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, Any]:
+    payload = submission.get("payload") or {}
+    has_env = bool(task.get("has_environment"))
+    has_tools = bool(payload.get("tool_calls"))
+    has_verifiable = bool(task.get("decisive_action") or task.get("has_verifiable_outcome"))
+    n_turns = int(task.get("n_turns") or 1)
+    return {
+        "has_environment": has_env,
+        "has_tool_calls": has_tools,
+        "has_verifiable_outcome": has_verifiable,
+        "n_turns": n_turns,
+    }
 
 
 # ─── step_note → step_error_tag (Eval UX Overhaul §13) ───────────────────────
@@ -401,11 +538,16 @@ def _assist_block(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
-def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List[Dict[str, Any]]:
+def package_submission(task: Dict[str, Any], submission: Dict[str, Any],
+                       store: Any = None) -> List[Dict[str, Any]]:
     payload = submission.get("payload") or {}
     verdict = submission.get("verdict") or payload.get("verdict")
     prompt = task.get("prompt", "")
-    prov = _provenance(task, submission)
+    # ``store`` is optional and used ONLY to hydrate a missing annotator credential
+    # from the source of truth (Buyer Response PRD §6 E1); packaging stays pure
+    # otherwise. When present, the credential is resolved and fail-closed inside
+    # ``_provenance``.
+    prov = _provenance(task, submission, store)
     records: List[Dict[str, Any]] = []
 
     # Stage-2 independent capture (Eval Flow Upgrade §3 / Speed Optimization §1).
