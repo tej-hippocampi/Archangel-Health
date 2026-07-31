@@ -407,6 +407,34 @@ export const routeStyles = `
 }
 .arch-landing .env-statement .big { font-size: clamp(1.3rem, 2.4vw, 1.8rem); color: var(--ink); letter-spacing: -0.01em; max-width: none; }
 .arch-landing .env-statement .sub { margin: 0.5rem auto 0; font-size: 0.95rem; }
+.arch-landing .env-statement .env-cta { margin-top: 1.4rem; }
+.arch-landing .env-statement .env-bench { margin: 1.4rem auto 0; font-size: 0.85rem; color: var(--ink-faint); max-width: none; }
+
+/* lifecycle spine (02.2) — one relationship, every stage */
+.arch-landing .spine { margin-top: clamp(1.9rem, 4vh, 2.8rem); padding: 2rem 1.9rem 1.7rem; }
+.arch-landing .spine-track { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem; }
+.arch-landing .spine-stage { display: flex; flex-direction: column; gap: 0.55rem; padding: 0 0.55rem; }
+/* the backbone: a hairline through each stage with a node on it */
+.arch-landing .spine-rail { position: relative; height: 1rem; margin-bottom: 0.55rem; }
+.arch-landing .spine-rail::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--hairline); }
+.arch-landing .spine-stage:first-child .spine-rail::before { left: 50%; }
+.arch-landing .spine-stage:last-child .spine-rail::before { right: 50%; }
+.arch-landing .spine-node {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--card); border: 1px solid var(--hairline-strong); z-index: 1;
+}
+.arch-landing .spine-stage .chrome-box { align-self: flex-start; font-size: 0.58rem; padding: 0.44em 0.85em; }
+.arch-landing .spine-stage h3 { font-size: 1rem; font-weight: 500; letter-spacing: -0.01em; }
+.arch-landing .spine-stage p { font-size: 0.82rem; color: var(--ink-soft); max-width: none; }
+.arch-landing .spine-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.15rem; }
+.arch-landing .spine-chips .chip { font-size: 0.68rem; padding: 0.34em 0.72em; background: var(--card-in); border-color: transparent; }
+.arch-landing .spine-foot {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: 0.8rem; margin-top: 1.7rem; padding-top: 1.4rem;
+  border-top: 1px solid var(--hairline); font-size: 0.92rem; color: var(--ink); text-align: center;
+}
+.arch-landing .spine-foot .chip-lime { font-size: 0.6rem; padding: 0.34em 0.8em; }
 
 /* environment diagram */
 .arch-landing .env-card { margin-top: clamp(1.8rem, 4vh, 2.6rem); padding: 1.6rem 1.6rem 1.2rem; }
@@ -695,6 +723,11 @@ export const routeStyles = `
   .arch-landing .team { grid-template-columns: 1fr; }
   .arch-landing .bench-grid { grid-template-columns: repeat(2, 1fr); }
   .arch-landing .pay-band { grid-template-columns: 1fr; gap: 0.9rem; }
+  /* spine stacks into a vertical list of stages */
+  .arch-landing .spine-track { grid-template-columns: 1fr; gap: 0; }
+  .arch-landing .spine-stage { padding: 1.3rem 0; border-top: 1px solid var(--hairline); }
+  .arch-landing .spine-stage:first-child { border-top: none; padding-top: 0; }
+  .arch-landing .spine-rail { display: none; }
   /* Stack the two ways vertically on narrow screens; each stays left-aligned and
      keeps its equal size + typography (a hairline separates them). */
   .arch-landing .earn-grid { grid-template-columns: 1fr; gap: 1.1rem; }
