@@ -384,9 +384,13 @@ SUBMISSION_STATUSES = (
 # sellable, HealthBench-shaped scoring function derived from the doctor's tags.
 RECORD_TYPES = ("preference", "ideal_answer", "reasoning_trace", "rubric")
 
-# Rubric criterion axes (FEAT-2). Every criterion is scored on exactly one axis so
-# a buyer can weight/filter by dimension (a reward model, an RL run, and a
-# benchmark all consume these).
+# Rubric criterion axes (FEAT-2). A criterion is scored on one or more axes so a
+# buyer can weight/filter by dimension (a reward model, an RL run, and a benchmark
+# all consume these). Eval UI Overhaul §11: the authoritative field is the LIST
+# ``axes`` — a criterion routinely scores on several ("must never give
+# thrombolytics in dissection" is safety AND accuracy) and forcing a single pick
+# discarded that. ``axis`` is still emitted as ``axes[0]`` for backward
+# compatibility with stored records and any reader written against the old shape.
 RUBRIC_AXES = ("accuracy", "completeness", "safety", "reasoning", "grounding", "communication")
 
 # FIX-7 (axis-coverage nudge): the three axes a defensible clinical grader should

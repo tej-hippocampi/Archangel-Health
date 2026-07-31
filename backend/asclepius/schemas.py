@@ -354,8 +354,13 @@ class RubricCriterion(BaseModel):
     """One weighted criterion of a HealthBench-shaped scoring rubric (FEAT-2).
 
     ``points`` is signed: POSITIVE for "a correct answer must include this",
-    NEGATIVE for "a correct answer must never say this". ``axis`` is one of
-    RUBRIC_AXES. ``source`` records how the criterion was seeded (e.g.
+    NEGATIVE for "a correct answer must never say this". ``axes`` is a non-empty
+    list drawn from RUBRIC_AXES — a criterion routinely scores on more than one
+    ("must never give thrombolytics in dissection" is safety AND accuracy), so
+    forcing a single pick discarded a real distinction (Eval UI Overhaul §11).
+    ``axis`` is the DEPRECATED single-value mirror of ``axes[0]``, kept so stored
+    records and readers written against the old shape keep working.
+    ``source`` records how the criterion was seeded (e.g.
     ``error_tag:dosing_error``, ``why_better:safer``, ``good_step``,
     ``corrected_step``, or ``manual``) so a buyer can trace provenance. Nothing is
     auto-applied — the doctor confirms/edits every criterion before it ships.
@@ -368,6 +373,11 @@ class RubricCriterion(BaseModel):
 
     text: str = ""
     points: float = 0.0
+    # §11: the authoritative multi-select. Empty on the wire is tolerated — the
+    # normalizer fills it from `axis`, then from the default.
+    axes: List[str] = Field(default_factory=list)
+    # Deprecated single-value mirror of axes[0]. Still accepted from older
+    # clients and still emitted, so nothing downstream has to change at once.
     axis: Optional[str] = None
     source: Optional[str] = None
     # Criticality tier — filled from |points| in the validator when absent.
@@ -391,11 +401,16 @@ class RubricCriterion(BaseModel):
         # unconditionally so tier/critical can't drift from the weight, matching
         # rubric.normalize_rubric / has_critical_negative / the exported score.py.
         from asclepius.constants import tier_for_points
-        from asclepius.rubric import is_specific_text
+        from asclepius.rubric import _axes, is_specific_text
         self.tier = tier_for_points(self.points)
         self.critical = self.tier == "critical"
         # Recompute concreteness from the (possibly edited) text — never trust the wire.
         self.specific = is_specific_text(self.text)
+        # §11: `axes` is the authority and is always non-empty; `axis` follows it.
+        # An older client that sends only `axis` is normalized into the new shape
+        # here, so nothing downstream has to handle two shapes.
+        self.axes = _axes(self.axes, self.axis)
+        self.axis = self.axes[0]
         return self
 
 

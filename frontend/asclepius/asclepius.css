@@ -429,6 +429,10 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+  /* §3: tops aligned, columns sized independently. This grid must contain
+     exactly the answer cards — an extra child lands in cell 2 and pushes the
+     rest onto row 2. */
+  align-items: start;
 }
 .asc-answer {
   background: var(--card);
@@ -438,6 +442,9 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* A long unbroken token (a URL, a lab string) would otherwise blow the
+     column out past its 1fr share and desymmetrize the pair. */
+  min-width: 0;
   transition: border-color .16s cubic-bezier(.4,0,.2,1);
 }
 .asc-answer.is-chosen { border-color: var(--green-line); border-left-color: var(--green); }
@@ -694,7 +701,50 @@
   padding: 6px 10px;
 }
 .asc-step-original summary { cursor: pointer; font-weight: 500; }
+/* §8: the bar fills its width and truncates where the bar actually ends, not
+   at a magic character count. `min-width: 0` on the preview is the part that is
+   easy to miss — without it a flex child refuses to shrink below its content
+   and the ellipsis never engages. */
+.asc-step-original-sum {
+  display: flex; align-items: baseline; gap: 8px;
+  width: 100%; cursor: pointer; list-style: none;
+}
+.asc-step-original-sum::-webkit-details-marker { display: none; }
+.asc-step-original-sum::marker { content: ''; }
+.asc-step-original-tag {
+  flex: none;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--ink-soft);
+}
+.asc-step-original-preview {
+  flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--ink-soft);
+}
+/* Open: the full text below is the whole point — a truncated echo above it is noise. */
+.asc-step-original[open] .asc-step-original-preview { display: none; }
 .asc-step-original-full { margin-top: 6px; white-space: pre-wrap; color: var(--asc-muted); }
+
+/* §5: split-in-flight placeholder. Three rows sized like real collapsed steps,
+   so the card does not resize when the real steps land. */
+.asc-steps-skeleton { display: flex; flex-direction: column; gap: 8px; }
+.asc-steps-skeleton > div {
+  height: 58px;
+  border: 1px solid var(--asc-line);
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, var(--card-in) 0%, var(--card) 50%, var(--card-in) 100%);
+  background-size: 200% 100%;
+  animation: ascSkeletonSweep 1.4s ease-in-out infinite;
+}
+.asc-steps-skeleton > div:nth-child(2) { animation-delay: .12s; }
+.asc-steps-skeleton > div:nth-child(3) { animation-delay: .24s; }
+@keyframes ascSkeletonSweep {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asc-steps-skeleton > div { animation: none; background: var(--card-in); }
+}
 
 /* Confidence + submit bar */
 .asc-submit-bar {
@@ -1103,24 +1153,10 @@
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
-/* WS5 (V3): brighter, unmissable divergence marking + a legend. Shared text is
-   dimmed further so the eye goes straight to the deltas. Accessible contrast:
-   a solid left accent + orange wash, not colour alone. */
-.asc-answers-v3diff .asc-answer-diff .asc-diff-shared { opacity: .38; }
-.asc-answers-v3diff .asc-answer-diff .asc-diff-changed {
-  background: var(--orange-wash);
-  box-shadow: inset 2px 0 0 var(--orange);
-  padding: 1px 2px;
-  font-weight: 500;
-}
-.asc-diff-legend {
-  font-size: 12.5px; color: var(--asc-muted);
-  margin: 0 0 10px; display: flex; align-items: center; gap: 6px;
-}
-.asc-diff-legend-mark {
-  color: var(--orange-deep); font-weight: 500;
-  background: var(--orange-wash); border-radius: 3px; padding: 0 4px;
-}
+/* §3: the V3 divergence highlight (`.asc-answers-v3diff`) and its legend are
+   gone — the legend was a third child of the two-column `.asc-answers` grid,
+   which is what staggered A and B onto separate rows. `.asc-answer-diff` above
+   stays: V2 still renders the diff. */
 /* WS4 (V3): the roomy gold-answer editor + its "what you changed" diff view. */
 .asc-v3-editor { min-height: 46vh; font-size: 15px; line-height: 1.6; }
 .asc-editdiff-wrap { margin-top: 8px; }
@@ -1297,11 +1333,71 @@
 .asc-ver-card-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .asc-ver-card-list li { font-size: 13.5px; color: var(--asc-text); }
 
-/* Small in-workspace experience indicator + change link. */
+/* §2: the specialty picker — a popover, not a page. Law 3: the scrim is
+   teal-shifted ink at low alpha, never #000. */
+.asc-sheet {
+  position: fixed; inset: 0;
+  /* Above EVERY piece of chrome: the sticky header is 100, the desktop rail 90,
+     the mobile bottom rail 120. At a lower value the header renders over the
+     scrim and its nav stays clickable — which would let a physician navigate
+     away from a picker that §2 makes deliberately non-dismissable on first
+     entry. Still below the toast region (1000), so a submit error is never
+     hidden behind the sheet. */
+  z-index: 150;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(26, 27, 26, .28);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  padding: 24px;
+  animation: ascSheetIn .16s cubic-bezier(.4,0,.2,1);
+}
+@keyframes ascSheetIn { from { opacity: 0; } to { opacity: 1; } }
+.asc-sheet-card {
+  background: var(--card); border-radius: var(--r-lg);
+  box-shadow: 0 3px 8px rgba(26,27,26,.07), 0 34px 70px -22px rgba(26,27,26,.24);
+  padding: 28px; width: min(640px, 100%);
+  max-height: 100%; overflow-y: auto;
+}
+.asc-sheet-title {
+  font-size: 20px; font-weight: 400; letter-spacing: -0.012em;
+  margin: 0 0 16px; text-align: center; color: var(--asc-text);
+}
+.asc-spec-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 620px) { .asc-spec-grid { grid-template-columns: 1fr; } }
+/* The card IS the button — no nested "Grade X →" restating the same tap. */
+.asc-spec-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 20px 12px; cursor: pointer; font-family: inherit;
+  background: var(--card); border: 1px solid var(--asc-line);
+  border-radius: var(--r-md);
+  transition: border-color .16s cubic-bezier(.4,0,.2,1), background .16s cubic-bezier(.4,0,.2,1);
+}
+.asc-spec-card:hover { border-color: var(--asc-line-strong); background: var(--card-in); }
+.asc-spec-card.last-used { border-color: var(--asc-line-strong); }
+/* The palette dot is the only decoration on the card — nephrology green,
+   cardiology orange, oncology pink (SPECIALTY_DOT), same hue everywhere. */
+.asc-spec-card-dot { width: 9px; height: 9px; border-radius: 50%; font-size: 0; background: var(--ink-faint); }
+.asc-spec-card-dot.asc-dot-green { background: var(--green); }
+.asc-spec-card-dot.asc-dot-orange { background: var(--orange); }
+.asc-spec-card-dot.asc-dot-pink { background: var(--pink); }
+.asc-spec-card-dot.asc-dot-lime { background: var(--lime); }
+.asc-spec-card-dot.asc-dot-faint { background: rgba(26, 27, 26, 0.18); }
+.asc-spec-card-name { font-size: 15px; color: var(--asc-text); }
+/* The page behind a modal must not scroll under it. */
+body.asc-sheet-open { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .asc-sheet { animation: none; } }
+
+/* Small in-workspace experience indicator + change links. */
 .asc-exp-badge {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-bottom: 12px; padding: 6px 4px;
 }
+/* §13: two children, not three — `space-between` then reads as "label left,
+   controls right" instead of marooning two related links at opposite edges. */
+.asc-exp-links { display: flex; align-items: center; gap: 0; }
+.asc-exp-links .asc-btn-link { padding: 2px 10px; }
+/* A hairline divider, not a typed bullet: it is chrome, so it is drawn. */
+.asc-exp-links .asc-btn-link + .asc-btn-link { border-left: 1px solid var(--asc-line); }
 .asc-exp-badge-label {
   font-family: var(--mono);
   font-size: 11px;
@@ -1758,6 +1854,44 @@
   text-transform: uppercase; color: var(--ink-faint); margin-bottom: 12px;
 }
 .asc-rubric-ta { resize: none; overflow: hidden; min-height: 52px; }
+
+/* §9: the polarity lives in the sentence stem, not in a labelled "Type" field.
+   It reads as language — "A correct answer must never …" — so there is one less
+   form control between the physician and the thing they are writing. */
+/* `.asc-field` is a 6px-gap flex column, so the stem needs no bottom margin of
+   its own — the gap already sets the distance to the textarea. */
+.asc-rubric-stem { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.asc-rubric-stem-lead { font-size: 14px; color: var(--ink); }
+.asc-rubric-stem-toggle {
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--ink);
+  background: var(--lime-wash); border: 1px solid var(--asc-line);
+  border-radius: var(--r-chip); padding: 2px 10px; cursor: pointer;
+  transition: border-color .16s cubic-bezier(.4,0,.2,1), background .16s cubic-bezier(.4,0,.2,1);
+}
+.asc-rubric-stem-toggle:hover { border-color: var(--asc-line-strong); }
+/* Accent semantics: lime = the ordinary "must"; pink = flag/critical, which is
+   exactly what a "must never" is. */
+.asc-rubric-stem-toggle.pos { background: var(--lime-wash); }
+.asc-rubric-stem-toggle.neg { background: var(--pink-wash); color: var(--pink-deep); border-color: var(--pink-line); }
+
+/* §10: the weight readout sits beside the question it answers — the tier
+   buttons and the slider are two ways to set ONE value. */
+.asc-rubric-matter-head {
+  display: flex; align-items: center; justify-content: space-between;
+  /* +2px on top of `.asc-field`'s 6px gap keeps the original 8px rhythm
+     between the question and the tier buttons. */
+  gap: 16px; margin-bottom: 2px; flex-wrap: wrap;
+}
+.asc-rubric-scale { display: flex; align-items: center; gap: 10px; }
+.asc-rubric-scale input[type=range] {
+  width: 160px; max-width: 40vw;
+  /* A range input paints in the browser's default blue, and there is no blue in
+     this palette. It was always blue; §10 moved it beside the question, which is
+     what made it loud. Mono chrome, per the wayfinding law — the polarity is
+     already carried by the +/- readout sitting next to it. */
+  accent-color: var(--ink);
+}
+
 .asc-rubric-tier-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .asc-rubric-tier-btn {
   flex: 1 1 140px; display: flex; flex-direction: column; gap: 2px;
@@ -1778,6 +1912,11 @@
 }
 .asc-rubric-recap-text { flex: 1 1 auto; min-width: 0; color: var(--asc-text); }
 .asc-axis-row { flex-wrap: wrap; }
+/* §11: `.asc-sev-pill` capitalizes, which was right when these pills rendered
+   raw enum values (`accuracy` -> `Accuracy`). The options are sentences now, and
+   `capitalize` turns "Got the facts right" into "Got The Facts Right" — which
+   reads as a form label again, the exact thing §11 removes. */
+.asc-axis-row .asc-sev-pill { text-transform: none; }
 
 /* Collapsed accordion steps (§13) reuse .asc-step-collapsed / -text styles. */
 

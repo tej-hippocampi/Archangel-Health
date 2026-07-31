@@ -343,12 +343,20 @@ def validate_submission(
             elif reason not in STEP_CORRECTION_REASONS:
                 issues.append("unknown_correction_reason")
 
-    # 1d. Rubric capture (FEAT-2): a confirmed criterion must sit on a known axis
+    # 1d. Rubric capture (FEAT-2): a confirmed criterion must sit on known axes
     # and carry a non-zero weight. Off-vocabulary values route to QA (never a hard
     # reject — no lost submissions) so the sellable scoring function stays clean.
+    # §11: `axes` is the authoritative list; `axis` is still checked so an older
+    # client sending only the single value is validated exactly as before.
     for c in payload.get("rubric") or []:
         if not isinstance(c, dict) or not (c.get("text") or "").strip():
             continue
+        raw_axes = c.get("axes")
+        if isinstance(raw_axes, list):
+            if any(a not in RUBRIC_AXES for a in raw_axes):
+                issues.append("unknown_rubric_axis")
+        elif raw_axes is not None:
+            issues.append("unknown_rubric_axis")
         if c.get("axis") is not None and c.get("axis") not in RUBRIC_AXES:
             issues.append("unknown_rubric_axis")
         try:
