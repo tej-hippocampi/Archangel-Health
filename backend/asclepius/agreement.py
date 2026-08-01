@@ -18,6 +18,7 @@ them into the aggregate surfaced in ``quality_report.md``.
 
 from __future__ import annotations
 
+import json
 import os
 import random
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -57,12 +58,22 @@ def kappa_min_n() -> int:
         return 30
 
 
+# The ONE definition of the double-label target (FIX A A-4.3). PRD A §1.3
+# specifies 0.15; ``review.double_label_rate()`` delegates here rather than
+# carrying a second default, so the two can never drift again.
+DEFAULT_DOUBLE_LABEL_RATE = 0.15
+
+
 def double_label_rate() -> float:
-    """Target fraction of tasks routed to a second independent annotator (§7 F1)."""
+    """Target fraction of tasks routed to a second independent annotator (§7 F1).
+
+    Single source of truth for ``ASCLEPIUS_DOUBLE_LABEL_RATE``. Two modules used
+    to define a default for the same knob (0.20 here, 0.15 in the PRD that
+    ``review.py`` implements) and silently disagreed about the target."""
     try:
-        return float(os.getenv("ASCLEPIUS_DOUBLE_LABEL_RATE", "0.20"))
+        return float(os.getenv("ASCLEPIUS_DOUBLE_LABEL_RATE", str(DEFAULT_DOUBLE_LABEL_RATE)))
     except ValueError:
-        return 0.20
+        return DEFAULT_DOUBLE_LABEL_RATE
 
 
 def should_double_label(task: Dict[str, Any], *, current_rate: float,
@@ -247,6 +258,90 @@ def aggregate_kappa(observations: List[Dict[str, Any]], *,
         "excluded_unverified": excluded_unverified,
         "observed_agreement": observed,
     }
+
+
+def review_acceptance(reviews: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Expert review outcome. NOT inter-rater reliability — the reviewer sees the
+    labeler's answer, so the two observations are not independent and kappa does
+    not apply (PRD A §0). Reported as its own metric with its own name; putting
+    this number under a κ label would be claiming a statistic nobody measured.
+
+    ``cannot_assess`` dimension states are counted separately, never folded into
+    agreement or disagreement — forcing a binary there manufactures agreement
+    (START_HERE §5 rule 4).
+
+    THE SINGLE DEFINITION of expert acceptance in this product (context pack
+    Seam 3). Two definitions used to ship in the same build reading the same
+    table with the same word — this one, and an inline
+    ``verdict IN ('accept','accept_with_edits')`` in the admin metrics — so the
+    dashboard read ~97% while quality_report.md read ~84%. A combined figure is
+    a legitimate thing to want, but it is a different number and must be labeled
+    "not rejected", never "accepted". Do not fork this function; call it.
+
+    Returns ``{n, accept_rate, edit_rate, reject_rate, by_dimension,
+    n_cannot_assess}`` with None rates at n=0 (no reviews is not 0% accepted),
+    plus ``n_unclassified`` / ``n_total``.
+
+    ``n`` is the denominator the rates are actually computed over — reviews
+    carrying a recognized verdict. A row with any other verdict used to shrink
+    all three rates while appearing nowhere, so they silently failed to sum to 1
+    (FIX A A-4.1). It is now excluded from the denominator and counted in
+    ``n_unclassified``. With clean data the two are identical.
+    """
+    reviews = reviews or []
+    n_total = len(reviews)
+    verdicts = {"accept": 0, "accept_with_edits": 0, "reject": 0}
+    by_dimension: Dict[str, Dict[str, int]] = {}
+    n_cannot = 0
+    for r in reviews:
+        v = r.get("verdict")
+        if v in verdicts:
+            verdicts[v] += 1
+        dims = r.get("dimensions")
+        if not isinstance(dims, dict):
+            try:
+                dims = json.loads(r.get("dimension_json") or "{}") or {}
+            except (TypeError, ValueError):
+                dims = {}
+        for key, state in dims.items():
+            bucket = by_dimension.setdefault(
+                key, {"agree": 0, "disagree": 0, "cannot_assess": 0})
+            if state in bucket:
+                bucket[state] += 1
+            if state == "cannot_assess":
+                n_cannot += 1
+    n = sum(verdicts.values())          # classified reviews only — the honest denominator
+    n_unclassified = n_total - n
+    if n == 0:
+        return {"n": 0, "accept_rate": None, "edit_rate": None, "reject_rate": None,
+                "by_dimension": by_dimension, "n_cannot_assess": n_cannot,
+                "n_unclassified": n_unclassified, "n_total": n_total}
+    return {
+        "n": n,
+        "accept_rate": round(verdicts["accept"] / n, 4),
+        "edit_rate": round(verdicts["accept_with_edits"] / n, 4),
+        "reject_rate": round(verdicts["reject"] / n, 4),
+        "by_dimension": by_dimension,
+        "n_cannot_assess": n_cannot,
+        # Reported, never absorbed: an unrecognized verdict must be visible
+        # rather than quietly deflating all three rates.
+        "n_unclassified": n_unclassified,
+        "n_total": n_total,
+    }
+
+
+def independent_kappa(observations: List[Dict[str, Any]], *,
+                      min_n: Optional[int] = None) -> Dict[str, Any]:
+    """TRUE Cohen's kappa, over the double-labeled slice only: two labelers, same
+    case, neither shown the other's answer (PRD A §0). Delegates to
+    ``aggregate_kappa`` → ``cohens_kappa``, which already excludes any
+    observation not explicitly blinded and returns None WITH a stated reason
+    below the min-n gate (default 30) rather than a number nobody should trust.
+
+    Exists as its own correctly-named entry point so the export can report
+    "Cohen's κ" and "expert review acceptance" as two different statistics
+    answering two different buyer questions — never interchangeably."""
+    return aggregate_kappa(observations or [], min_n=min_n)
 
 
 def external_adjudication_agreement(

@@ -303,6 +303,14 @@ async def sso(body: SsoRequest):
             # the next boot-time backfill.
             organization=(email.split("@", 1)[0] if "@" in email else email),
         )
+        # FIX-B F5: new SSO accounts land pending like every other signup —
+        # otherwise a clinician arriving through this bridge gets an evaluator
+        # seat, never appears in the verification queue, and draws tasks with
+        # zero credentialing. NULL still means "pre-verification-era account"
+        # for rows that predate the migration (auth.py passes those through);
+        # it must not also mean "arrived through a side door yesterday".
+        store.set_verification_status(user["id"], "pending")
+        user = store.get_user_by_id(user["id"]) or user
         provisioned = True
     if not user.get("active"):
         raise HTTPException(status_code=403, detail="This evaluator account is disabled.")

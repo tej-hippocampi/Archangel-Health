@@ -39,6 +39,9 @@
   <!-- Instruction Manual content (structured data) — loaded before the app so
        window.ASC_MANUAL is available when the Guide view renders. -->
   <script src="/static/asclepius/manual-content.js" defer></script>
+  <!-- PRD-B verification queue. Must load BEFORE asclepius.js: it defines
+       window.AsclepiusVerification, which the Physicians section mounts. -->
+  <script src="/static/asclepius/onboarding.js" defer></script>
   <!-- PRD-C admin sections — own files (§3.3 ownership), mounted by asclepius.js. -->
   <script src="/static/asclepius/admin_physicians.js" defer></script>
   <script src="/static/asclepius/admin_health.js" defer></script>

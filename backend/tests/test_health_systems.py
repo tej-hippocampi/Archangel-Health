@@ -352,6 +352,36 @@ def test_backfill_does_not_name_a_health_system_after_an_internal_id():
     assert store.get_ingest_upload("upl-int")["health_system_id"]
 
 
+def test_upgrade_from_a_previously_deployed_database_does_not_duplicate():
+    """C-5.6 upgrade path: a database written by the PREVIOUS release already
+    holds partners under their raw internal id. Renaming the lookup key without
+    migrating those rows inserts a second health system beside the first and
+    splits that partner's upload history between them — an operator sees the
+    same hospital twice. Only reproduces on a DB that has run before, which is
+    why a fresh-DB test cannot catch it."""
+    store = _store()
+    with store._conn() as conn:
+        conn.execute("INSERT INTO health_systems (hs_id, name, active, created_at) "
+                     "VALUES ('hs-u-legacy-aaaaaa', 'u_legacy1', 1, '2025-01-01')")
+        conn.execute("INSERT INTO ingest_uploads (upload_id, link_id, partner_id, status, "
+                     "health_system_id, created_at, updated_at) VALUES ('upl-before', 'L', "
+                     "'u_legacy1', 'ingested', 'hs-u-legacy-aaaaaa', '2025-01-01', '2025-01-01')")
+        conn.execute("INSERT INTO ingest_uploads (upload_id, link_id, partner_id, status, "
+                     "created_at, updated_at) VALUES ('upl-after', 'L', 'u_legacy1', "
+                     "'ingested', '2025-01-02', '2025-01-02')")
+    store._migrate()
+    store._migrate()   # a redeploy must not undo or re-do it
+
+    rows = [h for h in store.list_health_systems() if "legacy1" in h["name"]]
+    assert len(rows) == 1, f"the upgrade duplicated the health system: {rows}"
+    assert rows[0]["hs_id"] == "hs-u-legacy-aaaaaa", "renamed row lost its id"
+    assert rows[0]["name"] == "Unnamed partner (u_legacy1)"
+    # Both uploads still point at the SAME system — history was not split.
+    assert (store.get_ingest_upload("upl-before")["health_system_id"]
+            == store.get_ingest_upload("upl-after")["health_system_id"]
+            == "hs-u-legacy-aaaaaa")
+
+
 # ─── Backfill ────────────────────────────────────────────────────────────────
 def test_backfill_adopts_historical_partner_uploads():
     store = _store()

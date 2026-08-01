@@ -32,6 +32,7 @@ log = logging.getLogger("asclepius.export")
 
 from asclepius import agreement as asc_agreement
 from asclepius import credentials as asc_credentials
+from asclepius import packaging as asc_packaging
 from asclepius import profiles
 from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
@@ -40,6 +41,7 @@ from asclepius.constants import (
 )
 
 JSONL_NAME = "records.jsonl"
+CASES_NAME = "cases.jsonl"
 MANIFEST_NAME = "batch.json"
 DICTIONARY_NAME = "data_dictionary.md"
 DATASHEET_NAME = "datasheet.md"
@@ -196,12 +198,17 @@ def _passes_filters(
     modality: Optional[str] = None,
     case_source: Optional[str] = None,
     submission_id: Optional[str] = None,
+    case_id: Optional[str] = None,
 ) -> bool:
     payload = rec.get("payload") or {}
     # Single-task scoping (Exports rework): export exactly one submission's
     # records. The submission id is a top-level record column (and mirrored into
     # the payload at packaging time) — accept either.
     if submission_id and rec.get("submission_id") != submission_id and payload.get("submission_id") != submission_id:
+        return False
+    # Case scoping (PRD A Phase 5): a case IS a task — one case_id bundles every
+    # submission + review on it. Accept the column or the payload mirror.
+    if case_id and rec.get("task_id") != case_id and payload.get("task_id") != case_id:
         return False
     if difficulty and (payload.get("context") or {}).get("difficulty") != difficulty:
         return False
@@ -296,6 +303,52 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `portal_version` | evaluator product flow that produced the record: `v1` (classic) or `v2` (assisted). Stage-1 prompt review + record types are identical across both; V2 adds quick-stance capture, model-assist provenance, and structured reasons |
 | `license` / `ip_cleared` / `contains_phi` | rights attestation (opt §1.4) |
 | `captured_at` | submission capture timestamp |
+
+## Expert review annexes on every record (out of profile schema)
+
+`review` and `supervision` are attached to every line in `{JSONL_NAME}` AFTER
+profile mapping and schema validation, so they are deliberately **out of the
+buyer profile's schema** — annexes, not mapped fields. A profile that declares
+`additionalProperties: false` will not see them validated. They are documented
+here because they ship, and an undocumented field in a delivered artifact is
+indistinguishable from a leak.
+
+| field | meaning |
+| --- | --- |
+| `review.reviewed` / `review.n_reviews` | whether a senior physician graded this labeler submission, and how many did |
+| `review.reviews[].verdict` | `accept` · `accept_with_edits` · `reject` |
+| `review.reviews[].dimensions` | per-dimension judgment: `agree` · `disagree` · `cannot_assess`. **`cannot_assess` is its own state** — the honest answer when a dimension is outside the reviewer's subspecialty — and is never counted as disagreement |
+| `review.reviews[].corrections` | the reviewer's edits. `{{}}` when withheld — see `corrections_withheld` |
+| `review.reviews[].corrections_withheld` | `true` when an insert-time Safe-Harbor scan found an identifier in the reviewer's free text, or when that text predates scanning. The verdict and dimensions still ship; only the prose is held back |
+| `review.reviews[].reviewer_credential` | credential ATTRIBUTE only (e.g. board_certified_nephrology) — never a name, NPI or licence number |
+| `review.reviews[].blinded` | `true` only when the payload served to that reviewer verifiably carried no labeler identity. **Derived from the served payload, not asserted.** An admin reviewer is always `false` (an admin can de-blind by other means) |
+| `review.accepted_without_edits` | true only when every review was a plain `accept` |
+| `supervision.labeler_id_hashed` | stable hashed id of the labeler (no PII) |
+| `supervision.independent_second_label` | `true` only for the double-labeled slice whose second observation was explicitly blinded — the slice a real Cohen's κ is computed on |
+
+**Expert review is NOT inter-rater agreement.** The reviewer sees the labeler's
+answer, so the two observations are not independent and κ does not apply. The
+review acceptance rate and Cohen's κ are reported as two separately named
+figures in `{QUALITY_NAME}`; κ covers only the independently double-labeled slice.
+
+## `{CASES_NAME}` — the case-keyed companion
+
+One JSON object per line, one line per case. Same content as `{JSONL_NAME}`,
+reorganized around the case rather than the physician's worklist: a case with
+two labelers and a review is one artifact, not three unrelated rows. Also an
+annex — not covered by the profile schema.
+
+| field | meaning |
+| --- | --- |
+| `case_id` | the case (task) identifier this bundle is keyed on |
+| `specialty` / `difficulty` / `prompt` / `context` | the case itself; `context.case` holds out the answer key |
+| `n_labelers` / `labels[]` | every labeler submission on this case |
+| `labels[].records[]` | that labeler's mapped records, minus the `review`/`supervision` annexes, which are stated once at case level |
+| `review` / `supervision` | as above, aggregated across every label on the case |
+| `consensus.verdicts` | verdict histogram across labelers |
+| `consensus.majority_verdict` | `null` on a tie — a tie is not a majority |
+| `consensus.unanimous` | all labelers agreed. Read it together with `n_labelers`: unanimity across one label is not agreement |
+| `consensus.agreement_observation` | the stored double-label observation (`verdict_a`, `verdict_b`, `verdict_agree`, `blinded`), or `null` when the case was not double-labeled |
 """
 
 
@@ -577,6 +630,32 @@ def _quality_report_md(*, export_id: str, profile_name: str, records: List[Dict[
     kappa = stats.get("kappa") or {}
     by_spec = kappa.get("by_specialty") or {}
     kappa_spec_lines = "\n".join(f"- {sp}: {v}" for sp, v in sorted(by_spec.items())) or "- n/a"
+    # Expert review vs κ: two statistics, two names (PRD A §0 / Phase 4). The
+    # review rate is adjudication (reviewer SAW the labeler's answer); κ below is
+    # the independent, blinded, double-labeled slice. They are never merged.
+    ra = stats.get("review_acceptance") or {}
+
+    def _ra_pct(x: Any) -> str:
+        return f"{round(100 * x, 1)}%" if x is not None else "n/a"
+
+    if ra.get("n"):
+        ra_dim_lines = "\n".join(
+            f"- {dim}: agree {v.get('agree', 0)} · disagree {v.get('disagree', 0)} · "
+            f"cannot assess {v.get('cannot_assess', 0)}"
+            for dim, v in sorted((ra.get("by_dimension") or {}).items())
+        ) or "- n/a"
+        review_section = f"""## Expert review (reviewer-adjudicated — NOT κ)
+Senior reviewers graded these submissions with the labeler's answer visible, so
+this is a review outcome, not inter-rater reliability. The independent Cohen's κ
+is reported separately below.
+- Expert review: accepted {_ra_pct(ra.get('accept_rate'))} · edited {_ra_pct(ra.get('edit_rate'))} · rejected {_ra_pct(ra.get('reject_rate'))} (n={ra.get('n')}, reviewer-adjudicated)
+- Per-dimension verdicts ("cannot assess" reported as its own state, never folded):
+{ra_dim_lines}
+"""
+    else:
+        review_section = """## Expert review (reviewer-adjudicated — NOT κ)
+- No expert reviews attached to this batch yet.
+"""
     flags = stats.get("flag_counts") or {}
     contributors = stats.get("contributors") or []
     contrib_lines = "\n".join(
@@ -599,7 +678,8 @@ Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
 ## Grounded (evidence-anchored) premium tier
 - Grounded records: **{grounded}/{counts['total']}** (**{grounded_pct}%**)
 
-## Inter-annotator agreement (Cohen's κ, opt §1.3)
+{review_section}
+## Inter-annotator agreement (Cohen's κ, opt §1.3 — independently double-labeled)
 - Aggregate κ (blinded, double-labeled subset, n={kappa.get('n')}): **{kappa.get('overall')}**{(' — ' + kappa['reason']) if kappa.get('overall') is None and kappa.get('reason') else ''}
 - 95% CI (seeded bootstrap): {kappa.get('ci')}
 - Observed agreement: {kappa.get('observed_agreement')}
@@ -956,6 +1036,144 @@ re-licenses whenever the buyer moves to a new frontier model. Recurring value th
 batch: **${summary['recurring_value_usd']:.2f}**. See `{EVAL_PACK_NAME}`."""
 
 
+# ─── Case-centric bundle (PRD A Phase 5) ─────────────────────────────────────
+def _majority_verdict(tally: Dict[str, int]) -> Optional[str]:
+    if not tally:
+        return None
+    best = max(tally.values())
+    winners = [v for v, c in tally.items() if c == best]
+    return winners[0] if len(winners) == 1 else None  # a tie has no majority
+
+
+def _case_bundle(
+    store: Any,
+    emitted: List[Dict[str, Any]],
+    mapped_records: List[Dict[str, Any]],
+    reviews_by_sid: Dict[Any, List[Dict[str, Any]]],
+    obs_by_tid: Dict[Any, Optional[Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    """Fold the emitted (already mapped + leak-gated) records into case-keyed
+    objects: one case carries the case content, every labeler submission, every
+    review, and the derived consensus. Buyers asked for the case, not a
+    physician's worklist — a case with two labelers plus a review is one
+    artifact, not three unrelated rows (PRD A Phase 5)."""
+    by_case: Dict[str, Dict[str, Any]] = {}
+    tasks: Dict[str, Dict[str, Any]] = {}
+    subs: Dict[str, Optional[Dict[str, Any]]] = {}
+    for rec, mapped in zip(emitted, mapped_records):
+        payload = rec.get("payload") or {}
+        tid = rec.get("task_id") or payload.get("task_id")
+        sid = rec.get("submission_id") or payload.get("submission_id")
+        if tid is None or sid is None:
+            continue
+        if tid not in tasks:
+            tasks[tid] = store.get_task(tid) or {}
+        if sid not in subs:
+            subs[sid] = store.get_submission(sid)
+        group = by_case.setdefault(tid, {})
+        sub = subs[sid] or {}
+        label = group.setdefault(sid, {
+            "submission_id": sid,
+            "labeler_id_hashed": payload.get("annotator_id_hashed"),
+            "verdict": sub.get("verdict"),
+            "confidence": sub.get("confidence"),
+            "portal_version": payload.get("portal_version") or sub.get("portal_version"),
+            # NOTE: no ``review_status`` here. It is internal workflow state
+            # ('in_review', 'not_routed', 'orphaned'), meaningless to a buyer and
+            # faintly alarming in a delivered artifact (FIX A A-5.4). Whether the
+            # case was reviewed is already stated by ``review.reviewed``.
+            "submitted_at": sub.get("created_at"),
+            "records": [],
+        })
+        # The case-level ``review``/``supervision`` blocks are authoritative;
+        # carrying them again on every embedded record repeated the same review
+        # payload at three nesting levels per case (FIX A A-5.5).
+        label["records"].append({k: v for k, v in mapped.items()
+                                 if k not in ("review", "supervision")})
+
+    cases: List[Dict[str, Any]] = []
+    for tid in sorted(by_case):
+        task = tasks.get(tid) or {}
+        labels = sorted(by_case[tid].values(), key=lambda l: l.get("submitted_at") or "")
+        case_reviews = [r for l in labels for r in reviews_by_sid.get(l["submission_id"], [])]
+        tally: Dict[str, int] = {}
+        for l in labels:
+            if l.get("verdict"):
+                tally[l["verdict"]] = tally.get(l["verdict"], 0) + 1
+        obs = obs_by_tid.get(tid)
+        blinded_obs = bool(obs) and (obs or {}).get("blinded") in (True, 1)
+        cases.append({
+            "case_id": tid,
+            "specialty": task.get("specialty"),
+            "difficulty": task.get("difficulty"),
+            "prompt": task.get("prompt"),
+            # Buyer-safe case content: public_case() inside _context holds out
+            # the answer key; the leak gate re-scans the whole object below.
+            "context": asc_packaging._context(task),
+            "portal_versions": sorted({l.get("portal_version") for l in labels
+                                       if l.get("portal_version")}),
+            "n_labelers": len(labels),
+            "labels": labels,
+            # Same honest naming as the per-record block: adjudication under
+            # ``review``, independence under ``supervision`` — never ``kappa``.
+            "review": asc_packaging.review_block(case_reviews, store),
+            "supervision": {"independent_second_label": blinded_obs},
+            "consensus": {
+                "n_labels": len(labels),
+                "verdicts": tally,
+                "majority_verdict": _majority_verdict(tally),
+                "unanimous": len(tally) == 1 and bool(labels),
+                # The stored double-label observation, when one exists — the κ
+                # input for this case (verdicts only; identities stay hashed).
+                "agreement_observation": {
+                    "verdict_a": (obs or {}).get("verdict_a"),
+                    "verdict_b": (obs or {}).get("verdict_b"),
+                    "verdict_agree": bool((obs or {}).get("verdict_agree")),
+                    "blinded": blinded_obs,
+                } if obs else None,
+            },
+        })
+    return cases
+
+
+def export_by_case(
+    store: Any,
+    *,
+    created_by: Optional[str] = None,
+    case_id: Optional[str] = None,
+    specialty: Optional[str] = None,
+    portal_version: Optional[str] = None,
+    include_exported: bool = True,
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    """Bundle keyed by case_id. One case carries: the case content, every labeler
+    submission, every review, and the derived consensus (PRD A Phase 5).
+
+    SIGNATURE IS FROZEN (context pack Seam 2) — the admin export endpoint calls
+    exactly this.
+
+    ``include_exported`` defaults to **True**, unlike ``build_export`` (FIX A
+    A-5.1). A case bundle that cannot see the case's earlier labels is not a
+    case bundle: if labeler A's records shipped in a previous batch and labeler
+    B's have not, a False default emits that case with ``n_labelers: 1`` and
+    ``consensus.unanimous: true`` computed from a single label — a wrong number
+    in a buyer's hands, produced silently and with no error anywhere.
+
+    A thin, filterable entry point over ``build_export`` — one export pipeline,
+    one Tier B leak gate. Emits ``records.jsonl`` (unchanged, for compatibility)
+    AND ``cases.jsonl`` (case-keyed), plus the usual companions. Filters:
+    ``case_id``, ``specialty``, ``portal_version`` (v3 / v4 / v5)."""
+    return build_export(
+        store,
+        created_by=created_by,
+        case_id=case_id,
+        specialty=specialty,
+        portal_version=portal_version,
+        include_exported=include_exported,
+        **kwargs,
+    )
+
+
 def build_export(
     store: Any,
     *,
@@ -982,6 +1200,7 @@ def build_export(
     verify_values: Optional[List[str]] = None,
     scope: Optional[Dict[str, Any]] = None,
     submission_id: Optional[str] = None,
+    case_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Assemble + persist an export batch from export-ready records.
 
@@ -1061,6 +1280,7 @@ def build_export(
             modality=modality,
             case_source=case_source,
             submission_id=submission_id,
+            case_id=case_id,
         )
     ]
     if not records:
@@ -1072,6 +1292,12 @@ def build_export(
     # 1. Map + validate EVERY line before writing anything (fail loud, fail whole).
     lines: List[str] = []
     emitted: List[Dict[str, Any]] = []
+    mapped_objs: List[Dict[str, Any]] = []  # parallel to ``emitted`` (Phase 5 case bundle)
+    # Review + supervision blocks (PRD A Phase 3) are hydrated at emit time —
+    # reviews land after packaging — and cached per submission/task so a batch
+    # with many records per submission does one lookup each.
+    _reviews_by_sid: Dict[Any, List[Dict[str, Any]]] = {}
+    _obs_by_tid: Dict[Any, Optional[Dict[str, Any]]] = {}
     for rec in records:
         payload = dict(rec.get("payload") or {})
         payload.pop("record_id", None)
@@ -1097,6 +1323,24 @@ def build_export(
             ak = _case_answer_key(store, rec)
             if ak:
                 mapped["answer_key"] = ak
+        # Case-centric review metadata (PRD A Phase 3): the record carries the
+        # original labeling AND every expert review of it, plus who supervised
+        # it. Attached after schema validation (the same seam as answer_key)
+        # but BEFORE the leak gate, so the gate scans these blocks for stray
+        # Tier B keys too. Deliberately NOT under a kappa/agreement key: the
+        # reviewer saw the labeler's answer, so this is adjudication, not
+        # inter-rater agreement (PRD A §0).
+        sid = rec.get("submission_id")
+        if sid not in _reviews_by_sid:
+            _reviews_by_sid[sid] = store.reviews_for_submission(sid) if sid else []
+        tid = rec.get("task_id") or payload.get("task_id")
+        if tid not in _obs_by_tid:
+            _obs_by_tid[tid] = store.get_agreement_observation(tid) if tid else None
+        mapped["review"] = asc_packaging.review_block(_reviews_by_sid[sid], store)
+        mapped["supervision"] = asc_packaging.supervision_block(
+            labeler_id_hashed=payload.get("annotator_id_hashed"),
+            observation=_obs_by_tid[tid],
+        )
         # THE CORE RULE (spec §4, §5): buyer-facing records carry credential
         # ATTRIBUTES only. Reject the whole batch loudly if ANY Tier B
         # (identifying / locating) field appears in ANY record.
@@ -1117,6 +1361,7 @@ def build_export(
                 )
         lines.append(json.dumps(mapped, ensure_ascii=False, sort_keys=True))
         emitted.append(rec)
+        mapped_objs.append(mapped)
 
     if not emitted:
         raise ValueError(
@@ -1131,6 +1376,31 @@ def build_export(
     jsonl_path = out_dir / JSONL_NAME
     jsonl_path.write_text(jsonl_text, encoding="utf-8")
 
+    # 2b. Case-keyed bundle (PRD A Phase 5): records.jsonl stays unchanged for
+    # compatibility; cases.jsonl folds the same emitted records into one object
+    # per case (every labeler + every review + consensus). Same CORE RULE: every
+    # case line passes the Tier B leak gate or the whole batch is rejected.
+    cases = _case_bundle(store, emitted, mapped_objs, _reviews_by_sid, _obs_by_tid)
+    case_lines: List[str] = []
+    for case_obj in cases:
+        leak = asc_credentials.find_tier_b_leak(case_obj)
+        if leak is not None:
+            raise ExportValidationError(
+                f"Tier B leak: case {case_obj.get('case_id')} contains the identifying "
+                f"field {leak!r} in the case bundle. Batch rejected."
+            )
+        if verify_values:
+            vleak = asc_credentials.find_tier_b_value_leak(case_obj, verify_values)
+            if vleak is not None:
+                raise ExportValidationError(
+                    f"Tier B value leak: case {case_obj.get('case_id')} contains a "
+                    f"private-vault value ({vleak!r}) in the case bundle. Batch rejected."
+                )
+        case_lines.append(json.dumps(case_obj, ensure_ascii=False, sort_keys=True))
+    (out_dir / CASES_NAME).write_text(
+        "".join(line + "\n" for line in case_lines), encoding="utf-8"
+    )
+
     # 3. stats for the quality report
     contributors = store.contributor_stats()
     kappa = asc_agreement.aggregate_kappa(store.list_agreement_observations())
@@ -1142,11 +1412,19 @@ def build_export(
     except Exception:
         ext_pairs = []
     external_adjudication = asc_agreement.external_adjudication_agreement(ext_pairs)
+    # Two statistics, named correctly (PRD A Phase 4). ``kappa`` above IS the
+    # independent κ (blinded double-labeled slice, min-n gated). Review
+    # acceptance is a DIFFERENT statistic — expert adjudication over this
+    # batch's reviews, where the reviewer saw the labeler's answer — and is
+    # never reported under a κ label.
+    _batch_reviews = [r for revs in _reviews_by_sid.values() for r in revs]
+    review_acceptance = asc_agreement.review_acceptance(_batch_reviews)
     stats = {
         "status_counts": store.status_counts(),
         "qa_pass_rate": store.qa_pass_rate(),
         "average_agreement": store.average_agreement(),
         "kappa": kappa,
+        "review_acceptance": review_acceptance,
         "external_adjudication_agreement": external_adjudication,
         "flag_counts": _flag_counts(store),
         "contributors": contributors,
@@ -1177,6 +1455,7 @@ def build_export(
     # ready-to-run rubric-based LLM-as-judge scorer (grader_prompt.txt + score.py)
     # — the "eval alongside dataset" a buyer can run out of the box.
     companion_files = list(_COMPANION_FILES)
+    companion_files.append(CASES_NAME)  # case-keyed bundle (PRD A Phase 5)
     if _rubric_records:
         (out_dir / GRADER_PROMPT_NAME).write_text(_GRADER_PROMPT, encoding="utf-8")
         (out_dir / SCORE_PY_NAME).write_text(_SCORE_PY, encoding="utf-8")
@@ -1245,6 +1524,7 @@ def build_export(
         "mock_excluded": (not include_mock and bool(mock_ids)),
         "annotator_id_hashed": annotator_id_hashed,
         "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
+        "case_id": case_id,
     }
     content_hashes = {JSONL_NAME: _sha256_text(jsonl_text)}
     for name in companion_files:
@@ -1265,6 +1545,8 @@ def build_export(
         "preference_variant": prof.get("preference_variant", "flat"),
         "record_count": len(emitted),
         "submission_count": len({r["submission_id"] for r in emitted}),
+        # One entry per case in cases.jsonl (PRD A Phase 5).
+        "case_count": len(cases),
         "counts": counts,
         "grounded_count": sum(1 for r in emitted if (r.get("payload") or {}).get("grounded")),
         "multimodal_count": sum(1 for r in emitted if _rec_modality(r) == "multimodal"),
@@ -1277,6 +1559,9 @@ def build_export(
         # (some unratified — see datasheet warning), or null (no synthetic prompts).
         "seed_corpus_ratified": _seed_corpus_ratified(emitted),
         "kappa": kappa,
+        # Expert-review adjudication over this batch (PRD A Phase 4) — a
+        # separate statistic from κ, under its own name, on purpose.
+        "review_acceptance": review_acceptance,
         "filters": filters,
         "note": note,
         "scope": scope,
