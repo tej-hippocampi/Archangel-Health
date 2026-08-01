@@ -308,3 +308,216 @@ def test_broken_cv_never_blocks_signup(client: TestClient):
     assert u["verification_status"] == "pending"
     parsed = json.loads(u["cv_parsed_json"])
     assert parsed["ok"] is False
+
+
+# ─── Phase 5: the admin verification queue ───────────────────────────────────
+from asclepius import store as asc_store_module  # noqa: E402
+
+
+def _pending_physician(store, *, npi=None, email=None, family="Patel", **extra):
+    """A signup as the queue sees it, created directly against the store."""
+    npi = npi or _fresh_npi()
+    email = email or f"doc_{uuid.uuid4().hex[:8]}@nephrology-associates.com"
+    u = store.provision_user(
+        email=email, password="pw-12345678", role="evaluator",
+        full_name=f"Dr. Ana {family}", npi=npi,
+        specialty=extra.pop("specialty", "nephrology"),
+        board_cert=extra.pop("board_cert", "ABIM — Nephrology"),
+        years_experience=extra.pop("years_experience", 12),
+    )
+    store.update_identity_capture(
+        u["id"], phone="+1 555 000 1111",
+        linkedin_url="https://linkedin.com/in/ana",
+        email_domain_class="business")
+    store.set_npi_result(u["id"], {
+        "result": extra.pop("npi_result", "verified"),
+        "npi": npi,
+        "reason": extra.pop("npi_reason", None),
+        "record": {"number": npi, "enumeration_type": "NPI-1", "status": "A",
+                   "first_name": "Ana", "last_name": family, "credential": "M.D.",
+                   "enumeration_date": "2010-01-01",
+                   "taxonomy": {"code": "x", "desc": "Nephrology", "state": "CA",
+                                "license": "1"},
+                   "location": {"city": "LA", "state": "CA"}},
+    })
+    store.set_verification_status(u["id"], "pending")
+    return store.get_user_by_id(u["id"])
+
+
+def test_queue_requires_admin_auth(client: TestClient):
+    store = fresh_store()
+    evaluator = make_user(store)
+    assert client.get("/api/asclepius/verify/queue").status_code == 401
+    assert client.get("/api/asclepius/verify/queue",
+                      headers=headers_for(evaluator)).status_code == 403
+
+
+def test_queue_lists_pending_newest_first_with_score_reasons_blockers(client: TestClient):
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    first = _pending_physician(store)
+    second = _pending_physician(store)
+    r = client.get("/api/asclepius/verify/queue", headers=headers_for(admin))
+    assert r.status_code == 200
+    q = r.json()["queue"]
+    ids = [row["user_id"] for row in q]
+    assert ids.index(second["id"]) < ids.index(first["id"])  # newest first
+    row = q[0]
+    assert row["score"] > 0
+    assert row["reasons"]
+    assert row["blockers"] == []
+    assert row["proposed_tier"] in ("labeler", "reviewer")
+    assert row["npi"]["result"] == "verified"
+
+
+def test_signup_flow_lands_in_queue_within_seconds(client: TestClient):
+    # e2e: the onboarding router writes via app.state; point the singleton the
+    # verify router uses at the same DB before running the flow.
+    asc_store_module.reset_store_for_tests(
+        db_path=client.app.state.asclepius_store.db_path)
+    admin = make_user(client.app.state.asclepius_store, role="admin")
+    _, _, email, creds = _run_director_signup(client)
+    r = client.get("/api/asclepius/verify/queue", headers=headers_for(admin))
+    assert r.status_code == 200
+    match = [row for row in r.json()["queue"] if row["email"] == email]
+    assert match, "fresh signup missing from the pending queue"
+    assert match[0]["npi"]["npi"] == creds["npi"]
+
+
+def test_dossier_has_payloads_and_never_the_password_hash(client: TestClient):
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    u = _pending_physician(store)
+    r = client.get(f"/api/asclepius/verify/queue/{u['id']}", headers=headers_for(admin))
+    assert r.status_code == 200
+    d = r.json()
+    assert d["npi_payload"]["result"] == "verified"
+    assert d["score"] > 0 and d["reasons"]
+    assert "password_hash" not in json.dumps(d)
+    assert client.get("/api/asclepius/verify/queue/u-nonexistent",
+                      headers=headers_for(admin)).status_code == 404
+
+
+def test_approve_without_tier_is_400(client: TestClient):
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    u = _pending_physician(store)
+    r = client.post(f"/api/asclepius/verify/queue/{u['id']}/approve",
+                    json={}, headers=headers_for(admin))
+    assert r.status_code == 400
+    r = client.post(f"/api/asclepius/verify/queue/{u['id']}/approve",
+                    json={"tier": "supervisor"}, headers=headers_for(admin))
+    assert r.status_code == 400
+    assert store.get_user_by_id(u["id"])["verification_status"] == "pending"
+
+
+def test_approve_sets_tier_verified_by_and_at_and_unlocks_portal(client: TestClient):
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    u = _pending_physician(store)
+    # locked while pending
+    assert client.get("/api/asclepius/auth/me", headers=headers_for(u)).status_code == 403
+    r = client.post(f"/api/asclepius/verify/queue/{u['id']}/approve",
+                    json={"tier": "reviewer", "note": "strong NPPES + 12y"},
+                    headers=headers_for(admin))
+    assert r.status_code == 200, r.text
+    row = store.get_user_by_id(u["id"])
+    assert row["verification_status"] == "approved"
+    assert row["tier"] == "reviewer"
+    assert row["tier_score"] is not None
+    assert row["verified_by"] == admin["email"]
+    assert row["verified_at"] is not None
+    assert row["tier_assigned_by"] == admin["email"]
+    # decision is logged, and the physician can now use the portal
+    events = store.list_events(entity_type="user", entity_id=u["id"])
+    assert any(e["event_type"] == "verification_approved" for e in events)
+    assert client.get("/api/asclepius/auth/me", headers=headers_for(u)).status_code == 200
+
+
+def test_admin_may_override_the_proposal(client: TestClient):
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    u = _pending_physician(store)  # proposal will say reviewer (high signal)
+    r = client.post(f"/api/asclepius/verify/queue/{u['id']}/approve",
+                    json={"tier": "labeler"}, headers=headers_for(admin))
+    assert r.status_code == 200
+    assert store.get_user_by_id(u["id"])["tier"] == "labeler"
+    ev = [e for e in store.list_events(entity_type="user", entity_id=u["id"])
+          if e["event_type"] == "verification_approved"][0]
+    assert ev["payload"]["followed_proposal"] is False
+
+
+def test_reject_without_note_is_400_with_note_rejects(client: TestClient):
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    u = _pending_physician(store)
+    r = client.post(f"/api/asclepius/verify/queue/{u['id']}/reject",
+                    json={}, headers=headers_for(admin))
+    assert r.status_code == 400
+    r = client.post(f"/api/asclepius/verify/queue/{u['id']}/reject",
+                    json={"note": "   "}, headers=headers_for(admin))
+    assert r.status_code == 400
+    r = client.post(f"/api/asclepius/verify/queue/{u['id']}/reject",
+                    json={"note": "NPI belongs to a different specialty"},
+                    headers=headers_for(admin))
+    assert r.status_code == 200
+    row = store.get_user_by_id(u["id"])
+    assert row["verification_status"] == "rejected"
+    assert row["verified_by"] == admin["email"]
+    assert row["tier"] is None
+    r = client.get("/api/asclepius/auth/me", headers=headers_for(u))
+    assert r.status_code == 403 and "not approved" in r.json()["detail"].lower()
+
+
+def test_recheck_npi_updates_unavailable_in_place(client: TestClient, monkeypatch):
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    u = _pending_physician(store, npi_result="unavailable", npi_reason="rate_limited")
+    store.set_npi_result(u["id"], {"result": "unavailable", "reason": "rate_limited"})
+    assert store.get_user_by_id(u["id"])["npi_verified"] is None
+    monkeypatch.setattr(
+        credentialing, "fetch_npi_record",
+        lambda npi, timeout=6.0: {"status": "found",
+                                  "record": _nppes_record(last_name="Patel"),
+                                  "reason": None})
+    r = client.post(f"/api/asclepius/verify/queue/{u['id']}/recheck-npi",
+                    headers=headers_for(admin))
+    assert r.status_code == 200, r.text
+    assert r.json()["npi_verified"] == 1
+    assert r.json()["npi"]["result"] == "verified"
+    events = store.list_events(entity_type="user", entity_id=u["id"])
+    assert any(e["event_type"] == "npi_rechecked" for e in events)
+
+
+def test_duplicate_npi_flags_both_queue_rows(client: TestClient):
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    shared = _fresh_npi()
+    a = _pending_physician(store, npi=shared)
+    b = _pending_physician(store, npi=shared)
+    q = client.get("/api/asclepius/verify/queue",
+                   headers=headers_for(admin)).json()["queue"]
+    flagged = {row["user_id"]: row["blockers"] for row in q
+               if row["user_id"] in (a["id"], b["id"])}
+    assert len(flagged) == 2
+    for blockers in flagged.values():
+        assert any("Duplicate NPI" in bl for bl in blockers)
+    # dossier names the other claimant
+    d = client.get(f"/api/asclepius/verify/queue/{a['id']}",
+                   headers=headers_for(admin)).json()
+    assert any(dc["user_id"] == b["id"] for dc in d["duplicate_claims"])
+
+
+def test_cv_download_is_admin_only_and_sniffs_type(client: TestClient):
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    u = _pending_physician(store)
+    meta = credentialing.store_cv(b"plain text resume", "text/plain")
+    store.set_cv(u["id"], meta["sha256"], {"ok": True})
+    r = client.get(f"/api/asclepius/verify/queue/{u['id']}/cv",
+                   headers=headers_for(admin))
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/plain")
+    assert r.content == b"plain text resume"
+    assert client.get(f"/api/asclepius/verify/queue/{u['id']}/cv",
+                      headers=headers_for(u)).status_code == 403

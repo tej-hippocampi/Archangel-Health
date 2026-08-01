@@ -3900,6 +3900,52 @@ class AsclepiusStore:
                 "SELECT * FROM users WHERE npi = ? ORDER BY created_at ASC", (npi,)
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def list_verification_queue(self, status: str = "pending") -> List[Dict[str, Any]]:
+        """User rows in one verification state, newest signup first (the admin
+        works the top of the queue). ``status`` ∈ pending|approved|rejected."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                # rowid tiebreak: created_at has second granularity, and two
+                # launch-day signups in the same second must still order
+                # deterministically (newest insertion first).
+                "SELECT * FROM users WHERE verification_status = ? "
+                "ORDER BY created_at DESC, rowid DESC",
+                (status,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def record_verification_decision(
+        self,
+        user_id: str,
+        *,
+        status: str,
+        decided_by: str,
+        tier: Optional[str] = None,
+        tier_score: Optional[float] = None,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """The human decision (PRD-B Phase 5). Stamps verified_by/verified_at on
+        EVERY decision; tier fields are written only on approval — the tier is
+        a decision, not a computation, so it arrives only from this method."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            if status == "approved":
+                conn.execute(
+                    "UPDATE users SET verification_status = 'approved', "
+                    "verification_notes = COALESCE(?, verification_notes), "
+                    "verified_by = ?, verified_at = ?, tier = ?, tier_score = ?, "
+                    "tier_assigned_at = ?, tier_assigned_by = ? WHERE id = ?",
+                    (note, decided_by, now, tier, tier_score, now, decided_by, user_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE users SET verification_status = ?, "
+                    "verification_notes = COALESCE(?, verification_notes), "
+                    "verified_by = ?, verified_at = ? WHERE id = ?",
+                    (status, note, decided_by, now, user_id),
+                )
+        return self.get_user_by_id(user_id)
     # ═══ END PRD-B ═══
 
 
