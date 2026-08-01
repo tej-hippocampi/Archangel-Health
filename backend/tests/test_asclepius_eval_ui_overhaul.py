@@ -1025,7 +1025,7 @@ def test_v4_parity():
     # The specialty picker (§2) and the badge (§13) cover v3 AND v4 explicitly.
     badge = _body_of("renderExperienceBadge")
     assert "(v === 'v3' || v === 'v4')" in badge
-    assert "v4: 'Real · De-identified Cases'" in badge
+    assert "v4: 'Real De-Identified Multimodal Cases'" in badge
     eval_view = _body_of("renderEvalView")
     assert "(ver === 'v3' || ver === 'v4')" in eval_view
 
@@ -1086,8 +1086,13 @@ def test_no_new_component_vocabulary_beyond_the_prd():
 
     # Nothing beyond the declared set: every asc- class in the stylesheet must
     # be reachable from the app, so a typo'd or abandoned rule is caught.
+    # PRD-C's admin sections live in their own module files (§3.3 ownership),
+    # so classes they emit count as reachable too.
+    admin_modules = "".join(
+        p.read_text(encoding="utf-8") for p in sorted(_FRONTEND.glob("admin_*.js"))
+    )
     styled = set(re.findall(r"\.(asc-[\w-]+)", CSS_CODE))
-    emitted = {c for c in styled if c in JS or c in html}
+    emitted = {c for c in styled if c in JS or c in html or c in admin_modules}
     orphans = sorted(styled - emitted - _KNOWN_PREEXISTING_ORPHANS)
     assert not orphans, f"styled but never emitted: {orphans}"
 

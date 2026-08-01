@@ -1977,7 +1977,7 @@
       // V4 (EHR PRD §9.5): the V3 flow over REAL de-identified patient cases.
       // Shown LOCKED unless the contributor is real_data_approved — serving is
       // enforced server-side regardless; the lock is honest UI, not the gate.
-      v: 'v4', label: 'Real · De-identified Cases', tag: 'Real patient data', dot: 'asc-dot-pink',
+      v: 'v4', label: 'Real De-Identified Multimodal Cases', tag: 'Real patient data', dot: 'asc-dot-pink',
       requiresRealData: true,
       blurb: 'Work through real, de-identified patient cases — labs, notes, and a real clinical snapshot. Same task as synthetic; the data is real.',
       bullets: [
@@ -2003,7 +2003,7 @@
       // task, not a variant of the single-turn flow, so selecting it navigates to
       // its own surface instead of calling chooseVersion(): the single-turn queue,
       // submit path, and portal_version stamping are never touched by V5.
-      v: 'v5', label: 'V5 · Agent Trajectories', tag: 'New', dot: 'asc-dot-orange',
+      v: 'v5', label: 'Clinical RL Environment', tag: 'New', dot: 'asc-dot-orange',
       route: '/asclepius/v5/annotate',
       blurb: 'Review an AI agent working a case step by step — label each move and write what it should have done instead.',
       bullets: [
@@ -2207,7 +2207,7 @@
   // is being graded under, with a one-tap route back to the home chooser.
   function renderExperienceBadge() {
     const v = draftVersion();
-    const meta = { v4: 'Real · De-identified Cases', v3: 'Synthetic Multimodal',
+    const meta = { v4: 'Real De-Identified Multimodal Cases', v3: 'Synthetic Multimodal',
                    v2: 'V2 · Assisted', v1: 'V1 · Classic' }[v] || 'V1 · Classic';
     // V3/V4 also carry the chosen specialty + a one-tap route back to the picker.
     const specLink = (v === 'v3' || v === 'v4')
