@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 from typing import Any, Dict
 
 import secrets
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 from fastapi import Form
 from pydantic import BaseModel, EmailStr, Field
+from starlette.concurrency import run_in_threadpool
 
 from ratelimit import client_ip, global_rate_limiter, rate_limiter
 
@@ -666,9 +667,10 @@ def _provision_asclepius_user(
         credentials=creds,
         attestations=attestations or {},
     )
-    # PRD-B: identity capture + credential verification. Inline but NON-BLOCKING —
-    # signup must complete even if NPPES is slow or down; the record lands as
-    # pending and the check catches up (or an admin rechecks from the queue).
+    # PRD-B: identity capture + credential verification. This function is
+    # SYNCHRONOUS and both callers are async, so it must be reached through
+    # ``run_in_threadpool`` — see the comment at each call site. Do not call it
+    # directly from an async handler.
     _run_signup_verification(store, user, creds)
 
 
@@ -952,7 +954,14 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     director_pwd = generate_secure_password()
     org_name = (row.get("name") or "").strip()
     specialty = (row.get("specialty") or "").strip()
-    _provision_asclepius_user(
+    # B-1.1: _provision_asclepius_user is synchronous and reaches a synchronous
+    # httpx call to NPPES (plus pbkdf2 hashing and sqlite writes). Calling it
+    # directly from this async handler runs all of that ON THE EVENT LOOP, so
+    # one hung NPPES response stalls every request in the process — not just
+    # this one. The try/except inside prevents a 500; it does not prevent a
+    # hang. The threadpool hop is what makes the "non-blocking" claim true.
+    await run_in_threadpool(
+        _provision_asclepius_user,
         request,
         email=director_email,
         password=director_pwd,
@@ -1061,7 +1070,10 @@ async def member_finish(body: OnboardTokenBody, request: Request):
     org_name = (hs.get("name") or "").strip()
     specialty = (hs.get("specialty") or "").strip()
     role = (person.get("clinical_role") or "").strip().lower()
-    _provision_asclepius_user(
+    # B-1.1: see the director path — synchronous NPPES/pbkdf2/sqlite work must
+    # not run on the event loop.
+    await run_in_threadpool(
+        _provision_asclepius_user,
         request,
         email=person["email"],
         password=member_pwd,

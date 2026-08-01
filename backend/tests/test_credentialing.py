@@ -121,6 +121,88 @@ def test_rate_limit_and_5xx_are_unavailable(monkeypatch, code, reason):
     assert out["reason"] == reason
 
 
+def test_result_count_absent_is_unavailable_not_not_found(monkeypatch):
+    """B-1.2 — the test that would have caught it.
+
+    ``result_count`` ABSENT is not ``result_count`` ZERO. Any 200 we cannot
+    recognize (schema change, Cloudflare JSON error page, captive portal) must
+    be 'could not determine'. The difference is permanent: not_found stamps
+    npi_checked_at, which makes the row cache-eligible for 30 days AND
+    suppresses the retry path.
+    """
+    monkeypatch.setattr(
+        credentialing.httpx, "get",
+        lambda *a, **kw: _FakeResponse(payload={"message": "unexpected shape"}),
+    )
+    out = verify_npi(VALID_NPI, "Smith")
+    assert out["result"] == NpiResult.UNAVAILABLE.value
+    assert out["result"] != NpiResult.NOT_FOUND.value
+    assert out["reason"] == "unrecognized_payload"
+
+
+def test_unrecognized_200_is_not_cached_and_leaves_retry_open(monkeypatch):
+    """The consequence half of B-1.2: an unrecognized 200 must not become a
+    30-day cached rejection, and must not suppress the retry."""
+    store = fresh_store()
+    u = _user_with_npi(store)
+    monkeypatch.setattr(
+        credentialing.httpx, "get",
+        lambda *a, **kw: _FakeResponse(payload={"nonsense": True}),
+    )
+    store.set_npi_result(u["id"], verify_npi(VALID_NPI, "Smith"))
+    row = store.get_user_by_id(u["id"])
+    assert row["npi_verified"] is None          # not 0 — never a definitive negative
+    assert row["npi_checked_at"] is None        # cache-ineligible
+    assert store.get_cached_npi_fetch(VALID_NPI) is None
+
+
+@pytest.mark.parametrize("payload", [
+    {"results": [], "result_count": 1},          # IndexError before the fix
+    {"result_count": 1},                         # KeyError before the fix
+    {"results": "x", "result_count": 1},         # ValueError before the fix
+    {"results": [None], "result_count": 1},
+    {"result_count": None},
+    [],                                          # not even an object
+])
+def test_malformed_200_never_raises_and_is_unavailable(monkeypatch, payload):
+    """Three of these raised today, violating the documented three-state
+    contract. Both current callers wrap in try/except, so there is no 500 —
+    until the next caller trusts the contract."""
+    monkeypatch.setattr(credentialing.httpx, "get",
+                        lambda *a, **kw: _FakeResponse(payload=payload))
+    out = verify_npi(VALID_NPI, "Smith")   # must not raise
+    assert out["result"] in (NpiResult.UNAVAILABLE.value, NpiResult.NOT_FOUND.value)
+    if payload == {"result_count": None}:
+        assert out["result"] == NpiResult.NOT_FOUND.value   # count present and falsy
+    else:
+        assert out["result"] == NpiResult.UNAVAILABLE.value
+
+
+def test_result_count_zero_is_still_definitively_not_found(monkeypatch):
+    """Do not over-correct: a well-formed 'no such NPI' must stay definitive."""
+    monkeypatch.setattr(
+        credentialing.httpx, "get",
+        lambda *a, **kw: _FakeResponse(payload={"result_count": 0, "results": []}),
+    )
+    assert verify_npi(VALID_NPI, "Smith")["result"] == NpiResult.NOT_FOUND.value
+
+
+def test_timeout_budget_is_per_phase(monkeypatch):
+    """B-1.1 tail: a bare timeout=6.0 applies 6s to each of connect/read/write/
+    pool (~20s worst case for one hung request)."""
+    seen = {}
+
+    def _capture(*a, **kw):
+        seen["timeout"] = kw.get("timeout")
+        return _FakeResponse(payload={"result_count": 0, "results": []})
+
+    monkeypatch.setattr(credentialing.httpx, "get", _capture)
+    verify_npi(VALID_NPI, "Smith")
+    t = seen["timeout"]
+    assert isinstance(t, httpx.Timeout)
+    assert t.connect == 2.0 and t.read == 4.0 and t.write == 2.0 and t.pool == 1.0
+
+
 def test_api_error_object_is_unavailable_not_not_found(monkeypatch):
     monkeypatch.setattr(
         credentialing.httpx, "get",

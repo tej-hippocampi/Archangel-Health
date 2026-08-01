@@ -15,10 +15,12 @@ moment we cannot afford to.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import logging
 import re
+import unicodedata
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -31,6 +33,29 @@ log = logging.getLogger("asclepius.credentialing")
 NPPES = "https://npiregistry.cms.hhs.gov/api/"
 NPPES_VERSION = "2.1"
 DEFAULT_TIMEOUT = 6.0
+
+
+def _timeout_for(timeout: float) -> Any:
+    """A per-phase httpx timeout budget.
+
+    A bare ``timeout=6.0`` applies 6s to EACH of connect/read/write/pool, so a
+    single hung NPPES request can hold a worker for ~20s. These phases bound
+    the true worst case to ~9s while leaving a slow-but-alive registry room to
+    answer (read is the phase that legitimately takes time).
+    """
+    try:
+        scale = max(0.05, float(timeout) / DEFAULT_TIMEOUT)
+    except (TypeError, ValueError):
+        scale = 1.0
+    return httpx.Timeout(
+        connect=2.0 * scale, read=4.0 * scale, write=2.0 * scale, pool=1.0 * scale
+    )
+
+
+def _npi_log_id(npi: str) -> str:
+    """A short stable hash of an NPI for log lines (L1) — groups retries of the
+    same number without printing an identifier tied to a named physician."""
+    return hashlib.sha256((npi or "").encode("utf-8")).hexdigest()[:8]
 
 # How long a definitive NPPES answer stays fresh (registry data moves slowly;
 # launch traffic re-checks the same NPIs).
@@ -108,10 +133,14 @@ def fetch_npi_record(npi: str, timeout: float = DEFAULT_TIMEOUT) -> Dict[str, An
         resp = httpx.get(
             NPPES,
             params={"version": NPPES_VERSION, "number": npi},
-            timeout=timeout,
+            timeout=_timeout_for(timeout),
         )
     except Exception as exc:  # timeout, DNS, connection reset, TLS…
-        log.warning("[credentialing] NPPES unreachable for %s: %s", npi, type(exc).__name__)
+        # L1: the NPI is public registry data, but a WARNING line correlates it
+        # to a named physician's signup in the log stream. Hash it; the prefix
+        # is enough to group retries of the same number.
+        log.debug("[credentialing] NPPES unreachable for npi#%s: %s",
+                  _npi_log_id(npi), type(exc).__name__)
         return {"status": "unavailable", "record": None,
                 "reason": f"network_error:{type(exc).__name__}"}
 
@@ -131,10 +160,25 @@ def fetch_npi_record(npi: str, timeout: float = DEFAULT_TIMEOUT) -> Dict[str, An
     if data.get("Errors") or data.get("errors"):
         return {"status": "unavailable", "record": None, "reason": "api_error"}
 
-    if not data.get("result_count"):
+    # B-1.2: ``result_count`` ABSENT is not ``result_count`` ZERO. A 200 we
+    # cannot parse — a schema change, a Cloudflare JSON error page, a proxy
+    # interstitial, a captive portal — is "could not determine", NOT "this
+    # physician does not exist". The difference is permanent: not_found stamps
+    # npi_checked_at, which makes the row cache-eligible and suppresses the
+    # retry path, so one bad response shape would reject a real physician for
+    # 30 days with no further network call.
+    if not isinstance(data, dict) or "result_count" not in data:
+        return {"status": "unavailable", "record": None, "reason": "unrecognized_payload"}
+    if not data["result_count"]:
         return {"status": "not_found", "record": None, "reason": None}
+    # result_count claims a hit — the results array must actually carry one.
+    # Trusting the count alone raised IndexError/KeyError/ValueError on three
+    # real malformed shapes, breaking this function's three-state contract.
+    results = data.get("results")
+    if not isinstance(results, list) or not results or not isinstance(results[0], dict):
+        return {"status": "unavailable", "record": None, "reason": "unrecognized_payload"}
 
-    return {"status": "found", "record": data["results"][0], "reason": None}
+    return {"status": "found", "record": results[0], "reason": None}
 
 
 def _basic(record: Dict[str, Any]) -> Dict[str, Any]:

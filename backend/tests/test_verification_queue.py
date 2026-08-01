@@ -7,6 +7,7 @@ Launch-day property under test throughout: every failure path degrades to a
 from __future__ import annotations
 
 import json
+import time
 import sqlite3
 import uuid
 
@@ -24,13 +25,20 @@ _npi_counter = 0
 
 
 def _fresh_npi() -> str:
-    """A unique, checksum-valid NPI per test. The suite shares one DB, and the
-    30-day NPI cache is REAL behavior — reusing one NPI across tests would
-    (correctly) serve cached registry answers and mask the path under test."""
+    """A unique, checksum-valid NPI per test.
+
+    Must be unique across pytest INVOCATIONS, not just within one: conftest
+    points the suite at a stable ``/tmp/asclepius_suite/asclepius_suite.db``
+    that survives between runs, and the 30-day NPI cache is real behavior. A
+    counter-derived NPI restarts at 1 every run, hits a registry answer cached
+    by a previous run, and the path under test never executes — which is
+    exactly how a passing suite hides a regression. Seed from uuid4.
+    """
     global _npi_counter
     _npi_counter += 1
-    base = f"1{_npi_counter:07d}9"  # 9 digits
     from asclepius.credentialing import npi_checksum_ok
+    rand = uuid.uuid4().int % 1_000_000
+    base = f"1{rand:06d}{_npi_counter % 100:02d}"  # 9 digits, unique per run+call
     for check in "0123456789":
         if npi_checksum_ok(base + check):
             return base + check
@@ -135,6 +143,82 @@ def _run_director_signup(client: TestClient, creds=None):
     r = client.post("/api/onboarding/asclepius/finish", json={"token": token})
     assert r.status_code == 200, r.text
     return token, hs_id, director_email, creds
+
+
+# ─── B-1.1: signup must not block the asyncio event loop ─────────────────────
+def test_slow_nppes_does_not_delay_other_requests(client: TestClient, monkeypatch):
+    """The property, not the symptom.
+
+    Asserting that signup returns 200 while NPPES is slow proves nothing — the
+    try/except already guaranteed that, and the form still hung. What matters
+    is that a slow third-party call cannot stall OTHER requests in the process.
+    Without run_in_threadpool at the call site this test fails: the concurrent
+    request waits behind the sleeping httpx call on the event loop.
+    """
+    import anyio
+    import httpx as _httpx
+
+    bystander = make_user(fresh_store(), role="admin")
+    token, hs_id, email = _seed_verified(client)
+    assert client.post("/api/onboarding/select-product",
+                       json={"token": token, "product": "asclepius"}).status_code == 200
+    assert client.post(
+        "/api/onboarding/asclepius/institution",
+        json={"token": token, "org_name": "Northridge Nephrology",
+              "specialty": "Nephrology", "phone": "(555) 123-4567"},
+    ).status_code == 200
+    assert client.post("/api/onboarding/asclepius/credentials",
+                       json={"token": token, "credentials": _creds()}).status_code == 200
+    assert client.post("/api/onboarding/asclepius/attestations",
+                       json={"token": token, "attestations": ATTS}).status_code == 200
+
+    SLEEP = 3.0
+    def _slow_nppes(npi, timeout=6.0):
+        time.sleep(SLEEP)          # a hung NPPES response
+        return {"status": "unavailable", "record": None, "reason": "slow"}
+    monkeypatch.setattr(credentialing, "fetch_npi_record", _slow_nppes)
+
+    result = {}
+
+    async def _drive():
+        transport = _httpx.ASGITransport(app=client.app)
+        async with _httpx.AsyncClient(transport=transport, base_url="http://t",
+                                      timeout=30.0) as ac:
+            # Anchor every measurement to ONE origin taken before either task
+            # starts. Timing from inside the bystander coroutine measures only
+            # the part of the wait that happens after the loop is free again —
+            # a blocked loop cannot run the clock call either, so the stall
+            # silently vanishes from the number and the test passes while the
+            # bug is present.
+            origin = time.monotonic()
+
+            async def _signup():
+                r = await ac.post("/api/onboarding/asclepius/finish", json={"token": token})
+                result["signup_status"] = r.status_code
+                result["signup_done_at"] = time.monotonic() - origin
+
+            async def _bystander():
+                await anyio.sleep(0.25)      # let the signup reach the slow call
+                r = await ac.get("/api/asclepius/auth/me", headers=headers_for(bystander))
+                result["bystander_done_at"] = time.monotonic() - origin
+                result["bystander_status"] = r.status_code
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(_signup)
+                tg.start_soon(_bystander)
+
+    anyio.run(_drive)
+    assert result["signup_status"] == 200, result
+    assert result["bystander_status"] == 200, result
+    # The signup really did take the full slow-NPPES hit...
+    assert result["signup_done_at"] >= SLEEP, (
+        f"signup finished in {result['signup_done_at']:.2f}s — the slow NPPES stub "
+        f"was never reached, so this test proves nothing")
+    # ...and an unrelated request served during it was not stalled behind it.
+    assert result["bystander_done_at"] < 1.0, (
+        f"an unrelated request completed only at t+{result['bystander_done_at']:.2f}s "
+        f"while signup held the loop until t+{result['signup_done_at']:.2f}s — "
+        f"signup is still running on the event loop")
 
 
 # ─── Phase 4: signup capture ─────────────────────────────────────────────────
