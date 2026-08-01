@@ -16,6 +16,7 @@ moment we cannot afford to.
 from __future__ import annotations
 
 import io
+import json
 import logging
 import re
 from datetime import datetime
@@ -594,3 +595,193 @@ def parse_cv(asset_sha: str, mime: str = "application/pdf") -> Dict[str, Any]:
         return {"ok": False, "asset_sha": asset_sha, "reason": f"parse_failed:{type(exc).__name__}",
                 "institutions": [], "board_certifications": [],
                 "years_in_practice": None, "publications_count": None}
+
+
+# ─── Tier scoring (Phase 3) ──────────────────────────────────────────────────
+# The score PROPOSES; a human DECIDES. Nothing here assigns a tier — the admin
+# approval endpoint requires an explicit tier in the request body, always.
+
+TIER_WEIGHTS = {
+    "npi_verified":        25,   # authoritative identity
+    "academic_email":      10,
+    "business_email":       6,
+    "consumer_email":      -4,
+    "health_system_email": 10,   # known health-system employer domain (§1.3: weight higher)
+    "board_certified":     20,
+    "years_10_plus":       20,
+    "years_5_to_10":       10,
+    "years_under_5":        0,
+    "subspecialty_match":  10,   # NPPES taxonomy matches a specialty we serve
+    "cv_parsed":            5,
+    "linkedin_present":     3,
+}
+
+REVIEWER_MIN_SCORE = 70
+LABELER_MIN_SCORE = 30
+
+# NPPES taxonomy wording → the specialty registry's names. "Cardiovascular
+# Disease" is how NPPES spells cardiology; hem/onc covers oncology.
+_SERVED_SPECIALTY_STEMS = {
+    "nephrology": ("nephrology",),
+    "cardiology": ("cardiovascular", "cardiology", "cardiac electrophysiology",
+                   "interventional cardiology"),
+    "oncology":   ("oncology", "hematology"),
+}
+
+
+def _served_specialty_for_taxonomy(taxonomy_desc: str) -> Optional[str]:
+    """Which served specialty (if any) an NPPES taxonomy description maps to.
+    None means "could not determine" — which is never treated as a divergence."""
+    low = (taxonomy_desc or "").casefold()
+    if not low:
+        return None
+    for served, stems in _SERVED_SPECIALTY_STEMS.items():
+        if any(stem in low for stem in stems):
+            return served
+    return None
+
+
+def _json_field(user: Dict[str, Any], key: str) -> Dict[str, Any]:
+    """A user-row field that may arrive as a JSON string (raw sqlite row) or an
+    already-decoded dict."""
+    raw = user.get(key)
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw:
+        try:
+            out = json.loads(raw)
+            return out if isinstance(out, dict) else {}
+        except ValueError:
+            return {}
+    return {}
+
+
+def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[str, Any]:
+    """Returns ``{"score", "proposed_tier", "reasons", "blockers"}``.
+
+        score >= 70 and npi_verified -> 'reviewer'  (senior, time-poor: they grade)
+        score >= 30                  -> 'labeler'   (they do cases from scratch)
+        otherwise                    -> None        (admin decides; NOT a rejection)
+
+    Rationale, because the mapping is counter-intuitive: the HIGHER tier does
+    LESS work. A 20-year attending will not sit and label cases from scratch,
+    but will spend 60 seconds grading someone else's. Matching the task to the
+    supply is the whole point of the two tiers.
+
+    ``reasons`` is human-readable — an admin must see WHY a tier was proposed
+    without reading the weights. ``blockers`` suppress the proposal and force
+    manual review; they are review flags, never rejections.
+    """
+    reasons: List[str] = []
+    blockers: List[str] = []
+    score = 0
+
+    npi_payload = _json_field(user, "npi_payload_json")
+    npi_result = npi_payload.get("result")
+    npi_record = npi_payload.get("record") or {}
+    taxonomy_desc = ((npi_record.get("taxonomy") or {}).get("desc")) or ""
+
+    npi_ok = user.get("npi_verified") == 1
+    if npi_ok:
+        score += TIER_WEIGHTS["npi_verified"]
+        cred = npi_record.get("credential") or ""
+        reasons.append(
+            f"+{TIER_WEIGHTS['npi_verified']} NPI verified against NPPES"
+            + (f" ({cred})" if cred else ""))
+    elif npi_result == NpiResult.UNAVAILABLE.value:
+        reasons.append("±0 NPI check unavailable — retry pending (not held against them)")
+    elif npi_result == NpiResult.NOT_FOUND.value:
+        reasons.append("±0 NPI not found in NPPES")
+
+    # Email domain: one weight, never a gate. A known health-system employer
+    # domain corroborates current clinical employment, so it outranks generic
+    # business.
+    email_class = user.get("email_domain_class") or classify_email_domain(user.get("email") or "")
+    domain = email_domain(user.get("email") or "")
+    if email_class == "academic":
+        score += TIER_WEIGHTS["academic_email"]
+        reasons.append(f"+{TIER_WEIGHTS['academic_email']} academic email domain ({domain})")
+    elif email_class == "business" and is_health_system_domain(domain):
+        score += TIER_WEIGHTS["health_system_email"]
+        reasons.append(f"+{TIER_WEIGHTS['health_system_email']} known health-system domain ({domain})")
+    elif email_class == "business":
+        score += TIER_WEIGHTS["business_email"]
+        reasons.append(f"+{TIER_WEIGHTS['business_email']} business email domain ({domain})")
+    elif email_class == "consumer":
+        score += TIER_WEIGHTS["consumer_email"]
+        reasons.append(f"{TIER_WEIGHTS['consumer_email']} consumer email domain (not disqualifying)")
+
+    cv = _json_field(user, "cv_parsed_json")
+    cv_ok = bool(cv.get("ok"))
+
+    board = bool(user.get("board_cert")) or bool(cv.get("board_certifications"))
+    if board:
+        score += TIER_WEIGHTS["board_certified"]
+        src = user.get("board_cert") or ", ".join(cv.get("board_certifications") or [])
+        reasons.append(f"+{TIER_WEIGHTS['board_certified']} board certified ({src})")
+
+    years = user.get("years_experience")
+    if years is None:
+        years = cv.get("years_in_practice")
+    if years is not None:
+        try:
+            years = int(years)
+        except (TypeError, ValueError):
+            years = None
+    if years is not None:
+        if years >= 10:
+            score += TIER_WEIGHTS["years_10_plus"]
+            reasons.append(f"+{TIER_WEIGHTS['years_10_plus']} {years} years in practice")
+        elif years >= 5:
+            score += TIER_WEIGHTS["years_5_to_10"]
+            reasons.append(f"+{TIER_WEIGHTS['years_5_to_10']} {years} years in practice")
+        else:
+            reasons.append(f"±0 {years} years in practice")
+
+    taxonomy_served = _served_specialty_for_taxonomy(taxonomy_desc)
+    if taxonomy_served:
+        score += TIER_WEIGHTS["subspecialty_match"]
+        reasons.append(
+            f"+{TIER_WEIGHTS['subspecialty_match']} NPPES taxonomy "
+            f"“{taxonomy_desc}” matches a specialty we serve ({taxonomy_served})")
+
+    if cv_ok:
+        score += TIER_WEIGHTS["cv_parsed"]
+        reasons.append(f"+{TIER_WEIGHTS['cv_parsed']} CV uploaded and parsed")
+
+    if (user.get("linkedin_url") or "").strip():
+        score += TIER_WEIGHTS["linkedin_present"]
+        reasons.append(f"+{TIER_WEIGHTS['linkedin_present']} LinkedIn profile provided")
+
+    # ── Blockers: proposal suppressed, forced manual review — never a rejection ──
+    if npi_result == NpiResult.MISMATCH.value:
+        blockers.append(
+            "NPI mismatch: " + (npi_payload.get("reason") or "registry record does not "
+                                "corroborate the signup"))
+    claimed = (user.get("specialty") or "").strip().casefold()
+    if claimed and taxonomy_desc:
+        claimed_served = _served_specialty_for_taxonomy(claimed) or (
+            claimed if claimed in _SERVED_SPECIALTY_STEMS else None)
+        # Only a POSITIVE divergence blocks: both sides map to served
+        # specialties and they differ. "Could not determine" (unmapped
+        # taxonomy wording) is not a divergence and never blocks.
+        if claimed_served and taxonomy_served and claimed_served != taxonomy_served:
+            blockers.append(
+                f"NPI specialty divergence: signup claims {claimed_served}, NPPES "
+                f"taxonomy is “{taxonomy_desc}” ({taxonomy_served})")
+    if duplicate_npi:
+        blockers.append("Duplicate NPI: another account claims this NPI")
+
+    proposed: Optional[str] = None
+    if not blockers:
+        if score >= REVIEWER_MIN_SCORE and npi_ok:
+            proposed = "reviewer"
+        elif score >= LABELER_MIN_SCORE:
+            proposed = "labeler"
+
+    return {
+        "score": score,
+        "proposed_tier": proposed,
+        "reasons": reasons,
+        "blockers": blockers,
+    }

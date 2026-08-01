@@ -411,3 +411,161 @@ def test_store_set_cv_roundtrip():
     row = store.get_user_by_id(u["id"])
     assert row["cv_asset_sha"] == meta["sha256"]
     assert json.loads(row["cv_parsed_json"])["institutions"] == ["X"]
+
+
+# ─── Phase 3: tier scoring — the score proposes, a human decides ─────────────
+from asclepius.credentialing import propose_tier  # noqa: E402
+
+
+def _verified_payload(taxonomy_desc="Internal Medicine", credential="M.D."):
+    rec = _nppes_record(taxonomy_desc=taxonomy_desc)
+    rec_trimmed = {
+        "number": VALID_NPI, "enumeration_type": "NPI-1", "status": "A",
+        "first_name": "Jane", "last_name": "Smith", "credential": credential,
+        "enumeration_date": "2008-05-23",
+        "taxonomy": {"code": "x", "desc": taxonomy_desc, "state": "MA", "license": "1"},
+        "location": {"city": "Boston", "state": "MA"},
+    }
+    return {"result": "verified", "npi": VALID_NPI, "record": rec_trimmed}
+
+
+def _scored_user(**overrides):
+    base = {
+        "email": "jane@smallpractice.com",
+        "email_domain_class": None,
+        "npi_verified": None,
+        "npi_payload_json": None,
+        "specialty": None,
+        "board_cert": None,
+        "years_experience": None,
+        "cv_parsed_json": None,
+        "linkedin_url": None,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_senior_verified_physician_proposes_reviewer():
+    u = _scored_user(
+        email="jane@med.harvard.edu", email_domain_class="academic",
+        npi_verified=1, npi_payload_json=json.dumps(_verified_payload("Cardiovascular Disease")),
+        board_cert="Cardiovascular Disease", years_experience=15,
+    )
+    out = propose_tier(u)
+    # 25 npi + 10 academic + 20 board + 20 years + 10 subspecialty = 85
+    assert out["score"] == 85
+    assert out["proposed_tier"] == "reviewer"
+    assert out["blockers"] == []
+    assert len(out["reasons"]) >= 4
+
+
+def test_junior_verified_physician_proposes_labeler():
+    u = _scored_user(
+        email="jr@gmail.com", email_domain_class="consumer",
+        npi_verified=1, npi_payload_json=json.dumps(_verified_payload()),
+        years_experience=6,
+    )
+    out = propose_tier(u)
+    # 25 npi - 4 consumer + 10 years = 31
+    assert out["score"] == 31
+    assert out["proposed_tier"] == "labeler"
+
+
+def test_high_score_without_npi_never_proposes_reviewer():
+    u = _scored_user(
+        email="prof@med.harvard.edu", email_domain_class="academic",
+        board_cert="Internal Medicine", years_experience=20,
+        cv_parsed_json=json.dumps({"ok": True}), linkedin_url="https://linkedin.com/in/x",
+    )
+    out = propose_tier(u)
+    # 10 + 20 + 20 + 5 + 3 = 58: labeler territory, but reviewer requires npi_verified
+    assert out["score"] == 58
+    assert out["proposed_tier"] == "labeler"
+
+
+def test_no_npi_and_thin_signal_is_no_proposal_not_a_rejection():
+    u = _scored_user(email="dr@gmail.com", email_domain_class="consumer")
+    out = propose_tier(u)
+    assert out["proposed_tier"] is None
+    assert out["blockers"] == []          # nothing blocking — just not enough signal
+    assert out["score"] < 30
+
+
+def test_mismatch_blocks_proposal_even_with_high_score():
+    payload = {"result": "mismatch", "reason": "family_name_mismatch",
+               "record": _verified_payload()["record"]}
+    u = _scored_user(
+        email="jane@med.harvard.edu", email_domain_class="academic",
+        npi_verified=0, npi_payload_json=json.dumps(payload),
+        board_cert="IM", years_experience=20,
+        cv_parsed_json=json.dumps({"ok": True}),
+    )
+    out = propose_tier(u)
+    assert out["proposed_tier"] is None
+    assert any("mismatch" in b.lower() for b in out["blockers"])
+
+
+def test_specialty_divergence_blocks_but_unmapped_taxonomy_does_not():
+    diverged = _scored_user(
+        specialty="nephrology", npi_verified=1,
+        npi_payload_json=json.dumps(_verified_payload("Cardiovascular Disease")),
+        years_experience=12, board_cert="x",
+    )
+    out = propose_tier(diverged)
+    assert any("divergence" in b for b in out["blockers"])
+    assert out["proposed_tier"] is None
+
+    # "could not determine": generic IM taxonomy maps to no served specialty
+    unmapped = _scored_user(
+        specialty="nephrology", npi_verified=1,
+        npi_payload_json=json.dumps(_verified_payload("Internal Medicine")),
+        years_experience=12, board_cert="x",
+    )
+    out2 = propose_tier(unmapped)
+    assert out2["blockers"] == []
+    assert out2["proposed_tier"] == "reviewer"
+
+
+def test_duplicate_npi_blocks_and_store_flags_both_records():
+    store = fresh_store()
+    a = store.provision_user(email="a@example.org", password="pw-12345678",
+                             role="evaluator", npi=VALID_NPI)
+    b = store.provision_user(email="b@example.org", password="pw-12345678",
+                             role="evaluator", npi=VALID_NPI)
+    claims = store.find_users_by_npi(VALID_NPI)
+    assert {c["id"] for c in claims} == {a["id"], b["id"]}  # both records flagged
+    u = _scored_user(npi_verified=1, npi_payload_json=json.dumps(_verified_payload()),
+                     years_experience=12, board_cert="x")
+    out = propose_tier(u, duplicate_npi=True)
+    assert out["proposed_tier"] is None
+    assert any("Duplicate NPI" in bl for bl in out["blockers"])
+
+
+def test_reasons_nonempty_whenever_a_tier_is_proposed():
+    for user in (
+        _scored_user(npi_verified=1, npi_payload_json=json.dumps(_verified_payload()),
+                     email_domain_class="business", years_experience=7),
+        _scored_user(email_domain_class="academic", board_cert="IM", years_experience=11),
+    ):
+        out = propose_tier(user)
+        if out["proposed_tier"] is not None:
+            assert out["reasons"], f"proposal without reasons: {out}"
+
+
+def test_unavailable_npi_is_visible_in_reasons_but_not_penalized():
+    u = _scored_user(npi_payload_json=json.dumps({"result": "unavailable",
+                                                  "reason": "rate_limited"}),
+                     email_domain_class="business", years_experience=11, board_cert="x")
+    out = propose_tier(u)
+    assert any("unavailable" in r for r in out["reasons"])
+    assert out["blockers"] == []           # could-not-check never blocks or rejects
+    # 6 business + 20 years + 20 board = 46 -> labeler despite the pending check
+    assert out["proposed_tier"] == "labeler"
+
+
+def test_health_system_domain_outweighs_generic_business():
+    base = dict(npi_verified=1, npi_payload_json=json.dumps(_verified_payload()),
+                years_experience=3)
+    hs = propose_tier(_scored_user(email="dr@kp.org", email_domain_class="business", **base))
+    biz = propose_tier(_scored_user(email="dr@corp.com", email_domain_class="business", **base))
+    assert hs["score"] == biz["score"] + 4  # +10 vs +6
