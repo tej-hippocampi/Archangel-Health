@@ -283,6 +283,55 @@ def test_every_seam4_field_lands_on_the_user_row(client: TestClient):
     assert any("CV" in r for r in prop["reasons"])
 
 
+def test_seam4_fields_reach_the_admin_dossier(client: TestClient):
+    """Definition of done #5: a physician signs up with phone, LinkedIn and a
+    CV, and all three appear in the admin dossier. Tests the path, not the
+    row — the dossier is where a human actually sees them."""
+    asc_store_module.reset_store_for_tests(
+        db_path=client.app.state.asclepius_store.db_path)
+    admin = make_user(client.app.state.asclepius_store, role="admin")
+
+    token, hs_id, email = _seed_verified(client)
+    assert client.post("/api/onboarding/select-product",
+                       json={"token": token, "product": "asclepius"}).status_code == 200
+    assert client.post(
+        "/api/onboarding/asclepius/institution",
+        json={"token": token, "org_name": "Northridge Nephrology",
+              "specialty": "Nephrology", "phone": "(555) 999-0000"},
+    ).status_code == 200
+    assert client.post(
+        "/api/onboarding/asclepius/cv", data={"token": token},
+        files={"file": ("cv.txt",
+                        b"Curriculum Vitae\nHarvard Medical School, 2001-2005\n"
+                        b"Nephrology Fellowship, UCLA Medical Center, 2008-2011\n"
+                        b"Board Certified in Nephrology\n", "text/plain")},
+    ).status_code == 200
+    assert client.post(
+        "/api/onboarding/asclepius/credentials",
+        json={"token": token, "credentials": _creds(
+            phone="+1 555 010 7788",
+            linkedinUrl="https://www.linkedin.com/in/tejpatel",
+            healthSystem="Northridge Nephrology Associates")},
+    ).status_code == 200
+    assert client.post("/api/onboarding/asclepius/attestations",
+                       json={"token": token, "attestations": ATTS}).status_code == 200
+    assert client.post("/api/onboarding/asclepius/finish",
+                       json={"token": token}).status_code == 200
+
+    uid = client.app.state.asclepius_store.get_user_by_email(email)["id"]
+    d = client.get(f"/api/asclepius/verify/queue/{uid}",
+                   headers=headers_for(admin)).json()
+    assert d["phone"] == "+1 555 010 7788"
+    assert d["linkedin_url"] == "https://www.linkedin.com/in/tejpatel"
+    assert d["has_cv"] is True and d["cv_ok"] is True
+    assert d["cv_asset_sha"]
+    # free text the admin reads; PRD-C resolves it to a health_systems id later
+    assert d["credentials"]["healthSystem"] == "Northridge Nephrology Associates"
+    # and the raw file is fetchable from that dossier
+    r = client.get(f"/api/asclepius/verify/queue/{uid}/cv", headers=headers_for(admin))
+    assert r.status_code == 200 and b"Harvard" in r.content
+
+
 def test_signup_without_any_optional_field_still_completes(client: TestClient):
     """The other half: nothing optional supplied, signup still finishes."""
     minimal = {"fullLegalName": "Dr. Solo Practitioner", "npi": _fresh_npi(),
