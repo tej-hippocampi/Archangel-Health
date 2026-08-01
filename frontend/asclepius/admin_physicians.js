@@ -15,9 +15,9 @@
      Not checked — NULL is not "no".
 
    PRD-B's verification queue mounts as a tab inside this section:
-   B owns the view, this file owns the shell. B mounts by defining
-   window.renderVerificationQueue(el, ctx) — if absent, a quiet
-   placeholder renders instead.
+   B owns the view, this file owns the shell. The mount point is the
+   frozen global window.AsclepiusVerification.mount(el, ctx) — if it
+   is absent, a VISIBLE error renders, never a quiet placeholder.
 
    Loaded as its own file (§3.3); DOM built exclusively with ctx.h.
    ═══════════════════════════════════════════════════════════ */
@@ -75,18 +75,30 @@
 
   function renderVerifyTab(container, ctx) {
     const { h } = ctx;
-    if (typeof window.renderVerificationQueue === 'function') {
-      // PRD-B owns this view; hand it the mount + shared helpers.
-      const mount = h('div', { id: 'ascVerifyQueueMount' });
-      container.appendChild(mount);
-      window.renderVerificationQueue(mount, ctx);
+    // PRD-B owns this global (Seam 1). Do not re-derive the name — an invented
+    // name is the exact bug this replaced: for a whole build round this tab
+    // probed a global nobody defined and quietly rendered a placeholder, while
+    // the real queue sat in the same merge. Every physician who signed up was
+    // locked out, because approving one had no route through the UI.
+    const mount = h('div', { id: 'ascVerifyQueueMount' });
+    container.appendChild(mount);
+    if (window.AsclepiusVerification
+        && typeof window.AsclepiusVerification.mount === 'function') {
+      window.AsclepiusVerification.mount(mount, ctx);
       return;
     }
-    container.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-      h('div', { class: 'asc-empty' },
-        'The verification queue ships with the identity-verification work. ' +
-        'Once it lands, it appears here — physicians awaiting review are counted ' +
-        'in the Pending chip on the Roster tab either way.'))));
+    // A visible failure, not a silent placeholder. A quiet fallback is what hid
+    // this for an entire build round — an operator must be able to notice and
+    // report it.
+    clearNode(mount);
+    mount.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-error' },
+        'Verification module failed to load. Reload the page; if it persists, '
+        + 'this is a deploy problem — physicians cannot be approved until it is fixed.'))));
+  }
+
+  function clearNode(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
   }
 
   // ─── Roster ───────────────────────────────────────────────

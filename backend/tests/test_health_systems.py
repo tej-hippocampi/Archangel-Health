@@ -7,6 +7,9 @@ and the boot-time backfill that adopts historical partner uploads.
 """
 from __future__ import annotations
 
+import json
+import shutil
+import subprocess
 import sys
 import uuid
 from pathlib import Path
@@ -21,6 +24,125 @@ from asclepius.store import verify_password  # noqa: E402
 from routers import asclepius_admin as R  # noqa: E402
 
 client = TestClient(A.app)
+
+_FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
+_DOM_SHIM = Path(__file__).resolve().parent / "_asclepius_dom.js"
+
+
+def _run_node(script: str) -> dict:
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed in this environment")
+    proc = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=30)
+    if proc.returncode != 0:
+        raise AssertionError(f"node failed:\n{proc.stderr}\n{proc.stdout}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
+# A ctx close enough to the real one for the Verification tab: ``h`` mirrors
+# asclepius.js's hyperscript helper, everything else is a spy or a no-op.
+_JS_CTX = """
+require(%(shim)s);
+function h(tag, attrs) {
+  var el = document.createElement(tag);
+  if (attrs) for (var k in attrs) {
+    var v = attrs[k];
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v; else el.setAttribute(k, v);
+  }
+  for (var i = 2; i < arguments.length; i++) appendChild_(el, arguments[i]);
+  return el;
+}
+function isText_(c) { return typeof c === 'string' || typeof c === 'number'; }
+function appendChild_(el, c) {
+  if (c == null || c === '' || c === false) return;
+  if (Array.isArray(c)) { c.forEach(function (x) { appendChild_(el, x); }); return; }
+  el.appendChild(isText_(c) ? document.createTextNode(String(c)) : c);
+}
+var ctx = {
+  h: h,
+  clear: function (el) { while (el.firstChild) el.removeChild(el.firstChild); },
+  api: function () { return Promise.resolve({}); },
+  toast: function () {},
+  loadingCard: function (t) { return h('div', {}, t); },
+  downloadBlob: function () {},
+  fmtDate: function (d) { return String(d); },
+  openPipeline: function () {},
+};
+eval(require('fs').readFileSync(%(module)s, 'utf8'));
+"""
+
+
+def _verify_tab_script(stub: bool) -> str:
+    """Render the Physicians → Verification tab with the PRD-B global present
+    (stub=True) or absent, and report what landed in the DOM."""
+    setup = (
+        "var mountCalls = [];\n"
+        "window.AsclepiusVerification = { mount: function (el, c) "
+        "{ mountCalls.push({ tag: el.tagName, hasCtx: !!(c && c.h) }); "
+        "el.appendChild(h('div', { class: 'stub-queue' }, 'REAL QUEUE')); },"
+        " refresh: function () {} };\n"
+        if stub else "var mountCalls = [];\n"
+    )
+    return (_JS_CTX % {"shim": json.dumps(str(_DOM_SHIM)),
+                       "module": json.dumps(str(_FRONTEND / "admin_physicians.js"))}) + setup + """
+var body = document.createElement('div');
+window.AdminPhysiciansSection.render(body, ctx, 'verify');
+function textOf(el) {
+  if (el.nodeValue != null) return el.nodeValue;
+  return (el.childNodes || []).map(textOf).join(' ');
+}
+function classesOf(el) {
+  var out = el.className ? [el.className] : [];
+  (el.childNodes || []).forEach(function (c) { if (c.tagName) out = out.concat(classesOf(c)); });
+  return out;
+}
+console.log(JSON.stringify({
+  mountCalls: mountCalls,
+  text: textOf(body),
+  classes: classesOf(body),
+}));
+"""
+
+
+# ─── B1: the verification queue mount (Seam 1) ───────────────────────────────
+def test_verification_tab_mounts_prd_b_global():
+    """The tab must call ``window.AsclepiusVerification.mount(el, ctx)``.
+
+    Regression for B1: for a whole build round this probed an invented global
+    that nothing defines, so the tab rendered a placeholder and no physician
+    could be approved through the UI.
+    """
+    out = _run_node(_verify_tab_script(stub=True))
+    assert len(out["mountCalls"]) == 1, "AsclepiusVerification.mount was never called"
+    assert out["mountCalls"][0]["hasCtx"] is True, "mount did not receive the shared ctx"
+    assert "REAL QUEUE" in out["text"], "the mounted queue did not reach the DOM"
+    # The dead placeholder copy must not survive alongside the real queue.
+    assert "ships with the identity-verification work" not in out["text"]
+
+
+def test_verification_tab_failure_is_visible_not_silent():
+    """With the module absent the operator must SEE a failure.
+
+    A silent placeholder is precisely what hid B1 for an entire build round —
+    the absence case is therefore part of the contract, not a nicety.
+    """
+    out = _run_node(_verify_tab_script(stub=False))
+    assert out["mountCalls"] == []
+    assert "asc-error" in out["classes"], "the failure state is not rendered as an error"
+    assert "failed to load" in out["text"]
+    assert "ships with the identity-verification work" not in out["text"], (
+        "the silent placeholder is back — this is the B1 regression"
+    )
+
+
+def test_verification_mount_uses_the_frozen_global_name():
+    """Seam 1 freezes the name. Re-deriving it is the bug, so assert the source."""
+    src = (_FRONTEND / "admin_physicians.js").read_text(encoding="utf-8")
+    assert "window.AsclepiusVerification" in src
+    assert "renderVerificationQueue" not in src, (
+        "the guessed global name is back — PRD-B owns window.AsclepiusVerification"
+    )
 
 
 @pytest.fixture(autouse=True)
