@@ -347,6 +347,92 @@ def test_physician_profile_404_for_non_physician():
                       headers=headers).status_code == 404
 
 
+# ─── Export by case (Phase 4) ────────────────────────────────────────────────
+def _mk_export_record(store, *, task_id: str, submission_id: str,
+                      specialty: str = "nephrology", portal_version: str = "v3"):
+    payload = {
+        "type": "preference",
+        "prompt": f"Case {task_id} — how do you manage?",
+        "chosen": "Give IV calcium, then insulin-dextrose, then dialyze.",
+        "rejected": "Set dialysate K+ to 1.0 immediately.",
+        "context": {"specialty": specialty, "difficulty": "hard"},
+        "rationale": "safer sequencing",
+        "confidence": "high",
+        "annotator_credential": "board_certified_nephrology",
+        "annotator_specialty": specialty,
+        "annotator_id_hashed": "realhash" + submission_id[-4:],
+        "submission_id": submission_id,
+        "task_id": task_id,
+        "source": "lab_supplied",
+        "taxonomy_version": "t1",
+        "config_version": "c1",
+        "license": "CC-BY-NC-4.0-clinical-eval",
+        "ip_cleared": True,
+        "contains_phi": False,
+        "portal_version": portal_version,
+    }
+    store.insert_record(submission_id=submission_id, task_id=task_id, rtype="preference",
+                        specialty=specialty, payload=payload, status="export_ready")
+
+
+def test_export_case_preview_filters_combine():
+    store = _store()
+    headers = _admin_headers(store)
+    _mk_export_record(store, task_id="t-case-01", submission_id="s-0001",
+                      specialty="nephrology", portal_version="v3")
+    _mk_export_record(store, task_id="t-case-02", submission_id="s-0002",
+                      specialty="cardiology", portal_version="v4")
+
+    base = "/api/asclepius/admin/export/case-preview"
+    p = client.get(base, headers=headers).json()
+    assert (p["cases"], p["labeler_submissions"], p["specialty_count"]) == (2, 2, 2)
+    assert p["estimated_bytes"] > 0
+    assert p["exportable"] is True
+
+    p2 = client.get(base + "?specialty=cardiology", headers=headers).json()
+    assert (p2["cases"], p2["labeler_submissions"]) == (1, 1)
+
+    p3 = client.get(base + "?version=V3", headers=headers).json()
+    assert p3["cases"] == 1
+
+    p4 = client.get(base + "?case_id=t-case-01", headers=headers).json()
+    assert (p4["cases"], p4["labeler_submissions"]) == (1, 1)
+
+    # Combined filters that contradict each other match nothing.
+    p5 = client.get(base + "?case_id=t-case-01&specialty=cardiology", headers=headers).json()
+    assert p5["cases"] == 0
+    assert p5["exportable"] is False
+
+
+def test_export_case_preview_v5_routes_to_environments():
+    store = _store()
+    headers = _admin_headers(store)
+    p = client.get("/api/asclepius/admin/export/case-preview?version=V5",
+                   headers=headers).json()
+    assert p["exportable"] is False
+    assert "environments pipeline" in (p["note"] or "")
+
+
+def test_export_case_bundle_builds_and_409s_on_empty():
+    store = _store()
+    headers = _admin_headers(store)
+    _mk_export_record(store, task_id="t-case-03", submission_id="s-0003")
+
+    r = client.post("/api/asclepius/admin/export/case-bundle",
+                    json={"case_id": "t-case-03"}, headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["record_count"] == 1
+    assert body["bundle_count"] == 1
+    assert body["exports"][0]["export_id"]
+
+    # What the preview showed is what shipped — same resolver, so an empty
+    # slice refuses to build instead of shipping the wrong thing.
+    r2 = client.post("/api/asclepius/admin/export/case-bundle",
+                     json={"case_id": "t-nope"}, headers=headers)
+    assert r2.status_code == 409
+
+
 # ─── Admin list ──────────────────────────────────────────────────────────────
 def test_admin_list_health_systems(email_ok):
     store = _store()

@@ -131,6 +131,154 @@ def _build_credentials_email(*, org_name: str, username: str, passphrase: str) -
     """
 
 
+# ─── Export by case (PRD C Phase 4) ──────────────────────────────────────────
+# The founder's requirement: export BY CASE, not by physician. Three combinable
+# filters — Case ID (exact task id) · Specialty · Version — with a preview of
+# exactly what will ship BEFORE the bundle is built. Exporting the wrong slice
+# to a buyer is not recoverable; the preview is the safety mechanism, so both
+# endpoints resolve the slice through the SAME function.
+#
+# Bundling reuses the proven build_export machinery (leak gate, schema
+# validation, manifest) untouched — export.py belongs to PRD-A's workstream.
+# A case with several labeler submissions cuts one bundle per submission (the
+# only case-scoped hook build_export exposes today); when PRD-A's
+# export_by_case lands, this endpoint is the single seam to switch over.
+_VERSION_TO_PORTAL = {"V3": "v3", "V4": "v4"}
+
+
+class CaseBundleRequest(BaseModel):
+    case_id: Optional[str] = None
+    specialty: Optional[str] = None
+    version: Optional[str] = None
+    note: Optional[str] = None
+
+
+def _resolve_case_slice(store: Any, *, case_id: Optional[str], specialty: Optional[str],
+                        version: Optional[str]) -> Dict[str, Any]:
+    """The one place the three filters turn into concrete records — preview and
+    bundle both call this, so what you saw is what ships."""
+    version = (version or "").upper() or None
+    if version == "V5":
+        # V5 · Clinical RL Environment — trajectories live in env_runs, not the
+        # records table, and ship through the environments pipeline.
+        runs = store.env_annotation_records()
+        return {"records": [], "submission_ids": [], "task_ids": set(),
+                "specialties": set(), "estimated_bytes": 0, "reviews": 0,
+                "v5_runs": len(runs), "exportable": False,
+                "note": f"{len(runs)} annotated V5 trajectories exist. Clinical RL "
+                        "Environment data ships through the environments pipeline, "
+                        "not this bundle builder."}
+    portal_version = _VERSION_TO_PORTAL.get(version) if version else None
+    mock_ids = store.mock_annotator_id_hashes()
+    records = (store.list_records(status="export_ready", specialty=specialty or None)
+               + store.list_records(status="exported", specialty=specialty or None))
+    matched = []
+    for r in records:
+        payload = r.get("payload") or {}
+        if payload.get("annotator_id_hashed") in mock_ids:
+            continue
+        if case_id and (r.get("task_id") or payload.get("task_id")) != case_id:
+            continue
+        if portal_version and (payload.get("portal_version") or "v1") != portal_version:
+            continue
+        matched.append(r)
+    task_ids = {r.get("task_id") or (r.get("payload") or {}).get("task_id")
+                for r in matched} - {None}
+    submission_ids: List[str] = []
+    for r in matched:
+        sid = r.get("submission_id") or (r.get("payload") or {}).get("submission_id")
+        if sid and sid not in submission_ids:
+            submission_ids.append(sid)
+    specialties = {r.get("specialty") for r in matched} - {None, ""}
+    est = sum(len(json_dumps_safe(r.get("payload"))) for r in matched)
+    return {"records": matched, "submission_ids": submission_ids, "task_ids": task_ids,
+            "specialties": specialties, "estimated_bytes": est,
+            "reviews": store.count_case_reviews_for_tasks(sorted(task_ids)),
+            "v5_runs": 0, "exportable": bool(matched), "note": None}
+
+
+def json_dumps_safe(obj: Any) -> str:
+    import json as _j
+    try:
+        return _j.dumps(obj)
+    except (TypeError, ValueError):
+        return ""
+
+
+@router.get("/export/case-options")
+async def export_case_options(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    store = _store()
+    specialties = sorted({t.get("specialty") for t in store.list_tasks()} - {None, ""})
+    return {"specialties": specialties, "versions": ["V3", "V4", "V5"]}
+
+
+@router.get("/export/case-preview")
+async def export_case_preview(
+    case_id: Optional[str] = None, specialty: Optional[str] = None,
+    version: Optional[str] = None,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    store = _store()
+    s = _resolve_case_slice(store, case_id=case_id, specialty=specialty, version=version)
+    return {
+        "cases": len(s["task_ids"]) if not s["v5_runs"] else s["v5_runs"],
+        "labeler_submissions": len(s["submission_ids"]),
+        "reviews": s["reviews"],
+        "specialty_count": len(s["specialties"]),
+        "estimated_bytes": s["estimated_bytes"],
+        "exportable": s["exportable"],
+        "note": s["note"],
+    }
+
+
+@router.post("/export/case-bundle")
+async def export_case_bundle(
+    body: CaseBundleRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    from asclepius import export as asc_export
+    store = _store()
+    s = _resolve_case_slice(store, case_id=body.case_id, specialty=body.specialty,
+                            version=body.version)
+    if not s["exportable"]:
+        raise HTTPException(status_code=409, detail=s["note"]
+                            or "Nothing matches these filters — adjust and preview again.")
+    portal_version = _VERSION_TO_PORTAL.get((body.version or "").upper())
+    note = body.note or "Admin export-by-case cut"
+    exports: List[Dict[str, Any]] = []
+    try:
+        if body.case_id:
+            # Exact-case cut: one bundle per labeler submission of that case —
+            # the case-scoped hook build_export exposes today.
+            for sid in s["submission_ids"]:
+                res = asc_export.build_export(
+                    store, created_by=admin["id"], submission_id=sid,
+                    portal_version=portal_version, specialty=body.specialty or None,
+                    include_exported=True, note=f"{note} · case {body.case_id}")
+                exports.append(res)
+        else:
+            res = asc_export.build_export(
+                store, created_by=admin["id"], specialty=body.specialty or None,
+                portal_version=portal_version, include_exported=True, note=note)
+            exports.append(res)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    store.log_event(entity_type="export", entity_id=exports[0].get("export_id"),
+                    event_type="export_by_case", actor=admin["id"],
+                    payload={"case_id": body.case_id, "specialty": body.specialty,
+                             "version": body.version,
+                             "export_ids": [e.get("export_id") for e in exports]})
+    total = sum(int(e.get("record_count") or 0) for e in exports)
+    return {
+        "exports": [{"export_id": e.get("export_id"), "filename": e.get("filename"),
+                     "record_count": e.get("record_count")} for e in exports],
+        "export_id": exports[0].get("export_id"),
+        "filename": exports[0].get("filename"),
+        "record_count": total,
+        "bundle_count": len(exports),
+    }
+
+
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 @router.post("/health-systems/provision")
 async def provision_health_system_portal(

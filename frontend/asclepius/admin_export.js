@@ -135,14 +135,22 @@
         specialty: filters.specialty || null,
         version: filters.version || null,
       } });
-      toast('Export built — ' + (res.record_count || 0) + ' records.', 'success');
-      const dlBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', style: 'margin-top:10px' },
-        'Download ' + (res.filename || 'bundle'));
-      dlBtn.addEventListener('click', () =>
-        downloadBlob('/exports/' + res.export_id + '/download', res.filename || (res.export_id + '.zip')));
+      const bundles = (res.exports && res.exports.length)
+        ? res.exports
+        : [{ export_id: res.export_id, filename: res.filename, record_count: res.record_count }];
+      toast('Export built — ' + (res.record_count || 0) + ' records in '
+        + bundles.length + ' bundle' + (bundles.length === 1 ? '' : 's') + '.', 'success');
       statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
-        'Bundle ready: ' + (res.record_count || 0) + ' records.'));
-      statusBox.appendChild(dlBtn);
+        'Ready: ' + (res.record_count || 0) + ' records'
+        + (bundles.length > 1 ? ' across ' + bundles.length + ' bundles (one per labeler submission of this case)' : '') + '.'));
+      bundles.forEach((b) => {
+        const label = b.filename || (b.export_id + '.zip');
+        const dlBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', style: 'margin:10px 6px 0 0' },
+          'Download ' + label + (b.record_count != null ? ' (' + b.record_count + ' records)' : ''));
+        dlBtn.addEventListener('click', () =>
+          downloadBlob('/exports/' + b.export_id + '/download', label));
+        statusBox.appendChild(dlBtn);
+      });
     } catch (e) {
       statusBox.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Export failed.'));
     } finally {

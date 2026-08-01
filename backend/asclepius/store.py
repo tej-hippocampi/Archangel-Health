@@ -3998,6 +3998,22 @@ class AsclepiusStore:
         except sqlite3.OperationalError:
             return []
 
+    def count_case_reviews_for_tasks(self, task_ids: List[str]) -> int:
+        """How many PRD-A case_reviews cover these tasks (read-only). Defensive:
+        0 when the table does not exist yet (pre-merge-A)."""
+        if not task_ids:
+            return 0
+        qs = ",".join("?" for _ in task_ids)
+        try:
+            with self._conn() as conn:
+                row = conn.execute(
+                    f"SELECT COUNT(*) FROM case_reviews WHERE task_id IN ({qs})",
+                    tuple(task_ids),
+                ).fetchone()
+            return int(row[0] or 0)
+        except sqlite3.OperationalError:
+            return 0
+
     def list_uploads_for_health_system(self, hs_id: str, *, limit: int = 500) -> List[Dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(
