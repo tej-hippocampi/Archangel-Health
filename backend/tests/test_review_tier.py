@@ -511,9 +511,11 @@ def test_review_acceptance_rates_and_tri_state_dimensions():
     from asclepius.agreement import review_acceptance
 
     empty = review_acceptance([])
-    # No reviews is not 0% accepted — rates are honestly None.
-    assert empty == {"n": 0, "accept_rate": None, "edit_rate": None,
-                     "reject_rate": None, "by_dimension": {}, "n_cannot_assess": 0}
+    # No reviews is not 0% accepted — rates are honestly None. Asserted as a
+    # SUBSET so additive keys (n_unclassified, n_total) do not break the seam.
+    assert empty["n"] == 0 and empty["by_dimension"] == {} and empty["n_cannot_assess"] == 0
+    assert empty["accept_rate"] is None and empty["edit_rate"] is None
+    assert empty["reject_rate"] is None
 
     reviews = [
         {"verdict": "accept", "dimensions": {"clinical_accuracy": "agree"}},
@@ -1029,3 +1031,75 @@ def test_next_double_label_for_is_bounded():
     import inspect
     src = inspect.getsource(asc_store.AsclepiusStore.next_double_label_for)
     assert "LIMIT ?" in src
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FIX ROUND — Phase 4: the statistics (Seam 3).
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_acceptance_rates_sum_to_one_with_an_unclassified_verdict():
+    """A-4.1: n was len(reviews) but only the three known verdicts incremented
+    the tally, so any other verdict shrank all three rates while appearing
+    nowhere — and they silently failed to sum to 1."""
+    from asclepius.agreement import review_acceptance
+
+    reviews = [
+        {"verdict": "accept", "dimensions": {}},
+        {"verdict": "accept_with_edits", "dimensions": {}},
+        {"verdict": "reject", "dimensions": {}},
+        {"verdict": "escalated_to_committee", "dimensions": {}},   # not a known verdict
+    ]
+    out = review_acceptance(reviews)
+    assert out["n"] == 3 and out["n_total"] == 4 and out["n_unclassified"] == 1
+    # Rates are rounded to 4dp, so allow that much slack; the point is that
+    # they now sum to the whole, which the old denominator made impossible.
+    assert abs(out["accept_rate"] + out["edit_rate"] + out["reject_rate"] - 1.0) < 1e-3
+    # The unrecognized row is visible, not absorbed.
+    assert out["accept_rate"] == round(1 / 3, 4)
+
+
+def test_acceptance_shape_is_frozen_for_seam_3():
+    """Seam 3: C deletes its inline SQL and calls this. The contract keys must
+    all be present, including at n=0."""
+    from asclepius.agreement import review_acceptance
+
+    contract = {"n", "accept_rate", "edit_rate", "reject_rate",
+                "by_dimension", "n_cannot_assess"}
+    assert contract <= set(review_acceptance([]))
+    assert contract <= set(review_acceptance([{"verdict": "accept", "dimensions": {}}]))
+    empty = review_acceptance([])
+    assert empty["n"] == 0 and empty["accept_rate"] is None   # not 0% accepted
+
+
+def test_only_one_definition_of_expert_acceptance_exists():
+    """Seam 3, enforced: the combined 'accept OR accept_with_edits' figure is a
+    DIFFERENT number and may not be computed anywhere as 'acceptance'."""
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[1]
+    offenders = []
+    for path in root.rglob("*.py"):
+        if "/tests/" in str(path) or path.name == "agreement.py":
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if "accept_with_edits" in text and "IN ('accept'" in text.replace('"', "'"):
+            offenders.append(str(path.relative_to(root)))
+    assert not offenders, f"second definition of acceptance in {offenders}"
+
+
+def test_double_label_rate_has_one_source_of_truth():
+    """A-4.3: review.py delegated to agreement.double_label_rate(), which
+    defaulted to 0.20 while the PRD review.py implements specified 0.15."""
+    from asclepius import agreement as asc_agreement
+
+    assert asc_agreement.DEFAULT_DOUBLE_LABEL_RATE == 0.15
+    assert asc_agreement.double_label_rate() == 0.15
+    assert asc_review.double_label_rate() == asc_agreement.double_label_rate()
+
+
+def test_double_label_rate_env_override_still_wins(monkeypatch):
+    from asclepius import agreement as asc_agreement
+
+    monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_RATE", "0.42")
+    assert asc_agreement.double_label_rate() == 0.42
+    assert asc_review.double_label_rate() == 0.42
+    monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_RATE", "not-a-number")
+    assert asc_agreement.double_label_rate() == 0.15      # falls back, never crashes
