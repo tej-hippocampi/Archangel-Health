@@ -4932,6 +4932,15 @@ class AsclepiusStore:
                 "last_fail_at = excluded.last_fail_at, locked_until = excluded.locked_until",
                 (key, uname, fails, now_iso, now_iso, until),
             )
+            # Opportunistic sweep: a username-spray attack mints one row per
+            # (guessed name, ip) and nothing else would ever remove them, so the
+            # table would grow without bound on a public endpoint. Rows past
+            # their window carry no signal — they neither lock nor count.
+            conn.execute(
+                "DELETE FROM hs_login_attempts WHERE last_fail_at < ? "
+                "AND (locked_until IS NULL OR locked_until < ?)",
+                (window_start.isoformat(), now_iso),
+            )
             # Username-scoped signal for the admin ("this account is being
             # attacked"). Deliberately NOT a gate: making it one is what turned
             # the lockout into a remote kill switch for a whole hospital.
