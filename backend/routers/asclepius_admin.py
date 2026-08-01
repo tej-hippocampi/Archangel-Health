@@ -559,6 +559,85 @@ async def health_system_detail(
     }
 
 
+class HsAccessRequest(BaseModel):
+    username: Optional[str] = None   # omit to apply to every account on the system
+    active: Optional[bool] = None    # deactivate/reactivate endpoint only
+
+
+@router.post("/health-systems/{hs_id}/unlock")
+async def unlock_health_system(
+    hs_id: str,
+    body: Optional[HsAccessRequest] = None,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Clear brute-force lock state for a health system's portal accounts.
+
+    Without this the only recovery from a lockout was re-provisioning, which
+    rotates the passphrase and forces the hospital through another reset — a
+    heavy remedy for someone else's five wrong guesses. Locks are now scoped to
+    (username, ip), so this is a support tool rather than the sole defence, but
+    an operator still needs a way to say "clear it now"."""
+    store = _store()
+    hs = store.get_health_system(hs_id)
+    if not hs:
+        raise HTTPException(status_code=404, detail="Health system not found")
+    target = (body.username if body else None)
+    usernames = [u["username"] for u in store.list_hs_portal_users(hs_id)]
+    if target:
+        if target.lower() not in [u.lower() for u in usernames]:
+            raise HTTPException(status_code=404,
+                                detail="That portal account does not belong to this health system.")
+        usernames = [target.lower()]
+    cleared = sum(store.clear_hs_login_attempts(u) for u in usernames)
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="portal_unlocked", actor=admin["id"],
+                    payload={"usernames": usernames, "attempt_rows_cleared": cleared})
+    return {"ok": True, "unlocked": usernames, "attempt_rows_cleared": cleared,
+            "message": f"Cleared sign-in lock for {len(usernames)} account"
+                       f"{'' if len(usernames) == 1 else 's'} at {hs['name']}."}
+
+
+@router.post("/health-systems/{hs_id}/access")
+async def set_health_system_access(
+    hs_id: str,
+    body: HsAccessRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Deactivate (or restore) portal access. ``username`` scopes it to one
+    account; omitting it applies to the whole health system.
+
+    Both ``hs_portal_users.active`` and ``health_systems.active`` existed from
+    the first build and nothing ever wrote them — they were columns for a
+    revocation path that did not exist. ``require_hs_portal`` already rejects an
+    inactive account on every request, so flipping the flag ends live sessions
+    too."""
+    store = _store()
+    hs = store.get_health_system(hs_id)
+    if not hs:
+        raise HTTPException(status_code=404, detail="Health system not found")
+    if body.active is None:
+        raise HTTPException(status_code=400, detail="`active` is required.")
+    usernames = [u["username"] for u in store.list_hs_portal_users(hs_id)]
+    if body.username:
+        if body.username.lower() not in [u.lower() for u in usernames]:
+            raise HTTPException(status_code=404,
+                                detail="That portal account does not belong to this health system.")
+        usernames = [body.username.lower()]
+        for u in usernames:
+            store.set_hs_portal_active(u, body.active)
+    else:
+        for u in usernames:
+            store.set_hs_portal_active(u, body.active)
+        store.set_health_system_active(hs_id, body.active)
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="portal_access_enabled" if body.active else "portal_access_revoked",
+                    actor=admin["id"], payload={"usernames": usernames})
+    verb = "restored" if body.active else "revoked"
+    return {"ok": True, "active": body.active, "usernames": usernames,
+            "message": f"Portal access {verb} for {len(usernames)} account"
+                       f"{'' if len(usernames) == 1 else 's'} at {hs['name']}."}
+
+
 @router.get("/health-systems")
 async def list_health_systems(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
     """One row per health system with the counts the admin section needs."""

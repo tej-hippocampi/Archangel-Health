@@ -943,6 +943,58 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE hs_portal_users ADD COLUMN locked_until TEXT")
             if "health_system_id" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN health_system_id TEXT")
+            # Session invalidation (FIX-C C-2.3): a token minted before the last
+            # password change must stop working immediately. Stamped on every
+            # password write and carried as a token claim.
+            if "password_changed_at" not in cols("hs_portal_users"):
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN password_changed_at TEXT")
+            # The session binding is this COUNTER, not the timestamp beside it:
+            # ``_utcnow_iso()`` truncates to whole seconds, so a password change
+            # within the same second as a session's issuance would produce an
+            # identical stamp and silently fail to invalidate that session. A
+            # monotonic epoch cannot collide no matter how fast the clock ticks.
+            if "session_epoch" not in cols("hs_portal_users"):
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN "
+                             "session_epoch INTEGER NOT NULL DEFAULT 0")
+            # Brute-force bookkeeping keyed on (username, ip) — ONE table for
+            # known and unknown usernames alike (FIX-C C-2.1/C-2.2). Two separate
+            # mechanisms is what produced the enumeration oracle: the in-memory
+            # unknown-user path recorded a failure AFTER checking the threshold
+            # while the DB path recorded BEFORE, so the 5th attempt returned 429
+            # for a real account and 401 for a fake one. A single code path
+            # cannot drift like that. Scoping the hard lock to the IP as well as
+            # the username also stops a remote attacker from locking a hospital
+            # out of its own portal with five wrong guesses.
+            #
+            # DB-backed rather than a process dict so the threshold does not
+            # silently become N x the intended value when the app scales out to
+            # N workers — which would re-open C-2.1.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_login_attempts (
+                    attempt_key   TEXT PRIMARY KEY,   -- username|sha256(ip)[:16]
+                    username      TEXT NOT NULL,
+                    fails         INTEGER NOT NULL DEFAULT 0,
+                    first_fail_at TEXT,
+                    last_fail_at  TEXT,
+                    locked_until  TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_login_attempts_user "
+                         "ON hs_login_attempts(username)")
+            # Logout must actually end the session on a shared hospital
+            # workstation, so the token's jti goes on a denylist until it would
+            # have expired anyway (FIX-C C-2.3).
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_revoked_tokens (
+                    jti        TEXT PRIMARY KEY,
+                    expires_at TEXT NOT NULL,
+                    revoked_at TEXT NOT NULL
+                )
+                """
+            )
             self._backfill_health_systems(conn)
             # ═══ END PRD-C ═══
 
@@ -3924,41 +3976,46 @@ class AsclepiusStore:
 
     def set_hs_portal_password(self, username: str, new_password: str, *,
                                must_reset: bool = False) -> None:
+        """Set the password and stamp ``password_changed_at``. The stamp is what
+        invalidates outstanding session cookies (FIX-C C-2.3) — without it a
+        leaked cookie outlived the victim's own password reset by up to the full
+        12-hour session TTL."""
         with self._conn() as conn:
             conn.execute(
                 "UPDATE hs_portal_users SET password_hash = ?, must_reset = ?, "
-                "failed_logins = 0, locked_until = NULL WHERE username = ?",
-                (hash_password(new_password), 1 if must_reset else 0, (username or "").lower()),
+                "failed_logins = 0, locked_until = NULL, password_changed_at = ?, "
+                "session_epoch = session_epoch + 1 WHERE username = ?",
+                (hash_password(new_password), 1 if must_reset else 0, _utcnow_iso(),
+                 (username or "").lower()),
             )
 
-    def record_hs_login_failure(self, username: str, *, lock_threshold: int = 5,
-                                lock_minutes: int = 15) -> bool:
-        """Count a failed sign-in; lock the account once the threshold is hit.
-        Returns True when this failure tripped the lock."""
-        uname = (username or "").lower()
+    def set_hs_portal_active(self, username: str, active: bool) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_portal_users SET active = ? WHERE username = ?",
+                         (1 if active else 0, (username or "").lower()))
+
+    def set_health_system_active(self, hs_id: str, active: bool) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE health_systems SET active = ? WHERE hs_id = ?",
+                         (1 if active else 0, hs_id))
+
+    # ─── Brute-force bookkeeping, keyed on (username, ip) ────────────────────
+    # ONE path for known and unknown usernames — see the schema note. Every
+    # method here behaves identically whether or not the username exists, which
+    # is the property that closes the enumeration oracle.
+    @staticmethod
+    def _hs_attempt_key(username: str, ip: str) -> str:
+        ip_hash = hashlib.sha256((ip or "unknown").encode("utf-8")).hexdigest()[:16]
+        return f"{(username or '').lower()}|{ip_hash}"
+
+    def hs_login_locked(self, username: str, ip: str) -> bool:
+        """True while (username, ip) is inside its lock window."""
         with self._conn() as conn:
             row = conn.execute(
-                "SELECT failed_logins FROM hs_portal_users WHERE username = ?", (uname,)
+                "SELECT locked_until FROM hs_login_attempts WHERE attempt_key = ?",
+                (self._hs_attempt_key(username, ip),),
             ).fetchone()
-            if not row:
-                return False
-            fails = int(row["failed_logins"] or 0) + 1
-            locked = fails >= lock_threshold
-            if locked:
-                until = (datetime.now(timezone.utc) + timedelta(minutes=lock_minutes)).isoformat()
-                conn.execute(
-                    "UPDATE hs_portal_users SET failed_logins = 0, locked_until = ? WHERE username = ?",
-                    (until, uname),
-                )
-            else:
-                conn.execute(
-                    "UPDATE hs_portal_users SET failed_logins = ? WHERE username = ?", (fails, uname)
-                )
-        return locked
-
-    def hs_portal_user_locked(self, username: str) -> bool:
-        row = self.get_hs_portal_user(username)
-        if not row or not row.get("locked_until"):
+        if not row or not row["locked_until"]:
             return False
         try:
             until = datetime.fromisoformat(row["locked_until"])
@@ -3968,13 +4025,122 @@ class AsclepiusStore:
             until = until.replace(tzinfo=timezone.utc)
         return until > datetime.now(timezone.utc)
 
-    def mark_hs_login_success(self, username: str) -> None:
+    def record_hs_login_failure(self, username: str, ip: str, *, lock_threshold: int = 5,
+                                lock_minutes: int = 15) -> Dict[str, Any]:
+        """Count a failed sign-in for (username, ip). Returns
+        ``{"fails": n, "locked": bool}``.
+
+        Counting happens BEFORE the caller decides the status code, and the
+        decay window runs from the LAST failure for both the known and unknown
+        case — the old split (record-after-check on one path, record-before on
+        the other, decay from first vs fifth failure) is what leaked account
+        existence on the 5th attempt.
+        """
+        uname = (username or "").lower()
+        key = self._hs_attempt_key(uname, ip)
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        window_start = now - timedelta(minutes=lock_minutes)
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT fails, last_fail_at FROM hs_login_attempts WHERE attempt_key = ?", (key,)
+            ).fetchone()
+            fails = 0
+            if row:
+                try:
+                    last = datetime.fromisoformat(row["last_fail_at"] or "")
+                    if last.tzinfo is None:
+                        last = last.replace(tzinfo=timezone.utc)
+                except (TypeError, ValueError):
+                    last = None
+                # A stale streak decays; a live one accumulates.
+                fails = int(row["fails"] or 0) if (last and last > window_start) else 0
+            fails += 1
+            locked = fails >= lock_threshold
+            until = (now + timedelta(minutes=lock_minutes)).isoformat() if locked else None
+            conn.execute(
+                "INSERT INTO hs_login_attempts (attempt_key, username, fails, first_fail_at, "
+                "last_fail_at, locked_until) VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(attempt_key) DO UPDATE SET fails = excluded.fails, "
+                "last_fail_at = excluded.last_fail_at, locked_until = excluded.locked_until",
+                (key, uname, fails, now_iso, now_iso, until),
+            )
+            # Username-scoped signal for the admin ("this account is being
+            # attacked"). Deliberately NOT a gate: making it one is what turned
+            # the lockout into a remote kill switch for a whole hospital.
+            conn.execute(
+                "UPDATE hs_portal_users SET failed_logins = failed_logins + 1 WHERE username = ?",
+                (uname,),
+            )
+        return {"fails": fails, "locked": locked}
+
+    def clear_hs_login_attempts(self, username: str, *, ip: Optional[str] = None) -> int:
+        """Clear lock state for a username (optionally just from one ip).
+        Returns the number of attempt rows cleared."""
+        uname = (username or "").lower()
+        with self._conn() as conn:
+            if ip is not None:
+                cur = conn.execute("DELETE FROM hs_login_attempts WHERE attempt_key = ?",
+                                   (self._hs_attempt_key(uname, ip),))
+            else:
+                cur = conn.execute("DELETE FROM hs_login_attempts WHERE username = ?", (uname,))
+            n = cur.rowcount or 0
+            conn.execute(
+                "UPDATE hs_portal_users SET failed_logins = 0, locked_until = NULL "
+                "WHERE username = ?", (uname,),
+            )
+        return n
+
+    def hs_login_failure_signal(self, username: str) -> int:
+        """Live failure count for a username across all IPs — the admin-facing
+        'under attack' signal, and the input to the progressive delay."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(fails), 0) FROM hs_login_attempts WHERE username = ?",
+                ((username or "").lower(),),
+            ).fetchone()
+        return int(row[0] or 0)
+
+    def mark_hs_login_success(self, username: str, ip: Optional[str] = None) -> None:
+        self.clear_hs_login_attempts(username, ip=ip)
         with self._conn() as conn:
             conn.execute(
-                "UPDATE hs_portal_users SET failed_logins = 0, locked_until = NULL, "
-                "last_login = ? WHERE username = ?",
+                "UPDATE hs_portal_users SET last_login = ? WHERE username = ?",
                 (_utcnow_iso(), (username or "").lower()),
             )
+
+    # ─── Session revocation ──────────────────────────────────────────────────
+    def revoke_hs_token(self, jti: str, expires_at: str) -> None:
+        """Denylist a session token until it would have expired anyway, so
+        'Sign out' on a shared hospital workstation is real, not cosmetic."""
+        if not jti:
+            return
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO hs_revoked_tokens (jti, expires_at, revoked_at) "
+                "VALUES (?, ?, ?)", (jti, expires_at, _utcnow_iso()),
+            )
+            # Opportunistic sweep — the denylist only needs to hold unexpired
+            # tokens, so it stays small without a scheduled job.
+            conn.execute("DELETE FROM hs_revoked_tokens WHERE expires_at < ?",
+                         (datetime.now(timezone.utc).isoformat(),))
+
+    def hs_token_revoked(self, jti: str) -> bool:
+        if not jti:
+            return False
+        with self._conn() as conn:
+            row = conn.execute("SELECT 1 FROM hs_revoked_tokens WHERE jti = ?", (jti,)).fetchone()
+        return row is not None
+
+    def hs_upload_bytes_since(self, hs_id: str, since_iso: str) -> int:
+        """Bytes this health system has uploaded since ``since_iso`` — the input
+        to the per-account quota (FIX-C C-2.6)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(size_bytes), 0) FROM ingest_uploads "
+                "WHERE health_system_id = ? AND created_at >= ?", (hs_id, since_iso),
+            ).fetchone()
+        return int(row[0] or 0)
 
     def set_upload_health_system(self, upload_id: str, hs_id: str) -> None:
         with self._conn() as conn:

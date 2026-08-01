@@ -3514,8 +3514,9 @@ async def download_ingestion_upload(
         raise HTTPException(status_code=500, detail=f"Could not read the upload: {exc}")
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="upload_downloaded", actor=_admin["id"])
-    fname = (upload.get("filename") or f"{upload_id}.zip")
-    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    fname = "".join(c if c.isascii() and (c.isalnum() or c in "._-") else "_"
+                    for c in (upload.get("filename") or f"{upload_id}.zip")) or "upload.zip"
+    headers = {"Content-Disposition": f"attachment; filename=\"{fname}\"; filename*=UTF-8''{fname}"}
     return StreamingResponse(io.BytesIO(data), media_type="application/zip", headers=headers)
 
 
