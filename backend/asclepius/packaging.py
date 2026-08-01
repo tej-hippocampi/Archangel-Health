@@ -24,6 +24,7 @@ license, ip_cleared, contains_phi (asserted), and grounded (evidence-anchored).
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List, Optional
 
 from asclepius.constants import (
@@ -801,3 +802,89 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any],
         )
 
     return records
+
+
+# ─── Case-centric review metadata (PRD A Phase 3) ─────────────────────────────
+# Reviews land AFTER a record is packaged, so these blocks are built at export
+# time from the source of truth and attached to the emitted record. They live
+# under ``review`` / ``supervision`` — NEVER under a ``kappa`` or ``agreement``
+# key (PRD A §0): the reviewer SAW the labeler's answer, so this is expert
+# adjudication, not inter-rater agreement, and naming it κ would be claiming a
+# number nobody measured.
+def _review_dimensions(review: Dict[str, Any]) -> Dict[str, Any]:
+    if isinstance(review.get("dimensions"), dict):
+        return review["dimensions"]
+    try:
+        return json.loads(review.get("dimension_json") or "{}") or {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _review_corrections(review: Dict[str, Any]) -> Dict[str, Any]:
+    if isinstance(review.get("corrections"), dict):
+        return review["corrections"]
+    try:
+        return json.loads(review.get("corrections_json") or "{}") or {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _reviewer_credential(review: Dict[str, Any], store: Any = None) -> Optional[str]:
+    """Resolve the reviewer's credential ATTRIBUTE from the users table (the same
+    source-of-truth rule as ``_annotator_credential``). Never a name, never an
+    NPI — the Tier B leak gate scans this block like every other."""
+    if store is None:
+        return None
+    uid = review.get("reviewer_user_id")
+    if not uid:
+        return None
+    try:
+        user = store.get_user_by_id(uid)
+    except Exception:  # pragma: no cover - defensive; treated as unresolved
+        user = None
+    if not user:
+        return None
+    try:
+        block = store.annotator_block(user)
+    except Exception:  # pragma: no cover - defensive
+        return None
+    return block.get("credential") or block.get("credentials")
+
+
+def review_block(reviews: List[Dict[str, Any]], store: Any = None) -> Dict[str, Any]:
+    """The record's expert-review block: every review of the underlying labeler
+    submission, plus the rollups a buyer filters on. ``blinded`` ships as a
+    strict bool per review — a NULL (never-verified) flag reads as False, the
+    conservative direction: unverified is not blinded."""
+    reviews = reviews or []
+    return {
+        "reviewed": bool(reviews),
+        "n_reviews": len(reviews),
+        "reviews": [
+            {
+                "reviewer_id_hashed": r.get("reviewer_id_hashed"),
+                "reviewer_credential": _reviewer_credential(r, store),
+                "verdict": r.get("verdict"),
+                "dimensions": _review_dimensions(r),
+                "corrections": _review_corrections(r),
+                "blinded": r.get("blinded") in (True, 1),
+                "reviewed_at": r.get("created_at"),
+            }
+            for r in reviews
+        ],
+        "accepted_without_edits": bool(reviews)
+        and all(r.get("verdict") == "accept" for r in reviews),
+    }
+
+
+def supervision_block(
+    *, labeler_id_hashed: Optional[str], observation: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Who supervised this record. ``independent_second_label`` is True ONLY for
+    the double-labeled slice whose second observation was explicitly blinded —
+    the slice a real Cohen's κ can be computed on (PRD A §0)."""
+    return {
+        "labeler_id_hashed": labeler_id_hashed,
+        "independent_second_label": bool(observation)
+        and (observation or {}).get("blinded") in (True, 1),
+    }

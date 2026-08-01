@@ -32,6 +32,7 @@ log = logging.getLogger("asclepius.export")
 
 from asclepius import agreement as asc_agreement
 from asclepius import credentials as asc_credentials
+from asclepius import packaging as asc_packaging
 from asclepius import profiles
 from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
@@ -1072,6 +1073,11 @@ def build_export(
     # 1. Map + validate EVERY line before writing anything (fail loud, fail whole).
     lines: List[str] = []
     emitted: List[Dict[str, Any]] = []
+    # Review + supervision blocks (PRD A Phase 3) are hydrated at emit time —
+    # reviews land after packaging — and cached per submission/task so a batch
+    # with many records per submission does one lookup each.
+    _reviews_by_sid: Dict[Any, List[Dict[str, Any]]] = {}
+    _obs_by_tid: Dict[Any, Optional[Dict[str, Any]]] = {}
     for rec in records:
         payload = dict(rec.get("payload") or {})
         payload.pop("record_id", None)
@@ -1097,6 +1103,24 @@ def build_export(
             ak = _case_answer_key(store, rec)
             if ak:
                 mapped["answer_key"] = ak
+        # Case-centric review metadata (PRD A Phase 3): the record carries the
+        # original labeling AND every expert review of it, plus who supervised
+        # it. Attached after schema validation (the same seam as answer_key)
+        # but BEFORE the leak gate, so the gate scans these blocks for stray
+        # Tier B keys too. Deliberately NOT under a kappa/agreement key: the
+        # reviewer saw the labeler's answer, so this is adjudication, not
+        # inter-rater agreement (PRD A §0).
+        sid = rec.get("submission_id")
+        if sid not in _reviews_by_sid:
+            _reviews_by_sid[sid] = store.reviews_for_submission(sid) if sid else []
+        tid = rec.get("task_id") or payload.get("task_id")
+        if tid not in _obs_by_tid:
+            _obs_by_tid[tid] = store.get_agreement_observation(tid) if tid else None
+        mapped["review"] = asc_packaging.review_block(_reviews_by_sid[sid], store)
+        mapped["supervision"] = asc_packaging.supervision_block(
+            labeler_id_hashed=payload.get("annotator_id_hashed"),
+            observation=_obs_by_tid[tid],
+        )
         # THE CORE RULE (spec §4, §5): buyer-facing records carry credential
         # ATTRIBUTES only. Reject the whole batch loudly if ANY Tier B
         # (identifying / locating) field appears in ANY record.

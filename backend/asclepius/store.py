@@ -4064,6 +4064,21 @@ class AsclepiusStore:
             rec.pop("sub_count", None)
             return rec
         return None
+
+    def get_agreement_observation(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """The double-label agreement observation for one task, if it exists —
+        the source of truth for a record's ``independent_second_label`` flag
+        (PRD A Phase 3)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM agreement WHERE task_id = ?", (task_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        rec = dict(row)
+        rec["tags_a"] = json.loads(rec.pop("tags_a_json", "[]") or "[]")
+        rec["tags_b"] = json.loads(rec.pop("tags_b_json", "[]") or "[]")
+        return rec
     # ═══ END PRD-A ═══
 
 

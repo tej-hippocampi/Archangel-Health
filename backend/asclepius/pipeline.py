@@ -249,7 +249,17 @@ async def process_submission(
     dh = submission.get("dedupe_hash")
     if dh:
         for other in store.list_submissions(limit=100000):
-            if other["submission_id"] != sid and other.get("dedupe_hash") == dh:
+            if other["submission_id"] == sid or other.get("dedupe_hash") != dh:
+                continue
+            # Double-labeling (PRD A §1.3): a SECOND INDEPENDENT labeler agreeing
+            # on the same task produces this exact hash by construction — the
+            # hash carries prompt + candidates + verdict, and no authored free
+            # text when the chosen answer is unedited. Agreement there is the κ
+            # measurement working, not a re-submission, so a same-task collision
+            # from a DIFFERENT evaluator does not flag. Same-evaluator
+            # re-submissions and cross-task copies still do.
+            if (other.get("evaluator_id") == submission.get("evaluator_id")
+                    or other.get("task_id") != submission.get("task_id")):
                 is_dup = True
                 break
 
