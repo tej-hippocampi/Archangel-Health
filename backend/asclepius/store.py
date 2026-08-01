@@ -935,6 +935,27 @@ class AsclepiusStore:
             # must stay distinguishable from any decided value (START_HERE §4).
             if "review_status" not in cols("submissions"):
                 conn.execute("ALTER TABLE submissions ADD COLUMN review_status TEXT")
+            # Review CLAIM state (FIX A Phases 2/3). Three separate columns, all
+            # nullable, none defaulted:
+            #   review_claimed_by  — who holds the lease, so a second reviewer
+            #     cannot silently evict in-flight work by POSTing a guessed id.
+            #   review_claimed_at  — the lease clock. Dedicated on purpose:
+            #     ``updated_at`` is bumped by ANY write, so a background pipeline
+            #     touching the submission used to silently extend a reviewer's lease.
+            #   review_blinded     — the blinding DERIVED from the payload actually
+            #     served at draw time (1/0/NULL = never asserted). Read back at
+            #     submit; never recomputed from a payload we are no longer serving.
+            if "review_claimed_by" not in cols("submissions"):
+                conn.execute("ALTER TABLE submissions ADD COLUMN review_claimed_by TEXT")
+            if "review_claimed_at" not in cols("submissions"):
+                conn.execute("ALTER TABLE submissions ADD COLUMN review_claimed_at TEXT")
+            if "review_blinded" not in cols("submissions"):
+                conn.execute("ALTER TABLE submissions ADD COLUMN review_blinded INTEGER")
+            # next_review_for filters on review_status and review_queue_stats runs
+            # four COUNT(*)s over it on every draw — unindexed, that is four full
+            # table scans per reviewer per case (FIX A A-3.5).
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sub_review_status ON submissions(review_status)")
             # ═══ END PRD-A ═══
 
     # ─── Users ────────────────────────────────────────────────────────────────
@@ -3894,7 +3915,13 @@ class AsclepiusStore:
         clauses = [
             "s.evaluator_id != ?",
             "s.verdict IS NOT NULL",
-            "(s.review_status IS NULL OR (s.review_status = 'in_review' AND s.updated_at < ?))",
+            # NULL = never routed; an 'in_review' row past its lease re-queues.
+            # The lease clock is review_claimed_at, NOT updated_at — any unrelated
+            # write (a pipeline re-value, a status change) bumps updated_at and
+            # used to silently extend a reviewer's claim (FIX A A-3.7).
+            # 'reviewed', 'orphaned' and 'not_routed' are all terminal here.
+            "(s.review_status IS NULL OR (s.review_status = 'in_review'"
+            " AND (s.review_claimed_at IS NULL OR s.review_claimed_at < ?)))",
             "NOT EXISTS (SELECT 1 FROM case_reviews cr WHERE cr.submission_id = s.submission_id"
             " AND cr.reviewer_user_id = ?)",
             "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = s.task_id"
@@ -3925,25 +3952,59 @@ class AsclepiusStore:
         return None
 
     def claim_submission_for_review(
-        self, submission_id: str, *, lease_minutes: int = 45
+        self, submission_id: str, *, reviewer_id: str, blinded: Optional[bool] = None,
+        lease_minutes: int = 45,
     ) -> bool:
         """Atomically claim a submission for review (``review_status='in_review'``).
 
         Compare-and-set: the UPDATE only wins when the row is still unclaimed or its
         prior claim's lease has expired, so two reviewers drawing concurrently cannot
-        both claim the same submission. Returns True when this caller won the claim."""
+        both claim the same submission. Returns True when this caller won the claim.
+
+        The claim also records WHO holds it and the blinding DERIVED from the
+        payload served to them (FIX A F2). ``review_claimed_at`` is the lease
+        clock rather than ``updated_at``, which any unrelated write bumps."""
+        now = _utcnow_iso()
         cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
         with self._conn() as conn:
             cur = conn.execute(
                 """
-                UPDATE submissions SET review_status = 'in_review', updated_at = ?
+                UPDATE submissions
+                   SET review_status = 'in_review', review_claimed_by = ?,
+                       review_claimed_at = ?, review_blinded = ?, updated_at = ?
                 WHERE submission_id = ?
                   AND (review_status IS NULL
-                       OR (review_status = 'in_review' AND updated_at < ?))
+                       OR (review_status = 'in_review'
+                           AND (review_claimed_at IS NULL OR review_claimed_at < ?)))
                 """,
-                (_utcnow_iso(), submission_id, cutoff),
+                (reviewer_id, now, None if blinded is None else (1 if blinded else 0),
+                 now, submission_id, cutoff),
             )
             return cur.rowcount > 0
+
+    def review_claim(self, submission_id: str, *, lease_minutes: int = 45) -> Dict[str, Any]:
+        """The current claim on a submission: ``{holder, claimed_at, blinded,
+        expired, status}``. ``blinded`` is tri-state (True/False/None) — None
+        means no draw ever asserted it, which is NOT the same as unblinded."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT review_status, review_claimed_by, review_claimed_at, review_blinded "
+                "FROM submissions WHERE submission_id = ?", (submission_id,)
+            ).fetchone()
+        if row is None:
+            return {"holder": None, "claimed_at": None, "blinded": None,
+                    "expired": True, "status": None}
+        rec = dict(row)
+        claimed_at = rec.get("review_claimed_at")
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        blinded = rec.get("review_blinded")
+        return {
+            "holder": rec.get("review_claimed_by"),
+            "claimed_at": claimed_at,
+            "blinded": None if blinded is None else bool(blinded),
+            "expired": (claimed_at is None) or (claimed_at < cutoff),
+            "status": rec.get("review_status"),
+        }
 
     def review_queue_stats(self) -> Dict[str, Any]:
         """Counts for the review portal header. ``unreviewed`` counts NULL

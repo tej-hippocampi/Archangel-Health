@@ -108,20 +108,44 @@ async def next_review(reviewer: Dict[str, Any] = Depends(require_reviewer)):
         )
         if sub is None:
             return {"submission": None, "message": "No submissions awaiting review."}
-        if not store.claim_submission_for_review(sub["submission_id"], lease_minutes=lease):
-            continue
         task = store.get_task(sub["task_id"])
-        if task is None:  # orphaned submission — release the claim, keep drawing
-            store.update_submission(sub["submission_id"], review_status=None)
+        if task is None:
+            # Orphaned submission (its task is gone). Releasing to NULL would
+            # make it the OLDEST eligible row again and the next iteration would
+            # draw the same orphan — five loops, then a permanently contended
+            # queue for every reviewer (FIX A A-3.2). Park it in its own terminal
+            # state, which the SQL excludes.
+            store.update_submission(sub["submission_id"], review_status="orphaned")
+            store.log_event(
+                entity_type="submission", entity_id=sub["submission_id"],
+                event_type="review_orphaned", actor=reviewer["id"],
+                payload={"reason": "task_missing"},
+            )
             continue
+
+        # Build the payload FIRST, then derive blinding from the bytes we are
+        # actually about to serve, then persist that derivation on the claim.
+        # An asserted constant is precisely the defect F2 named.
+        view = asc_review.blinded_review_view(task, sub)
+        labeler = store.get_user_by_id(sub.get("evaluator_id") or "")
+        blinded = asc_review.payload_is_blinded(
+            view, reviewer_role=reviewer.get("role") or "", labeler=labeler)
+
+        if not store.claim_submission_for_review(
+            sub["submission_id"], reviewer_id=reviewer["id"],
+            blinded=blinded, lease_minutes=lease,
+        ):
+            continue  # lost the CAS to a concurrent draw — take the next one
         store.log_event(
             entity_type="submission",
             entity_id=sub["submission_id"],
             event_type="review_claimed",
             actor=reviewer["id"],
-            payload={"lease_minutes": lease},
+            payload={"lease_minutes": lease, "blinded": blinded},
         )
-        return {"submission": asc_review.blinded_review_view(task, sub)}
+        # Serve the derived value so the client can show an honest banner; the
+        # recorded flag comes from the claim, not from anything the client says.
+        return {"submission": {**view, "blinded": blinded}}
     return {"submission": None, "message": "Queue is contended; try again."}
 
 
@@ -155,6 +179,22 @@ async def submit_review(
     if errors:
         raise HTTPException(status_code=422, detail={"errors": errors})
 
+    # The claim is the authority on this review (FIX A A-3.1). Without this,
+    # any reviewer could POST onto any submission id they can guess — including
+    # one another reviewer currently holds, evicting their in-flight work, and
+    # including one the routing policy excluded.
+    lease = asc_review.review_lease_minutes()
+    claim = store.review_claim(submission_id, lease_minutes=lease)
+    if claim["status"] != "in_review" or claim["expired"]:
+        raise HTTPException(
+            status_code=409,
+            detail="Draw this submission for review before submitting; your claim "
+                   "is missing or has expired.",
+        )
+    if claim["holder"] != reviewer["id"]:
+        raise HTTPException(
+            status_code=409, detail="Another reviewer currently holds this submission.")
+
     review = store.insert_case_review(
         task_id=sub["task_id"],
         submission_id=submission_id,
@@ -165,9 +205,12 @@ async def submit_review(
         corrections=body.corrections,
         reviewer_notes=(body.reviewer_notes or "").strip() or None,
         time_spent_sec=body.time_spent_sec,
-        # 1: this portal only ever served the whitelist view, which carries no
-        # labeler identity (asserted by test — PRD A §4).
-        blinded=True,
+        # DERIVED at draw time from the payload actually served, and read back
+        # here from the claim (FIX A F2). Deliberately NOT recomputed from a
+        # payload we are no longer serving — that would reintroduce the same
+        # assumption in a new place. Tri-state: None means no draw ever asserted
+        # it, which is excluded from κ as unverified rather than treated as blind.
+        blinded=claim["blinded"],
     )
     store.update_submission(submission_id, review_status="reviewed")
     store.log_event(

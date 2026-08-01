@@ -208,9 +208,14 @@ def test_draw_claims_submission_and_stale_lease_requeues():
 
     # An abandoned claim re-queues after the lease expires — the submission must
     # not vanish from the worklist forever (PRD A §4 trap).
+    # The lease clock is review_claimed_at, NOT updated_at: an unrelated write
+    # must NOT extend or expire a reviewer's claim (FIX A A-3.7).
+    store.update_submission(sub["submission_id"], qa_reason="unrelated pipeline write")
+    assert store.next_review_for(r2["id"], specialty="nephrology") is None
     with store._conn() as conn:
         conn.execute(
-            "UPDATE submissions SET updated_at = '2000-01-01T00:00:00' WHERE submission_id = ?",
+            "UPDATE submissions SET review_claimed_at = '2000-01-01T00:00:00' "
+            "WHERE submission_id = ?",
             (sub["submission_id"],),
         )
     stale_drawn = store.next_review_for(r2["id"], specialty="nephrology")
@@ -224,6 +229,7 @@ def test_reviewed_submission_leaves_the_queue():
     sub = _mk_submission(store, task, labeler)
     reviewer = _reviewer(store)
 
+    client.get("/api/asclepius/review/next", headers=A.headers_for(reviewer))  # claim it
     r = client.post(
         f"/api/asclepius/review/{sub['submission_id']}",
         json=_review_body(),
@@ -243,6 +249,7 @@ def test_duplicate_review_by_same_reviewer_is_409():
     task = _mk_task(store)
     sub = _mk_submission(store, task, labeler)
     reviewer = _reviewer(store)
+    client.get("/api/asclepius/review/next", headers=A.headers_for(reviewer))  # claim it
     first = client.post(
         f"/api/asclepius/review/{sub['submission_id']}",
         json=_review_body(),
@@ -357,15 +364,23 @@ _IDENTITY_MARKERS = (
 )
 
 
-def _assert_no_identity(obj, path="$"):
-    """No labeler-identity key anywhere in the served JSON."""
+def _assert_no_identity(obj, path="$", *, needles=None):
+    """No labeler identity anywhere in the served JSON — by KEY or by VALUE.
+
+    The value scan matters because ``_SUBMISSION_PAYLOAD_VIEW_KEYS`` deliberately
+    serves ``from_scratch``, ``rejected_critique`` and ``reasoning_steps``: all
+    labeler-authored prose, all capable of naming their author (FIX A Phase 2)."""
     if isinstance(obj, dict):
         for k, v in obj.items():
             assert k not in _IDENTITY_MARKERS, f"labeler identity key {k!r} at {path}"
-            _assert_no_identity(v, f"{path}.{k}")
+            _assert_no_identity(v, f"{path}.{k}", needles=needles)
     elif isinstance(obj, list):
         for i, v in enumerate(obj):
-            _assert_no_identity(v, f"{path}[{i}]")
+            _assert_no_identity(v, f"{path}[{i}]", needles=needles)
+    elif isinstance(obj, str):
+        low = obj.lower()
+        for needle in (needles or []):
+            assert needle not in low, f"labeler identity value {needle!r} at {path}"
 
 
 def test_review_payload_contains_no_labeler_identity():
@@ -389,7 +404,7 @@ def test_review_payload_contains_no_labeler_identity():
     r = client.get("/api/asclepius/review/next", headers=A.headers_for(reviewer))
     view = r.json()["submission"]
     assert view is not None
-    _assert_no_identity(view)
+    _assert_no_identity(view, needles=asc_review.labeler_identity_needles(labeler))
     assert view["blinded"] is True
     # The labeler's actual work IS served.
     assert view["labeler_answer"]["verdict"] == "A_better"
@@ -403,6 +418,7 @@ def test_accept_with_edits_requires_corrections():
     task = _mk_task(store)
     sub = _mk_submission(store, task, labeler)
     reviewer = _reviewer(store)
+    client.get("/api/asclepius/review/next", headers=A.headers_for(reviewer))  # claim it
     r = client.post(
         f"/api/asclepius/review/{sub['submission_id']}",
         json=_review_body("accept_with_edits"),
@@ -428,6 +444,7 @@ def test_reject_requires_a_reason():
     task = _mk_task(store)
     sub = _mk_submission(store, task, labeler)
     reviewer = _reviewer(store)
+    client.get("/api/asclepius/review/next", headers=A.headers_for(reviewer))  # claim it
     r = client.post(
         f"/api/asclepius/review/{sub['submission_id']}",
         json=_review_body("reject"),
@@ -450,6 +467,7 @@ def test_cannot_assess_persists_as_its_own_value():
     task = _mk_task(store)
     sub = _mk_submission(store, task, labeler)
     reviewer = _reviewer(store)
+    client.get("/api/asclepius/review/next", headers=A.headers_for(reviewer))  # claim it
     dims = {k: "agree" for k in asc_review.DIMENSION_KEYS}
     dims["rubric_quality"] = "cannot_assess"
     r = client.post(
@@ -735,3 +753,108 @@ def test_full_kappa_loop_through_the_route_produces_a_real_number():
     assert out["reason"] is None                    # nothing suppressed
     assert isinstance(out["overall"], float)        # a number, at last
     assert out["observed_agreement"] == round((n_cases - 2) / n_cases, 4)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FIX ROUND — Phase 2 (F2): `blinded` must be DERIVED, not asserted.
+#
+# In the hackathon build both the router and the view wrote the literal True.
+# No code path in the product could produce a 0; the only way to see one was to
+# call store.insert_case_review(blinded=False) by hand. A flag nothing can
+# falsify is not a measurement, and this one gates independent_kappa.
+# ═══════════════════════════════════════════════════════════════════════════════
+def _draw(reviewer):
+    return client.get("/api/asclepius/review/next", headers=A.headers_for(reviewer)).json()
+
+
+def _post_review(reviewer, sid, body=None):
+    return client.post(f"/api/asclepius/review/{sid}", json=body or _review_body(),
+                       headers=A.headers_for(reviewer))
+
+
+def test_identity_key_in_the_served_payload_records_blinded_zero():
+    """THE TEST THAT WOULD HAVE CAUGHT F2.
+
+    Inject a labeler-identity key into the labeler's own answer payload, draw as
+    a reviewer, and the recorded review must say blinded=0. Against the old
+    hardcoded literal this is impossible."""
+    store = asc_store.get_store()
+    labeler = A.make_user(store, specialty="nephrology")
+    task = _mk_task(store)
+    # `from_scratch` is deliberately served to reviewers, so a nested identity
+    # key inside it reaches the reviewer's screen.
+    sub = _mk_submission(store, task, labeler, payload={
+        "verdict": "both_inadequate",
+        "from_scratch": {"ideal_answer": "Dialyze.", "annotator": {"email": "who@x.com"}},
+    })
+    reviewer = _reviewer(store)
+
+    drawn = _draw(reviewer)
+    assert drawn["submission"]["blinded"] is False          # served honestly
+    assert _post_review(reviewer, sub["submission_id"]).status_code == 200
+
+    stored = store.reviews_for_submission(sub["submission_id"])[0]
+    assert stored["blinded"] == 0                            # recorded honestly
+
+
+def test_labeler_named_in_free_text_records_blinded_zero():
+    """The PRD's own listed vector, previously untested: labeler-authored prose
+    that names the labeler. Scanned by VALUE, against that account's real
+    identifiers — not by a heuristic name-detector that would false-positive on
+    clinical text and silently shrink κ's n."""
+    store = asc_store.get_store()
+    labeler = A.make_user(store, specialty="nephrology",
+                          email=f"gregory.house-{A.uniq(6)}@hospital.example.com")
+    task = _mk_task(store)
+    sub = _mk_submission(store, task, labeler, payload={
+        "verdict": "A_better", "chosen_id": "a", "rejected_id": "b",
+        "rejected_critique": {
+            "why_worse": f"As I noted in my earlier review — {labeler['email']}",
+        },
+    })
+    reviewer = _reviewer(store)
+    assert _draw(reviewer)["submission"]["blinded"] is False
+    _post_review(reviewer, sub["submission_id"])
+    assert store.reviews_for_submission(sub["submission_id"])[0]["blinded"] == 0
+
+
+def test_admin_draw_is_never_blinded_and_is_excluded_from_kappa():
+    """require_reviewer admits admins, and an admin can de-blind through
+    GET /submissions/{id}. Stamping blinded=1 for a reviewer who can look the
+    author up in another tab is the same lie one hop out."""
+    store = asc_store.get_store()
+    labeler = A.make_user(store, specialty="nephrology")
+    task = _mk_task(store)
+    sub = _mk_submission(store, task, labeler)
+    admin = A.make_user(store, role="admin", specialty="nephrology")
+
+    drawn = _draw(admin)
+    assert drawn["submission"] is not None
+    assert drawn["submission"]["blinded"] is False
+    assert _post_review(admin, sub["submission_id"]).status_code == 200
+    assert store.reviews_for_submission(sub["submission_id"])[0]["blinded"] == 0
+
+    # And such an observation cannot enter the independent-κ computation.
+    from asclepius.agreement import _blinded_only
+    assert _blinded_only([{"blinded": 0}]) == []
+
+
+def test_clean_payload_still_records_blinded_one():
+    """The derivation must not be so eager that honest reviews fall out of κ."""
+    store = asc_store.get_store()
+    labeler = A.make_user(store, specialty="nephrology", years_experience=20)
+    task = _mk_task(store)
+    sub = _mk_submission(store, task, labeler)
+    reviewer = _reviewer(store)
+    assert _draw(reviewer)["submission"]["blinded"] is True
+    _post_review(reviewer, sub["submission_id"])
+    assert store.reviews_for_submission(sub["submission_id"])[0]["blinded"] == 1
+
+
+def test_view_no_longer_carries_an_asserted_blinded_literal():
+    store = asc_store.get_store()
+    labeler = A.make_user(store)
+    task = _mk_task(store)
+    sub = _mk_submission(store, task, labeler)
+    view = asc_review.blinded_review_view(task, sub)
+    assert "blinded" not in view       # derived by the caller, never asserted here

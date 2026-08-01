@@ -210,11 +210,91 @@ def blinded_review_view(task: Dict[str, Any], submission: Dict[str, Any]) -> Dic
         "submitted_at": s.get("created_at"),
         "task": task_view,
         "labeler_answer": answer_view,
-        # 1 = this payload verifiably carries no labeler identity. If any future
-        # change surfaces identity here, this flag must flip to 0 — the Phase 5
-        # test enforces the payload, not the flag (PRD A §4).
-        "blinded": True,
+        # NOTE: no ``blinded`` key here on purpose. Blinding is DERIVED from this
+        # object by ``payload_is_blinded`` at draw time and persisted on the
+        # claim — an asserted constant is exactly the defect FIX A §F2 named.
     }
+
+
+# ─── Derived blinding (FIX A Phase 2 / F2) ────────────────────────────────────
+# The buyer-facing honesty claim in this whole deliverable is "the reviewer could
+# not see who labeled it". It gates ``independent_kappa``'s blinded-only filter,
+# so it must be a MEASUREMENT of the payload actually served, never a literal.
+_IDENTITY_MARKERS = frozenset({
+    "evaluator_id", "annotator", "id_hashed", "email", "user_id",
+    "credential", "credentials", "years_experience", "organization",
+    "board_cert", "name", "full_name", "npi", "linkedin_url",
+})
+
+
+def _walk_for_keys(obj: Any, markers: frozenset) -> bool:
+    """True if any key anywhere in the structure is an identity marker."""
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if isinstance(key, str) and key.lower() in markers:
+                return True
+            if _walk_for_keys(value, markers):
+                return True
+    elif isinstance(obj, list):
+        for item in obj:
+            if _walk_for_keys(item, markers):
+                return True
+    return False
+
+
+def _walk_for_values(obj: Any, needles: List[str]) -> bool:
+    """True if any string anywhere in the structure contains one of ``needles``.
+
+    Catches the vector the PRD named but nothing tested: labeler-authored free
+    text that names the labeler. ``_SUBMISSION_PAYLOAD_VIEW_KEYS`` deliberately
+    serves ``from_scratch``, ``rejected_critique`` and ``reasoning_steps`` — all
+    prose the labeler wrote and could have signed."""
+    if not needles:
+        return False
+    if isinstance(obj, str):
+        low = obj.lower()
+        return any(n in low for n in needles)
+    if isinstance(obj, dict):
+        return any(_walk_for_values(v, needles) for v in obj.values())
+    if isinstance(obj, list):
+        return any(_walk_for_values(v, needles) for v in obj)
+    return False
+
+
+def labeler_identity_needles(labeler: Optional[Dict[str, Any]]) -> List[str]:
+    """The specific strings that would identify THIS labeler, for the value scan.
+
+    Precise, not heuristic: the actual account's email, local-part, name and
+    hashed id. A generic name-detector would false-positive on clinical prose
+    ('per Osler's sign') and silently shrink κ's n."""
+    out: List[str] = []
+    for key in ("email", "full_name", "id_hashed", "organization", "org_name"):
+        val = (labeler or {}).get(key)
+        if isinstance(val, str) and len(val.strip()) >= 4:
+            out.append(val.strip().lower())
+    email = (labeler or {}).get("email")
+    if isinstance(email, str) and "@" in email:
+        local = email.split("@", 1)[0].strip().lower()
+        if len(local) >= 4:
+            out.append(local)
+    return out
+
+
+def payload_is_blinded(view: Dict[str, Any], *, reviewer_role: str,
+                       labeler: Optional[Dict[str, Any]] = None) -> bool:
+    """True only when the served payload provably carries no labeler identity.
+
+    Derived, never asserted. An admin is treated as NOT blind regardless of the
+    payload: ``require_reviewer`` admits admins, and an admin can de-blind
+    through ``GET /submissions/{id}`` (which serves the full row, including
+    ``evaluator_id`` and ``annotator``). Recording ``blinded=1`` for a reviewer
+    who can look up the author in another tab is the same lie, one hop out.
+    """
+    if reviewer_role == "admin":
+        return False
+    if _walk_for_keys(view, _IDENTITY_MARKERS):
+        return False
+    return not _walk_for_values(view, labeler_identity_needles(labeler))
 
 
 # ─── Validation (PRD A Phase 2) ───────────────────────────────────────────────
