@@ -921,6 +921,34 @@ def test_retry_endpoints_require_admin(client: TestClient):
                        headers=headers_for(evaluator)).status_code == 403
 
 
+def test_duplicate_detection_sees_legacy_unnormalized_npis(client: TestClient):
+    """B-5.1, read side. Normalizing on WRITE fixes new rows; rows already in
+    the database still hold '1234-567893', and comparing the raw column leaves
+    them invisible to duplicate detection — the same defect, still open for
+    everyone who signed up before the fix. Normalized in SQL rather than by
+    rewriting stored data.
+    """
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    npi = _fresh_npi()
+    dashed = f"{npi[:4]}-{npi[4:7]}.{npi[7:]}"
+    legacy = store.provision_user(email=f"legacy_{uuid.uuid4().hex[:8]}@h.org",
+                                  password="pw-12345678", role="evaluator",
+                                  full_name="Dr Legacy", npi=dashed)   # raw, as before
+    assert store.get_user_by_id(legacy["id"])["npi"] == dashed
+    fresh = _pending_physician(store, npi=npi)                          # clean
+
+    assert len(store.find_users_by_npi(npi)) == 2
+    assert store.npi_claim_counts().get(npi) == 2
+    store.set_verification_status(legacy["id"], "pending")
+    q = client.get("/api/asclepius/verify/queue", headers=headers_for(admin)).json()["queue"]
+    flagged = {r["user_id"]: r["blockers"] for r in q
+               if r["user_id"] in (legacy["id"], fresh["id"])}
+    assert len(flagged) == 2
+    for blockers in flagged.values():
+        assert any("Duplicate NPI" in b for b in blockers)
+
+
 def test_duplicate_npi_flags_both_queue_rows(client: TestClient):
     store = fresh_store()
     admin = make_user(store, role="admin")

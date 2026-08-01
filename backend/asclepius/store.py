@@ -3790,6 +3790,15 @@ class AsclepiusStore:
         return self.list_env_runs(specialty=specialty, mode="rollout", has_annotation=True)
 
     # ═══ PRD-B IDENTITY METHODS — owned by Agent 2, do not edit from other PRDs ═══
+    # NPIs are normalized on WRITE, but rows created before that fix can hold
+    # "1234-567893". Comparing the raw column would leave those legacy rows
+    # invisible to duplicate detection and to the cache — the exact defect the
+    # write-side fix closed, still open for everyone already in the database.
+    # Normalizing in SQL fixes them without rewriting stored data. Mirrors
+    # ``credentialing.clean_npi`` (strips ``[\s\-\.]``).
+    _NPI_NORM = ("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(npi, '-', ''), '.', ''), "
+                 "' ', ''), CHAR(9), ''), CHAR(10), '')")
+
     def set_npi_result(self, user_id: str, result: Dict[str, Any]) -> None:
         """Persist an NPI check outcome onto the user row.
 
@@ -3854,7 +3863,8 @@ class AsclepiusStore:
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT npi_payload_json FROM users "
-                "WHERE npi = ? AND npi_checked_at IS NOT NULL AND npi_checked_at >= ? "
+                f"WHERE {self._NPI_NORM} = ? AND npi_checked_at IS NOT NULL "
+                "AND npi_checked_at >= ? "
                 "AND npi_payload_json IS NOT NULL "
                 "ORDER BY npi_checked_at DESC LIMIT 1",
                 (npi, cutoff),
@@ -3922,7 +3932,8 @@ class AsclepiusStore:
             return []
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM users WHERE npi = ? ORDER BY created_at ASC", (npi,)
+                f"SELECT * FROM users WHERE {self._NPI_NORM} = ? ORDER BY created_at ASC",
+                (npi,),
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -3954,16 +3965,19 @@ class AsclepiusStore:
         return [dict(r) for r in rows]
 
     def npi_claim_counts(self) -> Dict[str, int]:
-        """{npi: number of accounts claiming it} — one grouped query so the
-        queue does not run a full-table scan per row (B-5.8). Only NPIs with
-        more than one claimant are returned; everything else is 1 by absence."""
+        """{normalized npi: number of accounts claiming it} — one grouped query
+        so the queue does not run a full-table scan per row (B-5.8). Keyed by
+        the NORMALIZED value so callers can look up with ``clean_npi(...)`` and
+        so a legacy "1234-567893" row groups with its clean twin. Only NPIs
+        with more than one claimant are returned; everything else is 1 by
+        absence."""
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT npi, COUNT(*) AS n FROM users "
+                f"SELECT {self._NPI_NORM} AS norm_npi, COUNT(*) AS n FROM users "
                 "WHERE npi IS NOT NULL AND TRIM(npi) != '' "
-                "GROUP BY npi HAVING n > 1"
+                "GROUP BY norm_npi HAVING n > 1"
             ).fetchall()
-        return {r["npi"]: r["n"] for r in rows}
+        return {r["norm_npi"]: r["n"] for r in rows}
 
     def list_verification_queue(self, status: str = "pending") -> List[Dict[str, Any]]:
         """User rows in one verification state, newest signup first (the admin
