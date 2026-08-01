@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Data Provider Portal · Asclepius | Archangel Health</title>
+  <title>Secure Upload Portal | Archangel Health</title>
   <meta name="robots" content="noindex, nofollow" />
-  <meta name="description" content="Secure data provider portal for submitting de-identified clinical data to Archangel Health." />
+  <meta name="description" content="Secure upload portal for health systems partnering with Archangel Health." />
 
   <!-- Console design system — self-hosted fonts + shared tokens (frontend dir is mounted at /static). -->
   <link rel="stylesheet" href="/static/asclepius/clinical-fonts.css" />
@@ -24,7 +24,7 @@
     <div class="asc-header-inner">
       <a class="asc-logo" href="/provider">
         <span class="asc-logo-mark" aria-hidden="true"></span>
-        <span class="asc-logo-text">Asclepius<span class="asc-logo-sub">Data Provider Portal</span></span>
+        <span class="asc-logo-text">Archangel Health<span class="asc-logo-sub">Secure Upload Portal</span></span>
       </a>
       <div class="asc-header-right">
         <div class="asc-user-badge" id="prvUserBadge"></div>
@@ -56,20 +56,20 @@
       <div class="asc-login-card prv-auth-card">
         <div class="asc-login-head">
           <div class="asc-login-mark" aria-hidden="true"></div>
-          <h1>Data Provider Portal</h1>
-          <p>Secure clinical data submission for Archangel Health</p>
+          <h1>Secure Upload Portal</h1>
+          <p>Clinical data submission for Archangel Health partners</p>
         </div>
         <div class="asc-login-body">
           <p class="prv-lead">
-            Welcome. Sign in with the email and temporary password from your
-            invitation to begin a secure, encrypted data handover.
+            Welcome. Sign in with the username and password from your welcome
+            email to begin a secure, encrypted data handover.
           </p>
           <div class="asc-login-error" id="prvLoginError" role="alert" hidden></div>
           <form id="prvLoginForm" novalidate>
             <div class="asc-field">
-              <label class="asc-label" for="prvEmail">Email</label>
-              <input class="asc-input" id="prvEmail" name="email" type="email"
-                     autocomplete="username" spellcheck="false" required />
+              <label class="asc-label" for="prvUsername">Username</label>
+              <input class="asc-input" id="prvUsername" name="username" type="text"
+                     autocomplete="username" autocapitalize="none" spellcheck="false" required />
             </div>
             <div class="asc-field">
               <label class="asc-label" for="prvPassword">Password</label>
@@ -82,7 +82,8 @@
           </form>
           <p class="asc-login-hint">
             This portal is for authorized data-sharing partners only. Access is
-            logged. If you did not request an invitation, please disregard the email.
+            logged. Lost your credentials? Reply to your welcome email and we
+            will send new ones.
           </p>
         </div>
       </div>
@@ -101,7 +102,7 @@
         <div class="asc-login-body">
           <p class="prv-lead">
             For your security, please replace the temporary password from your
-            invitation with a private password of your own.
+            welcome email with a private password of your own.
           </p>
           <div class="asc-login-error" id="prvResetError" role="alert" hidden></div>
           <div class="asc-inline-ok" id="prvResetOk" hidden></div>
@@ -166,14 +167,14 @@
               <div class="prv-drop-sub">Drag &amp; drop files or a .zip, or click to browse</div>
             </button>
             <p id="prvDropHelp" class="asc-help prv-drop-help">
-              Accepted: FHIR / HL7 / CSV exports, lab results, clinical notes,
-              medication &amp; problem lists, and an optional manifest.json.
+              Send a .zip, or individual .json / .csv / .hl7 / .txt files and we
+              will package them for you.
             </p>
             <input type="file" id="prvFileInput" multiple
                    accept=".zip,.csv,.json,.txt,.xml,.hl7,.ndjson,application/zip,application/json,text/csv,text/plain"
                    class="prv-visually-hidden" aria-label="Choose files to upload" />
 
-            <!-- Live progress + per-file results for the current batch -->
+            <!-- Live progress + per-batch results -->
             <div class="prv-progress" id="prvProgress" aria-live="polite" hidden>
               <div class="prv-progress-label" id="prvProgressLabel">Uploading…</div>
               <div class="prv-progress-track" role="progressbar" aria-valuemin="0"
@@ -210,7 +211,7 @@
       <section class="asc-card">
         <div class="asc-card-head">
           <div>
-            <div class="asc-card-title">Your uploads</div>
+            <div class="asc-card-title">Past uploads</div>
             <div class="asc-card-sub">A record of everything you have submitted.</div>
           </div>
           <button type="button" class="asc-btn asc-btn-ghost asc-btn-sm" id="prvRefreshBtn">↻ Refresh</button>
@@ -220,7 +221,8 @@
             <thead>
               <tr>
                 <th scope="col">Received</th>
-                <th scope="col">Files</th>
+                <th scope="col">File</th>
+                <th scope="col">Size</th>
                 <th scope="col">Status</th>
                 <th scope="col">Details</th>
               </tr>

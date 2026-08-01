@@ -6106,51 +6106,39 @@
   function renderAdminIngestion(body) {
     clear(body);
 
-    // Mint a secure upload link
-    const pid = h('input', { class: 'asc-input', placeholder: 'partner id (e.g. mercy-health)' });
-    const plabel = h('input', { class: 'asc-input', placeholder: 'display label (optional)' });
-    const pspec = selectFrom(['nephrology', 'cardiology'], 'nephrology');
-    const phours = h('input', { type: 'number', class: 'asc-input', value: '72', min: '1', max: '720' });
-    const pcontact = h('input', { type: 'email', class: 'asc-input', placeholder: 'partner contact email (optional)' });
-    const ponce = h('input', { type: 'checkbox', checked: 'checked' });
+    // PRD-C: send upload access to a health system. Two fields; everything else
+    // (health-system row, username, passphrase, forced reset) is derived
+    // server-side. Replaces the old six-field link-minting form.
+    const hsOrg = h('input', { class: 'asc-input', placeholder: 'Mass General Hospital' });
+    const hsEmail = h('input', { type: 'email', class: 'asc-input', placeholder: 'data@mgh.harvard.edu' });
     const mintStatus = h('div', {});
-    const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Mint secure upload link');
+    const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send upload link');
     mintBtn.addEventListener('click', async () => {
       clear(mintStatus);
-      if (!pid.value.trim()) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Partner id is required.')); return; }
+      const org = hsOrg.value.trim();
+      const email = hsEmail.value.trim();
+      if (!org) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Organization is required.')); return; }
+      if (!email) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Email is required.')); return; }
+      mintBtn.setAttribute('disabled', '');
       try {
-        const res = await api('/admin/upload-links', { method: 'POST', body: {
-          partner_id: pid.value.trim(), partner_label: plabel.value.trim() || null,
-          specialty: pspec.value, expires_hours: Math.max(1, parseInt(phours.value, 10) || 72),
-          one_time: ponce.checked, contact_email: pcontact.value.trim() || null,
+        const res = await api('/admin/health-systems/provision', { method: 'POST', body: {
+          organization: org, email: email,
         } });
-        const url = res.upload_url || ('/partner/upload?t=' + res.token);
-        mintStatus.appendChild(h('div', { class: 'asc-inline-warn' },
-          'Copy this link NOW — the token is shown once and never stored: '));
-        const urlBox = h('input', { class: 'asc-input asc-mono', value: url, readonly: 'readonly', style: 'margin-top:8px' });
-        urlBox.addEventListener('click', () => { urlBox.select(); });
-        mintStatus.appendChild(urlBox);
-        mintStatus.appendChild(h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', style: 'margin-top:8px', onClick: () => {
-          navigator.clipboard.writeText(url).then(() => toast('Link copied.', 'success')).catch(() => {});
-        } }, 'Copy link'));
+        mintStatus.appendChild(h('div', { class: 'asc-inline-ok' }, res.message
+          || ('Upload access sent to ' + email + '.')));
+        hsOrg.value = ''; hsEmail.value = '';
         loadIngestionLists();
       } catch (e) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
+      finally { mintBtn.removeAttribute('disabled'); }
     });
     const mintCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Secure partner upload link'),
-        h('div', { class: 'asc-card-sub' }, 'Tokenized, expiring, single-purpose. The partner uploads a de-identified .zip — no app account. This is the only door that produces V4 real cases.'))),
+        h('div', { class: 'asc-card-title' }, 'Send a health system its upload access'),
+        h('div', { class: 'asc-card-sub' }, 'The contact receives a username and one-time passphrase by email, signs into the password-protected portal, and uploads. Specialty is determined at ingest — not asked of hospital IT.'))),
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Partner id'), pid),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Label'), plabel),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), pspec)),
-        h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Expires (hours)'), phours),
-          h('label', { class: 'asc-checkbox-row', style: 'align-self:end;margin-bottom:14px' }, ponce, 'Single use'),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Contact email'), pcontact)),
-        h('div', { class: 'asc-card-sub', style: 'margin:-4px 0 12px' },
-          'If an upload through this link fails, we email this address that it didn’t come through (no PHI, no breach) so they can re-send.'),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Organization'), hsOrg),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Email'), hsEmail)),
         mintBtn, mintStatus));
 
     const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));

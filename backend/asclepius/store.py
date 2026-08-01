@@ -23,10 +23,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import sqlite3
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from passlib.context import CryptContext
@@ -905,6 +906,45 @@ class AsclepiusStore:
             # after a parser fix rather than purged on schedule.
             if "retain_raw" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN retain_raw INTEGER NOT NULL DEFAULT 0")
+
+            # ═══ PRD-C HEALTH SYSTEM SCHEMA — owned by Agent 3, do not edit from other PRDs ═══
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS health_systems (
+                    hs_id         TEXT PRIMARY KEY,          -- hs-<slug>-<6hex>
+                    name          TEXT NOT NULL,
+                    contact_email TEXT,
+                    notes         TEXT,
+                    active        INTEGER NOT NULL DEFAULT 1,
+                    created_at    TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_portal_users (
+                    username      TEXT PRIMARY KEY,
+                    hs_id         TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    must_reset    INTEGER NOT NULL DEFAULT 1,
+                    email         TEXT,
+                    last_login    TEXT,
+                    active        INTEGER NOT NULL DEFAULT 1,
+                    created_at    TEXT NOT NULL
+                )
+                """
+            )
+            # Login-lockout bookkeeping — the portal is public on launch day, so a
+            # per-account lock (not just per-IP throttling) is required. Guarded
+            # ALTERs so a DB created from the bare contract table also gains them.
+            if "failed_logins" not in cols("hs_portal_users"):
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN failed_logins INTEGER NOT NULL DEFAULT 0")
+            if "locked_until" not in cols("hs_portal_users"):
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN locked_until TEXT")
+            if "health_system_id" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN health_system_id TEXT")
+            self._backfill_health_systems(conn)
+            # ═══ END PRD-C ═══
 
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
@@ -3748,6 +3788,214 @@ class AsclepiusStore:
         """Rollout rows that carry a physician annotation — the PRM training set
         (PRD §7.5). Each dict has ``trajectory`` + ``physician_annotation``."""
         return self.list_env_runs(specialty=specialty, mode="rollout", has_annotation=True)
+
+    # ═══ PRD-C HEALTH SYSTEM STORE METHODS — owned by Agent 3, do not edit from other PRDs ═══
+    @staticmethod
+    def hs_id_for_name(name: str) -> str:
+        """Deterministic ``hs-<slug>-<6hex>`` from the organization name, so the
+        boot-time backfill mints the same id on every run (idempotent)."""
+        norm = " ".join((name or "").lower().split())
+        words = re.findall(r"[a-z0-9]+", norm)
+        slug = "-".join(words)[:24].strip("-") or "org"
+        hexpart = hashlib.sha256(norm.encode("utf-8")).hexdigest()[:6]
+        return f"hs-{slug}-{hexpart}"
+
+    def _backfill_health_systems(self, conn: sqlite3.Connection) -> None:
+        """One ``health_systems`` row per distinct historical partner label, and a
+        ``health_system_id`` stamp on that partner's uploads — so no pre-portal
+        upload is orphaned. Idempotent: matches by (case-insensitive) name and
+        only touches uploads still missing a health_system_id."""
+        labels: Dict[str, str] = {}
+        for r in conn.execute("SELECT provider_id, org_name, email FROM data_providers").fetchall():
+            label = (r["org_name"] or "").strip() or (r["email"] or "").strip()
+            if label:
+                labels[r["provider_id"]] = label
+        for r in conn.execute("SELECT DISTINCT partner_id, partner_label FROM ingest_upload_links").fetchall():
+            label = (r["partner_label"] or "").strip() or (r["partner_id"] or "").strip()
+            if label:
+                labels.setdefault(r["partner_id"], label)
+        for r in conn.execute(
+            "SELECT DISTINCT partner_id FROM ingest_uploads WHERE health_system_id IS NULL"
+        ).fetchall():
+            if (r["partner_id"] or "").strip() and r["partner_id"] != "account":
+                labels.setdefault(r["partner_id"], r["partner_id"])
+        for partner_id, label in labels.items():
+            row = conn.execute(
+                "SELECT hs_id FROM health_systems WHERE LOWER(name) = LOWER(?)", (label,)
+            ).fetchone()
+            hs_id = row["hs_id"] if row else self.hs_id_for_name(label)
+            if not row:
+                conn.execute(
+                    "INSERT OR IGNORE INTO health_systems (hs_id, name, active, created_at) "
+                    "VALUES (?, ?, 1, ?)",
+                    (hs_id, label, _utcnow_iso()),
+                )
+            conn.execute(
+                "UPDATE ingest_uploads SET health_system_id = ? "
+                "WHERE partner_id = ? AND health_system_id IS NULL",
+                (hs_id, partner_id),
+            )
+
+    def ensure_health_system(self, name: str, *, contact_email: Optional[str] = None,
+                             notes: Optional[str] = None) -> Dict[str, Any]:
+        """Create-or-reuse by (case-insensitive) organization name."""
+        clean = " ".join((name or "").split())
+        if not clean:
+            raise ValueError("health system name is required")
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM health_systems WHERE LOWER(name) = LOWER(?)", (clean,)
+            ).fetchone()
+            if row:
+                if contact_email and not row["contact_email"]:
+                    conn.execute("UPDATE health_systems SET contact_email = ? WHERE hs_id = ?",
+                                 (contact_email, row["hs_id"]))
+                    return self.get_health_system(row["hs_id"])  # type: ignore[return-value]
+                return dict(row)
+            hs_id = self.hs_id_for_name(clean)
+            conn.execute(
+                "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at) "
+                "VALUES (?, ?, ?, ?, 1, ?)",
+                (hs_id, clean, contact_email, notes, _utcnow_iso()),
+            )
+        return self.get_health_system(hs_id)  # type: ignore[return-value]
+
+    def get_health_system(self, hs_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM health_systems WHERE hs_id = ?", (hs_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_health_systems(self) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM health_systems ORDER BY created_at DESC").fetchall()
+        return [dict(r) for r in rows]
+
+    @staticmethod
+    def _hs_user_public(row: sqlite3.Row) -> Dict[str, Any]:
+        d = dict(row)
+        d.pop("password_hash", None)
+        return d
+
+    def create_hs_portal_user(self, *, username: str, hs_id: str, password: str,
+                              email: Optional[str] = None) -> Dict[str, Any]:
+        uname = (username or "").strip().lower()
+        if not uname:
+            raise ValueError("username is required")
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO hs_portal_users (username, hs_id, password_hash, must_reset, "
+                "email, active, created_at) VALUES (?, ?, ?, 1, ?, 1, ?)",
+                (uname, hs_id, hash_password(password), email, _utcnow_iso()),
+            )
+        return self.get_hs_portal_user_public(uname)  # type: ignore[return-value]
+
+    def get_hs_portal_user(self, username: str) -> Optional[Dict[str, Any]]:
+        """Full row including password_hash — internal auth use only."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_portal_users WHERE username = ?", ((username or "").lower(),)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_hs_portal_user_public(self, username: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_portal_users WHERE username = ?", ((username or "").lower(),)
+            ).fetchone()
+        return self._hs_user_public(row) if row else None
+
+    def list_hs_portal_users(self, hs_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            if hs_id:
+                rows = conn.execute(
+                    "SELECT * FROM hs_portal_users WHERE hs_id = ? ORDER BY created_at DESC", (hs_id,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM hs_portal_users ORDER BY created_at DESC").fetchall()
+        return [self._hs_user_public(r) for r in rows]
+
+    def hs_username_exists(self, username: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM hs_portal_users WHERE username = ?", ((username or "").lower(),)
+            ).fetchone()
+        return row is not None
+
+    def set_hs_portal_password(self, username: str, new_password: str, *,
+                               must_reset: bool = False) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_portal_users SET password_hash = ?, must_reset = ?, "
+                "failed_logins = 0, locked_until = NULL WHERE username = ?",
+                (hash_password(new_password), 1 if must_reset else 0, (username or "").lower()),
+            )
+
+    def record_hs_login_failure(self, username: str, *, lock_threshold: int = 5,
+                                lock_minutes: int = 15) -> bool:
+        """Count a failed sign-in; lock the account once the threshold is hit.
+        Returns True when this failure tripped the lock."""
+        uname = (username or "").lower()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT failed_logins FROM hs_portal_users WHERE username = ?", (uname,)
+            ).fetchone()
+            if not row:
+                return False
+            fails = int(row["failed_logins"] or 0) + 1
+            locked = fails >= lock_threshold
+            if locked:
+                until = (datetime.now(timezone.utc) + timedelta(minutes=lock_minutes)).isoformat()
+                conn.execute(
+                    "UPDATE hs_portal_users SET failed_logins = 0, locked_until = ? WHERE username = ?",
+                    (until, uname),
+                )
+            else:
+                conn.execute(
+                    "UPDATE hs_portal_users SET failed_logins = ? WHERE username = ?", (fails, uname)
+                )
+        return locked
+
+    def hs_portal_user_locked(self, username: str) -> bool:
+        row = self.get_hs_portal_user(username)
+        if not row or not row.get("locked_until"):
+            return False
+        try:
+            until = datetime.fromisoformat(row["locked_until"])
+        except (TypeError, ValueError):
+            return False
+        if until.tzinfo is None:
+            until = until.replace(tzinfo=timezone.utc)
+        return until > datetime.now(timezone.utc)
+
+    def mark_hs_login_success(self, username: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_portal_users SET failed_logins = 0, locked_until = NULL, "
+                "last_login = ? WHERE username = ?",
+                (_utcnow_iso(), (username or "").lower()),
+            )
+
+    def set_upload_health_system(self, upload_id: str, hs_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET health_system_id = ? WHERE upload_id = ?",
+                (hs_id, upload_id),
+            )
+
+    def list_uploads_for_health_system(self, hs_id: str, *, limit: int = 500) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ingest_uploads WHERE health_system_id = ? "
+                "ORDER BY created_at DESC LIMIT ?", (hs_id, limit),
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["files"] = json.loads(d.pop("files_json") or "[]")
+            out.append(d)
+        return out
+    # ═══ END PRD-C STORE METHODS ═══
 
 
 # ─── Process-wide singleton ───────────────────────────────────────────────────

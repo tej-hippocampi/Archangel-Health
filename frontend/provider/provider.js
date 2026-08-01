@@ -1,23 +1,23 @@
 /* ═══════════════════════════════════════════════════════════
-   Data Provider Portal — provider.js
+   Health System Upload Portal — provider.js
    Vanilla JS. No frameworks, no build step. Single-page, JS-driven
    state machine with three screens:
-     1) login            → POST /auth/login, store token, GET /provider/me
-     2) reset (forced)    → shown when me.must_reset_password === true
-     3) upload            → the only screen once authed + reset done
+     1) login            → POST /hs/login (username + password)
+     2) reset (forced)   → shown when me.must_reset === true
+     3) upload           → the only screen once authed + reset done
 
    Security posture:
-   - Bearer token in localStorage['asclepius_provider_token'].
+   - Session lives in an HttpOnly cookie set by the server; this script
+     never sees or stores a credential. Same-origin requests carry the
+     cookie automatically (fetch + XHR both).
    - Every dynamic, server-provided string is written with textContent
      (never innerHTML) to prevent injection.
-   - A mid-session 401/403 clears the token and bounces to login
-     (the account may have been revoked).
+   - A mid-session 401/403 bounces to login (session expired/revoked).
    ═══════════════════════════════════════════════════════════ */
 (function () {
   "use strict";
 
   const API_BASE = "/api/asclepius";
-  const TOKEN_KEY = "asclepius_provider_token";
   const MIN_PW_LEN = 12;
 
   // ─── DOM roots ──────────────────────────────────────────────
@@ -27,24 +27,11 @@
   const logoutBtn = document.getElementById("prvLogoutBtn");
   const toastRegion = document.getElementById("prvToasts");
 
-  // In-memory copy of the current provider profile (from /provider/me).
+  // In-memory copy of the current portal profile (from /hs/me).
   let currentUser = null;
-
-  // ─── Token helpers ──────────────────────────────────────────
-  const getToken = () => localStorage.getItem(TOKEN_KEY) || "";
-  const setToken = (t) => localStorage.setItem(TOKEN_KEY, t);
-  const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
   // Thrown for 401/403 so callers can trigger a bounce to login.
   class AuthError extends Error {}
-
-  // ─── Fetch helpers ──────────────────────────────────────────
-  function authHeaders(extra) {
-    const h = Object.assign({ Accept: "application/json" }, extra || {});
-    const tok = getToken();
-    if (tok) h.Authorization = "Bearer " + tok;
-    return h;
-  }
 
   async function parseJson(res) {
     return res.json().catch(() => ({}));
@@ -52,7 +39,7 @@
 
   // GET/POST JSON. Throws AuthError on 401/403, Error otherwise.
   async function apiJson(method, path, body) {
-    const opts = { method, headers: authHeaders() };
+    const opts = { method, headers: { Accept: "application/json" }, credentials: "same-origin" };
     if (body !== undefined) {
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
@@ -100,46 +87,36 @@
     }, 4200);
   }
 
-  // A recoverable auth failure: wipe token, drop chrome, go to login.
+  // A recoverable auth failure: drop chrome, go to login.
   function bounceToLogin(msg) {
-    clearToken();
     currentUser = null;
     header.hidden = true;
     renderLogin();
     if (msg) toast(msg, "error");
   }
 
-  // ─── Status vocabulary (plain-English rendering) ───────────
-  // Maps API upload statuses to a human label, badge class, and icon.
+  // ─── Status vocabulary (four plain-language states) ────────
   const STATUS_META = {
-    received:     { label: "Received",        badge: "asc-badge-gray",    icon: "·",
-                    help: "We've got your file and queued it for processing." },
-    parsing:      { label: "Reading",         badge: "asc-badge-primary", icon: "…",
-                    help: "We're reading and understanding the contents." },
-    needs_review: { label: "Needs review",    badge: "asc-badge-amber",   icon: "!",
-                    help: "A team member will take a closer look before ingesting." },
-    ingested:     { label: "Accepted",        badge: "asc-badge-green",   icon: "✓",
-                    help: "Successfully ingested. Nothing more needed from you." },
-    quarantined:  { label: "Held for safety", badge: "asc-badge-amber",   icon: "!",
-                    help: "Set aside pending a safety check." },
-    failed:       { label: "Could not process", badge: "asc-badge-red",   icon: "✕",
-                    help: "We were unable to process this. See the reason below." },
-    // per-file outcomes emitted by the ingestion pipeline
-    parsed:       { label: "Read",             badge: "asc-badge-green",   icon: "✓",
-                    help: "Read successfully and folded into your case." },
-    rejected:     { label: "Not accepted",     badge: "asc-badge-red",     icon: "✕",
-                    help: "This file type isn't accepted (e.g. an executable or script)." },
-    excluded:     { label: "Excluded",         badge: "asc-badge-gray",    icon: "—",
-                    help: "Imaging can't be graded and was left out — the rest of your bundle is unaffected." }
+    received: {
+      label: "Received", badge: "asc-badge-gray", icon: "·",
+      help: "We've got your upload and queued it for processing."
+    },
+    processing: {
+      label: "Processing", badge: "asc-badge-primary", icon: "…",
+      help: "We're reading and understanding the contents."
+    },
+    accepted: {
+      label: "Accepted", badge: "asc-badge-green", icon: "✓",
+      help: "Successfully received and accepted. Nothing more needed from you."
+    },
+    needs_attention: {
+      label: "Needs attention", badge: "asc-badge-amber", icon: "!",
+      help: "Our team is taking a closer look. We'll reach out if anything is needed."
+    }
   };
 
   function statusMeta(status) {
-    return STATUS_META[status] || {
-      label: status || "Unknown",
-      badge: "asc-badge-gray",
-      icon: "•",
-      help: ""
-    };
+    return STATUS_META[status] || STATUS_META.needs_attention;
   }
 
   function makeBadge(status) {
@@ -178,28 +155,32 @@
     const form = document.getElementById("prvLoginForm");
     const errBox = document.getElementById("prvLoginError");
     const btn = document.getElementById("prvLoginBtn");
-    const emailEl = document.getElementById("prvEmail");
+    const usernameEl = document.getElementById("prvUsername");
     const pwEl = document.getElementById("prvPassword");
-    emailEl.focus();
+    usernameEl.focus();
 
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
-      const email = (emailEl.value || "").trim();
+      const username = (usernameEl.value || "").trim();
       const password = pwEl.value || "";
       showError(errBox, "");
-      if (!email || !password) {
-        showError(errBox, "Enter your email and password.");
+      if (!username || !password) {
+        showError(errBox, "Enter your username and password.");
         return;
       }
       btn.disabled = true;
       btn.textContent = "Signing in…";
       try {
-        const data = await apiPost("/auth/login", { email, password });
-        if (!data.token) throw new Error("No token returned by the server.");
-        setToken(data.token);
-        await loadProfileAndRoute();
+        const data = await apiPost("/hs/login", { username, password });
+        currentUser = {
+          username: data.username,
+          organization: data.organization,
+          must_reset: data.must_reset === true
+        };
+        if (currentUser.must_reset) renderReset();
+        else renderUpload();
       } catch (e) {
-        // Login failures (incl. 401) surface inline rather than bouncing.
+        // Login failures (incl. 401/429) surface inline rather than bouncing.
         showError(errBox, e.message || "Sign-in failed. Check your details.");
         btn.disabled = false;
         btn.textContent = "Sign in securely";
@@ -263,16 +244,12 @@
       btn.disabled = true;
       btn.textContent = "Saving…";
       try {
-        // The temporary password was used at login; the contract's
-        // current_password field is not re-collected here, so we send the
-        // new password and (best-effort) the value still in the login field.
-        await apiPost("/provider/password", {
-          current_password: "",
-          new_password: pw
-        });
+        // The temporary password was consumed at login; on the forced reset the
+        // session itself is proof of identity, so no current password is sent.
+        await apiPost("/hs/password", { new_password: pw });
         okBox.textContent = "Password updated. Taking you to your uploads…";
         okBox.hidden = false;
-        if (currentUser) currentUser.must_reset_password = false;
+        if (currentUser) currentUser.must_reset = false;
         setTimeout(() => renderUpload(), 700);
       } catch (e) {
         if (e instanceof AuthError) { bounceToLogin(e.message); return; }
@@ -288,14 +265,14 @@
   // ══════════════════════════════════════════════════════════
   function renderHeader() {
     clear(userBadge);
-    const email = document.createElement("span");
-    email.className = "asc-user-email";
-    email.textContent = (currentUser && currentUser.email) || "";
-    const role = document.createElement("span");
-    role.className = "asc-user-role";
-    role.textContent = (currentUser && currentUser.org_name) || "Data provider";
-    userBadge.appendChild(email);
-    userBadge.appendChild(role);
+    const org = document.createElement("span");
+    org.className = "asc-user-email";
+    org.textContent = (currentUser && currentUser.organization) || "";
+    const user = document.createElement("span");
+    user.className = "asc-user-role";
+    user.textContent = (currentUser && currentUser.username) || "Health system";
+    userBadge.appendChild(org);
+    userBadge.appendChild(user);
     header.hidden = false;
   }
 
@@ -308,9 +285,9 @@
     const refreshBtn = document.getElementById("prvRefreshBtn");
     const introSub = document.getElementById("prvIntroSub");
 
-    if (currentUser && currentUser.email) {
+    if (currentUser && currentUser.organization) {
       introSub.textContent =
-        "Signed in as " + currentUser.email +
+        "Signed in for " + currentUser.organization +
         ". Drop your files below — everything is transmitted over an encrypted " +
         "connection and only ever visible to you and our ingestion team.";
     }
@@ -350,6 +327,7 @@
   }
 
   // Upload a batch via XHR (for real upload progress), field name `files`.
+  // Same-origin XHR carries the session cookie automatically.
   function uploadFiles(fileList) {
     const files = Array.prototype.slice.call(fileList);
     if (!files.length) return;
@@ -370,9 +348,7 @@
     progressBar.setAttribute("aria-valuenow", "0");
 
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", API_BASE + "/provider/uploads");
-    const tok = getToken();
-    if (tok) xhr.setRequestHeader("Authorization", "Bearer " + tok);
+    xhr.open("POST", API_BASE + "/hs/uploads");
     xhr.setRequestHeader("Accept", "application/json");
 
     xhr.upload.addEventListener("progress", (e) => {
@@ -388,8 +364,14 @@
       let data = {};
       try { data = JSON.parse(xhr.responseText || "{}"); } catch (_) { /* ignore */ }
 
-      if (xhr.status === 401 || xhr.status === 403) {
+      if (xhr.status === 401) {
         bounceToLogin(data.detail || "Your session has ended. Please sign in again.");
+        return;
+      }
+      if (xhr.status === 403) {
+        // must_reset re-imposed mid-session (e.g. credentials rotated).
+        toast(data.detail || "Please reset your password before uploading.", "error");
+        loadProfileAndRoute();
         return;
       }
       if (xhr.status === 413) {
@@ -401,7 +383,7 @@
         return;
       }
 
-      renderBatchResults(results, data);
+      renderBatchResult(results, files, data);
       toast("Upload received.", "success");
       loadHistory();
     });
@@ -414,80 +396,39 @@
     xhr.send(form);
   }
 
-  // Render the per-file result list for the just-completed batch.
-  function renderBatchResults(container, data) {
-    const fileResults = (data && Array.isArray(data.files)) ? data.files : [];
-    if (!fileResults.length) {
-      // Fall back to the batch-level status if no per-file detail returned.
-      const meta = statusMeta(data && data.status);
-      const li = document.createElement("li");
-      li.className = "prv-result";
-      const icon = document.createElement("span");
-      icon.className = "prv-result-icon";
-      icon.textContent = meta.icon;
-      const main = document.createElement("div");
-      main.className = "prv-result-main";
-      const name = document.createElement("div");
-      name.className = "prv-result-name";
-      name.textContent = "Batch " + ((data && data.upload_id) || "");
-      const msg = document.createElement("div");
-      msg.className = "prv-result-msg";
-      msg.textContent = meta.help;
-      main.appendChild(name);
-      main.appendChild(msg);
-      li.appendChild(icon);
-      li.appendChild(main);
-      li.appendChild(makeBadge(data && data.status));
-      container.insertBefore(li, container.firstChild);
-      return;
-    }
-
-    // Newest batch on top; iterate in reverse so display order is preserved.
-    for (let i = fileResults.length - 1; i >= 0; i--) {
-      const fr = fileResults[i];
-      const meta = statusMeta(fr.status);
-      const li = document.createElement("li");
-      li.className = "prv-result";
-
-      const icon = document.createElement("span");
-      icon.className = "prv-result-icon";
-      icon.textContent = meta.icon;
-
-      const main = document.createElement("div");
-      main.className = "prv-result-main";
-
-      const name = document.createElement("div");
-      name.className = "prv-result-name";
-      name.textContent = fr.filename || "(unnamed file)";
-      main.appendChild(name);
-
-      if (fr.detected_type) {
-        const type = document.createElement("div");
-        type.className = "prv-result-type";
-        type.textContent = "Detected: " + fr.detected_type;
-        main.appendChild(type);
-      }
-
-      const msg = document.createElement("div");
-      msg.className = "prv-result-msg";
-      // Prefer server-provided plain-English outcome, else our help text.
-      msg.textContent = fr.outcome || meta.help;
-      main.appendChild(msg);
-
-      li.appendChild(icon);
-      li.appendChild(main);
-      li.appendChild(makeBadge(fr.status));
-      container.insertBefore(li, container.firstChild);
-    }
+  // Render a result line for the just-completed batch.
+  function renderBatchResult(container, files, data) {
+    const meta = statusMeta((data && data.status) || "received");
+    const li = document.createElement("li");
+    li.className = "prv-result";
+    const icon = document.createElement("span");
+    icon.className = "prv-result-icon";
+    icon.textContent = meta.icon;
+    const main = document.createElement("div");
+    main.className = "prv-result-main";
+    const name = document.createElement("div");
+    name.className = "prv-result-name";
+    name.textContent = files.length === 1
+      ? (files[0].name || "your file")
+      : files.length + " files";
+    const msg = document.createElement("div");
+    msg.className = "prv-result-msg";
+    msg.textContent = meta.help;
+    main.appendChild(name);
+    main.appendChild(msg);
+    li.appendChild(icon);
+    li.appendChild(main);
+    li.appendChild(makeBadge((data && data.status) || "received"));
+    container.insertBefore(li, container.firstChild);
   }
 
-  // Load & render the provider's own upload history.
+  // Load & render this health system's upload history.
   async function loadHistory() {
     const body = document.getElementById("prvHistoryBody");
     const empty = document.getElementById("prvHistoryEmpty");
     if (!body) return;
     try {
-      const data = await apiGet("/provider/uploads");
+      const data = await apiGet("/hs/uploads");
       const uploads = (data && Array.isArray(data.uploads)) ? data.uploads : [];
       clear(body);
       if (!uploads.length) {
@@ -510,36 +451,28 @@
     tdWhen.textContent = formatWhen(u.received_at);
     tr.appendChild(tdWhen);
 
-    // Files (+ size)
-    const tdFiles = document.createElement("td");
-    tdFiles.className = "prv-hist-files";
-    const count = (u.file_count != null) ? u.file_count : 0;
-    let filesText = count + " file" + (count === 1 ? "" : "s");
-    if (u.total_bytes != null) filesText += " · " + formatBytes(u.total_bytes);
-    tdFiles.textContent = filesText;
-    tr.appendChild(tdFiles);
+    // Filename (+ count when a batch)
+    const tdFile = document.createElement("td");
+    tdFile.className = "prv-hist-files";
+    let fileText = u.filename || "—";
+    if (u.file_count > 1) fileText += " (" + u.file_count + " files)";
+    tdFile.textContent = fileText;
+    tr.appendChild(tdFile);
+
+    // Size
+    const tdSize = document.createElement("td");
+    tdSize.textContent = formatBytes(u.total_bytes);
+    tr.appendChild(tdSize);
 
     // Status badge
     const tdStatus = document.createElement("td");
     tdStatus.appendChild(makeBadge(u.status));
     tr.appendChild(tdStatus);
 
-    // Details: failure reason when present, else per-file summary.
+    // Details: server-provided plain-language detail, else our help text.
     const tdDetail = document.createElement("td");
     tdDetail.className = "prv-hist-detail";
-    if (u.reason) {
-      tdDetail.textContent = u.reason;
-    } else if (Array.isArray(u.files) && u.files.length) {
-      const named = u.files
-        .map((f) => f && f.filename)
-        .filter(Boolean)
-        .slice(0, 3)
-        .join(", ");
-      const extra = u.files.length > 3 ? " +" + (u.files.length - 3) + " more" : "";
-      tdDetail.textContent = named ? named + extra : statusMeta(u.status).help;
-    } else {
-      tdDetail.textContent = statusMeta(u.status).help;
-    }
+    tdDetail.textContent = u.detail || statusMeta(u.status).help;
     tr.appendChild(tdDetail);
 
     return tr;
@@ -550,23 +483,23 @@
   // ══════════════════════════════════════════════════════════
   async function loadProfileAndRoute() {
     try {
-      const me = await apiGet("/provider/me");
+      const me = await apiGet("/hs/me");
       currentUser = me;
-      if (me && me.must_reset_password === true) {
+      if (me && me.must_reset === true) {
         renderReset();
       } else {
         renderUpload();
       }
     } catch (e) {
-      if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+      if (e instanceof AuthError) { renderLogin(); return; }
       // Non-auth error fetching profile: show login with a note.
       bounceToLogin(e.message || "Could not load your account. Please sign in again.");
     }
   }
 
   // ─── Global chrome events ───────────────────────────────────
-  logoutBtn.addEventListener("click", () => {
-    clearToken();
+  logoutBtn.addEventListener("click", async () => {
+    try { await apiPost("/hs/logout", {}); } catch (_) { /* cookie clears anyway */ }
     currentUser = null;
     header.hidden = true;
     renderLogin();
@@ -574,13 +507,7 @@
   });
 
   // ─── Boot ───────────────────────────────────────────────────
-  function boot() {
-    if (getToken()) {
-      loadProfileAndRoute();
-    } else {
-      renderLogin();
-    }
-  }
-
-  boot();
+  // The session cookie is HttpOnly (invisible to JS), so probe /hs/me: a 401
+  // lands on login, anything else routes to the right screen.
+  loadProfileAndRoute();
 })();

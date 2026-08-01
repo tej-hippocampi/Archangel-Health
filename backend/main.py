@@ -74,6 +74,7 @@ from routers.asclepius import router as asclepius_router
 from community.router import router as community_router
 from community.router import page_router as community_page_router
 from routers.asclepius_provider import router as asclepius_provider_router
+from routers.asclepius_admin import router as asclepius_admin_router
 from routers.asclepius_buyer import router as asclepius_buyer_router
 from routers.leads import router as leads_router
 from eligibility import store as elig_store
@@ -6038,6 +6039,7 @@ app.include_router(messaging_router)
 app.include_router(telehealth_router)
 app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
+app.include_router(asclepius_admin_router)
 app.include_router(asclepius_buyer_router)
 # V5 Clinical RL Environments (agentic tier). Additive; mounted defensively so a
 # missing optional dependency disables V5 rather than crashing the app. V1–V4 are
