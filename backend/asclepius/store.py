@@ -935,6 +935,12 @@ class AsclepiusStore:
                 ("health_system_id",    "TEXT"),     # FK -> health_systems (PRD-C table)
                 ("slack_joined",        "INTEGER"),
                 ("slack_checked_at",    "TEXT"),
+                # F6: a non-definitive NPI check is an ATTEMPT, not a result.
+                # It is logged here instead of overwriting npi_payload_json /
+                # npi_verified, so a failed recheck can never erase evidence we
+                # already hold. Also drives the retry sweep.
+                ("npi_last_attempt_json", "TEXT"),
+                ("npi_last_attempt_at",   "TEXT"),
             ):
                 if _col not in cols("users"):
                     conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
@@ -3803,12 +3809,31 @@ class AsclepiusStore:
             flag = 0
         else:
             flag = None
-        checked_at = _utcnow_iso() if flag is not None else None
+
+        if flag is None:
+            # F6: a failed check is an EVENT, not a result. Writing it through
+            # would set npi_verified back to NULL, replace the NPPES record
+            # with {"result":"unavailable","record":null}, and clear
+            # npi_checked_at — erasing evidence we already have, dropping the
+            # user's score by 25, making 'reviewer' unproposable, and evicting
+            # the 30-day cache entry FOR EVERY user of that NPI. That happens
+            # on the admin's Recheck click while NPPES is rate-limiting, i.e.
+            # at exactly the moment the button gets used, and on any
+            # re-onboard (provision_user is an idempotent upsert).
+            with self._conn() as conn:
+                conn.execute(
+                    "UPDATE users SET npi_last_attempt_json = ?, "
+                    "npi_last_attempt_at = ? WHERE id = ?",
+                    (json.dumps(result or {}), _utcnow_iso(), user_id),
+                )
+            return
+
         with self._conn() as conn:
             conn.execute(
                 "UPDATE users SET npi_verified = ?, npi_payload_json = ?, "
-                "npi_checked_at = ? WHERE id = ?",
-                (flag, json.dumps(result or {}), checked_at, user_id),
+                "npi_checked_at = ?, npi_last_attempt_json = NULL, "
+                "npi_last_attempt_at = NULL WHERE id = ?",
+                (flag, json.dumps(result or {}), _utcnow_iso(), user_id),
             )
 
     def get_cached_npi_fetch(self, npi: str, max_age_days: int = 30) -> Optional[Dict[str, Any]]:
@@ -3898,6 +3923,33 @@ class AsclepiusStore:
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT * FROM users WHERE npi = ? ORDER BY created_at ASC", (npi,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def users_pending_npi_recheck(
+        self, *, older_than_minutes: int = 60, limit: int = 200
+    ) -> List[Dict[str, Any]]:
+        """Rows whose NPI check never reached a definitive answer — the retry
+        list PRD §1.2 asked for ("UNAVAILABLE routes to manual review AND
+        schedules a retry").
+
+        Deliberately a list an admin can bulk-run rather than a scheduler: no
+        job framework, no background thread, and the work is visible and
+        auditable. A row qualifies when it claims an NPI, has no definitive
+        result (``npi_checked_at IS NULL``), and either has never been
+        attempted or was last attempted longer than ``older_than_minutes`` ago
+        — so a sweep cannot hot-loop against a rate-limiting registry.
+        """
+        cutoff = (datetime.utcnow() - timedelta(minutes=max(0, older_than_minutes))).replace(
+            microsecond=0).isoformat()
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users "
+                "WHERE npi IS NOT NULL AND TRIM(npi) != '' "
+                "  AND npi_checked_at IS NULL "
+                "  AND (npi_last_attempt_at IS NULL OR npi_last_attempt_at <= ?) "
+                "ORDER BY COALESCE(npi_last_attempt_at, created_at) ASC LIMIT ?",
+                (cutoff, limit),
             ).fetchall()
         return [dict(r) for r in rows]
 

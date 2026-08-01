@@ -361,8 +361,12 @@ def test_store_unavailable_stays_null_and_never_populates_cache():
     row = store.get_user_by_id(u["id"])
     assert row["npi_verified"] is None          # NOT 0 — "could not check"
     assert row["npi_checked_at"] is None        # never satisfies the 30-day cache
-    assert json.loads(row["npi_payload_json"])["reason"] == "rate_limited"
     assert store.get_cached_npi_fetch(VALID_NPI) is None
+    # F6: a non-definitive outcome is recorded as an ATTEMPT and never written
+    # over the result columns, so it cannot erase evidence we already hold.
+    assert row["npi_payload_json"] is None
+    assert json.loads(row["npi_last_attempt_json"])["reason"] == "rate_limited"
+    assert row["npi_last_attempt_at"] is not None
 
 
 def test_store_cached_fetch_roundtrip():

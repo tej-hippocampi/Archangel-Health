@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from asclepius import auth as asc_auth
 from asclepius import credentialing
@@ -62,6 +63,7 @@ def _proposal(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
 def _npi_summary(user: Dict[str, Any]) -> Dict[str, Any]:
     payload = credentialing._json_field(user, "npi_payload_json")
     record = payload.get("record") or {}
+    attempt = credentialing._json_field(user, "npi_last_attempt_json")
     return {
         "npi": user.get("npi"),
         "result": payload.get("result"),         # verified|mismatch|not_found|unavailable|None
@@ -71,6 +73,12 @@ def _npi_summary(user: Dict[str, Any]) -> Dict[str, Any]:
             p for p in [record.get("first_name"), record.get("last_name")] if p) or None,
         "credential": record.get("credential"),
         "checked_at": user.get("npi_checked_at"),
+        # F6: a failed check no longer overwrites the result, so it is reported
+        # alongside it — the admin must be able to see "we tried and could not
+        # reach NPPES" without that attempt destroying the answer we hold.
+        "last_attempt": attempt.get("reason") or attempt.get("result") or None,
+        "last_attempt_at": user.get("npi_last_attempt_at"),
+        "recheck_pending": bool(user.get("npi_checked_at") is None and user.get("npi")),
     }
 
 
@@ -273,24 +281,95 @@ async def reject_signup(
             "verified_at": updated.get("verified_at")}
 
 
+def _recheck_one(store: Any, user: Dict[str, Any], *, force: bool = False) -> Dict[str, Any]:
+    """One NPI recheck. Synchronous (httpx + sqlite) — callers must reach it
+    through ``run_in_threadpool``; it must never run on the event loop.
+
+    ``force`` bypasses the 30-day cache. A human clicking "Recheck" is asking
+    the registry again, so serving them a cached answer makes the button a
+    no-op. The bulk sweep does NOT force: those rows have no definitive answer
+    at all, so another row's cached answer for the same NPI is a legitimate —
+    and free — resolution.
+    """
+    npi = credentialing.clean_npi(user.get("npi") or "")
+    if not npi:
+        return {"result": "skipped", "reason": "no_npi"}
+    try:
+        cached = None if force else store.get_cached_npi_fetch(npi)
+        result = credentialing.verify_npi(npi, _family_name(user), cached=cached)
+    except Exception:
+        log.exception("[verify] recheck failed for %s", user.get("id"))
+        result = {"result": "unavailable", "reason": "exception", "record": None}
+    store.set_npi_result(user["id"], result)
+    return result
+
+
+@router.get("/recheck-pending")
+async def recheck_pending_list(
+    older_than_minutes: int = 60,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """The retry list (PRD §1.2). UNAVAILABLE routes to manual review *and*
+    schedules a retry — this is the retry, as a list the admin can see and run
+    rather than an invisible background job."""
+    rows = _store().users_pending_npi_recheck(older_than_minutes=max(0, older_than_minutes))
+    return {
+        "count": len(rows),
+        "users": [
+            {"user_id": r["id"], "email": r["email"], "npi": r.get("npi"),
+             "last_attempt_at": r.get("npi_last_attempt_at"),
+             "last_attempt": (credentialing._json_field(r, "npi_last_attempt_json")
+                              .get("reason")),
+             "verification_status": r.get("verification_status")}
+            for r in rows
+        ],
+    }
+
+
+@router.post("/recheck-pending")
+async def recheck_pending_run(
+    older_than_minutes: int = 60,
+    limit: int = 50,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Bulk-run the retry list. Bounded by ``limit`` and by the
+    ``older_than_minutes`` floor so a sweep cannot hot-loop a rate-limiting
+    registry. Runs off the event loop — this makes N network calls."""
+    store = _store()
+    rows = store.users_pending_npi_recheck(
+        older_than_minutes=max(0, older_than_minutes), limit=max(1, min(limit, 200)))
+
+    def _sweep() -> Dict[str, int]:
+        tally: Dict[str, int] = {}
+        for row in rows:
+            outcome = _recheck_one(store, row).get("result") or "unknown"
+            tally[outcome] = tally.get(outcome, 0) + 1
+        return tally
+
+    tally = await run_in_threadpool(_sweep)
+    store.log_event(
+        entity_type="user", entity_id=None, event_type="npi_recheck_sweep",
+        actor=admin["email"], payload={"attempted": len(rows), "outcomes": tally},
+    )
+    return {"ok": True, "attempted": len(rows), "outcomes": tally}
+
+
 @router.post("/queue/{user_id}/recheck-npi")
 async def recheck_npi(
     user_id: str,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
-    """Manual retry — the human path out of UNAVAILABLE. Updates in place."""
+    """Manual retry — the human path out of UNAVAILABLE.
+
+    Non-destructive: a recheck that cannot reach NPPES records an attempt and
+    leaves any existing verified result intact (see ``store.set_npi_result``).
+    Runs off the event loop — it makes a network call.
+    """
     store = _store()
     user = _load_user_or_404(user_id)
-    npi = credentialing.clean_npi(user.get("npi") or "")
-    if not npi:
+    if not credentialing.clean_npi(user.get("npi") or ""):
         raise HTTPException(status_code=400, detail="This user has no NPI on file.")
-    try:
-        cached = store.get_cached_npi_fetch(npi)
-        result = credentialing.verify_npi(npi, _family_name(user), cached=cached)
-    except Exception:
-        log.exception("[verify] recheck failed")
-        result = {"result": "unavailable", "reason": "exception", "record": None}
-    store.set_npi_result(user_id, result)
+    result = await run_in_threadpool(_recheck_one, store, user, force=True)
     store.log_event(
         entity_type="user", entity_id=user_id, event_type="npi_rechecked",
         actor=admin["email"],

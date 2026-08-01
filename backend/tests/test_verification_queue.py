@@ -263,7 +263,10 @@ def test_verifier_crash_degrades_to_pending_not_500(client: TestClient, monkeypa
     monkeypatch.setattr(credentialing, "verify_npi", _boom)
     _, _, email, _ = _run_director_signup(client)   # still 200
     u = client.app.state.asclepius_store.get_user_by_email(email)
-    assert json.loads(u["npi_payload_json"])["result"] == "unavailable"
+    # F6: the failed check is an attempt, not a result — it never lands in the
+    # result columns, so it cannot overwrite evidence on a re-onboard.
+    assert json.loads(u["npi_last_attempt_json"])["result"] == "unavailable"
+    assert u["npi_payload_json"] is None and u["npi_verified"] is None
     assert u["verification_status"] == "pending"
 
 
@@ -571,6 +574,124 @@ def test_recheck_npi_updates_unavailable_in_place(client: TestClient, monkeypatc
     assert r.json()["npi"]["result"] == "verified"
     events = store.list_events(entity_type="user", entity_id=u["id"])
     assert any(e["event_type"] == "npi_rechecked" for e in events)
+
+
+# ─── F6: a failed recheck must not destroy a verified result ────────────────
+def test_recheck_against_down_nppes_preserves_a_verified_physician(
+        client: TestClient, monkeypatch):
+    """The test that would have caught F6.
+
+    The old write was unconditional, so an UNAVAILABLE outcome set
+    npi_verified back to NULL, replaced the NPPES record with
+    {"result":"unavailable","record":null} and cleared npi_checked_at —
+    destroying the evidence, dropping the score 25 points, making 'reviewer'
+    unproposable, and evicting the 30-day cache for EVERY user of that NPI.
+    The trigger is an admin clicking Recheck while NPPES rate-limits, i.e.
+    exactly when that button is used.
+    """
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    u = _pending_physician(store)          # verified
+    npi = u["npi"]
+    before = store.get_user_by_id(u["id"])
+    assert before["npi_verified"] == 1
+    assert store.get_cached_npi_fetch(npi) is not None
+    score_before = credentialing.propose_tier(before)
+
+    monkeypatch.setattr(
+        credentialing, "fetch_npi_record",
+        lambda n, timeout=6.0: {"status": "unavailable", "record": None,
+                                "reason": "rate_limited"})
+    r = client.post(f"/api/asclepius/verify/queue/{u['id']}/recheck-npi",
+                    headers=headers_for(admin))
+    assert r.status_code == 200, r.text
+
+    after = store.get_user_by_id(u["id"])
+    assert after["npi_verified"] == 1, "a failed recheck erased a verified result"
+    assert after["npi_checked_at"] == before["npi_checked_at"]
+    assert json.loads(after["npi_payload_json"])["result"] == "verified"
+    assert store.get_cached_npi_fetch(npi) is not None, "shared 30-day cache evicted"
+    assert credentialing.propose_tier(after)["score"] == score_before["score"]
+    # ...but the attempt is recorded and visible to the admin
+    assert after["npi_last_attempt_at"] is not None
+    assert json.loads(after["npi_last_attempt_json"])["reason"] == "rate_limited"
+    assert r.json()["npi"]["last_attempt"] == "rate_limited"
+    assert r.json()["npi"]["result"] == "verified"
+
+
+def test_reonboard_while_nppes_down_preserves_verification(client: TestClient, monkeypatch):
+    """The other F6 trigger: provision_user is an idempotent upsert, so a
+    re-onboard re-runs verification against a possibly-down registry."""
+    store = fresh_store()
+    u = _pending_physician(store)
+    monkeypatch.setattr(
+        credentialing, "fetch_npi_record",
+        lambda n, timeout=6.0: {"status": "unavailable", "record": None,
+                                "reason": "rate_limited"})
+    onboarding_module._run_signup_verification(
+        store, store.get_user_by_id(u["id"]),
+        {"fullLegalName": "Dr. Ana Patel", "npi": u["npi"]})
+    assert store.get_user_by_id(u["id"])["npi_verified"] == 1
+
+
+def test_definitive_recheck_still_updates_and_clears_the_attempt(
+        client: TestClient, monkeypatch):
+    """Do not over-correct: a recheck that DOES reach NPPES must overwrite."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    u = _pending_physician(store, npi_result="unavailable")
+    store.set_npi_result(u["id"], {"result": "unavailable", "reason": "rate_limited"})
+    assert store.get_user_by_id(u["id"])["npi_last_attempt_at"] is not None
+    monkeypatch.setattr(
+        credentialing, "fetch_npi_record",
+        lambda n, timeout=6.0: {"status": "found",
+                                "record": _nppes_record(last_name="Patel"),
+                                "reason": None})
+    r = client.post(f"/api/asclepius/verify/queue/{u['id']}/recheck-npi",
+                    headers=headers_for(admin))
+    assert r.status_code == 200
+    row = store.get_user_by_id(u["id"])
+    assert row["npi_verified"] == 1 and row["npi_checked_at"] is not None
+    assert row["npi_last_attempt_at"] is None      # stale attempt cleared
+
+
+def test_retry_list_and_bulk_sweep(client: TestClient, monkeypatch):
+    """PRD §1.2 said UNAVAILABLE 'routes to manual review AND schedules a
+    retry'. There was no retry path at all — this is it."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    stuck = _pending_physician(store, npi_result="unavailable")
+    store.set_npi_result(stuck["id"], {"result": "unavailable", "reason": "rate_limited"})
+    done = _pending_physician(store)  # verified — must not be swept
+
+    r = client.get("/api/asclepius/verify/recheck-pending?older_than_minutes=0",
+                   headers=headers_for(admin))
+    assert r.status_code == 200
+    ids = [x["user_id"] for x in r.json()["users"]]
+    assert stuck["id"] in ids and done["id"] not in ids
+
+    monkeypatch.setattr(
+        credentialing, "fetch_npi_record",
+        lambda n, timeout=6.0: {"status": "found",
+                                "record": _nppes_record(last_name="Patel"),
+                                "reason": None})
+    r = client.post("/api/asclepius/verify/recheck-pending?older_than_minutes=0",
+                    headers=headers_for(admin))
+    assert r.status_code == 200, r.text
+    assert r.json()["outcomes"].get("verified", 0) >= 1
+    assert store.get_user_by_id(stuck["id"])["npi_verified"] == 1
+    # the sweep drains: nothing left to retry
+    r = client.get("/api/asclepius/verify/recheck-pending?older_than_minutes=0",
+                   headers=headers_for(admin))
+    assert stuck["id"] not in [x["user_id"] for x in r.json()["users"]]
+
+
+def test_retry_endpoints_require_admin(client: TestClient):
+    store = fresh_store()
+    evaluator = make_user(store)
+    assert client.get("/api/asclepius/verify/recheck-pending").status_code == 401
+    assert client.post("/api/asclepius/verify/recheck-pending",
+                       headers=headers_for(evaluator)).status_code == 403
 
 
 def test_duplicate_npi_flags_both_queue_rows(client: TestClient):
