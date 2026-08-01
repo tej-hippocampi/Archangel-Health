@@ -215,6 +215,57 @@ def test_logout_and_anonymous_are_unauthorized():
                           files=[("files", ("a.json", b"{}", "application/json"))]).status_code == 401
 
 
+def test_definition_of_done_end_to_end(monkeypatch):
+    """PRD C §2 verbatim: type an organization and an email → the contact
+    receives credentials → logs into a password-protected portal → uploads a
+    bare .json → it appears under that health system in the admin — with no
+    partner IDs or specialty fields anywhere in the flow."""
+    import re as _re
+    from routers import asclepius_admin as RA
+
+    store = _store()
+    sent = []
+
+    async def _fake_send(to, subject, html, **kw):
+        sent.append(html)
+        return True
+
+    monkeypatch.setattr(RA, "is_email_transport_configured", lambda: True)
+    monkeypatch.setattr(RA, "send_html_email", _fake_send)
+    from tests import _asclepius as _A
+    admin = _A.make_user(store, role="admin")
+
+    ca = _client()
+    # 1. Two fields. Nothing else.
+    r = ca.post("/api/asclepius/admin/health-systems/provision",
+                json={"organization": "Mass General Hospital", "email": "data@mgh.harvard.edu"},
+                headers=_A.headers_for(admin))
+    assert r.status_code == 200, r.text
+    username = r.json()["username"]
+    hs_id = r.json()["health_system"]["hs_id"]
+
+    # 2. The credentials arrive by email; the passphrase appears nowhere else.
+    codes = _re.findall(r"<code>([^<]+)</code>", sent[0])
+    passphrase = codes[1]
+
+    # 3. Sign in, forced reset, upload a bare .json.
+    cp = _client()
+    login = cp.post("/api/asclepius/hs/login",
+                    json={"username": username, "password": passphrase})
+    assert login.status_code == 200 and login.json()["must_reset"] is True
+    assert cp.post("/api/asclepius/hs/password",
+                   json={"new_password": "hospital-it-passphrase-1"}).status_code == 200
+    up = cp.post("/api/asclepius/hs/uploads",
+                 files=[("files", ("export.json", b'{"resourceType": "Bundle"}', "application/json"))])
+    assert up.status_code == 200, up.text
+
+    # 4. It appears under that health system in the admin buckets.
+    detail = ca.get(f"/api/asclepius/admin/health-systems/{hs_id}",
+                    headers=_A.headers_for(admin)).json()
+    all_entries = [e for bucket in detail["buckets"].values() for e in bucket]
+    assert any(e["upload_id"] == up.json()["upload_id"] for e in all_entries)
+
+
 def test_events_logged_for_login_and_upload():
     uname, _ = _mk_portal_user("ready-password-123", must_reset=False)
     c = _client()
