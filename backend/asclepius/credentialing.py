@@ -271,10 +271,13 @@ def verify_npi(
         for reg_name in _registry_family_names(record)
     )
     if not matched:
+        # Distinguish "names differ" from "we had no name to compare" — both
+        # are review flags (never rejections), but the admin should see which.
+        no_input = not _normalize_family_name(family_name)
         return {
             "result": NpiResult.MISMATCH.value,
             "npi": number,
-            "reason": "family_name_mismatch",
+            "reason": "no_family_name_to_compare" if no_input else "family_name_mismatch",
             "record": trimmed,
             "from_cache": from_cache,
         }
