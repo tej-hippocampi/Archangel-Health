@@ -50,14 +50,21 @@ def _family_name(user: Dict[str, Any]) -> str:
 
 
 def _duplicate_npi(store: Any, user: Dict[str, Any]) -> bool:
-    npi = (user.get("npi") or "").strip()
+    npi = credentialing.clean_npi(user.get("npi") or "")
     if not npi:
         return False
     return len(store.find_users_by_npi(npi)) > 1
 
 
-def _proposal(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
-    return credentialing.propose_tier(user, duplicate_npi=_duplicate_npi(store, user))
+def _proposal(store: Any, user: Dict[str, Any],
+              dupe_counts: Optional[Dict[str, int]] = None) -> Dict[str, Any]:
+    """B-5.8: when a caller already holds the grouped duplicate counts, use
+    them instead of running one ``SELECT ... WHERE npi = ?`` per queue row."""
+    if dupe_counts is None:
+        dupe = _duplicate_npi(store, user)
+    else:
+        dupe = dupe_counts.get(credentialing.clean_npi(user.get("npi") or ""), 0) > 1
+    return credentialing.propose_tier(user, duplicate_npi=dupe)
 
 
 def _npi_summary(user: Dict[str, Any]) -> Dict[str, Any]:
@@ -82,8 +89,9 @@ def _npi_summary(user: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _queue_row(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
-    prop = _proposal(store, user)
+def _queue_row(store: Any, user: Dict[str, Any],
+               dupe_counts: Optional[Dict[str, int]] = None) -> Dict[str, Any]:
+    prop = _proposal(store, user, dupe_counts)
     cv_parsed = credentialing._json_field(user, "cv_parsed_json")
     return {
         "user_id": user["id"],
@@ -121,14 +129,36 @@ def _load_user_or_404(user_id: str) -> Dict[str, Any]:
 @router.get("/queue")
 async def verification_queue(
     status: str = "pending",
+    limit: int = 100,
+    offset: int = 0,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
+    """The admin queue.
+
+    B-5.8: paginated, and duplicate detection is ONE grouped query rather than
+    a full-table scan per row. 'pending' self-limits (an admin works it down),
+    but 'approved' only ever grows, so an unpaginated version degraded
+    linearly forever.
+    """
     if status not in _QUEUE_STATUSES:
         raise HTTPException(status_code=400,
                             detail=f"status must be one of {', '.join(_QUEUE_STATUSES)}")
+    limit = max(1, min(limit, 500))
+    offset = max(0, offset)
     store = _store()
-    rows = [_queue_row(store, u) for u in store.list_verification_queue(status)]
-    return {"status": status, "count": len(rows), "queue": rows}
+    all_rows = store.list_verification_queue(status)
+    page = all_rows[offset:offset + limit]
+    dupe_counts = store.npi_claim_counts()
+    rows = [_queue_row(store, u, dupe_counts) for u in page]
+    return {
+        "status": status,
+        "count": len(rows),
+        "total": len(all_rows),
+        "offset": offset,
+        "limit": limit,
+        "has_more": offset + len(rows) < len(all_rows),
+        "queue": rows,
+    }
 
 
 @router.get("/queue/{user_id}")
@@ -176,11 +206,17 @@ async def verification_cv(
         data, _ = assets.load_asset(sha)
     except Exception:
         raise HTTPException(status_code=404, detail="CV blob missing from asset store")
-    # content-sniff: we store CVs raw (pdf or plain text)
-    mime = "application/pdf" if data[:5] == b"%PDF-" else "text/plain"
+    mime = credentialing.sniff_cv_mime(data) or "application/octet-stream"
     ext = "pdf" if mime == "application/pdf" else "txt"
     return Response(content=data, media_type=mime, headers={
         "Content-Disposition": f'inline; filename="cv-{user_id}.{ext}"',
+        # B-5.5: served inline from the app origin to an admin whose bearer
+        # token is in localStorage. The sibling image endpoint already sets
+        # this; without it the browser may sniff its way to an active type.
+        # (store_cv now also sniffs on the way IN, so both ends agree.)
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Cache-Control": "private, no-store",
     })
 
 

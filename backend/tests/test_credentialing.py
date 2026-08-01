@@ -7,6 +7,7 @@ definitive negative (NOT_FOUND / MISMATCH) is distinct from "could not check"
 
 from __future__ import annotations
 
+import io
 import json
 
 import httpx
@@ -539,6 +540,75 @@ def test_store_cv_rejects_bad_mime_and_empty_and_oversize():
         store_cv(b"", "application/pdf")
     with pytest.raises(CvUploadError):
         store_cv(b"x" * (CV_MAX_BYTES + 1), "application/pdf")
+
+
+@pytest.mark.parametrize("payload,declared", [
+    (b"<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>", "text/plain"),
+    (b"<!DOCTYPE html><html><script>alert(1)</script></html>", "text/plain"),
+    (b"<?xml version='1.0'?><x/>", "text/plain"),
+    (b"PK\x03\x04zzzz", "application/pdf"),
+    (b"\x89PNG\r\n\x1a\n", "application/pdf"),
+    (b"MZ\x90\x00binary", "text/plain"),
+    (b"text with a \x00 nul byte", "text/plain"),
+])
+def test_store_cv_sniffs_bytes_and_rejects_active_content(payload, declared):
+    """B-5.5 — the declared Content-Type is attacker-controlled and the blob
+    is later served inline from the app origin to an admin whose bearer token
+    is in localStorage. The bytes decide what is stored."""
+    from asclepius.credentialing import CvUploadError, store_cv
+    fresh_store()
+    with pytest.raises(CvUploadError):
+        store_cv(payload, declared)
+
+
+def test_store_cv_trusts_bytes_over_a_lying_header():
+    from asclepius.credentialing import store_cv
+    fresh_store()
+    meta = store_cv(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n", "text/plain")
+    assert meta["mime"] == "application/pdf"      # sniffed, not declared
+
+
+def test_store_cv_scrubs_pdf_metadata():
+    """B-5.6 — process_upload (the metadata-stripping path) is bypassed for
+    CVs on purpose, so XMP/DocInfo was retained verbatim."""
+    pytest.importorskip("PyPDF2")
+    from PyPDF2 import PdfReader, PdfWriter
+    from asclepius import assets
+    from asclepius.credentialing import store_cv
+    fresh_store()
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    writer.add_metadata({"/Author": "Dr Secret Author",
+                         "/Producer": "/home/secret/path/cv-final-v3.docx"})
+    buf = io.BytesIO()
+    writer.write(buf)
+    original = buf.getvalue()
+    # PyPDF2 encodes text strings, so assert through the parser, not raw bytes.
+    assert (PdfReader(io.BytesIO(original)).metadata or {}).get("/Author") == "Dr Secret Author"
+
+    meta = store_cv(original, "application/pdf")
+    stored, _ = assets.load_asset(meta["sha256"])
+    assert stored.startswith(b"%PDF-")
+    info = PdfReader(io.BytesIO(stored)).metadata or {}
+    assert not info.get("/Author")
+    # The rewriter stamps its own generic /Producer; what must not survive is
+    # anything the UPLOADER's authoring tool put there.
+    assert "/home/secret/path" not in str(info.get("/Producer") or "")
+    assert not any("Secret" in str(v) for v in info.values())
+    # and not present in any encoding we wrote it in
+    for form in (b"Dr Secret Author", "Dr Secret Author".encode("utf-16-be"),
+                 b"/home/secret/path", "/home/secret/path".encode("utf-16-be")):
+        assert form not in stored
+
+
+def test_store_cv_keeps_an_unrewritable_pdf_rather_than_refusing_it():
+    """The scrub is best-effort: a CV is optional evidence, so a PDF PyPDF2
+    cannot rewrite is stored as-is rather than rejected."""
+    from asclepius.credentialing import store_cv
+    fresh_store()
+    meta = store_cv(b"%PDF-1.4 not really a parseable pdf\n", "application/pdf")
+    assert meta["mime"] == "application/pdf"
 
 
 def test_store_cv_is_content_addressed_and_loadable():

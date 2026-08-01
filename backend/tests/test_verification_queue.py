@@ -891,6 +891,79 @@ def test_duplicate_npi_flags_both_queue_rows(client: TestClient):
     assert any(dc["user_id"] == b["id"] for dc in d["duplicate_claims"])
 
 
+def test_signup_rate_limit_does_not_lock_out_a_team_behind_one_nat(
+        client: TestClient, monkeypatch):
+    """B-5.3 — the bucket was asclepius_signup:<ip>, shared across BOTH finish
+    endpoints at 5/hour. A health system egresses through one NAT gateway, so
+    the 6th physician of a 10-person team invited in the same hour got a 429
+    and could not finish signup. And client_ip() uses the LAST XFF hop, which
+    with Cloudflare in front is an edge IP — one bucket per PoP for the whole
+    planet.
+    """
+    import ratelimit
+    monkeypatch.setattr(ratelimit, "is_enabled", lambda: True)
+    ratelimit.reset()
+    try:
+        completed = 0
+        for _ in range(8):                     # one team, one apparent IP
+            _run_director_signup(client)       # each has its OWN token
+            completed += 1
+        assert completed == 8
+    finally:
+        ratelimit.reset()
+
+
+def test_signup_rate_limit_still_throttles_one_replayed_token(
+        client: TestClient, monkeypatch):
+    """The other half: the token key must still stop a single invitation from
+    being hammered."""
+    import ratelimit
+    monkeypatch.setattr(ratelimit, "is_enabled", lambda: True)
+    ratelimit.reset()
+    try:
+        token, _, _, _ = _run_director_signup(client)
+        codes = [client.post("/api/onboarding/asclepius/finish",
+                             json={"token": token}).status_code
+                 for _ in range(10)]
+        assert 429 in codes, "a replayed onboarding token was never throttled"
+    finally:
+        ratelimit.reset()
+
+
+def test_queue_paginates(client: TestClient):
+    """B-5.8 — the approved tab only grows; an unpaginated queue degrades
+    linearly forever."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    for _ in range(5):
+        _pending_physician(store)
+    r = client.get("/api/asclepius/verify/queue?limit=2", headers=headers_for(admin))
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["queue"]) == 2
+    assert body["total"] >= 5 and body["has_more"] is True
+    r2 = client.get("/api/asclepius/verify/queue?limit=2&offset=2",
+                    headers=headers_for(admin))
+    first = {x["user_id"] for x in body["queue"]}
+    second = {x["user_id"] for x in r2.json()["queue"]}
+    assert not (first & second)
+
+
+def test_cv_download_sets_nosniff(client: TestClient):
+    """B-5.5 — served inline from the app origin to an admin whose bearer
+    token is in localStorage. The sibling image endpoint already sets this."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    u = _pending_physician(store)
+    meta = credentialing.store_cv(b"plain text resume", "text/plain")
+    store.set_cv(u["id"], meta["sha256"], {"ok": True})
+    r = client.get(f"/api/asclepius/verify/queue/{u['id']}/cv",
+                   headers=headers_for(admin))
+    assert r.status_code == 200
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["content-type"].startswith("text/plain")
+
+
 def test_cv_download_is_admin_only_and_sniffs_type(client: TestClient):
     store = fresh_store()
     admin = make_user(store, role="admin")

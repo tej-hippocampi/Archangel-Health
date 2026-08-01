@@ -1,5 +1,6 @@
 """Health system onboarding (magic link, email OTP, team invites)."""
 
+import hashlib
 import html
 import logging
 import os
@@ -61,6 +62,56 @@ def _asc_credentialing():
     graph for the clinical-only paths."""
     from asclepius import credentialing
     return credentialing
+
+
+# ─── Signup throttling (B-5.3) ────────────────────────────────────────────────
+# A per-IP bucket is the wrong key for this endpoint. A health system egresses
+# through one NAT gateway, so the 6th physician of a 10-person team invited in
+# the same hour hit a 429 and could not finish signup — and "a physician who
+# cannot complete signup on launch day is gone for good". Worse, client_ip()
+# uses the LAST X-Forwarded-For hop, which is correct with exactly one
+# appending proxy; with Cloudflare AND the platform proxy the last hop is an
+# edge IP, so every signup on the planet shared one bucket per PoP.
+#
+# The onboarding token is the right key: one account per token by
+# construction, so a legitimate flow spends one of its attempts and a replayed
+# token is exactly what we want to throttle. The per-IP ceiling is kept as a
+# much looser abuse guard, and a global limiter backstops both in case the XFF
+# chain makes per-IP meaningless.
+_SIGNUP_PER_TOKEN = (6, 3600)      # retries of one account's final step
+_SIGNUP_PER_IP = (20, 3600)        # a whole team behind one NAT, comfortably
+_SIGNUP_GLOBAL = (300, 3600)       # volumetric backstop
+
+
+async def _signup_rate_guard(request: Request) -> None:
+    """Throttle signup completion on the onboarding TOKEN first, then IP."""
+    from ratelimit import check, is_enabled
+
+    if not is_enabled():
+        return
+    token = ""
+    try:
+        body = await request.json()
+        token = str((body or {}).get("token") or "").strip()
+    except Exception:
+        token = ""
+    if token:
+        digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
+        allowed, retry_after = check(f"asclepius_signup_tok:{digest}", *_SIGNUP_PER_TOKEN)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many attempts for this invitation. Please try again shortly.",
+                headers={"Retry-After": str(retry_after)},
+            )
+    allowed, retry_after = check(
+        f"asclepius_signup_ip:{client_ip(request)}", *_SIGNUP_PER_IP)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many requests. Please slow down and try again shortly.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
 
 def _ts(request: Request):
@@ -1034,10 +1085,13 @@ async def asclepius_add_member(body: AsclepiusAddMemberBody, request: Request):
 
 @router.post(
     "/asclepius/finish",
-    # Launch-day guard (PRD-B §Phase 4): signup completion is the expensive,
-    # account-creating step — throttle per IP so someone who finds the form
-    # cannot mass-provision accounts. Legit flows finish once.
-    dependencies=[Depends(rate_limiter("asclepius_signup", 5, 3600))],
+    # Launch-day guard: signup completion is the expensive, account-creating
+    # step. Keyed on the onboarding token, not the IP — see _signup_rate_guard
+    # for why a per-IP bucket locked out whole hospitals.
+    dependencies=[
+        Depends(_signup_rate_guard),
+        Depends(global_rate_limiter("asclepius_signup_all", *_SIGNUP_GLOBAL)),
+    ],
 )
 async def asclepius_finish(body: OnboardTokenBody, request: Request):
     if not _email_configured():
@@ -1163,7 +1217,10 @@ async def member_attestations(body: MemberAttestationsBody, request: Request):
 
 @router.post(
     "/member/finish",
-    dependencies=[Depends(rate_limiter("asclepius_signup", 5, 3600))],
+    dependencies=[
+        Depends(_signup_rate_guard),
+        Depends(global_rate_limiter("asclepius_signup_all", *_SIGNUP_GLOBAL)),
+    ],
 )
 async def member_finish(body: OnboardTokenBody, request: Request):
     if not _email_configured():

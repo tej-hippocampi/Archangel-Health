@@ -3953,6 +3953,18 @@ class AsclepiusStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def npi_claim_counts(self) -> Dict[str, int]:
+        """{npi: number of accounts claiming it} — one grouped query so the
+        queue does not run a full-table scan per row (B-5.8). Only NPIs with
+        more than one claimant are returned; everything else is 1 by absence."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT npi, COUNT(*) AS n FROM users "
+                "WHERE npi IS NOT NULL AND TRIM(npi) != '' "
+                "GROUP BY npi HAVING n > 1"
+            ).fetchall()
+        return {r["npi"]: r["n"] for r in rows}
+
     def list_verification_queue(self, status: str = "pending") -> List[Dict[str, Any]]:
         """User rows in one verification state, newest signup first (the admin
         works the top of the queue). ``status`` ∈ pending|approved|rejected."""

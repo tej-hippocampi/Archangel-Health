@@ -2479,3 +2479,11 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
 .vq-link { background: none; border: 0; padding: 0; color: var(--green);
   text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; }
 /* ═══ END PRD-B ═══ */
+
+/* ═══ PRD-B fix round — attempt state, retry list, pager (owned by Agent 2) ═══ */
+.vq-attempt { color: var(--asc-muted); font-size: 12px; margin-top: 2px; }
+.vq-stuck { border: 1px solid var(--asc-line-strong); border-radius: var(--r-sm);
+  padding: 8px 12px; margin-bottom: 10px; font-size: 13px; color: var(--asc-muted); }
+.vq-pager { display: flex; align-items: center; justify-content: center; gap: 12px;
+  margin-top: 14px; }
+/* ═══ END PRD-B fix round ═══ */

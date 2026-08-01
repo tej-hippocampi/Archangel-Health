@@ -68,6 +68,7 @@
   }
 
   // ─── state ─────────────────────────────────────────────────────────────────
+  var PAGE = 50;
   var state = {
     container: null,
     status: 'pending',
@@ -77,6 +78,10 @@
     busy: false,
     error: null,
     notice: null,
+    offset: 0,
+    total: 0,
+    hasMore: false,
+    stuck: 0,            // rows whose NPI check never reached an answer
   };
 
   function setError(msg) { state.error = msg; state.notice = null; render(); }
@@ -84,10 +89,30 @@
 
   function load() {
     state.busy = true; render();
-    api('/verify/queue?status=' + encodeURIComponent(state.status))
+    api('/verify/queue?status=' + encodeURIComponent(state.status) +
+        '&limit=' + PAGE + '&offset=' + state.offset)
       .then(function (data) {
         state.queue = (data && data.queue) || [];
+        state.total = (data && data.total) || state.queue.length;
+        state.hasMore = !!(data && data.has_more);
         state.busy = false; state.error = null; render();
+        return api('/verify/recheck-pending');
+      })
+      .then(function (data) {
+        state.stuck = (data && data.count) || 0;
+        render();
+      })
+      .catch(function (e) { state.busy = false; setError(e.message); });
+  }
+
+  function runPendingRechecks() {
+    state.busy = true; render();
+    api('/verify/recheck-pending', { method: 'POST', body: {} })
+      .then(function (data) {
+        state.busy = false;
+        state.dossiers = {};
+        setNotice('Rechecked ' + ((data && data.attempted) || 0) + ' record(s).');
+        load();
       })
       .catch(function (e) { state.busy = false; setError(e.message); });
   }
@@ -168,6 +193,14 @@
         ? h('span', null, ' · NPPES: ' + npi.registry_name +
             (npi.credential ? ', ' + npi.credential : '') +
             (npi.taxonomy ? ' · ' + npi.taxonomy : ''))
+        : null,
+      // A failed check no longer overwrites the result, so it is reported
+      // beside it. Hiding "we tried and could not reach NPPES" would leave
+      // the admin unable to tell a never-checked record from a stuck one.
+      npi.last_attempt
+        ? h('div', { class: 'vq-attempt' },
+            'Last attempt failed: ' + npi.last_attempt +
+            (npi.last_attempt_at ? ' (' + npi.last_attempt_at + ')' : ''))
         : null);
   }
 
@@ -207,7 +240,10 @@
 
     return h('div', { class: 'vq-dossier' },
       npiLine(d.npi),
-      (d.npi && d.npi.result === 'unavailable')
+      // Offer the retry whenever there is no definitive answer yet — not only
+      // when the stored result literally reads 'unavailable', which is no
+      // longer how a failed check is recorded.
+      (d.npi && d.npi.npi && d.npi.recheck_pending)
         ? h('button', { class: 'vq-btn vq-btn-ghost', disabled: state.busy,
                         onclick: function () { recheckNpi(row.user_id); } }, 'Recheck NPI')
         : null,
@@ -286,17 +322,47 @@
             ['pending', 'approved', 'rejected'].map(function (s) {
               return h('button', {
                 class: 'vq-tab' + (state.status === s ? ' vq-tab-on' : ''),
-                onclick: function () { state.status = s; state.openId = null; load(); },
+                onclick: function () {
+                  state.status = s; state.openId = null; state.offset = 0; load();
+                },
               }, s);
             }),
             h('button', { class: 'vq-btn vq-btn-ghost', disabled: state.busy,
                           onclick: load }, state.busy ? 'Loading…' : 'Refresh'))),
         state.error ? h('div', { class: 'vq-error', role: 'alert' }, state.error) : null,
         state.notice ? h('div', { class: 'vq-notice', role: 'status' }, state.notice) : null,
+        // The retry list: records whose NPI check never reached an answer.
+        // Without this they sit invisible until someone opens each dossier.
+        state.stuck
+          ? h('div', { class: 'vq-stuck' },
+              state.stuck + ' record(s) awaiting an NPI recheck — the registry could '
+              + 'not be reached. ',
+              h('button', { class: 'vq-link', disabled: state.busy,
+                            onclick: runPendingRechecks }, 'Recheck them now'))
+          : null,
         state.queue.length
           ? state.queue.map(rowEl)
           : h('div', { class: 'vq-empty' },
-              state.busy ? 'Loading…' : 'Queue is clear — nothing awaiting review.')));
+              state.busy ? 'Loading…' : 'Queue is clear — nothing awaiting review.'),
+        (state.offset > 0 || state.hasMore)
+          ? h('div', { class: 'vq-pager' },
+              h('button', {
+                class: 'vq-btn vq-btn-ghost', disabled: state.busy || state.offset === 0,
+                onclick: function () {
+                  state.offset = Math.max(0, state.offset - PAGE);
+                  state.openId = null; load();
+                },
+              }, '← Newer'),
+              h('span', { class: 'vq-count' },
+                (state.offset + 1) + '–' + (state.offset + state.queue.length) +
+                ' of ' + state.total),
+              h('button', {
+                class: 'vq-btn vq-btn-ghost', disabled: state.busy || !state.hasMore,
+                onclick: function () {
+                  state.offset += PAGE; state.openId = null; load();
+                },
+              }, 'Older →'))
+          : null));
   }
 
   function mount(container) {

@@ -509,7 +509,13 @@ def email_domain(email: str) -> str:
     addr = (email or "").strip().casefold()
     if "@" not in addr:
         return ""
-    return addr.rsplit("@", 1)[1].strip().rstrip(".")
+    domain = addr.rsplit("@", 1)[1].strip().rstrip(".")
+    # L4: an internationalized domain arrives punycode-encoded (xn--…) and is
+    # therefore classified as business. That is harmless — this is one weight
+    # in a score, never a gate — and decoding is deliberately NOT done here,
+    # because unicode-folding a domain for comparison invites homograph
+    # confusion in exchange for a few points of scoring nuance.
+    return domain
 
 
 def is_health_system_domain(domain: str) -> bool:
@@ -553,22 +559,105 @@ class CvUploadError(ValueError):
     """Bad CV upload (mime/size). Caller maps this to a 4xx, not a 500."""
 
 
+def sniff_cv_mime(data: bytes) -> Optional[str]:
+    """The mime implied by the BYTES (B-5.5).
+
+    The declared Content-Type is attacker-controlled, and the stored blob is
+    later served ``inline`` from the app origin to an admin whose bearer token
+    lives in localStorage. Trusting the header on the way in and sniffing on
+    the way out is the combination that turns an upload into stored XSS, so
+    the bytes decide. Returns None when the content matches nothing we accept.
+    """
+    if not data:
+        return None
+    if data[:5] == b"%PDF-":
+        return "application/pdf"
+    # Anything carrying a known-executable/markup signature is rejected
+    # outright rather than being allowed through as "text".
+    for magic in (b"<?xml", b"<!DOCTYPE", b"<html", b"<HTML", b"<svg", b"<SVG",
+                  b"PK\x03\x04", b"\x7fELF", b"MZ", b"\x89PNG", b"GIF8",
+                  b"\xff\xd8\xff", b"%!PS"):
+        if data[:len(magic)] == magic:
+            return None
+    head = data[:4096]
+    if b"\x00" in head:            # NUL bytes: not a text document
+        return None
+    try:
+        head.decode("utf-8")
+    except UnicodeDecodeError:
+        # a multi-byte char may straddle the cut; only fail on a real problem
+        try:
+            data[:4096 - 4].decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+    return "text/plain"
+
+
+def _scrub_pdf_metadata(data: bytes) -> bytes:
+    """Drop /Info and XMP from a PDF before storage (B-5.6).
+
+    ``process_upload`` — the metadata-stripping path — is deliberately bypassed
+    for CVs because it rasterizes page 1 and would destroy the text layer and
+    every later page. That left PDF XMP/DocInfo (author, producer, sometimes
+    original filesystem paths) retained verbatim. Best-effort: a PDF that
+    cannot be rewritten is stored as-is rather than refused, since the CV is
+    optional evidence and admin-only.
+    """
+    try:
+        from PyPDF2 import PdfReader, PdfWriter
+        reader = PdfReader(io.BytesIO(data))
+        if getattr(reader, "is_encrypted", False):
+            return data
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+        writer.add_metadata({})            # empty /Info
+        try:                               # drop the XMP stream when present
+            writer._root_object.pop("/Metadata", None)
+        except Exception:
+            pass
+        out = io.BytesIO()
+        writer.write(out)
+        scrubbed = out.getvalue()
+        return scrubbed if scrubbed.startswith(b"%PDF-") else data
+    except Exception:
+        log.debug("[credentialing] PDF metadata scrub skipped", exc_info=True)
+        return data
+
+
 def store_cv(data: bytes, mime: str) -> Dict[str, Any]:
     """Validate and persist a raw CV blob, content-addressed. Returns
-    ``{"sha256", "mime", "byte_size"}`` for ``users.cv_asset_sha``."""
+    ``{"sha256", "mime", "byte_size"}`` for ``users.cv_asset_sha``.
+
+    The stored mime is the SNIFFED one, never the declared one.
+    """
     from asclepius import assets
 
-    mime = (mime or "").strip().lower().split(";")[0]
-    if mime not in CV_ACCEPTED_MIMES:
-        raise CvUploadError(
-            f"unsupported CV type {mime!r}; accepted: {', '.join(CV_ACCEPTED_MIMES)}")
+    declared = (mime or "").strip().lower().split(";")[0]
     if not data:
         raise CvUploadError("empty upload")
     if len(data) > CV_MAX_BYTES:
         raise CvUploadError(f"CV is {len(data)} bytes; max is {CV_MAX_BYTES}")
+    # The declared type is a UX gate only: someone attaching a .docx should be
+    # told we take PDF or text, not have it silently accepted because the
+    # first bytes happen to decode. Browsers do send octet-stream for real
+    # PDFs, so that one is allowed through to the sniffer.
+    if declared and declared not in CV_ACCEPTED_MIMES and declared != "application/octet-stream":
+        raise CvUploadError(
+            f"unsupported CV type {declared!r}; accepted: {', '.join(CV_ACCEPTED_MIMES)}")
+    # The BYTES are the authority for what actually gets stored and served.
+    sniffed = sniff_cv_mime(data)
+    if sniffed is None or sniffed not in CV_ACCEPTED_MIMES:
+        raise CvUploadError(
+            f"unsupported CV content; accepted: {', '.join(CV_ACCEPTED_MIMES)}")
+    if declared in CV_ACCEPTED_MIMES and declared != sniffed:
+        log.info("[credentialing] CV declared %s but is %s; trusting the bytes",
+                 declared, sniffed)
+    if sniffed == "application/pdf":
+        data = _scrub_pdf_metadata(data)
     sha = assets._sha256(data)
     assets._write_blob(sha, data)
-    return {"sha256": sha, "mime": mime, "byte_size": len(data)}
+    return {"sha256": sha, "mime": sniffed, "byte_size": len(data)}
 
 
 def _pdf_text(data: bytes) -> str:
