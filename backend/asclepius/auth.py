@@ -153,6 +153,26 @@ def get_current_user(
             status_code=403,
             detail="This account can only use the buyer data workspace.",
         )
+    # PRD-B verification gate: a signup awaiting (or refused) human credential
+    # review cannot use the evaluator surface — which is what makes "a pending
+    # user cannot draw tasks" enforceable server-side, in one place, exactly
+    # like the role gates above. Three states, deliberately:
+    #   NULL             -> pre-verification-era account, passes untouched
+    #   pending/rejected -> blocked with a clear reason
+    #   approved         -> passes
+    # Admins are exempt so a workspace director is never locked out of the
+    # workspace they just created, and so a bootstrap admin can always act.
+    status = user.get("verification_status")
+    if status in ("pending", "rejected") and user.get("role") != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Your account is awaiting credential verification — you'll hear "
+                "from us within 24 hours."
+                if status == "pending"
+                else "This account was not approved for the evaluator portal."
+            ),
+        )
     return user
 
 

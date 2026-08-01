@@ -906,6 +906,46 @@ class AsclepiusStore:
             if "retain_raw" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN retain_raw INTEGER NOT NULL DEFAULT 0")
 
+            # ═══ PRD-B IDENTITY SCHEMA — owned by Agent 2, do not edit from other PRDs ═══
+            # Verification / credentialing / tiering columns (§4 shared contract).
+            # All nullable and deliberately WITHOUT defaults: on every status
+            # column NULL means "not yet checked / not yet decided" and must stay
+            # distinguishable from a decided value — a DEFAULT here would mark
+            # every pre-existing user as pending/approved, which is wrong.
+            for _col, _ddl in (
+                ("phone",               "TEXT"),
+                ("tier",                "TEXT"),     # labeler | reviewer | NULL(unassigned)
+                ("tier_score",          "REAL"),
+                ("tier_assigned_at",    "TEXT"),
+                ("tier_assigned_by",    "TEXT"),
+                ("verification_status", "TEXT"),     # pending | approved | rejected | NULL
+                ("verification_notes",  "TEXT"),
+                ("verified_by",         "TEXT"),
+                ("verified_at",         "TEXT"),
+                ("npi_verified",        "INTEGER"),  # 1 | 0 | NULL(not checked)
+                ("npi_payload_json",    "TEXT"),
+                ("npi_checked_at",      "TEXT"),
+                ("email_domain_class",  "TEXT"),     # academic | business | consumer
+                ("linkedin_url",        "TEXT"),
+                ("cv_asset_sha",        "TEXT"),
+                # PRD-B extension beyond the §4 contract: cache of the parsed-CV
+                # suggestions so the admin dossier doesn't re-parse (and possibly
+                # re-OCR) the document on every view. Advisory data only.
+                ("cv_parsed_json",      "TEXT"),
+                ("health_system_id",    "TEXT"),     # FK -> health_systems (PRD-C table)
+                ("slack_joined",        "INTEGER"),
+                ("slack_checked_at",    "TEXT"),
+                # F6: a non-definitive NPI check is an ATTEMPT, not a result.
+                # It is logged here instead of overwriting npi_payload_json /
+                # npi_verified, so a failed recheck can never erase evidence we
+                # already hold. Also drives the retry sweep.
+                ("npi_last_attempt_json", "TEXT"),
+                ("npi_last_attempt_at",   "TEXT"),
+            ):
+                if _col not in cols("users"):
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
+            # ═══ END PRD-B ═══
+
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
         self,
@@ -3748,6 +3788,243 @@ class AsclepiusStore:
         """Rollout rows that carry a physician annotation — the PRM training set
         (PRD §7.5). Each dict has ``trajectory`` + ``physician_annotation``."""
         return self.list_env_runs(specialty=specialty, mode="rollout", has_annotation=True)
+
+    # ═══ PRD-B IDENTITY METHODS — owned by Agent 2, do not edit from other PRDs ═══
+    # NPIs are normalized on WRITE, but rows created before that fix can hold
+    # "1234-567893". Comparing the raw column would leave those legacy rows
+    # invisible to duplicate detection and to the cache — the exact defect the
+    # write-side fix closed, still open for everyone already in the database.
+    # Normalizing in SQL fixes them without rewriting stored data. Mirrors
+    # ``credentialing.clean_npi`` (strips ``[\s\-\.]``).
+    _NPI_NORM = ("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(npi, '-', ''), '.', ''), "
+                 "' ', ''), CHAR(9), ''), CHAR(10), '')")
+
+    def set_npi_result(self, user_id: str, result: Dict[str, Any]) -> None:
+        """Persist an NPI check outcome onto the user row.
+
+        Three states, never collapsed:
+          verified              -> npi_verified = 1
+          mismatch / not_found  -> npi_verified = 0   (definitive negative)
+          unavailable / other   -> npi_verified = NULL (could NOT check)
+
+        ``npi_checked_at`` is stamped ONLY on definitive outcomes, so an
+        UNAVAILABLE attempt never satisfies the 30-day NPI cache and never
+        suppresses a retry.
+        """
+        outcome = (result or {}).get("result")
+        if outcome == "verified":
+            flag: Optional[int] = 1
+        elif outcome in ("mismatch", "not_found"):
+            flag = 0
+        else:
+            flag = None
+
+        if flag is None:
+            # F6: a failed check is an EVENT, not a result. Writing it through
+            # would set npi_verified back to NULL, replace the NPPES record
+            # with {"result":"unavailable","record":null}, and clear
+            # npi_checked_at — erasing evidence we already have, dropping the
+            # user's score by 25, making 'reviewer' unproposable, and evicting
+            # the 30-day cache entry FOR EVERY user of that NPI. That happens
+            # on the admin's Recheck click while NPPES is rate-limiting, i.e.
+            # at exactly the moment the button gets used, and on any
+            # re-onboard (provision_user is an idempotent upsert).
+            with self._conn() as conn:
+                conn.execute(
+                    "UPDATE users SET npi_last_attempt_json = ?, "
+                    "npi_last_attempt_at = ? WHERE id = ?",
+                    (json.dumps(result or {}), _utcnow_iso(), user_id),
+                )
+            return
+
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET npi_verified = ?, npi_payload_json = ?, "
+                "npi_checked_at = ?, npi_last_attempt_json = NULL, "
+                "npi_last_attempt_at = NULL WHERE id = ?",
+                (flag, json.dumps(result or {}), _utcnow_iso(), user_id),
+            )
+
+    def get_cached_npi_fetch(self, npi: str, max_age_days: int = 30) -> Optional[Dict[str, Any]]:
+        """A fresh definitive NPPES answer for this NPI, if any user row holds
+        one — shaped like ``credentialing.fetch_npi_record`` output so the
+        caller can recompute the name match for the CURRENT signup (a cache
+        keyed by NPI alone must never cache the verdict).
+
+        Returns None when there is no definitive check within the window;
+        UNAVAILABLE attempts never populate the cache (``npi_checked_at`` stays
+        NULL for them).
+        """
+        npi = (npi or "").strip()
+        if not npi:
+            return None
+        cutoff = (datetime.utcnow() - timedelta(days=max(0, max_age_days))).replace(
+            microsecond=0).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT npi_payload_json FROM users "
+                f"WHERE {self._NPI_NORM} = ? AND npi_checked_at IS NOT NULL "
+                "AND npi_checked_at >= ? "
+                "AND npi_payload_json IS NOT NULL "
+                "ORDER BY npi_checked_at DESC LIMIT 1",
+                (npi, cutoff),
+            ).fetchone()
+        if not row:
+            return None
+        try:
+            stored = json.loads(row["npi_payload_json"] or "{}")
+        except (TypeError, ValueError):
+            return None
+        outcome = stored.get("result")
+        if outcome == "not_found":
+            return {"status": "not_found", "record": None, "reason": "cached"}
+        if outcome in ("verified", "mismatch") and stored.get("record"):
+            return {"status": "found", "record": stored["record"], "reason": "cached"}
+        return None
+
+    def set_verification_status(
+        self, user_id: str, status: Optional[str], *, notes: Optional[str] = None
+    ) -> None:
+        """Set the human-review lifecycle state (pending | approved | rejected).
+        Notes are only overwritten when provided."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET verification_status = ?, "
+                "verification_notes = COALESCE(?, verification_notes) WHERE id = ?",
+                (status, notes, user_id),
+            )
+
+    def update_identity_capture(
+        self,
+        user_id: str,
+        *,
+        phone: Optional[str] = None,
+        linkedin_url: Optional[str] = None,
+        email_domain_class: Optional[str] = None,
+    ) -> None:
+        """Signup-time identity fields (PRD-B Phase 4). Only overwrites a field
+        when a value is provided, so a sparse re-onboard never wipes data."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET phone = COALESCE(?, phone), "
+                "linkedin_url = COALESCE(?, linkedin_url), "
+                "email_domain_class = COALESCE(?, email_domain_class) WHERE id = ?",
+                (phone, linkedin_url, email_domain_class, user_id),
+            )
+
+    def set_cv(
+        self, user_id: str, asset_sha: Optional[str],
+        parsed: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Attach an uploaded CV (content-addressed sha) and its best-effort
+        parse to the user row. The parse is advisory dossier data only."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET cv_asset_sha = ?, cv_parsed_json = ? WHERE id = ?",
+                (asset_sha, json.dumps(parsed) if parsed is not None else None, user_id),
+            )
+
+    def find_users_by_npi(self, npi: str) -> List[Dict[str, Any]]:
+        """All user rows claiming this NPI — duplicate detection for the tier
+        scorer's blocker list."""
+        npi = (npi or "").strip()
+        if not npi:
+            return []
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM users WHERE {self._NPI_NORM} = ? ORDER BY created_at ASC",
+                (npi,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def users_pending_npi_recheck(
+        self, *, older_than_minutes: int = 60, limit: int = 200
+    ) -> List[Dict[str, Any]]:
+        """Rows whose NPI check never reached a definitive answer — the retry
+        list PRD §1.2 asked for ("UNAVAILABLE routes to manual review AND
+        schedules a retry").
+
+        Deliberately a list an admin can bulk-run rather than a scheduler: no
+        job framework, no background thread, and the work is visible and
+        auditable. A row qualifies when it claims an NPI, has no definitive
+        result (``npi_checked_at IS NULL``), and either has never been
+        attempted or was last attempted longer than ``older_than_minutes`` ago
+        — so a sweep cannot hot-loop against a rate-limiting registry.
+        """
+        cutoff = (datetime.utcnow() - timedelta(minutes=max(0, older_than_minutes))).replace(
+            microsecond=0).isoformat()
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users "
+                "WHERE npi IS NOT NULL AND TRIM(npi) != '' "
+                "  AND npi_checked_at IS NULL "
+                "  AND (npi_last_attempt_at IS NULL OR npi_last_attempt_at <= ?) "
+                "ORDER BY COALESCE(npi_last_attempt_at, created_at) ASC LIMIT ?",
+                (cutoff, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def npi_claim_counts(self) -> Dict[str, int]:
+        """{normalized npi: number of accounts claiming it} — one grouped query
+        so the queue does not run a full-table scan per row (B-5.8). Keyed by
+        the NORMALIZED value so callers can look up with ``clean_npi(...)`` and
+        so a legacy "1234-567893" row groups with its clean twin. Only NPIs
+        with more than one claimant are returned; everything else is 1 by
+        absence."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT {self._NPI_NORM} AS norm_npi, COUNT(*) AS n FROM users "
+                "WHERE npi IS NOT NULL AND TRIM(npi) != '' "
+                "GROUP BY norm_npi HAVING n > 1"
+            ).fetchall()
+        return {r["norm_npi"]: r["n"] for r in rows}
+
+    def list_verification_queue(self, status: str = "pending") -> List[Dict[str, Any]]:
+        """User rows in one verification state, newest signup first (the admin
+        works the top of the queue). ``status`` ∈ pending|approved|rejected."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                # rowid tiebreak: created_at has second granularity, and two
+                # launch-day signups in the same second must still order
+                # deterministically (newest insertion first).
+                "SELECT * FROM users WHERE verification_status = ? "
+                "ORDER BY created_at DESC, rowid DESC",
+                (status,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def record_verification_decision(
+        self,
+        user_id: str,
+        *,
+        status: str,
+        decided_by: str,
+        tier: Optional[str] = None,
+        tier_score: Optional[float] = None,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """The human decision (PRD-B Phase 5). Stamps verified_by/verified_at on
+        EVERY decision; tier fields are written only on approval — the tier is
+        a decision, not a computation, so it arrives only from this method."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            if status == "approved":
+                conn.execute(
+                    "UPDATE users SET verification_status = 'approved', "
+                    "verification_notes = COALESCE(?, verification_notes), "
+                    "verified_by = ?, verified_at = ?, tier = ?, tier_score = ?, "
+                    "tier_assigned_at = ?, tier_assigned_by = ? WHERE id = ?",
+                    (note, decided_by, now, tier, tier_score, now, decided_by, user_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE users SET verification_status = ?, "
+                    "verification_notes = COALESCE(?, verification_notes), "
+                    "verified_by = ?, verified_at = ? WHERE id = ?",
+                    (status, note, decided_by, now, user_id),
+                )
+        return self.get_user_by_id(user_id)
+    # ═══ END PRD-B ═══
 
 
 # ─── Process-wide singleton ───────────────────────────────────────────────────
