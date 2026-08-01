@@ -131,6 +131,17 @@ def _build_credentials_email(*, org_name: str, username: str, passphrase: str) -
     """
 
 
+# ─── Metrics: the four questions (PRD C Phase 6) ─────────────────────────────
+@router.get("/metrics/questions")
+async def metrics_questions(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """SUPPLY · QUALITY · PIPELINE · DEMAND, each with a headline figure and a
+    14-day sparkline series. Cohen's κ is NOT in this payload on purpose — the
+    client reads it from /stats and renders it beside expert acceptance,
+    separately labeled: expert acceptance is not κ, and merging them would
+    misreport the number a buyer audits most closely."""
+    return _store().metrics_four_questions()
+
+
 # ─── Export by case (PRD C Phase 4) ──────────────────────────────────────────
 # The founder's requirement: export BY CASE, not by physician. Three combinable
 # filters — Case ID (exact task id) · Specialty · Version — with a preview of

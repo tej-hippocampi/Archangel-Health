@@ -433,6 +433,58 @@ def test_export_case_bundle_builds_and_409s_on_empty():
     assert r2.status_code == 409
 
 
+# ─── Metrics: the four questions (Phase 6) ───────────────────────────────────
+def test_metrics_four_questions_defensive_and_populated():
+    store = _store()
+    headers = _admin_headers(store)
+    doc = A.make_user(store, role="evaluator")
+    store.insert_submission(
+        submission_id="s-m1", task_id="t-m1", evaluator_id=doc["id"], verdict="A",
+        chosen_id="a", rejected_id="b", confidence="high", time_spent_sec=60,
+        payload={}, annotator={}, dedupe_hash=None)
+
+    res = client.get("/api/asclepius/admin/metrics/questions", headers=headers)
+    assert res.status_code == 200, res.text
+    q = res.json()
+    assert set(q) == {"supply", "quality", "pipeline", "demand"}
+    assert q["supply"]["physicians_active_week"] == 1
+    assert q["supply"]["cases_labeled"] == 1
+    assert len(q["supply"]["spark"]) == 14
+    assert q["supply"]["spark"][-1] == 1              # today's submission
+    # No case_reviews table yet: acceptance is null (no data), NOT a 0% rate.
+    assert q["quality"]["expert_acceptance"] is None
+    assert q["quality"]["reviews_scored"] == 0
+    assert q["pipeline"]["uploads_received"] == 0
+    assert q["demand"]["exports"] == 0
+
+    # Once PRD-A's reviews exist, acceptance is computed from verdicts —
+    # separately from κ, which this payload deliberately does not carry.
+    with store._conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS case_reviews (
+            review_id TEXT PRIMARY KEY, task_id TEXT NOT NULL,
+            submission_id TEXT NOT NULL, reviewer_user_id TEXT NOT NULL,
+            reviewer_id_hashed TEXT NOT NULL, verdict TEXT NOT NULL,
+            dimension_json TEXT, corrections_json TEXT, reviewer_notes TEXT,
+            time_spent_sec INTEGER, blinded INTEGER, created_at TEXT NOT NULL)""")
+        for i, verdict in enumerate(["accept", "accept_with_edits", "reject", "accept"]):
+            conn.execute(
+                "INSERT INTO case_reviews (review_id, task_id, submission_id, "
+                "reviewer_user_id, reviewer_id_hashed, verdict, created_at) "
+                "VALUES (?, 't-m1', 's-m1', 'u-r', 'h', ?, ?)",
+                (f"rev-m{i}", verdict, "2026-01-01T00:00:00+00:00"))
+    q2 = client.get("/api/asclepius/admin/metrics/questions", headers=headers).json()
+    assert q2["quality"]["expert_acceptance"] == 0.75
+    assert q2["quality"]["reviews_scored"] == 4
+    assert "kappa" not in q2["quality"]
+
+
+def test_metrics_questions_requires_admin():
+    store = _store()
+    doc = A.make_user(store, role="evaluator")
+    assert client.get("/api/asclepius/admin/metrics/questions",
+                      headers=A.headers_for(doc)).status_code in (401, 403)
+
+
 # ─── Admin list ──────────────────────────────────────────────────────────────
 def test_admin_list_health_systems(email_ok):
     store = _store()

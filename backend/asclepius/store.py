@@ -3998,6 +3998,107 @@ class AsclepiusStore:
         except sqlite3.OperationalError:
             return []
 
+    # Metrics — the four questions (PRD-C Phase 6). All reads, all defensive:
+    # PRD-A's case_reviews may not exist yet, and a missing table must read as
+    # "no data", never a 500 on the metrics page.
+    _METRIC_SPARK_SOURCES = {
+        # kind → (table, timestamp column, extra WHERE)
+        "submissions": ("submissions", "created_at", ""),
+        "reviews": ("case_reviews", "created_at", ""),
+        "uploads": ("ingest_uploads", "created_at", ""),
+        "exports": ("exports", "created_at", ""),
+    }
+
+    def metrics_daily_counts(self, kind: str, *, days: int = 14) -> List[int]:
+        """Per-day row counts over the trailing window, oldest first — the
+        sparkline series. Unknown/missing tables yield a flat zero series."""
+        src = self._METRIC_SPARK_SOURCES.get(kind)
+        if not src:
+            return [0] * days
+        table, col, extra = src
+        start = (datetime.now(timezone.utc) - timedelta(days=days - 1)).date().isoformat()
+        counts = {i: 0 for i in range(days)}
+        try:
+            with self._conn() as conn:
+                rows = conn.execute(
+                    f"SELECT DATE({col}) AS d, COUNT(*) AS n FROM {table} "
+                    f"WHERE DATE({col}) >= ? {extra} GROUP BY DATE({col})", (start,),
+                ).fetchall()
+        except sqlite3.OperationalError:
+            return [0] * days
+        base = datetime.now(timezone.utc).date()
+        for r in rows:
+            try:
+                offset = (base - datetime.fromisoformat(r["d"]).date()).days
+            except (TypeError, ValueError):
+                continue
+            if 0 <= offset < days:
+                counts[days - 1 - offset] = int(r["n"])
+        return [counts[i] for i in range(days)]
+
+    def metrics_four_questions(self) -> Dict[str, Any]:
+        """SUPPLY · QUALITY · PIPELINE · DEMAND — one rollup for the admin
+        metrics header. Expert acceptance and Cohen's κ are computed and
+        returned SEPARATELY (κ belongs to the caller's /stats agreement slice;
+        acceptance comes from PRD-A's review verdicts here)."""
+        week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        with self._conn() as conn:
+            active_week = conn.execute(
+                "SELECT COUNT(DISTINCT s.evaluator_id) FROM submissions s "
+                "JOIN users u ON u.id = s.evaluator_id "
+                "WHERE s.created_at >= ? AND u.is_mock = 0", (week_ago,),
+            ).fetchone()[0]
+            labeled_total = conn.execute("SELECT COUNT(*) FROM submissions").fetchone()[0]
+            uploads_received = conn.execute("SELECT COUNT(*) FROM ingest_uploads").fetchone()[0]
+            awaiting_review = conn.execute(
+                "SELECT COUNT(*) FROM ingest_uploads WHERE status IN "
+                "('received', 'scanning', 'parsing', 'needs_review')").fetchone()[0]
+            promoted = conn.execute(
+                "SELECT COUNT(*) FROM ingest_cases WHERE status = 'promoted'").fetchone()[0]
+            buyer_requests = conn.execute("SELECT COUNT(*) FROM buyer_requests").fetchone()[0]
+            exports_n = conn.execute("SELECT COUNT(*) FROM exports").fetchone()[0]
+            shipped = conn.execute(
+                "SELECT COUNT(*) FROM records WHERE status = 'exported'").fetchone()[0]
+        reviews_total = 0
+        acceptance: Optional[float] = None
+        try:
+            with self._conn() as conn:
+                reviews_total = conn.execute("SELECT COUNT(*) FROM case_reviews").fetchone()[0]
+                row = conn.execute(
+                    "SELECT SUM(CASE WHEN verdict IN ('accept', 'accept_with_edits') "
+                    "THEN 1 ELSE 0 END) AS ok, COUNT(*) AS n FROM case_reviews").fetchone()
+                if row and row["n"]:
+                    acceptance = round((row["ok"] or 0) / row["n"], 3)
+        except sqlite3.OperationalError:
+            pass  # PRD-A not merged — reviews read as "no data", not zero-rate
+        return {
+            "supply": {
+                "physicians_active_week": int(active_week or 0),
+                "cases_labeled": int(labeled_total or 0),
+                "cases_reviewed": int(reviews_total or 0),
+                "spark": self.metrics_daily_counts("submissions"),
+            },
+            "quality": {
+                # Tri-state: a float when reviews exist, null when none — "no
+                # reviews yet" must never render as a 0% acceptance rate.
+                "expert_acceptance": acceptance,
+                "reviews_scored": int(reviews_total or 0),
+                "spark": self.metrics_daily_counts("reviews"),
+            },
+            "pipeline": {
+                "uploads_received": int(uploads_received or 0),
+                "awaiting_review": int(awaiting_review or 0),
+                "promoted_to_task": int(promoted or 0),
+                "spark": self.metrics_daily_counts("uploads"),
+            },
+            "demand": {
+                "buyer_requests": int(buyer_requests or 0),
+                "exports": int(exports_n or 0),
+                "records_shipped": int(shipped or 0),
+                "spark": self.metrics_daily_counts("exports"),
+            },
+        }
+
     def count_case_reviews_for_tasks(self, task_ids: List[str]) -> int:
         """How many PRD-A case_reviews cover these tasks (read-only). Defensive:
         0 when the table does not exist yet (pre-merge-A)."""

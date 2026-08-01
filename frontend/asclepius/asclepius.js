@@ -8153,6 +8153,72 @@
   }
 
   // ─── Admin: Metrics ────────────────────────────────────────────────────────
+  // ─── Metrics: the four questions (PRD-C Phase 6) ───────────────────────────
+  function metricSparkBars(series) {
+    const vals = (series || []).slice(-14);
+    const max = Math.max.apply(null, vals.concat([1]));
+    return h('div', { class: 'asc-metric-q-spark', 'aria-hidden': 'true' },
+      vals.map((v) => h('span', {
+        class: 'asc-metric-spark-bar' + (v ? '' : ' is-zero'),
+        style: 'height:' + (2 + Math.round((v / max) * 26)) + 'px',
+      })));
+  }
+
+  function metricQuestionCard(name, headline, subLabel, spark, rows) {
+    return h('div', { class: 'asc-metric-q' },
+      h('div', { class: 'asc-metric-q-name' }, name),
+      h('div', { class: 'asc-metric-q-headline' }, String(headline)),
+      h('div', { class: 'asc-metric-q-sub' }, subLabel),
+      metricSparkBars(spark),
+      h('div', { class: 'asc-metric-q-rows' }, rows.map(([label, value]) =>
+        h('div', { class: 'asc-metric-row' },
+          h('span', { class: 'asc-metric-row-label' }, label),
+          h('span', { class: 'asc-metric-row-value' }, String(value))))));
+  }
+
+  async function renderMetricQuestions(mount, s) {
+    mount.appendChild(h('div', { class: 'asc-dim' }, 'Loading the four questions…'));
+    let q;
+    try { q = await api('/admin/metrics/questions'); }
+    catch (e) {
+      clear(mount);
+      mount.appendChild(h('div', { class: 'asc-inline-error' }, e.message));
+      return;
+    }
+    clear(mount);
+    const supply = q.supply || {}, quality = q.quality || {},
+          pipeline = q.pipeline || {}, demand = q.demand || {};
+    const kappa = (s && s.kappa) || {};
+    const grounded = (s && s.grounded) || {};
+    // Tri-state acceptance: null means "no reviews yet", which must never be
+    // shown as a 0% acceptance rate.
+    const acc = quality.expert_acceptance;
+    const accHeadline = acc == null ? '—' : Math.round(acc * 100) + '%';
+    const accSub = acc == null
+      ? 'expert acceptance — no reviews yet'
+      : 'expert acceptance (' + (quality.reviews_scored || 0) + ' reviews)';
+    mount.appendChild(h('div', { class: 'asc-metric-questions' },
+      metricQuestionCard('Supply', supply.physicians_active_week || 0,
+        'physicians active this week', supply.spark, [
+          ['Cases labeled', supply.cases_labeled || 0],
+          ['Cases reviewed', supply.cases_reviewed || 0]]),
+      // Expert acceptance and Cohen's κ are DIFFERENT statistics, presented
+      // separately and labeled — merging them would misreport the number a
+      // buyer audits most closely.
+      metricQuestionCard('Quality', accHeadline, accSub, quality.spark, [
+        ["Cohen's κ (independent slice)",
+         fmtNum(kappa.overall) + ' · n=' + (kappa.n != null ? kappa.n : 0)],
+        ['Citation rate', (grounded.grounded_pct != null ? grounded.grounded_pct : 0) + '%']]),
+      metricQuestionCard('Pipeline', pipeline.uploads_received || 0,
+        'uploads received', pipeline.spark, [
+          ['Awaiting review', pipeline.awaiting_review || 0],
+          ['Promoted to task', pipeline.promoted_to_task || 0]]),
+      metricQuestionCard('Demand', demand.buyer_requests || 0,
+        'buyer requests', demand.spark, [
+          ['Exports', demand.exports || 0],
+          ['Records shipped', demand.records_shipped || 0]])));
+  }
+
   async function renderAdminMetrics(body) {
     clear(body);
     state.browse.metrics = { level: 'orgs', org: null, idHashed: null, contributor: null };
@@ -8168,25 +8234,17 @@
     const grounded = s.grounded || {};
     const flaw = s.flaw_catch_rate || {};
 
-    // Top stat tiles
-    const omc = s.open_modality_counts || {};
-    const tiles = h('div', { class: 'asc-stat-grid' },
-      stat(s.task_count != null ? s.task_count : 0, 'Tasks', null, true),
-      // Multimodal Debug PRD P3.11: always-visible count of structured cases in
-      // the OPEN queue — "0" here is the tell that generation hasn't produced
-      // (or the queue drained), before anyone wonders why no case panel appears.
-      stat(omc.multimodal != null ? omc.multimodal : 0, 'Multimodal in queue',
-        (omc.text != null ? omc.text : 0) + ' text open'),
-      stat(sumValues(sc), 'Submissions'),
-      stat((qpr.pass_rate != null ? Math.round(qpr.pass_rate * 100) : 0) + '%', 'QA pass rate', (qpr.passed || 0) + ' / ' + (qpr.reviewed || 0) + ' reviewed'),
-      stat(fmtNum(s.average_agreement), 'Avg agreement'),
-      stat(fmtNum(kappa.overall), "Cohen's κ", 'n=' + (kappa.n != null ? kappa.n : 0)),
-      stat((grounded.grounded_pct != null ? grounded.grounded_pct : 0) + '%', 'Grounded', (grounded.submissions_grounded || 0) + ' / ' + (grounded.submissions_total || 0)),
-      stat(flaw.rate != null ? Math.round(flaw.rate * 100) + '%' : '—', 'Flaw catch rate', (flaw.caught || 0) + ' / ' + (flaw.scored || 0) + ' generated'),
-      stat(s.export_count != null ? s.export_count : 0, 'Exports'));
-
+    // PRD-C Phase 6: the wall of undifferentiated numbers becomes FOUR
+    // QUESTIONS — Supply, Quality, Pipeline, Demand — one headline figure and a
+    // sparkline each. Cohen's κ (from /stats, the independent slice) and expert
+    // acceptance (from PRD-A's reviews) render SEPARATELY and labeled: expert
+    // acceptance is not κ, and merging them would misreport the number a buyer
+    // audits most closely. The deeper diagnostics keep their cards below.
+    const questionsMount = h('div', {});
     body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
-      h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Overview'), tiles));
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Is any of this working?'),
+      questionsMount));
+    renderMetricQuestions(questionsMount, s);
 
     // Model-Failure view (FEAT-1): "cases where model X failed, with the expert
     // correction" — the artifact you put in front of a lab.
