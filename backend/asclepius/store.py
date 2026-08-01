@@ -3983,6 +3983,21 @@ class AsclepiusStore:
                 (hs_id, upload_id),
             )
 
+    def list_case_reviews_for_reviewer(self, user_id: str, *, limit: int = 200) -> List[Dict[str, Any]]:
+        """A reviewer's case_reviews rows (PRD-A table, read-only from PRD-C).
+        Defensive: before PRD-A merges the table does not exist — return []
+        rather than 500 the physicians page."""
+        try:
+            with self._conn() as conn:
+                rows = conn.execute(
+                    "SELECT review_id, task_id, submission_id, verdict, created_at "
+                    "FROM case_reviews WHERE reviewer_user_id = ? "
+                    "ORDER BY created_at DESC LIMIT ?", (user_id, limit),
+                ).fetchall()
+            return [dict(r) for r in rows]
+        except sqlite3.OperationalError:
+            return []
+
     def list_uploads_for_health_system(self, hs_id: str, *, limit: int = 500) -> List[Dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(

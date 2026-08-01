@@ -190,6 +190,139 @@ async def provision_health_system_portal(
     }
 
 
+# ─── Physicians (PRD C Phase 3) ──────────────────────────────────────────────
+# Roster + profile for the Physicians admin section. Every PRD-B column (tier,
+# verification_status, npi, phone, health_system_id, slack_joined, …) is read
+# with .get() — before PRD-B merges the column is simply absent and the page
+# must still render. Same for PRD-A's case_reviews (store method is defensive).
+import json as _json
+
+
+def _display_name(u: Dict[str, Any]) -> str:
+    name = (u.get("full_name") or "").strip()
+    if name:
+        return name
+    email = u.get("email") or ""
+    return email.split("@", 1)[0] if "@" in email else (email or u.get("id") or "—")
+
+
+def _physician_users(store: Any) -> List[Dict[str, Any]]:
+    """The roster population: real evaluator accounts (physicians). Mock/demo
+    contributors and non-physician roles (admin, qa, data_partner, buyer) are
+    operator noise here, not supply."""
+    return [u for u in store.list_users()
+            if u.get("role") == "evaluator" and not u.get("is_mock")]
+
+
+def _hs_name_map(store: Any) -> Dict[str, str]:
+    return {hs["hs_id"]: hs["name"] for hs in store.list_health_systems()}
+
+
+def _tri_state(v: Any) -> Optional[bool]:
+    """SQLite 1/0/NULL → True/False/None. NULL means 'not checked' and must
+    survive serialization as null, never collapse to false (§5 rule 4)."""
+    if v is None:
+        return None
+    return bool(v)
+
+
+@router.get("/physicians")
+async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    store = _store()
+    hs_names = _hs_name_map(store)
+    out: List[Dict[str, Any]] = []
+    counts = {"all": 0, "pending": 0, "labelers": 0, "reviewers": 0, "unassigned": 0}
+    for u in _physician_users(store):
+        tier = u.get("tier")
+        verification = u.get("verification_status")
+        counts["all"] += 1
+        if verification == "pending":
+            counts["pending"] += 1
+        if tier == "labeler":
+            counts["labelers"] += 1
+        elif tier == "reviewer":
+            counts["reviewers"] += 1
+        else:
+            counts["unassigned"] += 1
+        hs_id = u.get("health_system_id")
+        out.append({
+            "id": u["id"],
+            "id_hashed": u.get("id_hashed"),
+            "name": _display_name(u),
+            "email": u.get("email"),
+            "phone": u.get("phone"),
+            "specialty": u.get("specialty"),
+            "tier": tier,
+            "verification_status": verification,
+            "slack_joined": _tri_state(u.get("slack_joined")),
+            "health_system_id": hs_id,
+            "health_system_name": hs_names.get(hs_id) if hs_id else None,
+            "active": bool(u.get("active", 1)),
+        })
+    return {"physicians": out, "counts": counts}
+
+
+@router.get("/physicians/{user_id}")
+async def physician_profile(
+    user_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """Everything captured at onboarding: NPI + NPPES payload, CV, LinkedIn,
+    board certification, years, score breakdown, Slack, task history, and —
+    when they are a reviewer — review history."""
+    store = _store()
+    u = store.get_user_by_id(user_id)
+    if not u or u.get("role") != "evaluator":
+        raise HTTPException(status_code=404, detail="Physician not found")
+    hs_names = _hs_name_map(store)
+    npi_payload = None
+    raw_npi = u.get("npi_payload_json")
+    if raw_npi:
+        try:
+            npi_payload = _json.loads(raw_npi)
+        except (ValueError, TypeError):
+            npi_payload = None
+    hs_id = u.get("health_system_id")
+    submissions = store.list_submissions(evaluator_id=user_id, limit=200)
+    reviews = store.list_case_reviews_for_reviewer(user_id)
+    return {
+        "physician": {
+            "id": u["id"],
+            "id_hashed": u.get("id_hashed"),
+            "name": _display_name(u),
+            "email": u.get("email"),
+            "phone": u.get("phone"),
+            "specialty": u.get("specialty"),
+            "board_cert": u.get("board_cert"),
+            "years_experience": u.get("years_experience"),
+            "tier": u.get("tier"),
+            "tier_score": u.get("tier_score"),
+            "tier_assigned_at": u.get("tier_assigned_at"),
+            "verification_status": u.get("verification_status"),
+            "verification_notes": u.get("verification_notes"),
+            "verified_by": u.get("verified_by"),
+            "verified_at": u.get("verified_at"),
+            "npi": u.get("npi"),
+            "npi_verified": _tri_state(u.get("npi_verified")),
+            "npi_checked_at": u.get("npi_checked_at"),
+            "email_domain_class": u.get("email_domain_class"),
+            "linkedin_url": u.get("linkedin_url"),
+            "cv_on_file": bool(u.get("cv_asset_sha")),
+            "slack_joined": _tri_state(u.get("slack_joined")),
+            "slack_checked_at": u.get("slack_checked_at"),
+            "health_system_id": hs_id,
+            "health_system_name": hs_names.get(hs_id) if hs_id else None,
+            "created_at": u.get("created_at"),
+            "active": bool(u.get("active", 1)),
+        },
+        "npi_payload": npi_payload,
+        "task_history": [{"task_id": s.get("task_id"),
+                          "submission_id": s.get("submission_id"),
+                          "status": s.get("status"),
+                          "created_at": s.get("created_at")} for s in submissions],
+        "review_history": reviews,
+    }
+
+
 # ─── Health system detail: the pipeline in explicit buckets ──────────────────
 # Workflow order (PRD C Phase 2). An upload can appear in more than one bucket
 # when its cases had mixed outcomes — that is honest, not a bug: the operator

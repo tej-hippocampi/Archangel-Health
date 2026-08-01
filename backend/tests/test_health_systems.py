@@ -245,6 +245,108 @@ def test_detail_404_for_unknown_health_system():
     assert res.status_code == 404
 
 
+# ─── Physicians (Phase 3) ────────────────────────────────────────────────────
+def test_physicians_roster_renders_before_prd_b_merges():
+    """PRD-B owns the tier/verification columns. Before B merges they simply do
+    not exist — the roster must render every physician as Unassigned / not
+    checked instead of crashing."""
+    store = _store()
+    headers = _admin_headers(store)
+    A.make_user(store, role="evaluator", specialty="nephrology")
+    A.make_user(store, role="evaluator")
+    A.make_user(store, role="qa_reviewer")          # not a physician
+    store.ensure_mock_user(email="mock@asclepius.example.com", password="pw-12345678")
+
+    res = client.get("/api/asclepius/admin/physicians", headers=headers)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["counts"]["all"] == 2               # admin, qa, mock excluded
+    assert body["counts"]["unassigned"] == 2
+    assert body["counts"]["pending"] == 0
+    for p in body["physicians"]:
+        assert p["tier"] is None                    # renders as "Unassigned"
+        assert p["verification_status"] is None     # renders as "Not checked"
+        assert p["slack_joined"] is None            # tri-state survives as null
+
+
+def _add_prd_b_columns(store):
+    with store._conn() as conn:
+        for ddl in ("ALTER TABLE users ADD COLUMN tier TEXT",
+                    "ALTER TABLE users ADD COLUMN verification_status TEXT",
+                    "ALTER TABLE users ADD COLUMN phone TEXT",
+                    "ALTER TABLE users ADD COLUMN slack_joined INTEGER",
+                    "ALTER TABLE users ADD COLUMN health_system_id TEXT"):
+            try:
+                conn.execute(ddl)
+            except Exception:
+                pass  # PRD-B merged and created it already — even better
+
+
+def test_physicians_roster_counts_with_prd_b_columns():
+    store = _store()
+    headers = _admin_headers(store)
+    _add_prd_b_columns(store)
+    hs = store.ensure_health_system("Roster Health")
+    u1 = A.make_user(store, role="evaluator")
+    u2 = A.make_user(store, role="evaluator")
+    u3 = A.make_user(store, role="evaluator")
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET tier='labeler', verification_status='approved', "
+                     "slack_joined=1, health_system_id=? WHERE id=?", (hs["hs_id"], u1["id"]))
+        conn.execute("UPDATE users SET tier='reviewer', verification_status='pending' "
+                     "WHERE id=?", (u2["id"],))
+        conn.execute("UPDATE users SET verification_status='pending' WHERE id=?", (u3["id"],))
+
+    body = client.get("/api/asclepius/admin/physicians", headers=headers).json()
+    c = body["counts"]
+    assert (c["all"], c["pending"], c["labelers"], c["reviewers"], c["unassigned"]) == (3, 2, 1, 1, 1)
+    by_id = {p["id"]: p for p in body["physicians"]}
+    assert by_id[u1["id"]]["health_system_name"] == "Roster Health"
+    assert by_id[u1["id"]]["slack_joined"] is True
+    assert by_id[u2["id"]]["health_system_name"] is None
+    assert by_id[u3["id"]]["tier"] is None          # pending but unassigned — distinct facts
+
+
+def test_physician_profile_histories_are_defensive():
+    store = _store()
+    headers = _admin_headers(store)
+    doc = A.make_user(store, role="evaluator", specialty="nephrology")
+
+    res = client.get(f"/api/asclepius/admin/physicians/{doc['id']}", headers=headers)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["physician"]["name"]
+    assert body["review_history"] == []             # case_reviews absent pre-PRD-A → [], not 500
+    assert body["task_history"] == []
+    assert body["npi_payload"] is None
+
+    # Once PRD-A's table exists, the same call returns the reviewer's rows.
+    with store._conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS case_reviews (
+            review_id TEXT PRIMARY KEY, task_id TEXT NOT NULL,
+            submission_id TEXT NOT NULL, reviewer_user_id TEXT NOT NULL,
+            reviewer_id_hashed TEXT NOT NULL, verdict TEXT NOT NULL,
+            dimension_json TEXT, corrections_json TEXT, reviewer_notes TEXT,
+            time_spent_sec INTEGER, blinded INTEGER, created_at TEXT NOT NULL)""")
+        conn.execute("INSERT INTO case_reviews (review_id, task_id, submission_id, "
+                     "reviewer_user_id, reviewer_id_hashed, verdict, created_at) "
+                     "VALUES ('rev-1', 't-1', 's-1', ?, 'h1', 'accept', '2026-01-01')",
+                     (doc["id"],))
+    body2 = client.get(f"/api/asclepius/admin/physicians/{doc['id']}", headers=headers).json()
+    assert len(body2["review_history"]) == 1
+    assert body2["review_history"][0]["verdict"] == "accept"
+
+
+def test_physician_profile_404_for_non_physician():
+    store = _store()
+    headers = _admin_headers(store)
+    admin = A.make_user(store, role="admin")
+    assert client.get(f"/api/asclepius/admin/physicians/{admin['id']}",
+                      headers=headers).status_code == 404
+    assert client.get("/api/asclepius/admin/physicians/u-nope",
+                      headers=headers).status_code == 404
+
+
 # ─── Admin list ──────────────────────────────────────────────────────────────
 def test_admin_list_health_systems(email_ok):
     store = _store()
