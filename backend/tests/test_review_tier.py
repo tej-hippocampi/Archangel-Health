@@ -476,6 +476,50 @@ def test_review_js_builds_dom_with_h_and_no_innerhtml():
     assert "function h(" in src
 
 
+# ─── Phase 4: two statistics, named correctly ─────────────────────────────────
+def test_review_acceptance_rates_and_tri_state_dimensions():
+    from asclepius.agreement import review_acceptance
+
+    empty = review_acceptance([])
+    # No reviews is not 0% accepted — rates are honestly None.
+    assert empty == {"n": 0, "accept_rate": None, "edit_rate": None,
+                     "reject_rate": None, "by_dimension": {}, "n_cannot_assess": 0}
+
+    reviews = [
+        {"verdict": "accept", "dimensions": {"clinical_accuracy": "agree"}},
+        {"verdict": "accept", "dimensions": {"clinical_accuracy": "agree"}},
+        {"verdict": "accept_with_edits", "dimensions": {"clinical_accuracy": "cannot_assess"}},
+        {"verdict": "reject", "dimensions": {"clinical_accuracy": "disagree"}},
+    ]
+    out = review_acceptance(reviews)
+    assert out["n"] == 4
+    assert out["accept_rate"] == 0.5
+    assert out["edit_rate"] == 0.25
+    assert out["reject_rate"] == 0.25
+    dim = out["by_dimension"]["clinical_accuracy"]
+    # cannot_assess is its own bucket — never folded into disagreement.
+    assert dim == {"agree": 2, "disagree": 1, "cannot_assess": 1}
+    assert out["n_cannot_assess"] == 1
+
+
+def test_independent_kappa_gates_and_blinding():
+    from asclepius.agreement import independent_kappa
+
+    def obs(a, b, blinded=True):
+        return {"verdict_a": a, "verdict_b": b, "blinded": blinded, "specialty": "neph"}
+
+    # Below the min-n gate: None WITH a stated reason, never a bare number.
+    small = independent_kappa([obs("x", "x")] * 5, min_n=30)
+    assert small["overall"] is None and "not reportable" in (small["reason"] or "")
+
+    # Unblinded observations are excluded from the computation entirely.
+    mixed = [obs("x", "x")] * 20 + [obs("x", "y")] * 10 + [obs("x", "x", blinded=False)] * 50
+    out = independent_kappa(mixed, min_n=30)
+    assert out["n"] == 30                      # only the blinded 30
+    assert out["excluded_unblinded"] == 50
+    assert out["overall"] is not None
+
+
 def test_incomplete_dimensions_rejected():
     body = _review_body()
     del body["dimensions"]["completeness"]

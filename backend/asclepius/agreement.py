@@ -18,6 +18,7 @@ them into the aggregate surfaced in ``quality_report.md``.
 
 from __future__ import annotations
 
+import json
 import os
 import random
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -247,6 +248,68 @@ def aggregate_kappa(observations: List[Dict[str, Any]], *,
         "excluded_unverified": excluded_unverified,
         "observed_agreement": observed,
     }
+
+
+def review_acceptance(reviews: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Expert review outcome. NOT inter-rater reliability — the reviewer sees the
+    labeler's answer, so the two observations are not independent and kappa does
+    not apply (PRD A §0). Reported as its own metric with its own name; putting
+    this number under a κ label would be claiming a statistic nobody measured.
+
+    ``cannot_assess`` dimension states are counted separately, never folded into
+    agreement or disagreement — forcing a binary there manufactures agreement
+    (START_HERE §5 rule 4).
+
+    Returns ``{n, accept_rate, edit_rate, reject_rate, by_dimension,
+    n_cannot_assess}`` with None rates at n=0 (no reviews is not 0% accepted).
+    """
+    reviews = reviews or []
+    n = len(reviews)
+    verdicts = {"accept": 0, "accept_with_edits": 0, "reject": 0}
+    by_dimension: Dict[str, Dict[str, int]] = {}
+    n_cannot = 0
+    for r in reviews:
+        v = r.get("verdict")
+        if v in verdicts:
+            verdicts[v] += 1
+        dims = r.get("dimensions")
+        if not isinstance(dims, dict):
+            try:
+                dims = json.loads(r.get("dimension_json") or "{}") or {}
+            except (TypeError, ValueError):
+                dims = {}
+        for key, state in dims.items():
+            bucket = by_dimension.setdefault(
+                key, {"agree": 0, "disagree": 0, "cannot_assess": 0})
+            if state in bucket:
+                bucket[state] += 1
+            if state == "cannot_assess":
+                n_cannot += 1
+    if n == 0:
+        return {"n": 0, "accept_rate": None, "edit_rate": None, "reject_rate": None,
+                "by_dimension": {}, "n_cannot_assess": 0}
+    return {
+        "n": n,
+        "accept_rate": round(verdicts["accept"] / n, 4),
+        "edit_rate": round(verdicts["accept_with_edits"] / n, 4),
+        "reject_rate": round(verdicts["reject"] / n, 4),
+        "by_dimension": by_dimension,
+        "n_cannot_assess": n_cannot,
+    }
+
+
+def independent_kappa(observations: List[Dict[str, Any]], *,
+                      min_n: Optional[int] = None) -> Dict[str, Any]:
+    """TRUE Cohen's kappa, over the double-labeled slice only: two labelers, same
+    case, neither shown the other's answer (PRD A §0). Delegates to
+    ``aggregate_kappa`` → ``cohens_kappa``, which already excludes any
+    observation not explicitly blinded and returns None WITH a stated reason
+    below the min-n gate (default 30) rather than a number nobody should trust.
+
+    Exists as its own correctly-named entry point so the export can report
+    "Cohen's κ" and "expert review acceptance" as two different statistics
+    answering two different buyer questions — never interchangeably."""
+    return aggregate_kappa(observations or [], min_n=min_n)
 
 
 def external_adjudication_agreement(

@@ -578,6 +578,32 @@ def _quality_report_md(*, export_id: str, profile_name: str, records: List[Dict[
     kappa = stats.get("kappa") or {}
     by_spec = kappa.get("by_specialty") or {}
     kappa_spec_lines = "\n".join(f"- {sp}: {v}" for sp, v in sorted(by_spec.items())) or "- n/a"
+    # Expert review vs κ: two statistics, two names (PRD A §0 / Phase 4). The
+    # review rate is adjudication (reviewer SAW the labeler's answer); κ below is
+    # the independent, blinded, double-labeled slice. They are never merged.
+    ra = stats.get("review_acceptance") or {}
+
+    def _ra_pct(x: Any) -> str:
+        return f"{round(100 * x, 1)}%" if x is not None else "n/a"
+
+    if ra.get("n"):
+        ra_dim_lines = "\n".join(
+            f"- {dim}: agree {v.get('agree', 0)} · disagree {v.get('disagree', 0)} · "
+            f"cannot assess {v.get('cannot_assess', 0)}"
+            for dim, v in sorted((ra.get("by_dimension") or {}).items())
+        ) or "- n/a"
+        review_section = f"""## Expert review (reviewer-adjudicated — NOT κ)
+Senior reviewers graded these submissions with the labeler's answer visible, so
+this is a review outcome, not inter-rater reliability. The independent Cohen's κ
+is reported separately below.
+- Expert review: accepted {_ra_pct(ra.get('accept_rate'))} · edited {_ra_pct(ra.get('edit_rate'))} · rejected {_ra_pct(ra.get('reject_rate'))} (n={ra.get('n')}, reviewer-adjudicated)
+- Per-dimension verdicts ("cannot assess" reported as its own state, never folded):
+{ra_dim_lines}
+"""
+    else:
+        review_section = """## Expert review (reviewer-adjudicated — NOT κ)
+- No expert reviews attached to this batch yet.
+"""
     flags = stats.get("flag_counts") or {}
     contributors = stats.get("contributors") or []
     contrib_lines = "\n".join(
@@ -600,7 +626,8 @@ Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
 ## Grounded (evidence-anchored) premium tier
 - Grounded records: **{grounded}/{counts['total']}** (**{grounded_pct}%**)
 
-## Inter-annotator agreement (Cohen's κ, opt §1.3)
+{review_section}
+## Inter-annotator agreement (Cohen's κ, opt §1.3 — independently double-labeled)
 - Aggregate κ (blinded, double-labeled subset, n={kappa.get('n')}): **{kappa.get('overall')}**{(' — ' + kappa['reason']) if kappa.get('overall') is None and kappa.get('reason') else ''}
 - 95% CI (seeded bootstrap): {kappa.get('ci')}
 - Observed agreement: {kappa.get('observed_agreement')}
@@ -1166,11 +1193,19 @@ def build_export(
     except Exception:
         ext_pairs = []
     external_adjudication = asc_agreement.external_adjudication_agreement(ext_pairs)
+    # Two statistics, named correctly (PRD A Phase 4). ``kappa`` above IS the
+    # independent κ (blinded double-labeled slice, min-n gated). Review
+    # acceptance is a DIFFERENT statistic — expert adjudication over this
+    # batch's reviews, where the reviewer saw the labeler's answer — and is
+    # never reported under a κ label.
+    _batch_reviews = [r for revs in _reviews_by_sid.values() for r in revs]
+    review_acceptance = asc_agreement.review_acceptance(_batch_reviews)
     stats = {
         "status_counts": store.status_counts(),
         "qa_pass_rate": store.qa_pass_rate(),
         "average_agreement": store.average_agreement(),
         "kappa": kappa,
+        "review_acceptance": review_acceptance,
         "external_adjudication_agreement": external_adjudication,
         "flag_counts": _flag_counts(store),
         "contributors": contributors,
@@ -1301,6 +1336,9 @@ def build_export(
         # (some unratified — see datasheet warning), or null (no synthetic prompts).
         "seed_corpus_ratified": _seed_corpus_ratified(emitted),
         "kappa": kappa,
+        # Expert-review adjudication over this batch (PRD A Phase 4) — a
+        # separate statistic from κ, under its own name, on purpose.
+        "review_acceptance": review_acceptance,
         "filters": filters,
         "note": note,
         "scope": scope,

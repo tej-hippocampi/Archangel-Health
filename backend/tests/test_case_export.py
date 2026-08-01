@@ -214,6 +214,28 @@ def test_agreeing_second_label_is_not_a_duplicate_but_cross_task_copy_is():
     assert "duplicate" in (store.get_submission(sid)["qa_reason"] or "")
 
 
+def test_quality_report_names_the_two_statistics_separately():
+    """PRD A Phase 4: review acceptance and Cohen's κ appear as two separately
+    named figures — the review rate is never presented as κ."""
+    admin_h = _admin_h()
+    tid = _create_task(admin_h)
+    sid = _submit(tid, _evaluator())
+    _add_review(sid, tid, verdict="accept")
+
+    manifest = _build_export(admin_h)
+    quality = (Path(manifest["dir_path"]) / "quality_report.md").read_text()
+    assert "Expert review (reviewer-adjudicated — NOT κ)" in quality
+    assert "reviewer-adjudicated" in quality
+    assert "independently double-labeled" in quality
+    assert "Cohen's" in quality
+    # Manifest rollup, under its own honest name.
+    assert manifest["review_acceptance"]["n"] == 1
+    assert manifest["review_acceptance"]["accept_rate"] == 1.0
+    # κ stays min-n gated with a stated reason at tiny n.
+    assert manifest["kappa"]["overall"] is None
+    assert "not reportable" in manifest["kappa"]["reason"]
+
+
 def test_unblinded_review_still_present_in_record():
     """blinded=0 review data is not hidden from the buyer — it is only excluded
     from the κ statistic (PRD A Phase 5 contract)."""
