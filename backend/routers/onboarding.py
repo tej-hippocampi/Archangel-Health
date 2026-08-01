@@ -852,6 +852,13 @@ async def asclepius_cv_upload(
         meta = credentialing.store_cv(data, file.content_type or "")
     except credentialing.CvUploadError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:
+        # Asset-store trouble (disk, verification) must surface as a clean,
+        # retryable error — the CV is optional and signup continues without it.
+        log.exception("[credentialing] CV blob write failed")
+        raise HTTPException(status_code=503,
+                            detail="Could not store the CV right now — you can "
+                                   "finish signup without it.")
     return {"ok": True, "sha256": meta["sha256"], "mime": meta["mime"],
             "byte_size": meta["byte_size"]}
 
