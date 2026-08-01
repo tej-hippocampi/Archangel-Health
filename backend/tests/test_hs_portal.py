@@ -429,6 +429,102 @@ def test_upload_quota_is_enforced_per_health_system(monkeypatch):
         assert "limit" in detail and "secure bulk transfer" in detail
 
 
+def test_healthy_inflight_upload_never_reads_as_a_problem():
+    """C-3.1: 'parsing' was missing from the portal status map, and it is the
+    pipeline's most common in-flight state — so a perfectly healthy upload told
+    the hospital "Needs attention: our team is taking a closer look" while it
+    was mid-parse."""
+    from routers import asclepius_provider as P
+    from asclepius import ingestion as I
+
+    for status in I._NON_TERMINAL_UPLOAD_STATUSES:
+        mapped = P._HS_PORTAL_STATUS.get(status)
+        assert mapped in ("received", "processing"), (
+            f"in-flight pipeline status {status!r} maps to {mapped!r}, which renders "
+            f"to a hospital as 'Needs attention'"
+        )
+    # And through the view function the hospital actually sees.
+    view = P._hs_upload_view({"upload_id": "u1", "status": "parsing", "files": []})
+    assert view["status"] == "processing"
+    assert not view["detail"], "a healthy in-flight upload should carry no alarm copy"
+
+
+def test_portal_upload_is_not_stamped_with_a_guessed_specialty(monkeypatch, tmp_path):
+    """C-3.2: the portal's sentinel link_id has no link row, so the fallback
+    chain ended at the literal 'nephrology' and stamped every hospital upload
+    with it — a bare cardiology .json landed labeled nephrology."""
+    from asclepius import ingestion as I
+
+    store = _store()
+    uname, hs = _mk_portal_user("ready-password-123", must_reset=False)
+    c = _client()
+    _login(c, uname, "ready-password-123")
+    payload = json.dumps({"resourceType": "Bundle", "type": "collection", "entry": []}).encode()
+    res = c.post("/api/asclepius/hs/uploads",
+                 files=[("files", ("cardiology_export.json", payload, "application/json"))])
+    assert res.status_code == 200, res.text
+    upload_id = res.json()["upload_id"]
+
+    cases = store.list_ingest_cases(upload_id=upload_id)
+    assert all((cs.get("specialty") or None) != "nephrology" for cs in cases), (
+        "a portal upload was silently stamped nephrology"
+    )
+    # Undetermined is the neutral 'general', which the admin renders as
+    # "not yet determined" rather than as a clinical claim.
+    assert all((cs.get("specialty") or "general") == "general" for cs in cases)
+
+    # The operator can set the real value, which is the point of leaving it NULL.
+    from tests import _asclepius as _A
+    admin = _A.make_user(store, role="admin")
+    r = _client().post(f"/api/asclepius/admin/uploads/{upload_id}/specialty",
+                       json={"specialty": "cardiology"}, headers=_A.headers_for(admin))
+    assert r.status_code == 200, r.text
+    if cases:
+        assert all(cs.get("specialty") == "cardiology"
+                   for cs in store.list_ingest_cases(upload_id=upload_id))
+
+
+def test_portal_upload_failure_notifies_the_health_system():
+    """C-3.3: the portal door had no failure loop — its sentinel link_id has no
+    link row, so _recipient_for returned (None, None) and a rejected hospital
+    upload emailed nobody. That is the one door whose users we cannot support in
+    real time."""
+    from asclepius import ingest_notify
+
+    store = _store()
+    hs = store.ensure_health_system("Notify General", contact_email="it@notify.example.org")
+    up = store.insert_ingest_upload(
+        link_id="hs-portal", partner_id=hs["hs_id"], filename="x.zip", sha256="0" * 64,
+        size_bytes=10, raw_path=None, source_ip=None)
+    store.set_upload_health_system(up["upload_id"], hs["hs_id"])
+    upload = store.get_ingest_upload(up["upload_id"])
+
+    email, name = ingest_notify._recipient_for(store, upload)
+    assert email == "it@notify.example.org", "a rejected portal upload still emails nobody"
+    assert name == "Notify General"
+
+
+def test_rejected_uploads_do_not_sit_in_needs_review():
+    """C-3.4: an outright-rejected upload is dead, not pending work. Filing it
+    under 'uploaded, not yet examined' inflates the operator's queue with rows
+    they cannot action."""
+    store = _store()
+    hs = store.ensure_health_system("Bucket General")
+    up = store.insert_ingest_upload(
+        link_id="hs-portal", partner_id=hs["hs_id"], filename="bad.zip", sha256="0" * 64,
+        size_bytes=10, raw_path=None, source_ip=None)
+    store.set_upload_health_system(up["upload_id"], hs["hs_id"])
+    store.update_ingest_upload(up["upload_id"], status="rejected", reason="nothing ingested")
+
+    from tests import _asclepius as _A
+    admin = _A.make_user(store, role="admin")
+    detail = _client().get(f"/api/asclepius/admin/health-systems/{hs['hs_id']}",
+                           headers=_A.headers_for(admin)).json()
+    ids = {k: {e["upload_id"] for e in v} for k, v in detail["buckets"].items()}
+    assert up["upload_id"] in ids["rejected"]
+    assert up["upload_id"] not in ids["needs_review"]
+
+
 def test_definition_of_done_end_to_end(monkeypatch):
     """PRD C §2 verbatim: type an organization and an email → the contact
     receives credentials → logs into a password-protected portal → uploads a

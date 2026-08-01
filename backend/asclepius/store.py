@@ -4142,6 +4142,50 @@ class AsclepiusStore:
             ).fetchone()
         return int(row[0] or 0)
 
+    def set_ingest_specialty_for_upload(self, upload_id: str, specialty: str) -> int:
+        """Operator-assigned specialty for every case from one upload.
+
+        Ingest leaves specialty NULL when nothing declared it (FIX-C C-3.2);
+        promotion downstream still falls back to a literal, so the operator has
+        to be able to set the real value BEFORE promoting rather than after a
+        mislabeled case has shipped."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE ingest_cases SET specialty = ?, updated_at = ? WHERE upload_id = ?",
+                (specialty, _utcnow_iso(), upload_id),
+            )
+            return cur.rowcount or 0
+
+    def list_ingest_cases_for_uploads(self, upload_ids: List[str]) -> List[Dict[str, Any]]:
+        """Every ingest case for a set of uploads in ONE query (FIX-C C-5.4).
+        The health-system detail page issued one query per upload, up to 500."""
+        if not upload_ids:
+            return []
+        out: List[Dict[str, Any]] = []
+        with self._conn() as conn:
+            # Chunked to stay under SQLite's variable limit on a large page.
+            for i in range(0, len(upload_ids), 400):
+                chunk = upload_ids[i:i + 400]
+                qs = ",".join("?" for _ in chunk)
+                rows = conn.execute(
+                    f"SELECT * FROM ingest_cases WHERE upload_id IN ({qs}) "
+                    "ORDER BY created_at DESC", tuple(chunk),
+                ).fetchall()
+                for r in rows:
+                    rec = dict(r)
+                    rec["case"] = json.loads(rec.pop("case_json") or "null")
+                    rec["report"] = json.loads(rec.pop("report_json") or "null")
+                    rec["review"] = json.loads((rec.get("review_json") or "null") or "null")
+                    out.append(rec)
+        return out
+
+    def upload_specialties(self, upload_id: str) -> List[Optional[str]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT specialty FROM ingest_cases WHERE upload_id = ?", (upload_id,)
+            ).fetchall()
+        return [r["specialty"] for r in rows]
+
     def set_upload_health_system(self, upload_id: str, hs_id: str) -> None:
         with self._conn() as conn:
             conn.execute(

@@ -488,13 +488,25 @@ async def physician_profile(
 # needs to know that one file produced both live cases and held ones.
 def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
     buckets: Dict[str, List[Dict[str, Any]]] = {
-        "needs_attention": [], "needs_review": [], "ready_to_promote": [], "in_production": [],
+        "needs_attention": [], "rejected": [], "needs_review": [],
+        "ready_to_promote": [], "in_production": [],
     }
-    for up in store.list_uploads_for_health_system(hs_id):
-        cases = store.list_ingest_cases(upload_id=up["upload_id"])
+    uploads = store.list_uploads_for_health_system(hs_id)
+    # One query for every case on the page instead of one per upload (C-5.4):
+    # a health system with 500 uploads issued 500 round-trips per page load.
+    cases_by_upload: Dict[str, List[Dict[str, Any]]] = {}
+    for c in store.list_ingest_cases_for_uploads([u["upload_id"] for u in uploads]):
+        cases_by_upload.setdefault(c.get("upload_id"), []).append(c)
+    for up in uploads:
+        cases = cases_by_upload.get(up["upload_id"], [])
         held = [c for c in cases if c.get("status") in ("needs_review", "quarantined")]
         clean = [c for c in cases if c.get("status") == "ingested"]
         promoted = [c for c in cases if c.get("status") == "promoted"]
+        # 'general' means nothing declared a specialty (ingest refuses to guess),
+        # so the operator is prompted to set the real one before promotion.
+        specialties = sorted({c.get("specialty") for c in cases
+                              if c.get("specialty") and c.get("specialty") != "general"})
+        undetermined = [c for c in cases if (c.get("specialty") or "general") == "general"]
         entry = {
             "upload_id": up["upload_id"],
             "filename": up.get("filename"),
@@ -503,9 +515,23 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
             "upload_status": up.get("status"),
             "case_total": len(cases),
             "case_counts": {"held": len(held), "clean": len(clean), "promoted": len(promoted)},
+            "specialties": specialties,
+            # Ingest no longer invents a specialty (C-3.2). Undetermined is shown
+            # to the operator to set BEFORE promotion, because the promote path
+            # still falls back to a literal — a wrong specialty routes the case
+            # to the wrong physician pool and mislabels it in the export.
+            "specialty_determined": bool(cases) and not undetermined,
+            "specialty_undetermined_cases": len(undetermined),
             "reasons": [],
             "note": up.get("reason"),
         }
+        # An outright-rejected upload is dead, not pending work. Filing it under
+        # "uploaded, not yet examined" is the opposite of what the buckets are
+        # for — it inflates the operator's queue with things they cannot action.
+        if (up.get("status") or "") in ("rejected", "failed"):
+            buckets["rejected"].append({**entry, "note": up.get("reason")
+                                        or "We could not read this upload."})
+            continue
         if held:
             # Safety holds must never be buried inside a normal bucket. Surface
             # the actual reasons (review flags + quarantine reasons), deduped.
@@ -557,6 +583,36 @@ async def health_system_detail(
         "last_activity": uploads[0]["created_at"] if uploads else None,
         "buckets": _bucket_uploads(store, hs_id),
     }
+
+
+class UploadSpecialtyRequest(BaseModel):
+    specialty: str
+
+
+@router.post("/uploads/{upload_id}/specialty")
+async def set_upload_specialty(
+    upload_id: str,
+    body: UploadSpecialtyRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Assign the specialty for an upload's cases (FIX-C C-3.2).
+
+    Ingest no longer guesses. Where nothing declared a specialty the cases carry
+    NULL and surface as "not yet determined", and this is how an operator
+    resolves it — before promotion, which still falls back to a literal."""
+    store = _store()
+    specialty = " ".join((body.specialty or "").split()).lower()
+    if not specialty:
+        raise HTTPException(status_code=400, detail="A specialty is required.")
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    n = store.set_ingest_specialty_for_upload(upload_id, specialty)
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="specialty_assigned", actor=admin["id"],
+                    payload={"specialty": specialty, "cases": n})
+    return {"ok": True, "upload_id": upload_id, "specialty": specialty, "cases_updated": n,
+            "message": f"{n} case{'' if n == 1 else 's'} set to {specialty}."}
 
 
 class HsAccessRequest(BaseModel):

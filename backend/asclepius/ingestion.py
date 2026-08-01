@@ -897,9 +897,18 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
         return _fail(UNREADABLE_UPLOAD_MESSAGE)
 
     manifest = bundle["manifest"]
+    # Undetermined resolves to the NEUTRAL default, never a specific specialty
+    # (FIX-C C-3.2). The health-system portal carries the sentinel link_id
+    # 'hs-portal', which has no upload-link row, so this chain used to end at the
+    # literal 'nephrology' and stamped EVERY hospital upload with it — a bare
+    # cardiology .json landed labeled nephrology, which routes the case to the
+    # wrong physician pool and mislabels it in the export, invisibly. 'general'
+    # is the ClinicalCase default and claims nothing; the admin treats it as
+    # "not yet determined" and prompts an operator to set the real value before
+    # promotion.
     specialty = (manifest.get("specialty")
                  or (store.get_upload_link(upload["link_id"]) or {}).get("specialty")
-                 or "nephrology")
+                 or "general")
 
     # Adapter pass: entry → fragments, grouped per patient.
     per_patient: Dict[str, List[Dict[str, Any]]] = {}
