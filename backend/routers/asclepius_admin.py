@@ -193,19 +193,45 @@ def _resolve_case_slice(store: Any, *, case_id: Optional[str], specialty: Option
         if portal_version and (payload.get("portal_version") or "v1") != portal_version:
             continue
         matched.append(r)
+
+    # Apply the SAME profile mapping the export applies, and count only what
+    # survives it (Seam 2). build_export silently drops any record whose type the
+    # buyer profile does not map, so counting the candidate set instead made the
+    # preview an upper bound — the operator saw "142 cases" and shipped fewer.
+    # Deriving both numbers from one mapped set is the only way they cannot drift.
+    from asclepius import profiles
+    prof = profiles.load_profile("default")
+    emitted: List[Dict[str, Any]] = []
+    mapped_bytes = 0
+    for rec in matched:
+        payload = dict(rec.get("payload") or {})
+        payload.pop("record_id", None)
+        try:
+            mapped = profiles.map_record(prof, payload)
+        except Exception:      # a mapping failure is not a preview failure
+            mapped = None
+        if mapped is None:
+            continue
+        emitted.append(rec)
+        mapped_bytes += len(json_dumps_safe(mapped))
+
     task_ids = {r.get("task_id") or (r.get("payload") or {}).get("task_id")
-                for r in matched} - {None}
+                for r in emitted} - {None}
     submission_ids: List[str] = []
-    for r in matched:
+    for r in emitted:
         sid = r.get("submission_id") or (r.get("payload") or {}).get("submission_id")
         if sid and sid not in submission_ids:
             submission_ids.append(sid)
-    specialties = {r.get("specialty") for r in matched} - {None, ""}
-    est = sum(len(json_dumps_safe(r.get("payload"))) for r in matched)
-    return {"records": matched, "submission_ids": submission_ids, "task_ids": task_ids,
-            "specialties": specialties, "estimated_bytes": est,
+    specialties = {r.get("specialty") for r in emitted} - {None, ""}
+    dropped = len(matched) - len(emitted)
+    note = None
+    if dropped:
+        note = (f"{dropped} matching record{'' if dropped == 1 else 's'} "
+                "cannot be mapped to the buyer profile and will not be included.")
+    return {"records": emitted, "submission_ids": submission_ids, "task_ids": task_ids,
+            "specialties": specialties, "estimated_bytes": mapped_bytes,
             "reviews": store.count_case_reviews_for_tasks(sorted(task_ids)),
-            "v5_runs": 0, "exportable": bool(matched), "note": None}
+            "v5_runs": 0, "exportable": bool(emitted), "note": note}
 
 
 def json_dumps_safe(obj: Any) -> str:
@@ -256,37 +282,36 @@ async def export_case_bundle(
                             or "Nothing matches these filters — adjust and preview again.")
     portal_version = _VERSION_TO_PORTAL.get((body.version or "").upper())
     note = body.note or "Admin export-by-case cut"
-    exports: List[Dict[str, Any]] = []
+    # ONE call to PRD-A's case-centric entry point (Seam 2). This used to loop
+    # build_export once per labeler submission, which meant an exact-case cut
+    # fragmented into N bundles the operator downloaded one at a time, and none
+    # of them carried the case-keyed cases.jsonl — so "export by case, not by
+    # physician", the whole point of this surface, was not what shipped.
+    export_by_case = getattr(asc_export, "export_by_case", None)
+    if export_by_case is None:
+        # Ships with PRD-A. Merge order is B → A → C, so this cannot happen in a
+        # correctly-ordered deploy — but a legible failure beats an AttributeError.
+        raise HTTPException(status_code=503,
+                            detail="Case-centric export is unavailable in this build.")
     try:
-        if body.case_id:
-            # Exact-case cut: one bundle per labeler submission of that case —
-            # the case-scoped hook build_export exposes today.
-            for sid in s["submission_ids"]:
-                res = asc_export.build_export(
-                    store, created_by=admin["id"], submission_id=sid,
-                    portal_version=portal_version, specialty=body.specialty or None,
-                    include_exported=True, note=f"{note} · case {body.case_id}")
-                exports.append(res)
-        else:
-            res = asc_export.build_export(
-                store, created_by=admin["id"], specialty=body.specialty or None,
-                portal_version=portal_version, include_exported=True, note=note)
-            exports.append(res)
+        res = export_by_case(
+            store, created_by=admin["id"], case_id=body.case_id or None,
+            specialty=body.specialty or None, portal_version=portal_version,
+            include_exported=True, note=note)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    store.log_event(entity_type="export", entity_id=exports[0].get("export_id"),
+    store.log_event(entity_type="export", entity_id=res.get("export_id"),
                     event_type="export_by_case", actor=admin["id"],
                     payload={"case_id": body.case_id, "specialty": body.specialty,
-                             "version": body.version,
-                             "export_ids": [e.get("export_id") for e in exports]})
-    total = sum(int(e.get("record_count") or 0) for e in exports)
+                             "version": body.version, "export_id": res.get("export_id")})
     return {
-        "exports": [{"export_id": e.get("export_id"), "filename": e.get("filename"),
-                     "record_count": e.get("record_count")} for e in exports],
-        "export_id": exports[0].get("export_id"),
-        "filename": exports[0].get("filename"),
-        "record_count": total,
-        "bundle_count": len(exports),
+        "exports": [{"export_id": res.get("export_id"), "filename": res.get("filename"),
+                     "record_count": res.get("record_count")}],
+        "export_id": res.get("export_id"),
+        "filename": res.get("filename"),
+        "record_count": res.get("record_count") or 0,
+        "case_count": res.get("case_count"),
+        "bundle_count": 1,
     }
 
 

@@ -4269,18 +4269,35 @@ class AsclepiusStore:
             exports_n = conn.execute("SELECT COUNT(*) FROM exports").fetchone()[0]
             shipped = conn.execute(
                 "SELECT COUNT(*) FROM records WHERE status = 'exported'").fetchone()[0]
-        reviews_total = 0
-        acceptance: Optional[float] = None
+        # ONE definition of expert acceptance (Seam 3): PRD-A's
+        # ``agreement.review_acceptance``. This block used to compute its own
+        # with `verdict IN ('accept','accept_with_edits')` while agreement.py
+        # counted strict accepts only — the same word, over the same table, at
+        # two numbers (~97% on the dashboard, ~84% in quality_report.md). It is
+        # the figure a buyer audits most closely, so it gets one owner. The
+        # combined figure is still available, under a DIFFERENT name.
+        reviews: List[Dict[str, Any]] = []
         try:
             with self._conn() as conn:
-                reviews_total = conn.execute("SELECT COUNT(*) FROM case_reviews").fetchone()[0]
-                row = conn.execute(
-                    "SELECT SUM(CASE WHEN verdict IN ('accept', 'accept_with_edits') "
-                    "THEN 1 ELSE 0 END) AS ok, COUNT(*) AS n FROM case_reviews").fetchone()
-                if row and row["n"]:
-                    acceptance = round((row["ok"] or 0) / row["n"], 3)
+                reviews = [dict(r) for r in conn.execute(
+                    "SELECT verdict, dimension_json FROM case_reviews").fetchall()]
         except sqlite3.OperationalError:
             pass  # PRD-A not merged — reviews read as "no data", not zero-rate
+        from asclepius import agreement as asc_agreement
+        _review_acceptance = getattr(asc_agreement, "review_acceptance", None)
+        if _review_acceptance is None:
+            # The owner of the definition is not present (PRD-A not merged).
+            # Report "unknown", never a locally-computed substitute — a second
+            # definition is the defect, and a wrong number is worse than none.
+            acc = {"n": len(reviews), "accept_rate": None, "edit_rate": None}
+        else:
+            acc = _review_acceptance(reviews)
+        reviews_total = int(acc.get("n") or 0)
+        acceptance = acc.get("accept_rate")
+        edit_rate = acc.get("edit_rate")
+        # "Not rejected" is a different number and therefore a different word.
+        not_rejected = (None if (not reviews_total or acceptance is None)
+                        else round((acceptance or 0) + (edit_rate or 0), 4))
         return {
             "supply": {
                 "physicians_active_week": int(active_week or 0),
@@ -4291,8 +4308,12 @@ class AsclepiusStore:
             "quality": {
                 # Tri-state: a float when reviews exist, null when none — "no
                 # reviews yet" must never render as a 0% acceptance rate.
+                # Strict accepts only, exactly as agreement.review_acceptance
+                # defines it and as quality_report.md reports it.
                 "expert_acceptance": acceptance,
-                "reviews_scored": int(reviews_total or 0),
+                "edit_rate": edit_rate,
+                "not_rejected": not_rejected,
+                "reviews_scored": reviews_total,
                 "spark": self.metrics_daily_counts("reviews"),
             },
             "pipeline": {

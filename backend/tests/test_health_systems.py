@@ -535,17 +535,28 @@ def test_export_case_preview_v5_routes_to_environments():
     assert "environments pipeline" in (p["note"] or "")
 
 
-def test_export_case_bundle_builds_and_409s_on_empty():
+def test_export_case_bundle_builds_one_bundle_and_409s_on_empty():
+    """Seam 2: an exact-case cut is ONE call to export_by_case, producing ONE
+    bundle. It used to loop build_export once per labeler submission, so the
+    operator got N bundles to download individually and none of them carried the
+    case-keyed cases.jsonl that "export by case" is named for."""
+    from asclepius import export as asc_export
+
     store = _store()
     headers = _admin_headers(store)
+    # Two submissions of the SAME case — the exact shape that used to fragment.
     _mk_export_record(store, task_id="t-case-03", submission_id="s-0003")
+    _mk_export_record(store, task_id="t-case-03", submission_id="s-0004")
 
     r = client.post("/api/asclepius/admin/export/case-bundle",
                     json={"case_id": "t-case-03"}, headers=headers)
+    if not hasattr(asc_export, "export_by_case"):
+        assert r.status_code == 503, "PRD-A absent: fail legibly, do not 500"
+        pytest.skip("export_by_case ships with PRD-A; verified in the integration tree")
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["record_count"] == 1
-    assert body["bundle_count"] == 1
+    assert body["bundle_count"] == 1, "an exact-case cut fragmented into several bundles"
+    assert body["record_count"] == 2
     assert body["exports"][0]["export_id"]
 
     # What the preview showed is what shipped — same resolver, so an empty
@@ -553,6 +564,14 @@ def test_export_case_bundle_builds_and_409s_on_empty():
     r2 = client.post("/api/asclepius/admin/export/case-bundle",
                      json={"case_id": "t-nope"}, headers=headers)
     assert r2.status_code == 409
+
+
+def test_export_wires_the_case_centric_entry_point():
+    """Seam 2 is a contract, and the previous round's failure was a comment
+    saying it would be wired that never wired it. Assert the call site."""
+    src = (Path(__file__).resolve().parents[1] / "routers" / "asclepius_admin.py").read_text()
+    assert "export_by_case" in src
+    assert "submission_id=sid" not in src, "the per-submission loop is back"
 
 
 # ─── Metrics: the four questions (Phase 6) ───────────────────────────────────
@@ -595,9 +614,35 @@ def test_metrics_four_questions_defensive_and_populated():
                 "VALUES (?, 't-m1', 's-m1', 'u-r', 'h', ?, ?)",
                 (f"rev-m{i}", verdict, "2026-01-01T00:00:00+00:00"))
     q2 = client.get("/api/asclepius/admin/metrics/questions", headers=headers).json()
-    assert q2["quality"]["expert_acceptance"] == 0.75
     assert q2["quality"]["reviews_scored"] == 4
     assert "kappa" not in q2["quality"]
+
+    # Seam 3: acceptance comes from agreement.review_acceptance() and NOWHERE
+    # else. Strict accepts only — 2 of 4 here. The old inline SQL counted
+    # accept + accept_with_edits and so reported 0.75 for the same reviews,
+    # which is why the dashboard and quality_report.md disagreed.
+    from asclepius import agreement as asc_agreement
+    if hasattr(asc_agreement, "review_acceptance"):
+        assert q2["quality"]["expert_acceptance"] == 0.5, (
+            "expert acceptance is not agreement.review_acceptance()'s number"
+        )
+        # The combined figure still exists — under a different word.
+        assert q2["quality"]["not_rejected"] == 0.75
+    else:
+        # PRD-A not merged: report unknown rather than a rival definition.
+        assert q2["quality"]["expert_acceptance"] is None
+        assert q2["quality"]["not_rejected"] is None
+
+
+def test_expert_acceptance_has_exactly_one_definition():
+    """Seam 3: no second implementation may reappear in the PRD-C block."""
+    src = (Path(__file__).resolve().parents[1] / "asclepius" / "store.py").read_text()
+    assert "accept_with_edits" not in src or "review_acceptance" in src
+    # The specific inline SQL that produced the rival number must stay gone.
+    assert "verdict IN ('accept', 'accept_with_edits')" not in src, (
+        "the inline acceptance SQL is back — agreement.review_acceptance() is "
+        "the only definition (Seam 3)"
+    )
 
 
 def test_metrics_questions_requires_admin():
