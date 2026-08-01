@@ -906,6 +906,36 @@ class AsclepiusStore:
             if "retain_raw" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN retain_raw INTEGER NOT NULL DEFAULT 0")
 
+            # ═══ PRD-B IDENTITY SCHEMA — owned by Agent 2, do not edit from other PRDs ═══
+            # Verification / credentialing / tiering columns (§4 shared contract).
+            # All nullable and deliberately WITHOUT defaults: on every status
+            # column NULL means "not yet checked / not yet decided" and must stay
+            # distinguishable from a decided value — a DEFAULT here would mark
+            # every pre-existing user as pending/approved, which is wrong.
+            for _col, _ddl in (
+                ("phone",               "TEXT"),
+                ("tier",                "TEXT"),     # labeler | reviewer | NULL(unassigned)
+                ("tier_score",          "REAL"),
+                ("tier_assigned_at",    "TEXT"),
+                ("tier_assigned_by",    "TEXT"),
+                ("verification_status", "TEXT"),     # pending | approved | rejected | NULL
+                ("verification_notes",  "TEXT"),
+                ("verified_by",         "TEXT"),
+                ("verified_at",         "TEXT"),
+                ("npi_verified",        "INTEGER"),  # 1 | 0 | NULL(not checked)
+                ("npi_payload_json",    "TEXT"),
+                ("npi_checked_at",      "TEXT"),
+                ("email_domain_class",  "TEXT"),     # academic | business | consumer
+                ("linkedin_url",        "TEXT"),
+                ("cv_asset_sha",        "TEXT"),
+                ("health_system_id",    "TEXT"),     # FK -> health_systems (PRD-C table)
+                ("slack_joined",        "INTEGER"),
+                ("slack_checked_at",    "TEXT"),
+            ):
+                if _col not in cols("users"):
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
+            # ═══ END PRD-B ═══
+
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
         self,
@@ -3748,6 +3778,95 @@ class AsclepiusStore:
         """Rollout rows that carry a physician annotation — the PRM training set
         (PRD §7.5). Each dict has ``trajectory`` + ``physician_annotation``."""
         return self.list_env_runs(specialty=specialty, mode="rollout", has_annotation=True)
+
+    # ═══ PRD-B IDENTITY METHODS — owned by Agent 2, do not edit from other PRDs ═══
+    def set_npi_result(self, user_id: str, result: Dict[str, Any]) -> None:
+        """Persist an NPI check outcome onto the user row.
+
+        Three states, never collapsed:
+          verified              -> npi_verified = 1
+          mismatch / not_found  -> npi_verified = 0   (definitive negative)
+          unavailable / other   -> npi_verified = NULL (could NOT check)
+
+        ``npi_checked_at`` is stamped ONLY on definitive outcomes, so an
+        UNAVAILABLE attempt never satisfies the 30-day NPI cache and never
+        suppresses a retry.
+        """
+        outcome = (result or {}).get("result")
+        if outcome == "verified":
+            flag: Optional[int] = 1
+        elif outcome in ("mismatch", "not_found"):
+            flag = 0
+        else:
+            flag = None
+        checked_at = _utcnow_iso() if flag is not None else None
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET npi_verified = ?, npi_payload_json = ?, "
+                "npi_checked_at = ? WHERE id = ?",
+                (flag, json.dumps(result or {}), checked_at, user_id),
+            )
+
+    def get_cached_npi_fetch(self, npi: str, max_age_days: int = 30) -> Optional[Dict[str, Any]]:
+        """A fresh definitive NPPES answer for this NPI, if any user row holds
+        one — shaped like ``credentialing.fetch_npi_record`` output so the
+        caller can recompute the name match for the CURRENT signup (a cache
+        keyed by NPI alone must never cache the verdict).
+
+        Returns None when there is no definitive check within the window;
+        UNAVAILABLE attempts never populate the cache (``npi_checked_at`` stays
+        NULL for them).
+        """
+        npi = (npi or "").strip()
+        if not npi:
+            return None
+        cutoff = (datetime.utcnow() - timedelta(days=max(0, max_age_days))).replace(
+            microsecond=0).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT npi_payload_json FROM users "
+                "WHERE npi = ? AND npi_checked_at IS NOT NULL AND npi_checked_at >= ? "
+                "AND npi_payload_json IS NOT NULL "
+                "ORDER BY npi_checked_at DESC LIMIT 1",
+                (npi, cutoff),
+            ).fetchone()
+        if not row:
+            return None
+        try:
+            stored = json.loads(row["npi_payload_json"] or "{}")
+        except (TypeError, ValueError):
+            return None
+        outcome = stored.get("result")
+        if outcome == "not_found":
+            return {"status": "not_found", "record": None, "reason": "cached"}
+        if outcome in ("verified", "mismatch") and stored.get("record"):
+            return {"status": "found", "record": stored["record"], "reason": "cached"}
+        return None
+
+    def set_verification_status(
+        self, user_id: str, status: Optional[str], *, notes: Optional[str] = None
+    ) -> None:
+        """Set the human-review lifecycle state (pending | approved | rejected).
+        Notes are only overwritten when provided."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET verification_status = ?, "
+                "verification_notes = COALESCE(?, verification_notes) WHERE id = ?",
+                (status, notes, user_id),
+            )
+
+    def find_users_by_npi(self, npi: str) -> List[Dict[str, Any]]:
+        """All user rows claiming this NPI — duplicate detection for the tier
+        scorer's blocker list."""
+        npi = (npi or "").strip()
+        if not npi:
+            return []
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users WHERE npi = ? ORDER BY created_at ASC", (npi,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+    # ═══ END PRD-B ═══
 
 
 # ─── Process-wide singleton ───────────────────────────────────────────────────
