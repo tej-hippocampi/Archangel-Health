@@ -2438,6 +2438,8 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
 .asc-hs-notes { max-width: 320px; }
 .asc-hs-actions { white-space: nowrap; text-align: right; }
 .asc-row-click { cursor: pointer; }
+/* The row an operator deep-linked to from a Health Systems bucket. */
+.asc-row-focus > td { background: rgba(213, 225, 78, 0.28); }
 .asc-row-click:hover td { background: rgba(76, 166, 60, 0.05); }
 
 /* Physicians — filter chips with live counts */

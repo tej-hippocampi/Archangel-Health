@@ -285,6 +285,73 @@ def test_provision_503_when_email_unconfigured(monkeypatch):
     assert store.list_hs_portal_users() == []
 
 
+# ─── Phase 5: admin UI regressions ───────────────────────────────────────────
+def test_restored_operator_metrics_are_on_the_page():
+    """C-5.1: the four-question restructure claimed "the deeper diagnostics keep
+    their cards below" and then deleted them. QA pass rate, average agreement,
+    flaw catch rate and Multimodal-in-queue appeared nowhere — and the tell was
+    that sc/qpr/flaw/sumValues had become dead code."""
+    src = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    body = src[src.index("async function renderMetricQuestions"):
+               src.index("async function renderAdminMetrics")]
+    for label in ("QA pass rate", "Flaw catch rate", "Avg agreement", "Multimodal in queue"):
+        assert label in body, f"{label!r} was deleted rather than relocated"
+    # And they are wired to real /stats fields, not hardcoded.
+    for field in ("qa_pass_rate", "flaw_catch_rate", "open_modality_counts", "average_agreement"):
+        assert field in body, f"{field} is not read"
+
+
+def test_bucket_actions_deep_link_to_their_row():
+    """C-5.2: the bucket buttons always passed their upload to openPipeline,
+    which ignored the argument and just switched tabs — so [Review] and
+    [Promote to task] dropped the operator into an unfiltered page."""
+    src = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    assert "openPipeline: (entry)" in src, "openPipeline still takes no argument"
+    assert "pipelineFocus" in src
+    health = (_FRONTEND / "admin_health.js").read_text(encoding="utf-8")
+    assert "openPipeline(it)" in health
+
+
+def test_specialty_dropdown_is_not_truncated():
+    """C-5.3: list_tasks defaults to limit=500, so a specialty outside the 500
+    most recent tasks never appeared in the export filter."""
+    src = (Path(__file__).resolve().parents[1] / "routers" / "asclepius_admin.py").read_text()
+    block = src[src.index("async def export_case_options"):
+                src.index("async def export_case_preview")]
+    assert "limit=" in block, "list_tasks is still called with its default limit"
+
+
+def test_ensure_health_system_returns_the_committed_row():
+    """C-5.5: get_health_system opened a SECOND connection from inside the
+    still-uncommitted write, so the returned dict carried contact_email None
+    while the committed row held the real address."""
+    store = _store()
+    store.ensure_health_system("Stale General")            # created without an email
+    got = store.ensure_health_system("Stale General", contact_email="data@stale.example.org")
+    assert got["contact_email"] == "data@stale.example.org", "stale row returned"
+    assert store.get_health_system(got["hs_id"])["contact_email"] == "data@stale.example.org"
+
+
+def test_backfill_does_not_name_a_health_system_after_an_internal_id():
+    """C-5.6: a live run produced {'name': 'u_abc123'}, which renders in the
+    Health Systems table as though a hospital were called that. The same path
+    named one after the provider's email address."""
+    store = _store()
+    with store._conn() as conn:
+        conn.execute("INSERT INTO ingest_uploads (upload_id, link_id, partner_id, status, "
+                     "created_at, updated_at) VALUES ('upl-int', 'L', 'u_abc123', 'ingested', "
+                     "'2025-01-01', '2025-01-01')")
+        conn.execute("INSERT INTO data_providers (provider_id, email, org_name, created_at, "
+                     "updated_at) VALUES ('u-mail', 'it@mercy.org', '', '2025-01-01', '2025-01-01')")
+    store._migrate()
+    names = {h["name"] for h in store.list_health_systems()}
+    assert "u_abc123" not in names, "a health system is named after an internal user id"
+    assert "it@mercy.org" not in names, "a health system is named after an email address"
+    assert any(n.startswith("Unnamed partner") for n in names), names
+    # Still adopted — the upload is not orphaned, it is just honestly labeled.
+    assert store.get_ingest_upload("upl-int")["health_system_id"]
+
+
 # ─── Backfill ────────────────────────────────────────────────────────────────
 def test_backfill_adopts_historical_partner_uploads():
     store = _store()

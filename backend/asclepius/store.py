@@ -46,6 +46,20 @@ def _iso_minus_seconds(seconds: int) -> str:
         microsecond=0).isoformat()
 
 
+def _needs_naming(raw: Optional[str]) -> str:
+    """Label a backfilled health system that has no real organization name.
+
+    A historical partner row may carry only an internal user id (``u_abc123``)
+    or a contact email. Neither is an organization, and rendering one in the
+    Health Systems table as though it were makes the operator believe a hospital
+    is called that. Mark it instead, so it is obviously waiting to be named."""
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    looks_internal = raw.lower().startswith(("u_", "u-")) or "@" in raw
+    return f"Unnamed partner ({raw})" if looks_internal else raw
+
+
 def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12]}"
 
@@ -3859,18 +3873,27 @@ class AsclepiusStore:
         only touches uploads still missing a health_system_id."""
         labels: Dict[str, str] = {}
         for r in conn.execute("SELECT provider_id, org_name, email FROM data_providers").fetchall():
-            label = (r["org_name"] or "").strip() or (r["email"] or "").strip()
+            # An email address is not an organization name (C-5.6). Where
+            # org_name is blank there is nothing human to show, so the row is
+            # named for manual correction rather than rendered as if a hospital
+            # were literally called "it@mercy.org".
+            label = (r["org_name"] or "").strip() or _needs_naming(r["email"])
             if label:
                 labels[r["provider_id"]] = label
         for r in conn.execute("SELECT DISTINCT partner_id, partner_label FROM ingest_upload_links").fetchall():
-            label = (r["partner_label"] or "").strip() or (r["partner_id"] or "").strip()
+            label = (r["partner_label"] or "").strip() or _needs_naming(r["partner_id"])
             if label:
                 labels.setdefault(r["partner_id"], label)
         for r in conn.execute(
             "SELECT DISTINCT partner_id FROM ingest_uploads WHERE health_system_id IS NULL"
         ).fetchall():
-            if (r["partner_id"] or "").strip() and r["partner_id"] != "account":
-                labels.setdefault(r["partner_id"], r["partner_id"])
+            pid = (r["partner_id"] or "").strip()
+            # 'account' is the LINK_ID sentinel and never a partner_id, so the
+            # old guard here was dead — which is how an internal user id such as
+            # 'u_abc123' ended up rendering in the Health Systems table as an
+            # organization.
+            if pid:
+                labels.setdefault(pid, _needs_naming(pid))
         for partner_id, label in labels.items():
             row = conn.execute(
                 "SELECT hs_id FROM health_systems WHERE LOWER(name) = LOWER(?)", (label,)
@@ -3902,15 +3925,24 @@ class AsclepiusStore:
                 if contact_email and not row["contact_email"]:
                     conn.execute("UPDATE health_systems SET contact_email = ? WHERE hs_id = ?",
                                  (contact_email, row["hs_id"]))
-                    return self.get_health_system(row["hs_id"])  # type: ignore[return-value]
+                    # Return the UPDATED values from this connection rather than
+                    # re-reading (C-5.5): get_health_system opens a SECOND
+                    # connection, and from inside this still-uncommitted block it
+                    # read the pre-update row — so the caller got contact_email
+                    # None while the committed row held the real address.
+                    merged = dict(row)
+                    merged["contact_email"] = contact_email
+                    return merged
                 return dict(row)
             hs_id = self.hs_id_for_name(clean)
+            now = _utcnow_iso()
             conn.execute(
                 "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at) "
                 "VALUES (?, ?, ?, ?, 1, ?)",
-                (hs_id, clean, contact_email, notes, _utcnow_iso()),
+                (hs_id, clean, contact_email, notes, now),
             )
-        return self.get_health_system(hs_id)  # type: ignore[return-value]
+            return {"hs_id": hs_id, "name": clean, "contact_email": contact_email,
+                    "notes": notes, "active": 1, "created_at": now}
 
     def get_health_system(self, hs_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:

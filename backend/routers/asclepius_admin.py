@@ -245,7 +245,11 @@ def json_dumps_safe(obj: Any) -> str:
 @router.get("/export/case-options")
 async def export_case_options(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
     store = _store()
-    specialties = sorted({t.get("specialty") for t in store.list_tasks()} - {None, ""})
+    # Explicit high limit (C-5.3): list_tasks defaults to 500, so a specialty
+    # outside the 500 most recent tasks silently never appeared in the filter —
+    # the operator could not export a slice they could see existed.
+    specialties = sorted({t.get("specialty") for t in store.list_tasks(limit=100000)}
+                         - {None, ""})
     return {"specialties": specialties, "versions": ["V3", "V4", "V5"]}
 
 

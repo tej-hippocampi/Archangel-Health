@@ -42,6 +42,7 @@
     // (Physicians · Health Systems · Export · Metrics); the old stage-named
     // views live on as sub-tabs inside them.
     adminTab: 'physicians',   // physicians | health | export | metrics
+    pipelineFocus: null,      // upload_id deep-linked from a Health Systems bucket row
     adminSub: {               // active sub-tab per section
       physicians: 'roster',   //   roster | verify | tasks | qa
       health: 'systems',      //   systems | pipeline
@@ -5890,9 +5891,14 @@
   function adminSectionCtx() {
     return {
       h, api, clear, toast, loadingCard, downloadBlob, fmtDate,
-      // Jump to the pipeline tools (the ingestion review/promote surface).
-      openPipeline: () => {
+      // Jump to the pipeline tools (the ingestion review/promote surface),
+      // deep-linked to the row that was clicked (C-5.2). The bucket buttons
+      // always passed their upload; this used to ignore the argument and just
+      // switch tabs, so the operator had to re-find the upload they had just
+      // clicked on.
+      openPipeline: (entry) => {
         state.adminTab = 'health'; state.adminSub.health = 'pipeline';
+        state.pipelineFocus = (entry && (entry.upload_id || entry.uploadId)) || null;
         renderAdminView();
       },
     };
@@ -6241,6 +6247,21 @@
     body.appendChild(renderReconcileCard());
     body.appendChild(uploadsCard);
     body.appendChild(casesCard);
+    // Deep-linked from a Health Systems bucket row (C-5.2): say which upload the
+    // operator arrived for, and scroll to it once the lists land — otherwise
+    // [Review] / [Promote to task] drop them into an unfiltered page.
+    if (state.pipelineFocus) {
+      const focus = state.pipelineFocus;
+      state.pipelineFocus = null;
+      body.insertBefore(h('div', { class: 'asc-inline-ok', style: 'margin-bottom:12px' },
+        'Showing pipeline tools for upload ', h('code', { class: 'asc-mono' }, focus)), mintCard);
+      loadIngestionLists().then(() => {
+        const row = document.querySelector('[data-upload="' + focus + '"]');
+        if (row && row.scrollIntoView) row.scrollIntoView({ block: 'center' });
+        if (row && row.classList) row.classList.add('asc-row-focus');
+      }).catch(() => {});
+      return;
+    }
     loadIngestionLists();
   }
 
@@ -8190,6 +8211,13 @@
           pipeline = q.pipeline || {}, demand = q.demand || {};
     const kappa = (s && s.kappa) || {};
     const grounded = (s && s.grounded) || {};
+    // Operator diagnostics that the four-question restructure dropped on the
+    // floor (C-5.1). They belong INSIDE the questions they answer, not in a
+    // separate wall of tiles — but they do have to be on the page.
+    const qpr = (s && s.qa_pass_rate) || {};
+    const flaw = (s && s.flaw_catch_rate) || {};
+    const omc = (s && s.open_modality_counts) || {};
+    const sc = (s && s.status_counts) || {};
     // Tri-state acceptance: null means "no reviews yet", which must never be
     // shown as a 0% acceptance rate.
     const acc = quality.expert_acceptance;
@@ -8204,15 +8232,31 @@
           ['Cases reviewed', supply.cases_reviewed || 0]]),
       // Expert acceptance and Cohen's κ are DIFFERENT statistics, presented
       // separately and labeled — merging them would misreport the number a
-      // buyer audits most closely.
+      // buyer audits most closely. "Not rejected" is the combined figure
+      // (accept + accept_with_edits) and carries its own name for the same
+      // reason: a different number needs a different word.
       metricQuestionCard('Quality', accHeadline, accSub, quality.spark, [
         ["Cohen's κ (independent slice)",
          fmtNum(kappa.overall) + ' · n=' + (kappa.n != null ? kappa.n : 0)],
-        ['Citation rate', (grounded.grounded_pct != null ? grounded.grounded_pct : 0) + '%']]),
+        ['Not rejected', quality.not_rejected == null
+          ? '—' : Math.round(quality.not_rejected * 100) + '%'],
+        ['Citation rate', (grounded.grounded_pct != null ? grounded.grounded_pct : 0) + '%'],
+        // Restored (C-5.1): the restructure was right, deleting these was not.
+        ['QA pass rate', (qpr.pass_rate != null ? Math.round(qpr.pass_rate * 100) : 0) + '%'
+          + ' (' + (qpr.passed || 0) + '/' + (qpr.reviewed || 0) + ')'],
+        ['Flaw catch rate', flaw.rate != null
+          ? Math.round(flaw.rate * 100) + '% (' + (flaw.caught || 0) + '/' + (flaw.scored || 0) + ')'
+          : '—'],
+        ['Avg agreement', fmtNum(s.average_agreement)]]),
       metricQuestionCard('Pipeline', pipeline.uploads_received || 0,
         'uploads received', pipeline.spark, [
           ['Awaiting review', pipeline.awaiting_review || 0],
-          ['Promoted to task', pipeline.promoted_to_task || 0]]),
+          ['Promoted to task', pipeline.promoted_to_task || 0],
+          // Multimodal Debug PRD §P3.11: "0" here is the tell that generation
+          // stalled, before anyone wonders why no case panel appears.
+          ['Multimodal in queue', (omc.multimodal != null ? omc.multimodal : 0)
+            + ' (' + (omc.text != null ? omc.text : 0) + ' text)'],
+          ['Submissions', sumValues(sc)]]),
       metricQuestionCard('Demand', demand.buyer_requests || 0,
         'buyer requests', demand.spark, [
           ['Exports', demand.exports || 0],
