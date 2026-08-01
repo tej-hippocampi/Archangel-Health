@@ -100,15 +100,83 @@ def npi_checksum_ok(npi: str) -> bool:
 _NAME_SUFFIXES = {
     "jr", "sr", "ii", "iii", "iv", "v",
     "md", "do", "phd", "mbbs", "dds", "dmd", "np", "pa", "rn", "esq",
+    "faap", "facs", "facp", "mph", "msc", "ms", "mba", "frcs", "frcp",
 }
+
+# B-5.2: several suffix tokens are also real surnames — "Do" is a common
+# Vietnamese family name, "Pa" and "V" occur too. Stripping them
+# unconditionally reduced the name to '' and produced a guaranteed MISMATCH
+# for those physicians. These are dropped only when something else survives.
+_SUFFIXES_THAT_ARE_ALSO_SURNAMES = {"do", "pa", "v", "ms", "iv", "ii"}
+
+
+def _strip_accents(s: str) -> str:
+    """NFKD-fold and drop combining marks.
+
+    NPPES stores names ASCII-folded, so without this every physician with an
+    accented surname mismatched BY CONSTRUCTION: the old ``[^a-z\\s\\-']``
+    filter turned each accented letter into a space, making "Muñoz" -> "mu oz"
+    and "García" -> "garc a", neither of which matches the registry's "MUNOZ"
+    / "GARCIA".
+    """
+    return "".join(
+        ch for ch in unicodedata.normalize("NFKD", s or "")
+        if not unicodedata.combining(ch)
+    )
 
 
 def _normalize_family_name(name: str) -> str:
-    s = (name or "").casefold()
+    s = _strip_accents(name).casefold()
+    # ß and similar have no combining-mark decomposition; NFKD leaves them.
+    s = s.replace("ß", "ss").replace("ø", "o").replace("đ", "d").replace("ł", "l")
     s = re.sub(r"[^a-z\s\-']", " ", s)
     s = s.replace("-", " ").replace("'", "")
-    tokens = [t for t in s.split() if t and t not in _NAME_SUFFIXES]
-    return " ".join(tokens)
+    tokens = [t for t in s.split() if t]
+    kept = [t for t in tokens if t not in _NAME_SUFFIXES]
+    if not kept:
+        # Everything looked like a suffix. If the name IS a suffix-shaped
+        # surname ("Do"), keep it rather than returning '' — an empty
+        # normalization is an automatic MISMATCH.
+        kept = [t for t in tokens if t in _SUFFIXES_THAT_ARE_ALSO_SURNAMES] or tokens
+    return " ".join(kept)
+
+
+def family_name_from_legal_name(legal_name: str) -> str:
+    """Extract the family name from a free-text legal-name field.
+
+    ``legal_name.split()[-1]`` was wrong for the single most likely thing a
+    physician types: "Jane Doe, MD" yielded "MD" and "John Smith Jr" yielded
+    "Jr", both normalizing to '' and mismatching by construction. Drop a
+    trailing comma-clause of credentials, then take the last token that is not
+    a suffix.
+    """
+    s = (legal_name or "").strip()
+    if not s:
+        return ""
+    # "Jane Doe, MD, FACP" -> "Jane Doe"; but keep "Doe, Jane" usable.
+    head = s.split(",")[0].strip()
+    if head:
+        s = head
+    tokens = [t for t in re.split(r"\s+", s) if t]
+    # Drop leading honorifics so a one-word name isn't read as the title.
+    while len(tokens) > 1 and tokens[0].casefold().strip(".") in (
+            "dr", "doctor", "prof", "professor", "mr", "ms", "mrs", "mx"):
+        tokens = tokens[1:]
+    for token in reversed(tokens):
+        cleaned = re.sub(r"[^\w\-']", "", token, flags=re.UNICODE)
+        if not cleaned:
+            continue
+        low = _strip_accents(cleaned).casefold()
+        if low in _NAME_SUFFIXES and len(tokens) > 1:
+            # Ambiguous tokens ("Do", "Pa", "V") are real surnames as often as
+            # credentials. Decide by arity: with just a given name and this
+            # token, this token IS the surname ("Minh Do"); with three or more
+            # there is already a surname ahead of it ("Jane Doe DO").
+            if low in _SUFFIXES_THAT_ARE_ALSO_SURNAMES and len(tokens) <= 2:
+                return cleaned
+            continue
+        return cleaned
+    return tokens[-1] if tokens else ""
 
 
 def family_names_match(claimed: str, registry: str) -> bool:
@@ -227,6 +295,16 @@ def _trim_record(record: Dict[str, Any]) -> Dict[str, Any]:
             else None
         ),
         "location": location,
+        # L3: keep the aliases. _trim_record output IS what the 30-day cache
+        # serves, so dropping other_names made a CACHED record mismatch a
+        # physician whose alias a FRESH fetch would have matched — the same
+        # NPI giving two different answers depending on cache state. Names
+        # only; no address, no phone.
+        "other_names": [
+            {"last_name": o.get("last_name")}
+            for o in (record.get("other_names") or [])
+            if isinstance(o, dict) and o.get("last_name")
+        ],
     }
 
 
@@ -310,18 +388,23 @@ def verify_npi(
             "from_cache": from_cache,
         }
 
-    matched = any(
-        family_names_match(family_name, reg_name)
-        for reg_name in _registry_family_names(record)
-    )
+    registry_names = _registry_family_names(record)
+    matched = any(family_names_match(family_name, reg) for reg in registry_names)
     if not matched:
-        # Distinguish "names differ" from "we had no name to compare" — both
-        # are review flags (never rejections), but the admin should see which.
-        no_input = not _normalize_family_name(family_name)
+        # Three distinct facts, not one (L2). "The names differ" is evidence;
+        # "we had nothing to compare" is not, and an admin working the queue
+        # must be able to tell them apart. All three are review flags, never
+        # rejections.
+        if not _normalize_family_name(family_name):
+            reason = "no_family_name_to_compare"
+        elif not registry_names:
+            reason = "registry_record_has_no_name"
+        else:
+            reason = "family_name_mismatch"
         return {
             "result": NpiResult.MISMATCH.value,
             "npi": number,
-            "reason": "no_family_name_to_compare" if no_input else "family_name_mismatch",
+            "reason": reason,
             "record": trimmed,
             "from_cache": from_cache,
         }

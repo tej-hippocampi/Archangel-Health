@@ -282,6 +282,60 @@ def test_family_name_normalization(claimed, registry, expected):
     assert family_names_match(claimed, registry) is expected
 
 
+# ─── B-5.2: real physicians must not be false-flagged ───────────────────────
+# The measured table from the audit. Every row here MISMATCHED before the fix:
+# NPPES stores names ASCII-folded, so accented surnames mismatched by
+# construction, and the legal-name field is free text.
+@pytest.mark.parametrize("legal_name,registry_last,should_match", [
+    ("Ana Muñoz",          "MUNOZ",     True),   # was MISMATCH ("mu oz")
+    ("José García",        "GARCIA",    True),   # was MISMATCH ("garc a")
+    ("Jane Doe, MD",       "DOE",       True),   # family read as "MD" -> ''
+    ("John Smith Jr",      "SMITH",     True),   # family read as "Jr"  -> ''
+    ("Minh Do",            "DO",        True),   # "do" stripped as Doctor of Osteopathy
+    ("Søren Kierkegaard",  "KIERKEGAARD", True),
+    ("Renée Dubois-Blanc", "DUBOIS BLANC", True),
+    ("Dr. Tej Patel",      "PATEL",     True),
+    ("Ana Muñoz",          "JONES",     False),  # a real mismatch still mismatches
+    ("Jane Doe, MD",       "SMITH",     False),
+])
+def test_family_name_matching_against_ascii_folded_registry(
+        legal_name, registry_last, should_match):
+    from asclepius.credentialing import family_name_from_legal_name
+    family = family_name_from_legal_name(legal_name)
+    assert family_names_match(family, registry_last) is should_match, (
+        f"{legal_name!r} -> family {family!r} vs registry {registry_last!r}")
+
+
+@pytest.mark.parametrize("legal_name,expected", [
+    ("Jane Doe, MD", "Doe"),
+    ("John Smith Jr", "Smith"),
+    ("Dr. Tej Patel", "Patel"),
+    ("Ana Muñoz", "Muñoz"),
+    ("Minh Do", "Do"),
+    ("Doe, Jane", "Doe"),
+    ("Cher", "Cher"),
+    ("", ""),
+])
+def test_family_name_extraction(legal_name, expected):
+    from asclepius.credentialing import family_name_from_legal_name
+    assert family_name_from_legal_name(legal_name) == expected
+
+
+def test_accented_signup_verifies_end_to_end(monkeypatch):
+    """The consequence: before the fix this physician got a blocker, no tier
+    proposal, and forced manual review — at 50 signups a day that buries the
+    queue in false flags."""
+    from asclepius.credentialing import family_name_from_legal_name
+    monkeypatch.setattr(
+        credentialing.httpx, "get",
+        lambda *a, **kw: _FakeResponse(payload={
+            "result_count": 1,
+            "results": [_nppes_record(last_name="MUNOZ", first_name="ANA")]}),
+    )
+    out = verify_npi(VALID_NPI, family_name_from_legal_name("Ana Muñoz, MD"))
+    assert out["result"] == NpiResult.VERIFIED.value
+
+
 def test_other_names_are_checked(monkeypatch):
     monkeypatch.setattr(
         credentialing.httpx, "get",
@@ -301,6 +355,37 @@ def test_cache_hit_skips_the_network(monkeypatch):
     out = verify_npi(VALID_NPI, "Smith", cached=cached)
     assert out["result"] == NpiResult.VERIFIED.value
     assert out["from_cache"] is True
+
+
+def test_cached_record_keeps_aliases(monkeypatch):
+    """L3 — the trimmed record IS what the cache serves. Dropping other_names
+    made a cached record mismatch a physician whose alias a fresh fetch would
+    have matched: the same NPI answering differently by cache state."""
+    monkeypatch.setattr(
+        credentialing.httpx, "get",
+        lambda *a, **kw: _FakeResponse(payload={
+            "result_count": 1,
+            "results": [_nppes_record(last_name="Garcia", other_names=("Garcia-Lopez",))]}),
+    )
+    fresh = verify_npi(VALID_NPI, "Garcia Lopez")
+    assert fresh["result"] == NpiResult.VERIFIED.value
+    # replay the persisted record as the cache would
+    replayed = verify_npi(VALID_NPI, "Garcia Lopez",
+                          cached={"status": "found", "record": fresh["record"]})
+    assert replayed["result"] == NpiResult.VERIFIED.value
+
+
+def test_registry_record_without_a_name_has_its_own_reason(monkeypatch):
+    """L2 — 'nothing to compare' and 'the names differ' are different facts."""
+    rec = _nppes_record()
+    rec["basic"].pop("last_name")
+    monkeypatch.setattr(
+        credentialing.httpx, "get",
+        lambda *a, **kw: _FakeResponse(payload={"result_count": 1, "results": [rec]}),
+    )
+    out = verify_npi(VALID_NPI, "Smith")
+    assert out["result"] == NpiResult.MISMATCH.value
+    assert out["reason"] == "registry_record_has_no_name"
 
 
 def test_trimmed_cached_record_still_verifies(monkeypatch):

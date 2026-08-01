@@ -5,7 +5,7 @@ import logging
 import os
 import string
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import secrets
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
@@ -54,6 +54,13 @@ _ASCLEPIUS_TEAM_CAP = 10  # director + up to 10 invited clinicians
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 
 log = logging.getLogger("onboarding")
+
+
+def _asc_credentialing():
+    """Lazy import — keeps the Asclepius package out of this router's import
+    graph for the clinical-only paths."""
+    from asclepius import credentialing
+    return credentialing
 
 
 def _ts(request: Request):
@@ -662,7 +669,11 @@ def _provision_asclepius_user(
         clinical_role=clinical_role or None,
         specialty=primary_specialty,
         board_cert=board_cert,
-        npi=(creds.get("npi") or None),
+        # B-5.1: store the NORMALIZED NPI. Every lookup uses the cleaned form
+        # (get_cached_npi_fetch, find_users_by_npi), so a value posted as
+        # "1234-567893" through the API matched no cache row and no duplicate
+        # row — a dash defeated the duplicate-NPI blocker outright.
+        npi=(_asc_credentialing().clean_npi(creds.get("npi") or "") or None),
         years_experience=years,
         credentials=creds,
         attestations=attestations or {},
@@ -696,20 +707,22 @@ def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, 
         log.exception("[credentialing] identity capture failed (non-fatal)")
 
     try:
+        # The sha and its parse were both recorded server-side at upload time
+        # (see asclepius_cv_upload). Nothing is parsed here: OCR on the signup
+        # path is exactly the CPU-bound work B-1.1 is about, and the parse is
+        # advisory anyway.
         cv_sha = str(creds.get("cvAssetSha") or "").strip()
         if cv_sha:
-            parsed = credentialing.parse_cv(
-                cv_sha, mime=str(creds.get("cvMime") or "application/pdf"))
-            store.set_cv(uid, cv_sha, parsed)
+            parsed = creds.get("cvParsed")
+            store.set_cv(uid, cv_sha, parsed if isinstance(parsed, dict) else None)
     except Exception:
-        # A CV that cannot be parsed is empty-fields + raw file for the admin.
-        log.exception("[credentialing] CV parse failed (non-fatal)")
+        # A CV that cannot be attached is empty-fields + raw file for the admin.
+        log.exception("[credentialing] CV attach failed (non-fatal)")
 
     npi = credentialing.clean_npi(str(creds.get("npi") or ""))
     if npi:
-        # Family name only — given names diverge legitimately (Bob/Robert).
-        legal_name = str(creds.get("fullLegalName") or user.get("full_name") or "").strip()
-        family_name = legal_name.split()[-1] if legal_name else ""
+        family_name = credentialing.family_name_from_legal_name(
+            str(creds.get("fullLegalName") or user.get("full_name") or ""))
         try:
             cached = store.get_cached_npi_fetch(npi)
             result = credentialing.verify_npi(npi, family_name, cached=cached)
@@ -810,7 +823,9 @@ async def asclepius_credentials(body: AsclepiusCredentialsBody, request: Request
     director_email = (row.get("director_email") or "").strip()
     if not director_email or not ts.get_asclepius_person(row["id"], director_email):
         raise HTTPException(status_code=400, detail="Complete your institution details first.")
-    ts.save_asclepius_credentials(row["id"], director_email, body.credentials)
+    ts.save_asclepius_credentials(
+        row["id"], director_email,
+        _preserve_server_cv_fields(ts, row["id"], director_email, body.credentials))
     return {"ok": True}
 
 
@@ -836,20 +851,39 @@ async def asclepius_attestations(body: AsclepiusAttestationsBody, request: Reque
 )
 async def asclepius_cv_upload(
     request: Request,
+    background: BackgroundTasks,
     token: str = Form(...),
     file: UploadFile = File(...),
 ):
-    """Optional CV upload during signup (PRD-B Phase 2/4). Accepts either the
-    director onboarding token or an invited-member token; stores the raw
-    document content-addressed and returns the sha for the credentials form.
-    A failed upload never blocks signup — the CV field is optional."""
+    """Optional CV upload during signup (PRD-B Phase 2/4).
+
+    Accepts either the director onboarding token or an invited-member token,
+    stores the raw document content-addressed, and records the sha **on the
+    person's own row, server-side** (B-5.7). The sha is never round-tripped
+    through the client: ``credentials`` is a free-form dict, so a client-set
+    ``cvAssetSha`` would be an unvalidated reference into the shared asset
+    store — which also holds de-identified clinical images.
+
+    Parsing happens AFTER the response is sent (B-1.1): pdfminer/PyPDF2 and
+    especially the OCR fallback are tens of CPU-seconds, and nothing about the
+    CV needs to be parsed before the form returns.
+    """
     from asclepius import credentialing
 
+    ts = _ts(request)
+    # Resolve which person this upload belongs to, from the token alone.
+    hs_id = person_email = None
     try:
-        _load_hs(request, token)
+        row = _load_hs(request, token)
+        row = ts.get_health_system_by_id(row["id"]) or row
+        hs_id, person_email = row["id"], (row.get("director_email") or "").strip()
     except HTTPException:
-        _load_asclepius_member(request, token)  # 404s if neither token is valid
-    data = await file.read()
+        _ts_m, person, hs = _load_asclepius_member(request, token)  # 404s if invalid
+        hs_id, person_email = hs["id"], person["email"]
+    if not hs_id or not person_email:
+        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+
+    data = await _read_capped(file, credentialing.CV_MAX_BYTES, request)
     try:
         meta = credentialing.store_cv(data, file.content_type or "")
     except credentialing.CvUploadError as exc:
@@ -861,8 +895,81 @@ async def asclepius_cv_upload(
         raise HTTPException(status_code=503,
                             detail="Could not store the CV right now — you can "
                                    "finish signup without it.")
-    return {"ok": True, "sha256": meta["sha256"], "mime": meta["mime"],
-            "byte_size": meta["byte_size"]}
+
+    _record_cv_on_person(ts, hs_id, person_email, sha=meta["sha256"], mime=meta["mime"])
+    # Sync function -> FastAPI runs it in a threadpool after the response.
+    background.add_task(_parse_cv_into_person, ts, hs_id, person_email,
+                        meta["sha256"], meta["mime"])
+    return {"ok": True, "filename": file.filename, "byte_size": meta["byte_size"]}
+
+
+async def _read_capped(file: UploadFile, max_bytes: int, request: Request) -> bytes:
+    """Read an upload with a running cap (B-5.4).
+
+    ``await file.read()`` buffers the entire body before any size check, so an
+    arbitrarily large upload is resident in memory before it can be rejected —
+    cheap memory pressure against a single-worker process. Reject on a
+    declared Content-Length first, then stream and abort the moment the cap is
+    passed rather than trusting the declaration.
+    """
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > max_bytes + 8192:
+        raise HTTPException(status_code=413,
+                            detail=f"CV is too large; the limit is {max_bytes} bytes.")
+    chunks, total = [], 0
+    while True:
+        chunk = await file.read(256 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(status_code=413,
+                                detail=f"CV is too large; the limit is {max_bytes} bytes.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _record_cv_on_person(ts: Any, hs_id: str, email: str, *, sha: str, mime: str,
+                         parsed: Optional[Dict[str, Any]] = None) -> None:
+    """Merge CV facts into the person's stored credentials, server-side."""
+    person = ts.get_asclepius_person(hs_id, email) or {}
+    creds = dict(person.get("credentials") or {})
+    creds["cvAssetSha"] = sha
+    creds["cvMime"] = mime
+    if parsed is not None:
+        creds["cvParsed"] = parsed
+    ts.save_asclepius_credentials(hs_id, email, creds)
+
+
+def _parse_cv_into_person(ts: Any, hs_id: str, email: str, sha: str, mime: str) -> None:
+    """Background CV parse. Best-effort by construction: a CV that cannot be
+    parsed leaves the suggestions empty and the admin reads the raw file."""
+    from asclepius import credentialing
+    try:
+        parsed = credentialing.parse_cv(sha, mime=mime)
+        _record_cv_on_person(ts, hs_id, email, sha=sha, mime=mime, parsed=parsed)
+    except Exception:
+        log.exception("[credentialing] background CV parse failed (non-fatal)")
+
+
+def _preserve_server_cv_fields(ts: Any, hs_id: str, email: str,
+                               incoming: Dict[str, Any]) -> Dict[str, Any]:
+    """Strip client-supplied CV fields and restore the server-recorded ones.
+
+    B-5.7: ``credentials`` is ``Dict[str, Any]``, so a signup could otherwise
+    name any sha in the shared asset store and have it parsed and served back
+    through the admin dossier. The sha is authoritative only when this server
+    wrote it at upload time. This also stops the credentials POST — which the
+    form sends after the upload — from erasing the recorded CV.
+    """
+    creds = {k: v for k, v in (incoming or {}).items()
+             if k not in ("cvAssetSha", "cvMime", "cvParsed")}
+    person = ts.get_asclepius_person(hs_id, email) or {}
+    stored = person.get("credentials") or {}
+    for key in ("cvAssetSha", "cvMime", "cvParsed"):
+        if stored.get(key) is not None:
+            creds[key] = stored[key]
+    return creds
 
 
 @router.post("/asclepius/add-member")
@@ -1041,7 +1148,9 @@ async def member_session(token: str, request: Request):
 @router.post("/member/credentials")
 async def member_credentials(body: MemberCredentialsBody, request: Request):
     ts, person, hs = _load_asclepius_member(request, body.token)
-    ts.save_asclepius_credentials(hs["id"], person["email"], body.credentials)
+    ts.save_asclepius_credentials(
+        hs["id"], person["email"],
+        _preserve_server_cv_fields(ts, hs["id"], person["email"], body.credentials))
     return {"ok": True}
 
 

@@ -237,6 +237,78 @@ def test_signup_captures_identity_and_verifies_npi(client: TestClient):
     assert u["tier"] is None                       # never auto-assigned
 
 
+def test_every_seam4_field_lands_on_the_user_row(client: TestClient):
+    """F4 / Seam 4 — the receiver was built and the sender never was.
+
+    users.phone, linkedin_url, cv_asset_sha and cv_parsed_json were
+    permanently NULL in production because the React form's Credentials type
+    carried none of them, so the entire CV pipeline and the linkedin_present /
+    cv_parsed tier weights were unreachable. This walks the real route.
+    """
+    token, hs_id, email = _seed_verified(client)
+    assert client.post("/api/onboarding/select-product",
+                       json={"token": token, "product": "asclepius"}).status_code == 200
+    assert client.post(
+        "/api/onboarding/asclepius/institution",
+        json={"token": token, "org_name": "Northridge Nephrology",
+              "specialty": "Nephrology", "phone": "(555) 999-0000"},   # ORG phone
+    ).status_code == 200
+
+    r = client.post("/api/onboarding/asclepius/cv", data={"token": token},
+                    files={"file": ("cv.txt",
+                                    b"Harvard Medical School, 2001-2005\n"
+                                    b"Board Certified in Nephrology\n", "text/plain")})
+    assert r.status_code == 200, r.text
+
+    creds = _creds(phone="+1 555 010 7788",                # the PHYSICIAN's phone
+                   linkedinUrl="https://www.linkedin.com/in/tejpatel",
+                   healthSystem="Northridge Nephrology Associates")
+    assert client.post("/api/onboarding/asclepius/credentials",
+                       json={"token": token, "credentials": creds}).status_code == 200
+    assert client.post("/api/onboarding/asclepius/attestations",
+                       json={"token": token, "attestations": ATTS}).status_code == 200
+    assert client.post("/api/onboarding/asclepius/finish",
+                       json={"token": token}).status_code == 200
+
+    u = client.app.state.asclepius_store.get_user_by_email(email)
+    assert u["phone"] == "+1 555 010 7788"
+    assert u["phone"] != "(555) 999-0000", "the org's front-office phone leaked in"
+    assert u["linkedin_url"] == "https://www.linkedin.com/in/tejpatel"
+    assert u["cv_asset_sha"]
+    assert json.loads(u["cv_parsed_json"])["ok"] is True
+    assert u["email_domain_class"] == "business"
+    # ...and the signals the fields exist to feed actually fire
+    prop = credentialing.propose_tier(u)
+    assert any("LinkedIn" in r for r in prop["reasons"])
+    assert any("CV" in r for r in prop["reasons"])
+
+
+def test_signup_without_any_optional_field_still_completes(client: TestClient):
+    """The other half: nothing optional supplied, signup still finishes."""
+    minimal = {"fullLegalName": "Dr. Solo Practitioner", "npi": _fresh_npi(),
+               "phone": "+1 555 222 3333", "degree": "MD",
+               "primarySpecialty": "Nephrology"}
+    _, _, email, _ = _run_director_signup(client, creds=minimal)
+    u = client.app.state.asclepius_store.get_user_by_email(email)
+    assert u["verification_status"] == "pending"
+    assert u["phone"] == "+1 555 222 3333"
+    assert u["linkedin_url"] is None and u["cv_asset_sha"] is None
+
+
+def test_npi_is_normalized_on_the_way_in(client: TestClient):
+    """B-5.1 — every lookup uses the cleaned form, so an NPI stored with a
+    dash matched no cache row and no duplicate row: the duplicate-NPI blocker
+    was defeated by punctuation the API (unlike the React form) never strips."""
+    npi = _fresh_npi()
+    dashed = f"{npi[:4]}-{npi[4:]}"
+    _, _, email, _ = _run_director_signup(client, creds=_creds(npi=dashed))
+    store = client.app.state.asclepius_store
+    u = store.get_user_by_email(email)
+    assert u["npi"] == npi                       # stored clean, not "1234-567893"
+    assert store.find_users_by_npi(npi)          # duplicate detection can see it
+    assert store.get_cached_npi_fetch(npi) is not None
+
+
 def test_signup_lands_event_in_provenance_log(client: TestClient):
     _, _, email, creds = _run_director_signup(client)
     store = client.app.state.asclepius_store
@@ -411,21 +483,37 @@ def test_cv_upload_roundtrip_through_signup(client: TestClient):
         files={"file": ("cv.txt", cv_text.encode(), "text/plain")},
     )
     assert r.status_code == 200, r.text
-    sha = r.json()["sha256"]
+    # B-5.7: the sha is NOT returned to the client and never round-trips
+    # through it — it is recorded on the person row server-side.
+    assert "sha256" not in r.json()
 
-    creds = _creds(cvAssetSha=sha, cvMime="text/plain")
+    # The credentials POST arrives AFTER the upload and carries no CV fields;
+    # it must not erase what the server recorded.
     assert client.post("/api/onboarding/asclepius/credentials",
-                       json={"token": ts_token, "credentials": creds}).status_code == 200
+                       json={"token": ts_token, "credentials": _creds()}).status_code == 200
     assert client.post("/api/onboarding/asclepius/attestations",
                        json={"token": ts_token, "attestations": ATTS}).status_code == 200
     assert client.post("/api/onboarding/asclepius/finish",
                        json={"token": ts_token}).status_code == 200
 
     u = client.app.state.asclepius_store.get_user_by_email(email)
-    assert u["cv_asset_sha"] == sha
+    assert u["cv_asset_sha"], "the server-recorded CV did not reach the user row"
     parsed = json.loads(u["cv_parsed_json"])
     assert parsed["ok"] is True
     assert any("Harvard" in i for i in parsed["institutions"])
+
+
+def test_client_supplied_cv_sha_is_ignored(client: TestClient):
+    """B-5.7 — ``credentials`` is a free-form dict, so a signup could otherwise
+    name any sha in the shared asset store (which also holds de-identified
+    clinical images) and have it parsed and served back through the dossier."""
+    from asclepius import credentialing as _cred
+    planted = _cred.store_cv(b"not this physician's document", "text/plain")["sha256"]
+    _, _, email, _ = _run_director_signup(
+        client, creds=_creds(cvAssetSha=planted, cvMime="text/plain"))
+    u = client.app.state.asclepius_store.get_user_by_email(email)
+    assert u["cv_asset_sha"] != planted
+    assert u["cv_asset_sha"] is None      # nothing was ever uploaded for them
 
 
 def test_cv_upload_rejects_bad_type_and_bad_token(client: TestClient):
@@ -445,13 +533,46 @@ def test_cv_upload_rejects_bad_type_and_bad_token(client: TestClient):
     assert r.status_code == 404
 
 
-def test_broken_cv_never_blocks_signup(client: TestClient):
-    # points at an asset sha that does not exist — parse fails, signup completes
-    _, _, email, _ = _run_director_signup(client, creds=_creds(cvAssetSha="0" * 64))
+def test_unparseable_cv_never_blocks_upload_or_signup(client: TestClient, monkeypatch):
+    """A CV that cannot be parsed leaves the field empty and the admin reads
+    the raw file — the upload still succeeds and signup still completes."""
+    def _boom(*a, **kw):
+        raise RuntimeError("parser exploded")
+    monkeypatch.setattr(credentialing, "parse_cv", _boom)
+
+    token, hs_id, email = _seed_verified(client)
+    assert client.post("/api/onboarding/select-product",
+                       json={"token": token, "product": "asclepius"}).status_code == 200
+    assert client.post(
+        "/api/onboarding/asclepius/institution",
+        json={"token": token, "org_name": "N", "specialty": "Nephrology",
+              "phone": "(555) 123-4567"},
+    ).status_code == 200
+    r = client.post("/api/onboarding/asclepius/cv", data={"token": token},
+                    files={"file": ("cv.txt", b"a resume", "text/plain")})
+    assert r.status_code == 200, r.text          # parse failure is non-fatal
+    assert client.post("/api/onboarding/asclepius/credentials",
+                       json={"token": token, "credentials": _creds()}).status_code == 200
+    assert client.post("/api/onboarding/asclepius/attestations",
+                       json={"token": token, "attestations": ATTS}).status_code == 200
+    assert client.post("/api/onboarding/asclepius/finish",
+                       json={"token": token}).status_code == 200
+
     u = client.app.state.asclepius_store.get_user_by_email(email)
     assert u["verification_status"] == "pending"
-    parsed = json.loads(u["cv_parsed_json"])
-    assert parsed["ok"] is False
+    assert u["cv_asset_sha"]                     # raw file still available to the admin
+    assert u["cv_parsed_json"] is None           # no suggestions, no crash
+
+
+def test_oversize_cv_is_rejected_before_it_is_buffered(client: TestClient):
+    """B-5.4 — the cap was enforced inside store_cv, i.e. after the whole body
+    was already resident in memory."""
+    token, _, _ = _seed_verified(client)
+    from asclepius.credentialing import CV_MAX_BYTES
+    big = b"%PDF-1.4" + b"0" * (CV_MAX_BYTES + 4096)
+    r = client.post("/api/onboarding/asclepius/cv", data={"token": token},
+                    files={"file": ("cv.pdf", big, "application/pdf")})
+    assert r.status_code == 413
 
 
 # ─── Phase 5: the admin verification queue ───────────────────────────────────
