@@ -336,6 +336,7 @@ def build_asclepius_complete_email(
     workspace_url: str,
     is_director: bool,
     team_count: int = 0,
+    verification_notice: bool = False,
 ) -> str:
     """Asclepius workspace-ready email — same visual format as the clinical
     completion email, addressed to the data-training product.
@@ -362,10 +363,24 @@ def build_asclepius_complete_email(
         "evaluation tasks, and start contributing expert-labeled data."
     )
 
+    # PRD-B: the credential-verification notice. Deliberately says nothing
+    # about tiers — the admin has not decided yet, and the score is advice.
+    verification_html = (
+        _p(
+            _strong("We&rsquo;re verifying your credentials")
+            + " — you&rsquo;ll hear from us within 24 hours. Your account opens "
+            "for evaluation work as soon as our clinical team completes the "
+            "review.",
+        )
+        if verification_notice
+        else ""
+    )
+
     body = (
         _eyebrow("Onboarding complete · Asclepius")
         + _h1("Your workspace is ready.")
         + _p(intro)
+        + verification_html
         + _inset_card(_detail_rows(rows))
         + _cta(workspace_url, "Open your workspace →")
         + _p(
