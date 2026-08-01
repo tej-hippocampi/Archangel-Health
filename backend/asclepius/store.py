@@ -945,6 +945,63 @@ class AsclepiusStore:
                 if _col not in cols("users"):
                     conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
             # ═══ END PRD-B ═══
+            # ═══ PRD-A REVIEW SCHEMA — owned by Agent 1, do not edit from other PRDs ═══
+            # Two-tier review product (PRD A §1): senior reviewers grade a labeler's
+            # completed submission. One row per review; a submission may carry several.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS case_reviews (
+                    review_id          TEXT PRIMARY KEY,
+                    task_id            TEXT NOT NULL,
+                    submission_id      TEXT NOT NULL,        -- the labeler submission under review
+                    reviewer_user_id   TEXT NOT NULL,
+                    reviewer_id_hashed TEXT NOT NULL,
+                    verdict            TEXT NOT NULL,        -- accept | accept_with_edits | reject
+                    dimension_json     TEXT,                 -- per-dimension scores
+                    corrections_json   TEXT,                 -- reviewer's edits
+                    reviewer_notes     TEXT,
+                    time_spent_sec     INTEGER,
+                    blinded            INTEGER,              -- 1 only when the reviewer saw no labeler identity
+                    created_at         TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_review_task ON case_reviews(task_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_review_sub  ON case_reviews(submission_id)")
+            # Review lifecycle on the labeler submission. NULL = not yet routed /
+            # unreviewed; 'in_review' = claimed by a reviewer; 'reviewed' = at least
+            # one review submitted. Deliberately NO DEFAULT — NULL ("not yet decided")
+            # must stay distinguishable from any decided value (START_HERE §4).
+            if "review_status" not in cols("submissions"):
+                conn.execute("ALTER TABLE submissions ADD COLUMN review_status TEXT")
+            # Review CLAIM state (FIX A Phases 2/3). Three separate columns, all
+            # nullable, none defaulted:
+            #   review_claimed_by  — who holds the lease, so a second reviewer
+            #     cannot silently evict in-flight work by POSTing a guessed id.
+            #   review_claimed_at  — the lease clock. Dedicated on purpose:
+            #     ``updated_at`` is bumped by ANY write, so a background pipeline
+            #     touching the submission used to silently extend a reviewer's lease.
+            #   review_blinded     — the blinding DERIVED from the payload actually
+            #     served at draw time (1/0/NULL = never asserted). Read back at
+            #     submit; never recomputed from a payload we are no longer serving.
+            if "review_claimed_by" not in cols("submissions"):
+                conn.execute("ALTER TABLE submissions ADD COLUMN review_claimed_by TEXT")
+            if "review_claimed_at" not in cols("submissions"):
+                conn.execute("ALTER TABLE submissions ADD COLUMN review_claimed_at TEXT")
+            if "review_blinded" not in cols("submissions"):
+                conn.execute("ALTER TABLE submissions ADD COLUMN review_blinded INTEGER")
+            # next_review_for filters on review_status and review_queue_stats runs
+            # four COUNT(*)s over it on every draw — unindexed, that is four full
+            # table scans per reviewer per case (FIX A A-3.5).
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sub_review_status ON submissions(review_status)")
+            # Safe-Harbor identifier kinds found in the reviewer's own free text
+            # at insert time (FIX A A-5.3). Tri-state: NULL = never scanned
+            # (legacy row), '[]' = scanned clean, '["name",...]' = flagged, in
+            # which case the free text is withheld from the buyer-facing block.
+            if "identifier_flags" not in cols("case_reviews"):
+                conn.execute("ALTER TABLE case_reviews ADD COLUMN identifier_flags TEXT")
+            # ═══ END PRD-A ═══
 
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
@@ -4025,6 +4082,483 @@ class AsclepiusStore:
                 )
         return self.get_user_by_id(user_id)
     # ═══ END PRD-B ═══
+    # ═══ PRD-A REVIEW STORE METHODS — owned by Agent 1, do not edit from other PRDs ═══
+    # Two-tier review product (PRD A): reviewer queue, case_reviews CRUD, and
+    # double-label routing. Appended per START_HERE §3.2 — existing methods above
+    # are never modified.
+
+    @staticmethod
+    def _case_review_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["dimensions"] = json.loads(rec.pop("dimension_json", "{}") or "{}")
+        rec["corrections"] = json.loads(rec.pop("corrections_json", "null") or "null")
+        raw_flags = rec.pop("identifier_flags", None)
+        # None (never scanned) stays distinct from [] (scanned clean).
+        rec["identifier_flags"] = json.loads(raw_flags) if raw_flags else (
+            [] if raw_flags == "[]" else None)
+        return rec
+
+    def insert_case_review(
+        self,
+        *,
+        task_id: str,
+        submission_id: str,
+        reviewer_user_id: str,
+        reviewer_id_hashed: str,
+        verdict: str,
+        dimensions: Optional[Dict[str, str]] = None,
+        corrections: Optional[Dict[str, Any]] = None,
+        reviewer_notes: Optional[str] = None,
+        time_spent_sec: Optional[int] = None,
+        blinded: Optional[bool] = True,
+        identifier_flags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """One senior-reviewer verdict on a labeler submission (PRD A §2).
+
+        ``blinded`` is tri-state on purpose (START_HERE §5 rule 4): 1 = the payload
+        served to the reviewer verifiably carried no labeler identity, 0 = identity
+        was (or may have been) visible, NULL = not asserted either way."""
+        review_id = _new_id("rev")
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO case_reviews
+                  (review_id, task_id, submission_id, reviewer_user_id, reviewer_id_hashed,
+                   verdict, dimension_json, corrections_json, reviewer_notes,
+                   time_spent_sec, blinded, identifier_flags, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    review_id,
+                    task_id,
+                    submission_id,
+                    reviewer_user_id,
+                    reviewer_id_hashed,
+                    verdict,
+                    json.dumps(dimensions or {}),
+                    json.dumps(corrections) if corrections is not None else None,
+                    reviewer_notes,
+                    int(time_spent_sec) if time_spent_sec is not None else None,
+                    None if blinded is None else (1 if blinded else 0),
+                    None if identifier_flags is None else json.dumps(sorted(identifier_flags)),
+                    _utcnow_iso(),
+                ),
+            )
+        return self.get_case_review(review_id)  # type: ignore[return-value]
+
+    def get_case_review(self, review_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM case_reviews WHERE review_id = ?", (review_id,)
+            ).fetchone()
+        return self._case_review_row(row) if row else None
+
+    def reviews_for_submission(self, submission_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM case_reviews WHERE submission_id = ? ORDER BY created_at ASC",
+                (submission_id,),
+            ).fetchall()
+        return [self._case_review_row(r) for r in rows]
+
+    def reviews_for_task(self, task_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM case_reviews WHERE task_id = ? ORDER BY created_at ASC",
+                (task_id,),
+            ).fetchall()
+        return [self._case_review_row(r) for r in rows]
+
+    def has_review_by(self, submission_id: str, reviewer_user_id: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM case_reviews WHERE submission_id = ? AND reviewer_user_id = ? LIMIT 1",
+                (submission_id, reviewer_user_id),
+            ).fetchone()
+        return row is not None
+
+    def next_review_for(
+        self,
+        user_id: str,
+        *,
+        specialty: Optional[str] = None,
+        lease_minutes: int = 45,
+        predicate: Any = None,
+        scan_limit: int = 200,
+        persist_routing_decision: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """Oldest reviewable submission for this reviewer (PRD A §1.4).
+
+        Self-review is impossible BY QUERY (``s.evaluator_id != ?``), not by caller
+        discipline. Serves submissions never routed (``review_status IS NULL``) plus
+        stale ``in_review`` claims past the lease, so an abandoned draw re-queues
+        instead of vanishing forever. Excludes submissions this reviewer already
+        reviewed and tasks held for blocking ingest review (Audit PRD §21.6 —
+        a reviewer must not see a case whose image may carry burned-in PHI).
+
+        ``predicate(task, submission) -> bool`` filters candidates in Python (the
+        rate-based ``needs_review`` policy lives in ``asclepius.review``, not in SQL).
+        """
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        clauses = [
+            "s.evaluator_id != ?",
+            "s.verdict IS NOT NULL",
+            # NULL = never routed; an 'in_review' row past its lease re-queues.
+            # The lease clock is review_claimed_at, NOT updated_at — any unrelated
+            # write (a pipeline re-value, a status change) bumps updated_at and
+            # used to silently extend a reviewer's claim (FIX A A-3.7).
+            # 'reviewed', 'orphaned' and 'not_routed' are all terminal here.
+            "(s.review_status IS NULL OR (s.review_status = 'in_review'"
+            " AND (s.review_claimed_at IS NULL OR s.review_claimed_at < ?)))",
+            "NOT EXISTS (SELECT 1 FROM case_reviews cr WHERE cr.submission_id = s.submission_id"
+            " AND cr.reviewer_user_id = ?)",
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = s.task_id"
+            " AND ic.status = 'needs_review')",
+        ]
+        params: List[Any] = [user_id, cutoff, user_id]
+        if specialty:
+            clauses.append("t.specialty = ?")
+            params.append(specialty)
+        params.append(int(scan_limit))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT s.* FROM submissions s
+                JOIN tasks t ON t.task_id = s.task_id
+                WHERE {' AND '.join(clauses)}
+                ORDER BY s.created_at ASC LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        declined: List[str] = []
+        orphaned: List[str] = []
+        chosen: Optional[Dict[str, Any]] = None
+        for r in rows:
+            sub = self._submission_row(r)
+            if predicate is not None:
+                task = self.get_task(sub["task_id"])
+                if task is None:
+                    # A missing task is an ORPHAN, not a routing decline. Two
+                    # different terminal states because they mean two different
+                    # things: 'not_routed' is a decision the policy made, and
+                    # 'orphaned' is data damage someone has to look at.
+                    orphaned.append(sub["submission_id"])
+                    continue
+                if not predicate(task, sub):
+                    declined.append(sub["submission_id"])
+                    continue
+            chosen = sub
+            break
+        # Persist the routing decision (FIX A A-3.3). Without this, a submission
+        # the policy declines stays review_status IS NULL forever and re-occupies
+        # a slot in this LIMITed window on every single draw. Once `scan_limit`
+        # declined rows accumulate at the head, the portal reports "no submissions
+        # awaiting review" permanently while real work sits behind them. Masked at
+        # launch only because ASCLEPIUS_REVIEW_RATE defaults to 1.0.
+        if persist_routing_decision and (declined or orphaned):
+            with self._conn() as conn:
+                if declined:
+                    conn.executemany(
+                        "UPDATE submissions SET review_status = 'not_routed' "
+                        "WHERE submission_id = ? AND review_status IS NULL",
+                        [(sid,) for sid in declined],
+                    )
+                if orphaned:
+                    conn.executemany(
+                        "UPDATE submissions SET review_status = 'orphaned' "
+                        "WHERE submission_id = ? AND review_status IS NULL",
+                        [(sid,) for sid in orphaned],
+                    )
+        return chosen
+
+    def requeue_not_routed(self) -> int:
+        """Clear every ``not_routed`` decision back to NULL (undecided).
+
+        The escape hatch for raising ``ASCLEPIUS_REVIEW_RATE`` after launch:
+        routing decisions are persisted, so without this a submission declined
+        under a 0.5 rate would stay declined forever under a 1.0 rate. Returns
+        the number of submissions returned to the queue."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE submissions SET review_status = NULL WHERE review_status = 'not_routed'")
+            return int(cur.rowcount)
+
+    def agreement_observation_count(self, *, specialty: Optional[str] = None) -> int:
+        """COUNT(*) of stored agreement observations. Exists because the routing
+        sweep only ever needed the count and used to materialize every row to
+        call len() on it, once per candidate (FIX A A-3.4)."""
+        sql = "SELECT COUNT(*) FROM agreement"
+        params: tuple = ()
+        if specialty:
+            sql += " WHERE specialty = ?"
+            params = (specialty,)
+        with self._conn() as conn:
+            return int(conn.execute(sql, params).fetchone()[0])
+
+    def claim_submission_for_review(
+        self, submission_id: str, *, reviewer_id: str, blinded: Optional[bool] = None,
+        lease_minutes: int = 45,
+    ) -> bool:
+        """Atomically claim a submission for review (``review_status='in_review'``).
+
+        Compare-and-set: the UPDATE only wins when the row is still unclaimed or its
+        prior claim's lease has expired, so two reviewers drawing concurrently cannot
+        both claim the same submission. Returns True when this caller won the claim.
+
+        The claim also records WHO holds it and the blinding DERIVED from the
+        payload served to them (FIX A F2). ``review_claimed_at`` is the lease
+        clock rather than ``updated_at``, which any unrelated write bumps."""
+        now = _utcnow_iso()
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE submissions
+                   SET review_status = 'in_review', review_claimed_by = ?,
+                       review_claimed_at = ?, review_blinded = ?, updated_at = ?
+                WHERE submission_id = ?
+                  AND (review_status IS NULL
+                       OR (review_status = 'in_review'
+                           AND (review_claimed_at IS NULL OR review_claimed_at < ?)))
+                """,
+                (reviewer_id, now, None if blinded is None else (1 if blinded else 0),
+                 now, submission_id, cutoff),
+            )
+            return cur.rowcount > 0
+
+    def review_claim(self, submission_id: str, *, lease_minutes: int = 45) -> Dict[str, Any]:
+        """The current claim on a submission: ``{holder, claimed_at, blinded,
+        expired, status}``. ``blinded`` is tri-state (True/False/None) — None
+        means no draw ever asserted it, which is NOT the same as unblinded."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT review_status, review_claimed_by, review_claimed_at, review_blinded "
+                "FROM submissions WHERE submission_id = ?", (submission_id,)
+            ).fetchone()
+        if row is None:
+            return {"holder": None, "claimed_at": None, "blinded": None,
+                    "expired": True, "status": None}
+        rec = dict(row)
+        claimed_at = rec.get("review_claimed_at")
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        blinded = rec.get("review_blinded")
+        return {
+            "holder": rec.get("review_claimed_by"),
+            "claimed_at": claimed_at,
+            "blinded": None if blinded is None else bool(blinded),
+            "expired": (claimed_at is None) or (claimed_at < cutoff),
+            "status": rec.get("review_status"),
+        }
+
+    def review_queue_stats(self) -> Dict[str, Any]:
+        """Counts for the review portal header, in ONE pass over an indexed
+        column (four separate COUNT(*) full scans used to fire on every draw —
+        FIX A A-3.5).
+
+        ``unreviewed`` counts only genuinely undecided rows (review_status NULL).
+        Declined ('not_routed') and orphaned rows are reported separately rather
+        than folded in: a header claiming work exists that the draw cannot serve
+        is how A-3.3 stayed invisible."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT review_status AS st, COUNT(*) AS n FROM submissions "
+                "WHERE verdict IS NOT NULL GROUP BY review_status"
+            ).fetchall()
+            n_reviews = conn.execute("SELECT COUNT(*) FROM case_reviews").fetchone()[0]
+        counts = {(dict(r)["st"] or "__null__"): int(dict(r)["n"]) for r in rows}
+        return {
+            "unreviewed": counts.get("__null__", 0),
+            "in_review": counts.get("in_review", 0),
+            "reviewed": counts.get("reviewed", 0),
+            "not_routed": counts.get("not_routed", 0),
+            "orphaned": counts.get("orphaned", 0),
+            "n_reviews": int(n_reviews),
+        }
+
+    def flag_task_for_double_label(self, task_id: str) -> bool:
+        """Route a task to a second INDEPENDENT labeler (PRD A §1.3) by lifting its
+        label capacity to 2 AND reopening it.
+
+        The reopen is the load-bearing half. A ``max_labels=1`` task is ALREADY
+        ``'done'`` by the time a first label exists — ``refresh_task_status``
+        closes it on the first submission, on the hot submit path. So routing a
+        second independent label is always a REOPEN, never a flag on an open
+        task; lifting ``max_labels`` without restoring ``status='open'`` leaves a
+        task that neither ``next_double_label_for`` nor the ordinary labeler
+        queue can ever serve, which is what made the whole κ deliverable dead
+        code in the first round.
+
+        Terminal statuses are NOT reopened: ``prompt_flagged`` / ``not_hard`` /
+        ``case_incoherent`` mean a clinician rejected the prompt itself, and
+        dragging one back into the labeler queue for a second opinion would
+        re-serve work a physician already ruled out. Idempotent."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE tasks SET max_labels = 2, status = 'open' "
+                "WHERE task_id = ? AND status IN ('open', 'done') AND max_labels < 2",
+                (task_id,),
+            )
+            return cur.rowcount > 0
+
+    def flag_tasks_for_double_label(
+        self, decisions: List[Dict[str, Any]]
+    ) -> List[str]:
+        """Batch form of :meth:`flag_task_for_double_label` (FIX A A-3.4).
+
+        One connection, one UPDATE per task and one event INSERT per flag,
+        instead of two fresh connections (each paying two PRAGMAs) per candidate.
+        This runs on the same single SQLite writer that labeler submissions need,
+        so its statement count must not scale with the sweep window.
+
+        ``decisions`` is ``[{task_id, specialty, current_rate}, ...]``. Returns
+        the task_ids actually flagged (the UPDATE is the arbiter, so this stays
+        idempotent under concurrent sweeps)."""
+        if not decisions:
+            return []
+        flagged: List[str] = []
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            for d in decisions:
+                cur = conn.execute(
+                    "UPDATE tasks SET max_labels = 2, status = 'open' "
+                    "WHERE task_id = ? AND status IN ('open', 'done') AND max_labels < 2",
+                    (d["task_id"],),
+                )
+                if cur.rowcount > 0:
+                    flagged.append(d["task_id"])
+            if flagged:
+                by_id = {d["task_id"]: d for d in decisions}
+                conn.executemany(
+                    "INSERT INTO events (entity_type, entity_id, event_type, actor, "
+                    "occurred_at, payload_json) VALUES ('task', ?, 'double_label_flagged', "
+                    "NULL, ?, ?)",
+                    [(tid, now, json.dumps({
+                        "specialty": by_id[tid].get("specialty"),
+                        "current_rate": by_id[tid].get("current_rate"),
+                    })) for tid in flagged],
+                )
+        return flagged
+
+    def tasks_awaiting_double_label_decision(self, *, limit: int = 100) -> List[Dict[str, Any]]:
+        """Single-label tasks that already carry at least one verdict-bearing
+        submission — the candidate set the double-label router decides over.
+
+        Accepts ``'done'`` as well as ``'open'``: on the real submit route a
+        singly-labeled task is closed by the time this runs, so a status='open'
+        filter here matches nothing, by construction. Terminal statuses stay
+        excluded — a rejected prompt is not a double-label candidate."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT t.*,
+                       (SELECT s.submission_id FROM submissions s
+                         WHERE s.task_id = t.task_id AND s.verdict IS NOT NULL
+                         ORDER BY s.created_at ASC LIMIT 1) AS first_submission_id,
+                       -- Carried here so the sweep does not re-open a connection
+                       -- per candidate just to read one column (FIX A A-3.4).
+                       (SELECT s2.confidence FROM submissions s2
+                         WHERE s2.task_id = t.task_id AND s2.verdict IS NOT NULL
+                         ORDER BY s2.created_at ASC LIMIT 1) AS first_confidence
+                FROM tasks t
+                WHERE t.status IN ('open', 'done') AND t.max_labels < 2
+                  AND EXISTS (SELECT 1 FROM submissions sf
+                               WHERE sf.task_id = t.task_id AND sf.verdict IS NOT NULL)
+                ORDER BY t.created_at ASC LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchall()
+        out = []
+        for r in rows:
+            rec = self._task_row(r)
+            out.append(rec)
+        return out
+
+    def double_label_counts(self) -> tuple:
+        """``(n_labeled_tasks, n_flagged_for_double_label)`` in ONE pass.
+
+        The sweep needs both numbers once per run, not a recomputed ratio per
+        candidate (FIX A A-3.4). Returning the raw counts lets the caller advance
+        the rate locally as it flags."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS labeled, "
+                "       SUM(CASE WHEN t.max_labels >= 2 THEN 1 ELSE 0 END) AS flagged "
+                "FROM tasks t WHERE EXISTS "
+                "(SELECT 1 FROM submissions s WHERE s.task_id = t.task_id)"
+            ).fetchone()
+        rec = dict(row) if row else {}
+        return int(rec.get("labeled") or 0), int(rec.get("flagged") or 0)
+
+    def double_label_flag_rate(self) -> float:
+        """Share of labeled tasks currently routed for a second independent label —
+        the ``current_rate`` input to the stratified top-up policy (PRD A §1.3)."""
+        labeled, flagged = self.double_label_counts()
+        return (flagged / labeled) if labeled else 0.0
+
+    def next_double_label_for(
+        self,
+        user_id: str,
+        *,
+        specialty: Optional[str] = None,
+        allow_real: bool = False,
+        scan_limit: int = 200,
+    ) -> Optional[Dict[str, Any]]:
+        """Oldest task flagged for a second independent label that this user may
+        take (PRD A §1.4). The first labeler — and anyone who already submitted —
+        is excluded BY QUERY (``NOT EXISTS`` on their submissions), never by caller
+        discipline: the second observation must be independent or κ is fiction.
+        ``allow_real`` is the V4 wall (EHR PRD §9.5): real_deid tasks are excluded
+        unless the caller verified ``real_data_approved``."""
+        clauses = [
+            "t.status = 'open'",
+            "t.max_labels >= 2",
+            "EXISTS (SELECT 1 FROM submissions sf WHERE sf.task_id = t.task_id"
+            " AND sf.verdict IS NOT NULL)",
+            "NOT EXISTS (SELECT 1 FROM submissions sm WHERE sm.task_id = t.task_id"
+            " AND sm.evaluator_id = ?)",
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id"
+            " AND ic.status = 'needs_review')",
+        ]
+        params: List[Any] = [user_id]
+        if specialty:
+            clauses.append("t.specialty = ?")
+            params.append(specialty)
+        if not allow_real:
+            clauses.append("(t.case_source IS NULL OR t.case_source != 'real_deid')")
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT t.*,
+                       (SELECT COUNT(*) FROM submissions s WHERE s.task_id = t.task_id) AS sub_count
+                FROM tasks t
+                WHERE {' AND '.join(clauses)}
+                ORDER BY t.created_at ASC LIMIT ?
+                """,
+                tuple(params + [int(scan_limit)]),
+            ).fetchall()
+        for r in rows:
+            rec = self._task_row(r)
+            if int(rec.get("sub_count") or 0) >= int(rec.get("max_labels") or 1):
+                continue  # already at capacity — second label landed
+            rec.pop("sub_count", None)
+            return rec
+        return None
+
+    def get_agreement_observation(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """The double-label agreement observation for one task, if it exists —
+        the source of truth for a record's ``independent_second_label`` flag
+        (PRD A Phase 3)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM agreement WHERE task_id = ?", (task_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        rec = dict(row)
+        rec["tags_a"] = json.loads(rec.pop("tags_a_json", "[]") or "[]")
+        rec["tags_b"] = json.loads(rec.pop("tags_b_json", "[]") or "[]")
+        return rec
+    # ═══ END PRD-A ═══
 
 
 # ─── Process-wide singleton ───────────────────────────────────────────────────
