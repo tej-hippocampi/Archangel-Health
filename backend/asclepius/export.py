@@ -41,6 +41,7 @@ from asclepius.constants import (
 )
 
 JSONL_NAME = "records.jsonl"
+CASES_NAME = "cases.jsonl"
 MANIFEST_NAME = "batch.json"
 DICTIONARY_NAME = "data_dictionary.md"
 DATASHEET_NAME = "datasheet.md"
@@ -197,12 +198,17 @@ def _passes_filters(
     modality: Optional[str] = None,
     case_source: Optional[str] = None,
     submission_id: Optional[str] = None,
+    case_id: Optional[str] = None,
 ) -> bool:
     payload = rec.get("payload") or {}
     # Single-task scoping (Exports rework): export exactly one submission's
     # records. The submission id is a top-level record column (and mirrored into
     # the payload at packaging time) — accept either.
     if submission_id and rec.get("submission_id") != submission_id and payload.get("submission_id") != submission_id:
+        return False
+    # Case scoping (PRD A Phase 5): a case IS a task — one case_id bundles every
+    # submission + review on it. Accept the column or the payload mirror.
+    if case_id and rec.get("task_id") != case_id and payload.get("task_id") != case_id:
         return False
     if difficulty and (payload.get("context") or {}).get("difficulty") != difficulty:
         return False
@@ -984,6 +990,125 @@ re-licenses whenever the buyer moves to a new frontier model. Recurring value th
 batch: **${summary['recurring_value_usd']:.2f}**. See `{EVAL_PACK_NAME}`."""
 
 
+# ─── Case-centric bundle (PRD A Phase 5) ─────────────────────────────────────
+def _majority_verdict(tally: Dict[str, int]) -> Optional[str]:
+    if not tally:
+        return None
+    best = max(tally.values())
+    winners = [v for v, c in tally.items() if c == best]
+    return winners[0] if len(winners) == 1 else None  # a tie has no majority
+
+
+def _case_bundle(
+    store: Any,
+    emitted: List[Dict[str, Any]],
+    mapped_records: List[Dict[str, Any]],
+    reviews_by_sid: Dict[Any, List[Dict[str, Any]]],
+    obs_by_tid: Dict[Any, Optional[Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    """Fold the emitted (already mapped + leak-gated) records into case-keyed
+    objects: one case carries the case content, every labeler submission, every
+    review, and the derived consensus. Buyers asked for the case, not a
+    physician's worklist — a case with two labelers plus a review is one
+    artifact, not three unrelated rows (PRD A Phase 5)."""
+    by_case: Dict[str, Dict[str, Any]] = {}
+    tasks: Dict[str, Dict[str, Any]] = {}
+    subs: Dict[str, Optional[Dict[str, Any]]] = {}
+    for rec, mapped in zip(emitted, mapped_records):
+        payload = rec.get("payload") or {}
+        tid = rec.get("task_id") or payload.get("task_id")
+        sid = rec.get("submission_id") or payload.get("submission_id")
+        if tid is None or sid is None:
+            continue
+        if tid not in tasks:
+            tasks[tid] = store.get_task(tid) or {}
+        if sid not in subs:
+            subs[sid] = store.get_submission(sid)
+        group = by_case.setdefault(tid, {})
+        sub = subs[sid] or {}
+        label = group.setdefault(sid, {
+            "submission_id": sid,
+            "labeler_id_hashed": payload.get("annotator_id_hashed"),
+            "verdict": sub.get("verdict"),
+            "confidence": sub.get("confidence"),
+            "portal_version": payload.get("portal_version") or sub.get("portal_version"),
+            "review_status": sub.get("review_status"),
+            "submitted_at": sub.get("created_at"),
+            "records": [],
+        })
+        label["records"].append(mapped)
+
+    cases: List[Dict[str, Any]] = []
+    for tid in sorted(by_case):
+        task = tasks.get(tid) or {}
+        labels = sorted(by_case[tid].values(), key=lambda l: l.get("submitted_at") or "")
+        case_reviews = [r for l in labels for r in reviews_by_sid.get(l["submission_id"], [])]
+        tally: Dict[str, int] = {}
+        for l in labels:
+            if l.get("verdict"):
+                tally[l["verdict"]] = tally.get(l["verdict"], 0) + 1
+        obs = obs_by_tid.get(tid)
+        blinded_obs = bool(obs) and (obs or {}).get("blinded") in (True, 1)
+        cases.append({
+            "case_id": tid,
+            "specialty": task.get("specialty"),
+            "difficulty": task.get("difficulty"),
+            "prompt": task.get("prompt"),
+            # Buyer-safe case content: public_case() inside _context holds out
+            # the answer key; the leak gate re-scans the whole object below.
+            "context": asc_packaging._context(task),
+            "portal_versions": sorted({l.get("portal_version") for l in labels
+                                       if l.get("portal_version")}),
+            "n_labelers": len(labels),
+            "labels": labels,
+            # Same honest naming as the per-record block: adjudication under
+            # ``review``, independence under ``supervision`` — never ``kappa``.
+            "review": asc_packaging.review_block(case_reviews, store),
+            "supervision": {"independent_second_label": blinded_obs},
+            "consensus": {
+                "n_labels": len(labels),
+                "verdicts": tally,
+                "majority_verdict": _majority_verdict(tally),
+                "unanimous": len(tally) == 1 and bool(labels),
+                # The stored double-label observation, when one exists — the κ
+                # input for this case (verdicts only; identities stay hashed).
+                "agreement_observation": {
+                    "verdict_a": (obs or {}).get("verdict_a"),
+                    "verdict_b": (obs or {}).get("verdict_b"),
+                    "verdict_agree": bool((obs or {}).get("verdict_agree")),
+                    "blinded": blinded_obs,
+                } if obs else None,
+            },
+        })
+    return cases
+
+
+def export_by_case(
+    store: Any,
+    *,
+    created_by: Optional[str] = None,
+    case_id: Optional[str] = None,
+    specialty: Optional[str] = None,
+    portal_version: Optional[str] = None,
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    """Bundle keyed by case_id. One case carries: the case content, every labeler
+    submission, every review, and the derived consensus (PRD A Phase 5).
+
+    A thin, filterable entry point over ``build_export`` — one export pipeline,
+    one Tier B leak gate. Emits ``records.jsonl`` (unchanged, for compatibility)
+    AND ``cases.jsonl`` (case-keyed), plus the usual companions. Filters:
+    ``case_id``, ``specialty``, ``portal_version`` (v3 / v4 / v5)."""
+    return build_export(
+        store,
+        created_by=created_by,
+        case_id=case_id,
+        specialty=specialty,
+        portal_version=portal_version,
+        **kwargs,
+    )
+
+
 def build_export(
     store: Any,
     *,
@@ -1010,6 +1135,7 @@ def build_export(
     verify_values: Optional[List[str]] = None,
     scope: Optional[Dict[str, Any]] = None,
     submission_id: Optional[str] = None,
+    case_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Assemble + persist an export batch from export-ready records.
 
@@ -1089,6 +1215,7 @@ def build_export(
             modality=modality,
             case_source=case_source,
             submission_id=submission_id,
+            case_id=case_id,
         )
     ]
     if not records:
@@ -1100,6 +1227,7 @@ def build_export(
     # 1. Map + validate EVERY line before writing anything (fail loud, fail whole).
     lines: List[str] = []
     emitted: List[Dict[str, Any]] = []
+    mapped_objs: List[Dict[str, Any]] = []  # parallel to ``emitted`` (Phase 5 case bundle)
     # Review + supervision blocks (PRD A Phase 3) are hydrated at emit time —
     # reviews land after packaging — and cached per submission/task so a batch
     # with many records per submission does one lookup each.
@@ -1168,6 +1296,7 @@ def build_export(
                 )
         lines.append(json.dumps(mapped, ensure_ascii=False, sort_keys=True))
         emitted.append(rec)
+        mapped_objs.append(mapped)
 
     if not emitted:
         raise ValueError(
@@ -1181,6 +1310,31 @@ def build_export(
     jsonl_text = "".join(line + "\n" for line in lines)
     jsonl_path = out_dir / JSONL_NAME
     jsonl_path.write_text(jsonl_text, encoding="utf-8")
+
+    # 2b. Case-keyed bundle (PRD A Phase 5): records.jsonl stays unchanged for
+    # compatibility; cases.jsonl folds the same emitted records into one object
+    # per case (every labeler + every review + consensus). Same CORE RULE: every
+    # case line passes the Tier B leak gate or the whole batch is rejected.
+    cases = _case_bundle(store, emitted, mapped_objs, _reviews_by_sid, _obs_by_tid)
+    case_lines: List[str] = []
+    for case_obj in cases:
+        leak = asc_credentials.find_tier_b_leak(case_obj)
+        if leak is not None:
+            raise ExportValidationError(
+                f"Tier B leak: case {case_obj.get('case_id')} contains the identifying "
+                f"field {leak!r} in the case bundle. Batch rejected."
+            )
+        if verify_values:
+            vleak = asc_credentials.find_tier_b_value_leak(case_obj, verify_values)
+            if vleak is not None:
+                raise ExportValidationError(
+                    f"Tier B value leak: case {case_obj.get('case_id')} contains a "
+                    f"private-vault value ({vleak!r}) in the case bundle. Batch rejected."
+                )
+        case_lines.append(json.dumps(case_obj, ensure_ascii=False, sort_keys=True))
+    (out_dir / CASES_NAME).write_text(
+        "".join(line + "\n" for line in case_lines), encoding="utf-8"
+    )
 
     # 3. stats for the quality report
     contributors = store.contributor_stats()
@@ -1236,6 +1390,7 @@ def build_export(
     # ready-to-run rubric-based LLM-as-judge scorer (grader_prompt.txt + score.py)
     # — the "eval alongside dataset" a buyer can run out of the box.
     companion_files = list(_COMPANION_FILES)
+    companion_files.append(CASES_NAME)  # case-keyed bundle (PRD A Phase 5)
     if _rubric_records:
         (out_dir / GRADER_PROMPT_NAME).write_text(_GRADER_PROMPT, encoding="utf-8")
         (out_dir / SCORE_PY_NAME).write_text(_SCORE_PY, encoding="utf-8")
@@ -1304,6 +1459,7 @@ def build_export(
         "mock_excluded": (not include_mock and bool(mock_ids)),
         "annotator_id_hashed": annotator_id_hashed,
         "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
+        "case_id": case_id,
     }
     content_hashes = {JSONL_NAME: _sha256_text(jsonl_text)}
     for name in companion_files:
@@ -1324,6 +1480,8 @@ def build_export(
         "preference_variant": prof.get("preference_variant", "flat"),
         "record_count": len(emitted),
         "submission_count": len({r["submission_id"] for r in emitted}),
+        # One entry per case in cases.jsonl (PRD A Phase 5).
+        "case_count": len(cases),
         "counts": counts,
         "grounded_count": sum(1 for r in emitted if (r.get("payload") or {}).get("grounded")),
         "multimodal_count": sum(1 for r in emitted if _rec_modality(r) == "multimodal"),

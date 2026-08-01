@@ -247,3 +247,86 @@ def test_unblinded_review_still_present_in_record():
     for rec in recs:
         assert rec["review"]["n_reviews"] == 1
         assert rec["review"]["reviews"][0]["blinded"] is False
+
+
+# ─── Phase 5: the case-keyed bundle ───────────────────────────────────────────
+def _cases_jsonl(manifest):
+    lines = (Path(manifest["dir_path"]) / "cases.jsonl").read_text().strip().splitlines()
+    return [json.loads(l) for l in lines]
+
+
+def test_case_with_two_labelers_and_review_exports_as_one_object():
+    from asclepius.export import export_by_case
+
+    admin_h = _admin_h()
+    tid = _create_task(admin_h, max_labels=2)
+    sid1 = _submit(tid, _evaluator())
+    sid2 = _submit(tid, _evaluator())
+    _add_review(sid1, tid, verdict="accept")
+
+    manifest = export_by_case(_store(), created_by="admin", case_id=tid)
+    assert manifest["case_count"] == 1
+    assert manifest["filters"]["case_id"] == tid
+    assert "cases.jsonl" in manifest["files"]
+    assert manifest["content_hashes"]["cases.jsonl"]
+
+    cases = _cases_jsonl(manifest)
+    assert len(cases) == 1  # ONE artifact, not three unrelated rows
+    case = cases[0]
+    assert case["case_id"] == tid
+    assert case["n_labelers"] == 2
+    assert {l["submission_id"] for l in case["labels"]} == {sid1, sid2}
+    assert all(l["records"] for l in case["labels"])  # mapped records embedded
+    assert case["review"]["n_reviews"] == 1
+    assert case["consensus"]["n_labels"] == 2
+    assert case["consensus"]["majority_verdict"] == "A_better"
+    assert case["consensus"]["unanimous"] is True
+    assert case["consensus"]["agreement_observation"]["verdict_agree"] is True
+    assert case["supervision"]["independent_second_label"] is True
+    # Records.jsonl still ships unchanged alongside (compatibility).
+    assert (Path(manifest["dir_path"]) / "records.jsonl").exists()
+    # No labeler identity anywhere in the case object.
+    def walk(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                assert k not in ("evaluator_id", "email", "full_name", "npi"), k
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    walk(case)
+
+
+def test_case_export_specialty_filter():
+    from asclepius.export import export_by_case
+
+    admin_h = _admin_h()
+    tid_neph = _create_task(admin_h, specialty="nephrology")
+    tid_card = _create_task(admin_h, specialty="cardiology")
+    _submit(tid_neph, _evaluator("nephrology"))
+    _submit(tid_card, _evaluator("cardiology"))
+
+    manifest = export_by_case(_store(), created_by="admin", specialty="cardiology")
+    cases = _cases_jsonl(manifest)
+    assert [c["case_id"] for c in cases] == [tid_card]
+    assert all(c["specialty"] == "cardiology" for c in cases)
+
+
+def test_case_export_portal_version_filter():
+    from asclepius.export import export_by_case
+
+    admin_h = _admin_h()
+    tid = _create_task(admin_h)
+    _submit(tid, _evaluator())
+    store = _store()
+    stamped = {(r.get("payload") or {}).get("portal_version") for r in store.list_records()}
+    version = next(iter(stamped - {None}))
+
+    manifest = export_by_case(store, created_by="admin", portal_version=version)
+    cases = _cases_jsonl(manifest)
+    assert cases and all(version in c["portal_versions"] for c in cases)
+
+    # A version with no records fails loudly, not silently empty (v3/v4/v5 all
+    # route through this same pass-through filter).
+    with pytest.raises(ValueError):
+        export_by_case(store, created_by="admin", portal_version="v5")
