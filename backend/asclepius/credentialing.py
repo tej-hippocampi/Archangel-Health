@@ -15,8 +15,10 @@ moment we cannot afford to.
 
 from __future__ import annotations
 
+import io
 import logging
 import re
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -389,3 +391,206 @@ def classify_email_domain(email: str) -> str:
     if domain in CONSUMER_DOMAINS or domain.startswith(_CONSUMER_BASES):
         return "consumer"
     return "business"
+
+
+# ─── CV upload + best-effort parse (Phase 2) ─────────────────────────────────
+# Storage reuses the content-addressed blob primitives in ``assets.py``
+# directly (sha256 + atomic fsync'd write + dedupe). We deliberately do NOT go
+# through ``assets.process_upload`` — that path rasterizes a PDF to a page-1
+# PNG, which would destroy the CV's text layer and the rest of its pages. The
+# raw document is the evidence the admin opens; nothing about it is exported.
+#
+# Every parsed field is a SUGGESTION shown to the admin, never an
+# auto-approval input. A parsed CV is evidence for a human, not a credential —
+# and failure anywhere in here is non-fatal: signup completes, the field is
+# empty, the admin sees the raw file.
+
+CV_ACCEPTED_MIMES = ("application/pdf", "text/plain")
+CV_MAX_BYTES = 10 * 1024 * 1024  # a 10 MB cap comfortably fits any real CV
+
+
+class CvUploadError(ValueError):
+    """Bad CV upload (mime/size). Caller maps this to a 4xx, not a 500."""
+
+
+def store_cv(data: bytes, mime: str) -> Dict[str, Any]:
+    """Validate and persist a raw CV blob, content-addressed. Returns
+    ``{"sha256", "mime", "byte_size"}`` for ``users.cv_asset_sha``."""
+    from asclepius import assets
+
+    mime = (mime or "").strip().lower().split(";")[0]
+    if mime not in CV_ACCEPTED_MIMES:
+        raise CvUploadError(
+            f"unsupported CV type {mime!r}; accepted: {', '.join(CV_ACCEPTED_MIMES)}")
+    if not data:
+        raise CvUploadError("empty upload")
+    if len(data) > CV_MAX_BYTES:
+        raise CvUploadError(f"CV is {len(data)} bytes; max is {CV_MAX_BYTES}")
+    sha = assets._sha256(data)
+    assets._write_blob(sha, data)
+    return {"sha256": sha, "mime": mime, "byte_size": len(data)}
+
+
+def _pdf_text(data: bytes) -> str:
+    """Text layer of a PDF: pdfminer first (best quality), PyPDF2 fallback,
+    then OCR of the first pages when there is no text layer at all (scanned
+    CVs) and tesseract is actually present. Best-effort throughout."""
+    text = ""
+    try:
+        from pdfminer.high_level import extract_text as _pm_extract
+        text = _pm_extract(io.BytesIO(data)) or ""
+    except Exception:
+        text = ""
+    if len(text.strip()) < 40:
+        try:
+            from PyPDF2 import PdfReader
+            reader = PdfReader(io.BytesIO(data))
+            text = "\n".join((p.extract_text() or "") for p in reader.pages)
+        except Exception:
+            pass
+    if len(text.strip()) < 40:
+        text = _ocr_pdf_pages(data) or text
+    return text or ""
+
+
+def _ocr_pdf_pages(data: bytes, max_pages: int = 5) -> str:
+    from asclepius.dicom_deid import ocr_available
+    if not ocr_available():
+        return ""
+    try:
+        import pytesseract
+        from pdf2image import convert_from_bytes
+        pages = convert_from_bytes(data, dpi=200, first_page=1, last_page=max_pages)
+        return "\n".join(pytesseract.image_to_string(p) for p in pages)
+    except Exception:
+        return ""
+
+
+def extract_cv_text(data: bytes, mime: str) -> str:
+    mime = (mime or "").strip().lower().split(";")[0]
+    if mime == "text/plain":
+        try:
+            return data.decode("utf-8", errors="replace")
+        except Exception:
+            return ""
+    if mime == "application/pdf":
+        return _pdf_text(data)
+    return ""
+
+
+_INSTITUTION_KEYWORDS = (
+    "university", "medical school", "school of medicine", "college of medicine",
+    "medical center", "medical centre", "hospital", "residency", "fellowship",
+    "internship", "health system", "clinic",
+)
+_BOARD_LINE = re.compile(
+    r"(?:board[\s\-]certified(?:\s+in)?|diplomate,?\s+(?:of\s+)?(?:the\s+)?american board of)"
+    r"[\s:]*([A-Za-z][A-Za-z &,/\-]{2,60})",
+    re.IGNORECASE,
+)
+_BOARD_ACRONYM = re.compile(r"\b(ABIM|ABFM|ABEM|ABOG|ABA|ABP|ABS|ABR|ABPN|ABOS|ABU|ABD)\b")
+_YEARS_EXPLICIT = re.compile(
+    r"(\d{1,2})\+?\s*years?\s+(?:of\s+)?(?:clinical\s+)?(?:experience|practice)",
+    re.IGNORECASE,
+)
+_YEAR_RANGE = re.compile(r"\b(19[5-9]\d|20[0-4]\d)\s*[–\-—]\s*(19[5-9]\d|20[0-4]\d|present|current)\b",
+                         re.IGNORECASE)
+_TRAINING_WORDS = ("residency", "fellowship", "internship", "resident", "fellow")
+_CITATION_HINT = re.compile(r"\b(?:doi:|pmid[:\s]|et al\.?)", re.IGNORECASE)
+
+
+def _parse_cv_text(text: str) -> Dict[str, Any]:
+    lines = [ln.strip() for ln in text.splitlines()]
+    lines = [ln for ln in lines if ln]
+
+    institutions: List[str] = []
+    for ln in lines:
+        low = ln.casefold()
+        if any(k in low for k in _INSTITUTION_KEYWORDS) and 4 < len(ln) < 140:
+            if ln not in institutions:
+                institutions.append(ln)
+        if len(institutions) >= 12:
+            break
+
+    certs: List[str] = []
+    for m in _BOARD_LINE.finditer(text):
+        val = m.group(1).strip(" .,;:").strip()
+        if val and val not in certs:
+            certs.append(val)
+    for m in _BOARD_ACRONYM.finditer(text):
+        if m.group(1) not in certs:
+            certs.append(m.group(1))
+
+    years: Optional[int] = None
+    m = _YEARS_EXPLICIT.search(text)
+    if m:
+        years = min(60, int(m.group(1)))
+    else:
+        # end year of the latest training block -> years since then
+        training_end: Optional[int] = None
+        for ln in lines:
+            low = ln.casefold()
+            if not any(w in low for w in _TRAINING_WORDS):
+                continue
+            for rng in _YEAR_RANGE.finditer(ln):
+                end_raw = rng.group(2).casefold()
+                end = datetime.utcnow().year if end_raw in ("present", "current") \
+                    else int(end_raw)
+                training_end = max(training_end or 0, end)
+        if training_end:
+            years = max(0, datetime.utcnow().year - training_end)
+
+    pubs = 0
+    in_pub_section = False
+    for ln in lines:
+        low = ln.casefold()
+        if low.startswith(("publications", "selected publications", "peer-reviewed")):
+            in_pub_section = True
+            continue
+        if in_pub_section and re.match(
+            r"^(education|training|experience|certifications|licens|awards|references)\b", low
+        ):
+            in_pub_section = False
+        if _CITATION_HINT.search(ln) or (in_pub_section and re.search(r"\b(19|20)\d{2}\b", ln)):
+            pubs += 1
+
+    return {
+        "institutions": institutions,
+        "board_certifications": certs,
+        "years_in_practice": years,
+        "publications_count": pubs if pubs else None,
+    }
+
+
+def parse_cv(asset_sha: str, mime: str = "application/pdf") -> Dict[str, Any]:
+    """Best-effort extraction from a stored CV: training institutions, board
+    certifications, years in practice, publications. Never raises — a CV that
+    cannot be parsed returns ``ok=False`` and the admin reviews the raw file.
+    """
+    try:
+        from asclepius import assets
+        data, _ = assets.load_asset(asset_sha)
+    except Exception as exc:
+        return {"ok": False, "asset_sha": asset_sha, "reason": f"load_failed:{type(exc).__name__}",
+                "institutions": [], "board_certifications": [],
+                "years_in_practice": None, "publications_count": None}
+    try:
+        text = extract_cv_text(data, mime)
+        if len(text.strip()) < 40:
+            return {"ok": False, "asset_sha": asset_sha, "reason": "no_extractable_text",
+                    "institutions": [], "board_certifications": [],
+                    "years_in_practice": None, "publications_count": None}
+        parsed = _parse_cv_text(text)
+        parsed.update({
+            "ok": True,
+            "asset_sha": asset_sha,
+            "reason": None,
+            "text_chars": len(text),
+            "parsed_at": datetime.utcnow().replace(microsecond=0).isoformat(),
+        })
+        return parsed
+    except Exception as exc:  # parsing is advisory; it must never break signup
+        log.exception("[credentialing] CV parse failed for %s", asset_sha[:12])
+        return {"ok": False, "asset_sha": asset_sha, "reason": f"parse_failed:{type(exc).__name__}",
+                "institutions": [], "board_certifications": [],
+                "years_in_practice": None, "publications_count": None}

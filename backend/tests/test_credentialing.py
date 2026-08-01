@@ -313,3 +313,101 @@ def test_consumer_email_is_a_weight_not_a_gate():
     # classification never raises and never returns a rejecting state; the
     # tier scorer (Phase 3) applies a small negative weight and nothing more.
     assert classify_email_domain("dr@gmail.com") == "consumer"
+
+
+# ─── Phase 2: CV upload + best-effort parse ──────────────────────────────────
+SAMPLE_CV = """\
+Jane Q. Smith, M.D.
+
+EDUCATION AND TRAINING
+Harvard Medical School, M.D., 2001-2005
+Internal Medicine Residency, Massachusetts General Hospital, 2005-2008
+Cardiology Fellowship, Brigham and Women's Hospital, 2008-2011
+
+CERTIFICATIONS
+Board Certified in Cardiovascular Disease
+Diplomate, American Board of Internal Medicine
+
+PUBLICATIONS
+Smith JQ, et al. Outcomes in HFrEF. NEJM. 2019.
+Smith JQ, et al. TAVR at ten years. JACC. 2021. doi:10.1000/xyz
+
+EXPERIENCE
+Attending Cardiologist, Mount Sinai Health System, 2011-present
+"""
+
+
+def _store_sample_cv(text=SAMPLE_CV):
+    from asclepius.credentialing import store_cv
+    return store_cv(text.encode("utf-8"), "text/plain")
+
+
+def test_store_cv_rejects_bad_mime_and_empty_and_oversize():
+    from asclepius.credentialing import CV_MAX_BYTES, CvUploadError, store_cv
+    with pytest.raises(CvUploadError):
+        store_cv(b"x", "application/msword")
+    with pytest.raises(CvUploadError):
+        store_cv(b"", "application/pdf")
+    with pytest.raises(CvUploadError):
+        store_cv(b"x" * (CV_MAX_BYTES + 1), "application/pdf")
+
+
+def test_store_cv_is_content_addressed_and_loadable():
+    from asclepius import assets
+    fresh_store()
+    meta = _store_sample_cv()
+    again = _store_sample_cv()
+    assert meta["sha256"] == again["sha256"]  # dedupe
+    data, _ = assets.load_asset(meta["sha256"])
+    assert data.decode("utf-8") == SAMPLE_CV
+
+
+def test_parse_cv_extracts_suggestions():
+    from asclepius.credentialing import parse_cv
+    fresh_store()
+    meta = _store_sample_cv()
+    out = parse_cv(meta["sha256"], mime="text/plain")
+    assert out["ok"] is True
+    assert any("Harvard Medical School" in i for i in out["institutions"])
+    assert any("Massachusetts General Hospital" in i for i in out["institutions"])
+    assert any("Cardiovascular Disease" in c for c in out["board_certifications"])
+    assert any("Internal Medicine" in c for c in out["board_certifications"])
+    # fellowship ended 2011 -> a double-digit years-in-practice suggestion
+    assert out["years_in_practice"] is not None and out["years_in_practice"] >= 10
+    assert out["publications_count"] >= 2
+
+
+def test_parse_cv_explicit_years_wins():
+    from asclepius.credentialing import parse_cv, store_cv
+    fresh_store()
+    meta = store_cv("Physician with 7 years of clinical experience.\nCommunity Hospital\n"
+                    .encode(), "text/plain")
+    out = parse_cv(meta["sha256"], mime="text/plain")
+    assert out["years_in_practice"] == 7
+
+
+def test_parse_cv_missing_asset_is_nonfatal():
+    from asclepius.credentialing import parse_cv
+    out = parse_cv("0" * 64)
+    assert out["ok"] is False
+    assert out["reason"].startswith("load_failed")
+    assert out["years_in_practice"] is None
+
+
+def test_parse_cv_garbage_pdf_is_nonfatal():
+    from asclepius.credentialing import parse_cv, store_cv
+    fresh_store()
+    meta = store_cv(b"%PDF-1.4 garbage not a real pdf" + b"\x00" * 64, "application/pdf")
+    out = parse_cv(meta["sha256"], mime="application/pdf")
+    assert out["ok"] is False  # no text layer, no OCR in CI — degrades cleanly
+    assert out["institutions"] == []
+
+
+def test_store_set_cv_roundtrip():
+    store = fresh_store()
+    u = _user_with_npi(store)
+    meta = _store_sample_cv()
+    store.set_cv(u["id"], meta["sha256"], {"ok": True, "institutions": ["X"]})
+    row = store.get_user_by_id(u["id"])
+    assert row["cv_asset_sha"] == meta["sha256"]
+    assert json.loads(row["cv_parsed_json"])["institutions"] == ["X"]

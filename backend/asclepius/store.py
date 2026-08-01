@@ -928,6 +928,10 @@ class AsclepiusStore:
                 ("email_domain_class",  "TEXT"),     # academic | business | consumer
                 ("linkedin_url",        "TEXT"),
                 ("cv_asset_sha",        "TEXT"),
+                # PRD-B extension beyond the §4 contract: cache of the parsed-CV
+                # suggestions so the admin dossier doesn't re-parse (and possibly
+                # re-OCR) the document on every view. Advisory data only.
+                ("cv_parsed_json",      "TEXT"),
                 ("health_system_id",    "TEXT"),     # FK -> health_systems (PRD-C table)
                 ("slack_joined",        "INTEGER"),
                 ("slack_checked_at",    "TEXT"),
@@ -3853,6 +3857,18 @@ class AsclepiusStore:
                 "UPDATE users SET verification_status = ?, "
                 "verification_notes = COALESCE(?, verification_notes) WHERE id = ?",
                 (status, notes, user_id),
+            )
+
+    def set_cv(
+        self, user_id: str, asset_sha: Optional[str],
+        parsed: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Attach an uploaded CV (content-addressed sha) and its best-effort
+        parse to the user row. The parse is advisory dossier data only."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET cv_asset_sha = ?, cv_parsed_json = ? WHERE id = ?",
+                (asset_sha, json.dumps(parsed) if parsed is not None else None, user_id),
             )
 
     def find_users_by_npi(self, npi: str) -> List[Dict[str, Any]]:
