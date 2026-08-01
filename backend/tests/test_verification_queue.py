@@ -293,6 +293,63 @@ def test_reonboard_never_downgrades_an_approved_user(client: TestClient):
     assert store.get_user_by_id(u["id"])["verification_status"] == "approved"
 
 
+# ─── F5: SSO arrivals must not skip verification ─────────────────────────────
+def _sso_token(email: str) -> str:
+    """A doctor-portal staff token — the bridge /auth/sso accepts."""
+    from tenant_jwt import create_tenant_staff_token
+    return create_tenant_staff_token(
+        email=email, name="Dr SSO Arrival", role="surgeon",
+        health_system_id="hs-test", tenant_slug="hs-test",
+        health_system_code="HST",
+    )
+
+
+def test_sso_first_arrival_lands_pending_and_cannot_draw_tasks(client: TestClient):
+    """The test that would have caught F5.
+
+    /auth/sso provisions via create_user, which never sets
+    verification_status, and auth.py treats NULL as pass-through — correct for
+    pre-migration rows, wrong for one created yesterday. The clinician got an
+    evaluator seat with zero credentialing and never appeared in the queue.
+    """
+    store = asc_store_module.reset_store_for_tests(
+        db_path=client.app.state.asclepius_store.db_path)
+    email = f"sso_{uuid.uuid4().hex[:8]}@hospital.org"
+    r = client.post("/api/asclepius/auth/sso", json={"token": _sso_token(email)})
+    assert r.status_code == 200, r.text
+    tok = r.json()["token"]
+
+    row = store.get_user_by_email(email)
+    assert row["verification_status"] == "pending"
+    assert row["id"] in [u["id"] for u in store.list_verification_queue("pending")]
+
+    hdrs = {"Authorization": f"Bearer {tok}"}
+    assert client.get("/api/asclepius/tasks/next", headers=hdrs).status_code == 403
+    assert client.get("/api/asclepius/auth/me", headers=hdrs).status_code == 403
+
+
+def test_sso_does_not_backfill_or_relock_existing_users(client: TestClient):
+    """A pre-existing NULL-status account must keep working, and a returning
+    SSO user must not be re-flagged after an admin approved them."""
+    store = asc_store_module.reset_store_for_tests(
+        db_path=client.app.state.asclepius_store.db_path)
+    email = f"legacy_{uuid.uuid4().hex[:8]}@hospital.org"
+    legacy = store.create_user(email=email, password="pw-12345678", role="evaluator")
+    assert legacy["verification_status"] is None
+
+    r = client.post("/api/asclepius/auth/sso", json={"token": _sso_token(email)})
+    assert r.status_code == 200
+    assert store.get_user_by_email(email)["verification_status"] is None  # not backfilled
+    assert client.get("/api/asclepius/auth/me",
+                      headers={"Authorization": f"Bearer {r.json()['token']}"}
+                      ).status_code == 200
+
+    store.set_verification_status(legacy["id"], "approved")
+    r = client.post("/api/asclepius/auth/sso", json={"token": _sso_token(email)})
+    assert r.status_code == 200
+    assert store.get_user_by_email(email)["verification_status"] == "approved"
+
+
 # ─── Phase 4: the pending gate — a pending user cannot draw tasks ────────────
 def test_pending_evaluator_cannot_draw_tasks_or_use_portal(client: TestClient):
     store = fresh_store()
