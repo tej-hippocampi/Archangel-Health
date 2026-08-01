@@ -137,9 +137,20 @@ def fetch_npi_record(npi: str, timeout: float = DEFAULT_TIMEOUT) -> Dict[str, An
     return {"status": "found", "record": data["results"][0], "reason": None}
 
 
+def _basic(record: Dict[str, Any]) -> Dict[str, Any]:
+    """The 'basic' section of a RAW NPPES record, or the record itself when it
+    is already a trimmed record (the shape we persist and serve from the
+    30-day cache). Evaluation must accept both shapes — the cache round-trip
+    re-verifies a trimmed record for a NEW signup's name."""
+    return record.get("basic") or record
+
+
 def _trim_record(record: Dict[str, Any]) -> Dict[str, Any]:
     """The subset of an NPPES record the dossier needs (kept small on purpose —
-    this is what lands in ``users.npi_payload_json``)."""
+    this is what lands in ``users.npi_payload_json``). Idempotent: a record
+    that is already trimmed passes through unchanged."""
+    if "basic" not in record:
+        return dict(record)
     basic = record.get("basic") or {}
     primary_tax: Optional[Dict[str, Any]] = None
     for tax in record.get("taxonomies") or []:
@@ -176,8 +187,7 @@ def _trim_record(record: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _registry_family_names(record: Dict[str, Any]) -> List[str]:
-    basic = record.get("basic") or {}
-    names = [basic.get("last_name") or ""]
+    names = [_basic(record).get("last_name") or ""]
     for other in record.get("other_names") or []:
         if other.get("last_name"):
             names.append(other["last_name"])
@@ -247,8 +257,7 @@ def verify_npi(
             "from_cache": from_cache,
         }
 
-    basic = record.get("basic") or {}
-    if (basic.get("status") or "").upper() != "A":
+    if (_basic(record).get("status") or "").upper() != "A":
         return {
             "result": NpiResult.MISMATCH.value,
             "npi": number,

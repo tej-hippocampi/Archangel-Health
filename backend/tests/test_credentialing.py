@@ -221,6 +221,24 @@ def test_cache_hit_skips_the_network(monkeypatch):
     assert out["from_cache"] is True
 
 
+def test_trimmed_cached_record_still_verifies(monkeypatch):
+    """Regression: the payload we persist (and later serve as cache) is the
+    TRIMMED record — evaluation must read name/status from that shape too,
+    or every cache hit silently becomes a MISMATCH."""
+    _network_forbidden(monkeypatch)
+    trimmed = {
+        "number": VALID_NPI, "enumeration_type": "NPI-1", "status": "A",
+        "first_name": "Jane", "last_name": "Smith", "credential": "M.D.",
+        "enumeration_date": "2008-05-23",
+        "taxonomy": {"code": "x", "desc": "Internal Medicine", "state": "MA", "license": "1"},
+        "location": {"city": "Boston", "state": "MA"},
+    }
+    out = verify_npi(VALID_NPI, "Smith", cached={"status": "found", "record": trimmed})
+    assert out["result"] == NpiResult.VERIFIED.value
+    out2 = verify_npi(VALID_NPI, "Jones", cached={"status": "found", "record": trimmed})
+    assert out2["result"] == NpiResult.MISMATCH.value
+
+
 def test_cache_recomputes_name_match_per_signup(monkeypatch):
     _network_forbidden(monkeypatch)
     cached = {"status": "found", "record": _nppes_record(last_name="Smith")}

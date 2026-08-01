@@ -1,13 +1,15 @@
 """Health system onboarding (magic link, email OTP, team invites)."""
 
 import html
+import logging
 import os
 import string
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import Form
 from pydantic import BaseModel, EmailStr, Field
 
 from ratelimit import client_ip, global_rate_limiter, rate_limiter
@@ -49,6 +51,8 @@ _ASCLEPIUS_DIRECTOR_ROLE_LABEL = "Director of Data Training"
 _ASCLEPIUS_TEAM_CAP = 10  # director + up to 10 invited clinicians
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
+
+log = logging.getLogger("onboarding")
 
 
 def _ts(request: Request):
@@ -647,7 +651,8 @@ def _provision_asclepius_user(
         years = int(years) if years not in (None, "") else None
     except (TypeError, ValueError):
         years = None
-    _asclepius_store(request).provision_user(
+    store = _asclepius_store(request)
+    user = store.provision_user(
         email=email,
         password=password,
         role=role,
@@ -661,6 +666,80 @@ def _provision_asclepius_user(
         credentials=creds,
         attestations=attestations or {},
     )
+    # PRD-B: identity capture + credential verification. Inline but NON-BLOCKING —
+    # signup must complete even if NPPES is slow or down; the record lands as
+    # pending and the check catches up (or an admin rechecks from the queue).
+    _run_signup_verification(store, user, creds)
+
+
+def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, Any]) -> None:
+    """Capture PRD-B identity fields and run the NPI check for a fresh signup.
+
+    Every failure path in here degrades to a 'pending' queue entry — never an
+    exception out of the signup handler, never a rejection. Blocking the form
+    on a third-party API is how launch day turns into a support queue.
+    """
+    from asclepius import credentialing
+
+    uid = user["id"]
+    try:
+        store.update_identity_capture(
+            uid,
+            phone=(str(creds.get("phone") or "").strip() or None),
+            linkedin_url=(str(creds.get("linkedinUrl") or creds.get("linkedin_url") or "").strip()
+                          or None),
+            email_domain_class=credentialing.classify_email_domain(user.get("email") or ""),
+        )
+    except Exception:
+        log.exception("[credentialing] identity capture failed (non-fatal)")
+
+    try:
+        cv_sha = str(creds.get("cvAssetSha") or "").strip()
+        if cv_sha:
+            parsed = credentialing.parse_cv(
+                cv_sha, mime=str(creds.get("cvMime") or "application/pdf"))
+            store.set_cv(uid, cv_sha, parsed)
+    except Exception:
+        # A CV that cannot be parsed is empty-fields + raw file for the admin.
+        log.exception("[credentialing] CV parse failed (non-fatal)")
+
+    npi = credentialing.clean_npi(str(creds.get("npi") or ""))
+    if npi:
+        # Family name only — given names diverge legitimately (Bob/Robert).
+        legal_name = str(creds.get("fullLegalName") or user.get("full_name") or "").strip()
+        family_name = legal_name.split()[-1] if legal_name else ""
+        try:
+            cached = store.get_cached_npi_fetch(npi)
+            result = credentialing.verify_npi(npi, family_name, cached=cached)
+            store.set_npi_result(uid, result)
+        except Exception:
+            # "Could not check" is NOT "does not exist": route to manual review.
+            log.exception("[credentialing] NPI check failed; queued for retry")
+            try:
+                store.set_npi_result(uid, {"result": "unavailable", "reason": "exception"})
+            except Exception:
+                log.exception("[credentialing] could not persist NPI result (non-fatal)")
+
+    try:
+        # Land in the admin verification queue — but never downgrade a decided
+        # record: a re-onboard of an already approved/rejected physician keeps
+        # the human decision until an admin changes it.
+        current = store.get_user_by_id(uid) or {}
+        if current.get("verification_status") in (None, "pending"):
+            store.set_verification_status(uid, "pending")
+            store.log_event(
+                entity_type="user",
+                entity_id=uid,
+                event_type="verification_pending",
+                actor=user.get("email"),
+                payload={
+                    "npi_result": ((current.get("npi_payload_json") and
+                                    "checked") or ("submitted" if npi else "absent")),
+                    "email_domain_class": current.get("email_domain_class"),
+                },
+            )
+    except Exception:
+        log.exception("[credentialing] could not mark signup pending (non-fatal)")
 
 
 @router.post("/select-product")
@@ -749,6 +828,34 @@ async def asclepius_attestations(body: AsclepiusAttestationsBody, request: Reque
     return {"ok": True}
 
 
+@router.post(
+    "/asclepius/cv",
+    dependencies=[Depends(rate_limiter("onboarding_cv", 10, 3600))],
+)
+async def asclepius_cv_upload(
+    request: Request,
+    token: str = Form(...),
+    file: UploadFile = File(...),
+):
+    """Optional CV upload during signup (PRD-B Phase 2/4). Accepts either the
+    director onboarding token or an invited-member token; stores the raw
+    document content-addressed and returns the sha for the credentials form.
+    A failed upload never blocks signup — the CV field is optional."""
+    from asclepius import credentialing
+
+    try:
+        _load_hs(request, token)
+    except HTTPException:
+        _load_asclepius_member(request, token)  # 404s if neither token is valid
+    data = await file.read()
+    try:
+        meta = credentialing.store_cv(data, file.content_type or "")
+    except credentialing.CvUploadError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": True, "sha256": meta["sha256"], "mime": meta["mime"],
+            "byte_size": meta["byte_size"]}
+
+
 @router.post("/asclepius/add-member")
 async def asclepius_add_member(body: AsclepiusAddMemberBody, request: Request):
     if not _email_configured():
@@ -809,7 +916,13 @@ async def asclepius_add_member(body: AsclepiusAddMemberBody, request: Request):
     return {"ok": True}
 
 
-@router.post("/asclepius/finish")
+@router.post(
+    "/asclepius/finish",
+    # Launch-day guard (PRD-B §Phase 4): signup completion is the expensive,
+    # account-creating step — throttle per IP so someone who finds the form
+    # cannot mass-provision accounts. Legit flows finish once.
+    dependencies=[Depends(rate_limiter("asclepius_signup", 5, 3600))],
+)
 async def asclepius_finish(body: OnboardTokenBody, request: Request):
     if not _email_configured():
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
@@ -861,6 +974,7 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         workspace_url=workspace_url,
         is_director=True,
         team_count=len(invited),
+        verification_notice=True,
     )
     await send_html_email(
         director_email, "Your Asclepius workspace is ready", html_body, importance_headers=True
@@ -922,7 +1036,10 @@ async def member_attestations(body: MemberAttestationsBody, request: Request):
     return {"ok": True}
 
 
-@router.post("/member/finish")
+@router.post(
+    "/member/finish",
+    dependencies=[Depends(rate_limiter("asclepius_signup", 5, 3600))],
+)
 async def member_finish(body: OnboardTokenBody, request: Request):
     if not _email_configured():
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
@@ -962,6 +1079,7 @@ async def member_finish(body: OnboardTokenBody, request: Request):
         temporary_password=member_pwd,
         workspace_url=workspace_url,
         is_director=False,
+        verification_notice=True,
     )
     await send_html_email(
         person["email"], "Your Asclepius workspace is ready", html_body, importance_headers=True

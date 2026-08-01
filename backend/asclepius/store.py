@@ -3859,6 +3859,24 @@ class AsclepiusStore:
                 (status, notes, user_id),
             )
 
+    def update_identity_capture(
+        self,
+        user_id: str,
+        *,
+        phone: Optional[str] = None,
+        linkedin_url: Optional[str] = None,
+        email_domain_class: Optional[str] = None,
+    ) -> None:
+        """Signup-time identity fields (PRD-B Phase 4). Only overwrites a field
+        when a value is provided, so a sparse re-onboard never wipes data."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET phone = COALESCE(?, phone), "
+                "linkedin_url = COALESCE(?, linkedin_url), "
+                "email_domain_class = COALESCE(?, email_domain_class) WHERE id = ?",
+                (phone, linkedin_url, email_domain_class, user_id),
+            )
+
     def set_cv(
         self, user_id: str, asset_sha: Optional[str],
         parsed: Optional[Dict[str, Any]] = None,
