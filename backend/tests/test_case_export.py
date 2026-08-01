@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from tests import _asclepius as A  # noqa: E402
 from asclepius import pipeline as asc_pipeline  # noqa: E402
 from asclepius import profiles as asc_profiles  # noqa: E402
+from asclepius import review as asc_review  # noqa: E402
 
 client = TestClient(A.app)
 
@@ -106,6 +107,11 @@ def _add_review(sid, task_id, *, verdict="accept", blinded=True, reviewer=None,
                                   "completeness": "agree", "rubric_quality": "cannot_assess"},
         corrections=corrections, reviewer_notes=notes, time_spent_sec=40,
         blinded=blinded,
+        # Mirror the router: every review written by the product carries a
+        # scan result. NULL means 'never scanned', and unscanned prose is
+        # withheld from buyers by design — so a helper that omitted this would
+        # be testing a legacy row, not the product.
+        identifier_flags=asc_review.scan_review_free_text(notes, corrections),
     )
 
 
@@ -330,3 +336,166 @@ def test_case_export_portal_version_filter():
     # route through this same pass-through filter).
     with pytest.raises(ValueError):
         export_by_case(store, created_by="admin", portal_version="v5")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FIX ROUND — Phase 5: the export seam (A-5.1 .. A-5.5).
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_case_bundle_sees_previously_exported_labels():
+    """A-5.1 / Seam 2: build_export selects only 'export_ready' unless told
+    otherwise, so a case whose first labeler already shipped in an earlier batch
+    came out with n_labelers=1 AND consensus.unanimous=true computed from that
+    single label — a wrong number in a buyer's hands, produced silently."""
+    from asclepius.export import export_by_case
+
+    admin_h = _admin_h()
+    store = _store()
+    tid = _create_task(admin_h, max_labels=2)
+    sid1 = _submit(tid, _evaluator())
+    sid2 = _submit(tid, _evaluator())
+
+    # Ship labeler A's records in an earlier batch; they leave 'export_ready'.
+    _build_export(admin_h, submission_id=sid1)
+    assert store.get_submission(sid1)["status"] == "exported"
+
+    cases = _cases_jsonl(export_by_case(store, created_by="admin", case_id=tid))
+    assert len(cases) == 1
+    case = cases[0]
+    # Both labels present — the case is whole.
+    assert case["n_labelers"] == 2
+    assert {l["submission_id"] for l in case["labels"]} == {sid1, sid2}
+    assert case["consensus"]["n_labels"] == 2
+
+
+def test_export_by_case_signature_is_frozen_for_seam_2():
+    """Seam 2: the admin export endpoint calls exactly this signature."""
+    import inspect
+    from asclepius.export import export_by_case
+
+    sig = inspect.signature(export_by_case)
+    for name in ("created_by", "case_id", "specialty", "portal_version", "include_exported"):
+        assert name in sig.parameters, f"missing frozen parameter {name!r}"
+        assert sig.parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
+    assert sig.parameters["include_exported"].default is True
+
+
+def test_reviewer_free_text_with_an_identifier_is_withheld_from_buyers():
+    """A-5.3: review_block shipped `corrections` verbatim. find_tier_b_leak
+    scans KEYS, not values, so a reviewer writing a name or a date into their
+    correction shipped that string to a lab."""
+    admin_h = _admin_h()
+    store = _store()
+    tid = _create_task(admin_h)
+    sid = _submit(tid, _evaluator())
+
+    reviewer = A.make_user(store, role="evaluator", specialty="nephrology",
+                           board_cert="board_certified_nephrology")
+    with store._conn() as conn:
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "tier" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN tier TEXT")
+        conn.execute("UPDATE users SET tier='reviewer' WHERE id=?", (reviewer["id"],))
+
+    client.get("/api/asclepius/review/next", headers=A.headers_for(reviewer))
+    dirty = "Per Dr. Chen's note the potassium was 6.2 on 03/14/2024."
+    r = client.post(f"/api/asclepius/review/{sid}", json={
+        "verdict": "accept_with_edits",
+        "dimensions": {k: "agree" for k in
+                       ("clinical_accuracy", "reasoning_quality", "completeness", "rubric_quality")},
+        "corrections": {"notes": dirty},
+        "reviewer_notes": dirty,
+        "time_spent_sec": 60,
+    }, headers=A.headers_for(reviewer))
+    assert r.status_code == 200
+    body = r.json()
+    # The reviewer is TOLD, so they can rewrite it.
+    assert body["corrections_withheld"] is True and body["identifier_flags"]
+
+    # The clinical judgment survives; only the prose is held back.
+    for rec in _records_jsonl(_build_export(admin_h)):
+        entry = rec["review"]["reviews"][0]
+        assert entry["verdict"] == "accept_with_edits"
+        assert entry["dimensions"]["clinical_accuracy"] == "agree"
+        assert entry["corrections"] == {}
+        assert entry["corrections_withheld"] is True
+    # And the identifier string appears nowhere in the shipped bytes.
+    out_dir = Path(_build_export(admin_h, include_exported=True)["dir_path"])
+    for name in ("records.jsonl", "cases.jsonl"):
+        assert "Chen" not in (out_dir / name).read_text()
+
+
+def test_clean_reviewer_corrections_still_ship():
+    """The withholding must not swallow legitimate corrections."""
+    admin_h = _admin_h()
+    tid = _create_task(admin_h)
+    sid = _submit(tid, _evaluator())
+    _add_review(sid, tid, verdict="accept_with_edits",
+                corrections={"notes": "Dose should be renally adjusted."})
+    entry = _records_jsonl(_build_export(admin_h))[0]["review"]["reviews"][0]
+    assert entry["corrections"]["notes"] == "Dose should be renally adjusted."
+    assert entry["corrections_withheld"] is False
+
+
+def test_case_bundle_drops_internal_state_and_duplicate_annexes():
+    """A-5.4 internal workflow state ('in_review'/'not_routed') is meaningless
+    to a buyer. A-5.5 the same review payload appeared at three nesting levels."""
+    from asclepius.export import export_by_case
+
+    admin_h = _admin_h()
+    tid = _create_task(admin_h)
+    sid = _submit(tid, _evaluator())
+    _add_review(sid, tid, verdict="accept")
+
+    case = _cases_jsonl(export_by_case(_store(), created_by="admin", case_id=tid))[0]
+    for label in case["labels"]:
+        assert "review_status" not in label
+        for rec in label["records"]:
+            # Stated once, at case level.
+            assert "review" not in rec and "supervision" not in rec
+    assert case["review"]["n_reviews"] == 1
+    assert "independent_second_label" in case["supervision"]
+
+
+def test_data_dictionary_documents_every_annex_it_ships():
+    """A-5.2: `review`, `supervision` and the whole cases.jsonl companion shipped
+    to buyers undocumented. An undocumented field in a delivered artifact is
+    indistinguishable from a leak."""
+    admin_h = _admin_h()
+    tid = _create_task(admin_h)
+    sid = _submit(tid, _evaluator())
+    _add_review(sid, tid, verdict="accept")
+    manifest = _build_export(admin_h)
+    dd = (Path(manifest["dir_path"]) / "data_dictionary.md").read_text()
+
+    for term in ("review.reviewed", "review.reviews[].verdict", "corrections_withheld",
+                 "supervision.independent_second_label", "cases.jsonl",
+                 "consensus.majority_verdict", "cannot_assess"):
+        assert term in dd, f"data dictionary does not document {term!r}"
+    # And it states the honesty rule the whole tier rests on.
+    assert "NOT inter-rater agreement" in dd
+    assert "out of the buyer profile" in dd.lower() or "out of profile schema" in dd.lower()
+
+
+def test_unscanned_legacy_review_prose_is_withheld_not_assumed_clean():
+    """Tri-state discipline: NULL identifier_flags means 'never scanned', which
+    is not 'scanned and clean'. Rows written before A-5.3 shipped have NULL, and
+    their free text must be withheld rather than trusted."""
+    admin_h = _admin_h()
+    store = _store()
+    tid = _create_task(admin_h)
+    sid = _submit(tid, _evaluator())
+    reviewer = A.make_user(store, role="evaluator", specialty="nephrology",
+                           board_cert="board_certified_nephrology")
+    # A legacy row: inserted with no scan result at all.
+    store.insert_case_review(
+        task_id=tid, submission_id=sid, reviewer_user_id=reviewer["id"],
+        reviewer_id_hashed=reviewer["id_hashed"], verdict="accept_with_edits",
+        dimensions={"clinical_accuracy": "agree"},
+        corrections={"notes": "Legacy note nobody ever scanned."},
+        blinded=True, identifier_flags=None,
+    )
+    entry = _records_jsonl(_build_export(admin_h))[0]["review"]["reviews"][0]
+    assert entry["corrections"] == {}
+    assert entry["corrections_withheld"] is True
+    # The judgment still ships — only the unscanned prose is held back.
+    assert entry["verdict"] == "accept_with_edits"

@@ -956,6 +956,12 @@ class AsclepiusStore:
             # table scans per reviewer per case (FIX A A-3.5).
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_sub_review_status ON submissions(review_status)")
+            # Safe-Harbor identifier kinds found in the reviewer's own free text
+            # at insert time (FIX A A-5.3). Tri-state: NULL = never scanned
+            # (legacy row), '[]' = scanned clean, '["name",...]' = flagged, in
+            # which case the free text is withheld from the buyer-facing block.
+            if "identifier_flags" not in cols("case_reviews"):
+                conn.execute("ALTER TABLE case_reviews ADD COLUMN identifier_flags TEXT")
             # ═══ END PRD-A ═══
 
     # ─── Users ────────────────────────────────────────────────────────────────
@@ -3811,6 +3817,10 @@ class AsclepiusStore:
         rec = dict(row)
         rec["dimensions"] = json.loads(rec.pop("dimension_json", "{}") or "{}")
         rec["corrections"] = json.loads(rec.pop("corrections_json", "null") or "null")
+        raw_flags = rec.pop("identifier_flags", None)
+        # None (never scanned) stays distinct from [] (scanned clean).
+        rec["identifier_flags"] = json.loads(raw_flags) if raw_flags else (
+            [] if raw_flags == "[]" else None)
         return rec
 
     def insert_case_review(
@@ -3826,6 +3836,7 @@ class AsclepiusStore:
         reviewer_notes: Optional[str] = None,
         time_spent_sec: Optional[int] = None,
         blinded: Optional[bool] = True,
+        identifier_flags: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """One senior-reviewer verdict on a labeler submission (PRD A §2).
 
@@ -3839,8 +3850,8 @@ class AsclepiusStore:
                 INSERT INTO case_reviews
                   (review_id, task_id, submission_id, reviewer_user_id, reviewer_id_hashed,
                    verdict, dimension_json, corrections_json, reviewer_notes,
-                   time_spent_sec, blinded, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   time_spent_sec, blinded, identifier_flags, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     review_id,
@@ -3854,6 +3865,7 @@ class AsclepiusStore:
                     reviewer_notes,
                     int(time_spent_sec) if time_spent_sec is not None else None,
                     None if blinded is None else (1 if blinded else 0),
+                    None if identifier_flags is None else json.dumps(sorted(identifier_flags)),
                     _utcnow_iso(),
                 ),
             )

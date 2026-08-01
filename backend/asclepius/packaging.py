@@ -829,6 +829,23 @@ def _review_corrections(review: Dict[str, Any]) -> Dict[str, Any]:
         return {}
 
 
+def _identifier_flagged(review: Dict[str, Any]) -> bool:
+    """True when the insert-time identifier scan found something in the
+    reviewer's free text. NULL (never scanned, e.g. a legacy row) is NOT treated
+    as flagged — it is treated as unknown, and unknown prose is withheld too,
+    because 'we never checked' is not 'we checked and it was clean'."""
+    flags = review.get("identifier_flags")
+    if flags is None:
+        raw = review.get("identifier_flags_json")
+        if raw is None:
+            return True          # never scanned -> withhold, fail safe
+        try:
+            flags = json.loads(raw) or []
+        except (TypeError, ValueError):
+            return True
+    return bool(flags)
+
+
 def _reviewer_credential(review: Dict[str, Any], store: Any = None) -> Optional[str]:
     """Resolve the reviewer's credential ATTRIBUTE from the users table (the same
     source-of-truth rule as ``_annotator_credential``). Never a name, never an
@@ -866,7 +883,14 @@ def review_block(reviews: List[Dict[str, Any]], store: Any = None) -> Dict[str, 
                 "reviewer_credential": _reviewer_credential(r, store),
                 "verdict": r.get("verdict"),
                 "dimensions": _review_dimensions(r),
-                "corrections": _review_corrections(r),
+                # Reviewer free text is withheld when the insert-time
+                # Safe-Harbor scan flagged an identifier in it (FIX A A-5.3).
+                # The export leak gate scans KEYS, not values, so prose like
+                # "per Dr. Chen's note, K+ 6.2 on 3/14" would otherwise ship to
+                # a lab verbatim. The verdict and dimensions still ship — only
+                # the prose is held back, and the record says so out loud.
+                "corrections": {} if _identifier_flagged(r) else _review_corrections(r),
+                "corrections_withheld": _identifier_flagged(r),
                 "blinded": r.get("blinded") in (True, 1),
                 "reviewed_at": r.get("created_at"),
             }

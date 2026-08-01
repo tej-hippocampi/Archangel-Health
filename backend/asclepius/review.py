@@ -311,6 +311,31 @@ def _has_correction_content(corrections: Any) -> bool:
     return bool(notes or edited)
 
 
+def scan_review_free_text(
+    reviewer_notes: Optional[str], corrections: Optional[Dict[str, Any]]
+) -> List[str]:
+    """Safe-Harbor identifier kinds found in the reviewer's own prose (FIX A A-5.3).
+
+    ``corrections.notes`` / ``corrections.edited_answer`` and ``reviewer_notes``
+    are free text a physician typed about a possibly-real de-identified case, and
+    ``review_block`` ships ``corrections`` verbatim to buyers. The export leak
+    gate scans KEYS, not values, so a reviewer writing "per Dr. Chen's note, K+
+    6.2 on 3/14" would ship that string to a lab. Uses the same scanner the
+    ingestion pipeline uses, so there is one definition of an identifier."""
+    from asclepius.validation import residual_identifiers
+
+    texts: List[Optional[str]] = [reviewer_notes]
+    if isinstance(corrections, dict):
+        for key in ("notes", "edited_answer"):
+            val = corrections.get(key)
+            if isinstance(val, str):
+                texts.append(val)
+    kinds: List[str] = []
+    for t in texts:
+        kinds.extend(residual_identifiers(t))
+    return sorted(set(kinds))
+
+
 def validate_review_payload(body: Dict[str, Any]) -> List[str]:
     """All the ways a review submission can be unusable, as a list of reasons
     (empty = valid). Pure so the rules are unit-testable without HTTP."""

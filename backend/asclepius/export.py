@@ -303,6 +303,52 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `portal_version` | evaluator product flow that produced the record: `v1` (classic) or `v2` (assisted). Stage-1 prompt review + record types are identical across both; V2 adds quick-stance capture, model-assist provenance, and structured reasons |
 | `license` / `ip_cleared` / `contains_phi` | rights attestation (opt §1.4) |
 | `captured_at` | submission capture timestamp |
+
+## Expert review annexes on every record (out of profile schema)
+
+`review` and `supervision` are attached to every line in `{JSONL_NAME}` AFTER
+profile mapping and schema validation, so they are deliberately **out of the
+buyer profile's schema** — annexes, not mapped fields. A profile that declares
+`additionalProperties: false` will not see them validated. They are documented
+here because they ship, and an undocumented field in a delivered artifact is
+indistinguishable from a leak.
+
+| field | meaning |
+| --- | --- |
+| `review.reviewed` / `review.n_reviews` | whether a senior physician graded this labeler submission, and how many did |
+| `review.reviews[].verdict` | `accept` · `accept_with_edits` · `reject` |
+| `review.reviews[].dimensions` | per-dimension judgment: `agree` · `disagree` · `cannot_assess`. **`cannot_assess` is its own state** — the honest answer when a dimension is outside the reviewer's subspecialty — and is never counted as disagreement |
+| `review.reviews[].corrections` | the reviewer's edits. `{{}}` when withheld — see `corrections_withheld` |
+| `review.reviews[].corrections_withheld` | `true` when an insert-time Safe-Harbor scan found an identifier in the reviewer's free text, or when that text predates scanning. The verdict and dimensions still ship; only the prose is held back |
+| `review.reviews[].reviewer_credential` | credential ATTRIBUTE only (e.g. board_certified_nephrology) — never a name, NPI or licence number |
+| `review.reviews[].blinded` | `true` only when the payload served to that reviewer verifiably carried no labeler identity. **Derived from the served payload, not asserted.** An admin reviewer is always `false` (an admin can de-blind by other means) |
+| `review.accepted_without_edits` | true only when every review was a plain `accept` |
+| `supervision.labeler_id_hashed` | stable hashed id of the labeler (no PII) |
+| `supervision.independent_second_label` | `true` only for the double-labeled slice whose second observation was explicitly blinded — the slice a real Cohen's κ is computed on |
+
+**Expert review is NOT inter-rater agreement.** The reviewer sees the labeler's
+answer, so the two observations are not independent and κ does not apply. The
+review acceptance rate and Cohen's κ are reported as two separately named
+figures in `{QUALITY_NAME}`; κ covers only the independently double-labeled slice.
+
+## `{CASES_NAME}` — the case-keyed companion
+
+One JSON object per line, one line per case. Same content as `{JSONL_NAME}`,
+reorganized around the case rather than the physician's worklist: a case with
+two labelers and a review is one artifact, not three unrelated rows. Also an
+annex — not covered by the profile schema.
+
+| field | meaning |
+| --- | --- |
+| `case_id` | the case (task) identifier this bundle is keyed on |
+| `specialty` / `difficulty` / `prompt` / `context` | the case itself; `context.case` holds out the answer key |
+| `n_labelers` / `labels[]` | every labeler submission on this case |
+| `labels[].records[]` | that labeler's mapped records, minus the `review`/`supervision` annexes, which are stated once at case level |
+| `review` / `supervision` | as above, aggregated across every label on the case |
+| `consensus.verdicts` | verdict histogram across labelers |
+| `consensus.majority_verdict` | `null` on a tie — a tie is not a majority |
+| `consensus.unanimous` | all labelers agreed. Read it together with `n_labelers`: unanimity across one label is not agreement |
+| `consensus.agreement_observation` | the stored double-label observation (`verdict_a`, `verdict_b`, `verdict_agree`, `blinded`), or `null` when the case was not double-labeled |
 """
 
 
@@ -1032,11 +1078,18 @@ def _case_bundle(
             "verdict": sub.get("verdict"),
             "confidence": sub.get("confidence"),
             "portal_version": payload.get("portal_version") or sub.get("portal_version"),
-            "review_status": sub.get("review_status"),
+            # NOTE: no ``review_status`` here. It is internal workflow state
+            # ('in_review', 'not_routed', 'orphaned'), meaningless to a buyer and
+            # faintly alarming in a delivered artifact (FIX A A-5.4). Whether the
+            # case was reviewed is already stated by ``review.reviewed``.
             "submitted_at": sub.get("created_at"),
             "records": [],
         })
-        label["records"].append(mapped)
+        # The case-level ``review``/``supervision`` blocks are authoritative;
+        # carrying them again on every embedded record repeated the same review
+        # payload at three nesting levels per case (FIX A A-5.5).
+        label["records"].append({k: v for k, v in mapped.items()
+                                 if k not in ("review", "supervision")})
 
     cases: List[Dict[str, Any]] = []
     for tid in sorted(by_case):
@@ -1090,10 +1143,21 @@ def export_by_case(
     case_id: Optional[str] = None,
     specialty: Optional[str] = None,
     portal_version: Optional[str] = None,
+    include_exported: bool = True,
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """Bundle keyed by case_id. One case carries: the case content, every labeler
     submission, every review, and the derived consensus (PRD A Phase 5).
+
+    SIGNATURE IS FROZEN (context pack Seam 2) — the admin export endpoint calls
+    exactly this.
+
+    ``include_exported`` defaults to **True**, unlike ``build_export`` (FIX A
+    A-5.1). A case bundle that cannot see the case's earlier labels is not a
+    case bundle: if labeler A's records shipped in a previous batch and labeler
+    B's have not, a False default emits that case with ``n_labelers: 1`` and
+    ``consensus.unanimous: true`` computed from a single label — a wrong number
+    in a buyer's hands, produced silently and with no error anywhere.
 
     A thin, filterable entry point over ``build_export`` — one export pipeline,
     one Tier B leak gate. Emits ``records.jsonl`` (unchanged, for compatibility)
@@ -1105,6 +1169,7 @@ def export_by_case(
         case_id=case_id,
         specialty=specialty,
         portal_version=portal_version,
+        include_exported=include_exported,
         **kwargs,
     )
 

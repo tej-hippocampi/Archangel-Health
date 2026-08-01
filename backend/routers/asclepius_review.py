@@ -239,6 +239,14 @@ async def submit_review(
         raise HTTPException(
             status_code=409, detail="Another reviewer currently holds this submission.")
 
+    # Scan the reviewer's OWN prose for Safe-Harbor identifiers before it is
+    # stored (FIX A A-5.3). The review is never rejected over this — a physician
+    # should not lose clinical judgment to a scanner — but a flagged review has
+    # its free text withheld from the buyer-facing block, and the reviewer is
+    # told so they can rewrite it.
+    identifier_flags = asc_review.scan_review_free_text(
+        body.reviewer_notes, body.corrections)
+
     review = store.insert_case_review(
         task_id=sub["task_id"],
         submission_id=submission_id,
@@ -255,6 +263,7 @@ async def submit_review(
         # assumption in a new place. Tri-state: None means no draw ever asserted
         # it, which is excluded from κ as unverified rather than treated as blind.
         blinded=claim["blinded"],
+        identifier_flags=identifier_flags,
     )
     store.update_submission(submission_id, review_status="reviewed")
     store.log_event(
@@ -268,7 +277,14 @@ async def submit_review(
             "task_id": sub["task_id"],
         },
     )
-    return {"review": review, "review_status": "reviewed"}
+    return {
+        "review": review,
+        "review_status": "reviewed",
+        # Surfaced so the reviewer can rewrite the note rather than discovering
+        # months later that their correction never shipped.
+        "identifier_flags": identifier_flags,
+        "corrections_withheld": bool(identifier_flags),
+    }
 
 
 # ─── Double-label pointer (the real-κ slice) ──────────────────────────────────
