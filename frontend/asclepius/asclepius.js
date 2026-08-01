@@ -38,7 +38,15 @@
     // degrades silently if the community backend is unbuilt). unread drives the
     // badge; handoffToken is pre-minted so the new tab can open synchronously.
     community: { unread: 0, handoffToken: null, unavailable: false, unreadUnavailable: false, pollTimer: null },
-    adminTab: 'tasks',     // tasks | buyers | exports | metrics
+    // PRD-C admin restructure: sections mirror the assets the company owns
+    // (Physicians · Health Systems · Export · Metrics); the old stage-named
+    // views live on as sub-tabs inside them.
+    adminTab: 'physicians',   // physicians | health | export | metrics
+    adminSub: {               // active sub-tab per section
+      physicians: 'roster',   //   roster | verify | tasks | qa
+      health: 'systems',      //   systems | pipeline
+      export: 'bycase',       //   bycase | buyers | history
+    },
     // Org → contributor drill-down state, shared shape across Exports + Metrics.
     browse: {
       export: { level: 'orgs', org: null, idHashed: null, contributor: null },
@@ -5869,15 +5877,36 @@
   // ═══════════════════════════════════════════════════════════════════════════
   //  ADMIN CONSOLE
   // ═══════════════════════════════════════════════════════════════════════════
+  // Legacy tab ids (deep links, stale state) → new section + sub-tab.
+  const ADMIN_TAB_ALIASES = {
+    tasks: ['physicians', 'tasks'], qa: ['physicians', 'qa'],
+    ingestion: ['health', 'pipeline'], buyers: ['export', 'buyers'],
+    exports: ['export', 'history'],
+  };
+
+  // Shared helpers handed to the section modules (admin_physicians.js,
+  // admin_health.js, admin_export.js) — they live in their own files (§3.3
+  // ownership) and build DOM exclusively through this ctx.
+  function adminSectionCtx() {
+    return {
+      h, api, clear, toast, loadingCard, downloadBlob, fmtDate,
+      // Jump to the pipeline tools (the ingestion review/promote surface).
+      openPipeline: () => {
+        state.adminTab = 'health'; state.adminSub.health = 'pipeline';
+        renderAdminView();
+      },
+    };
+  }
+
   function renderAdminView() {
     stopTimer();
     updateHeaderProgress(); // admin view — the §16 bar hides here
+    const alias = ADMIN_TAB_ALIASES[state.adminTab];
+    if (alias) { state.adminTab = alias[0]; state.adminSub[alias[0]] = alias[1]; }
     const tabs = [
-      ['tasks', 'Tasks'],
-      ['qa', 'QA'],
-      ['ingestion', 'Ingestion'],
-      ['buyers', 'Buyers & Requests'],
-      ['exports', 'Exports'],
+      ['physicians', 'Physicians'],
+      ['health', 'Health Systems'],
+      ['export', 'Export'],
       ['metrics', 'Metrics'],
     ];
     const subnav = h('div', { class: 'asc-subnav' },
@@ -5886,8 +5915,10 @@
           class: 'asc-subnav-btn' + (state.adminTab === id ? ' active' : ''),
           onClick: () => { state.adminTab = id; renderAdminView(); },
         }, label);
-        // QA (BUG-2): a live pending-count badge so the backlog is never invisible.
-        if (id === 'qa') btn.appendChild(h('span', { class: 'asc-badge asc-badge-count', id: 'ascQaBadge', style: 'margin-left:6px', hidden: true }));
+        // QA (BUG-2): the pending-count badge stays visible at the top level so
+        // the backlog is never invisible — it now rides on Physicians (QA lives
+        // inside it as a sub-tab).
+        if (id === 'physicians') btn.appendChild(h('span', { class: 'asc-badge asc-badge-count', id: 'ascQaBadge', style: 'margin-left:6px', hidden: true }));
         return btn;
       }));
 
@@ -5895,12 +5926,75 @@
     setRoot(h('div', { class: 'asc-wrap' }, subnav, body));
     refreshQaBadge();
 
-    if (state.adminTab === 'tasks') renderAdminTasks(body);
-    else if (state.adminTab === 'qa') renderAdminQA(body);
-    else if (state.adminTab === 'ingestion') renderAdminIngestion(body);
-    else if (state.adminTab === 'buyers') renderAdminBuyers(body);
-    else if (state.adminTab === 'exports') renderAdminExports(body);
+    if (state.adminTab === 'physicians') renderAdminPhysiciansSection(body);
+    else if (state.adminTab === 'health') renderAdminHealthSection(body);
+    else if (state.adminTab === 'export') renderAdminExportSection(body);
     else if (state.adminTab === 'metrics') renderAdminMetrics(body);
+  }
+
+  // Sub-tab strip shared by the three restructured sections.
+  function adminSubnav(section, items) {
+    return h('div', { class: 'asc-subnav', style: 'margin-bottom:14px' },
+      items.map(([id, label]) => h('button', {
+        class: 'asc-subnav-btn' + (state.adminSub[section] === id ? ' active' : ''),
+        onClick: () => { state.adminSub[section] = id; renderAdminView(); },
+      }, label)));
+  }
+
+  function sectionModuleMissing(body, name) {
+    body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-inline-error' },
+        name + ' failed to load — refresh the page. If it persists, check that the ' +
+        'script is included in index.html.'))));
+  }
+
+  // Physicians — who supplies our judgment. Tasks and QA live here now, next to
+  // the people who produce them.
+  function renderAdminPhysiciansSection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('physicians', [
+      ['roster', 'Roster'], ['verify', 'Verification'],
+      ['tasks', 'Tasks'], ['qa', 'QA'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    const sub = state.adminSub.physicians;
+    if (sub === 'tasks') renderAdminTasks(inner);
+    else if (sub === 'qa') renderAdminQA(inner);
+    else if (window.AdminPhysiciansSection) {
+      window.AdminPhysiciansSection.render(inner, adminSectionCtx(),
+        sub === 'verify' ? 'verify' : 'roster');
+    } else sectionModuleMissing(inner, 'The Physicians section');
+  }
+
+  // Health Systems — who supplies our data. The ingestion review/promote surface
+  // lives here as "Pipeline tools".
+  function renderAdminHealthSection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('health', [
+      ['systems', 'Systems'], ['pipeline', 'Pipeline tools'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    if (state.adminSub.health === 'pipeline') renderAdminIngestion(inner);
+    else if (window.AdminHealthSection) window.AdminHealthSection.render(inner, adminSectionCtx());
+    else sectionModuleMissing(inner, 'The Health Systems section');
+  }
+
+  // Export — what can we sell, and how do we cut it. By-case is the primary
+  // view; buyer relationships and past export batches stay reachable beside it.
+  function renderAdminExportSection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('export', [
+      ['bycase', 'Export by case'], ['buyers', 'Buyers & Requests'], ['history', 'Export history'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    const sub = state.adminSub.export;
+    if (sub === 'buyers') renderAdminBuyers(inner);
+    else if (sub === 'history') renderAdminExports(inner);
+    else if (window.AdminExportSection) window.AdminExportSection.render(inner, adminSectionCtx());
+    else sectionModuleMissing(inner, 'The Export section');
   }
 
   async function refreshQaBadge() {

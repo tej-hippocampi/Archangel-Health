@@ -2412,3 +2412,73 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
   body.asc-view-guide .asc-guide-detail-sum,
   body.asc-view-guide .asc-guide-anchor { display: none; }
 }
+
+/* ═══ PRD-C — admin restructure: health systems, physicians, export, metrics.
+   Append-only block (§3.3). Locked design system: canvas #eef0ef, card #fbfcfa,
+   ink #1a1b1a, green #4ca63c, orange #ec9440, pink #e8447b, lime #d5e14e.
+   Air is the design · scale not boldness · zero black fills. ═══ */
+
+/* Health Systems — detail meta strip */
+.asc-hs-meta { display: flex; gap: 32px; flex-wrap: wrap; }
+.asc-hs-meta-cell { min-width: 110px; }
+.asc-hs-meta-value { font-size: 22px; line-height: 1.2; color: #1a1b1a; }
+.asc-hs-meta-label { font-size: 12px; color: #6b6d6b; margin-top: 2px; }
+
+/* Health Systems — pipeline buckets */
+.asc-hs-bucket { margin-top: 16px; }
+.asc-hs-bucket-attention { border: 1px solid #e8447b; }
+.asc-hs-bucket-attention .asc-card-title { color: #e8447b; }
+.asc-hs-reason { color: #ec9440; font-size: 13px; }
+.asc-hs-notes { max-width: 320px; }
+.asc-hs-actions { white-space: nowrap; text-align: right; }
+.asc-row-click { cursor: pointer; }
+.asc-row-click:hover td { background: rgba(76, 166, 60, 0.05); }
+
+/* Physicians — filter chips with live counts */
+.asc-phys-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.asc-phys-chip { border: 1px solid #d7dad6; background: #fbfcfa; color: #1a1b1a;
+  border-radius: 999px; padding: 5px 14px; font-size: 13px; cursor: pointer; }
+.asc-phys-chip:hover { border-color: #4ca63c; }
+.asc-phys-chip.active { border-color: #4ca63c; background: rgba(76, 166, 60, 0.09); }
+.asc-phys-chip .asc-chip-count { color: #6b6d6b; margin-left: 6px; font-size: 12px; }
+.asc-phys-chip.asc-chip-pending.active,
+.asc-phys-chip.asc-chip-pending { border-color: #ec9440; }
+.asc-phys-chip.asc-chip-pending .asc-chip-count { color: #ec9440; }
+
+/* Physicians — health-system grouping */
+.asc-phys-group summary { cursor: pointer; padding: 10px 14px; font-size: 14px;
+  color: #1a1b1a; list-style: none; display: flex; align-items: center; gap: 10px; }
+.asc-phys-group summary::-webkit-details-marker { display: none; }
+.asc-phys-group summary::before { content: '▸'; color: #6b6d6b; font-size: 11px;
+  transition: transform .15s ease; }
+.asc-phys-group[open] summary::before { transform: rotate(90deg); }
+.asc-phys-group { border-top: 1px solid #e3e6e2; }
+
+/* Physician profile — score/verification detail */
+.asc-phys-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px; }
+.asc-phys-kv { font-size: 13px; }
+.asc-phys-kv dt { color: #6b6d6b; margin-top: 8px; }
+.asc-phys-kv dd { margin: 2px 0 0; color: #1a1b1a; overflow-wrap: anywhere; }
+
+/* Export — preview line */
+.asc-export-preview { font-size: 15px; color: #1a1b1a; padding: 14px 0; }
+.asc-export-preview .asc-dim { font-size: 13px; }
+
+/* Metrics — four questions, one headline figure + sparkline each */
+.asc-metric-questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px; }
+.asc-metric-q { background: #fbfcfa; border: 1px solid #e3e6e2; border-radius: 10px;
+  padding: 18px; }
+.asc-metric-q-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; letter-spacing: 0.12em; color: #6b6d6b; text-transform: uppercase; }
+.asc-metric-q-headline { font-size: 30px; line-height: 1.15; color: #1a1b1a; margin: 10px 0 2px; }
+.asc-metric-q-sub { font-size: 12px; color: #6b6d6b; }
+.asc-metric-q-spark { margin-top: 12px; }
+.asc-metric-q-rows { margin-top: 12px; font-size: 13px; }
+.asc-metric-q-rows .asc-metric-row { display: flex; justify-content: space-between;
+  padding: 3px 0; border-top: 1px dashed #e3e6e2; }
+.asc-metric-q-rows .asc-metric-row:first-child { border-top: 0; }
+.asc-metric-row-label { color: #6b6d6b; }
+.asc-metric-row-value { color: #1a1b1a; }
+/* ═══ END PRD-C ═══ */

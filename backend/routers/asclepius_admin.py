@@ -190,6 +190,83 @@ async def provision_health_system_portal(
     }
 
 
+# ─── Health system detail: the pipeline in explicit buckets ──────────────────
+# Workflow order (PRD C Phase 2). An upload can appear in more than one bucket
+# when its cases had mixed outcomes — that is honest, not a bug: the operator
+# needs to know that one file produced both live cases and held ones.
+def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
+    buckets: Dict[str, List[Dict[str, Any]]] = {
+        "needs_attention": [], "needs_review": [], "ready_to_promote": [], "in_production": [],
+    }
+    for up in store.list_uploads_for_health_system(hs_id):
+        cases = store.list_ingest_cases(upload_id=up["upload_id"])
+        held = [c for c in cases if c.get("status") in ("needs_review", "quarantined")]
+        clean = [c for c in cases if c.get("status") == "ingested"]
+        promoted = [c for c in cases if c.get("status") == "promoted"]
+        entry = {
+            "upload_id": up["upload_id"],
+            "filename": up.get("filename"),
+            "received_at": up.get("created_at"),
+            "size_bytes": up.get("size_bytes") or 0,
+            "upload_status": up.get("status"),
+            "case_total": len(cases),
+            "case_counts": {"held": len(held), "clean": len(clean), "promoted": len(promoted)},
+            "reasons": [],
+            "note": up.get("reason"),
+        }
+        if held:
+            # Safety holds must never be buried inside a normal bucket. Surface
+            # the actual reasons (review flags + quarantine reasons), deduped.
+            reasons: List[str] = []
+            for c in held:
+                for r in (c.get("review") or []):
+                    txt = (r.get("detail") or r.get("reason") or "").strip()
+                    if txt and txt not in reasons:
+                        reasons.append(txt)
+                qr = ((c.get("report") or {}).get("quarantine_reason") or "").strip()
+                if qr and qr not in reasons:
+                    reasons.append(qr)
+            buckets["needs_attention"].append({**entry, "reasons": reasons[:6]})
+        if promoted:
+            buckets["in_production"].append(entry)
+        if clean:
+            buckets["ready_to_promote"].append(entry)
+        # Uploaded, not yet examined: still moving through the pipeline (or it
+        # produced nothing at all — e.g. rejected outright), and none of the
+        # terminal buckets above claimed it.
+        if not (held or clean or promoted):
+            buckets["needs_review"].append(entry)
+    return buckets
+
+
+@router.get("/health-systems/{hs_id}")
+async def health_system_detail(
+    hs_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """One health system: portal accounts, linked physicians, and every upload
+    placed into the four workflow buckets."""
+    store = _store()
+    hs = store.get_health_system(hs_id)
+    if not hs:
+        raise HTTPException(status_code=404, detail="Health system not found")
+    uploads = store.list_uploads_for_health_system(hs_id)
+    physicians = [u for u in store.list_users() if u.get("health_system_id") == hs_id]
+    return {
+        "health_system": {
+            "hs_id": hs["hs_id"], "name": hs["name"],
+            "contact_email": hs.get("contact_email"), "notes": hs.get("notes"),
+            "active": bool(hs.get("active", 1)), "created_at": hs.get("created_at"),
+        },
+        "portal_users": [{"username": u["username"], "email": u.get("email"),
+                          "last_login": u.get("last_login"), "active": bool(u.get("active", 1))}
+                         for u in store.list_hs_portal_users(hs_id)],
+        "physicians_linked": len(physicians),
+        "uploads_total": len(uploads),
+        "last_activity": uploads[0]["created_at"] if uploads else None,
+        "buckets": _bucket_uploads(store, hs_id),
+    }
+
+
 @router.get("/health-systems")
 async def list_health_systems(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
     """One row per health system with the counts the admin section needs."""

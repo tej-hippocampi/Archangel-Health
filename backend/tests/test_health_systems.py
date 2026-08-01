@@ -190,6 +190,61 @@ def test_backfill_adopts_historical_partner_uploads():
                 if h["name"] == "St Luke Medical Center"]) == 1
 
 
+# ─── Detail: pipeline buckets (Phase 2) ──────────────────────────────────────
+def _mk_upload(store, hs_id: str, filename: str) -> str:
+    up = store.insert_ingest_upload(
+        link_id="hs-portal", partner_id=hs_id, filename=filename,
+        sha256="0" * 64, size_bytes=1234, raw_path=None, source_ip=None)
+    store.set_upload_health_system(up["upload_id"], hs_id)
+    return up["upload_id"]
+
+
+def test_detail_buckets_follow_workflow_order():
+    store = _store()
+    headers = _admin_headers(store)
+    hs = store.ensure_health_system("Bucket Health")
+    hs_id = hs["hs_id"]
+
+    up_clean = _mk_upload(store, hs_id, "clean.zip")
+    store.insert_ingest_case(upload_id=up_clean, patient_key="p1", specialty="nephrology",
+                             case={"x": 1}, status="ingested", report=None)
+
+    up_held = _mk_upload(store, hs_id, "held.zip")
+    ic = store.insert_ingest_case(upload_id=up_held, patient_key="p2", specialty="nephrology",
+                                  case={"x": 2}, status="ingested", report=None)
+    store.hold_ingest_case_for_review(ic["ingest_case_id"], "phi_unverified",
+                                      "unverified burned-in PHI", severity="blocking")
+
+    up_live = _mk_upload(store, hs_id, "live.zip")
+    store.insert_ingest_case(upload_id=up_live, patient_key="p3", specialty="nephrology",
+                             case={"x": 3}, status="promoted", report=None)
+
+    up_fresh = _mk_upload(store, hs_id, "fresh.zip")   # no cases yet — not examined
+
+    res = client.get(f"/api/asclepius/admin/health-systems/{hs_id}", headers=headers)
+    assert res.status_code == 200, res.text
+    b = res.json()["buckets"]
+    ids = {k: {e["upload_id"] for e in v} for k, v in b.items()}
+
+    assert up_clean in ids["ready_to_promote"]
+    assert up_held in ids["needs_attention"]
+    assert up_live in ids["in_production"]
+    assert up_fresh in ids["needs_review"]
+    # A safety hold is never buried in a normal bucket's entry list silently —
+    # the reason travels with it.
+    held_entry = next(e for e in b["needs_attention"] if e["upload_id"] == up_held)
+    assert any("PHI" in r for r in held_entry["reasons"])
+    # The fresh upload appears ONLY in needs_review.
+    assert up_fresh not in ids["needs_attention"] | ids["ready_to_promote"] | ids["in_production"]
+
+
+def test_detail_404_for_unknown_health_system():
+    store = _store()
+    res = client.get("/api/asclepius/admin/health-systems/hs-nope-000000",
+                     headers=_admin_headers(store))
+    assert res.status_code == 404
+
+
 # ─── Admin list ──────────────────────────────────────────────────────────────
 def test_admin_list_health_systems(email_ok):
     store = _store()
