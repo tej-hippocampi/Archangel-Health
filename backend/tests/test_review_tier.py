@@ -457,6 +457,25 @@ def test_cannot_assess_persists_as_its_own_value():
     assert json.loads(raw)["rubric_quality"] == "cannot_assess"
 
 
+def test_review_portal_page_served():
+    r = client.get("/asclepius/review")
+    assert r.status_code == 200
+    assert "/static/asclepius/review.js" in r.text
+    # The shell itself is identity-free (it is served unauthenticated).
+    assert "annotator" not in r.text
+
+
+def test_review_js_builds_dom_with_h_and_no_innerhtml():
+    """START_HERE §5 rule 5: DOM via h(), no innerHTML, no HTML string templates."""
+    src = (
+        Path(__file__).resolve().parents[2] / "frontend" / "asclepius" / "review.js"
+    ).read_text(encoding="utf-8")
+    assert ".innerHTML" not in src  # property access, not the word in comments
+    assert ".outerHTML" not in src
+    assert "insertAdjacentHTML" not in src
+    assert "function h(" in src
+
+
 def test_incomplete_dimensions_rejected():
     body = _review_body()
     del body["dimensions"]["completeness"]
