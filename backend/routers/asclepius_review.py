@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -33,6 +34,36 @@ _REVIEW_HTML = os.path.join(
 
 def _store():
     return get_store()
+
+
+# ─── Off-request routing sweep (FIX A A-3.4) ──────────────────────────────────
+# Deciding double-labeling is fleet-wide bookkeeping, not part of serving one
+# reviewer one case. Throttled so N reviewers drawing concurrently trigger at
+# most one sweep per interval, and run in a background task so no draw waits on
+# it. PRD A's constraint is a senior physician accepting in under 60 seconds.
+_SWEEP_STATE: Dict[str, float] = {"last": 0.0}
+
+
+def _sweep_interval_sec() -> float:
+    try:
+        return max(0.0, float(os.getenv("ASCLEPIUS_REVIEW_SWEEP_SEC", "60")))
+    except ValueError:
+        return 60.0
+
+
+def _sweep_due() -> bool:
+    now = time.monotonic()
+    if now - _SWEEP_STATE["last"] < _sweep_interval_sec():
+        return False
+    _SWEEP_STATE["last"] = now      # claim the slot BEFORE running, not after
+    return True
+
+
+def _run_sweep() -> None:
+    try:
+        asc_review.sweep_double_label_routing(_store(), limit=100)
+    except Exception:
+        log.exception("asclepius-review: double-label routing sweep failed")
 
 
 def require_reviewer(
@@ -83,7 +114,10 @@ async def review_stats(_reviewer: Dict[str, Any] = Depends(require_reviewer)):
 
 # ─── Draw ─────────────────────────────────────────────────────────────────────
 @router.get("/api/asclepius/review/next")
-async def next_review(reviewer: Dict[str, Any] = Depends(require_reviewer)):
+async def next_review(
+    background: BackgroundTasks = None,
+    reviewer: Dict[str, Any] = Depends(require_reviewer),
+):
     """Draw + claim the oldest reviewable submission for this reviewer.
 
     The store query already excludes the reviewer's own submissions and anything
@@ -91,21 +125,31 @@ async def next_review(reviewer: Dict[str, Any] = Depends(require_reviewer)):
     concurrently can never hold the same submission. The served payload is the
     blinded whitelist view — no labeler identity, asserted by test (PRD A §4)."""
     store = _store()
-    # Lazy, bounded routing sweep: decide double-labeling for tasks whose first
-    # label has landed. Never fatal to the draw.
-    try:
-        asc_review.sweep_double_label_routing(store, limit=100)
-    except Exception:
-        log.exception("asclepius-review: double-label routing sweep failed")
+    # The double-label routing sweep is OFF the request's critical path
+    # (FIX A A-3.4): it is throttled to at most once per interval and handed to
+    # a background task, so a reviewer's draw never waits on it and it cannot
+    # monopolize the single SQLite writer that labeler submissions also need.
+    if background is not None and _sweep_due():
+        background.add_task(_run_sweep)
 
     lease = asc_review.review_lease_minutes()
+    seen: set = set()
     for _ in range(5):  # claim race: lose the CAS -> draw the next candidate
         sub = store.next_review_for(
             reviewer["id"],
             specialty=reviewer.get("specialty"),
             lease_minutes=lease,
             predicate=asc_review.needs_review,
+            # Declined submissions are marked so they stop re-occupying the scan
+            # window on every future draw (A-3.3).
+            persist_routing_decision=True,
         )
+        # Belt to A-3.2's braces: never revisit a candidate within one draw, so
+        # no single row can consume all five attempts.
+        if sub is not None and sub["submission_id"] in seen:
+            break
+        if sub is not None:
+            seen.add(sub["submission_id"])
         if sub is None:
             return {"submission": None, "message": "No submissions awaiting review."}
         task = store.get_task(sub["task_id"])

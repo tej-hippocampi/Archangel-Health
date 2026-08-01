@@ -137,37 +137,40 @@ def needs_second_label(
 
 
 def sweep_double_label_routing(store: Any, *, limit: int = 100) -> int:
-    """Decide double-labeling for open single-label tasks that carry a first
-    label. Runs lazily from the review router (bounded, idempotent — flagging is
-    a one-way max_labels bump the queue layer already respects). Returns the
-    number of tasks newly flagged."""
+    """Decide double-labeling for singly-labeled tasks that carry a first label.
+    Returns the number of tasks newly flagged.
+
+    Cost discipline (FIX A A-3.4): this used to issue ~9 statements per
+    candidate — ``double_label_flag_rate()`` (two correlated-subquery scans)
+    inside the loop, plus ``len(list_agreement_observations(...))``, which
+    materialized every observation row just to count it. Measured at 452
+    statements for 50 candidates, each on a fresh SQLite connection, on the
+    single writer that labeler submissions also need. Now: the rate is read ONCE
+    and advanced locally as we flag, and the observation count is a COUNT(*).
+    """
     candidates = store.tasks_awaiting_double_label_decision(limit=limit)
     if not candidates:
         return 0
-    flagged = 0
+    # Read the fleet-wide counts ONCE and advance the rate locally as we decide.
+    # This preserves the greedy top-up (stop once the target share is reached)
+    # without re-querying per candidate.
+    n_labeled, n_flagged = store.double_label_counts()
     specialty_obs: Dict[str, int] = {}
+    decisions: List[Dict[str, Any]] = []
     for t in candidates:
         specialty = t.get("specialty") or "unknown"
         if specialty not in specialty_obs:
-            specialty_obs[specialty] = len(
-                store.list_agreement_observations(specialty=specialty)
-            )
-        first_sub = None
-        if t.get("first_submission_id"):
-            first_sub = store.get_submission(t["first_submission_id"])
-        # Rate recomputed per decision: the greedy top-up stops flagging the
-        # moment the flagged share reaches the target.
-        rate = store.double_label_flag_rate()
-        if needs_second_label(t, first_sub or {}, rate, specialty_n=specialty_obs[specialty]):
-            if store.flag_task_for_double_label(t["task_id"]):
-                flagged += 1
-                store.log_event(
-                    entity_type="task",
-                    entity_id=t["task_id"],
-                    event_type="double_label_flagged",
-                    payload={"specialty": specialty, "current_rate": round(rate, 4)},
-                )
-    return flagged
+            specialty_obs[specialty] = store.agreement_observation_count(specialty=specialty)
+        rate = (n_flagged / n_labeled) if n_labeled else 0.0
+        # The first labeler's confidence rides on the candidate row, so deciding
+        # costs no extra query.
+        first_sub = {"confidence": t.get("first_confidence")}
+        if needs_second_label(t, first_sub, rate, specialty_n=specialty_obs[specialty]):
+            decisions.append({"task_id": t["task_id"], "specialty": specialty,
+                              "current_rate": round(rate, 4)})
+            n_flagged += 1
+    # One batched write for the whole sweep rather than two connections per task.
+    return len(store.flag_tasks_for_double_label(decisions))
 
 
 # ─── Blinding (PRD A Phase 2) ─────────────────────────────────────────────────

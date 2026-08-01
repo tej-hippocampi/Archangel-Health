@@ -3898,6 +3898,7 @@ class AsclepiusStore:
         lease_minutes: int = 45,
         predicate: Any = None,
         scan_limit: int = 200,
+        persist_routing_decision: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Oldest reviewable submission for this reviewer (PRD A §1.4).
 
@@ -3942,14 +3943,70 @@ class AsclepiusStore:
                 """,
                 tuple(params),
             ).fetchall()
+        declined: List[str] = []
+        orphaned: List[str] = []
+        chosen: Optional[Dict[str, Any]] = None
         for r in rows:
             sub = self._submission_row(r)
             if predicate is not None:
                 task = self.get_task(sub["task_id"])
-                if task is None or not predicate(task, sub):
+                if task is None:
+                    # A missing task is an ORPHAN, not a routing decline. Two
+                    # different terminal states because they mean two different
+                    # things: 'not_routed' is a decision the policy made, and
+                    # 'orphaned' is data damage someone has to look at.
+                    orphaned.append(sub["submission_id"])
                     continue
-            return sub
-        return None
+                if not predicate(task, sub):
+                    declined.append(sub["submission_id"])
+                    continue
+            chosen = sub
+            break
+        # Persist the routing decision (FIX A A-3.3). Without this, a submission
+        # the policy declines stays review_status IS NULL forever and re-occupies
+        # a slot in this LIMITed window on every single draw. Once `scan_limit`
+        # declined rows accumulate at the head, the portal reports "no submissions
+        # awaiting review" permanently while real work sits behind them. Masked at
+        # launch only because ASCLEPIUS_REVIEW_RATE defaults to 1.0.
+        if persist_routing_decision and (declined or orphaned):
+            with self._conn() as conn:
+                if declined:
+                    conn.executemany(
+                        "UPDATE submissions SET review_status = 'not_routed' "
+                        "WHERE submission_id = ? AND review_status IS NULL",
+                        [(sid,) for sid in declined],
+                    )
+                if orphaned:
+                    conn.executemany(
+                        "UPDATE submissions SET review_status = 'orphaned' "
+                        "WHERE submission_id = ? AND review_status IS NULL",
+                        [(sid,) for sid in orphaned],
+                    )
+        return chosen
+
+    def requeue_not_routed(self) -> int:
+        """Clear every ``not_routed`` decision back to NULL (undecided).
+
+        The escape hatch for raising ``ASCLEPIUS_REVIEW_RATE`` after launch:
+        routing decisions are persisted, so without this a submission declined
+        under a 0.5 rate would stay declined forever under a 1.0 rate. Returns
+        the number of submissions returned to the queue."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE submissions SET review_status = NULL WHERE review_status = 'not_routed'")
+            return int(cur.rowcount)
+
+    def agreement_observation_count(self, *, specialty: Optional[str] = None) -> int:
+        """COUNT(*) of stored agreement observations. Exists because the routing
+        sweep only ever needed the count and used to materialize every row to
+        call len() on it, once per candidate (FIX A A-3.4)."""
+        sql = "SELECT COUNT(*) FROM agreement"
+        params: tuple = ()
+        if specialty:
+            sql += " WHERE specialty = ?"
+            params = (specialty,)
+        with self._conn() as conn:
+            return int(conn.execute(sql, params).fetchone()[0])
 
     def claim_submission_for_review(
         self, submission_id: str, *, reviewer_id: str, blinded: Optional[bool] = None,
@@ -4007,23 +4064,27 @@ class AsclepiusStore:
         }
 
     def review_queue_stats(self) -> Dict[str, Any]:
-        """Counts for the review portal header. ``unreviewed`` counts NULL
-        review_status (never routed) — kept separate from decided states."""
+        """Counts for the review portal header, in ONE pass over an indexed
+        column (four separate COUNT(*) full scans used to fire on every draw —
+        FIX A A-3.5).
+
+        ``unreviewed`` counts only genuinely undecided rows (review_status NULL).
+        Declined ('not_routed') and orphaned rows are reported separately rather
+        than folded in: a header claiming work exists that the draw cannot serve
+        is how A-3.3 stayed invisible."""
         with self._conn() as conn:
-            unreviewed = conn.execute(
-                "SELECT COUNT(*) FROM submissions WHERE verdict IS NOT NULL AND review_status IS NULL"
-            ).fetchone()[0]
-            in_review = conn.execute(
-                "SELECT COUNT(*) FROM submissions WHERE review_status = 'in_review'"
-            ).fetchone()[0]
-            reviewed = conn.execute(
-                "SELECT COUNT(*) FROM submissions WHERE review_status = 'reviewed'"
-            ).fetchone()[0]
+            rows = conn.execute(
+                "SELECT review_status AS st, COUNT(*) AS n FROM submissions "
+                "WHERE verdict IS NOT NULL GROUP BY review_status"
+            ).fetchall()
             n_reviews = conn.execute("SELECT COUNT(*) FROM case_reviews").fetchone()[0]
+        counts = {(dict(r)["st"] or "__null__"): int(dict(r)["n"]) for r in rows}
         return {
-            "unreviewed": int(unreviewed),
-            "in_review": int(in_review),
-            "reviewed": int(reviewed),
+            "unreviewed": counts.get("__null__", 0),
+            "in_review": counts.get("in_review", 0),
+            "reviewed": counts.get("reviewed", 0),
+            "not_routed": counts.get("not_routed", 0),
+            "orphaned": counts.get("orphaned", 0),
             "n_reviews": int(n_reviews),
         }
 
@@ -4052,6 +4113,45 @@ class AsclepiusStore:
             )
             return cur.rowcount > 0
 
+    def flag_tasks_for_double_label(
+        self, decisions: List[Dict[str, Any]]
+    ) -> List[str]:
+        """Batch form of :meth:`flag_task_for_double_label` (FIX A A-3.4).
+
+        One connection, one UPDATE per task and one event INSERT per flag,
+        instead of two fresh connections (each paying two PRAGMAs) per candidate.
+        This runs on the same single SQLite writer that labeler submissions need,
+        so its statement count must not scale with the sweep window.
+
+        ``decisions`` is ``[{task_id, specialty, current_rate}, ...]``. Returns
+        the task_ids actually flagged (the UPDATE is the arbiter, so this stays
+        idempotent under concurrent sweeps)."""
+        if not decisions:
+            return []
+        flagged: List[str] = []
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            for d in decisions:
+                cur = conn.execute(
+                    "UPDATE tasks SET max_labels = 2, status = 'open' "
+                    "WHERE task_id = ? AND status IN ('open', 'done') AND max_labels < 2",
+                    (d["task_id"],),
+                )
+                if cur.rowcount > 0:
+                    flagged.append(d["task_id"])
+            if flagged:
+                by_id = {d["task_id"]: d for d in decisions}
+                conn.executemany(
+                    "INSERT INTO events (entity_type, entity_id, event_type, actor, "
+                    "occurred_at, payload_json) VALUES ('task', ?, 'double_label_flagged', "
+                    "NULL, ?, ?)",
+                    [(tid, now, json.dumps({
+                        "specialty": by_id[tid].get("specialty"),
+                        "current_rate": by_id[tid].get("current_rate"),
+                    })) for tid in flagged],
+                )
+        return flagged
+
     def tasks_awaiting_double_label_decision(self, *, limit: int = 100) -> List[Dict[str, Any]]:
         """Single-label tasks that already carry at least one verdict-bearing
         submission — the candidate set the double-label router decides over.
@@ -4066,7 +4166,12 @@ class AsclepiusStore:
                 SELECT t.*,
                        (SELECT s.submission_id FROM submissions s
                          WHERE s.task_id = t.task_id AND s.verdict IS NOT NULL
-                         ORDER BY s.created_at ASC LIMIT 1) AS first_submission_id
+                         ORDER BY s.created_at ASC LIMIT 1) AS first_submission_id,
+                       -- Carried here so the sweep does not re-open a connection
+                       -- per candidate just to read one column (FIX A A-3.4).
+                       (SELECT s2.confidence FROM submissions s2
+                         WHERE s2.task_id = t.task_id AND s2.verdict IS NOT NULL
+                         ORDER BY s2.created_at ASC LIMIT 1) AS first_confidence
                 FROM tasks t
                 WHERE t.status IN ('open', 'done') AND t.max_labels < 2
                   AND EXISTS (SELECT 1 FROM submissions sf
@@ -4081,18 +4186,26 @@ class AsclepiusStore:
             out.append(rec)
         return out
 
+    def double_label_counts(self) -> tuple:
+        """``(n_labeled_tasks, n_flagged_for_double_label)`` in ONE pass.
+
+        The sweep needs both numbers once per run, not a recomputed ratio per
+        candidate (FIX A A-3.4). Returning the raw counts lets the caller advance
+        the rate locally as it flags."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS labeled, "
+                "       SUM(CASE WHEN t.max_labels >= 2 THEN 1 ELSE 0 END) AS flagged "
+                "FROM tasks t WHERE EXISTS "
+                "(SELECT 1 FROM submissions s WHERE s.task_id = t.task_id)"
+            ).fetchone()
+        rec = dict(row) if row else {}
+        return int(rec.get("labeled") or 0), int(rec.get("flagged") or 0)
+
     def double_label_flag_rate(self) -> float:
         """Share of labeled tasks currently routed for a second independent label —
         the ``current_rate`` input to the stratified top-up policy (PRD A §1.3)."""
-        with self._conn() as conn:
-            labeled = conn.execute(
-                "SELECT COUNT(*) FROM tasks t WHERE EXISTS "
-                "(SELECT 1 FROM submissions s WHERE s.task_id = t.task_id)"
-            ).fetchone()[0]
-            flagged = conn.execute(
-                "SELECT COUNT(*) FROM tasks t WHERE t.max_labels >= 2 AND EXISTS "
-                "(SELECT 1 FROM submissions s WHERE s.task_id = t.task_id)"
-            ).fetchone()[0]
+        labeled, flagged = self.double_label_counts()
         return (flagged / labeled) if labeled else 0.0
 
     def next_double_label_for(
@@ -4101,6 +4214,7 @@ class AsclepiusStore:
         *,
         specialty: Optional[str] = None,
         allow_real: bool = False,
+        scan_limit: int = 200,
     ) -> Optional[Dict[str, Any]]:
         """Oldest task flagged for a second independent label that this user may
         take (PRD A §1.4). The first labeler — and anyone who already submitted —
@@ -4131,9 +4245,9 @@ class AsclepiusStore:
                        (SELECT COUNT(*) FROM submissions s WHERE s.task_id = t.task_id) AS sub_count
                 FROM tasks t
                 WHERE {' AND '.join(clauses)}
-                ORDER BY t.created_at ASC
+                ORDER BY t.created_at ASC LIMIT ?
                 """,
-                tuple(params),
+                tuple(params + [int(scan_limit)]),
             ).fetchall()
         for r in rows:
             rec = self._task_row(r)

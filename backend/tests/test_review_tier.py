@@ -858,3 +858,174 @@ def test_view_no_longer_carries_an_asserted_blinded_literal():
     sub = _mk_submission(store, task, labeler)
     view = asc_review.blinded_review_view(task, sub)
     assert "blinded" not in view       # derived by the caller, never asserted here
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FIX ROUND — Phase 3: correctness + cost bugs in the review flow.
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_submit_requires_holding_the_claim():
+    """A-3.1: submit used to check only 'exists / not mine / not already
+    reviewed', so any reviewer could POST onto a guessed submission id —
+    including one another reviewer was holding, evicting their in-flight work."""
+    store = asc_store.get_store()
+    labeler = A.make_user(store, specialty="nephrology")
+    task = _mk_task(store)
+    sub = _mk_submission(store, task, labeler)
+    holder, interloper = _reviewer(store), _reviewer(store)
+
+    # Cold POST with no draw at all.
+    assert _post_review(interloper, sub["submission_id"]).status_code == 409
+
+    # holder draws (and therefore claims) it.
+    assert _draw(holder)["submission"]["submission_id"] == sub["submission_id"]
+    # The interloper cannot evict that claim by guessing the id.
+    r = _post_review(interloper, sub["submission_id"])
+    assert r.status_code == 409
+    assert "another reviewer" in r.json()["detail"].lower()
+    # The holder's own in-flight work is untouched.
+    assert _post_review(holder, sub["submission_id"]).status_code == 200
+
+
+def test_expired_claim_cannot_submit():
+    store = asc_store.get_store()
+    labeler = A.make_user(store, specialty="nephrology")
+    task = _mk_task(store)
+    sub = _mk_submission(store, task, labeler)
+    reviewer = _reviewer(store)
+    _draw(reviewer)
+    with store._conn() as conn:
+        conn.execute("UPDATE submissions SET review_claimed_at = '2000-01-01T00:00:00' "
+                     "WHERE submission_id = ?", (sub["submission_id"],))
+    r = _post_review(reviewer, sub["submission_id"])
+    assert r.status_code == 409 and "expired" in r.json()["detail"].lower()
+
+
+def test_orphaned_submission_does_not_jam_the_queue(monkeypatch):
+    """A-3.2: releasing an orphan to NULL made it the OLDEST eligible row again,
+    so the retry loop re-drew the same orphan five times and every reviewer got
+    'queue is contended' — permanently.
+
+    The reachable path is a race, not a deleted row: next_review_for INNER JOINs
+    tasks, so a submission whose task is gone is invisible to the query. It
+    becomes an orphan only when the task disappears BETWEEN that query and the
+    router's get_task. That race is what is simulated here."""
+    store = asc_store.get_store()
+    labeler = A.make_user(store, specialty="nephrology")
+    orphan_task = _mk_task(store)
+    orphan = _mk_submission(store, orphan_task, labeler)
+    good_task = _mk_task(store)
+    good = _mk_submission(store, good_task, labeler)
+
+    real_get_task = store.get_task
+
+    def _racy_get_task(task_id):
+        if task_id == orphan_task["task_id"]:
+            return None          # vanished after the candidate query selected it
+        return real_get_task(task_id)
+
+    monkeypatch.setattr(store, "get_task", _racy_get_task)
+
+    reviewer = _reviewer(store)
+    drawn = _draw(reviewer)
+    # The draw steps over the orphan and serves the real work behind it, in the
+    # SAME request — no "queue is contended", no spin.
+    assert drawn["submission"] is not None
+    assert drawn["submission"]["submission_id"] == good["submission_id"]
+    assert store.get_submission(orphan["submission_id"])["review_status"] == "orphaned"
+    assert store.review_queue_stats()["orphaned"] == 1
+
+    # The orphan is terminal: it never re-enters any reviewer's queue.
+    monkeypatch.undo()
+    assert store.next_review_for(_reviewer(store)["id"], specialty="nephrology") is None
+
+
+def test_declined_routing_decision_is_persisted_and_requeueable(monkeypatch):
+    """A-3.3: a submission the policy declines used to stay NULL forever and
+    re-occupy a slot in the LIMIT-200 scan window on every draw. With enough of
+    them at the head the portal reports an empty queue while real work waits."""
+    store = asc_store.get_store()
+    labeler = A.make_user(store, specialty="nephrology")
+    task = _mk_task(store)
+    sub = _mk_submission(store, task, labeler)
+
+    monkeypatch.setenv("ASCLEPIUS_REVIEW_RATE", "0.0")   # decline everything
+    reviewer = _reviewer(store)
+    assert _draw(reviewer)["submission"] is None
+    assert store.get_submission(sub["submission_id"])["review_status"] == "not_routed"
+
+    stats = store.review_queue_stats()
+    # The header must not claim work exists that the draw cannot serve.
+    assert stats["unreviewed"] == 0 and stats["not_routed"] == 1
+
+    # Raising the rate later is operationally recoverable.
+    monkeypatch.setenv("ASCLEPIUS_REVIEW_RATE", "1.0")
+    assert store.requeue_not_routed() == 1
+    assert _draw(reviewer)["submission"]["submission_id"] == sub["submission_id"]
+
+
+def test_routing_sweep_is_off_the_draw_path_and_cheap():
+    """A-3.4: the sweep issued ~9 statements per candidate — each on a FRESH
+    sqlite3 connection — on the request path, against the single writer that
+    labeler submissions also need. Measured at 452 statements for 50 candidates.
+
+    The invariant that matters is cost that does not scale with the scan window:
+    a fixed number of connections and a fixed number of read queries, with the
+    only per-task work being the writes that actually flag a task."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    n = 20
+    for _ in range(n):
+        tid = _create_task_via_route(admin_h)
+        _submit_via_route(tid, _labeler())
+
+    statements = []
+    real_conn = store._conn
+
+    def _traced():
+        c = real_conn()
+        c.set_trace_callback(statements.append)
+        return c
+
+    store._conn = _traced
+    try:
+        flagged = asc_review.sweep_double_label_routing(store, limit=100)
+    finally:
+        store._conn = real_conn
+
+    assert flagged == n
+    # Each _conn() pays two PRAGMAs; counting them counts connections opened.
+    connections = sum(1 for st in statements if "busy_timeout" in st)
+    assert connections <= 4, f"sweep opened {connections} connections for {n} candidates"
+
+    reads = [st for st in statements
+             if st.strip().upper().startswith("SELECT") and "PRAGMA" not in st]
+    # Reads are fixed: the candidate page, the fleet counts, one observation
+    # COUNT per specialty. Previously this grew by ~3 per candidate.
+    assert len(reads) <= 4, f"sweep issued {len(reads)} read queries for {n} candidates"
+
+    # Writes are the flags themselves — inherent, and all on one connection.
+    assert len(statements) <= 12 + 2 * flagged
+
+    # A draw does not run the sweep inline: the throttle slot is claimed before
+    # running, so concurrent draws cannot each trigger one.
+    from routers import asclepius_review as rv
+    rv._SWEEP_STATE["last"] = 0.0
+    assert rv._sweep_due() is True
+    assert rv._sweep_due() is False
+
+
+def test_review_status_is_indexed():
+    """A-3.5: review_queue_stats and next_review_for both filter on it."""
+    store = asc_store.get_store()
+    with store._conn() as conn:
+        idx = {r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='submissions'")}
+    assert "idx_sub_review_status" in idx
+
+
+def test_next_double_label_for_is_bounded():
+    """A-3.6: it fetchall()'d the entire open-task table; next_review_for beside
+    it correctly used a LIMIT."""
+    import inspect
+    src = inspect.getsource(asc_store.AsclepiusStore.next_double_label_for)
+    assert "LIMIT ?" in src
