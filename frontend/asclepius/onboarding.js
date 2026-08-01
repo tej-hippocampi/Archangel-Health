@@ -6,11 +6,24 @@
  * buttons. Built to be workable at 50 signups/day — a review is one expand,
  * one glance, one click.
  *
- * Contract for the admin shell (PRD-C): call
- *     window.AsclepiusVerification.mount(containerElement)
- * with any element; the view manages itself from there (fetches with the
- * shared `asclepius_token` bearer). If an element with id `ascVerifyRoot`
- * exists at DOMContentLoaded, the view mounts there automatically.
+ * ── Seam 1 — binding contract with PRD-C (context pack §2) ──────────────────
+ * PRD-B owns this global. The name and shape must not change:
+ *
+ *     window.AsclepiusVerification = {
+ *       mount:   function (containerEl, ctx) { ... },
+ *       refresh: function () { ... },
+ *     };
+ *
+ * PRD-C's admin_physicians.js calls `mount(el, ctx)`. Last round B exported
+ * this while C probed for `renderVerificationQueue`; neither name existed in
+ * the other's file, so the Physicians → Verification tab rendered a
+ * placeholder claiming the queue "ships with the identity-verification work"
+ * for a whole round — while the queue sat in the same merge. Renaming either
+ * side reproduces exactly that bug.
+ *
+ * `ctx` is optional; unknown keys are ignored. The view otherwise manages
+ * itself and fetches with the shared `asclepius_token` bearer. The
+ * `ascVerifyRoot` auto-mount is kept as a fallback for direct embedding.
  */
 (function () {
   'use strict';
@@ -45,7 +58,13 @@
   }
   function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
 
-  function token() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
+  var _QUEUE_STATUSES = ['pending', 'approved', 'rejected'];
+  var overrideToken = '';   // optionally supplied by the admin shell via mount(el, ctx)
+
+  function token() {
+    if (overrideToken) return overrideToken;
+    try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+  }
 
   function api(path, opts) {
     opts = opts || {};
@@ -365,8 +384,26 @@
           : null));
   }
 
-  function mount(container) {
+  /** Seam 1 (context pack §2). PRD-B owns this global; PRD-C's
+   *  admin_physicians.js calls `window.AsclepiusVerification.mount(el, ctx)`.
+   *  The name and this two-argument shape must not change — last round B
+   *  exported `AsclepiusVerification` while C probed for
+   *  `renderVerificationQueue`, so the tab rendered a placeholder saying the
+   *  queue "ships with the identity-verification work" for the entire round
+   *  while the queue sat in the same merge.
+   *
+   *  `ctx` is optional and accepted defensively: an admin shell may pass a
+   *  token or a status to open on, and ignoring extra keys is what keeps this
+   *  callable before C decides what to send. */
+  function mount(container, ctx) {
+    if (!container) return;
     state.container = container;
+    ctx = ctx || {};
+    if (typeof ctx.token === 'string' && ctx.token) overrideToken = ctx.token;
+    if (typeof ctx.status === 'string' && _QUEUE_STATUSES.indexOf(ctx.status) !== -1) {
+      state.status = ctx.status;
+    }
+    state.offset = 0;
     render();
     load();
   }
