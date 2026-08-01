@@ -3968,20 +3968,37 @@ class AsclepiusStore:
 
     def flag_task_for_double_label(self, task_id: str) -> bool:
         """Route a task to a second INDEPENDENT labeler (PRD A §1.3) by lifting its
-        label capacity to 2. The existing evaluator queue then serves it to another
-        labeler naturally (``next_task_for_evaluator`` already excludes the first
-        labeler and enforces capacity); the existing agreement pipeline records the
-        blinded κ observation when the second label lands. Idempotent."""
+        label capacity to 2 AND reopening it.
+
+        The reopen is the load-bearing half. A ``max_labels=1`` task is ALREADY
+        ``'done'`` by the time a first label exists — ``refresh_task_status``
+        closes it on the first submission, on the hot submit path. So routing a
+        second independent label is always a REOPEN, never a flag on an open
+        task; lifting ``max_labels`` without restoring ``status='open'`` leaves a
+        task that neither ``next_double_label_for`` nor the ordinary labeler
+        queue can ever serve, which is what made the whole κ deliverable dead
+        code in the first round.
+
+        Terminal statuses are NOT reopened: ``prompt_flagged`` / ``not_hard`` /
+        ``case_incoherent`` mean a clinician rejected the prompt itself, and
+        dragging one back into the labeler queue for a second opinion would
+        re-serve work a physician already ruled out. Idempotent."""
         with self._conn() as conn:
             cur = conn.execute(
-                "UPDATE tasks SET max_labels = 2 WHERE task_id = ? AND status = 'open' AND max_labels < 2",
+                "UPDATE tasks SET max_labels = 2, status = 'open' "
+                "WHERE task_id = ? AND status IN ('open', 'done') AND max_labels < 2",
                 (task_id,),
             )
             return cur.rowcount > 0
 
     def tasks_awaiting_double_label_decision(self, *, limit: int = 100) -> List[Dict[str, Any]]:
-        """Open, single-label tasks that already carry at least one verdict-bearing
-        submission — the candidate set the double-label router decides over."""
+        """Single-label tasks that already carry at least one verdict-bearing
+        submission — the candidate set the double-label router decides over.
+
+        Accepts ``'done'`` as well as ``'open'``: on the real submit route a
+        singly-labeled task is closed by the time this runs, so a status='open'
+        filter here matches nothing, by construction. Terminal statuses stay
+        excluded — a rejected prompt is not a double-label candidate."""
         with self._conn() as conn:
             rows = conn.execute(
                 """
@@ -3990,7 +4007,7 @@ class AsclepiusStore:
                          WHERE s.task_id = t.task_id AND s.verdict IS NOT NULL
                          ORDER BY s.created_at ASC LIMIT 1) AS first_submission_id
                 FROM tasks t
-                WHERE t.status = 'open' AND t.max_labels < 2
+                WHERE t.status IN ('open', 'done') AND t.max_labels < 2
                   AND EXISTS (SELECT 1 FROM submissions sf
                                WHERE sf.task_id = t.task_id AND sf.verdict IS NOT NULL)
                 ORDER BY t.created_at ASC LIMIT ?

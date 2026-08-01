@@ -30,8 +30,20 @@ client = TestClient(A.app)
 
 
 @pytest.fixture(autouse=True)
-def _isolated():
+def _isolated(monkeypatch):
     A.fresh_store()
+    # Stub the two LLM legs of the submit pipeline so tests can walk the REAL
+    # POST /submissions route (FIX A §1 rule 2: test the path, not the unit).
+    from asclepius import pipeline as asc_pipeline
+
+    async def _ok_critic(task, submission):
+        return {"consistent": True, "issues": [], "skipped": True}
+
+    async def _ok_grounding(task, submission):
+        return {"grounding_ok": True, "issues": [], "skipped": True, "checked_anchors": 0}
+
+    monkeypatch.setattr(asc_pipeline, "run_critic", _ok_critic)
+    monkeypatch.setattr(asc_pipeline, "run_grounding_check", _ok_grounding)
     yield
 
 
@@ -529,3 +541,197 @@ def test_incomplete_dimensions_rejected():
         _review_body(dimensions={**{k: "agree" for k in asc_review.DIMENSION_KEYS}, "vibes": "agree"})
     )
     assert any("vibes" in e for e in errors)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FIX ROUND — Phase 1 (F1): independent double-labeling must be REACHABLE.
+#
+# The hackathon tests built state with store.insert_submission(), which bypasses
+# POST /submissions and therefore refresh_task_status. On the real route a
+# max_labels=1 task is closed ('done') the instant the first label lands, so the
+# old candidate query (status='open' AND has-a-submission) could never match.
+# Every test below walks the ROUTE. None of them may call insert_submission.
+# ═══════════════════════════════════════════════════════════════════════════════
+def _admin_h():
+    return A.headers_for(A.make_user(asc_store.get_store(), role="admin"))
+
+
+def _labeler(specialty="nephrology"):
+    return A.make_user(asc_store.get_store(), role="evaluator", specialty=specialty,
+                       board_cert="board_certified_nephrology", years_experience=12)
+
+
+def _create_task_via_route(admin_h, *, specialty="nephrology", max_labels=1, **kw):
+    body = {
+        "specialty": specialty, "difficulty": "hard", "max_labels": max_labels,
+        "prompt": f"Hyperkalemia case {A.uniq(8)}?",
+        "candidate_answers": [{"id": "A", "text": "Calcium then dialyze."},
+                              {"id": "B", "text": "Dialysate K+ 1.0."}],
+    }
+    body.update(kw)
+    r = client.post("/api/asclepius/tasks", json={"tasks": [body]}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    return r.json()["created"][0]
+
+
+def _submit_via_route(task_id, labeler, *, verdict="A_better", extra=None):
+    """POST /submissions — the REAL path, including refresh_task_status."""
+    sid = "s-" + uuid.uuid4().hex[:12]
+    salt = A.uniq(6)
+    body = {
+        "submission_id": sid, "task_id": task_id, "verdict": verdict,
+        "chosen_id": "A" if verdict == "A_better" else "B",
+        "rejected_id": "B" if verdict == "A_better" else "A",
+        "time_spent_sec": 130,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": f"Stabilize with IV calcium then dialyze ({salt})."},
+        "chosen_revision": {"edited": False, "why_better_notes": f"B over-lowers K+ ({salt})"},
+        "rejected_critique": {"error_tags": ["dosing_error"], "why_worse": f"aggressive {salt}"},
+    }
+    if extra:
+        body.update(extra)
+    r = client.post("/api/asclepius/submissions", json=body, headers=A.headers_for(labeler))
+    assert r.status_code == 200, r.text
+    return sid
+
+
+def test_double_label_is_reachable_through_the_real_submit_route():
+    """THE TEST THAT WOULD HAVE CAUGHT F1.
+
+    Builds every bit of state through HTTP. Before the fix this fails at the
+    first candidate assertion: refresh_task_status has already closed the task,
+    so the candidate query (which required status='open') returns nothing and
+    the entire κ deliverable is unreachable."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    first = _labeler()
+    tid = _create_task_via_route(admin_h)
+
+    _submit_via_route(tid, first)
+
+    # The real route closes a max_labels=1 task on the first label. This is the
+    # pre-existing behaviour the routing has to work WITH (never against).
+    task = store.get_task(tid)
+    assert task["status"] == "done" and task["max_labels"] == 1
+
+    # A closed, singly-labeled task is exactly what the double-label router must
+    # consider — it is the only state such a task is ever in.
+    candidates = store.tasks_awaiting_double_label_decision()
+    assert tid in [c["task_id"] for c in candidates]
+
+    flagged = asc_review.sweep_double_label_routing(store)
+    assert flagged >= 1
+
+    # Flagging a 'done' task without reopening it leaves a task nobody can draw.
+    reopened = store.get_task(tid)
+    assert reopened["max_labels"] == 2
+    assert reopened["status"] == "open"
+
+    # A second INDEPENDENT labeler can now be served the task...
+    second = _labeler()
+    served = store.next_double_label_for(second["id"], specialty="nephrology")
+    assert served is not None and served["task_id"] == tid
+    # ...and it also reaches them through the ordinary labeler queue, which is
+    # where the second label is actually produced.
+    assert store.next_task_for_evaluator(
+        evaluator_id=second["id"], specialty="nephrology", hard_only=True) is not None
+
+
+def test_reopened_task_is_never_served_back_to_the_first_labeler():
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    first = _labeler()
+    tid = _create_task_via_route(admin_h)
+    _submit_via_route(tid, first)
+    asc_review.sweep_double_label_routing(store)
+    assert store.get_task(tid)["status"] == "open"
+
+    # Independence is the whole point: the first labeler must not see it again,
+    # in either queue.
+    assert store.next_double_label_for(first["id"], specialty="nephrology") is None
+    assert store.next_task_for_evaluator(
+        evaluator_id=first["id"], specialty="nephrology", hard_only=True) is None
+
+
+def test_second_label_closes_the_task_again():
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _create_task_via_route(admin_h)
+    _submit_via_route(tid, _labeler())
+    asc_review.sweep_double_label_routing(store)
+
+    second = _labeler()
+    _submit_via_route(tid, second)
+    task = store.get_task(tid)
+    # count(2) >= max_labels(2) -> closed again, and no longer a candidate.
+    assert task["status"] == "done" and task["max_labels"] == 2
+    assert tid not in [c["task_id"] for c in store.tasks_awaiting_double_label_decision()]
+    assert store.next_double_label_for(_labeler()["id"], specialty="nephrology") is None
+
+
+def test_sweep_is_idempotent_across_two_actual_calls():
+    """The hackathon test claimed idempotence in a comment and never made the
+    second call — a vacuous assertion (FIX A Phase 1)."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _create_task_via_route(admin_h)
+    _submit_via_route(tid, _labeler())
+
+    first_sweep = asc_review.sweep_double_label_routing(store)
+    second_sweep = asc_review.sweep_double_label_routing(store)   # the call that was missing
+    assert first_sweep >= 1
+    assert second_sweep == 0
+    assert store.get_task(tid)["max_labels"] == 2
+    events = [e for e in store.list_events(entity_type="task", entity_id=tid)
+              if e["event_type"] == "double_label_flagged"]
+    assert len(events) == 1
+
+
+def test_reopen_never_resurrects_a_terminally_flagged_task():
+    """prompt_flagged / not_hard / case_incoherent are terminal. The reopen must
+    not drag a clinically-rejected prompt back into the labeler queue."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    for terminal in ("prompt_flagged", "not_hard", "case_incoherent"):
+        tid = _create_task_via_route(admin_h)
+        _submit_via_route(tid, _labeler())
+        store.mark_task_status(tid, terminal)
+        assert store.flag_task_for_double_label(tid) is False
+        assert store.get_task(tid)["status"] == terminal
+        assert tid not in [c["task_id"] for c in store.tasks_awaiting_double_label_decision()]
+
+
+def test_full_kappa_loop_through_the_route_produces_a_real_number():
+    """FIX A definition-of-done #1, end to end and route-only.
+
+    30 cases, each labeled by two INDEPENDENT physicians via POST /submissions,
+    with the double-label routing decided by the product (not the test). The
+    payoff is the number this whole tier exists to produce: a real Cohen's κ
+    over blinded, independently double-labeled observations. Before the F1 fix
+    this could not reach n>0, so quality_report.md said 'not reportable' forever.
+    """
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    n_cases = 30
+
+    for i in range(n_cases):
+        tid = _create_task_via_route(admin_h)
+        _submit_via_route(tid, _labeler(), verdict="A_better")
+        # The PRODUCT decides to double-label, not the test.
+        assert asc_review.sweep_double_label_routing(store) >= 1
+        # Two of the thirty disagree, so κ is a real chance-corrected number
+        # rather than the degenerate single-category 1.0.
+        second_verdict = "B_better" if i < 2 else "A_better"
+        _submit_via_route(tid, _labeler(), verdict=second_verdict)
+
+    observations = store.list_agreement_observations()
+    assert len(observations) == n_cases
+    assert all(o["blinded"] in (1, True) for o in observations)
+
+    from asclepius.agreement import independent_kappa
+
+    out = independent_kappa(observations)
+    assert out["n"] == n_cases                      # meets the min-n gate
+    assert out["reason"] is None                    # nothing suppressed
+    assert isinstance(out["overall"], float)        # a number, at last
+    assert out["observed_agreement"] == round((n_cases - 2) / n_cases, 4)
