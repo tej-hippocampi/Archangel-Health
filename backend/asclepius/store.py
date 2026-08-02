@@ -5146,12 +5146,12 @@ class AsclepiusStore:
             shipped = conn.execute(
                 "SELECT COUNT(*) FROM records WHERE status = 'exported'").fetchone()[0]
         # ONE definition of expert acceptance (Seam 3): PRD-A's
-        # ``agreement.review_acceptance``. This block used to compute its own
-        # with `verdict IN ('accept','accept_with_edits')` while agreement.py
-        # counted strict accepts only — the same word, over the same table, at
-        # two numbers (~97% on the dashboard, ~84% in quality_report.md). It is
-        # the figure a buyer audits most closely, so it gets one owner. The
-        # combined figure is still available, under a DIFFERENT name.
+        # ``agreement.review_acceptance``. This block used to run its own SQL
+        # that also counted edited-accept verdicts, while agreement.py counted
+        # strict accepts only — the same word, over the same table, at two
+        # numbers (~97% on the dashboard, ~84% in quality_report.md). It is the
+        # figure a buyer audits most closely, so it gets one owner. The combined
+        # figure is still available, under a DIFFERENT name ("not rejected").
         reviews: List[Dict[str, Any]] = []
         try:
             with self._conn() as conn:
