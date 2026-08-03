@@ -375,12 +375,28 @@
       })));
   }
 
+  // The intake report's real shape, as written by the ingestion pipeline:
+  //   verification: { status: 'pass'|'flagged', verifier, findings: [...] }
+  //   completeness / missing_modalities / quarantine_reason / unresolved
+  // Read the keys that actually exist. Guessing the shape renders a tidy '—'
+  // for every row and the whole point of the intake review — the residual
+  // identifier scan — silently disappears while the page still looks fine.
   function findingsText(report) {
-    if (!report) return '—';
+    if (!report || typeof report !== 'object') return '—';
     var bits = [];
+    var v = report.verification || {};
+    if (v.status) {
+      var n = (v.findings || []).length;
+      bits.push(v.status === 'flagged'
+        ? 'residual identifiers: ' + n + ' flagged'
+        : 'de-id verified (' + (v.verifier || 'scan') + ')');
+    }
     if (report.completeness != null) bits.push('completeness ' + report.completeness);
-    if (report.residual_identifiers && report.residual_identifiers.length) {
-      bits.push('residual: ' + report.residual_identifiers.join(', '));
+    if (report.missing_modalities && report.missing_modalities.length) {
+      bits.push('missing: ' + report.missing_modalities.join(', '));
+    }
+    if (report.unresolved && report.unresolved.length) {
+      bits.push('unresolved: ' + report.unresolved.length);
     }
     if (report.quarantine_reason) bits.push('quarantined: ' + report.quarantine_reason);
     return bits.length ? bits.join(' · ') : '—';

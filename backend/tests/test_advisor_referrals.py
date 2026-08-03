@@ -223,6 +223,51 @@ def test_the_invite_email_names_the_referrer():
     assert "suggested you" not in plain
 
 
+def test_a_nameless_advisor_never_leaks_their_email_to_the_invitee():
+    """An advisor appointed by email with no name on file must not have their
+    address disclosed to every physician they invite — not in the body, and
+    especially not in a subject line. No name means no named referral."""
+    import routers.asclepius_advisor as advisor_router
+
+    sent = {}
+
+    class _FakeTS:
+        def create_health_system_invite(self, **kw):
+            return {"onboarding_url": "https://landing.example/onboard/tok"}
+
+    async def _fake_send(to, subject, html, **kw):
+        sent.update({"to": to, "subject": subject, "html": html})
+        return True
+
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setattr("email_utils.is_email_transport_configured", lambda: True)
+        monkey.setattr("email_utils.send_html_email", _fake_send)
+        nameless = _advisor()
+        assert not (nameless.get("full_name") or "").strip()
+
+        class _Req:
+            class app:
+                class state:
+                    team_store = _FakeTS()
+
+        import asyncio
+        asyncio.get_event_loop_policy().new_event_loop().run_until_complete(
+            advisor_router._send_referral_invite(
+                _Req(), nameless,
+                advisor_router.ReferralBody(email="invitee@example.com", name="Dr Chen"),
+                "invitee@example.com", nameless["referral_code"]))
+    finally:
+        monkey.undo()
+
+    assert sent, "no email was sent"
+    assert nameless["email"] not in sent["subject"], (
+        "the advisor's email address leaked into the subject line")
+    assert nameless["email"] not in sent["html"], (
+        "the advisor's email address leaked into the invite body")
+    assert "@" not in sent["subject"]
+
+
 def test_every_advisor_gets_a_unique_referral_code():
     codes = {_advisor()["referral_code"] for _ in range(5)}
     assert len(codes) == 5

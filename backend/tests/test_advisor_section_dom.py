@@ -217,6 +217,59 @@ setTimeout(function () {
     assert "Product specs" not in text
 
 
+def test_intake_findings_render_from_the_reports_real_shape():
+    """The residual-identifier scan is the substance of an intake review.
+
+    The report the ingestion pipeline actually writes nests the scan under
+    ``verification.{status,findings}`` — not a flat ``residual_identifiers``
+    list. Reading keys that do not exist renders a tidy '—' on every row: the
+    page looks fine, the advisor sees nothing, and nobody can tell. This
+    fixture is shaped like the real thing on purpose.
+    """
+    report = {
+        "verification": {"status": "flagged", "verifier": "regex_v2",
+                         "findings": [{"kind": "name"}, {"kind": "date"}]},
+        "completeness": "verified",
+        "missing_modalities": ["pathology"],
+        "quarantine_reason": "residual identifiers present",
+    }
+    out = _run_node(_script(
+        {"/advisor/queue": {"queue": {"inbound_upload": [
+            {"upload_id": "upl-1", "status": "quarantined", "signoffs": 0}]}},
+         "/advisor/artifacts/inbound_upload/upl-1": {
+             "artifact_type": "inbound_upload", "artifact_id": "upl-1",
+             "upload": {"upload_id": "upl-1", "status": "quarantined"},
+             "n_cases": 1,
+             "cases": [{"ingest_case_id": "ic-1", "specialty": "nephrology",
+                        "status": "quarantined", "case": {"presentation": "CKD"},
+                        "report": report}],
+             "signoffs": []}},
+        """
+var body = document.createElement('div');
+window.AdvisorSection.reset();
+window.AdvisorSection.render(body, ctx);
+setTimeout(function () {
+  clickTab(body, 'Awaiting your review');
+  setTimeout(function () {
+    var rows = byTag(body, 'TR').filter(function (r) {
+      return textOf(r).indexOf('upl-1') !== -1;
+    });
+    if (rows.length) rows[0].dispatch('click');
+    setTimeout(function () {
+      console.log(JSON.stringify({ text: textOf(body) }));
+    }, 20);
+  }, 20);
+}, 20);
+"""))
+    text = out["text"]
+    assert "residual identifiers: 2 flagged" in text, (
+        "the de-identification scan did not reach the advisor — findingsText is "
+        "reading keys the intake report does not have")
+    assert "completeness verified" in text
+    assert "missing: pathology" in text
+    assert "quarantined: residual identifiers present" in text
+
+
 def test_the_verdict_form_says_plainly_that_it_does_not_block():
     """An advisor must never believe they are holding up a shipment when they
     are not — sign-off is recorded, never blocking."""

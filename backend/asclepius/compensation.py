@@ -22,6 +22,14 @@ Values:
                        per-task contributor. A DEFAULT would be the same
                        assertion with less evidence; the backfill rule is
                        stated here instead of hidden in a schema default.
+
+The model deliberately does NOT follow the tier. If an advisor's tier is later
+changed to labeler or reviewer, ``compensation_model`` stays ``equity_only``,
+because what makes them unpaid is the equity agreement, not the tier — and the
+equity does not evaporate when the tier changes. Clearing it is a deliberate
+act (the agreement ended), not a side effect of a tier edit. If a future flow
+needs to unwind an advisory relationship, it should say so explicitly here
+rather than inferring it from ``users.tier``.
 """
 
 from __future__ import annotations

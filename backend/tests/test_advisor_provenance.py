@@ -122,7 +122,7 @@ def test_the_flag_resolves_from_the_same_source_as_the_credential():
         {"evaluator_id": _labeler()["id"], "annotator": {}}, store) is False
 
 
-def test_every_shipped_record_carries_the_key_even_when_false():
+def test_every_packaged_record_carries_the_key_even_when_false():
     """A key that is present-when-true and absent-when-false is a key a buyer
     cannot filter on, and cannot distinguish from 'this export predates the
     field'."""
@@ -133,6 +133,72 @@ def test_every_shipped_record_carries_the_key_even_when_false():
                                                 store=store):
             assert "related_party" in rec
             assert isinstance(rec["related_party"], bool)
+
+
+def test_the_flag_survives_profile_mapping_into_the_file_that_actually_ships():
+    """The disclosure must reach records.jsonl, not just the canonical record.
+
+    This is the test that caught the real bug. ``map_record`` is a strict
+    ALLOWLIST — a field absent from the buyer profile's field map is dropped
+    silently on the way out — so ``related_party`` sat on the packaged record,
+    passed every unit assertion, and never appeared in the bytes a buyer
+    receives. Asserting one layer above the artifact is how a disclosure ships
+    as a no-op. Assert on the file.
+    """
+    import json as _json
+
+    from asclepius import export as asc_export
+
+    store = asc_store.get_store()
+    task = _task(store)
+    advisor = _advisor()
+    sub = _submission(store, advisor, task)
+    for rec in packaging.package_submission(task, sub, store=store):
+        store.insert_record(submission_id=sub["submission_id"], task_id=task["task_id"],
+                            rtype=rec["type"], specialty="nephrology",
+                            payload=rec, status="export_ready")
+
+    manifest = asc_export.build_export(store, created_by="admin@x", profile="default")
+    jsonl = Path(manifest["dir_path"]) / "records.jsonl"
+    lines = [_json.loads(x) for x in jsonl.read_text(encoding="utf-8").splitlines() if x]
+    assert lines, "the export shipped no records"
+    for line in lines:
+        # The PRD's definition of done, on the artifact itself: the real
+        # credential AND the disclosure, in the same shipped line.
+        assert line["annotator_credential"] == "ABIM — Nephrology"
+        assert line["related_party"] is True, (
+            "related_party did not survive profile mapping — the buyer profile's "
+            "field map must carry it wherever it carries annotator_credential")
+
+
+def test_every_profile_that_ships_the_credential_also_ships_the_disclosure():
+    """Static guard on the buyer profiles, including TEMPLATE.
+
+    The credential and the disclosure are one claim ("a board-certified
+    physician wrote this, and here is their relationship to us"). A profile that
+    maps one without the other publishes the flattering half alone. TEMPLATE is
+    included because it is what the next buyer profile is copied from.
+    """
+    import json as _json
+
+    profiles_dir = (pathlib.Path(__file__).resolve().parent.parent
+                    / "asclepius" / "buyer_profiles")
+    checked = 0
+    for path in sorted(profiles_dir.glob("*.json")):
+        doc = _json.loads(path.read_text(encoding="utf-8"))
+        for rtype, fmap in (doc.get("field_maps") or {}).items():
+            variants = (fmap.values() if fmap and all(isinstance(v, dict)
+                                                      for v in fmap.values())
+                        else [fmap])
+            for inner in variants:
+                if "annotator_credential" not in inner:
+                    continue
+                checked += 1
+                assert "related_party" in inner, (
+                    f"{path.name} maps annotator_credential for {rtype!r} but not "
+                    f"related_party — the credential would ship without the "
+                    f"relationship that qualifies it")
+    assert checked, "no profile field map carries annotator_credential — check the fixture"
 
 
 def test_the_flag_is_as_of_authorship_not_as_of_export():

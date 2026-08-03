@@ -421,3 +421,22 @@ def test_an_equity_only_advisor_never_appears_in_a_payment_aggregate():
     assert labeler["id"] in ids
     assert advisor["id"] not in ids, (
         "an equity-only advisor accrued a payment obligation")
+
+
+def test_the_compensation_model_does_not_follow_a_tier_change():
+    """What makes an advisor unpaid is the equity agreement, not the tier. If
+    someone edits their tier down, the equity has not evaporated — so the model
+    must NOT silently flip back to payable and start accruing money against an
+    agreement that is still in force."""
+    store = asc_store.get_store()
+    admin_h = A.headers_for(_admin())
+    advisor = _advisor()
+    assert advisor["compensation_model"] == "equity_only"
+
+    r = client.post(f"/api/asclepius/verify/queue/{advisor['id']}/approve",
+                    json={"tier": "reviewer"}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    after = store.get_user_by_id(advisor["id"])
+    assert after["tier"] == "reviewer"
+    assert after["compensation_model"] == "equity_only"
+    assert comp.accrues_payment(after) is False

@@ -40,6 +40,7 @@ from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
 from asclepius.cases import public_case
 from asclepius.store import get_store
+from ratelimit import rate_limiter
 
 log = logging.getLogger("asclepius.advisor")
 
@@ -160,6 +161,17 @@ async def appoint_advisor(
     if body.name:
         store.set_advisor_display_name(user["id"], body.name)
 
+    # ORDER MATTERS. Both writes set tier='advisor', and they are two separate
+    # statements, so something can fail between them. ``appoint_advisor`` goes
+    # FIRST because it sets the tier, the agreement reference and the
+    # equity_only model in ONE update: if the second write is lost, the account
+    # holds the advisor tier WITH an agreement on file. The other order fails
+    # the dangerous way round — an advisor with capabilities and no signed
+    # agreement, which is exactly the liability §2.3 names.
+    updated = store.appoint_advisor(
+        user["id"], agreement_ref=agreement_ref, appointed_by=admin["email"])
+    if updated is None:
+        raise HTTPException(status_code=404, detail="No such user")
     # An appointed advisor is verified BY the appointment: the admin has a
     # signed agreement in hand, which outranks anything an NPPES lookup could
     # add. Recorded through the normal decision path so verified_by/verified_at
@@ -171,10 +183,7 @@ async def appoint_advisor(
         tier=asc_caps.ADVISOR,
         note=f"Appointed medical advisor · agreement {agreement_ref}",
     )
-    updated = store.appoint_advisor(
-        user["id"], agreement_ref=agreement_ref, appointed_by=admin["email"])
-    if updated is None:
-        raise HTTPException(status_code=404, detail="No such user")
+    updated = store.get_user_by_id(user["id"]) or updated
     store.log_event(
         entity_type="user", entity_id=user["id"], event_type="advisor_appointed",
         actor=admin["email"],
@@ -308,7 +317,15 @@ def _invite_url(code: Optional[str]) -> Optional[str]:
     return f"{_landing_base()}/physicians?ref={code}"
 
 
-@router.post("/api/asclepius/advisor/referrals")
+@router.post(
+    "/api/asclepius/advisor/referrals",
+    # Each invite sends an email AND mints an onboarding row in the tenant
+    # store, so it is the same class of expensive, outward-facing action as the
+    # self-serve link endpoint — and it is limited the same way. An advisor is
+    # trusted; an advisor's stolen token is not, and "he only has three
+    # colleagues to invite" is a product assumption, not a control.
+    dependencies=[Depends(rate_limiter("asclepius_advisor_referral", 10, 600))],
+)
 async def create_referral(
     body: ReferralBody,
     request: Request,
@@ -376,7 +393,14 @@ async def _send_referral_invite(request: Request, advisor: Dict[str, Any],
 
     if not is_email_transport_configured():
         return False
-    referrer_name = (advisor.get("full_name") or advisor.get("email") or "").strip()
+    # NEVER fall back to the advisor's email address here. This string goes into
+    # the subject line and body of a message to a THIRD PARTY, so an advisor
+    # appointed by email with no name on file would have had their address
+    # disclosed to every physician they invited — and "toby@gmail.com suggested
+    # you'd be a good fit" is not the sentence that makes a named referral work.
+    # No name means no named referral: the invite falls back to the ordinary
+    # copy rather than inventing or leaking one.
+    referrer_name = (advisor.get("full_name") or "").strip()
     onboarding_url = _invite_url(code) or _portal_base()
     try:
         # Mint a real onboarding link when the tenant store is reachable, so the
@@ -395,7 +419,9 @@ async def _send_referral_invite(request: Request, advisor: Dict[str, Any],
 
     html_body = build_asclepius_invite_email(
         invitee_first_name=((body.name or "").strip().split(" ")[0] if body.name else ""),
-        director_full_name=referrer_name,
+        # The email's own copy says "<X> has invited you to join"; with no name
+        # on file, "a colleague" is the honest filler and reveals nothing.
+        director_full_name=referrer_name or "a colleague",
         role_label="Physician contributor",
         org_name="Archangel Health",
         specialty=(advisor.get("specialty") or ""),
@@ -403,10 +429,11 @@ async def _send_referral_invite(request: Request, advisor: Dict[str, Any],
         invitee_email=email,
         referrer_name=referrer_name,
     )
+    subject = (f"{referrer_name} suggested you'd be a good fit for Asclepius"
+               if referrer_name
+               else "You're invited to contribute to Asclepius")
     try:
-        return bool(await send_html_email(
-            email, f"{referrer_name} suggested you'd be a good fit for Asclepius",
-            html_body))
+        return bool(await send_html_email(email, subject, html_body))
     except Exception:
         log.exception("[advisor] referral invite email failed (referral row stands)")
         return False
