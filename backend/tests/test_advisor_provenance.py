@@ -135,6 +135,26 @@ def test_every_shipped_record_carries_the_key_even_when_false():
             assert isinstance(rec["related_party"], bool)
 
 
+def test_the_flag_is_as_of_authorship_not_as_of_export():
+    """A contributor appointed AFTER writing a record held no financial interest
+    when they wrote it, so that record ships ``false``. Back-stamping their
+    history would be the same inaccuracy pointing the other way — and the
+    records they author from then on carry ``true``."""
+    store = asc_store.get_store()
+    task = _task(store)
+    person = _labeler()
+
+    before = _submission(store, person, task)          # written as a labeler
+    store.appoint_advisor(person["id"], agreement_ref="AGR-LATER",
+                          appointed_by="admin@x")
+    after = _submission(store, store.get_user_by_id(person["id"]), task)
+
+    assert all(r["related_party"] is False
+               for r in packaging.package_submission(task, before, store=store))
+    assert all(r["related_party"] is True
+               for r in packaging.package_submission(task, after, store=store))
+
+
 # ═══ §5.1 — the disclosure text ══════════════════════════════════════════════
 def test_the_data_dictionary_documents_related_party():
     from asclepius.export import _data_dictionary_md

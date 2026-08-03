@@ -296,7 +296,7 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `annotator_credential` | e.g. board_certified_nephrology — the premium signal |
 | `annotator_specialty` / `annotator_years_experience` | annotator credential metadata |
 | `annotator_id_hashed` | stable hashed annotator id (no PII) |
-| `related_party` | true when the annotating physician holds an advisory relationship with Archangel Health, including equity. Their clinical credentials are unchanged and stated above; this flag exists so provenance is complete |
+| `related_party` | true when the annotating physician holds an advisory relationship with Archangel Health, including equity. Their clinical credentials are unchanged and stated above; this flag exists so provenance is complete. Recorded as of authorship — a contributor appointed after writing a record carries `false` on that record, because they held no interest when they wrote it |
 | `submission_id` / `task_id` | lineage |
 | `source` | `lab_supplied` vs `internal_prompt_bank` |
 | `buyer_request_id` | the buyer request the record answers (opt §2.5) |

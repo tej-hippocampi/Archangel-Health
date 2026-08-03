@@ -231,6 +231,21 @@ def test_every_advisor_gets_a_unique_referral_code():
     assert not any(set(c) & set("O0I1l") for c in codes)
 
 
+def test_the_shareable_invite_link_points_at_a_route_that_exists():
+    """A link an advisor pastes into a text message must not 404. It points at
+    the existing physician signup page, not an invented referral route."""
+    advisor = _advisor()
+    body = client.get("/api/asclepius/advisor/referrals",
+                      headers=A.headers_for(advisor)).json()
+    url = body["invite_url"]
+    assert url and url.endswith(f"/physicians?ref={advisor['referral_code']}")
+    # The route is one the landing app actually serves.
+    shell = (Path(__file__).resolve().parents[2] / "landing" / "src" / "app"
+             / "components" / "arch" / "ArchShell.tsx")
+    if shell.exists():
+        assert '"/physicians"' in shell.read_text(encoding="utf-8")
+
+
 def test_a_referral_code_resolves_back_to_its_advisor():
     store = asc_store.get_store()
     advisor = _advisor()

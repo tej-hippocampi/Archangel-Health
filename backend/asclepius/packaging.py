@@ -94,6 +94,14 @@ def _annotator_related_party(submission: Dict[str, Any], store: Any = None) -> b
     buyer sophisticated enough to ask "who signed off, and what is their
     interest" finds the answer already in the data rather than discovering it
     later. Costs one boolean.
+
+    AS OF AUTHORSHIP, not as of export. A hydrated annotator block carries the
+    tier the physician held when they did the work, and that is what ships — a
+    contributor who labeled fifty cases before being appointed did not have a
+    financial interest at the time, and back-stamping those records would be
+    the same kind of inaccuracy in the opposite direction. Records authored
+    before this field existed carry no tier in their block and resolve from the
+    users table, which is the closest honest answer available for them.
     """
     annotator = submission.get("annotator") or {}
     tier = annotator.get("tier")

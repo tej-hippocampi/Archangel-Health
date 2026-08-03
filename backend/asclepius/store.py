@@ -5684,17 +5684,23 @@ class AsclepiusStore:
         """Open (not yet labeled out) tasks grouped into previewable batches."""
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT task_id, specialty, difficulty, modality, created_at, signoff_status "
+                "SELECT task_id, specialty, difficulty, modality, created_at "
                 "FROM tasks WHERE status = 'open' ORDER BY created_at DESC LIMIT ?",
                 (limit,)).fetchall()
         batches: Dict[str, Dict[str, Any]] = {}
         for r in rows:
             t = dict(r)
             key = self.task_batch_key(t)
+            # Deliberately NO ``signoff_status`` here. A batch spans many task
+            # rows and the sign-off is not mirrored onto any of them (see
+            # ``_mirror_signoff_status``), so reporting one row's column as the
+            # batch's status would be a field that looks authoritative and is
+            # whichever task happened to sort first. The caller reads the real
+            # answer from ``signoff_summary``.
             b = batches.setdefault(key, {
                 "batch_key": key, "specialty": t.get("specialty"),
                 "created_on": str(t.get("created_at") or "")[:10],
-                "n_tasks": 0, "task_ids": [], "signoff_status": t.get("signoff_status"),
+                "n_tasks": 0, "task_ids": [],
             })
             b["n_tasks"] += 1
             b["task_ids"].append(t["task_id"])

@@ -284,16 +284,28 @@ def _portal_base() -> str:
             or os.getenv("BASE_URL") or "http://localhost:8000").strip().rstrip("/")
 
 
+def _landing_base() -> str:
+    return (os.getenv("LANDING_URL") or os.getenv("BASE_URL")
+            or "http://localhost:8000").strip().rstrip("/")
+
+
 def _invite_url(code: Optional[str]) -> Optional[str]:
-    """The bare link an advisor can paste into a text message. It carries the
-    code for provenance, but attribution does NOT depend on the code surviving
-    the round trip: the referral resolves on the invitee's email at provisioning
-    time (see ``store.claim_referral_for_signup``), so a link that loses its
-    query string still attributes correctly as long as they sign up with the
-    address they were invited at."""
+    """The bare link an advisor can paste into a text message.
+
+    Points at the EXISTING physician signup page (``/physicians`` on the
+    landing site), not at a referral-specific route — there is no such route,
+    and a shareable link that 404s is worse than no shareable link.
+
+    It carries the code as a query parameter for provenance, but attribution
+    does NOT depend on that code surviving the round trip: the referral resolves
+    on the invitee's email at provisioning time (see
+    ``store.claim_referral_for_signup``), so a link stripped by a messaging app
+    still attributes correctly as long as they sign up with the address they
+    were invited at.
+    """
     if not code:
         return None
-    return f"{_portal_base()}/asclepius/join?ref={code}"
+    return f"{_landing_base()}/physicians?ref={code}"
 
 
 @router.post("/api/asclepius/advisor/referrals")
