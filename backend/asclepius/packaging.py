@@ -80,6 +80,40 @@ def _annotator_credential(submission: Dict[str, Any], store: Any = None) -> Opti
     return None
 
 
+def _annotator_related_party(submission: Dict[str, Any], store: Any = None) -> bool:
+    """True when the annotating physician holds an advisory relationship with
+    Archangel Health, including equity (Advisor PRD §5.1).
+
+    Resolved the same way and from the same source as the credential: the
+    annotator block if it is hydrated (``store.annotator_block`` now carries
+    ``tier``), otherwise the users table. Two separately-resolved facts about
+    one person is how one of them ends up stale on a record that ships.
+
+    This is a DISCLOSURE, not a disqualification. An advisor's clinical
+    credentials are real and stated in the same block; the flag exists so a
+    buyer sophisticated enough to ask "who signed off, and what is their
+    interest" finds the answer already in the data rather than discovering it
+    later. Costs one boolean.
+    """
+    annotator = submission.get("annotator") or {}
+    tier = annotator.get("tier")
+    if tier is None and store is not None:
+        uid = submission.get("evaluator_id") or submission.get("user_id")
+        if uid:
+            try:
+                user = store.get_user_by_id(uid)
+            except Exception:  # pragma: no cover - defensive; treated as unresolved
+                user = None
+            if user:
+                tier = user.get("tier")
+    # An unresolvable tier reports False: "no advisory relationship on record".
+    # Every production export path hydrates from the users table (see
+    # ``_provenance``'s store argument), so this branch is the pure-unit-test
+    # one. It is stated rather than assumed because a disclosure that quietly
+    # defaults is worth less than no disclosure at all.
+    return tier == "advisor"
+
+
 def _candidate_text(task: Dict[str, Any], cid: Optional[str]) -> str:
     if not cid:
         return ""
@@ -238,6 +272,12 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any],
         "annotator_years_experience": _years_band(annotator.get("years_experience")),
         "annotator_years_experience_band": _years_band(annotator.get("years_experience")),
         "annotator_id_hashed": annotator.get("id_hashed"),
+        # Related-party disclosure (Advisor PRD §5.1). True when the annotating
+        # physician holds an advisory relationship with Archangel Health,
+        # including equity. Their clinical credentials are unchanged and stated
+        # above; this flag exists so provenance is COMPLETE — it converts a
+        # thing a buyer could discover into a thing we disclosed.
+        "related_party": _annotator_related_party(submission, store),
         # lineage
         "submission_id": submission.get("submission_id"),
         "task_id": task.get("task_id"),

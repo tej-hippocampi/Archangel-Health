@@ -138,13 +138,26 @@ def test_b_approval_as_labeler_does_not_unlock_review():
 
 def test_the_two_modules_share_one_tier_vocabulary():
     """Static guard against the Seam-1 failure mode: B validating one set of
-    tier strings while A's gate compares against a different one."""
+    tier strings while A's gate compares against a different one.
+
+    This guard used to read ``expected = (tier == "reviewer")`` — a two-state
+    check of its own — and it fired the moment 'advisor' was added to _TIERS.
+    That is the guard working, and the fix is not to widen the literal but to
+    assert against the SAME table the gate consults (Advisor PRD §2.2). Written
+    this way, a fourth tier added without a capability row fails here loudly
+    rather than being denied silently in production.
+    """
     import routers.asclepius_verify as verify
+    from asclepius import capabilities as asc_caps
 
     assert "reviewer" in verify._TIERS
-    # A's gate must accept exactly what B is allowed to write, and nothing else.
+    assert "advisor" in verify._TIERS
+    # B's writable vocabulary and the capability table must be the same set —
+    # neither may carry a value the other has never heard of.
+    assert set(verify._TIERS) == set(asc_caps._BY_TIER)
+    # A's gate must accept exactly what the capability table grants REVIEW to.
     for tier in verify._TIERS:
-        expected = (tier == "reviewer")
+        expected = asc_caps.REVIEW in asc_caps._BY_TIER[tier]
         assert asc_review.can_review({"tier": tier}) is expected
 
 

@@ -729,6 +729,22 @@ def _provision_asclepius_user(
         credentials=creds,
         attestations=attestations or {},
     )
+    # Advisor PRD §3.2 step 3: attach this signup to whichever advisor referred
+    # them. Resolution is by the address the invite was addressed to — see
+    # ``store.find_open_referral_for_email``. Best-effort: a referral that
+    # cannot be claimed must never cost a physician their account.
+    try:
+        claimed = store.claim_referral_for_signup(email=email, user_id=user["id"])
+        if claimed is not None:
+            store.log_event(
+                entity_type="user", entity_id=user["id"],
+                event_type="referral_claimed", actor=email,
+                payload={"referral_id": claimed["referral_id"],
+                         "referrer_id": claimed["referrer_id"]},
+            )
+    except Exception:
+        log.exception("[referral] could not attach signup to a referral (non-fatal)")
+
     # PRD-B: identity capture + credential verification. This function is
     # SYNCHRONOUS and both callers are async, so it must be reached through
     # ``run_in_threadpool`` — see the comment at each call site. Do not call it
@@ -778,6 +794,14 @@ def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, 
             cached = store.get_cached_npi_fetch(npi)
             result = credentialing.verify_npi(npi, family_name, cached=cached)
             store.set_npi_result(uid, result)
+            if result.get("result") == "verified":
+                # Advisor PRD §3.2 step 4: the referrer's funnel follows the
+                # invitee. 'verified' is the NPI coming back clean; 'approved'
+                # is the admin's decision and is stamped from the verify router.
+                try:
+                    store.advance_referral_for_user(uid, "verified")
+                except Exception:
+                    log.exception("[referral] could not advance to verified (non-fatal)")
         except Exception:
             # "Could not check" is NOT "does not exist": route to manual review.
             log.exception("[credentialing] NPI check failed; queued for retry")

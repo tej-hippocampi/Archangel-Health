@@ -230,10 +230,27 @@
     var tierSelect = h('select', { class: 'vq-tier-select', 'aria-label': 'Tier' },
       h('option', { value: '' }, '— choose tier —'),
       h('option', { value: 'labeler' }, 'labeler (does cases from scratch)'),
-      h('option', { value: 'reviewer' }, 'reviewer (grades submissions)'));
+      h('option', { value: 'reviewer' }, 'reviewer (grades submissions)'),
+      // The third tier. Advisors are APPOINTED, never proposed by the score —
+      // this option exists so the queue is not a dead end when the person in
+      // front of you is already an agreed advisor, and it is why the agreement
+      // field below appears the moment it is picked.
+      h('option', { value: 'advisor' }, 'advisor (equity, not paid per task)'));
     var noteInput = h('textarea', {
       class: 'vq-note', rows: '2',
       placeholder: 'Note — required to reject, recommended always',
+    });
+    // Required only for 'advisor', and the server enforces it either way (a
+    // 400 from POST /approve). Shown conditionally so the normal labeler /
+    // reviewer path gains no extra field.
+    var agreementInput = h('input', {
+      class: 'vq-note', type: 'text', hidden: true,
+      placeholder: 'Signed advisor agreement reference — required',
+      'aria-label': 'Advisor agreement reference',
+    });
+    tierSelect.addEventListener('change', function () {
+      if (tierSelect.value === 'advisor') agreementInput.removeAttribute('hidden');
+      else agreementInput.setAttribute('hidden', '');
     });
 
     var cvBits = [];
@@ -290,12 +307,20 @@
         : null,
       h('div', { class: 'vq-actions' },
         tierSelect,
+        agreementInput,
         noteInput,
         h('button', {
           class: 'vq-btn vq-btn-approve', disabled: state.busy,
           onclick: function () {
             if (!tierSelect.value) { setError('Pick an explicit tier to approve — the proposal is advice.'); return; }
-            decide(row.user_id, 'approve', { tier: tierSelect.value, note: noteInput.value || null },
+            var agreement = (agreementInput.value || '').trim();
+            if (tierSelect.value === 'advisor' && !agreement) {
+              setError('An advisor holds equity — record the signed agreement reference.');
+              return;
+            }
+            decide(row.user_id, 'approve',
+                   { tier: tierSelect.value, note: noteInput.value || null,
+                     agreement_ref: agreement || null },
                    'Approved as ' + tierSelect.value + '.');
           },
         }, 'Approve'),

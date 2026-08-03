@@ -24,7 +24,11 @@
 (function () {
   'use strict';
 
-  let activeChip = 'all';       // all | pending | labelers | reviewers | unassigned
+  // Mirrors asclepius/capabilities.py TIERS. The one list this file filters,
+  // counts and labels against.
+  const TIERS = ['labeler', 'reviewer', 'advisor'];
+
+  let activeChip = 'all';       // all | pending | labelers | reviewers | advisors | unassigned
   let activeView = 'roster';    // roster | verify — driven by the shell's sub-tabs
   let selectedId = null;        // physician profile view
   let cache = null;             // last /admin/physicians payload
@@ -32,14 +36,23 @@
   let rootCtx = null;
 
   // ─── Vocabulary (four-state verification; tier words) ─────
+  // THREE tiers, not two. A missing case here does not throw — it silently
+  // renders "Unassigned" over a real advisor, which is the same class of bug
+  // as the backend's `tier === 'reviewer'` equality: wrong, quiet, and only
+  // discovered when the person tells you. Keep this map aligned with
+  // asclepius/capabilities.py TIER_WORDS.
   function tierWord(t) {
     if (t === 'labeler') return 'Labeler';
     if (t === 'reviewer') return 'Reviewer';
+    if (t === 'advisor') return 'Medical Advisor';
     return 'Unassigned';
   }
   function tierBadge(h, t) {
     if (t === 'labeler') return h('span', { class: 'asc-badge asc-badge-primary' }, 'Labeler');
     if (t === 'reviewer') return h('span', { class: 'asc-badge asc-badge-green' }, 'Reviewer');
+    // Advisors are three people among fifty and you want to find them in one
+    // glance — lime is the "new/notable" token from the locked design system.
+    if (t === 'advisor') return h('span', { class: 'asc-badge asc-badge-lime' }, 'Advisor');
     return h('span', { class: 'asc-badge asc-badge-gray' }, 'Unassigned');
   }
   function verificationBadge(h, v) {
@@ -124,6 +137,7 @@
       ['pending', 'Pending', counts.pending],
       ['labelers', 'Labelers', counts.labelers],
       ['reviewers', 'Reviewers', counts.reviewers],
+      ['advisors', 'Advisors', counts.advisors],
       ['unassigned', 'Unassigned', counts.unassigned],
     ];
     const chipRow = h('div', { class: 'asc-phys-chips' }, chips.map(([id, label, n]) => {
@@ -140,7 +154,11 @@
       if (activeChip === 'pending') return p.verification_status === 'pending';
       if (activeChip === 'labelers') return p.tier === 'labeler';
       if (activeChip === 'reviewers') return p.tier === 'reviewer';
-      if (activeChip === 'unassigned') return !p.tier;
+      if (activeChip === 'advisors') return p.tier === 'advisor';
+      // "Unassigned" means NO tier — not "a tier this filter forgot about".
+      // Written as an explicit membership test so a fourth tier shows up in
+      // its own chip rather than quietly swelling this one.
+      if (activeChip === 'unassigned') return !TIERS.includes(p.tier);
       return true;
     });
 
@@ -189,7 +207,8 @@
       h('td', {}, p.specialty || '—'),
       h('td', {}, tierBadge(h, p.tier)),
       h('td', {}, verificationBadge(h, p.verification_status)),
-      h('td', {}, slackText(p.slack_joined)),
+      h('td', {}, p.slack_role ? slackText(p.slack_joined) + ' · ' + p.slack_role
+        : slackText(p.slack_joined)),
       h('td', {}, p.health_system_name || 'Independent'));
     tr.addEventListener('click', () => { selectedId = p.id; rerender(); });
     return tr;
@@ -233,7 +252,9 @@
           ['Board certification', p.board_cert],
           ['Years of experience', p.years_experience != null ? String(p.years_experience) : null],
           ['Email domain', p.email_domain_class],
-          ['Slack', slackText(p.slack_joined)],
+          // The Slack ROLE beside the joined flag, so whoever sends the invite
+          // sets the label correctly (§6.1). Not a Slack integration.
+          ['Slack', slackText(p.slack_joined) + (p.slack_role ? ' · ' + p.slack_role : '')],
         ]),
         kvBlock(h, 'Verification', [
           ['Status', verificationWord(p.verification_status)],
@@ -257,7 +278,10 @@
       ['When', 'Task', 'Status'],
       (data.task_history || []).map((t) => [
         t.created_at ? fmtDate(t.created_at) : '—', t.task_id || '—', t.status || '—'])));
-    if (p.tier === 'reviewer') {
+    // Advisors review too (they hold the REVIEW capability), so gating this on
+    // `tier === 'reviewer'` would hide a real advisor's review history from the
+    // admin who needs it — the two-state check, one more time.
+    if (p.tier === 'reviewer' || p.tier === 'advisor') {
       container.appendChild(historyCard(ctx, 'Review history',
         ['When', 'Submission', 'Verdict'],
         (data.review_history || []).map((r) => [

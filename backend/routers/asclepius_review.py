@@ -1,6 +1,7 @@
-"""Review portal router (PRD A) — the senior-reviewer tier's HTTP surface.
+"""Review portal router (PRD A) — the senior-review surface.
 
-A purpose-built, fast surface for reviewers (``users.tier == 'reviewer'``):
+A purpose-built, fast surface for anyone holding the REVIEW capability
+(``reviewer`` and ``advisor`` tiers — see ``asclepius.capabilities``):
 draw the oldest reviewable submission (blinded — no labeler identity), submit a
 per-dimension verdict, and expose the double-label pointer that routes a second
 INDEPENDENT labeler for the real-κ slice. Policy lives in ``asclepius.review``;
@@ -69,13 +70,15 @@ def _run_sweep() -> None:
 def require_reviewer(
     user: Dict[str, Any] = Depends(asc_auth.get_current_user),
 ) -> Dict[str, Any]:
-    """Admits an explicit ``tier == 'reviewer'`` — or an admin, so the portal is
-    operable/demoable before the verification flow has assigned any tiers. A NULL
-    tier denies: 'not yet assigned' is not 'reviewer' (PRD A §1.2)."""
-    if user.get("role") == "admin":
-        return user
+    """Admits any tier carrying the REVIEW capability (``reviewer``, ``advisor``)
+    — or an admin, so the portal is operable/demoable before the verification
+    flow has assigned any tiers. A NULL tier denies: 'not yet assigned' is not a
+    grant (PRD A §1.2). The tier set is NOT written here; it lives in
+    ``capabilities.py`` (Advisor PRD §2.2) so a new tier is one edit, not a
+    codebase-wide literal hunt."""
     if not asc_review.can_review(user):
-        raise HTTPException(status_code=403, detail="Reviewer tier required")
+        raise HTTPException(
+            status_code=403, detail="Reviewer or advisor tier required")
     return user
 
 
@@ -100,7 +103,7 @@ async def review_me(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     return {
         "user": asc_auth.public_user(user),
         "tier": user.get("tier"),
-        "can_review": asc_review.can_review(user) or user.get("role") == "admin",
+        "can_review": asc_review.can_review(user),
         "dimensions": asc_review.REVIEW_DIMENSIONS,
         "dimension_states": list(asc_review.DIMENSION_STATES),
         "verdicts": list(asc_review.REVIEW_VERDICTS),

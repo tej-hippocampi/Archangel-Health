@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from asclepius import auth as asc_auth
+from asclepius import capabilities as asc_caps
 from asclepius import credentialing
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
@@ -29,7 +30,11 @@ log = logging.getLogger("asclepius.verify")
 
 router = APIRouter(prefix="/api/asclepius/verify", tags=["asclepius-verify"])
 
-_TIERS = ("labeler", "reviewer")
+# The tier vocabulary is NOT written here. It is imported from the capability
+# layer (Advisor PRD §2.2) so this router and every access gate can never
+# disagree about what the ``users.tier`` column may hold — the Seam-1 failure
+# mode (B validates one set of strings, A's gate compares against another).
+_TIERS = asc_caps.TIERS
 _QUEUE_STATUSES = ("pending", "approved", "rejected")
 
 
@@ -224,6 +229,13 @@ async def verification_cv(
 class ApproveBody(BaseModel):
     tier: Optional[str] = None
     note: Optional[str] = None
+    # Required ONLY when tier == 'advisor' (Advisor PRD §2.3). An advisor holds
+    # equity, so an advisor with no signed agreement on file is a liability, and
+    # a required field is the cheapest possible enforcement. The PRD states that
+    # rule on the appointment endpoint; it is enforced here too because this is
+    # the second door into the same tier, and a rule enforced at one of two
+    # doors is not a rule.
+    agreement_ref: Optional[str] = None
 
 
 class RejectBody(BaseModel):
@@ -258,9 +270,20 @@ async def approve_signup(
     if tier not in _TIERS:
         # The admin is the decision; the score is advice. An approval that
         # leans on the proposal implicitly is exactly what this 400 prevents.
+        # The list is rendered from _TIERS so the message can never go stale
+        # against the values actually accepted — a stale error message is how
+        # an operator learns the wrong vocabulary.
+        allowed = ", ".join(repr(t) for t in _TIERS)
         raise HTTPException(
             status_code=400,
-            detail="Approval requires an explicit tier: 'labeler' or 'reviewer'.")
+            detail=f"Approval requires an explicit tier: {allowed}.")
+    agreement_ref = (body.agreement_ref or "").strip()
+    if tier == asc_caps.ADVISOR and not agreement_ref:
+        raise HTTPException(
+            status_code=400,
+            detail="Appointing an advisor requires agreement_ref — the signed "
+                   "advisor agreement on file. An advisor holds equity; an "
+                   "advisor with no agreement is a liability, not a shortcut.")
     store = _store()
     user = _load_user_or_404(user_id)
     prop = _proposal(store, user)
@@ -272,14 +295,28 @@ async def approve_signup(
         tier_score=float(prop["score"]),
         note=(body.note or None),
     )
+    if tier == asc_caps.ADVISOR:
+        # Same terms as the appointment endpoint, because it is the same
+        # relationship: equity_only compensation, a referral code, and the
+        # Slack label — set HERE rather than left for someone to notice later.
+        updated = store.appoint_advisor(
+            user_id, agreement_ref=agreement_ref, appointed_by=admin["email"])
     store.log_event(
         entity_type="user", entity_id=user_id, event_type="verification_approved",
         actor=admin["email"],
         payload={"tier": tier, "score": prop["score"],
                  "proposed_tier": prop["proposed_tier"],
                  "followed_proposal": prop["proposed_tier"] == tier,
+                 "agreement_ref": agreement_ref or None,
                  "note": body.note or None},
     )
+    # Advisor PRD §3.2 step 4: a referred physician reaching 'approved' is the
+    # end of their referrer's funnel. Best-effort — a referral bookkeeping
+    # failure must never undo an approval that already committed.
+    try:
+        store.advance_referral_for_user(user_id, "approved")
+    except Exception:
+        log.exception("[referral] could not advance referral to approved (non-fatal)")
     if is_email_transport_configured():
         try:
             await send_html_email(
@@ -312,6 +349,10 @@ async def reject_signup(
         entity_type="user", entity_id=user_id, event_type="verification_rejected",
         actor=admin["email"], payload={"note": note},
     )
+    try:
+        store.advance_referral_for_user(user_id, "declined")
+    except Exception:
+        log.exception("[referral] could not mark referral declined (non-fatal)")
     return {"ok": True, "user_id": user_id, "verification_status": "rejected",
             "verified_by": updated.get("verified_by"),
             "verified_at": updated.get("verified_at")}

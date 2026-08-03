@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 import jwt
 from fastapi import Depends, Header, HTTPException
 
+from asclepius import capabilities as _caps
 from asclepius.store import AsclepiusStore, get_store, verify_password
 
 log = logging.getLogger("asclepius.auth")
@@ -106,6 +107,14 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         # "V4 · Real Cases" box unlocked/locked. Serving is enforced server-side
         # regardless — this is display truth, not the gate itself.
         "real_data_approved": bool(user.get("real_data_approved")),
+        # Advisor PRD §6.2: the portal decides which sections to render from
+        # CAPABILITIES, not from a tier string it has to interpret. Shipping the
+        # tier alone would push the two-state check into the frontend, which is
+        # exactly the failure this build exists to remove. Display truth only —
+        # every endpoint re-checks server-side.
+        "tier": user.get("tier"),
+        "tier_word": _caps.tier_word(user.get("tier")),
+        "capabilities": sorted(_caps.granted(user)),
     }
 
 

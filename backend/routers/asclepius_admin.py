@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from asclepius import auth as asc_auth
+from asclepius import capabilities as asc_caps
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
 
@@ -394,6 +395,15 @@ def _display_name(u: Dict[str, Any]) -> str:
     return email.split("@", 1)[0] if "@" in email else (email or u.get("id") or "—")
 
 
+# tier value -> roster count bucket. Derived from the capability layer's TIERS
+# so a new tier cannot be added without a bucket to land in.
+_TIER_COUNT_KEYS = {
+    asc_caps.LABELER: "labelers",
+    asc_caps.REVIEWER: "reviewers",
+    asc_caps.ADVISOR: "advisors",
+}
+
+
 def _physician_users(store: Any) -> List[Dict[str, Any]]:
     """The roster population: real evaluator accounts (physicians). Mock/demo
     contributors and non-physician roles (admin, qa, data_partner, buyer) are
@@ -419,17 +429,19 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
     store = _store()
     hs_names = _hs_name_map(store)
     out: List[Dict[str, Any]] = []
-    counts = {"all": 0, "pending": 0, "labelers": 0, "reviewers": 0, "unassigned": 0}
+    counts = {"all": 0, "pending": 0, "labelers": 0, "reviewers": 0,
+              "advisors": 0, "unassigned": 0}
     for u in _physician_users(store):
         tier = u.get("tier")
         verification = u.get("verification_status")
         counts["all"] += 1
         if verification == "pending":
             counts["pending"] += 1
-        if tier == "labeler":
-            counts["labelers"] += 1
-        elif tier == "reviewer":
-            counts["reviewers"] += 1
+        # Counted off the capability layer's tier vocabulary rather than a
+        # chain of literals, so a fourth tier lands in its own bucket instead of
+        # silently inflating "unassigned" (Advisor PRD §2.2).
+        if tier in _TIER_COUNT_KEYS:
+            counts[_TIER_COUNT_KEYS[tier]] += 1
         else:
             counts["unassigned"] += 1
         hs_id = u.get("health_system_id")
@@ -441,8 +453,15 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "phone": u.get("phone"),
             "specialty": u.get("specialty"),
             "tier": tier,
+            "tier_word": asc_caps.tier_word(tier),
             "verification_status": verification,
             "slack_joined": _tri_state(u.get("slack_joined")),
+            # Advisor PRD §6.1: the Slack LABEL, not a bool. Surfaced beside
+            # slack_joined so whoever sends the invite sets the role correctly —
+            # this is not a Slack integration and is not pretending to be one.
+            "slack_role": u.get("slack_role"),
+            "advisor_since": u.get("advisor_since"),
+            "compensation_model": u.get("compensation_model"),
             "health_system_id": hs_id,
             "health_system_name": hs_names.get(hs_id) if hs_id else None,
             "active": bool(u.get("active", 1)),
