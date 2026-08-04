@@ -1,0 +1,63 @@
+/* ============================================================
+   Asclepius — Earnings surface (physician-facing payout view).
+   New styles only. Depends on the console design system already
+   in frontend/asclepius: _tokens.css, _base.css, clinical-fonts.css.
+   Every value comes from a token in _tokens.css (no raw hex).
+   Single-theme (light), matching the product. Prefix: .px-
+   ============================================================ */
+
+.px-narrow { max-width: 720px; }
+.px-stack { display: flex; flex-direction: column; gap: 18px; }
+
+/* subtle preview tag in header (remove once wired into the live nav) */
+.px-preview-badge {
+  font-family: var(--mono); font-size: var(--t-chrome); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-faint);
+  border: 1px solid var(--hairline); border-radius: var(--r-chip); padding: 3px 9px; margin-left: 8px;
+}
+
+/* small type helpers */
+.px-eyebrow {
+  display: block; font-family: var(--mono); font-size: var(--t-chrome); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px;
+}
+.px-money { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.px-note { font-size: var(--t-sm); color: var(--ink-soft); }
+
+/* hero payout card — the one thing on the screen */
+.px-hero { padding: var(--sp-6); display: flex; flex-direction: column; }
+.px-hero-amount {
+  font-family: var(--doto); font-variation-settings: 'ROND' 100;
+  font-size: 56px; line-height: 1; letter-spacing: .04em; color: var(--ink); margin: 6px 0 10px;
+}
+.px-hero-sub { font-size: var(--t-h3); font-weight: 500; color: var(--ink); }
+.px-hero-meta { font-size: var(--t-sm); color: var(--ink-soft); margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* recent-work list (plain rows, not a table) */
+.px-card-title { font-size: var(--t-h3); font-weight: 500; }
+.px-card-hint { font-size: var(--t-sm); color: var(--ink-soft); margin-top: 3px; }
+.px-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 15px 0; border-bottom: 1px solid var(--hairline); }
+.px-item:last-child { border-bottom: none; }
+.px-item-title { font-size: var(--t-body); color: var(--ink); }
+.px-item-meta { font-family: var(--mono); font-size: var(--t-chrome); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-faint); margin-top: 3px; }
+.px-item-right { display: flex; align-items: center; gap: 18px; flex: none; }
+.px-status { display: inline-flex; align-items: center; gap: 7px; font-size: var(--t-sm); color: var(--ink-soft); white-space: nowrap; }
+
+/* detail disclosure (native <details>) — everything secondary lives here */
+.px-details { border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--card); overflow: hidden; }
+.px-details > summary { list-style: none; cursor: pointer; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; font-size: var(--t-body); color: var(--ink); }
+.px-details > summary::-webkit-details-marker { display: none; }
+.px-details > summary::after { content: '+'; font-family: var(--mono); color: var(--ink-faint); }
+.px-details[open] > summary::after { content: '\2212'; }
+.px-details[open] > summary { border-bottom: 1px solid var(--hairline); }
+.px-details-body { padding: 8px 20px 18px; }
+.px-kv-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+.px-kv-row:last-child { border-bottom: none; }
+.px-kv-key { font-size: var(--t-sm); color: var(--ink-soft); }
+.px-kv-val { font-size: var(--t-body); color: var(--ink); text-align: right; }
+
+/* toast */
+.px-toast-region { position: fixed; right: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 300; }
+.px-toast { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--hairline-strong); border-radius: var(--r-md); box-shadow: var(--shadow-float); padding: 12px 16px; font-size: var(--t-sm); color: var(--ink); animation: pxToastIn .22s cubic-bezier(.4,0,.2,1); }
+@keyframes pxToastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .px-toast { animation: none; } }
