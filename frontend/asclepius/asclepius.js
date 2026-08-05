@@ -34,6 +34,10 @@
     taxonomy: null,
     view: 'eval',          // 'eval' | 'admin'  (header-level: evaluate vs admin console)
     panel: 'tasks',        // side-panel destination: 'tasks' | 'guide' (Community is external nav)
+    // PRD M: which of the three manuals the Guide is showing. NULL means "not
+    // chosen yet", which resolves to the most senior manual the session holds —
+    // distinct from a physician having actively picked one.
+    manualRole: null,
     // Community integration state (Community PRD boundary — every field optional,
     // degrades silently if the community backend is unbuilt). unread drives the
     // badge; handoffToken is pre-minted so the new tab can open synchronously.
@@ -517,8 +521,31 @@
 
   let guideObserver = null;
 
+  // PRD M — three scoped manuals, picked by CAPABILITY rather than by tier. An
+  // advisor labels and reviews and signs off, so a tier does not map to one
+  // document; what a physician can DO does. Order is least to most, so the
+  // default is the most senior manual they hold.
+  const MANUAL_ROLES = [
+    { key: 'labeler', capability: 'label', label: 'Labeling' },
+    { key: 'reviewer', capability: 'review', label: 'Reviewing' },
+    { key: 'advisor', capability: 'refer', label: 'Advising' },
+  ];
+
+  function heldManuals() {
+    const manuals = window.ASC_MANUALS || {};
+    return MANUAL_ROLES.filter((r) => manuals[r.key] && sessionCan(r.capability));
+  }
+
   function renderGuide() {
-    const manual = window.ASC_MANUAL;
+    const manuals = window.ASC_MANUALS || {};
+    const held = heldManuals();
+    // Fall back to the labeler manual rather than to nothing: a session whose
+    // capability list did not load must still get a document, and every
+    // physician can label.
+    const active = (state.manualRole && manuals[state.manualRole])
+      ? state.manualRole
+      : ((held.length ? held[held.length - 1].key : 'labeler'));
+    const manual = manuals[active] || window.ASC_MANUAL;
     if (!manual || !Array.isArray(manual.sections)) {
       setRoot(h('div', { class: 'asc-wrap' },
         h('div', { class: 'asc-card asc-card-pad' },
@@ -527,7 +554,10 @@
     }
     if (guideObserver) { guideObserver.disconnect(); guideObserver = null; }
 
-    const sections = manual.sections;
+    // `showWhen` is the one conditional field, and it names a verification
+    // status. A section without one always renders.
+    const sections = manual.sections.filter(
+      (sec) => !sec.showWhen || sec.showWhen === (state.user && state.user.verification_status));
 
     // Sticky TOC (desktop) — one link per section, scroll-spy highlights.
     const tocList = h('ul', { class: 'asc-guide-toc-list' });
@@ -553,15 +583,38 @@
 
     // Content column: intro header + every section.
     const content = h('div', { class: 'asc-guide-content' });
+    // The switcher: a mono chip row above the title, matching the existing
+    // chrome pattern. Only when more than one manual is held — one chip is not a
+    // choice, it is decoration. A reviewer re-reading the labeling manual is
+    // reading it to grade someone against it, so nothing here is hidden from
+    // anyone who holds it.
+    const switcher = held.length > 1
+      ? h('div', { class: 'asc-guide-switch', role: 'tablist', 'aria-label': 'Manual' },
+          held.map((r) => {
+            const btn = h('button', {
+              class: 'asc-guide-switch-chip' + (r.key === active ? ' active' : ''),
+              type: 'button', role: 'tab', 'aria-selected': r.key === active ? 'true' : 'false',
+            }, r.label);
+            btn.addEventListener('click', () => {
+              if (r.key === active) return;
+              state.manualRole = r.key;
+              setGuideHash('');
+              renderGuide();
+            });
+            return btn;
+          }))
+      : null;
+
     content.appendChild(h('header', { class: 'asc-guide-intro' },
       h('div', { class: 'chrome chrome-strong' }, 'INSTRUCTION MANUAL'),
+      switcher,
       h('h1', { class: 'asc-guide-h1' }, manual.title),
       manual.subtitle ? h('p', { class: 'asc-guide-sub' }, manual.subtitle) : null,
       h('div', { class: 'asc-guide-meta' },
         h('span', { class: 'chip' },
           h('span', { class: 'dot dot-lime', 'aria-hidden': 'true' }),
           (manual.readingTimeMin || 5) + ' min read'),
-        h('span', { class: 'asc-guide-meta-hint chrome' }, 'V3 · V4 tasks')),
+        h('span', { class: 'asc-guide-meta-hint chrome' }, manual.metaHint || 'V3 · V4 tasks')),
       mobileSelect));
 
     sections.forEach((sec) => content.appendChild(guideSection(sec)));

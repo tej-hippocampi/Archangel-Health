@@ -2759,4 +2759,39 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
 }
 .asc-pay-rule-body { font-size: 13px; line-height: 1.6; color: var(--asc-text); }
 .asc-pay-rule-body + .asc-pay-rule-body { margin-top: 8px; }
+
+/* ─── PRD M — the manual switcher ────────────────────────────────────────────
+   A mono chip row above the title, matching the existing chrome pattern —
+   deliberately not a <select> and not tabs, because the Guide already has a
+   dropdown (jump-to-section) and a second one would read as the same control.
+   Rendered only when a physician holds more than one manual; one chip is not a
+   choice. Zero black fills: the active chip is an ink outline, not an ink
+   block. */
+.asc-guide-switch {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.asc-guide-switch-chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--asc-muted);
+  background: transparent;
+  border: 1px solid var(--asc-line);
+  border-radius: var(--r-chip);
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.asc-guide-switch-chip:hover { color: var(--asc-text); border-color: var(--asc-line-strong); }
+.asc-guide-switch-chip.active {
+  color: var(--asc-text);
+  border-color: var(--ink);
+  background: var(--card-in);
+}
+.asc-guide-switch-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+@media print { .asc-guide-switch { display: none; } }
 /* ═══ END PRD-P ═══ */
