@@ -132,13 +132,74 @@ async def main() -> None:
     print("posted 2 bot welcomes in #introductions")
 
     # Human chatter
+    msg_by_slug = {}
     for slug, who, body in CHATTER:
         ch = cstore.get_channel_by_slug(slug)
         if not ch:
             continue
-        cstore.insert_message(channel_id=ch["id"],
-                              author_user_id=doctors[who]["id"], body=body)
+        m = cstore.insert_message(channel_id=ch["id"],
+                                  author_user_id=doctors[who]["id"], body=body)
+        msg_by_slug.setdefault(slug, m)
     print(f"posted {len(CHATTER)} sample messages")
+
+    # ── v2.1 social content ──
+    from datetime import datetime, timedelta
+    from community.system_posts import post_system_message
+
+    # An upcoming event (10 days out) with two Interested, in #events.
+    ev_ch = cstore.get_channel_by_slug("events")
+    starts = (datetime.utcnow() + timedelta(days=10)).replace(
+        hour=22, minute=0, second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ev = cstore.create_event(
+        channel_id=ev_ch["id"], title="Nephrology Journal Club — CardioRenal cases",
+        description="We'll walk two decongestion cases models keep getting wrong.",
+        starts_at=starts, ends_at=None, timezone="America/New_York",
+        location="https://zoom.us/j/9876543210", host="Dr. Priya Raman",
+        created_by=admin["id"])
+    posted = await post_system_message(
+        channel_slug="events",
+        body="📅 **Nephrology Journal Club — CardioRenal cases**\nHost: Dr. Priya Raman\n"
+             "_See the pinned card at the top of #events for the time and to RSVP._",
+        kind="event")
+    if posted:
+        cstore.link_event_message(ev["id"], posted["id"])
+    cstore.toggle_rsvp(ev["id"], doctors[1]["id"])
+    cstore.toggle_rsvp(ev["id"], doctors[2]["id"])
+    print("posted 1 upcoming event (2 interested) in #events")
+
+    # A poll in #general (linked to a bot message), with a couple of votes.
+    gen = cstore.get_channel_by_slug("general")
+    poll = cstore.create_poll(
+        channel_id=gen["id"],
+        question="Rising creatinine on a loop diuretic in acute HF — next move?",
+        options=["Stop diuresis, give fluids", "Intensify decongestion", "Hold and reassess in 6h"],
+        created_by=doctors[0]["id"])
+    pmsg = cstore.insert_message(channel_id=gen["id"], author_user_id=doctors[0]["id"],
+                                 body="📊 **Poll:** " + poll["question"], kind="poll")
+    cstore.link_poll_message(poll["id"], pmsg["id"])
+    opts = cstore.poll_results(poll["id"])["options"]
+    cstore.vote_poll(poll["id"], opts[1]["id"], doctors[1]["id"])
+    cstore.vote_poll(poll["id"], opts[1]["id"], doctors[2]["id"])
+    cstore.vote_poll(poll["id"], opts[0]["id"], doctors[3]["id"])
+    print("posted 1 poll (3 votes) in #general")
+
+    # Pin the general intro message + add two bookmarks.
+    if "general" in msg_by_slug:
+        cstore.pin_message(channel_id=gen["id"],
+                           message_id=msg_by_slug["general"]["id"], pinned_by=admin["id"])
+        print("pinned 1 message in #general")
+    for title, url in [("KDIGO 2024 CKD guideline", "https://kdigo.org/guidelines/"),
+                       ("How to post a case (template)", "https://archangelhealth.ai/case-template")]:
+        cstore.add_bookmark(channel_id=gen["id"], title=title, url=url, added_by=admin["id"])
+    print("added 2 bookmarks in #general")
+
+    # A durable @channel broadcast from the admin in #general.
+    cstore.insert_message(
+        channel_id=gen["id"], author_user_id=admin["id"],
+        body="@channel welcome to everyone who joined this week — introduce yourself in #introductions.",
+        mentions=["*channel*"])
+    print("posted 1 @channel broadcast in #general")
+
     print("\nStart the server:  .venv/bin/python -m uvicorn main:app --port 8000 --reload")
     print("Portal:            http://localhost:8000/asclepius")
     print("Community:         http://localhost:8000/community (via the portal side panel)")

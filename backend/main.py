@@ -5977,6 +5977,10 @@ async def startup_community():
         from community import digest as _cdigest
         if _cdigest.news_enabled():
             _cdigest.start_content_loop()
+        # Community v2.1: the event-reminder loop (emails interested members
+        # before an event starts). No-ops without email transport.
+        from community import events as _cevents
+        _cevents.start_reminder_loop(resolve_member=_resolve_member)
     except Exception:
         _auth_logger.warning("[community] startup init failed; community disabled", exc_info=True)
 
@@ -5993,6 +5997,12 @@ async def shutdown_community():
         from community import digest as _cdigest
 
         _cdigest.stop_content_loop()
+    except Exception:
+        pass
+    try:
+        from community import events as _cevents
+
+        _cevents.stop_reminder_loop()
     except Exception:
         pass
 
@@ -6029,6 +6039,16 @@ async def internal_run_community_digest(
     from community import digest as _cdigest
     result = await _cdigest.run_digest(kind)
     return {**result, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/community/run-event-reminders", include_in_schema=False)
+async def internal_run_event_reminders(authorization: Optional[str] = Header(None)):
+    """Manual trigger for the Community v2.1 event-reminder sweep (demo/QA)."""
+    _check_internal_auth(authorization)
+    from community import events as _cevents
+    from community.router import resolve_member_for_notify as _resolve_member
+    sent = await _cevents.send_due_reminders(resolve_member=_resolve_member)
+    return {"ok": True, "reminders_sent": sent, "ran_at": _utcnow_iso()}
 
 
 async def _send_sms(
@@ -6084,6 +6104,11 @@ except Exception as _asc_env_exc:  # pragma: no cover
     )
 app.include_router(community_router)
 app.include_router(community_page_router)
+try:
+    from community.social import router as community_social_router  # noqa: E402
+    app.include_router(community_social_router)  # v2.1: events/polls/pins/bookmarks
+except Exception as _social_exc:  # pragma: no cover
+    _auth_logger.warning("Community social router not mounted: %s", _social_exc)
 app.include_router(leads_router)
 
 # Gold Standard — conversation-capture training data (Data Training tab). Mounted

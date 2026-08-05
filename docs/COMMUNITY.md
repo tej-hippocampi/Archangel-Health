@@ -87,6 +87,7 @@ message and deactivate (community-ban) a member.
 | `COMMUNITY_BLOCK_FLAG_THRESHOLD` | `3` | PHI-block count that raises the admin repeat-offender flag |
 | `COMMUNITY_DIGEST_INTERVAL_SEC` | `300` | Mention/announcement email digest flush interval |
 | `COMMUNITY_SPECIALTY_MIN_MEMBERS` | `3` | Verified members of a specialty required before its channel appears (v2) |
+| `COMMUNITY_EVENT_REMINDER_MIN` | `60` | Minutes before an event starts that interested members are emailed (v2.1) |
 | `COMMUNITY_NEWS_ENABLED` | `0` (off) | `1` starts the scheduled #medical-ai-news content loop (v2) |
 | `COMMUNITY_NEWS_FEEDS` | built-in reporter set | Comma-separated `key=url` RSS overrides (v2) |
 | `COMMUNITY_NEWS_KEYWORDS` | built-in AI-in-medicine list | Comma-separated keyword filter for reporter feeds (v2) |
@@ -128,8 +129,9 @@ text-layer PDFs, and all messaging work regardless.
   Send failures are logged and not retried (at-most-once by design).
 * **Retention**: messages are retained indefinitely unless an admin removes
   them; this is stated in the community footer.
-* **Channels are fixed in code** (v2): seven core channels — `#general`,
-  `#introductions`, `#task-announcements` (admin-post, threaded replies open),
+* **Channels are fixed in code** (v2, +#events in v2.1): core channels —
+  `#general`, `#introductions`, `#task-announcements` (admin-post, threaded
+  replies open), `#events` (admin-post; hosts the pinned event cards),
   `#medical-ai-news` (bot/admin-post), `#research-and-opportunities`
   (admin-post), `#future-of-medical-ai`, `#questions-help` — plus one channel
   per ENABLED specialty, derived from `asclepius/specialties.py`. Seeding is
@@ -176,6 +178,48 @@ text-layer PDFs, and all messaging work regardless.
 * **Demo**: `backend/scripts/demo_community_v2.py` seeds a demo world
   (mixed bridge/vault members across specialties, a pending physician for a
   live approval, welcomes, chatter) — see its docstring for the runbook.
+
+## Community v2.1 — events, polls, pins, bookmarks, broadcasts
+
+A second additive pass. Store methods live in `community/store.py`; endpoints
+in a NEW router module `community/social.py` (mounted beside the core router);
+`.ics` + the reminder loop in `community/events.py`. `_serialize_messages`
+(router) enriches every message with its `poll`/`event` payload and a `pinned`
+flag, so all read paths render the cards consistently. New WS events
+(`event.*`, `poll.updated`, `pins.updated`, `bookmark.*`) fan out over the hub.
+New tables: `community_events`, `community_event_rsvps`, `community_polls`,
+`community_poll_options`, `community_poll_votes`, `community_pins`,
+`community_bookmarks`.
+
+* **Events** — a structured object (title / start / end / IANA timezone /
+  location-or-join-link / host), posted by an admin into the new `#events`
+  channel and rendered as a **pinned card** at the top; past events collapse
+  into a list below. Each event also gets a linked `kind='event'` message so it
+  threads (the card's **Discuss** opens it). The linked message deliberately
+  omits the calendar date (a full date trips the PHI exact-date rule; the card
+  renders it from the structured field). **RSVP** = a one-tap Interested
+  (count + list) that drives an **email reminder** `COMMUNITY_EVENT_REMINDER_MIN`
+  minutes before start (in-process loop in `startup_community`, at-most-once via
+  `reminded_at`, no-ops without email transport;
+  `POST /internal/community/run-event-reminders` fires a sweep on demand).
+  **Add-to-calendar** is integration-free: a Google Calendar template URL
+  (client-side) + a downloadable `.ics` (`GET /events/{id}/calendar.ics`).
+* **Polls** — any member posts a `kind='poll'` message (`POST /polls`) with 2–6
+  options; single-choice voting (a re-vote replaces), author/admin can close.
+  Results (counts, %, viewer's choice) ride the serialized message. Admin-post
+  channels gate poll creation to admins, same as chat.
+* **Pinned messages** — `POST/DELETE /messages/{id}/pin`, `GET /channels/{slug}/pins`.
+  A message serializes `pinned: bool`; the 📌 action pins, the header
+  "Pinned (n)" opens a side panel. A soft-delete drops the pin.
+* **Channel bookmarks** — a per-channel link bar (`community_bookmarks`,
+  http(s)-validated); any member adds, the adder or an admin removes.
+* **@channel / @here broadcast** — `@channel` is admin-only and **durable**: a
+  `*channel*` sentinel mention lights every member's badge (`unread_counts`
+  OR-matches it) and queues a `broadcast` email digest for all. `@here` is
+  open to any member and **ephemeral** (real-time only, no stored sentinel, no
+  email). Both render as a distinct pill. The demo seed
+  (`scripts/demo_community_v2.py`) now also plants an event, a poll, a pinned
+  message, two bookmarks, and a broadcast.
 
 ## Direct messages
 

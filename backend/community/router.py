@@ -47,6 +47,12 @@ router = APIRouter(prefix="/api/community", tags=["community"])
 
 GATE_MESSAGE = "Community access is for verified contributors."
 
+# v2.1 broadcast tokens. ``@channel`` (admin-only, durable) stores a sentinel
+# mention that ``notify``/``unread_counts`` expand to every member. ``@here``
+# (any member, ephemeral) is presentational + real-time only.
+BROADCAST_MENTION = "*channel*"
+_CHANNEL_TOKEN = re.compile(r"(?<![\w/])@channel\b", re.I)
+
 # Deterministic specialty accent (mirrors the portal's chip color map: nephrology
 # green, cardiology orange, oncology pink, others cycle — Community PRD §2).
 _SPECIALTY_ACCENTS = {"nephrology": "green", "cardiology": "orange", "oncology": "pink"}
@@ -357,6 +363,7 @@ def _serialize_messages(
     channel_slug: Optional[str],
     *,
     dm_id: Optional[str] = None,
+    viewer_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     from community.system_posts import SYSTEM_MEMBER, SYSTEM_USER_ID  # noqa: PLC0415 — avoids import cycle
 
@@ -364,6 +371,7 @@ def _serialize_messages(
     ids = [m["id"] for m in msgs]
     replies = cstore.reply_counts(ids)
     reactions = cstore.reactions_for(ids)
+    pinned_ids = cstore.pinned_message_ids(ids)  # v2.1 — batch pin lookup
     out = []
     for m in msgs:
         deleted = bool(m.get("deleted"))
@@ -373,7 +381,7 @@ def _serialize_messages(
             author = public_member(dict(SYSTEM_MEMBER))
         else:
             author = public_member(members.get(m["author_user_id"])) or dict(_GHOST_MEMBER)
-        out.append({
+        row = {
             "id": m["id"],
             "channel": channel_slug,
             "dm": dm_id,
@@ -389,16 +397,27 @@ def _serialize_messages(
             "reactions": [] if deleted else (reactions.get(m["id"]) or []),
             "reply_count": int(rc.get("count") or 0),
             "last_reply_at": rc.get("last_at"),
-        })
+            "pinned": m["id"] in pinned_ids,
+        }
+        # v2.1: attach the structured card payload for special message kinds.
+        if not deleted and m.get("kind") == "poll":
+            poll = cstore.poll_for_message(m["id"])
+            if poll:
+                row["poll"] = cstore.poll_results(poll["id"], viewer_id=viewer_id)
+        elif not deleted and m.get("kind") == "event":
+            ev = cstore.event_for_message(m["id"])
+            if ev:
+                row["event"] = cstore.event_public(ev, viewer_id=viewer_id)
+        out.append(row)
     return out
 
 
-def _serialize_one_resolved(msg: Dict[str, Any]) -> Dict[str, Any]:
+def _serialize_one_resolved(msg: Dict[str, Any], *, viewer_id: Optional[str] = None) -> Dict[str, Any]:
     """Serialize a single message with its container resolved (slug or dm)."""
     kind, container = _container_of(msg)
     slug = container["slug"] if kind == "channel" else None
     dm_id = container["id"] if kind == "dm" else None
-    return _serialize_messages([msg], member_map(), slug, dm_id=dm_id)[0]
+    return _serialize_messages([msg], member_map(), slug, dm_id=dm_id, viewer_id=viewer_id)[0]
 
 
 async def _emit_message_event(event_type: str, serialized: Dict[str, Any],
@@ -497,7 +516,7 @@ async def channel_messages(
     msgs, has_more = cstore.list_messages(
         channel["id"], before_id=before, after_id=after, limit=limit
     )
-    serialized = _serialize_messages(msgs, members, channel["slug"])
+    serialized = _serialize_messages(msgs, members, channel["slug"], viewer_id=user["id"])
     return {
         "channel": channel["slug"],
         "messages": serialized,
@@ -579,6 +598,22 @@ async def post_message(
         raise _phi_block(request, user, "message", findings, channel["slug"])
 
     mentions = _validate_mentions(body.mention_user_ids, members)
+
+    # ── v2.1: @channel / @here broadcast tokens ──
+    # @channel is a DURABLE broadcast (admin-only): a sentinel is stored so the
+    # mention badge lights for every member and an email digest goes out.
+    # @here is EPHEMERAL (any member): no stored sentinel, no email — it rides
+    # the normal message.created WS to whoever is online, which is exactly its
+    # meaning. Both are highlighted in the rendered body.
+    has_channel = bool(_CHANNEL_TOKEN.search(text))
+    if has_channel and not _is_admin(user):
+        raise HTTPException(
+            status_code=403,
+            detail="@channel is limited to the Archangel team. Use @here to ping people who are online.",
+        )
+    if has_channel and BROADCAST_MENTION not in mentions:
+        mentions = mentions + [BROADCAST_MENTION]
+
     attachments = _resolve_attachments(body.attachment_ids, user)
 
     msg = cstore.insert_message(
@@ -744,8 +779,8 @@ async def thread(message_id: int, user: Dict[str, Any] = Depends(require_member)
     members = member_map()
     replies = cstore.list_thread(root["id"])
     return {
-        "root": _serialize_messages([root], members, slug, dm_id=dm_id)[0],
-        "replies": _serialize_messages(replies, members, slug, dm_id=dm_id),
+        "root": _serialize_messages([root], members, slug, dm_id=dm_id, viewer_id=user["id"])[0],
+        "replies": _serialize_messages(replies, members, slug, dm_id=dm_id, viewer_id=user["id"]),
     }
 
 
