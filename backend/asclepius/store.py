@@ -1249,6 +1249,33 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN signoff_status TEXT")
             # ═══ END PRD-D ═══
 
+            # ── Specialty-tagged task notifications (outbox + drain) ─────────
+            # One row per (recipient, specialty, upload batch): the admin request
+            # enqueues these synchronously (fast, transactional) and a background
+            # drain sends the emails, so a crash mid-send leaves rows `pending`
+            # for the manual re-drain endpoint rather than losing the tail.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS task_notify_outbox (
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    idempotency_key   TEXT NOT NULL UNIQUE,
+                    batch_id          TEXT NOT NULL,
+                    specialty         TEXT NOT NULL,
+                    task_count        INTEGER NOT NULL,
+                    recipient_user_id TEXT NOT NULL,
+                    recipient_email   TEXT NOT NULL,
+                    status            TEXT NOT NULL DEFAULT 'pending',
+                    send_attempts     INTEGER NOT NULL DEFAULT 0,
+                    last_error        TEXT,
+                    sent_at           TEXT,
+                    created_at        TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_task_notify_status ON task_notify_outbox(status)"
+            )
+
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
         self,
@@ -1640,6 +1667,67 @@ class AsclepiusStore:
     def count_users(self) -> int:
         with self._conn() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
+
+    def list_evaluators_by_specialty(self, specialty: str) -> List[Dict[str, Any]]:
+        """Active evaluators whose specialty matches, for task-notify recipient
+        resolution. Mirrors ``next_task_for_evaluator``'s match (equality on
+        ``specialty``), just inverted: users for a specialty instead of a task
+        for a user."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users WHERE role = 'evaluator' AND active = 1 "
+                "AND lower(trim(specialty)) = lower(trim(?))",
+                (specialty,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # ─── Task-notify outbox (specialty-tagged task notifications) ───────────
+    def enqueue_task_notification(
+        self, *, idempotency_key: str, batch_id: str, specialty: str, task_count: int,
+        recipient_user_id: str, recipient_email: str,
+    ) -> Optional[int]:
+        """Insert a pending outbox row, deduped on ``idempotency_key`` (one email
+        per clinician per specialty per upload batch). Returns the new row id, or
+        None if this (recipient, specialty, batch) was already enqueued."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT OR IGNORE INTO task_notify_outbox
+                  (idempotency_key, batch_id, specialty, task_count,
+                   recipient_user_id, recipient_email, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+                """,
+                (
+                    idempotency_key, batch_id, specialty, task_count,
+                    recipient_user_id, recipient_email, _utcnow_iso(),
+                ),
+            )
+            return int(cur.lastrowid) if cur.rowcount else None
+
+    def list_pending_task_notifications(self, limit: int = 500) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM task_notify_outbox WHERE status = 'pending' "
+                "ORDER BY created_at ASC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def mark_task_notification_sent(self, notification_id: int) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE task_notify_outbox SET status = 'sent', sent_at = ?, "
+                "send_attempts = send_attempts + 1 WHERE id = ?",
+                (_utcnow_iso(), notification_id),
+            )
+
+    def mark_task_notification_failed(self, notification_id: int, error: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE task_notify_outbox SET status = 'failed', last_error = ?, "
+                "send_attempts = send_attempts + 1 WHERE id = ?",
+                (error, notification_id),
+            )
 
     # ─── Real EHR ingestion (EHR PRD §4, §5, §8) ─────────────────────────────
     def create_upload_link(

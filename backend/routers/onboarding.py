@@ -1240,6 +1240,42 @@ async def member_attestations(body: MemberAttestationsBody, request: Request):
 
 
 @router.post(
+    "/member/request-otp",
+    dependencies=[Depends(rate_limiter("onboarding_otp", 5, 60))],
+)
+async def member_request_otp(body: OnboardTokenBody, request: Request):
+    """Hard-gate email verification for invited clinicians (Feature B): mails a
+    6-digit OTP to the same inbox that received the invite, via the existing
+    ``otp_challenges`` machinery the director already uses."""
+    if not _email_configured():
+        raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
+    ts, person, hs = _load_asclepius_member(request, body.token)
+    code = "".join(secrets.choice(string.digits) for _ in range(6))
+    ts.create_otp_challenge(hs["id"], person["email"], code)
+    html_body = build_verification_email(code=code)
+    ok = await send_html_email(person["email"], "Your Archangel Health verification code", html_body)
+    if not ok:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Failed to send verification email. Check the backend log for [email_utils]. "
+                "SendGrid 401 means this server's SENDGRID_API_KEY is wrong or not loaded (copy the same key as production into backend/.env). "
+                "SendGrid 403 often means SENDGRID_FROM_EMAIL is not verified for that SendGrid account."
+            ),
+        )
+    return {"ok": True}
+
+
+@router.post("/member/verify-otp")
+async def member_verify_otp(body: VerifyOtpBody, request: Request):
+    ts, person, hs = _load_asclepius_member(request, body.token)
+    if not ts.verify_otp_challenge(hs["id"], person["email"], body.code):
+        raise HTTPException(status_code=400, detail="Invalid or expired code.")
+    ts.mark_asclepius_member_verified(hs["id"], person["email"])
+    return {"ok": True}
+
+
+@router.post(
     "/member/finish",
     dependencies=[
         Depends(_signup_rate_guard),
@@ -1256,6 +1292,8 @@ async def member_finish(body: OnboardTokenBody, request: Request):
         raise HTTPException(status_code=400, detail="Add your credentials before finishing.")
     if not person.get("attestations"):
         raise HTTPException(status_code=400, detail="Sign the attestations before finishing.")
+    if not person.get("email_verified_at"):
+        raise HTTPException(status_code=403, detail="Please verify your email before finishing onboarding.")
     member_pwd = generate_secure_password()
     org_name = (hs.get("name") or "").strip()
     specialty = (hs.get("specialty") or "").strip()
