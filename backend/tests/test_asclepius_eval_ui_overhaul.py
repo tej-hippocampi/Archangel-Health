@@ -1086,13 +1086,20 @@ def test_no_new_component_vocabulary_beyond_the_prd():
 
     # Nothing beyond the declared set: every asc- class in the stylesheet must
     # be reachable from the app, so a typo'd or abandoned rule is caught.
-    # PRD-C's admin sections live in their own module files (§3.3 ownership),
-    # so classes they emit count as reachable too.
-    admin_modules = "".join(
-        p.read_text(encoding="utf-8") for p in sorted(_FRONTEND.glob("admin_*.js"))
+    #
+    # Sections that own their own file (§3.3 ownership — PRD-C's admin views,
+    # PRD-D's advisor surface, PRD-P's earnings) emit classes from THERE, so those
+    # count as reachable too. The module list is read out of index.html's script
+    # tags rather than hardcoded: "reachable from the app" is precisely "loaded by
+    # the app", and an enumeration would have to be edited by every future PRD
+    # that adds a section — which is how a correct guard turns into a tax.
+    section_modules = "".join(
+        (_FRONTEND / name).read_text(encoding="utf-8")
+        for name in re.findall(r'src="/static/asclepius/([\w.-]+\.js)"', html)
+        if name != JS_PATH.name and (_FRONTEND / name).exists()
     )
     styled = set(re.findall(r"\.(asc-[\w-]+)", CSS_CODE))
-    emitted = {c for c in styled if c in JS or c in html or c in admin_modules}
+    emitted = {c for c in styled if c in JS or c in html or c in section_modules}
     orphans = sorted(styled - emitted - _KNOWN_PREEXISTING_ORPHANS)
     assert not orphans, f"styled but never emitted: {orphans}"
 

@@ -225,7 +225,7 @@
   // in-portal Instruction Manual. Community never routes here — it opens a tab.
   function setPanel(dest) {
     if (dest === 'community') { openCommunity(); return; }
-    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'advisor') return;
+    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'advisor' && dest !== 'earnings') return;
     // Server-gated destinations are re-checked here, not only hidden in the
     // rail: a stale deep link or a hand-typed state change must not open a
     // section the session was never granted. (The API 403s regardless — this
@@ -240,6 +240,8 @@
     renderSidePanel();
     if (dest === 'advisor') {
       renderAdvisorView();
+    } else if (dest === 'earnings') {
+      renderEarningsView();
     } else if (dest === 'guide') {
       renderGuide();
     } else if (state.view === 'admin') {
@@ -263,6 +265,7 @@
     advisor: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.8l5.4 2.1v4.4c0 3.2-2.2 6-5.4 7-3.2-1-5.4-3.8-5.4-7V4.9L10 2.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.7 9.9l1.6 1.7 3-3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     community: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 15V6a1.5 1.5 0 011.5-1.5h9A1.5 1.5 0 0116 6v5.5A1.5 1.5 0 0114.5 13H7l-3 2.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.5 8.5h5M7.5 10.5h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
     guide: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 4.5A1.5 1.5 0 015.5 3H10v14H5.5A1.5 1.5 0 014 15.5v-11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 3h4.5A1.5 1.5 0 0116 4.5v11a1.5 1.5 0 01-1.5 1.5H10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 7h1.5M6.5 9.5h1.5M12 7h1.5M12 9.5h1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+    earnings: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3.2v13.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.9 6.3a2.6 2.6 0 00-2.4-1.3h-.8a2.35 2.35 0 000 4.7h.6a2.35 2.35 0 010 4.7h-.8a2.6 2.6 0 01-2.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
 
   const RAIL_ITEMS = [
@@ -273,6 +276,10 @@
     // string — re-deriving "is this an advisor?" in the client would push the
     // exact two-state check this build removed back into the frontend.
     { dest: 'advisor',   label: 'Advisor', capability: 'refer' },
+    // Earnings (PRD-P §5). Visible to any signed-in physician — what you have
+    // made is not a privileged surface, and every endpoint behind it scopes from
+    // the session, so there is nothing here to gate on a capability.
+    { dest: 'earnings',  label: 'Earnings' },
     { dest: 'guide',     label: 'Guide' },
   ];
 
@@ -315,6 +322,7 @@
   function railItemActive(dest) {
     if (dest === 'guide') return state.panel === 'guide';
     if (dest === 'advisor') return state.panel === 'advisor';
+    if (dest === 'earnings') return state.panel === 'earnings';
     return state.panel === 'tasks' && dest === 'tasks';
   }
 
@@ -5926,6 +5934,31 @@
         'The Advisor section failed to load. Reload the page; if it persists, '
         + 'this is a deploy problem — check that advisor.js is included in '
         + 'index.html. Your referrals and sign-offs are unaffected.'))));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  EARNINGS SECTION (PRD-P §5)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Lives in its own file (frontend/asclepius/earnings.js) and is mounted here
+  // exactly the way AdvisorSection is. Payment logic never enters this file.
+  function renderEarningsView() {
+    stopTimer();
+    updateHeaderProgress();
+    const body = h('div', { id: 'ascEarningsBody' });
+    setRoot(h('div', { class: 'asc-wrap' }, body));
+    if (window.EarningsSection && typeof window.EarningsSection.render === 'function') {
+      window.EarningsSection.render(body, adminSectionCtx());
+      return;
+    }
+    // A VISIBLE error, never a quiet placeholder — and never a reassuring $0.
+    // "We could not load your ledger" and "you have earned nothing" must not
+    // look the same to a physician.
+    body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-error' },
+        'The Earnings section failed to load, so no figure is shown — this is '
+        + 'not a statement that you have earned nothing. Reload the page; if it '
+        + 'persists, this is a deploy problem — check that earnings.js is '
+        + 'included in index.html. Nothing you have earned is affected.'))));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

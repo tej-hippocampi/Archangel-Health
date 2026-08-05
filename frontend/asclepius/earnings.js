@@ -1,0 +1,577 @@
+/* ═══════════════════════════════════════════════════════════
+   Earnings section + the billable-session client (PRD-P §5)
+
+   Two exports, one file, because they are one contract:
+
+     window.EarningsSection    { render, reset }
+       The doctor's Earnings surface inside the portal. What they
+       have made, and why.
+
+     window.AsclepiusSession   { open, attach, stop, state, subscribe }
+       The heartbeat client for a billable session. PRD-P owns the
+       billable session; the review surface (PRD-R) calls
+       open_session, hands the session id to this client, and does
+       nothing else. Keeping the beat loop HERE is what stops a
+       second implementation of the payment clock from appearing in
+       a file that does not own money.
+
+   ── The rules this file exists to hold ──────────────────────
+
+   The countdown is SERVER-AUTHORITATIVE. Every number rendered
+   comes out of a response body. There is no local stopwatch
+   counting toward 20:00 anywhere in this file — a client-side
+   timer would drift away from the number that decides the payout
+   and the first a reviewer would know is a missing $100.
+
+   A HIDDEN TAB IS NOT WORKING, by policy. On visibilitychange we
+   emit one beat marking the pause, then stop. Chrome throttles
+   setInterval to once a minute in a hidden tab, which would turn
+   a 15 s beat into a 60 s+ beat and blow past MAX_GAP on every
+   gap — but that stops mattering once the beats are meant to
+   stop. We deliberately do NOT move the timer into a Web Worker
+   to keep beats flowing while hidden: that is paying for a tab
+   nobody is looking at.
+
+   NEVER beforeunload/unload. They are unreliable on mobile and
+   unload disables the bfcache. visibilitychange + pagehide only.
+
+   The close beat uses fetch(..., {keepalive: true}) rather than
+   navigator.sendBeacon. sendBeacon cannot carry an Authorization
+   header, and this API is bearer-token authenticated — the only
+   way to use it would be to put a JWT in a query string, which
+   writes the token into every access log between here and the
+   server. keepalive is the same guarantee (the request outlives
+   the page) with headers intact. Delivery is roughly 91% either
+   way, and that is fine: the gap-cap already handles the missing
+   9%. The final beat makes the last few seconds accurate; it is
+   not load-bearing.
+
+   Design system as locked: canvas #eef0ef, card #fbfcfa, ink
+   #1a1b1a. Money is the one place Doto earns its keep — the
+   headline figure only. Everything else Instrument Sans, with
+   IBM Plex Mono for amounts and statuses so the column aligns.
+   Zero black fills; a status is a word in colour, not a filled
+   chip. Green approved, lime pending, muted grey not approved —
+   never pink. Pink means critical, and a task that did not pass
+   review is not a safety event.
+
+   DOM built exclusively through ctx.h. Zero innerHTML.
+   ═══════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  /* ═══════════════════════════════════════════════════════════
+     THE BILLABLE-SESSION CLIENT
+     ═══════════════════════════════════════════════════════════ */
+
+  // Everything about cadence comes from the SERVER (the open_session
+  // response's `params`). These are only the values used before the
+  // first response lands, and they must never be the ones that win.
+  var FALLBACK = {
+    beat_interval_seconds: 15,
+    min_seconds: 1200,
+    rate_cents: 10000,
+  };
+
+  var API_BASE = '/api/asclepius';
+  var TOKEN_KEY = 'asclepius_token';
+
+  /** The session client's own transport.
+   *
+   *  Deliberately NOT ctx.api: this client is called from the review surface
+   *  (review.js, which already reads the same token key directly and has no ctx)
+   *  as well as from this section, and the close beat needs `keepalive`, which
+   *  the portal's shared helper does not pass through. Owning the transport here
+   *  keeps every payments request in the file that owns payments, and keeps this
+   *  module from needing an edit to a file it does not own. */
+  function request(path, opts) {
+    opts = opts || {};
+    var headers = { 'Content-Type': 'application/json' };
+    var token = null;
+    try { token = localStorage.getItem(TOKEN_KEY); } catch (e) { token = null; }
+    if (token) headers.Authorization = 'Bearer ' + token;
+    return fetch(API_BASE + path, {
+      method: opts.method || 'GET',
+      headers: headers,
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+      // The page may be going away. keepalive lets the request outlive it —
+      // sendBeacon cannot carry the Authorization header this API requires.
+      keepalive: !!opts.keepalive,
+    }).then(function (res) {
+      return res.json().catch(function () { return null; }).then(function (payload) {
+        if (!res.ok) {
+          throw {
+            status: res.status,
+            detail: (payload && payload.detail) || res.statusText,
+          };
+        }
+        return payload;
+      });
+    });
+  }
+
+  var session = {
+    id: null,
+    nonce: null,
+    seq: 0,
+    params: FALLBACK,
+    timer: null,
+    bound: false,
+    paused: false,
+    stopping: false,
+    // The last SERVER-REPORTED state. Every rendered number reads from here.
+    state: null,
+    error: null,
+    listeners: [],
+  };
+
+  function notify() {
+    session.listeners.slice().forEach(function (fn) {
+      try { fn(publicState()); } catch (e) { /* a bad listener must not stop the clock */ }
+    });
+  }
+
+  function publicState() {
+    if (!session.id) return null;
+    var s = session.state || {};
+    return {
+      session_id: session.id,
+      credited_seconds: s.credited_seconds || 0,
+      continuous_seconds: s.continuous_seconds || 0,
+      min_seconds: s.min_seconds || session.params.min_seconds,
+      remaining_seconds: s.remaining_seconds == null
+        ? (s.min_seconds || session.params.min_seconds) : s.remaining_seconds,
+      qualified: !!s.qualified,
+      ended: !!s.ended,
+      paused: session.paused,
+      rate_cents: session.params.rate_cents,
+      error: session.error,
+      beating: !!session.timer,
+    };
+  }
+
+  function subscribe(fn) {
+    session.listeners.push(fn);
+    return function () {
+      var i = session.listeners.indexOf(fn);
+      if (i !== -1) session.listeners.splice(i, 1);
+    };
+  }
+
+  /** Open (or resume) a billable session. PRD-R calls this when a reviewer
+   *  draws their first pair, then does nothing else — this client takes it from
+   *  there. Idempotent server-side: opening twice resumes the same session. */
+  function open(kind) {
+    return request('/sessions', { method: 'POST', body: { kind: kind || 'review' } })
+      .then(function (payload) { attach(payload); return payload; });
+  }
+
+  /** Start beating for an already-opened session. */
+  function attach(payload) {
+    if (!payload || !payload.session_id) return null;
+    stopTimer();
+    session.id = payload.session_id;
+    session.nonce = payload.nonce;
+    session.params = payload.params || FALLBACK;
+    session.paused = false;
+    session.stopping = false;
+    session.error = null;
+    // A resumed session already has beats behind it; continuing from 0 would be
+    // rejected as a replay on the very first beat.
+    session.seq = payload.resumed ? null : 0;
+    session.state = {
+      credited_seconds: payload.credited_seconds || 0,
+      continuous_seconds: payload.continuous_seconds || 0,
+      min_seconds: payload.min_seconds,
+      remaining_seconds: payload.remaining_seconds,
+      qualified: !!payload.qualified,
+      ended: false,
+    };
+    bindLifecycle();
+    beat(true);
+    startTimer();
+    notify();
+    return publicState();
+  }
+
+  function startTimer() {
+    stopTimer();
+    var every = (session.params.beat_interval_seconds || 15) * 1000;
+    session.timer = setInterval(function () { beat(true); }, every);
+  }
+
+  function stopTimer() {
+    if (session.timer) { clearInterval(session.timer); session.timer = null; }
+  }
+
+  function nextSeq() {
+    // null means "let the server derive it" — used on a resumed session whose
+    // beat history this tab has never seen.
+    if (session.seq == null) return null;
+    session.seq += 1;
+    return session.seq;
+  }
+
+  function beat(active, keepalive) {
+    if (!session.id || !session.nonce) return Promise.resolve(null);
+    var body = { nonce: session.nonce, active: !!active };
+    var seq = nextSeq();
+    if (seq != null) body.seq = seq;
+    return request('/sessions/' + encodeURIComponent(session.id) + '/heartbeat', {
+      method: 'POST', body: body, keepalive: !!keepalive,
+    }).then(function (res) {
+      session.error = null;
+      session.nonce = res.next_nonce || session.nonce;
+      // A resumed session let the server derive the first sequence number
+      // (this tab has never seen the beats behind it). The response says which
+      // number it used, so from here this tab numbers its own beats and the
+      // replay guard keeps its depth behind the rotating nonce.
+      if (typeof res.seq === 'number') session.seq = res.seq;
+      session.state = {
+        credited_seconds: res.credited_seconds,
+        continuous_seconds: res.continuous_seconds,
+        min_seconds: res.min_seconds,
+        remaining_seconds: res.remaining_seconds,
+        qualified: !!res.qualified,
+        ended: !!res.ended,
+      };
+      if (res.ended) { stopTimer(); }
+      notify();
+      return res;
+    }).catch(function (err) {
+      // A 409 is a lost nonce race or a replay: this tab is no longer the one
+      // holding the session, and beating on is pointless. Anything else is
+      // transient — keep beating, because a network blip must not end a session
+      // the reviewer is still working.
+      if (err && err.status === 409) {
+        stopTimer();
+        session.error = 'This session is being tracked in another tab.';
+      } else if (err && err.status === 404) {
+        stopTimer();
+        session.error = 'Session not found.';
+      } else {
+        session.error = 'Session time is not syncing. Your credited time is safe on '
+          + 'the server; it will catch up when the connection returns.';
+      }
+      notify();
+      return null;
+    });
+  }
+
+  /** Close the session and settle it. Safe to call repeatedly. */
+  function stop(reason, keepalive) {
+    if (!session.id) return Promise.resolve(null);
+    stopTimer();
+    session.stopping = true;
+    var id = session.id;
+    return request('/sessions/' + encodeURIComponent(id) + '/close', {
+      method: 'POST', body: { reason: reason || 'closed' }, keepalive: !!keepalive,
+    }).then(function (res) {
+      session.state = {
+        credited_seconds: res.credited_seconds,
+        continuous_seconds: res.continuous_seconds,
+        min_seconds: res.min_seconds,
+        remaining_seconds: 0,
+        qualified: !!res.qualified,
+        ended: true,
+      };
+      notify();
+      return res;
+    }).catch(function () { return null; });
+  }
+
+  // visibilitychange + pagehide. NEVER beforeunload/unload.
+  function bindLifecycle() {
+    if (session.bound) return;
+    session.bound = true;
+
+    document.addEventListener('visibilitychange', function () {
+      if (!session.id || session.stopping) return;
+      if (document.visibilityState === 'hidden') {
+        // One beat marking the pause, then stop. Throttling becomes irrelevant
+        // because we WANT the beats to stop.
+        session.paused = true;
+        stopTimer();
+        beat(false, true);
+        notify();
+      } else {
+        session.paused = false;
+        beat(true);
+        startTimer();
+        notify();
+      }
+    });
+
+    window.addEventListener('pagehide', function () {
+      if (!session.id || session.stopping) return;
+      stop('closed', true);
+    });
+  }
+
+  window.AsclepiusSession = {
+    open: open,
+    attach: attach,
+    stop: stop,
+    beat: beat,
+    subscribe: subscribe,
+    state: publicState,
+    // Test seam: reset every scrap of module state between cases.
+    _reset: function () {
+      stopTimer();
+      session.id = null; session.nonce = null; session.seq = 0;
+      session.state = null; session.error = null; session.paused = false;
+      session.stopping = false; session.listeners = [];
+    },
+  };
+
+  /* ═══════════════════════════════════════════════════════════
+     THE EARNINGS SECTION
+     ═══════════════════════════════════════════════════════════ */
+
+  var rootEl = null;
+  var rootCtx = null;
+  var data = null;
+  var loadError = null;
+  var unsubscribe = null;
+  var pollTimer = null;
+
+  function money(cents) {
+    var n = Math.round(Number(cents || 0)) / 100;
+    return '$' + n.toLocaleString('en-US', {
+      minimumFractionDigits: n % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  function clock(seconds) {
+    var s = Math.max(0, Math.round(Number(seconds || 0)));
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    return String(m) + ':' + (r < 10 ? '0' : '') + String(r);
+  }
+
+  // green approved · lime pending · muted grey not approved. NEVER pink.
+  var STATUS_CLASS = {
+    approved: 'asc-pay-approved',
+    paid: 'asc-pay-approved',
+    accrued: 'asc-pay-pending',
+    void: 'asc-pay-void',
+  };
+
+  function render(body, ctx) {
+    rootEl = body; rootCtx = ctx;
+    ctx.clear(body);
+    body.appendChild(ctx.h('div', { class: 'asc-pay-loading' }, 'Loading your earnings…'));
+    load();
+  }
+
+  function rerender() {
+    if (!rootEl || !rootCtx) return;
+    var ctx = rootCtx;
+    var h = ctx.h;
+    ctx.clear(rootEl);
+
+    if (loadError) {
+      // A VISIBLE error, never a silent placeholder or a reassuring zero. A $0
+      // that is actually "we could not load your ledger" is the single worst
+      // thing this page can show a physician.
+      rootEl.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-inline-error' },
+          'Your earnings could not be loaded, so nothing below is a real number. '
+          + loadError + ' Reload the page; if it persists this is a deploy problem, '
+          + 'not a change to what you are owed.'))));
+      return;
+    }
+    if (!data) {
+      rootEl.appendChild(h('div', { class: 'asc-pay-loading' }, 'Loading your earnings…'));
+      return;
+    }
+
+    rootEl.appendChild(h('h1', { class: 'asc-pay-title' }, 'Earnings'));
+    rootEl.appendChild(headline(h));
+    // The countdown is about TIME, which an advisor works like anyone else — so
+    // the session widget shows for them too.
+    var live = sessionWidget(h);
+    if (live) rootEl.appendChild(live);
+    // The rate breakdown and the ledger are about MONEY, and for an advisor there
+    // is none. "Tasks labeled 0 × $75 · $0" underneath "you hold equity rather
+    // than a per-task rate" reads as a contradiction of the sentence above it.
+    if (data.accrues_payment) {
+      rootEl.appendChild(lines(h));
+      rootEl.appendChild(recent(h));
+    }
+  }
+
+  function headline(h) {
+    var wrap = h('div', { class: 'asc-pay-head' });
+    if (!data.accrues_payment) {
+      // An advisor holds equity rather than a per-task rate. Saying so is much
+      // better than an unexplained $0 next to work they know they did.
+      wrap.appendChild(h('div', { class: 'asc-pay-advisor' },
+        'You are an appointed medical advisor: you hold equity rather than a '
+        + 'per-task rate, so labeling and review work does not accrue a payment. '
+        + 'Your work still counts everywhere quality is measured.'));
+      return wrap;
+    }
+
+    // The one Doto numeral on this view. Money is where it earns its keep.
+    wrap.appendChild(h('div', { class: 'asc-pay-hero' },
+      h('span', { class: 'asc-pay-hero-value' }, money(data.approved_cents)),
+      h('span', { class: 'asc-pay-hero-label' }, 'approved')));
+
+    var subParts = [];
+    if (data.pending_cents) subParts.push(money(data.pending_cents) + ' pending review');
+    if (data.void_cents) subParts.push(money(data.void_cents) + ' not approved');
+    if (subParts.length) {
+      var sub = h('div', { class: 'asc-pay-sub' });
+      subParts.forEach(function (text, i) {
+        if (i) sub.appendChild(h('span', { class: 'asc-pay-dot' }, '·'));
+        sub.appendChild(h('span', {}, text));
+      });
+      wrap.appendChild(sub);
+    }
+    return wrap;
+  }
+
+  function lines(h) {
+    var wrap = h('div', { class: 'asc-pay-lines' });
+    (data.lines || []).forEach(function (l) {
+      wrap.appendChild(h('div', { class: 'asc-pay-line' },
+        h('span', { class: 'asc-pay-line-label' }, l.label),
+        h('span', { class: 'asc-pay-line-count' },
+          String(l.count) + ' × ' + money(l.rate_cents)),
+        h('span', { class: 'asc-pay-line-total' }, money(l.cents))));
+    });
+    return wrap;
+  }
+
+  function recent(h) {
+    var wrap = h('div', { class: 'asc-pay-recent' });
+    wrap.appendChild(h('div', { class: 'asc-section-title' }, 'Recent'));
+    var rows = data.recent || [];
+    if (!rows.length) {
+      wrap.appendChild(h('div', { class: 'asc-pay-empty' },
+        'Nothing yet. Completed tasks appear here as soon as you submit them.'));
+      return wrap;
+    }
+    rows.forEach(function (r) {
+      var label = r.kind_label + (r.detail ? ' · ' + r.detail : '');
+      var row = h('div', { class: 'asc-pay-row' },
+        h('span', { class: 'asc-pay-when' }, shortDate(r.accrued_at)),
+        h('span', { class: 'asc-pay-what' }, label),
+        h('span', { class: 'asc-pay-amount' }, money(r.amount_cents)),
+        h('span', { class: 'asc-pay-status ' + (STATUS_CLASS[r.status] || '') },
+          r.status_word));
+      wrap.appendChild(row);
+      // Never show a number that went down without the explanation next to it.
+      if (r.status === 'void' && r.note) {
+        wrap.appendChild(h('div', { class: 'asc-pay-note' }, r.note));
+      }
+    });
+    return wrap;
+  }
+
+  function shortDate(iso) {
+    if (!iso) return '—';
+    var d = new Date(String(iso).indexOf('Z') === -1 && String(iso).indexOf('+') === -1
+      ? String(iso) + 'Z' : String(iso));
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  /* ─── The reviewer's live session widget ───────────────────
+     Every number here comes from a server response body. There is
+     no local timer counting toward 20:00 in this function or
+     anywhere else in this file. */
+  function sessionWidget(h) {
+    var live = window.AsclepiusSession && window.AsclepiusSession.state();
+    // This tab is beating -> use what the heartbeat responses said. Otherwise
+    // fall back to the read-only open-session snapshot the earnings payload
+    // carries (the review tab is the one beating; this tab must not).
+    var s = (live && !live.ended) ? live : data.open_session;
+    if (!s) return null;
+
+    var min = s.min_seconds || (data.params && data.params.min_seconds) || 1200;
+    var elapsed = s.continuous_seconds || 0;
+    var qualified = !!s.qualified;
+
+    var card = h('div', {
+      class: 'asc-pay-session' + (qualified ? ' is-qualified' : ''),
+    });
+    card.appendChild(h('div', { class: 'asc-pay-session-clock' },
+      'Session · ',
+      h('span', { class: 'asc-pay-session-elapsed' }, clock(elapsed)),
+      ' of ' + clock(min)));
+
+    if (live && live.error) {
+      card.appendChild(h('div', { class: 'asc-pay-session-warn' }, live.error));
+    }
+    if (live && live.paused) {
+      card.appendChild(h('div', { class: 'asc-pay-session-warn' },
+        'Paused — this tab is in the background and is not counting.'));
+    }
+
+    card.appendChild(h('div', { class: 'asc-pay-session-rule' }));
+    // Say it in exactly these words. It is the one sentence that stops a doctor
+    // discovering the rule by losing $100.
+    card.appendChild(h('div', { class: 'asc-pay-session-warning' },
+      qualified
+        ? 'This session has passed ' + clock(min) + ' and is worth '
+          + money(s.rate_cents || (data.params && data.params.rate_cents) || 10000) + '.'
+        : 'Leaving before ' + clock(min) + ' ends the session unpaid.'));
+    return card;
+  }
+
+  /* ─── Data ─────────────────────────────────────────────────── */
+  function load() {
+    var ctx = rootCtx;
+    if (!ctx) return;
+    ctx.api('/asclepius/earnings').then(function (payload) {
+      data = payload; loadError = null;
+      rerender();
+      watchSession();
+    }).catch(function (err) {
+      data = null;
+      loadError = (err && (err.detail || err.message)) || 'The server did not respond.';
+      rerender();
+    });
+  }
+
+  /** Keep the widget honest while this section is on screen.
+   *
+   *  If this tab holds the session, re-render on every heartbeat response. If
+   *  another tab holds it, poll the READ-ONLY session endpoint — polling does
+   *  not credit time, so looking at your earnings can never earn you any. */
+  function watchSession() {
+    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (!data) return;
+
+    if (window.AsclepiusSession) {
+      unsubscribe = window.AsclepiusSession.subscribe(function () { rerender(); });
+    }
+    var mine = window.AsclepiusSession && window.AsclepiusSession.state();
+    if (mine && !mine.ended) return;             // this tab is the one beating
+    if (!data.open_session) return;
+
+    var id = data.open_session.session_id;
+    var every = ((data.params && data.params.beat_interval_seconds) || 15) * 1000;
+    pollTimer = setInterval(function () {
+      rootCtx.api('/asclepius/sessions/' + encodeURIComponent(id)).then(function (s) {
+        data.open_session = s.ended ? null : s;
+        rerender();
+        if (s.ended) { clearInterval(pollTimer); pollTimer = null; load(); }
+      }).catch(function () { /* transient; the next tick tries again */ });
+    }, every);
+  }
+
+  function teardown() {
+    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  }
+
+  window.EarningsSection = {
+    render: render,
+    reset: function () { teardown(); data = null; loadError = null; },
+  };
+})();
