@@ -888,6 +888,11 @@ class AsclepiusStore:
                 # cases) is served ONLY to contributors flagged approved (BAA /
                 # training complete). Default off for everyone.
                 ("real_data_approved", "INTEGER NOT NULL DEFAULT 0"),
+                # First-run tutorial ("Calibration Case 1") state. JSON blob —
+                # {status, step, version, started_at, completed_at, skipped_at,
+                # score} — because the shape evolves and nothing filters on it
+                # in SQL (same reasoning as credentials_json above).
+                ("tutorial_json", "TEXT"),
             ):
                 if col not in user_cols:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
@@ -2082,6 +2087,30 @@ class AsclepiusStore:
             conn.execute(
                 "UPDATE users SET real_data_approved = ? WHERE id = ?",
                 (1 if approved else 0, user_id),
+            )
+
+    def get_tutorial_state(self, user_id: str) -> Dict[str, Any]:
+        """The user's first-run tutorial state; a default not_started shape when
+        unset or unparseable (a corrupt blob must never lock someone out)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT tutorial_json FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+        raw = row[0] if row else None
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict) and parsed.get("status"):
+                    return parsed
+            except (ValueError, TypeError):
+                pass
+        return {"status": "not_started", "version": None}
+
+    def set_tutorial_state(self, user_id: str, state: Dict[str, Any]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET tutorial_json = ? WHERE id = ?",
+                (json.dumps(state), user_id),
             )
 
     def mock_annotator_id_hashes(self) -> set:

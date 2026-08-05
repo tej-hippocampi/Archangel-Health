@@ -1972,6 +1972,120 @@ body.asc-sheet-open { overflow: hidden; }
 .asc-flag-invalid { color: var(--pink-deep); }
 .asc-flag-invalid:hover { color: var(--pink); }
 
+/* ─── Tutorial — Calibration Case 1 (spotlight tour + reveal + drawer) ──── */
+/* Layer sits above everything (header 100, top overlay 1000). The four mask
+   rects block interaction outside the target; the ring outlines the hole. */
+#ascTourLayer { position: fixed; inset: 0; z-index: 1200; pointer-events: none; }
+/* Dim, never block: the overlay is wayfinding, not a cage. The doctor can
+   always interact with anything (a skipped step must not trap them behind a
+   mask); genuinely dangerous off-script paths have their own JS guards. */
+.asc-tour-mask {
+  position: fixed; background: rgba(26, 27, 26, 0.45); pointer-events: none;
+}
+.asc-tour-ring {
+  position: fixed; pointer-events: none; border-radius: var(--r-sm);
+  outline: 2px solid var(--green); outline-offset: 0;
+  box-shadow: 0 0 0 4px var(--green-wash);
+}
+.asc-tour-pop {
+  position: fixed; pointer-events: auto; background: var(--card);
+  border: 1px solid var(--hairline-strong); border-radius: var(--r-md);
+  box-shadow: var(--shadow-float); padding: 14px 16px;
+}
+.asc-tour-chrome {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+  color: var(--ink-faint); margin-bottom: 6px;
+}
+.asc-tour-copy { font-size: 15px; color: var(--ink); line-height: 1.45; }
+.asc-tour-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; line-height: 1.4; }
+.asc-tour-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.asc-tour-skip { color: var(--ink-faint); font-size: 12.5px; }
+.asc-tour-skip:hover { color: var(--ink-soft); }
+.asc-tour-bar {
+  margin-top: 12px; height: 3px; border-radius: 2px; background: var(--card-in);
+  overflow: hidden;
+}
+.asc-tour-bar-fill { height: 100%; background: var(--green); transition: width 0.25s; }
+.asc-tour-inter-pop { max-width: 460px; text-align: left; }
+
+/* Reveal screen */
+.asc-tour-reveal { max-width: 720px; }
+.asc-tour-headline { font-size: 24px; margin: 4px 0 18px; }
+.asc-tour-findings { display: flex; flex-direction: column; gap: 12px; }
+.asc-tour-finding {
+  display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px;
+  border: 1px solid var(--hairline); border-radius: var(--r-sm); background: var(--card-in);
+}
+.asc-tour-finding.matched { border-color: var(--green-line); background: var(--green-wash); }
+.asc-tour-finding-glyph {
+  font-family: var(--mono); font-size: 14px; color: var(--ink-faint);
+  width: 18px; text-align: center; flex: none; margin-top: 1px;
+}
+.asc-tour-finding.matched .asc-tour-finding-glyph { color: var(--green-deep); }
+.asc-tour-finding-label { font-weight: 600; font-size: 14px; }
+.asc-tour-finding-reason { font-size: 13px; color: var(--ink-soft); margin-top: 2px; line-height: 1.45; }
+.asc-tour-planted {
+  margin-top: 14px; padding: 12px 14px; border: 1px solid var(--orange-line);
+  border-radius: var(--r-sm); background: var(--orange-wash);
+}
+.asc-tour-planted-title { font-weight: 600; font-size: 14px; color: var(--orange-deep); }
+
+/* Help menu + instruction drawer */
+.asc-help-menu {
+  position: fixed; z-index: 1100; background: var(--card);
+  border: 1px solid var(--hairline-strong); border-radius: var(--r-sm);
+  box-shadow: var(--shadow-float); padding: 6px; min-width: 190px;
+}
+.asc-help-menu-item {
+  display: block; width: 100%; text-align: left; padding: 8px 10px;
+  border: none; background: none; font: inherit; font-size: 13.5px;
+  color: var(--ink); border-radius: 8px; cursor: pointer;
+}
+.asc-help-menu-item:hover { background: var(--card-in); }
+/* Corner ? tab — the small, always-there entry point to the instructions. */
+.asc-instr-tab {
+  position: fixed; right: 18px; bottom: 18px; z-index: 89;
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--hairline-strong); background: var(--card);
+  color: var(--ink-soft); font-family: var(--mono); font-size: 17px;
+  box-shadow: var(--shadow-float); cursor: pointer;
+}
+.asc-instr-tab:hover { color: var(--ink); }
+.asc-instr-tab.pulse { animation: asc-instr-pulse 1.2s ease-out 4; }
+@keyframes asc-instr-pulse {
+  0% { box-shadow: 0 0 0 0 var(--green-line); }
+  70% { box-shadow: 0 0 0 12px rgba(76, 166, 60, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(76, 166, 60, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .asc-instr-tab.pulse { animation: none; outline: 2px solid var(--green); } }
+/* The panel pops up from the tab — never a full-height wall over the app. */
+.asc-instr-drawer {
+  position: fixed; right: 16px; bottom: 70px; width: 380px; max-width: 92vw;
+  max-height: 72vh; z-index: 90; background: var(--card);
+  border: 1px solid var(--hairline-strong); border-radius: var(--r-md);
+  box-shadow: var(--shadow-float); display: flex; flex-direction: column;
+}
+.asc-instr-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid var(--hairline);
+}
+.asc-instr-head .asc-tour-chrome { margin-bottom: 0; }
+.asc-instr-body { flex: 1; overflow-y: auto; padding: 8px 16px 16px; }
+.asc-instr-foot { padding: 12px 16px; border-top: 1px solid var(--hairline); }
+.asc-instr-section { border-bottom: 1px solid var(--hairline); padding: 4px 0; }
+.asc-instr-summary {
+  cursor: pointer; font-weight: 600; font-size: 14px; padding: 8px 0;
+  list-style-position: inside;
+}
+.asc-instr-intro { margin: 2px 0 8px; }
+.asc-instr-list { margin: 0 0 10px; padding-left: 20px; }
+.asc-instr-list li { margin-bottom: 8px; font-size: 13px; line-height: 1.45; }
+.asc-instr-step-copy { font-weight: 600; }
+.asc-instr-step-note { color: var(--ink-soft); }
+@media (max-width: 640px) {
+  .asc-tour-pop { width: calc(100vw - 24px) !important; }
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SIDE PANEL (left rail) + INSTRUCTION MANUAL (Guide)
