@@ -196,6 +196,9 @@ class BundleRejected(ValueError):
 # it is checked before the upload row is ever written (PRD-I §1.1).
 _RAW_FRAME_MAGIC = b"ASCRAWF1"
 _RAW_FRAME_BYTES = 8 * 1024 * 1024
+# Generous ceiling on a frame as READ BACK: the plaintext frame plus AEAD nonce,
+# tag and version header. Anything larger did not come from store_raw_stream.
+_RAW_FRAME_MAX = _RAW_FRAME_BYTES + 4096
 
 
 def _raw_path_for(upload_id: str) -> Path:
@@ -270,6 +273,17 @@ def iter_raw(raw_path: str, *, chunk_size: int = _RAW_FRAME_BYTES) -> Iterator[b
             (length,) = struct.unpack(">I", header)
             if length == 0:
                 return
+            if length > _RAW_FRAME_MAX:
+                # The length is a uint32 read from the file, and read(n)
+                # PREALLOCATES n bytes — so a single flipped byte in a length
+                # field turns the truncation error below into a 4 GiB allocation
+                # and an OOM kill of the worker. The writer never emits a frame
+                # larger than _RAW_FRAME_BYTES plus AEAD overhead, so anything
+                # above the ceiling is corruption by definition and is reported
+                # as corruption instead of being allocated for.
+                raise ValueError(
+                    f"raw bundle frame length {length} exceeds the maximum "
+                    f"{_RAW_FRAME_MAX} — the file is corrupt")
             frame = fh.read(length)
             if len(frame) != length:
                 raise ValueError("raw bundle is truncated (incomplete frame body)")
@@ -684,7 +698,9 @@ class _SpilledEntry(dict):
 
 
 def _read_entry_streamed(zf: zipfile.ZipFile, info: zipfile.ZipInfo,
-                         *, remaining_budget: int) -> Tuple[Optional[bytes], Optional[str]]:
+                         *, remaining_budget: int,
+                         spend: Optional[List[int]] = None,
+                         ) -> Tuple[Optional[bytes], Optional[str]]:
     """Decompress ONE entry with real byte accounting. Returns (data, reject_reason).
 
     The declared ``info.file_size`` is attacker-controlled and is therefore used for
@@ -700,22 +716,32 @@ def _read_entry_streamed(zf: zipfile.ZipFile, info: zipfile.ZipInfo,
     ratio_allowance = max(1, int(ratio_cap * max(1, info.compress_size)))
     out = io.BytesIO()
     written = 0
-    with zf.open(info, "r") as src:
-        while True:
-            chunk = src.read(262144)
-            if not chunk:
-                break
-            written += len(chunk)
-            if written > entry_cap:
-                return None, f"entry too large (over {entry_cap} bytes decompressed)"
-            if written > ratio_allowance:
-                return None, (f"compression ratio over {int(ratio_cap)}:1 "
-                              "(zip-bomb defense)")
-            if written > remaining_budget:
-                raise _OutputBudgetExceeded(
-                    f"decompressed output exceeded the bundle budget mid-extraction "
-                    f"(zip-bomb defense)")
-            out.write(chunk)
+    try:
+        with zf.open(info, "r") as src:
+            while True:
+                chunk = src.read(262144)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > entry_cap:
+                    return None, f"entry too large (over {entry_cap} bytes decompressed)"
+                if written > ratio_allowance:
+                    return None, (f"compression ratio over {int(ratio_cap)}:1 "
+                                  "(zip-bomb defense)")
+                if written > remaining_budget:
+                    raise _OutputBudgetExceeded(
+                        f"decompressed output exceeded the bundle budget mid-extraction "
+                        f"(zip-bomb defense)")
+                out.write(chunk)
+    finally:
+        # Charge the budget for EVERY byte decompressed, including an entry that
+        # was then rejected. Debiting only on the accept path left total work
+        # bounded by the per-entry ratio cap rather than the whole-archive budget:
+        # 5000 entries each expanding to the 64 MB entry cap before rejection is
+        # ~320 GB of deflate in one background task, with the budget never moving.
+        # Memory stayed bounded; CPU and wall-clock did not.
+        if spend is not None:
+            spend[0] = written
     return out.getvalue(), None
 
 
@@ -783,12 +809,18 @@ def unpack_bundle_from_path(zip_path: str, *, spill: bool = True) -> Dict[str, A
                     entries.append({"name": name, "kind": "rejected",
                                     "reason": "nested archive (not extracted)"})
                     continue
-                data, reject = _read_entry_streamed(zf, info, remaining_budget=budget)
+                spend = [0]
+                data, reject = _read_entry_streamed(zf, info, remaining_budget=budget,
+                                                    spend=spend)
+                budget -= spend[0]
                 if reject is not None:
                     entries.append({"name": name, "kind": "rejected", "reason": reject})
+                    if budget <= 0:
+                        raise _OutputBudgetExceeded(
+                            "decompressed output exceeded the bundle budget "
+                            "(zip-bomb defense)")
                     continue
                 assert data is not None
-                budget -= len(data)
                 if data[:4] in _ARCHIVE_MAGICS or data[:2] == b"\x1f\x8b":
                     entries.append({"name": name, "kind": "rejected",
                                     "reason": "nested archive (not extracted)"})

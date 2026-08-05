@@ -1302,15 +1302,29 @@ class AsclepiusStore:
                 )
                 """
             )
-            # Idempotency key (PRD-I §1.1): re-declaring the same bytes for the same
-            # owner returns the EXISTING session rather than starting a second one,
+            # Idempotency key (PRD-I §1.1): re-declaring the same bytes from the same
+            # ACCOUNT returns the EXISTING session rather than starting a second one,
             # so "the contact refreshed the tab at 3.2 GB" is a non-event. Partial
             # index over OPEN sessions only — a failed session must not block a
             # genuine retry of the same file.
+            #
+            # ``actor`` is in the key, and that is a correctness requirement rather
+            # than a refinement. Purpose lives on the ACCOUNT, and an organization
+            # may legitimately hold one account of each kind. Keyed on the health
+            # system alone, a brokering account re-declaring the same bytes as a
+            # task-creation account would be handed that account's session — and
+            # the completed upload would inherit its purpose. A brokering bundle
+            # stamped task_creation and filed under Ready to promote: fail-open on
+            # the one invariant this whole release exists to hold.
+            #
+            # The v1 index is dropped rather than left in place: it is UNIQUE, so
+            # leaving it would keep enforcing the weaker key and still collapse the
+            # two accounts onto one session.
+            conn.execute("DROP INDEX IF EXISTS idx_ingest_sessions_idem")
             conn.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_ingest_sessions_idem "
-                "ON ingest_upload_sessions(owner_kind, owner_id, declared_sha256, "
-                "declared_size) WHERE status IS NULL"
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_ingest_sessions_idem_v2 "
+                "ON ingest_upload_sessions(owner_kind, owner_id, actor, "
+                "declared_sha256, declared_size) WHERE status IS NULL"
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_sessions_owner "
                          "ON ingest_upload_sessions(owner_kind, owner_id)")
@@ -6213,7 +6227,7 @@ class AsclepiusStore:
             # job — return the session that won rather than surfacing a 500 for
             # what is, from the partner's side, one upload they asked for twice.
             existing = self.find_open_upload_session(
-                owner_kind=owner_kind, owner_id=owner_id,
+                owner_kind=owner_kind, owner_id=owner_id, actor=actor,
                 declared_sha256=declared_sha256, declared_size=int(declared_size))
             if existing:
                 return existing
@@ -6228,25 +6242,60 @@ class AsclepiusStore:
         return dict(row) if row else None
 
     def find_open_upload_session(
-        self, *, owner_kind: str, owner_id: str, declared_sha256: str,
-        declared_size: int,
+        self, *, owner_kind: str, owner_id: str, actor: Optional[str],
+        declared_sha256: str, declared_size: int,
     ) -> Optional[Dict[str, Any]]:
         """The idempotency lookup. Matches an OPEN session first (a resume), then a
         VERIFIED one (a duplicate declare of bytes already ingested — returning the
         existing upload_id is both idempotent and the only answer that does not
-        ingest the same content twice)."""
+        ingest the same content twice).
+
+        Scoped to the ACCOUNT, not just the health system. See the note on
+        ``idx_ingest_sessions_idem_v2``: purpose lives on the account, so matching
+        on the organization alone would hand a brokering account a task-creation
+        account's session and let the completed upload inherit its purpose."""
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT * FROM ingest_upload_sessions "
-                "WHERE owner_kind = ? AND owner_id = ? AND declared_sha256 = ? "
+                "WHERE owner_kind = ? AND owner_id = ? AND actor IS ? "
+                "AND declared_sha256 = ? "
                 "AND declared_size = ? AND (status IS NULL OR status = 'verified') "
                 "ORDER BY CASE WHEN status IS NULL THEN 0 ELSE 1 END, created_at DESC "
                 "LIMIT 1",
-                (owner_kind, owner_id, declared_sha256, int(declared_size))).fetchone()
+                (owner_kind, owner_id, actor, declared_sha256,
+                 int(declared_size))).fetchone()
         return dict(row) if row else None
+
+    def claim_upload_session_for_completion(self, session_id: str) -> bool:
+        """ATOMIC claim on the assembly step. True for exactly one caller.
+
+        Two concurrent ``complete`` calls on one session would otherwise both pass
+        the "is it still open" read and both assemble: two ``ingest_uploads`` rows
+        and two pipeline runs for the same bytes, and — because the winner's
+        ``finalize`` deletes the parts while the loser is still reading them — an
+        unhandled FileNotFoundError from inside the loser. A conditional UPDATE
+        settles it in one statement, the same pattern ``consume_upload_link``
+        already uses for the one-time link race."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE ingest_upload_sessions SET status = 'completing', "
+                "updated_at = ? WHERE session_id = ? AND status IS NULL",
+                (_utcnow_iso(), session_id))
+            return cur.rowcount == 1
+
+    def release_upload_session_claim(self, session_id: str) -> None:
+        """Hand a claimed session back to the open state after a failed assembly,
+        so the partner can retry rather than being locked out by our own crash."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_upload_sessions SET status = NULL, updated_at = ? "
+                "WHERE session_id = ? AND status = 'completing'",
+                (_utcnow_iso(), session_id))
 
     def update_upload_session(self, session_id: str, **fields: Any) -> None:
         allowed = {"status", "upload_id", "verified_at", "purpose"}
+        # 'completing' is a claim, not a terminal state — release_upload_session_claim
+        # is the only way back to NULL.
         sets, params = [], []
         for k, v in fields.items():
             if k in allowed:
@@ -6262,13 +6311,20 @@ class AsclepiusStore:
                 "WHERE session_id = ?", tuple(params))
 
     def list_stale_upload_sessions(self, *, older_than_iso: str) -> List[Dict[str, Any]]:
-        """Open sessions past the reaper cutoff (PRD-I §1.1: unverified parts are
-        deleted after 24 h). Only OPEN ones — a verified session's parts are already
-        gone and its row is chain-of-custody history."""
+        """Sessions past the reaper cutoff (PRD-I §1.1: unverified parts are deleted
+        after 24 h).
+
+        Open sessions AND ones stuck mid-assembly. A verified session's parts are
+        already gone and its row is chain-of-custody history, so it is never a
+        candidate — but a ``completing`` claim outlives the process that took it,
+        so a hard crash during assembly would otherwise lock a partner out of an
+        upload they could still finish. The reaper hands those back rather than
+        deleting them."""
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT * FROM ingest_upload_sessions "
-                "WHERE status IS NULL AND updated_at < ?", (older_than_iso,)).fetchall()
+                "WHERE (status IS NULL OR status = 'completing') AND updated_at < ?",
+                (older_than_iso,)).fetchall()
         return [dict(r) for r in rows]
 
     def hs_uploads_bytes_in_open_sessions(self, hs_id: str) -> int:

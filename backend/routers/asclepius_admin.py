@@ -369,7 +369,14 @@ async def storage_reconcile(_admin: Dict[str, Any] = Depends(asc_auth.require_ad
 
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
-@router.post("/health-systems/provision")
+# include_in_schema=False: /openapi.json is served publicly (it is the Railway
+# healthcheck neighbour), so a path segment named "purpose", a request field of
+# that name, or a docstring mentioning brokering would disclose the business
+# line to any partner who fetched the schema. They still could not tell which
+# purpose is THEIRS, but §0 protects the fact that the distinction exists at
+# all — a partner who learns we broker goes looking for the buyer. The admin UI
+# calls these directly and never reads the schema.
+@router.post("/health-systems/provision", include_in_schema=False)
 async def provision_health_system_portal(
     body: HealthSystemProvisionRequest,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
@@ -443,7 +450,8 @@ async def provision_health_system_portal(
     }
 
 
-@router.post("/health-systems/{hs_id}/accounts/{username}/purpose")
+@router.post("/health-systems/{hs_id}/accounts/{username}/purpose",
+             include_in_schema=False)
 async def set_portal_account_purpose(
     hs_id: str, username: str, body: UploadPurposeRequest,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
@@ -477,7 +485,7 @@ async def set_portal_account_purpose(
                        "the purpose they arrived with."}
 
 
-@router.post("/uploads/{upload_id}/purpose")
+@router.post("/uploads/{upload_id}/purpose", include_in_schema=False)
 async def set_upload_purpose(
     upload_id: str, body: UploadPurposeRequest,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),

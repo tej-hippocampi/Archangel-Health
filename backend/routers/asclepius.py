@@ -4011,12 +4011,25 @@ async def prepare_upload_promotion(
     upload = store.get_ingest_upload(upload_id)
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
+    # PRD-I §4.1, extended to the PREVIEW step. This endpoint cannot create a task
+    # — both promote endpoints are gated, so the invariant holds without it — but
+    # it renders the clinical case and sends it to a third-party inference provider
+    # to generate candidate answers. Doing that with brokering data is the activity
+    # the rule exists to prevent, whether or not a task comes out the other end.
+    _purposes = store.ingest_case_purposes_for_upload(upload_id)
     ingested = [c for c in store.list_ingest_cases(upload_id=upload_id)
-                if c.get("status") == "ingested"]
+                if c.get("status") == "ingested"
+                and not asc_ingestion.is_brokering(
+                    _purposes.get(c.get("ingest_case_id"), c.get("purpose")))]
     if not ingested:
         raise HTTPException(status_code=409,
                             detail="No ingested cases awaiting promotion in this upload.")
     ic = ingested[0]
+    if not (ic.get("specialty") or "").strip():
+        raise HTTPException(
+            status_code=409,
+            detail="Specialty not determined for this case. Set the specialty on the "
+                   "upload before promoting.")
     question = ((body.question or "").strip()
                 or _default_clinical_question(ic.get("specialty")))
     conv = await _convert_and_gate(store, ic, question)

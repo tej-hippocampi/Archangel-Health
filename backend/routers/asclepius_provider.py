@@ -30,6 +30,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Re
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response as StarletteResponse
 
 from ratelimit import client_ip, rate_limiter
@@ -180,6 +181,17 @@ class PortalRoute(APIRoute):
             except RequestValidationError:
                 response = _portal_error(422, "That request could not be understood.",
                                          code="invalid_request")
+            except Exception:
+                # An UNEXPECTED failure must not escape into Starlette's default
+                # 500 — that response is plain text with a different header set,
+                # no no-store, no padding and no time budget, so the one shape
+                # that skips the whole discipline would be the one nobody wrote
+                # deliberately. Logged with the traceback; the partner is told
+                # nothing beyond the generic body.
+                log.exception("unhandled error on provider route %s", self.path)
+                response = _portal_error(500, "Something went wrong on our side. "
+                                              "Please try again in a moment.",
+                                         code="request_failed")
             _normalize_portal_headers(response)
             response = _pad_json_response(response)
             if not exempt:
@@ -1008,14 +1020,21 @@ class HsUploadDeclareRequest(BaseModel):
 
 def _upload_session_or_404(store: Any, session_id: str,
                            portal_user: Dict[str, Any]) -> Dict[str, Any]:
-    """Resolve a session, scoped to the caller's health system.
+    """Resolve a session, scoped to the caller's ACCOUNT.
 
-    A session belonging to another hospital is reported as a plain 404 — the same
-    answer as one that never existed, so the endpoint cannot be used to probe
-    which session ids are real."""
+    Per account, not per organization. An organization may hold more than one
+    portal account, and what an upload is recorded as is a property of the account
+    that sent it — so an account adopting a session another account opened would
+    silently change what that upload counts as. Same-organization is not close
+    enough when the accounts are the thing being distinguished.
+
+    A session belonging to anyone else is reported as a plain 404 — the same answer
+    as one that never existed, so the endpoint cannot be used to probe which
+    session ids are real."""
     session = store.get_upload_session(session_id)
     if (not session or session.get("owner_kind") != _UPLOAD_OWNER_KIND
-            or session.get("owner_id") != portal_user["hs_id"]):
+            or session.get("owner_id") != portal_user["hs_id"]
+            or (session.get("actor") or "") != portal_user["username"]):
         raise HTTPException(status_code=404, detail="No such upload.")
     return session
 
@@ -1121,7 +1140,12 @@ async def hs_upload_session_state(
     return asc_uploads.public_session(session)
 
 
-@portal_router.put("/hs/uploads/sessions/{session_id}/parts/{part}")
+@portal_router.put("/hs/uploads/sessions/{session_id}/parts/{part}",
+                   # Every other upload entry point is limited; this one carries
+                   # the bytes, so leaving it open let one authenticated partner
+                   # hold unbounded concurrent parts in memory. Generous enough
+                   # that a legitimate sequential upload never touches it.
+                   dependencies=[Depends(rate_limiter("hs_upload_part", 240, 60))])
 async def hs_upload_part(
     session_id: str, part: int, request: Request,
     portal_user: Dict[str, Any] = Depends(require_hs_portal),
@@ -1156,11 +1180,16 @@ async def hs_upload_part(
                                 detail=f"A part may not exceed {limit} bytes.")
     body = bytes(buf)
     try:
-        stored = asc_uploads.store_part(
-            session, part, body, request.headers.get("x-chunk-sha256"))
+        # Off the event loop: hashing, encrypting and fsync-ing 16 MB is tens of
+        # milliseconds of CPU and a synchronous disk write, and doing it inline
+        # stalls every other request this worker is serving — including the
+        # platform health check.
+        stored = await run_in_threadpool(
+            asc_uploads.store_part, session, part, body,
+            request.headers.get("x-chunk-sha256"))
     except asc_uploads.UploadSessionError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))
-    state = asc_uploads.session_state(session)
+    state = await run_in_threadpool(asc_uploads.session_state, session)
     return {"part": stored["part"], "size": stored["size"],
             "received_parts": state["received_parts"],
             "missing_parts": state["missing_parts"],
@@ -1184,7 +1213,12 @@ async def hs_upload_complete(
     _hs_upload_preconditions(store, portal_user)
     hs_id = portal_user["hs_id"]
     try:
-        result = asc_uploads.complete(store, session)
+        # THE expensive call: decrypt every part, hash the whole file, re-encrypt
+        # frame by frame, fsync. Minutes of AES-GCM and disk I/O on a multi-GB
+        # bundle. Inline on the event loop it blocks every other request in this
+        # worker for the duration — including the platform health check, which
+        # would restart the container mid-assembly.
+        result = await run_in_threadpool(asc_uploads.complete, store, session)
     except asc_uploads.UploadIntegrityError as exc:
         store.log_event(entity_type="ingest_upload_session", entity_id=session_id,
                         event_type="upload_session_integrity_failed",

@@ -161,3 +161,28 @@ def test_no_provider_response_model_can_carry_it():
         assert "asclepius_provider" in src_file or "static" in src_file.lower(), (
             f"provider route {path} is served from {src_file}, outside the file the "
             "static isolation check covers")
+
+
+def test_the_public_openapi_schema_does_not_disclose_the_business_line():
+    """``/openapi.json`` is served publicly — it sits beside ``/docs``, which is the
+    deploy healthcheck path — so anyone with the portal URL can fetch it.
+
+    A path segment named ``purpose``, a request field of that name, or a docstring
+    mentioning brokering discloses that the distinction EXISTS. That is a weaker
+    leak than telling a partner which one is theirs, and it is still the leak §0
+    protects against: a partner who learns we broker goes looking for the buyer.
+    """
+    from fastapi.testclient import TestClient
+    from main import app
+
+    with TestClient(app) as client:
+        res = client.get("/openapi.json")
+    assert res.status_code == 200, "schema is expected to be public; that is the premise"
+    spec = res.json()
+    blob = res.text.lower()
+    for word in ("brokering", "task_creation"):
+        assert word not in blob, (
+            f"the public OpenAPI schema contains {word!r}. Mark the route "
+            "include_in_schema=False rather than renaming around it.")
+    offending = [p for p in spec.get("paths", {}) if "purpose" in p.lower()]
+    assert not offending, f"public schema exposes purpose-named paths: {offending}"

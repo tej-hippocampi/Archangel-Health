@@ -518,3 +518,95 @@ def test_the_gate_holds_even_if_the_purpose_never_reached_the_case():
                      json={"question": "q"}, headers=admin_h)
     assert r2.status_code == 409 and "brokering" in r2.json()["detail"]
     assert store.get_ingest_case(ic_id)["task_id"] is None
+
+
+# ── the cross-account session hijack (review finding #1) ─────────────────────
+def _account(store, hs, purpose, tag):
+    username = f"hs{tag}{A.uniq(6)}"
+    store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
+                                password="portal-pass-123456", email="it@example.org")
+    store.set_hs_portal_password(username, "portal-pass-123456", must_reset=False)
+    store.set_hs_portal_purpose(username, purpose)
+    c = TestClient(A.app, base_url="https://testserver")
+    assert c.post(f"{API}/hs/login", json={"username": username,
+                                           "password": "portal-pass-123456"}).status_code == 200
+    return c, username
+
+
+def test_a_brokering_account_cannot_adopt_a_task_creation_session():
+    """The failure this nearly shipped with.
+
+    Purpose lives on the ACCOUNT, and the admin surface explicitly supports one
+    organization holding one account of each kind. Sessions were keyed and
+    authorized on the HEALTH SYSTEM, so a brokering account re-declaring the same
+    bytes was handed the task-creation account's session — and the completed
+    upload inherited its purpose. A brokering bundle stamped task_creation, filed
+    under Ready to promote with a green chip, and promotable. Fail-open on the one
+    invariant this release exists to hold."""
+    import hashlib
+
+    A.fresh_store()
+    store = _store()
+    hs = store.ensure_health_system("Two Ways General", contact_email="it@example.org")
+    task_c, _task_user = _account(store, hs, "task_creation", "t")
+    brok_c, brok_user = _account(store, hs, "brokering", "b")
+
+    data = _bundle()
+    digest = hashlib.sha256(data).hexdigest()
+    decl = {"filename": "export.zip", "size": len(data), "sha256": digest}
+
+    a = task_c.post(f"{API}/hs/uploads/sessions", json=decl)
+    assert a.status_code == 200
+    sid_task = a.json()["session_id"]
+    chunk = a.json()["chunk_size"]
+    first = data[:chunk]
+    assert task_c.put(f"{API}/hs/uploads/sessions/{sid_task}/parts/1", content=first,
+                      headers={"X-Chunk-SHA256": hashlib.sha256(first).hexdigest()}
+                      ).status_code == 200
+
+    # The brokering account declares the SAME bytes for the SAME organization.
+    b = brok_c.post(f"{API}/hs/uploads/sessions", json=decl)
+    assert b.status_code == 200
+    sid_brok = b.json()["session_id"]
+    assert sid_brok != sid_task, (
+        "the brokering account was handed the task-creation account's session")
+    assert b.json()["received_parts"] == [], (
+        "the brokering account can see which parts the other account has sent")
+
+    # It cannot reach the other session by id either.
+    assert brok_c.get(f"{API}/hs/uploads/sessions/{sid_task}").status_code == 404
+    assert brok_c.post(f"{API}/hs/uploads/sessions/{sid_task}/complete").status_code == 404
+    assert brok_c.delete(f"{API}/hs/uploads/sessions/{sid_task}").status_code == 404
+
+    # And its own upload is stamped brokering.
+    for n, blob in enumerate([data[i:i + chunk] for i in range(0, len(data), chunk)], 1):
+        assert brok_c.put(f"{API}/hs/uploads/sessions/{sid_brok}/parts/{n}", content=blob,
+                          headers={"X-Chunk-SHA256": hashlib.sha256(blob).hexdigest()}
+                          ).status_code == 200
+    done = brok_c.post(f"{API}/hs/uploads/sessions/{sid_brok}/complete")
+    assert done.status_code == 200, done.text
+    assert store.get_ingest_upload(done.json()["upload_id"])["purpose"] == "brokering"
+
+
+def test_the_promotion_preview_refuses_brokering_data(monkeypatch):
+    """`/prepare` cannot create a task, so the invariant holds without it — but it
+    renders the clinical case and sends it to a third-party inference provider to
+    generate candidate answers. Doing that with brokering data is the activity the
+    rule exists to prevent, whether or not a task comes out the other end."""
+    A.fresh_store()
+    called = []
+
+    from routers import asclepius as R
+
+    async def spy_candidates(prompt, **kw):
+        called.append(prompt)
+        return {"candidates": [{"id": "A", "text": "a"}, {"id": "B", "text": "b"}],
+                "model": "cand", "intended_flawed_id": "B"}
+
+    monkeypatch.setattr(R, "generate_candidates_ex", spy_candidates)
+    admin_h = _admin_h(_store())
+    _hs, upload_id = _upload_as("brokering")
+    r = client.post(f"{API}/ingestion/uploads/{upload_id}/prepare",
+                    json={"question": "q"}, headers=admin_h)
+    assert r.status_code == 409
+    assert not called, "brokering clinical data was sent to the inference provider"

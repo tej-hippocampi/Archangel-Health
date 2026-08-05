@@ -457,10 +457,15 @@ def test_the_reaper_deletes_unverified_parts(client, monkeypatch):
     assert list(parts_dir.iterdir())
 
     monkeypatch.setenv("ASCLEPIUS_UPLOAD_SESSION_TTL_HOURS", "0")
-    # TTL 0 floors to 1h by design, so age the row instead of trusting the clock.
+    # TTL 0 floors to 1h by design, so age the state instead of trusting the clock.
+    # BOTH the row and the parts on disk: the row is only the cheap candidate
+    # filter, and idle time is measured from real part activity — a session whose
+    # parts arrived recently is in flight no matter how old the row is.
     with store._conn() as conn:
         conn.execute("UPDATE ingest_upload_sessions SET updated_at = '2000-01-01T00:00:00' "
                      "WHERE session_id = ?", (session["session_id"],))
+    for p in parts_dir.iterdir():
+        os.utime(p, (0, 0))
     assert asc_uploads.reap_stale_sessions(store) == 1
     assert not parts_dir.exists()
     assert store.get_upload_session(session["session_id"])["status"] == "aborted"
@@ -556,3 +561,128 @@ def test_a_declare_race_returns_one_session_not_a_500(client):
         chunk_size=first["chunk_size"], part_count=first["part_count"],
         storage_root=str(U.sessions_root()), portal_username=username)
     assert second["session_id"] == first["session_id"]
+
+
+# ── hardening found by adversarial review ────────────────────────────────────
+def test_the_reaper_spares_a_session_whose_parts_are_still_arriving(client, monkeypatch):
+    """Rows are written at declare and at complete and NEVER in between, so the
+    row's ``updated_at`` is the DECLARE time for the whole life of an upload.
+    Measuring the TTL against it makes the window '24 h since you started' rather
+    than '24 h since you stopped' — and 8 GB on a 1 Mbps hospital link is ~18 h of
+    continuous transfer. Idle time is read from the parts on disk instead."""
+    store = A.fresh_store()
+    _portal(client, store)
+    data = _bundle(3 * 1024 * 1024)
+    session = _declare(client, data)
+    blobs = list(_parts_of(data, session["chunk_size"]))
+    assert _put_part(client, session["session_id"], 1, blobs[0]).status_code == 200
+
+    # Exactly the state a long upload reaches: declared a day ago, parts landing now.
+    with store._conn() as conn:
+        conn.execute("UPDATE ingest_upload_sessions SET updated_at = '2000-01-01T00:00:00' "
+                     "WHERE session_id = ?", (session["session_id"],))
+    assert asc_uploads.reap_stale_sessions(store) == 0, "reaped a live upload"
+    assert store.get_upload_session(session["session_id"])["status"] is None
+
+    # …and it can still be finished.
+    for n, blob in enumerate(blobs, start=1):
+        assert _put_part(client, session["session_id"], n, blob).status_code == 200
+    assert client.post(
+        f"{API}/hs/uploads/sessions/{session['session_id']}/complete").status_code == 200
+
+
+def test_a_session_stuck_mid_assembly_is_handed_back_not_deleted(client):
+    """A ``completing`` claim outlives the process that took it, so a hard crash
+    during assembly would lock a partner out of an upload they could still finish."""
+    store = A.fresh_store()
+    _portal(client, store)
+    data = _bundle(2 * 1024 * 1024)
+    session = _declare(client, data)
+    for n, blob in enumerate(_parts_of(data, session["chunk_size"]), start=1):
+        _put_part(client, session["session_id"], n, blob)
+
+    assert store.claim_upload_session_for_completion(session["session_id"]) is True
+    # A second claim loses — which is what stops a double assembly.
+    assert store.claim_upload_session_for_completion(session["session_id"]) is False
+    with store._conn() as conn:
+        conn.execute("UPDATE ingest_upload_sessions SET updated_at = '2000-01-01T00:00:00' "
+                     "WHERE session_id = ?", (session["session_id"],))
+        conn.execute("UPDATE ingest_upload_sessions SET storage_dir = storage_dir "
+                     "WHERE session_id = ?", (session["session_id"],))
+    import os as _os
+    parts_dir = Path(store.get_upload_session(session["session_id"])["storage_dir"])
+    old = 0
+    for p in parts_dir.iterdir():
+        _os.utime(p, (old, old))
+
+    asc_uploads.reap_stale_sessions(store)
+    assert store.get_upload_session(session["session_id"])["status"] is None
+    assert parts_dir.exists(), "a stuck assembly had its parts deleted"
+    assert client.post(
+        f"{API}/hs/uploads/sessions/{session['session_id']}/complete").status_code == 200
+
+
+def test_a_corrupt_frame_length_is_reported_not_allocated_for(tmp_path, monkeypatch):
+    """``read(n)`` PREALLOCATES n bytes, and the frame length is a uint32 straight
+    out of the file — so one flipped byte turned a truncation error into a 4 GiB
+    allocation and an OOM kill."""
+    import struct
+    import tracemalloc
+
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    bad = Path(asc_ingestion.quarantine_root()) / "corrupt.zip.enc"
+    bad.write_bytes(b"ASCRAWF1" + struct.pack(">I", 0xFFFFFFFF))
+
+    tracemalloc.start()
+    try:
+        with pytest.raises(ValueError) as exc:
+            list(asc_ingestion.iter_raw(str(bad)))
+        _cur, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert "corrupt" in str(exc.value)
+    assert peak < 32 * 1024 * 1024, f"peak {peak} — the length was allocated for"
+
+
+def test_rejected_entries_are_charged_to_the_archive_budget(monkeypatch, tmp_path):
+    """Debiting the budget only on the accept path left total decompression work
+    bounded by the PER-ENTRY ratio cap rather than the whole-archive budget: many
+    entries each expanding to the entry cap before rejection is hundreds of GB of
+    deflate with the budget never moving."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    monkeypatch.setenv("ASCLEPIUS_INGEST_MAX_ENTRY_BYTES", str(1024 * 1024))
+    monkeypatch.setenv("ASCLEPIUS_INGEST_MAX_RATIO", "1000000")
+    monkeypatch.setenv("ASCLEPIUS_INGEST_MAX_UNCOMPRESSED", str(2 * 1024 * 1024))
+    monkeypatch.setenv("ASCLEPIUS_INGEST_TOTAL_RATIO", "2")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        for i in range(12):
+            z.writestr(f"bomb-{i}.txt", b"\0" * (4 * 1024 * 1024))
+    with pytest.raises(asc_ingestion.BundleRejected) as exc:
+        asc_ingestion.unpack_bundle(buf.getvalue())
+    assert "budget" in str(exc.value)
+
+
+def test_an_unexpected_error_still_gets_the_provider_response_discipline(client, monkeypatch):
+    """Anything not an HTTPException used to escape to Starlette's default 500 —
+    plain text, a different header set, no no-store, no padding, no time budget.
+    The one response shape that skipped the whole discipline would be the one
+    nobody wrote deliberately."""
+    store = A.fresh_store()
+    _portal(client, store)
+
+    def boom(*_a, **_k):
+        raise RuntimeError("synthetic failure")
+
+    monkeypatch.setattr("asclepius.uploads.reap_stale_sessions", boom)
+    data = _bundle()
+    r = client.post(f"{API}/hs/uploads/sessions", json={
+        "filename": "b.zip", "size": len(data),
+        "sha256": hashlib.sha256(data).hexdigest()})
+    assert r.status_code == 500
+    assert r.headers["cache-control"] == "no-store"
+    assert r.headers["referrer-policy"] == "no-referrer"
+    assert r.headers["content-type"].startswith("application/json")
+    assert len(r.content) % 4096 == 0, "the 500 body was not padded"
+    assert "synthetic failure" not in r.text, "the internal reason reached the partner"

@@ -55,6 +55,7 @@ import logging
 import os
 import re
 import shutil
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
@@ -200,8 +201,8 @@ def declare(
             "it into smaller batches and send them one at a time.", status=413)
 
     existing = store.find_open_upload_session(
-        owner_kind=owner_kind, owner_id=owner_id, declared_sha256=sha,
-        declared_size=size)
+        owner_kind=owner_kind, owner_id=owner_id, actor=actor,
+        declared_sha256=sha, declared_size=size)
     if existing:
         # A verified session whose parts are long gone still answers correctly:
         # the caller sees complete=True and the upload_id it already produced.
@@ -341,6 +342,14 @@ def complete(store: Any, session: Dict[str, Any]) -> Dict[str, Any]:
             "size_mismatch",
             "the parts received do not add up to the declared size.", status=409)
 
+    # ONE assembly per session, settled atomically. Without the claim, two
+    # concurrent completes both pass the checks above and both assemble — two
+    # upload rows and two pipeline runs for the same bytes, and the winner's
+    # ``finalize`` deletes the parts out from under the loser mid-read.
+    if not store.claim_upload_session_for_completion(session["session_id"]):
+        raise UploadSessionError(
+            "in_progress", "This upload is already being finished.", status=409)
+
     upload_id = store.new_upload_id()
     digest = hashlib.sha256()
     total = 0
@@ -352,7 +361,13 @@ def complete(store: Any, session: Dict[str, Any]) -> Dict[str, Any]:
             total += len(chunk)
             yield chunk
 
-    raw_path = asc_ingestion.store_raw_stream(upload_id, _counted())
+    try:
+        raw_path = asc_ingestion.store_raw_stream(upload_id, _counted())
+    except BaseException:
+        # A failed assembly must hand the session back, or our own crash locks the
+        # partner out of an upload they can still finish.
+        store.release_upload_session_claim(session["session_id"])
+        raise
     actual = digest.hexdigest()
     if actual != session["declared_sha256"] or total != int(session["declared_size"]):
         # Destroy the assembled blob. A blob with no verified row is invisible to
@@ -391,20 +406,58 @@ def _purge_parts(session: Dict[str, Any]) -> None:
         shutil.rmtree(_session_dir(session), ignore_errors=True)
 
 
+def last_activity_epoch(session: Dict[str, Any]) -> Optional[float]:
+    """Newest part mtime on disk, or None when no part has landed.
+
+    Idle time is read from the FILESYSTEM, for the same reason progress is: rows
+    are written at declare and at complete and never in between, so the row's
+    ``updated_at`` is the DECLARE time for the whole life of an upload. Measuring
+    the TTL against it would make the window "24 h since you started" rather than
+    "24 h since you stopped" — and 8 GB (the bundle ceiling) on a 1 Mbps hospital
+    link is ~18 hours of continuous transfer before anyone pauses overnight. The
+    reaper would delete an upload that was still arriving."""
+    newest: Optional[float] = None
+    directory = _session_dir(session)
+    if not directory.exists():
+        return None
+    for path in directory.iterdir():
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+        if newest is None or mtime > newest:
+            newest = mtime
+    return newest
+
+
 def reap_stale_sessions(store: Any) -> int:
-    """Delete unverified parts older than the TTL (PRD-I §1.1). Best-effort; never
-    raises — a reaper that can crash the request path it is called from is worse
-    than a reaper that occasionally skips a run."""
-    cutoff = (datetime.utcnow() - timedelta(hours=session_ttl_hours())
-              ).replace(microsecond=0).isoformat()
+    """Delete unverified parts IDLE longer than the TTL (PRD-I §1.1). Best-effort;
+    never raises — a reaper that can crash the request path it is called from is
+    worse than a reaper that occasionally skips a run."""
+    ttl_seconds = session_ttl_hours() * 3600
+    # Candidate rows are still selected on the row timestamp, which is a cheap
+    # index-friendly filter that can only OVER-select — every candidate is then
+    # checked against real disk activity before anything is deleted.
+    cutoff_iso = (datetime.utcnow() - timedelta(seconds=ttl_seconds)
+                  ).replace(microsecond=0).isoformat()
+    idle_before = time.time() - ttl_seconds
     reaped = 0
     try:
-        stale = store.list_stale_upload_sessions(older_than_iso=cutoff)
+        stale = store.list_stale_upload_sessions(older_than_iso=cutoff_iso)
     except Exception as exc:  # pragma: no cover - defensive
         log.warning("upload session reaper could not list sessions: %s", exc)
         return 0
     for session in stale:
         try:
+            activity = last_activity_epoch(session)
+            if activity is not None and activity > idle_before:
+                continue  # parts arrived recently — this upload is in flight
+            if session.get("status") == "completing":
+                # A claim that outlived the process that took it. Hand it back
+                # rather than deleting: the parts are all present by definition
+                # (assembly had started), so the partner can simply retry.
+                store.release_upload_session_claim(session["session_id"])
+                continue
             _purge_parts(session)
             store.update_upload_session(session["session_id"], status="aborted")
             reaped += 1

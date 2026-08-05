@@ -5941,9 +5941,22 @@ async def startup_team_scheduler():
             _detail = " · ".join(f"{n}: {w}" for n, w in _dur_failures)
             if is_production():
                 raise RuntimeError(f"NON-DURABLE STORAGE, refusing to start — {_detail}")
-            _auth_logger.warning(
-                "[storage] NON-DURABLE (dev; would refuse to boot in production) — %s",
-                _detail)
+            # The fail-closed behaviour is gated on ENV=production, and NOTHING in
+            # this repo's deploy config sets ENV — the same trap that once shipped
+            # a PHI portal's session cookie over plain HTTP. So when storage is
+            # non-durable AND ENV is unset, say so at ERROR and name the cause:
+            # otherwise the deliverable ("refuses to boot") silently degrades to a
+            # warning nobody reads, on exactly the deployment that needs it.
+            if not (os.getenv("ENV") or "").strip():
+                _auth_logger.error(
+                    "[storage] NON-DURABLE STORAGE and ENV is UNSET, so the "
+                    "fail-closed boot gate is INACTIVE. This container will accept "
+                    "PHI and lose it on the next redeploy. Set ENV=production (and "
+                    "the four storage paths) — %s", _detail)
+            else:
+                _auth_logger.warning(
+                    "[storage] NON-DURABLE (dev; would refuse to boot in production) — %s",
+                    _detail)
         else:
             _auth_logger.info("[storage] all three stores durable")
     except RuntimeError:
