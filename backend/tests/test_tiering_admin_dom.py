@@ -24,6 +24,14 @@ _FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
 _DOM_SHIM = Path(__file__).resolve().parent / "_asclepius_dom.js"
 
 
+def _strip_js_comments(src: str) -> str:
+    """Both files talk ABOUT the things they must not do, in comments explaining why. A grep
+    that cannot tell prose from code is a test that gets deleted the first time someone
+    documents a rule."""
+    import re
+    return re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", src, flags=re.S))
+
+
 def _run_node(script: str) -> dict:
     node = shutil.which("node")
     if not node:
@@ -178,7 +186,7 @@ def test_the_tier_proposal_and_its_reasons_render_in_the_dossier():
     out = _run_node(_script(_TIERING_OK, _OPEN_ROW + """
     var text = textOf(root);
     console.log(JSON.stringify({
-      hasProposal: text.indexOf('proposes reviewer') !== -1,
+      hasProposal: text.indexOf('proposes Reviewer') !== -1,
       hasReason: text.indexOf('domain expertise matches this case') !== -1,
       hasThresholdLine: text.indexOf('above the reviewer threshold') !== -1,
       hasScore: text.indexOf('4.70') !== -1,
@@ -297,21 +305,269 @@ def test_a_tiering_failure_renders_a_visible_error_not_a_silent_placeholder():
     assert any("tiering proposal unavailable" in e for e in out["errors"])
 
 
+# ═══ AUDIT UI — no raw tier token ever reaches a human ════════════════════════
+
+_TIERING_WORDED = dict(
+    _TIERING_OK,
+    proposed_tier_word="Reviewer",
+    tier_options=[{"value": "labeler", "word": "Labeler"},
+                  {"value": "reviewer", "word": "Reviewer"}],
+    available_domains=[{"value": "nephrology", "word": "Nephrology"},
+                       {"value": "cardiology", "word": "Cardiology"}],
+)
+
+
+def test_ui_no_raw_tier_token_is_rendered_to_a_human():
+    """Context pack §3, stated twice: "Never render a raw tier token to a human."
+    `proposes labeler`, a <select> whose labels are `labeler`/`reviewer`, and
+    `Recorded labeler` were three violations on one panel."""
+    out = _run_node(_script(_TIERING_WORDED, _OPEN_ROW + """
+    var sel = byTag(root, 'SELECT').filter(function (s) {
+      return (s.attributes['aria-label'] || '') === 'Record tier'; })[0];
+    sel.value = 'labeler';
+    clickText(root, 'Record decision');
+    later(function () {
+      console.log(JSON.stringify({
+        text: textOf(root),
+        optionLabels: byTag(root, 'OPTION').map(textOf),
+      }));
+    });
+  });
+});
+"""))
+    # The words a human sees.
+    assert "proposes Reviewer" in out["text"]
+    assert "Recorded Labeler" in out["text"]
+    # And no raw token anywhere in the rendered text.
+    for token in ("proposes labeler", "proposes reviewer", "Recorded labeler",
+                  "Recorded reviewer"):
+        assert token not in out["text"], token
+    assert "labeler" not in " ".join(out["optionLabels"])
+    assert "Labeler" in " ".join(out["optionLabels"])
+
+
+def test_ui_the_specialty_list_comes_from_the_server():
+    """`var domains = ['nephrology','cardiology','oncology']` hardcoded in the client is wrong
+    the week a specialty is added, and wrong silently — the picker just lacks an entry."""
+    out = _run_node(_script(_TIERING_WORDED, _OPEN_ROW + """
+    var sel = byTag(root, 'SELECT').filter(function (s) {
+      return (s.attributes['aria-label'] || '').indexOf('case domain') !== -1; })[0];
+    console.log(JSON.stringify({ options: byTag(sel, 'OPTION').map(function (o) {
+      return o.value; }) }));
+  });
+});
+"""))
+    # Exactly what the server sent — two, not the three that used to be hardcoded.
+    assert out["options"] == ["nephrology", "cardiology"]
+
+    code = _strip_js_comments((_FRONTEND / "onboarding.js").read_text(encoding="utf-8"))
+    assert "nephrology" not in code, "a specialty name is still hardcoded in the client"
+
+
+
 def test_no_innerhtml_anywhere_in_the_touched_frontend():
     """Context pack §5: zero innerHTML — every server string goes through textContent or
     h() children."""
-    import re
     for name in ("onboarding.js", "admin_physicians.js"):
-        src = (_FRONTEND / name).read_text(encoding="utf-8")
-        # Strip comments first: both files talk ABOUT innerHTML in a "never do this"
-        # comment, and a grep that cannot tell prose from code is a test that has to be
-        # deleted the first time someone documents the rule.
-        code = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
-        code = re.sub(r"//[^\n]*", "", code)
+        code = _strip_js_comments((_FRONTEND / name).read_text(encoding="utf-8"))
         assert "innerHTML" not in code, name
 
 
-def test_no_new_css_classes_were_invented_outside_the_owned_files():
+# ═══ AUDIT M2 — the candidate-facing screens exist and are reachable ══════════
+
+_EXAM = {
+    "attempt_id": "catt_1", "specialty": "nephrology", "size": 2, "resumed": False,
+    "items": [
+        {"item_id": "i1", "specialty": "nephrology", "stem": "A 62-year-old on metformin…",
+         "answers": [{"id": "A", "text": "Hold metformin"}, {"id": "B", "text": "Continue"}],
+         "steps": [{"id": "s1", "text": "eGFR is 28"}, {"id": "s2", "text": "so continue"}],
+         "criteria": ["eGFR threshold", "dose adjustment"]},
+        {"item_id": "i2", "specialty": "nephrology", "stem": "Hyponatraemia at 112…",
+         "answers": [{"id": "A", "text": "3% saline"}, {"id": "B", "text": "Fluid restrict"}],
+         "steps": [{"id": "s1", "text": "Symptomatic"}, {"id": "s2", "text": "so restrict"}],
+         "criteria": ["correction rate"]},
+    ],
+}
+
+
+def _candidate_script(routes, tail):
+    return (_HARNESS % {"shim": json.dumps(str(_DOM_SHIM)),
+                        "module": json.dumps(str(_FRONTEND / "onboarding.js")),
+                        "routes": json.dumps(routes)}) + tail
+
+
+def test_m2_the_calibration_exam_has_a_candidate_facing_screen():
+    """AUDIT M2: `grep -rn "calibration/exam" frontend/ landing/` returned NO MATCHES. The
+    exam was reachable only by raw API call, so even after items are keyed no physician could
+    sit it through the product. A gate nobody can attempt is a gate nobody passes."""
+    out = _run_node(_candidate_script({"/verify/calibration/exam": _EXAM}, """
+var root = document.createElement('div');
+window.AsclepiusCalibration.mount(root, {});
+later(function () {
+  var text = textOf(root);
+  console.log(JSON.stringify({
+    hasGlobal: typeof window.AsclepiusCalibration.mount === 'function',
+    stem: text.indexOf('62-year-old on metformin') !== -1,
+    bothAnswers: text.indexOf('Hold metformin') !== -1 && text.indexOf('Continue') !== -1,
+    steps: text.indexOf('eGFR is 28') !== -1,
+    criteria: text.indexOf('eGFR threshold') !== -1,
+    radios: byTag(root, 'INPUT').filter(function (i) {
+      return i.attributes.type === 'radio'; }).length,
+    progress: text.indexOf('1 of 2') !== -1,
+  }));
+});
+"""))
+    assert out["hasGlobal"] is True
+    assert out["stem"] and out["bothAnswers"] and out["steps"] and out["criteria"]
+    assert out["radios"] >= 4          # 2 answers + 2 steps on the first item
+    assert out["progress"] is True
+
+
+def test_m2_the_exam_screen_never_receives_or_renders_a_key():
+    out = _run_node(_candidate_script({"/verify/calibration/exam": _EXAM}, """
+var root = document.createElement('div');
+window.AsclepiusCalibration.mount(root, {});
+later(function () {
+  console.log(JSON.stringify({ text: textOf(root),
+                               src: require('fs').readFileSync(%s, 'utf8') }));
+});
+""" % json.dumps(str(_FRONTEND / "onboarding.js"))))
+    for leak in ("better_answer_id", "break_step", "load_bearing"):
+        assert leak not in out["text"]
+
+
+def test_m2_the_exam_submits_every_answered_item_in_the_raw_shape():
+    out = _run_node(_candidate_script(
+        {"/verify/calibration/exam": _EXAM,
+         "/verify/calibration/catt_1/submit": {"ok": True, "composite": 0.9,
+                                               "tr_gate_passed": True,
+                                               "subscores": {"choice": 1.0}}}, """
+var root = document.createElement('div');
+window.AsclepiusCalibration.mount(root, {});
+later(function () {
+  function pick(name, value) {
+    byTag(root, 'INPUT').filter(function (i) {
+      return i.attributes.name === name && i.value === value;
+    }).forEach(function (i) { i.checked = true; i.dispatch('change'); });
+  }
+  pick('answer-i1', 'A'); pick('step-i1', 's1');
+  clickText(root, 'Next');
+  later(function () {
+    pick('answer-i2', 'B'); pick('step-i2', 's2');
+    clickText(root, 'Submit');
+    later(function () {
+      var post = calls.filter(function (c) { return c.method === 'POST'; });
+      console.log(JSON.stringify({ n: post.length, body: post[0] && post[0].body,
+                                   after: textOf(root) }));
+    });
+  });
+});
+"""))
+    assert out["n"] == 1
+    responses = out["body"]["responses"]
+    assert responses["i1"]["better_answer_id"] == "A"
+    assert responses["i1"]["break_step"] == "s1"
+    assert responses["i2"]["better_answer_id"] == "B"
+    # The result is shown, not swallowed.
+    assert "90%" in out["after"] or "0.9" in out["after"]
+
+
+def test_m2_an_unready_exam_says_so_rather_than_failing_silently():
+    """503 is 'not ready', not 'you failed'. The physician must not read it as a rejection."""
+    out = _run_node((_HARNESS % {
+        "shim": json.dumps(str(_DOM_SHIM)),
+        "module": json.dumps(str(_FRONTEND / "onboarding.js")),
+        "routes": json.dumps({}),
+    }).replace("ok: true, status: 200,",
+               "ok: false, status: 503,").replace(
+        "return Promise.resolve(payload);",
+        "return Promise.resolve({detail: 'nephrology: 0 admissible keyed items, need 12'});") + """
+var root = document.createElement('div');
+window.AsclepiusCalibration.mount(root, {});
+later(function () {
+  console.log(JSON.stringify({ text: textOf(root),
+                               errors: withClass(root, 'asc-error').length }));
+});
+""")
+    assert "not ready" in out["text"].lower() or "not yet" in out["text"].lower()
+    assert "fail" not in out["text"].lower()
+
+
+def test_m2_the_demographics_screen_exists_and_is_voluntary():
+    """The fairness monitor is structurally correct, correctly pseudonymised — and permanently
+    empty, because nothing collected the input."""
+    out = _run_node(_candidate_script({"/verify/demographics/u1": {"ok": True}}, """
+var root = document.createElement('div');
+window.AsclepiusDemographics.mount(root, { userId: 'u1' });
+later(function () {
+  var text = textOf(root);
+  var opts = byTag(root, 'OPTION').map(function (o) { return o.value; });
+  console.log(JSON.stringify({
+    voluntary: text.toLowerCase().indexOf('voluntary') !== -1,
+    saysWhy: text.toLowerCase().indexOf('fairness') !== -1
+             || text.toLowerCase().indexOf('bias') !== -1,
+    saysNotUsed: text.toLowerCase().indexOf('never') !== -1,
+    hasPreferNot: opts.indexOf('prefer_not_to_say') !== -1,
+    selects: byTag(root, 'SELECT').length,
+  }));
+});
+"""))
+    assert out["voluntary"] and out["saysWhy"] and out["saysNotUsed"]
+    # "Prefer not to say" must be offered on every dimension — a form without it coerces.
+    assert out["hasPreferNot"] is True
+    assert out["selects"] >= 2
+
+
+def test_m2_demographics_posts_only_what_was_answered():
+    out = _run_node(_candidate_script({"/verify/demographics/u1": {"ok": True}}, """
+var root = document.createElement('div');
+window.AsclepiusDemographics.mount(root, { userId: 'u1' });
+later(function () {
+  var sels = byTag(root, 'SELECT');
+  sels[0].value = 'woman'; sels[0].dispatch('change');
+  clickText(root, 'Submit');
+  later(function () {
+    var post = calls.filter(function (c) { return c.method === 'POST'; });
+    console.log(JSON.stringify({ url: post[0] && post[0].url, body: post[0] && post[0].body }));
+  });
+});
+"""))
+    assert out["url"].endswith("/verify/demographics/u1")
+    demo = out["body"]["demographics"]
+    assert demo == {"gender": "woman"}, demo   # unanswered dimensions are absent, not blank
+
+
+def test_m2_both_screens_self_mount_on_a_hash_route():
+    """onboarding.js is already loaded by index.html on every portal page, so a hash route is
+    the only way to make these reachable without editing asclepius.js — which is outside Agent
+    C's write allowlist."""
+    out = _run_node(_candidate_script({"/verify/calibration/exam": _EXAM}, """
+console.log(JSON.stringify({
+  calibration: typeof window.AsclepiusCalibration.openIfRouted === 'function',
+  demographics: typeof window.AsclepiusDemographics.openIfRouted === 'function',
+}));
+"""))
+    assert out["calibration"] is True and out["demographics"] is True
+    src = (_FRONTEND / "onboarding.js").read_text(encoding="utf-8")
+    assert "#/calibration" in src and "#/demographics" in src
+
+
+# ═══ AUDIT UI — the model-health panel is a table, not a debug console ════════
+
+def test_ui_model_health_renders_a_real_table_not_space_padded_strings():
+    """Space-padding does not align in a proportional face, and `vq-reason` is not mono. This
+    is the screen where you prove to yourself, and to a regulator, that the model is behaving."""
+    code = _strip_js_comments((_FRONTEND / "admin_physicians.js").read_text(encoding="utf-8"))
+    assert "'PINNED  '" not in code and '"PINNED  "' not in code
+    assert "asc-table" in code
+    assert "asc-mono" in code
+    # The two error classes are visually distinct and the file used them interchangeably.
+    # They now split by MEANING: asc-error is reserved for the one blocking case — a module
+    # that did not load, so physicians cannot be approved at all.
+    assert code.count("'asc-error'") == 1, "asc-error is the blocking case only"
+    assert code.count("'asc-inline-error'") >= 2
+    # Raw stored tokens (race_ethnicity, prefer_not_to_say) must not reach a human here.
+    assert "humanize(" in code
     """asclepius.css is outside Agent C's write allowlist (context pack §2), so every class
     the new panels use must already exist in it. A class with no rule renders as unstyled
     text, which looks like a broken page rather than a missing style."""

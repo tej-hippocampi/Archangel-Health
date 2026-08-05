@@ -443,10 +443,107 @@ ENCODER_CREDENTIAL_KEYS: frozenset = frozenset({
     "primarySpecialty",             # -> domain_match
     "subspecialties",               # -> domain_match
     "residencyCompletionYear",      # -> post_residency_ge_3yr (BINARY; year is discarded)
-    "clinicalHalfDaysPerMonth",     # -> currently_practicing (threshold, not magnitude)
+    "clinicalHalfDaysPerMonth",     # -> currently_practicing (ordinal, not magnitude)
+    "practiceStatus",               # -> currently_practicing; leave != disengagement (H1)
+    "halfDaysBeforeLeave",          # -> currently_practicing when on protected leave (H1)
     "currentlyActive",              # -> currently_practicing fallback
     "continuingCertification",      # -> continuing_cert
     "structuredReviewExperience",   # -> structured_review_exp
+})
+
+# ─── currently_practicing (AUDIT H1) ─────────────────────────────────────────────────────
+# This feature was `1.0 if half_days >= 4 else 0.0` — a hard binary cliff at part-time
+# practice, worth 0.80, the third-largest term in the model. Two things were wrong with it and
+# neither is a matter of taste:
+#
+#   * **Part-time clinical practice is not evenly distributed by sex, caregiving status, or
+#     disability.** A cliff at "half-time-ish" converts a protected characteristic into a
+#     0.80-point penalty by proxy. `sex` and `age` are pinned to zero precisely so the model
+#     cannot reach them; a cliff here reaches them anyway, unpinned and undisclosed.
+#   * **A physician on parental or medical leave scored identically to one who had left
+#     medicine.** Those are different facts about different people. Leave is a temporary
+#     absence from a practice; the illness scripts the feature is a proxy for are intact.
+#
+# The fix is not to delete the feature. Currency of clinical practice is a real, non-protected
+# criterion and it is what a CEC selects for. The fix is to make the encoding say what the
+# criterion actually is:
+#
+#   1.0  practising at the usual professional cadence, OR on protected leave from such a
+#        practice — the pre-leave figure is what is scored, not the leave
+#   0.5  practising, part-time — currently seeing patients, at a lower cadence
+#   0.0  not currently in clinical practice at all
+#
+# Three ordinal levels, mirroring `domain_match`'s 1.0/0.5/0.0, and still not a magnitude:
+# twenty half-days is not worth more than four, exactly as before. What changed is that
+# *three* is no longer worth the same as *none*.
+#
+# Residual exposure, disclosed rather than argued away: 0.5 is still 0.40 below 1.0, so
+# part-time practice still costs something. It is halved, it is monitored per-group by the
+# fairness table, and it is in the counsel memo. See docs/PRD_C_COUNSEL_MEMO.md §1.
+FULL_PRACTICE_HALF_DAYS = 4      # per month, averaged over the last 12
+PRACTISING_FULL = 1.0
+PRACTISING_PART = 0.5
+PRACTISING_NONE = 0.0
+
+# Statuses that must never be scored as disengagement. Deliberately enumerated rather than
+# inferred from a zero half-day count: "0 half-days because I am on 12 weeks of parental
+# leave" and "0 half-days because I stopped seeing patients in 2019" are the same number and
+# opposite facts, and only an explicit field can tell them apart.
+_PROTECTED_LEAVE_STATUSES = frozenset({"on_leave", "parental_leave", "medical_leave",
+                                       "caregiving_leave", "military_leave", "sabbatical"})
+_NOT_PRACTISING_STATUSES = frozenset({"not_practising", "not_practicing", "retired",
+                                      "non_clinical"})
+
+
+def _practising_level(half_days: Optional[int]) -> Optional[float]:
+    """Ordinal level from a half-day count, or None when there is no count to read."""
+    if half_days is None:
+        return None
+    if half_days >= FULL_PRACTICE_HALF_DAYS:
+        return PRACTISING_FULL
+    if half_days >= 1:
+        return PRACTISING_PART
+    return PRACTISING_NONE
+
+
+def _practising_value(creds: Dict[str, Any]) -> float:
+    """``currently_practicing``, on the three-level scale above."""
+    status = str(creds.get("practiceStatus") or "").strip().casefold()
+
+    if status in _PROTECTED_LEAVE_STATUSES:
+        # Score the practice as it stood BEFORE the leave. A blank pre-leave figure is a
+        # missing answer, not a zero — the same tri-state discipline the gates use, and the
+        # difference matters most for exactly the people this clause protects.
+        prior = _int_or_none(creds.get("halfDaysBeforeLeave"))
+        if prior is None:
+            prior = _int_or_none(creds.get("clinicalHalfDaysPerMonth")) or None
+        level = _practising_level(prior)
+        if level is None or level == PRACTISING_NONE:
+            return PRACTISING_PART
+        return level
+
+    if status in _NOT_PRACTISING_STATUSES:
+        return PRACTISING_NONE
+
+    level = _practising_level(_int_or_none(creds.get("clinicalHalfDaysPerMonth")))
+    if level is not None:
+        return level
+    # No half-day figure at all: fall back to the older yes/no field so a physician who
+    # onboarded before this release is not silently zeroed.
+    return PRACTISING_FULL if _truthy(creds.get("currentlyActive")) is True else PRACTISING_NONE
+
+
+# AUDIT LOW — the encoder reads the users row directly, so without this its blast radius is
+# `SELECT *`: every column any of the four agents ever adds to `users` becomes reachable by
+# the scoring path, and a future `users.practice_zip` would be one `.get()` away from the
+# model. Declared here and enforced by an AST walk over the real source in
+# test_tiering_audit_c.py, which is the check that actually holds — the two frozensets below
+# are only as good as the test that compares them to the code.
+ENCODER_USER_COLUMNS: frozenset = frozenset({
+    "board_cert",         # -> board_certified_active (corroborates the credential record)
+    "specialty",          # -> domain_match
+    "credentials_json",   # -> the credential record itself, filtered by ENCODER_CREDENTIAL_KEYS
+    "npi_payload_json",   # -> NPPES primary taxonomy, for domain_match
 })
 
 _STRUCTURED_REVIEW_KINDS = frozenset({
@@ -501,14 +598,7 @@ def feature_vector(
     now_year = datetime.utcnow().year
     ge3 = 1.0 if (end_year is not None and (now_year - end_year) >= 3) else 0.0
 
-    # currently_practicing — >=4 clinical half-days/month over the last 12 months. The
-    # half-day count is a threshold input, never a magnitude: someone doing 20 half-days is
-    # not "more practising" for the model's purposes than someone doing 4.
-    half_days = _int_or_none(creds.get("clinicalHalfDaysPerMonth"))
-    if half_days is not None:
-        practising = 1.0 if half_days >= 4 else 0.0
-    else:
-        practising = 1.0 if _truthy(creds.get("currentlyActive")) is True else 0.0
+    practising = _practising_value(creds)
 
     cont_cert = 1.0 if _truthy(creds.get("continuingCertification")) is True else 0.0
 
@@ -559,10 +649,11 @@ def _assert_encoder_reads_nothing_forbidden() -> None:
     and stops looking. If you add a key to ``ENCODER_CREDENTIAL_KEYS``, this either passes or
     the module refuses to import.
     """
-    overlap = ENCODER_CREDENTIAL_KEYS & FORBIDDEN_CREDENTIAL_KEYS
+    overlap = ((ENCODER_CREDENTIAL_KEYS | ENCODER_USER_COLUMNS)
+               & FORBIDDEN_CREDENTIAL_KEYS)
     if overlap:
         raise AssertionError(
-            f"feature_vector() would read protected proxies {sorted(overlap)} — "
+            f"the encoder would read protected proxies {sorted(overlap)} — "
             "PRD C §3.3 forbids collecting, deriving or logging them")
 
 
@@ -821,18 +912,34 @@ def should_explore(rng: Optional[random.Random] = None) -> bool:
 # §5.2 — the update. Regularized Bayesian logistic regression.
 # ═══════════════════════════════════════════════════════════════════════════════════════════
 
+class SingularSystem(ArithmeticError):
+    """``_solve`` was handed a system it cannot solve.
+
+    AUDIT M4. This used to be swallowed: a singular pivot was perturbed by ``1e-9`` and then
+    divided by, so ``_solve([[0,0],[0,0]], [1,1])`` returned ``[1e9, 1e9]`` with no exception —
+    a Newton direction of a billion, silently. Harmless today, because the Hessian is positive
+    definite by construction (``hess[i][i]`` is seeded with ``q0[i] ≥ 1.0``) and the Armijo
+    search plus the 0.25 clip would absorb a bad direction anyway. But *"harmless because
+    three other things happen to catch it"* is the property that quietly stops being true, and
+    it is load-bearing: trusting the Newton direction is what makes the line search a
+    correctness argument rather than a hope.
+    """
+
+
 def _solve(a: List[List[float]], b: List[float]) -> List[float]:
     """Gaussian elimination with partial pivoting. Deliberately dependency-free: the problem
     is at most 17-dimensional, so a linear-algebra dependency would buy nothing and would make
-    this module's import graph a deployment question."""
+    this module's import graph a deployment question.
+
+    Raises ``SingularSystem`` rather than returning a plausible-looking number.
+    """
     n = len(b)
     m = [row[:] + [b[i]] for i, row in enumerate(a)]
     for col in range(n):
         piv = max(range(col, n), key=lambda r: abs(m[r][col]))
         if abs(m[piv][col]) < 1e-12:
-            # Singular — a feature that never varied in this batch. Leave it to the prior.
-            m[col][col] += 1e-9
-            piv = col
+            raise SingularSystem(
+                f"no usable pivot in column {col} of a {n}x{n} system")
         m[col], m[piv] = m[piv], m[col]
         pv = m[col][col]
         for r in range(n):
@@ -842,7 +949,12 @@ def _solve(a: List[List[float]], b: List[float]) -> List[float]:
             if f:
                 for c in range(col, n + 1):
                     m[r][c] -= f * m[col][c]
-    return [m[i][n] / m[i][i] for i in range(n)]
+    out = []
+    for i in range(n):
+        if abs(m[i][i]) < 1e-12:
+            raise SingularSystem(f"degenerate diagonal at {i} in a {n}x{n} system")
+        out.append(m[i][n] / m[i][i])
+    return out
 
 
 def fit_batch(
@@ -911,7 +1023,16 @@ def fit_batch(
                     hess[i][j] = 0.0
                     hess[j][i] = 0.0
                 hess[i][i] = 1.0
-        step = _solve(hess, grad)
+        try:
+            step = _solve(hess, grad)
+        except SingularSystem:
+            # Degrade to "this batch teaches nothing" rather than 500 — and say so at ERROR,
+            # because silently learning nothing is exactly the §8 failure. The prior is
+            # already in `w`, so breaking here leaves the weights where they were.
+            log.error("[tiering] singular Hessian; batch abandoned, weights left at the prior",
+                      exc_info=True)
+            w = m0[:]
+            break
         # Backtracking line search. UNDAMPED Newton is wrong here and fails in a way that is
         # specifically dangerous for this system: on a batch where the admins consistently
         # contradict the prior, the full step overshoots into the saturated tail of the
@@ -1028,10 +1149,12 @@ def apply_decision_batch(
     before = store.get_tiering_weights() or default_weights()
     if not pending:
         log.info("[tiering] no pending decisions; weights unchanged (%d features)", len(before))
-        return {"applied": 0, "deltas": {}, "weights": before, "decision_ids": []}
+        return {"applied": 0, "deltas": {}, "weights": before, "decision_ids": [],
+                "quarantined": 0, "quarantined_ids": []}
 
     observations: List[Tuple[Dict[str, float], int, float]] = []
     used: List[str] = []
+    quarantined: List[str] = []
     for row in pending:
         try:
             feats = json.loads(row["features_json"] or "{}")
@@ -1039,6 +1162,27 @@ def apply_decision_batch(
             continue
         if not isinstance(feats, dict):
             continue
+
+        # AUDIT M3 — one non-finite value kills the batch AND consumes it.
+        #
+        # ``isinstance(v, (int, float))`` accepts ``float('nan')``, and NaN round-trips
+        # through JSON. From there: it reaches ``_solve``, every comparison against it is
+        # False, so the Armijo test fails all thirty backtracks, the Newton loop breaks at the
+        # first step leaving ``w = m0`` — and then every decision in the batch is stamped
+        # ``applied_at``. **The observations are consumed forever and nothing was learned.**
+        # The only signal was the "moved NO weight" warning, which is precisely the
+        # converged-vs-dead ambiguity §8 is about.
+        #
+        # So: skip the row, and do NOT mark it applied. A poisoned row is a bug in whatever
+        # wrote it, the underlying decision is still good, and marking it applied is the one
+        # action that makes it unrecoverable. It is surfaced in the return value and named in
+        # the log so it gets fixed rather than accumulating silently.
+        numeric = {k: float(v) for k, v in feats.items()
+                   if isinstance(v, (int, float)) and not isinstance(v, bool)}
+        if not all(math.isfinite(v) for v in numeric.values()):
+            quarantined.append(row["decision_id"])
+            continue
+
         admin_tier = (row.get("admin_tier") or "").strip()
         if admin_tier == TR:
             y = 1
@@ -1053,15 +1197,19 @@ def apply_decision_batch(
         # outcome label, not an opinion label, and is the only thing that breaks the
         # circularity of learning from decisions the system itself routed to an admin.
         lam = 2.0 if row.get("outcome_source") == "shadow_tr" else 1.0
-        observations.append(({k: float(v) for k, v in feats.items()
-                              if isinstance(v, (int, float))}, y, lam))
+        observations.append((numeric, y, lam))
         used.append(row["decision_id"])
+
+    if quarantined:
+        log.error("[tiering] %d decision(s) carry a non-finite feature and were NOT applied "
+                  "— fix the rows and re-run: %s", len(quarantined), ", ".join(quarantined))
 
     if not observations:
         store.apply_tiering_batch(used, weights=None)
         log.info("[tiering] %d decisions carried no TL/TR label; weights unchanged", len(used))
         return {"applied": 0, "marked": len(used), "deltas": {}, "weights": before,
-                "decision_ids": used}
+                "decision_ids": used, "quarantined": len(quarantined),
+                "quarantined_ids": quarantined}
 
     fitted = fit_batch(before, observations)
     after = apply_guardrails(before, fitted)
@@ -1093,6 +1241,10 @@ def apply_decision_batch(
         "delta_q": dq,
         "weights": after,
         "decision_ids": used,
+        # AUDIT M3: surfaced, not just logged. A quarantined row that only appears in a log
+        # line is a row nobody fixes, and the batch it belongs to keeps under-learning.
+        "quarantined": len(quarantined),
+        "quarantined_ids": quarantined,
         "actor": actor,
     }
 

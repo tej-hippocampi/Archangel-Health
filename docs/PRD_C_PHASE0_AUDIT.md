@@ -204,6 +204,25 @@ declared as `ENCODER_CREDENTIAL_KEYS`, and the module refuses to import if it in
 
 ---
 
+### Post-audit round — findings from `AUDIT_C_credentialing.md`
+
+An independent audit of this changeset found no criticals. Two HIGH, four MEDIUM, two LOW and a
+UI set, all fixed here; each carries a test named for the finding in
+`backend/tests/test_tiering_audit_c.py`.
+
+| | |
+|---|---|
+| **H1** | `currently_practicing` was a hard binary cliff at part-time practice worth 0.80 — the third-largest term in the model — and a physician on parental or medical leave scored identically to one who had left medicine. Now three ordinal levels plus an explicit `practiceStatus`, so leave is scored on the pre-leave practice. Disclosed in the new `PRD_C_COUNSEL_MEMO.md` §3.1. |
+| **H2** | `structured_review_exp` (0.70) correlates with academic-medical-center affiliation, hence with IMG status and national origin — both pinned to zero. It is a route around the pin. It cannot be pinned without deleting a real criterion, so the fairness table now carries the **feature vector** copied in at decision time and the monitor reports each feature's mean by group. |
+| **M3** | One `float('nan')` in one `features_json` killed a batch's learning **and consumed it** — the Armijo test is False for NaN, all backtracks fail, `w` stays at the prior, and every decision is stamped applied. Non-finite rows are now quarantined, surfaced in the API response, and **not** marked applied. |
+| **M1** | There are **two** day-one TR blockers and the docs named one. New `GET /verify/readiness` and `PRD_C_LAUNCH_CHECKLIST.md`. |
+| **M2** | Neither the calibration exam nor the demographics form had a candidate-facing screen — the gate was reachable only by raw API call. Both now ship as self-mounting hash routes in `onboarding.js`. |
+| **M4** | `_solve` returned `[1e9, 1e9]` on a singular system with no exception. Now raises `SingularSystem`; `fit_batch` degrades to "learn nothing" at ERROR rather than trusting a garbage Newton direction. |
+| **LOW** | The encoder guard compared two hand-maintained lists. It is now an AST walk over the real source, transitive through helpers, plus a declared `ENCODER_USER_COLUMNS` allowlist so the encoder's blast radius is not `SELECT *`. |
+| **UI** | Raw tier tokens reached humans in four places (the audit named three). Tier words and the specialty list are now server-supplied from `capabilities.TIER_WORDS` and the specialty registry. The model-health panel is a real `asc-table`, not space-padded strings in a proportional face. |
+
+---
+
 ## Phase 0 gate
 
 Every item in PRD C §1 is fixed, verified-already-correct with a new regression test, or
@@ -223,3 +242,11 @@ python3 -m pytest backend/tests/test_tiering_score.py backend/tests/test_tiering
 Departures from the PRD's specified process — including two defects in the specified learning
 update that fail in exactly the shape §8 warns about — are documented in
 `PRD_C_PROCESS_REVIEW.md`.
+
+**Before deploying, read `PRD_C_LAUNCH_CHECKLIST.md`.** There are two independent blockers
+between a deployed system and the first task reviewer — the OIG LEIE snapshot and the
+calibration item bank — and only one of them fails loudly. Resolving one ships zero TRs.
+`GET /api/asclepius/verify/readiness` answers it live.
+
+Fairness disclosure for counsel, covering the two scored features that are demographic-adjacent
+and were outside the original memo: `PRD_C_COUNSEL_MEMO.md`.

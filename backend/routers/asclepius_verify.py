@@ -24,6 +24,7 @@ from asclepius import auth as asc_auth
 from asclepius import calibration as asc_calibration
 from asclepius import capabilities as asc_caps
 from asclepius import credentialing
+from asclepius import specialties as asc_specialties
 from asclepius import tiering as asc_tiering
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
@@ -202,6 +203,20 @@ def _tiering_proposal(
     )
     out["calibration"] = calibration
     out["leie_loaded_at"] = store.leie_loaded_at()
+    # AUDIT UI. Both lists are served rather than written in the client:
+    #
+    #   * tier words, because "Never render a raw tier token to a human" is stated twice in
+    #     the context pack and `capabilities.tier_word()` is the single place that knows them.
+    #     A client-side map is a second enumeration that drifts.
+    #   * available domains, because a hardcoded ['nephrology','cardiology','oncology'] in the
+    #     client is wrong the week a specialty is enabled, and wrong SILENTLY — the picker
+    #     just lacks an entry and nobody can score against the new domain.
+    out["tier_options"] = [{"value": t, "word": asc_caps.tier_word(t)}
+                           for t in (asc_tiering.TL, asc_tiering.TR)]
+    out["available_domains"] = [
+        {"value": c["specialty"], "word": c["specialty"].replace("_", " ").title()}
+        for c in asc_specialties.list_specialties() if c.get("enabled")
+    ]
     return out
 
 
@@ -221,6 +236,12 @@ def _queue_row(store: Any, user: Dict[str, Any],
         tiering_prop = {"error": "tiering proposal unavailable for this row"}
     return {
         "tiering": tiering_prop,
+        # AUDIT UI: the queue's own legacy badge rendered `proposes labeler` too. Every tier
+        # token that reaches this payload now travels with its word, from the one place that
+        # knows them (capabilities.TIER_WORDS) — the client never maps a token itself.
+        "proposed_tier_word": (asc_caps.tier_word(prop["proposed_tier"])
+                               if prop["proposed_tier"] else None),
+        "tier_word": asc_caps.tier_word(user.get("tier")) if user.get("tier") else None,
         "user_id": user["id"],
         "email": user["email"],
         "full_name": user.get("full_name"),
@@ -282,6 +303,9 @@ async def verification_queue(
     rows = [_queue_row(store, u, dupe_counts, mq_map, weights) for u in page]
     return {
         "status": status,
+        # Approval offers all three tiers (advisor included, since the queue must not be a
+        # dead end for someone already agreed as an advisor). Served as words, never tokens.
+        "tier_words": {t: asc_caps.tier_word(t) for t in _TIERS},
         "count": len(rows),
         "total": len(all_rows),
         "offset": offset,
@@ -323,6 +347,7 @@ async def verification_dossier(
         "verification_notes": user.get("verification_notes"),
         "years_experience": user.get("years_experience"),
         "board_cert": user.get("board_cert"),
+        "tier_words": {t: asc_caps.tier_word(t) for t in _TIERS},
     })
     return row
 
@@ -435,12 +460,13 @@ async def approve_signup(
             score=tprop.get("score"),
             decided_by=admin["email"],
         )
-        # §6 fairness monitor. The decided tier is COPIED ONTO the demographics row here, so
-        # the monitor later needs no join at all. Note what is NOT happening: nothing reads
-        # demographics off `user`. They are not on the users row and never will be — every
-        # feature path loads a physician with `SELECT * FROM users`, so a column there is a
-        # column the model can reach. This call only writes a tier next to a pseudonym.
-        store.stamp_fairness_tier(user_id, tier)
+        # §6 fairness monitor. The decided tier AND the feature vector are COPIED ONTO the
+        # demographics row here, so the monitor later needs no join at all. Note what is NOT
+        # happening: nothing reads demographics off `user`. They are not on the users row and
+        # never will be — every feature path loads a physician with `SELECT * FROM users`, so
+        # a column there is a column the model can reach. This call writes a tier and a
+        # feature vector next to a pseudonym, in that direction only.
+        store.stamp_fairness_tier(user_id, tier, features=tprop.get("features"))
     except Exception:
         log.exception("[tiering] could not record the decision (approval stands)")
     if tier == asc_caps.ADVISOR:
@@ -904,6 +930,75 @@ async def leie_load(
         actor=admin["email"], payload={"rows": n, "source_note": body.source_note},
     )
     return {"ok": True, "rows": n, "loaded_at": store.leie_loaded_at()}
+
+
+@router.get("/readiness")
+async def tr_readiness(admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """Can ANY physician become a TR today, and if not, what exactly is missing?
+
+    AUDIT M1. There are **two** independent day-one blockers and they have two different
+    owners, but only one of them — the empty calibration item bank — was written down. The
+    other is the OIG LEIE snapshot: with `leie_meta` empty, gate A5 answers `unknown` for
+    every physician, `propose()` short-circuits on an undetermined gate, and everyone lands in
+    the admin band no matter how well they score.
+
+    Both fail loudly in isolation and neither is visible as a *launch* condition, so a plan
+    that resolves the item bank alone ships zero TRs and looks like a modelling problem. This
+    endpoint is the thing that says otherwise in one call.
+    """
+    store = _store()
+    blockers: List[Dict[str, Any]] = []
+
+    leie_loaded = store.leie_loaded_at()
+    blockers.append({
+        "id": "leie_snapshot",
+        "blocking": not leie_loaded,
+        "title": "OIG LEIE exclusion snapshot loaded",
+        "detail": (f"Loaded {leie_loaded}." if leie_loaded else
+                   "Never loaded. Hard gate A5 answers 'unknown' for EVERY physician, so no "
+                   "one can be proposed as a reviewer regardless of their score."),
+        "action": ("Re-load monthly to keep it current." if leie_loaded else
+                   "Download the monthly LEIE CSV from oig.hhs.gov and POST it to "
+                   "/api/asclepius/verify/leie/load."),
+        "owner": "operations",
+    })
+
+    per_specialty = {}
+    for cfg in asc_specialties.list_specialties():
+        if not cfg.get("enabled"):
+            continue
+        name = cfg["specialty"]
+        admissible = [it for it in store.list_calibration_items(specialty=name)
+                      if asc_calibration.admissible(it.get("key") or {})[0]]
+        per_specialty[name] = {"admissible_items": len(admissible),
+                               "needed": asc_calibration.EXAM_MIN_ITEMS,
+                               "ready": len(admissible) >= asc_calibration.EXAM_MIN_ITEMS}
+    ready_specialties = [s for s, v in per_specialty.items() if v["ready"]]
+    blockers.append({
+        "id": "calibration_item_bank",
+        "blocking": not ready_specialties,
+        "title": "Calibration exam item bank keyed",
+        "detail": (f"Ready in: {', '.join(ready_specialties)}." if ready_specialties else
+                   f"No specialty has {asc_calibration.EXAM_MIN_ITEMS} admissible keyed "
+                   "items. The exam returns 503 and no one can clear the reviewer gate."),
+        "action": (f"Key {asc_calibration.EXAM_MIN_ITEMS} items per specialty with a "
+                   f"reference panel of {asc_calibration.PANEL_MIN} independent expert "
+                   "judgments each. An item whose panel did not converge is not admissible."),
+        "owner": "clinical",
+        "per_specialty": per_specialty,
+    })
+
+    outstanding = [b for b in blockers if b["blocking"]]
+    return {
+        # Deliberately the composite answer first: the failure this endpoint exists to prevent
+        # is someone resolving one blocker, seeing it turn green, and assuming they are done.
+        "tr_possible": not outstanding,
+        "blockers": blockers,
+        "outstanding": [b["id"] for b in outstanding],
+        "note": ("Both blockers must clear before ANY physician can be proposed as a "
+                 "reviewer. They are separate operational loops with separate owners — see "
+                 "docs/PRD_C_LAUNCH_CHECKLIST.md."),
+    }
 
 
 @router.get("/leie/status")

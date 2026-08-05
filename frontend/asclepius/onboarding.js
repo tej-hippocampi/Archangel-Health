@@ -101,6 +101,7 @@
     total: 0,
     hasMore: false,
     stuck: 0,            // rows whose NPI check never reached an answer
+    tierWords: null,     // server-supplied {token: word} — never written in this file
   };
 
   function setError(msg) { state.error = msg; state.notice = null; render(); }
@@ -112,6 +113,7 @@
         '&limit=' + PAGE + '&offset=' + state.offset)
       .then(function (data) {
         state.queue = (data && data.queue) || [];
+        state.tierWords = (data && data.tier_words) || state.tierWords;
         state.total = (data && data.total) || state.queue.length;
         state.hasMore = !!(data && data.has_more);
         state.busy = false; state.error = null; render();
@@ -198,8 +200,19 @@
       return h('span', { class: 'vq-badge vq-badge-blocked' }, 'needs review');
     }
     if (!row.proposed_tier) return h('span', { class: 'vq-badge vq-badge-none' }, 'no proposal');
+    // AUDIT UI: the WORD. This badge predates the tiering panel and rendered
+    // `proposes labeler` — the same violation, one line higher up the page.
     return h('span', { class: 'vq-badge vq-badge-' + row.proposed_tier },
-             'proposes ' + row.proposed_tier);
+             'proposes ' + (row.proposed_tier_word || tierWord(row.proposed_tier)));
+  }
+
+  // Fallback only. The server sends `tier_words` on every queue and dossier payload
+  // (capabilities.TIER_WORDS is the single source); this exists so a stale cached
+  // response degrades to a capitalised word rather than a raw token.
+  function tierWord(t) {
+    if (state.tierWords && state.tierWords[t]) return state.tierWords[t];
+    if (!t) return 'Unassigned';
+    return t.charAt(0).toUpperCase() + t.slice(1);
   }
 
   function npiLine(npi) {
@@ -271,34 +284,50 @@
       return h('div', { class: 'vq-error', role: 'alert' }, t.error);
     }
 
+    // AUDIT UI: the domain list is SERVER-SUPPLIED. A hardcoded
+    // ['nephrology','cardiology','oncology'] here is wrong the week a specialty is
+    // enabled — and wrong silently, because the picker simply lacks an entry and
+    // nobody notices they cannot score against the new domain.
     var domainSelect = h('select', {
       class: 'vq-tier-select', 'aria-label': 'Score against which case domain',
       onchange: function () { reloadTiering(row.user_id, domainSelect.value); },
     });
-    var domains = ['nephrology', 'cardiology', 'oncology'];
-    if (t.case_domain && domains.indexOf(t.case_domain) === -1) domains.unshift(t.case_domain);
+    var domains = (t.available_domains || []).slice();
+    if (t.case_domain && !domains.some(function (d) { return d.value === t.case_domain; })) {
+      domains.unshift({ value: t.case_domain, word: t.case_domain });
+    }
     domains.forEach(function (dom) {
-      domainSelect.appendChild(h('option', { value: dom }, dom + ' case'));
+      domainSelect.appendChild(h('option', { value: dom.value }, dom.word + ' case'));
     });
     // Set .value explicitly rather than relying on a `selected` attribute being
     // reflected back into it. Both work in a browser; only this one is readable
     // by the code below without a round-trip through the option list.
-    domainSelect.value = t.case_domain || domains[0];
+    domainSelect.value = t.case_domain || (domains[0] && domains[0].value) || '';
 
     var tierChip;
     if (t.gates_failed && t.gates_failed.length) {
       tierChip = h('span', { class: 'vq-badge vq-badge-blocked' }, 'ineligible — hard gate');
     } else if (t.proposed_tier) {
+      // AUDIT UI: the WORD, from the server. capabilities.tier_word() is the single place
+      // that knows these, and the context pack states twice that a raw token must never
+      // reach a human.
       tierChip = h('span', { class: 'vq-badge vq-badge-' + t.proposed_tier },
-                   'proposes ' + t.proposed_tier);
+                   'proposes ' + (t.proposed_tier_word || t.proposed_tier));
     } else {
       tierChip = h('span', { class: 'vq-badge vq-badge-none' }, 'admin decision');
     }
 
     var decideSelect = h('select', { class: 'vq-tier-select', 'aria-label': 'Record tier' },
-      h('option', { value: '' }, '— record a tier decision —'),
-      h('option', { value: 'labeler' }, 'labeler'),
-      h('option', { value: 'reviewer' }, 'reviewer'));
+      h('option', { value: '' }, '— record a tier decision —'));
+    // Server-supplied, worded. Never a hand-written list of tier strings (context pack §8:
+    // capabilities.TIERS is the single enumeration).
+    (t.tier_options || []).forEach(function (opt) {
+      decideSelect.appendChild(h('option', { value: opt.value }, opt.word));
+    });
+    function tierWordOf(value) {
+      var hit = (t.tier_options || []).filter(function (o) { return o.value === value; })[0];
+      return hit ? hit.word : value;
+    }
 
     return h('div', { class: 'vq-dossier' },
       h('div', { class: 'vq-section-label' }, 'Tier proposal'),
@@ -352,7 +381,8 @@
                  + 'approval lifecycle. The override IS the training signal.',
           onclick: function () {
             if (!decideSelect.value) { setError('Pick a tier to record.'); return; }
-            recordTierDecision(row.user_id, decideSelect.value, domainSelect.value);
+            recordTierDecision(row.user_id, decideSelect.value, domainSelect.value,
+                               tierWordOf(decideSelect.value));
           },
         }, 'Record decision')));
   }
@@ -364,15 +394,16 @@
       .catch(function (e) { setError(e.message); });
   }
 
-  function recordTierDecision(userId, tier, domain) {
+  function recordTierDecision(userId, tier, domain, tierWord) {
     state.busy = true; render();
     api('/verify/tiering/' + encodeURIComponent(userId) + '/decide',
         { method: 'POST', body: { tier: tier, case_domain: domain || null } })
       .then(function (out) {
         state.busy = false;
         var flipped = out && out.decision && out.decision.was_flip;
-        setNotice('Recorded ' + tier + (flipped ? ' — an override of the proposal, which is '
-                                                  + 'the most informative kind.' : '.'));
+        setNotice('Recorded ' + (tierWord || tier)
+                  + (flipped ? ' — an override of the proposal, which is '
+                               + 'the most informative kind.' : '.'));
         reloadTiering(userId, domain);
       })
       .catch(function (e) { state.busy = false; setError(e.message); });
@@ -382,15 +413,34 @@
     var d = state.dossiers[row.user_id];
     if (!d) return h('div', { class: 'vq-dossier' }, h('em', null, 'Loading dossier…'));
 
+    // AUDIT UI: worded options, from the server's tier_words map. What each tier DOES stays
+    // in the option text — that is the part an admin actually needs — but the tier itself is
+    // never rendered as a raw token.
+    var TIER_BLURB = {
+      labeler: 'builds a case answer from scratch',
+      reviewer: 'grades what two labelers produced',
+      // Advisors are APPOINTED, never proposed by the score. This option exists so the queue
+      // is not a dead end when the person in front of you is already an agreed advisor, and
+      // it is why the agreement field below appears the moment it is picked.
+      advisor: 'equity, not paid per task',
+    };
+    var words = (d && d.tier_words) || state.tierWords || {};
     var tierSelect = h('select', { class: 'vq-tier-select', 'aria-label': 'Tier' },
-      h('option', { value: '' }, '— choose tier —'),
-      h('option', { value: 'labeler' }, 'labeler (does cases from scratch)'),
-      h('option', { value: 'reviewer' }, 'reviewer (grades submissions)'),
-      // The third tier. Advisors are APPOINTED, never proposed by the score —
-      // this option exists so the queue is not a dead end when the person in
-      // front of you is already an agreed advisor, and it is why the agreement
-      // field below appears the moment it is picked.
-      h('option', { value: 'advisor' }, 'advisor (equity, not paid per task)'));
+      h('option', { value: '' }, '— choose tier —'));
+    Object.keys(words).forEach(function (t) {
+      tierSelect.appendChild(h('option', { value: t },
+        words[t] + (TIER_BLURB[t] ? ' (' + TIER_BLURB[t] + ')' : '')));
+    });
+    // The advisor option is guaranteed present even if the server payload omits it.
+    // Not belt-and-braces for its own sake: an advisor missing from this select is the
+    // dead-end bug the Advisor PRD names — the person in front of you is already an
+    // agreed advisor and the queue has no way to say so — and it would appear only as a
+    // MISSING option, which is the failure shape nobody notices. The word still comes
+    // from the server when it is there.
+    if (!words.advisor) {
+      tierSelect.appendChild(h('option', { value: 'advisor' },
+        'Medical Advisor (' + TIER_BLURB.advisor + ')'));
+    }
     var noteInput = h('textarea', {
       class: 'vq-note', rows: '2',
       placeholder: 'Note — required to reject, recommended always',
@@ -478,7 +528,7 @@
             decide(row.user_id, 'approve',
                    { tier: tierSelect.value, note: noteInput.value || null,
                      agreement_ref: agreement || null },
-                   'Approved as ' + tierSelect.value + '.');
+                   'Approved as ' + (words[tierSelect.value] || tierSelect.value) + '.');
           },
         }, 'Approve'),
         h('button', {
@@ -592,8 +642,335 @@
 
   window.AsclepiusVerification = { mount: mount, refresh: load };
 
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * AUDIT M2 — the candidate-facing screens
+   *
+   * `grep -rn "calibration/exam\|verify/demographics" frontend/ landing/` returned
+   * NO MATCHES before this. The exam gate was reachable only by a raw API call, so
+   * even with a fully keyed item bank **no physician could sit it through the
+   * product** — and the fairness monitor, which is structurally correct and
+   * correctly pseudonymised, was permanently empty because nothing collected the
+   * input. A gate nobody can attempt is a gate nobody passes.
+   *
+   * Both live here rather than in asclepius.js because asclepius.js is outside
+   * Agent C's write allowlist (context pack §2) — and because this file is already
+   * loaded by index.html on every portal page, which is what makes a self-mounting
+   * hash route work with no other file changing:
+   *
+   *     /asclepius#/calibration     sit the calibration exam
+   *     /asclepius#/demographics    voluntary self-report for the fairness monitor
+   *
+   * `mount(el, ctx)` is exported too, so when the portal shell gains a proper entry
+   * point it is a one-line change there and nothing here.
+   * ═══════════════════════════════════════════════════════════════════════════ */
+
+  function sheet(title, children, onClose) {
+    var card = h('div', { class: 'asc-sheet-card' },
+      h('h2', { class: 'asc-sheet-title' }, title));
+    append(card, children);
+    if (onClose) {
+      card.appendChild(h('div', { class: 'vq-actions' },
+        h('button', { class: 'vq-btn vq-btn-ghost', onclick: onClose }, 'Close')));
+    }
+    return h('div', { class: 'asc-sheet' }, card);
+  }
+
+  // ─── Calibration exam ──────────────────────────────────────────────────────
+  var cal = { container: null, exam: null, i: 0, answers: {}, busy: false,
+              error: null, notReady: null, result: null };
+
+  function calRender() {
+    var el = cal.container;
+    if (!el) return;
+    clear(el);
+
+    if (cal.notReady) {
+      // 503 is "not ready", NOT "you failed". A physician who reads it as a rejection
+      // is a physician we lose for a reason that is entirely our own.
+      el.appendChild(sheet('Calibration exam', [
+        h('div', { class: 'asc-inline-error' },
+          'The calibration exam is not yet open for your specialty. This is not a '
+          + 'result and it is not about you — we are still assembling the reference '
+          + 'panel that scores it. You will be emailed the moment it opens.'),
+        h('div', { class: 'vq-attempt' }, cal.notReady),
+      ], calClose));
+      return;
+    }
+    if (cal.result) {
+      var r = cal.result;
+      el.appendChild(sheet('Calibration exam — submitted', [
+        h('div', { class: 'vq-reason' },
+          'Agreement with the reference panel: '
+          + Math.round((r.composite || 0) * 100) + '%'),
+        h('div', { class: 'vq-attempt' },
+          r.tr_gate_passed
+            ? 'That clears the reviewer gate. An admin still makes the final call.'
+            : 'That is below the reviewer gate. It does not affect your labeling work.'),
+        h('div', { class: 'vq-attempt' },
+          'Your individual answers are stored so the exam can be re-scored if the '
+          + 'panel re-keys an item — you will never be asked to sit it again for that.'),
+      ], calClose));
+      return;
+    }
+    if (!cal.exam) {
+      el.appendChild(sheet('Calibration exam',
+        [h('div', { class: 'vq-attempt' }, cal.error || 'Loading…'),
+         cal.error ? h('div', { class: 'asc-inline-error' }, cal.error) : null],
+        calClose));
+      return;
+    }
+
+    var item = cal.exam.items[cal.i];
+    var total = cal.exam.items.length;
+    var mine = cal.answers[item.item_id] || {};
+
+    function radioRow(name, value, label, current, onPick) {
+      var input = h('input', { type: 'radio', name: name, value: value,
+                               id: name + '-' + value });
+      if (current === value) input.checked = true;
+      input.addEventListener('change', function () { onPick(value); });
+      return h('label', { class: 'vq-reason', for: name + '-' + value }, input, ' ', label);
+    }
+
+    function setAnswer(patch) {
+      var next = {};
+      for (var k in mine) next[k] = mine[k];
+      for (var j in patch) next[j] = patch[j];
+      cal.answers[item.item_id] = next;
+      calRender();
+    }
+
+    var body = [
+      h('div', { class: 'vq-attempt' }, 'Case ' + (cal.i + 1) + ' of ' + total),
+      h('div', { class: 'vq-reason' }, item.stem),
+
+      h('div', { class: 'vq-section-label' }, 'Which answer is better?'),
+      (item.answers || []).map(function (a) {
+        return radioRow('answer-' + item.item_id, a.id, a.text, mine.better_answer_id,
+                        function (v) { setAnswer({ better_answer_id: v }); });
+      }),
+
+      (item.steps || []).length
+        ? [h('div', { class: 'vq-section-label' },
+             'Where does the weaker answer’s reasoning first break?'),
+           (item.steps || []).map(function (st) {
+             return radioRow('step-' + item.item_id, st.id, st.text, mine.break_step,
+                             function (v) { setAnswer({ break_step: v }); });
+           })]
+        : null,
+
+      (item.criteria || []).length
+        ? [h('div', { class: 'vq-section-label' },
+             'Which criteria are load-bearing here? (choose any)'),
+           (item.criteria || []).map(function (c) {
+             var chosen = (mine.load_bearing || []).indexOf(c) !== -1;
+             var box = h('input', { type: 'checkbox', id: 'lb-' + item.item_id + '-' + c });
+             if (chosen) box.checked = true;
+             box.addEventListener('change', function () {
+               var list = (mine.load_bearing || []).slice();
+               var at = list.indexOf(c);
+               if (at === -1) list.push(c); else list.splice(at, 1);
+               setAnswer({ load_bearing: list });
+             });
+             return h('label', { class: 'vq-reason',
+                                 for: 'lb-' + item.item_id + '-' + c }, box, ' ', c);
+           })]
+        : null,
+
+      cal.error ? h('div', { class: 'asc-inline-error' }, cal.error) : null,
+
+      h('div', { class: 'vq-actions' },
+        cal.i > 0
+          ? h('button', { class: 'vq-btn vq-btn-ghost', disabled: cal.busy,
+                          onclick: function () { cal.i -= 1; calRender(); } }, 'Back')
+          : null,
+        cal.i < total - 1
+          ? h('button', { class: 'vq-btn', disabled: cal.busy,
+                          onclick: function () { cal.i += 1; calRender(); } }, 'Next')
+          : h('button', { class: 'vq-btn vq-btn-approve', disabled: cal.busy,
+                          onclick: calSubmit }, cal.busy ? 'Submitting…' : 'Submit')),
+    ];
+    el.appendChild(sheet('Calibration exam', body, calClose));
+  }
+
+  function calSubmit() {
+    cal.busy = true; cal.error = null; calRender();
+    api('/verify/calibration/' + encodeURIComponent(cal.exam.attempt_id) + '/submit',
+        { method: 'POST', body: { responses: cal.answers } })
+      .then(function (out) { cal.busy = false; cal.result = out; calRender(); })
+      .catch(function (e) { cal.busy = false; cal.error = e.message; calRender(); });
+  }
+
+  function calClose() {
+    if (cal.container && cal.container.parentNode === document.body) {
+      document.body.removeChild(cal.container);
+    }
+    if (window.location && window.location.hash) window.location.hash = '';
+  }
+
+  function calMount(container, ctx) {
+    if (!container) return;
+    ctx = ctx || {};
+    if (typeof ctx.token === 'string' && ctx.token) overrideToken = ctx.token;
+    cal.container = container;
+    cal.exam = null; cal.i = 0; cal.answers = {}; cal.result = null;
+    cal.error = null; cal.notReady = null;
+    calRender();
+    var path = '/verify/calibration/exam'
+      + (ctx.specialty ? '?specialty=' + encodeURIComponent(ctx.specialty) : '');
+    api(path)
+      .then(function (exam) {
+        cal.exam = exam;
+        // A resumed attempt is the server refusing to reroll the item sample. Say so,
+        // rather than letting it look like the exam forgot what they answered.
+        if (exam && exam.resumed) {
+          cal.error = 'Resuming the attempt you already started — the same cases, so the '
+                    + 'exam cannot be re-rolled for an easier draw.';
+        }
+        calRender();
+      })
+      .catch(function (e) {
+        var msg = e.message || '';
+        if (msg.indexOf('admissible keyed items') !== -1 || msg.indexOf('not ready') !== -1) {
+          cal.notReady = msg;
+        } else {
+          cal.error = msg;
+        }
+        calRender();
+      });
+  }
+
+  // ─── Voluntary demographics (fairness monitor input) ───────────────────────
+  // Deliberately shaped so the honest answer is always available: every dimension
+  // offers "Prefer not to say", nothing is required, and the page states plainly
+  // what the data is and is not used for. A form that coerces produces a monitor
+  // that measures who felt coerced.
+  var DEMOGRAPHIC_DIMENSIONS = [
+    { key: 'gender', label: 'Gender', options: [
+      ['woman', 'Woman'], ['man', 'Man'], ['non_binary', 'Non-binary'],
+      ['self_describe', 'Prefer to self-describe'] ] },
+    { key: 'race_ethnicity', label: 'Race / ethnicity', options: [
+      ['american_indian', 'American Indian or Alaska Native'],
+      ['asian', 'Asian'], ['black', 'Black or African American'],
+      ['hispanic_latino', 'Hispanic or Latino'],
+      ['native_hawaiian', 'Native Hawaiian or Pacific Islander'],
+      ['white', 'White'], ['two_or_more', 'Two or more'] ] },
+    { key: 'img', label: 'Trained outside the United States', options: [
+      ['yes', 'Yes'], ['no', 'No'] ] },
+    { key: 'disability', label: 'Disability status', options: [
+      ['yes', 'Yes'], ['no', 'No'] ] },
+  ];
+
+  var demo = { container: null, userId: null, answers: {}, busy: false,
+               error: null, done: false };
+
+  function demoRender() {
+    var el = demo.container;
+    if (!el) return;
+    clear(el);
+    if (demo.done) {
+      el.appendChild(sheet('Thank you', [
+        h('div', { class: 'vq-reason' },
+          'Recorded. It is stored separately from your account under a one-way '
+          + 'pseudonym, and it is never used to decide anything about you.'),
+      ], demoClose));
+      return;
+    }
+
+    var body = [
+      h('div', { class: 'vq-reason' },
+        'This is voluntary, and every question can be skipped.'),
+      h('div', { class: 'vq-attempt' },
+        'We use it for one thing: a weekly fairness check on how reviewer roles are '
+        + 'assigned across the whole contributor pool. It is stored in a separate table '
+        + 'under a one-way pseudonym, it is never joined back to your record, and the '
+        + 'model that proposes your tier can never read it. Nothing here is inferred '
+        + 'from your name, your school, or where you practise — if you skip a '
+        + 'question, we simply do not have the answer.'),
+    ];
+
+    DEMOGRAPHIC_DIMENSIONS.forEach(function (dim) {
+      var sel = h('select', { class: 'vq-tier-select', 'aria-label': dim.label },
+        h('option', { value: '' }, '— skip —'));
+      dim.options.forEach(function (o) {
+        sel.appendChild(h('option', { value: o[0] }, o[1]));
+      });
+      // Offered on EVERY dimension, always last: a form without it coerces an answer.
+      sel.appendChild(h('option', { value: 'prefer_not_to_say' }, 'Prefer not to say'));
+      sel.value = demo.answers[dim.key] || '';
+      sel.addEventListener('change', function () {
+        if (sel.value) demo.answers[dim.key] = sel.value;
+        else delete demo.answers[dim.key];
+      });
+      body.push(h('div', { class: 'vq-facts' },
+        h('div', { class: 'vq-section-label' }, dim.label), sel));
+    });
+
+    if (demo.error) body.push(h('div', { class: 'asc-inline-error' }, demo.error));
+    body.push(h('div', { class: 'vq-actions' },
+      h('button', { class: 'vq-btn vq-btn-approve', disabled: demo.busy,
+                    onclick: demoSubmit }, demo.busy ? 'Saving…' : 'Submit'),
+      h('button', { class: 'vq-btn vq-btn-ghost', onclick: demoClose }, 'Skip all')));
+    el.appendChild(sheet('Help us check our own fairness', body, null));
+  }
+
+  function demoSubmit() {
+    demo.busy = true; demo.error = null; demoRender();
+    // Only what was actually answered. A blank is an absent key, never an empty
+    // string — the monitor must be able to tell "skipped" from "answered blank".
+    api('/verify/demographics/' + encodeURIComponent(demo.userId),
+        { method: 'POST', body: { demographics: demo.answers } })
+      .then(function () { demo.busy = false; demo.done = true; demoRender(); })
+      .catch(function (e) { demo.busy = false; demo.error = e.message; demoRender(); });
+  }
+
+  function demoClose() {
+    if (demo.container && demo.container.parentNode === document.body) {
+      document.body.removeChild(demo.container);
+    }
+    if (window.location && window.location.hash) window.location.hash = '';
+  }
+
+  function demoMount(container, ctx) {
+    if (!container) return;
+    ctx = ctx || {};
+    if (typeof ctx.token === 'string' && ctx.token) overrideToken = ctx.token;
+    demo.container = container;
+    demo.userId = ctx.userId || ctx.user_id || '';
+    demo.answers = {}; demo.done = false; demo.error = null;
+    demoRender();
+  }
+
+  // ─── Hash routing, so both are reachable with no other file changing ───────
+  function openIfRouted(hash, prefix, mounter, ctx) {
+    if ((hash || '').indexOf(prefix) !== 0) return false;
+    var overlay = document.createElement('div');
+    document.body.appendChild(overlay);
+    mounter(overlay, ctx || {});
+    return true;
+  }
+
+  window.AsclepiusCalibration = {
+    mount: calMount,
+    openIfRouted: function (hash) {
+      return openIfRouted(hash === undefined
+        ? (window.location && window.location.hash) : hash,
+        '#/calibration', calMount, {});
+    },
+  };
+  window.AsclepiusDemographics = {
+    mount: demoMount,
+    openIfRouted: function (hash, ctx) {
+      return openIfRouted(hash === undefined
+        ? (window.location && window.location.hash) : hash,
+        '#/demographics', demoMount, ctx || {});
+    },
+  };
+
   document.addEventListener('DOMContentLoaded', function () {
     var auto = document.getElementById('ascVerifyRoot');
     if (auto) mount(auto);
+    window.AsclepiusCalibration.openIfRouted();
+    window.AsclepiusDemographics.openIfRouted();
   });
 })();

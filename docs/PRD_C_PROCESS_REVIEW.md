@@ -6,8 +6,12 @@ against the code, not reasoned about in the abstract; each departure names the t
 holds it.
 
 **Summary.** The PRD's architecture is sound and the three §0 findings are load-bearing and
-correct. Six things in the specified process do not work as written. Five are fixed here; one
-is a conflict inside the PRD that only a human can settle.
+correct. Seven things in the specified process do not work as written; all seven are fixed
+here. One is a conflict inside the PRD that only a human can settle.
+
+§7 was added after an independent audit of this changeset. It is the one I did not find myself,
+and it is the most important: two scored features are demographic-adjacent and were outside the
+counsel disclosure. A proxy that is not on the pinned list is not thereby safe.
 
 ---
 
@@ -178,7 +182,59 @@ Possession of the whole table re-identifies nobody, and the scorer has no path t
 
 ---
 
-## ⚠ 7. Unresolved: A4 requires a year that §3.3 forbids collecting
+## ✗ 7. Two features reach the score, are demographic-adjacent, and were outside the memo
+
+Found by the post-build audit, not by me, and the omission is the finding: §3.3 pins seven
+protected proxies to zero and the counsel disclosure covered only those plus the residency-year
+conflict in §8 below. **A proxy that is not on the pinned list is not thereby safe** — it is
+merely unexamined, and two of the eight scored features were.
+
+### 7.1 `currently_practicing` (weight 0.80) was a caregiving cliff
+
+The encoding was `1.0 if half_days >= 4 else 0.0`. Measured Δs from a `s = 4.70` baseline:
+
+| profile | Δs |
+|---|---|
+| 3 clinical half-days/month (part-time) | **−0.80** |
+| 0 half-days (parental or medical leave) | **−0.80** |
+
+Part-time clinical practice is not evenly distributed by sex, caregiving status, or disability,
+and this is the third-largest term in the model. Worse, **a physician on leave scored the same
+as one who had left medicine** — because leave produces the same number, zero.
+
+Fixed with three ordinal levels (1.0 / 0.5 / 0.0) mirroring `domain_match`, plus an explicit
+enumerated `practiceStatus` so protected leave is scored on the *pre-leave* practice. Still not
+a magnitude: twenty half-days is worth exactly what four is. What changed is that three is no
+longer worth what none is. A blank pre-leave figure reads as missing, not zero — the same
+tri-state discipline the gates use, and it matters most for exactly the people the clause
+protects.
+
+Residual: part-time still costs 0.40. Disclosed in `PRD_C_COUNSEL_MEMO.md` §3.1 as the item we
+most want reviewed.
+
+### 7.2 `structured_review_exp` (weight 0.70) is a route around the `img_status` pin
+
+CEC/DSMB service, journal peer review, board item writing, guideline panels, core faculty and
+PD roles are all gated in practice on academic medical center affiliation — strongly associated
+with IMG status and national origin. Both are pinned to zero, so the model cannot use them
+directly; this feature carries the same difference into the score anyway.
+
+I had flagged it in the handoff README purely as a *predictive-power* concern ("may be doing
+less work than its prior suggests") and never as a fairness one. That was the wrong lens on the
+right feature.
+
+It cannot be pinned without deleting the criterion with the clearest job-relatedness in the
+model, so it is **monitored**: `fairness_observations` now carries the feature vector copied in
+at decision time, and the monitor reports each feature's mean by self-reported group with a
+four-fifths comparison. A monitor that reports only outcomes can tell you a gap exists and never
+which feature opened it.
+
+`tiering._practising_value` · `store.fairness_selection_rates` ·
+`test_tiering_audit_c.py::test_h1_*`, `::test_h2_*`
+
+---
+
+## ⚠ 8. Unresolved: A4 requires a year that §3.3 forbids collecting
 
 §2 gate A4 requires *"Residency complete, not in training — attestation **and year**"*. §3.3
 says never collect graduation year. These are in direct conflict and no engineering choice

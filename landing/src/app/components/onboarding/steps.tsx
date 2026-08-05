@@ -117,6 +117,18 @@ export type Credentials = {
   /* Threshold input for `currently_practicing` (>= 4 = practising). Someone
      doing 20 half-days is not "more practising" than someone doing 4. */
   clinicalHalfDaysPerMonth: string;
+  /* AUDIT H1. `currently_practicing` used to be a hard binary cliff at four
+     half-days a month, worth 0.80 — the third-largest term in the model. Part-time
+     clinical practice is not evenly distributed by sex, caregiving status or
+     disability, and a physician on parental or medical leave scored identically to
+     one who had left medicine, because leave produces the same number: zero.
+
+     These two fields are what let the encoder tell those apart. `practiceStatus`
+     is enumerated rather than inferred from a zero count precisely because "0
+     because I am on leave" and "0 because I stopped in 2019" are the same number
+     and opposite facts. See docs/PRD_C_COUNSEL_MEMO.md §3.1. */
+  practiceStatus: "" | "active" | "on_leave" | "not_practising";
+  halfDaysBeforeLeave: string;
   continuingCertification: boolean | null;
   structuredReviewExperience: string[];
 };
@@ -133,6 +145,15 @@ export type Credentials = {
    any of these keys, and `test_tiering_score.py` asserts that varying each of
    them across its plausible range changes the score by exactly 0.0, so a legacy
    row that still carries one cannot influence a tier. */
+
+/* AUDIT H1: "on leave" is a first-class answer, listed alongside the others rather
+   than hidden behind a zero. A physician should not have to decide whether parental
+   leave means they type 0 and get penalised or type their usual number and misreport. */
+const PRACTICE_STATUS_OPTIONS = [
+  { value: "active", label: "Actively seeing patients" },
+  { value: "on_leave", label: "On leave (parental, medical, caregiving, military, sabbatical)" },
+  { value: "not_practising", label: "Not currently in clinical practice" },
+];
 
 const STRUCTURED_REVIEW_SUGGESTIONS = [
   "cec_dsmb",
@@ -179,6 +200,8 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     residencyCompleted: null,
     residencyCompletionYear: "",
     clinicalHalfDaysPerMonth: "",
+    practiceStatus: "",
+    halfDaysBeforeLeave: "",
     continuingCertification: null,
     structuredReviewExperience: [],
   };
@@ -1524,7 +1547,11 @@ export function Step5Credentials({
     // because a physician can answer these in five seconds and an admin cannot.
     c.licenseNumber.trim().length > 0 &&
     c.licenseState.trim().length === 2 &&
-    c.residencyCompleted !== null;
+    c.residencyCompleted !== null &&
+    // AUDIT H1: required, because the alternative is inferring it from a blank or a
+    // zero — and inferring "not practising" from the zero a physician on parental
+    // leave types is the exact defect this field exists to close.
+    c.practiceStatus !== "";
 
   return (
     <OnboardingCard
@@ -1817,22 +1844,37 @@ export function Step5Credentials({
         hint="Used once, as a yes/no: at least three years post-residency. It is never scored as a number of years."
       />
 
-      <div style={TWO_COL}>
+      <SelectField
+        label="Current practice status"
+        placeholder="Select status"
+        value={c.practiceStatus}
+        onChange={(v) => set({ practiceStatus: v as Credentials["practiceStatus"] })}
+        options={PRACTICE_STATUS_OPTIONS}
+      />
+      {c.practiceStatus === "on_leave" ? (
+        <TextField
+          label="Clinical half-days per month before your leave"
+          optional
+          placeholder="8"
+          value={c.halfDaysBeforeLeave}
+          onChange={(v) => set({ halfDaysBeforeLeave: v.replace(/\D/g, "").slice(0, 3) })}
+          hint="We score your practice as it stood before the leave. Leave is not counted against you, and leaving this blank does not count as zero."
+        />
+      ) : (
         <TextField
           label="Clinical half-days per month"
+          optional={c.practiceStatus === "not_practising"}
           placeholder="8"
           value={c.clinicalHalfDaysPerMonth}
           onChange={(v) => set({ clinicalHalfDaysPerMonth: v.replace(/\D/g, "").slice(0, 3) })}
-          hint="Averaged over the last 12 months. Four or more counts as currently practising."
+          hint="Averaged over the last 12 months. Part-time practice counts — this is not a threshold you either clear or fail."
         />
-        <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 4 }}>
-          <YesNoToggle
-            label="Participating in continuing certification (MOC/CC)?"
-            value={c.continuingCertification}
-            onChange={(v) => set({ continuingCertification: v })}
-          />
-        </div>
-      </div>
+      )}
+      <YesNoToggle
+        label="Participating in continuing certification (MOC/CC)?"
+        value={c.continuingCertification}
+        onChange={(v) => set({ continuingCertification: v })}
+      />
 
       <ChipMultiSelect
         label="Structured review experience"

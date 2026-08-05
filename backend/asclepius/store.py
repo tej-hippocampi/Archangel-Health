@@ -1377,10 +1377,22 @@ class AsclepiusStore:
                     subject_key  TEXT NOT NULL,
                     demographics_json TEXT NOT NULL,
                     decided_tier TEXT,
+                    -- AUDIT H2: the FEATURE VECTOR, copied in at decision time alongside the
+                    -- tier. structured_review_exp reaches the score at 0.70 and correlates
+                    -- with IMG status and national origin — both of which are pinned to zero,
+                    -- so the model cannot use them directly but this feature can route around
+                    -- the pin. It cannot itself be pinned without gutting a real criterion, so
+                    -- it is MONITORED instead, which means the monitor has to be able to see
+                    -- it. Copied rather than joined for the same reason the tier is: a join
+                    -- back to `users` would make the non-joinability of this table a naming
+                    -- convention again.
+                    features_json TEXT,
                     decided_at   TEXT NOT NULL
                 )
                 """
             )
+            if "features_json" not in cols("fairness_observations"):
+                conn.execute("ALTER TABLE fairness_observations ADD COLUMN features_json TEXT")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_fairness_subject "
                          "ON fairness_observations(subject_key)")
             # ═══ END PRD-CRED ═══
@@ -6513,16 +6525,28 @@ class AsclepiusStore:
             )
         return obs_id
 
-    def stamp_fairness_tier(self, user_id: str, tier: Optional[str]) -> None:
-        """Copy the decided tier onto the pseudonymous row, so the monitor needs no join.
+    def stamp_fairness_tier(self, user_id: str, tier: Optional[str],
+                            features: Optional[Dict[str, Any]] = None) -> None:
+        """Copy the decided tier — and the feature vector — onto the pseudonymous row, so the
+        monitor needs no join.
 
-        A no-op when the physician declined to supply demographics — which is most of them,
-        and is fine: the four-fifths rule is a rate comparison, not a census.
+        A no-op when the physician declined to supply demographics, which is most of them and
+        is fine: the four-fifths rule is a rate comparison, not a census.
+
+        ``features`` (AUDIT H2) is what lets the monitor report *why* a group's selection rate
+        differs, not only *that* it does. An outcome monitor with no view of the mechanism can
+        tell you a gap exists and never which feature opened it.
         """
+        payload = None
+        if features:
+            payload = json.dumps({k: float(v) for k, v in features.items()
+                                  if isinstance(v, (int, float))
+                                  and not isinstance(v, bool)})
         with self._conn() as conn:
             conn.execute(
-                "UPDATE fairness_observations SET decided_tier = ? WHERE subject_key = ?",
-                (tier, self._fairness_subject_key(user_id)))
+                "UPDATE fairness_observations SET decided_tier = ?, "
+                "features_json = COALESCE(?, features_json) WHERE subject_key = ?",
+                (tier, payload, self._fairness_subject_key(user_id)))
 
     def fairness_selection_rates(self, *, since: Optional[str] = None) -> Dict[str, Any]:
         """TR selection rate by self-reported group, with the four-fifths comparison.
@@ -6536,6 +6560,9 @@ class AsclepiusStore:
         MIN_GROUP_N = 5
         rows = self.fairness_observations(since=since)
         buckets: Dict[str, Dict[str, Dict[str, int]]] = {}
+        # AUDIT H2: feature means per group, so the monitor can name the MECHANISM and not
+        # only the outcome. {dimension: {group: {feature: [sum, n]}}}
+        feats: Dict[str, Dict[str, Dict[str, List[float]]]] = {}
         for row in rows:
             if not row.get("decided_tier"):
                 continue        # not yet decided is not a negative outcome
@@ -6546,8 +6573,16 @@ class AsclepiusStore:
                     str(value), {"n": 0, "tr": 0})
                 slot["n"] += 1
                 slot["tr"] += 1 if row["decided_tier"] == "reviewer" else 0
+                fslot = feats.setdefault(dimension, {}).setdefault(str(value), {})
+                for feature, fval in (row.get("features") or {}).items():
+                    if not isinstance(fval, (int, float)):
+                        continue
+                    acc = fslot.setdefault(feature, [0.0, 0.0])
+                    acc[0] += float(fval)
+                    acc[1] += 1.0
 
-        out: Dict[str, Any] = {"dimensions": {}, "alerts": [], "min_group_n": MIN_GROUP_N}
+        out: Dict[str, Any] = {"dimensions": {}, "alerts": [], "min_group_n": MIN_GROUP_N,
+                               "by_feature": {}, "feature_alerts": []}
         for dimension, groups in buckets.items():
             rates = {g: (v["tr"] / v["n"] if v["n"] else 0.0) for g, v in groups.items()}
             eligible = {g: r for g, r in rates.items() if groups[g]["n"] >= MIN_GROUP_N}
@@ -6566,6 +6601,45 @@ class AsclepiusStore:
                                     f"{round(ratio * 100)}% of the highest group — below the "
                                     f"four-fifths threshold."})
             out["dimensions"][dimension] = detail
+
+        # AUDIT H2 — per-feature breakdown, and an alert on the same four-fifths shape.
+        #
+        # Applied to the feature MEAN rather than a selection rate, because that is what
+        # answers the question the audit actually asked: is a demographic-adjacent feature
+        # doing the work that the pinned weights were meant to prevent? A feature whose mean
+        # is level across groups cannot be routing around a pin, however heavy its weight —
+        # and a monitor that flags every feature is a monitor nobody reads.
+        for dimension, groups in feats.items():
+            names = sorted({f for g in groups.values() for f in g})
+            per_group: Dict[str, Dict[str, Any]] = {}
+            for group, acc in groups.items():
+                per_group[group] = {
+                    f: {"mean": round(acc[f][0] / acc[f][1], 4), "n": int(acc[f][1])}
+                    for f in acc if acc[f][1]
+                }
+            out["by_feature"][dimension] = per_group
+            counted = {g for g in groups
+                       if (buckets.get(dimension, {}).get(g, {}).get("n", 0)) >= MIN_GROUP_N}
+            for feature in names:
+                means = {g: per_group[g][feature]["mean"] for g in counted
+                         if feature in per_group.get(g, {})}
+                if len(means) < 2:
+                    continue
+                best = max(means.values())
+                worst_group = min(means, key=lambda g: means[g])
+                if best <= 0:
+                    continue
+                ratio = means[worst_group] / best
+                if ratio < 0.8:
+                    out["feature_alerts"].append({
+                        "dimension": dimension, "feature": feature, "group": worst_group,
+                        "mean": means[worst_group], "best_mean": round(best, 4),
+                        "ratio": round(ratio, 4),
+                        "message": f"{feature} averages {means[worst_group]} for "
+                                   f"{dimension}={worst_group} vs {round(best, 4)} for the "
+                                   f"highest group — this feature may be carrying a "
+                                   f"group difference into the score.",
+                    })
         out["total_observations"] = len(rows)
         return out
 
@@ -6581,6 +6655,7 @@ class AsclepiusStore:
         for r in rows:
             rec = dict(r)
             rec["demographics"] = json.loads(rec.pop("demographics_json", "{}") or "{}")
+            rec["features"] = json.loads(rec.pop("features_json", "null") or "null") or {}
             rec.pop("subject_key", None)   # never leaves the store
             out.append(rec)
         return out
