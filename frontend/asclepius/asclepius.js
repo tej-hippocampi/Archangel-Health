@@ -7388,15 +7388,37 @@
     tutTick();
   }
 
+  // "Skip this step" moves the pointer forward, but many steps only render
+  // once the REAL section before them is actually finished (the app shows one
+  // decision at a time). If the app hasn't gotten there, the target the tour
+  // just jumped to doesn't exist yet and skipping would strand the doctor
+  // staring at nothing. Detect that and walk back to the nearest not-yet-done
+  // step whose target IS on screen right now — that's the true blocker, and
+  // re-spotlighting it (rather than a blank corner) is what keeps guiding
+  // them. A real "Continue" click on that section resumes forward motion the
+  // moment its state predicate is satisfied.
+  function resolveTourIndex() {
+    const t = state.tutorial;
+    if (!t) return;
+    const cur = TUTORIAL_STEPS[t.idx];
+    if (!cur || document.querySelector(cur.target)) return; // nothing to resolve
+    for (let i = t.idx - 1; i >= 0; i--) {
+      const s = TUTORIAL_STEPS[i];
+      if (tutStepSatisfied(s)) continue; // already done — not the blocker
+      if (document.querySelector(s.target)) { t.idx = i; t.bounced = true; return; }
+    }
+  }
+
   // The tick: fast-forward past satisfied/skipped steps, then render the
   // current beat (interstitial or spotlight). Runs after every DOM mutation,
   // scroll, and resize — cheap by design.
   function tutTick() {
     if (!tutorialActive()) return;
     const t = state.tutorial;
+    resolveTourIndex();
     let step = tutCurrentStep();
     let moved = false;
-    while (step && tutStepSatisfied(step)) { t.idx += 1; moved = true; step = tutCurrentStep(); }
+    while (step && tutStepSatisfied(step)) { t.idx += 1; moved = true; step = tutCurrentStep(); t.bounced = false; }
     if (moved && step) tutPersistStep(step.id);
     if (!step) { hideTourLayer(); return; }  // waiting on the submit path
     // One welcome screen, then an uninterrupted flow (chapter intros ride
@@ -7525,7 +7547,10 @@
     }
     layer.style.display = '';
     positionMasks(target.getBoundingClientRect(), layer);
-    renderTourPop(pop, step, false); // content first — position needs real height
+    const t = state.tutorial;
+    const bounced = !!(t && t.bounced);
+    if (t) t.bounced = false; // one-shot: show the note once, not on every re-tick
+    renderTourPop(pop, step, false, bounced); // content first — position needs real height
     positionPop(target.getBoundingClientRect(), pop);
   }
 
@@ -7573,7 +7598,7 @@
     pop.style.left = left + 'px';
   }
 
-  function renderTourPop(pop, step, waiting) {
+  function renderTourPop(pop, step, waiting, bounced) {
     const num = tutStepNumber(step);
     clear(pop);
     pop.appendChild(h('div', { class: 'asc-tour-chrome' },
@@ -7581,16 +7606,19 @@
     pop.appendChild(h('div', { class: 'asc-tour-copy', 'aria-live': 'polite' },
       waiting ? 'Next up: ' + step.copy.replace(/\.$/, '') + '. This appears when the step before it is done.'
         : step.copy));
-    if (!waiting && step.chapterFirst && step.chapter.intro) {
+    if (bounced) {
+      pop.appendChild(h('div', { class: 'asc-tour-sub' }, 'This one has to happen here before the tour can move on.'));
+    } else if (!waiting && step.chapterFirst && step.chapter.intro) {
       pop.appendChild(h('div', { class: 'asc-tour-sub' }, step.chapter.intro));
     }
     const row = h('div', { class: 'asc-tour-actions' });
     if (step.advanceOn && step.advanceOn.manual && !waiting) {
       row.appendChild(h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
         onClick: tutAdvance }, 'Next →'));
-    } else if (!waiting) {
-      // Per-step skip: moves the pointer on without doing the action. If the
-      // app itself requires the action, its own inline hints keep coaching.
+    } else if (!waiting && !bounced) {
+      // Per-step skip: moves the pointer on without doing the action. Hidden
+      // right after a bounce — skipping again would just land back here, so
+      // offering it would be misleading rather than helpful.
       row.appendChild(h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
         onClick: tutAdvance }, 'Skip this step'));
     }
@@ -7672,14 +7700,18 @@
 
   function confirmSkipTutorial() {
     if (document.getElementById('ascTourSkipConfirm')) return;
+    // The spotlight box + tooltip sit ABOVE this confirm dialog (z 1200 vs
+    // 1000) — hide them first, or the old highlight and copy stay pasted on
+    // screen behind/around the dialog instead of clearing out of the way.
+    hideTourLayer();
     const overlay = h('div', { class: 'call-team-overlay is-open asc-tour-interstitial', id: 'ascTourSkipConfirm' });
     const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
       h('div', { class: 'call-team-title' }, 'Skip the practice case?'),
       h('p', { class: 'asc-help', style: 'margin:6px 0 16px' },
-        'You can replay it any time from the ? menu. The written instructions stay in the side panel.'),
+        'You can replay it any time from the ? tab in the corner. The written instructions stay there too.'),
       h('div', { style: 'display:flex;gap:10px' },
         h('button', { class: 'asc-btn asc-btn-primary', type: 'button',
-          onClick: () => { overlay.remove(); } }, 'Keep going'),
+          onClick: () => { overlay.remove(); tutTick(); } }, 'Keep going'),
         h('button', { class: 'asc-btn asc-btn-ghost', type: 'button',
           onClick: () => { overlay.remove(); skipTutorial(); } }, 'Skip')));
     overlay.appendChild(popup);
