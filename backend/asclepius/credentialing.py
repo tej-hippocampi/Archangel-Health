@@ -896,6 +896,15 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
     but will spend 60 seconds grading someone else's. Matching the task to the
     supply is the whole point of the two tiers.
 
+    **``'advisor'`` is NOT on this ladder and must never be returned from here**
+    (Advisor PRD §2.3). ``TIER_WEIGHTS`` reads like a ladder and the obvious next
+    move is to extend it upward with a higher threshold — do not. A medical
+    advisor is a negotiated relationship with equity and a signed agreement
+    attached; it is not the output of an NPI check and a years-in-practice
+    weight. Advisors are APPOINTED, through ``POST /api/asclepius/admin/advisors``
+    (or an explicit queue approval carrying ``agreement_ref``), and the guard
+    below makes a mistake here loud instead of silent.
+
     ``reasons`` is human-readable — an admin must see WHY a tier was proposed
     without reading the weights. ``blockers`` suppress the proposal and force
     manual review; they are review flags, never rejections.
@@ -1006,6 +1015,14 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
             proposed = "reviewer"
         elif score >= LABELER_MIN_SCORE:
             proposed = "labeler"
+
+    # The ladder stops at 'reviewer'. If a future edit above ever routes a score
+    # to 'advisor', fail here rather than quietly appointing someone to an
+    # equity relationship on the strength of an NPPES lookup.
+    if proposed == "advisor":  # pragma: no cover - guard against a future edit
+        raise AssertionError(
+            "propose_tier must never propose 'advisor': an advisory relationship "
+            "is negotiated and carries equity, not scored (Advisor PRD §2.3)")
 
     return {
         "score": score,
