@@ -724,6 +724,179 @@
   .cm-search { width: 150px; }
 }
 
+/* ─── Community v2: bot author + system message kinds ───────────────────── */
+.cm-bot-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 0.575rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--green-deep);
+  background: var(--green-wash);
+  padding: 1px 6px;
+  border-radius: var(--r-chip);
+  border: 1px solid var(--hairline);
+}
+/* Digest posts read as a card: the bot's roundup is content, not chatter. */
+.cm-msg-digest .cm-msg-body {
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--green-wash) 24%, transparent);
+}
+.cm-msg-digest .cm-msg-body ul { margin: 0.35em 0; padding-left: 1.1em; }
+.cm-msg-digest .cm-msg-body li { margin: 0.3em 0; }
+/* Welcomes get a soft accent spine — a human moment, lightly marked. */
+.cm-msg-welcome .cm-msg-body {
+  border-left: 2px solid var(--green);
+  padding-left: 10px;
+}
+
+/* ═══ Community v2.1: events · polls · pins · bookmarks · broadcasts ═══════ */
+
+/* Message-kind accents (beside digest/welcome) */
+.cm-msg-event .cm-msg-body { border-left: 2px solid var(--orange); padding-left: 10px; }
+.cm-msg-poll  .cm-msg-body { color: var(--ink-soft); }
+.cm-msg-broadcast .cm-msg-body {
+  border-left: 2px solid var(--pink);
+  padding-left: 10px;
+  background: var(--pink-wash);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.cm-broadcast-pill {
+  font-family: var(--mono); font-size: var(--t-chrome);
+  color: var(--pink-deep); background: var(--pink-wash);
+  padding: 1px 6px; border-radius: var(--r-chip); border: 1px solid var(--pink-line);
+}
+.cm-pin-marker { font-size: 0.7rem; opacity: 0.75; }
+.cm-act.on { background: var(--orange-wash); border-radius: var(--r-chip); }
+
+/* ── Events banner + card ── */
+.cm-events-banner { padding: var(--sp-4) var(--sp-4) 0; }
+.cm-new-event { margin-bottom: var(--sp-3); }
+.cm-event-card {
+  border: 1px solid var(--hairline); border-radius: var(--r-md);
+  background: var(--card); box-shadow: var(--shadow-card);
+  padding: var(--sp-4); margin-bottom: var(--sp-3);
+}
+.cm-event-card.pinned {
+  border-color: var(--orange-line);
+  background: linear-gradient(180deg, var(--orange-wash), var(--card) 60%);
+}
+.cm-event-card.cancelled { opacity: 0.6; }
+.cm-event-card.cancelled .cm-event-title { text-decoration: line-through; }
+.cm-event-flag { margin-bottom: var(--sp-2); }
+.cm-event-flag .chrome { color: var(--orange-deep); }
+.cm-event-title { font-size: var(--t-h3); font-weight: 600; color: var(--ink); }
+.cm-event-when, .cm-event-where, .cm-event-host {
+  font-size: var(--t-sm); color: var(--ink-soft); margin-top: 4px;
+}
+.cm-event-desc { font-size: var(--t-sm); color: var(--ink); margin-top: var(--sp-2); line-height: var(--lh-body); }
+.cm-event-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-3); }
+.cm-events-more { margin-top: var(--sp-2); }
+.cm-past-toggle {
+  background: none; border: 0; color: var(--ink-soft); cursor: pointer;
+  font-family: var(--mono); font-size: var(--t-chrome); text-transform: uppercase;
+  letter-spacing: 0.06em; padding: var(--sp-2) 0; margin-top: var(--sp-2);
+}
+.cm-event-past-row {
+  display: flex; justify-content: space-between; gap: var(--sp-3);
+  padding: 6px 0; border-top: 1px solid var(--hairline); font-size: var(--t-sm);
+}
+.cm-event-past-title { color: var(--ink); }
+.cm-event-past-when { color: var(--ink-faint); white-space: nowrap; }
+
+/* ── Poll card ── */
+.cm-poll { margin-top: var(--sp-2); max-width: 460px; }
+.cm-poll-q { font-weight: 600; color: var(--ink); margin-bottom: var(--sp-2); }
+.cm-poll-opt {
+  position: relative; display: flex; align-items: center; justify-content: space-between;
+  width: 100%; text-align: left; overflow: hidden;
+  border: 1px solid var(--hairline); border-radius: var(--r-sm);
+  background: var(--card); color: var(--ink); cursor: pointer;
+  padding: 8px 12px; margin-bottom: 6px; font-size: var(--t-sm);
+}
+.cm-poll-opt:disabled { cursor: default; }
+.cm-poll-opt.chosen { border-color: var(--green-line); }
+.cm-poll-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+  background: var(--green-wash); z-index: 0; transition: width 0.3s ease;
+}
+.cm-poll-opt-text, .cm-poll-opt-pct { position: relative; z-index: 1; }
+.cm-poll-opt-pct { color: var(--ink-soft); font-family: var(--mono); font-size: var(--t-chrome); }
+.cm-poll-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: var(--t-chrome); color: var(--ink-faint); margin-top: 4px;
+  font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em;
+}
+.cm-poll-opts-edit { display: flex; flex-direction: column; gap: 6px; }
+
+/* ── Header affordances: pinned button + bookmark bar ── */
+.cm-head-btn {
+  border: 1px solid var(--hairline); background: var(--card); color: var(--ink-soft);
+  border-radius: var(--r-chip); padding: 3px 10px; cursor: pointer;
+  font-size: var(--t-sm); white-space: nowrap;
+}
+.cm-head-btn.has { color: var(--orange-deep); border-color: var(--orange-line); }
+.cm-bookmark-bar {
+  flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  margin-top: var(--sp-2); padding-top: var(--sp-2); border-top: 1px solid var(--hairline);
+}
+.cm-bookmark {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--card-in); border: 1px solid var(--hairline);
+  border-radius: var(--r-chip); padding: 2px 4px 2px 10px; font-size: var(--t-sm);
+}
+.cm-bookmark a { color: var(--ink); text-decoration: none; }
+.cm-bookmark a:hover { text-decoration: underline; }
+.cm-bookmark-x, .cm-bookmark-add {
+  border: 0; background: none; color: var(--ink-faint); cursor: pointer;
+  font-size: 0.8rem; line-height: 1; padding: 2px 6px;
+}
+.cm-bookmark-add {
+  border: 1px dashed var(--hairline-strong); border-radius: var(--r-chip);
+  color: var(--ink-soft); font-size: 0.9rem;
+}
+
+/* ── Modal (event/poll/bookmark creation) ── */
+.cm-modal-overlay {
+  position: fixed; inset: 0; z-index: 60; background: var(--scrim);
+  display: flex; align-items: center; justify-content: center; padding: var(--sp-4);
+}
+.cm-modal {
+  width: 100%; max-width: 440px; max-height: 90vh; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--hairline);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-float);
+}
+.cm-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--sp-4); border-bottom: 1px solid var(--hairline);
+}
+.cm-modal-body { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); }
+.cm-field { display: flex; flex-direction: column; gap: 4px; font-size: var(--t-sm); color: var(--ink-soft); }
+.cm-field-row { display: flex; gap: var(--sp-3); }
+.cm-field-row .cm-field { flex: 1; }
+.cm-field input, .cm-field textarea {
+  font: inherit; font-size: var(--t-body); color: var(--ink);
+  background: var(--card-in); border: 1px solid var(--hairline);
+  border-radius: var(--r-sm); padding: 8px 10px; width: 100%;
+}
+.cm-modal-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
+.cm-linkbtn { background: none; border: 0; color: var(--ink-soft); cursor: pointer; font-size: var(--t-sm); text-decoration: underline; padding: 2px 4px; }
+
+@media (max-width: 640px) {
+  .cm-field-row { flex-direction: column; gap: var(--sp-2); }
+  .cm-event-actions { gap: 6px; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .cm-event-card.pinned {
+    background: linear-gradient(180deg, var(--orange-wash), var(--card) 70%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cm-side { transition: none; }
+  .cm-poll-fill { transition: none; }
 }

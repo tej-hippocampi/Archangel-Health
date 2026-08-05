@@ -2535,6 +2535,17 @@ async def upsert_contributor(
         event_type="credentials_updated", actor=admin["id"],
         payload={"organization": body.organization, "verified": body.credentials_verified},
     )
+    # Community v2: the vault flag is the OTHER path to "verified colleague" —
+    # fire the same one-time community welcome as queue approval. Guarded +
+    # idempotent inside; never fails the credential write.
+    if body.credentials_verified and (user or {}).get("user_id"):
+        try:
+            from community.onboard import welcome_new_member  # noqa: PLC0415
+            full_user = store.get_user_by_id(user["user_id"])
+            if full_user:
+                await welcome_new_member(full_user)
+        except Exception:
+            log.exception("[contributors] community welcome failed (credential write stands)")
     return {
         "id_hashed": id_hashed,
         "organization": saved.get("organization"),

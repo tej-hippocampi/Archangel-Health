@@ -255,6 +255,10 @@ def _welcome_email_html(user: Dict[str, Any]) -> str:
         f"<p><a href=\"{url}\" style=\"display:inline-block;background:#1a2b3c;"
         f"color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none\">"
         f"Open your workspace &rarr;</a></p>"
+        f"<p>Your seat in the <strong>Asclepius Community</strong> is open too — a "
+        f"private space for verified physicians only. Find it in your portal's side "
+        f"panel: introduce yourself, follow the medical-AI digest, and meet the "
+        f"colleagues you'll be working alongside.</p>"
         f"<p style=\"font-size:13px;color:#5a6b7c\">Questions? Just reply to this "
         f"email.</p></div>"
     )
@@ -323,6 +327,14 @@ async def approve_signup(
         store.advance_referral_for_user(user_id, "approved")
     except Exception:
         log.exception("[referral] could not advance referral to approved (non-fatal)")
+    # Community v2: approval is the "verified colleague" moment — post the
+    # one-time #introductions welcome. Guarded + idempotent inside; a failure
+    # can never fail the approval (mirrors the welcome-email guard below).
+    try:
+        from community.onboard import welcome_new_member  # noqa: PLC0415
+        await welcome_new_member(updated or user)
+    except Exception:
+        log.exception("[verify] community welcome failed (decision stands)")
     if is_email_transport_configured():
         try:
             await send_html_email(
