@@ -1864,7 +1864,6 @@
 .asc-tour-planted-title { font-weight: 600; font-size: 14px; color: var(--orange-deep); }
 
 /* Help menu + instruction drawer */
-.asc-help-btn { min-width: 30px; font-family: var(--mono); }
 .asc-help-menu {
   position: fixed; z-index: 1100; background: var(--card);
   border: 1px solid var(--hairline-strong); border-radius: var(--r-sm);

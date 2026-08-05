@@ -190,16 +190,8 @@
     badge.appendChild(h('span', { class: 'asc-user-role' },
       state.user.role.replace('_', ' ') + (state.user.specialty ? ' · ' + state.user.specialty : '')));
 
-    // Help menu (?): instructions drawer + practice-case replay. Injected once
-    // into the static header, before the user badge.
-    if (!document.getElementById('ascHelpBtn')) {
-      const helpBtn = h('button', {
-        class: 'asc-btn asc-btn-ghost asc-btn-sm asc-help-btn', id: 'ascHelpBtn', type: 'button',
-        title: 'Help', 'aria-label': 'Help menu', 'aria-haspopup': 'true',
-      }, '?');
-      helpBtn.addEventListener('click', toggleHelpMenu);
-      badge.parentNode.insertBefore(helpBtn, badge);
-    }
+    // The corner ? tab (below) is the single help entry point — replay the
+    // practice case or view a summary of it. No separate header control.
     ensureInstrTab();
 
     document.getElementById('ascLogoutBtn').onclick = logout;
@@ -302,9 +294,11 @@
   function logout() {
     state.token = null;
     state.user = null;
-    // Tear down the logged-in-only chrome (corner ? tab, instructions panel).
+    // Tear down the logged-in-only chrome (corner ? tab, its menu, the panel).
     const instrTab = document.getElementById('ascInstrTab');
     if (instrTab) instrTab.remove();
+    const cornerMenu = document.getElementById('ascCornerMenu');
+    if (cornerMenu) cornerMenu.remove();
     const instrDrawer = document.getElementById('ascInstrDrawer');
     if (instrDrawer) instrDrawer.remove();
     localStorage.removeItem(TOKEN_KEY);
@@ -7922,37 +7916,39 @@
   }
 
   // ─── Help menu + instruction drawer ────────────────────────────────────────
-  function toggleHelpMenu() {
-    const existing = document.getElementById('ascHelpMenu');
-    if (existing) { existing.remove(); return; }
-    const btn = document.getElementById('ascHelpBtn');
-    const r = btn.getBoundingClientRect();
-    const menu = h('div', { id: 'ascHelpMenu', class: 'asc-help-menu', role: 'menu' },
-      h('button', { class: 'asc-help-menu-item', type: 'button', role: 'menuitem',
-        onClick: () => { menu.remove(); toggleInstructionDrawer(); } }, 'Instructions'),
-      h('button', { class: 'asc-help-menu-item', type: 'button', role: 'menuitem',
-        onClick: () => { menu.remove(); closeInstructionDrawer(); startTutorial({ replay: true }); } },
-        'Replay practice case'));
-    menu.style.top = (r.bottom + 8) + 'px';
-    menu.style.right = Math.max(12, window.innerWidth - r.right) + 'px';
-    document.body.appendChild(menu);
-    setTimeout(() => {
-      const onDoc = (e) => { if (!menu.contains(e.target) && e.target !== btn) { menu.remove(); document.removeEventListener('click', onDoc, true); } };
-      document.addEventListener('click', onDoc, true);
-    }, 0);
-  }
-
-  // Floating corner tab — the always-there, always-small entry point to the
-  // written instructions. The panel only ever opens from an explicit click
-  // (tab, help menu, or reveal screen) and always closes back to the tab.
+  // Floating corner tab — the SINGLE, always-there entry point back into the
+  // tutorial: replay the guided practice case, or open a summary of it. Sits
+  // at the corner of the labeling screen so it's always reachable but never
+  // in the way.
   function ensureInstrTab() {
     if (document.getElementById('ascInstrTab')) return;
     const tab = h('button', {
       id: 'ascInstrTab', class: 'asc-instr-tab', type: 'button',
-      title: 'How to label a case', 'aria-label': 'Instructions',
+      title: 'Tutorial', 'aria-label': 'Tutorial menu', 'aria-haspopup': 'true',
     }, '?');
-    tab.addEventListener('click', toggleInstructionDrawer);
+    tab.addEventListener('click', toggleCornerMenu);
     document.body.appendChild(tab);
+  }
+  function toggleCornerMenu() {
+    const existing = document.getElementById('ascCornerMenu');
+    if (existing) { existing.remove(); return; }
+    const tab = document.getElementById('ascInstrTab');
+    const r = tab.getBoundingClientRect();
+    const menu = h('div', { id: 'ascCornerMenu', class: 'asc-help-menu', role: 'menu' },
+      h('button', { class: 'asc-help-menu-item', type: 'button', role: 'menuitem',
+        onClick: () => { menu.remove(); startTutorial({ replay: true }); } },
+        'Replay tutorial'),
+      h('button', { class: 'asc-help-menu-item', type: 'button', role: 'menuitem',
+        onClick: () => { menu.remove(); toggleInstructionDrawer(); } },
+        'View tutorial summary'));
+    // The tab lives at the bottom-right corner — open the menu UPWARD from it.
+    menu.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+    menu.style.right = Math.max(12, window.innerWidth - r.right) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => {
+      const onDoc = (e) => { if (!menu.contains(e.target) && e.target !== tab) { menu.remove(); document.removeEventListener('click', onDoc, true); } };
+      document.addEventListener('click', onDoc, true);
+    }, 0);
   }
   function pulseInstrTab() {
     ensureInstrTab();
