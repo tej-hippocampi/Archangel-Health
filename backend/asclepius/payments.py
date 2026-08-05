@@ -89,6 +89,7 @@ irrelevant unless a rate changes inside that window.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import statistics
 import time
@@ -96,9 +97,30 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from asclepius import capabilities as _caps
 from asclepius import compensation
 
 log = logging.getLogger("asclepius.payments")
+
+
+class PaymentsDenied(Exception):
+    """This account may not open a billable session.
+
+    Raised rather than returned, and raised from ``open_session`` rather than
+    checked in the router, because the router is NOT the only caller: PRD-R's
+    review surface calls ``open_session`` directly (context pack §3.1) and never
+    passes through ``auth.get_current_user``. A gate that lives only in the router
+    is a gate R walks around without knowing it.
+
+    ``reason`` is a short machine token for the event log; ``detail`` is what the
+    physician reads. They are different strings on purpose — 'capability' is for
+    us, 'this surface is for reviewers' is for them.
+    """
+
+    def __init__(self, reason: str, detail: str):
+        super().__init__(detail)
+        self.reason = reason
+        self.detail = detail
 
 # ─── Kinds ────────────────────────────────────────────────────────────────────
 KIND_TASK = "task"
@@ -173,6 +195,32 @@ def tl_auto_approve_days() -> int:
     """A labeler is never held hostage by a review backlog. If nobody reviews
     their work inside this window, it approves."""
     return _env_int("ASCLEPIUS_TL_AUTO_APPROVE_DAYS", 14)
+
+
+def tr_min_progress_keys() -> int:
+    """Distinct pieces of work a session must have named to qualify (audit C2).
+
+    **Defaults to 1, and that default is the considered position, not a
+    placeholder.** A reviewer who spends twenty honest minutes adjudicating a
+    single genuinely hard pair names exactly one key, and they are precisely the
+    physician this feature exists to pay. Raising this above 1 without evidence
+    would refuse them $100 to inconvenience a script that can trivially rotate
+    keys anyway.
+
+    It exists as a hook so that when there IS evidence — the counts are now
+    recorded on every session row — the bar moves with an env change and a
+    redeploy rather than a migration."""
+    return _env_int("ASCLEPIUS_TR_MIN_PROGRESS_KEYS", 1)
+
+
+def progress_key_max_seconds() -> int:
+    """Credit ceiling for time spent on ONE progress key.
+
+    Set well clear of ``tr_min_seconds`` so it can never cost an honest reviewer a
+    session: at 40 minutes against a 20-minute threshold, a physician wrestling
+    with one hard case has already qualified and been paid long before this
+    binds. What it bounds is an unattended run that holds a single key for hours."""
+    return _env_int("ASCLEPIUS_PROGRESS_KEY_MAX_SECONDS", 2400)
 
 
 def session_abandon_seconds() -> int:
@@ -261,6 +309,7 @@ def _mint_nonce() -> str:
 def credit_from_beats(
     beats: List[Dict[str, Any]], *, min_seconds: int,
     max_gap: int = MAX_GAP_SECONDS, pause_tolerance: int = PAUSE_TOLERANCE_SECONDS,
+    min_progress_keys: Optional[int] = None, key_max_seconds: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Total credited seconds, longest continuous run, and whether it qualifies.
 
@@ -270,22 +319,38 @@ def credit_from_beats(
 
     ``beats`` must be ordered by ``seq``. Server timestamps are used; a beat whose
     timestamp will not parse is skipped rather than being allowed to poison the
-    arithmetic with a zero."""
-    stamps: List[Tuple[datetime, bool]] = []
+    arithmetic with a zero.
+
+    A gap is attributed to the work named by the beat that OPENED it — during the
+    interval between two beats the reviewer was on the earlier beat's case. Time
+    on any one key is credited up to ``key_max_seconds``; past that the run
+    continues (the reviewer is still beating) but stops being payable.
+    """
+    if min_progress_keys is None:
+        min_progress_keys = tr_min_progress_keys()
+    if key_max_seconds is None:
+        key_max_seconds = progress_key_max_seconds()
+
+    stamps: List[Tuple[datetime, bool, Optional[str]]] = []
+    skipped = 0
     for b in beats:
         ts = _parse(b.get("server_ts"))
         if ts is None:
             log.warning("asclepius.payments: unparseable server_ts on beat %r", b.get("beat_id"))
+            skipped += 1
             continue
-        stamps.append((ts, bool(b.get("active"))))
+        key = (b.get("progress_key") or "").strip() or None
+        stamps.append((ts, bool(b.get("active")), key))
 
     credited = 0.0
     run = 0.0
     longest = 0.0
     intervals_ms: List[float] = []
+    per_key: Dict[str, float] = {}
+    keys_seen = {s[2] for s in stamps if s[2]}
 
     for i in range(1, len(stamps)):
-        prev_ts, prev_active = stamps[i - 1]
+        prev_ts, prev_active, prev_key = stamps[i - 1]
         gap = (stamps[i][0] - prev_ts).total_seconds()
         # Never negative: seq is the ordering authority, and a clock stepping
         # backwards between two beats must not subtract credited time.
@@ -298,8 +363,17 @@ def credit_from_beats(
                 # the standard deviation and hide the very regularity the signal
                 # is looking for.
                 intervals_ms.append(gap * 1000.0)
-                credited += gap
-                run += gap
+                # A beat that named no work buys no time. Legacy rows written
+                # before progress_key was required land here; the route now
+                # refuses such a beat outright.
+                if prev_key is None:
+                    payable = 0.0
+                else:
+                    spent = per_key.get(prev_key, 0.0)
+                    payable = max(0.0, min(gap, float(key_max_seconds) - spent))
+                    per_key[prev_key] = spent + payable
+                credited += payable
+                run += payable
             else:
                 longest = max(longest, run)
                 run = 0.0
@@ -311,12 +385,21 @@ def credit_from_beats(
                 run = 0.0
     longest = max(longest, run)
 
+    # floor, not round (audit L1). ``round`` made 1199.5 s qualify at a 1200 s
+    # threshold, and the threshold is the legally sensitive number in this
+    # feature — it should never be reached by a rounding rule.
+    credited_i = int(math.floor(credited))
+    longest_i = int(math.floor(longest))
+    distinct = len(keys_seen)
+
     return {
-        "credited_seconds": int(round(credited)),
-        "continuous_seconds": int(round(longest)),
-        "qualified": int(round(longest)) >= int(min_seconds),
+        "credited_seconds": credited_i,
+        "continuous_seconds": longest_i,
+        "qualified": longest_i >= int(min_seconds) and distinct >= int(min_progress_keys),
         "jitter_ms": _jitter_ms(intervals_ms),
         "beats": len(stamps),
+        "skipped_beats": skipped,
+        "distinct_progress_keys": distinct,
     }
 
 
@@ -337,6 +420,70 @@ def _jitter_ms(intervals_ms: List[float]) -> Optional[float]:
         return round(statistics.pstdev(intervals_ms), 3)
     except statistics.StatisticsError:
         return None
+
+
+def _ratchet(
+    result: Dict[str, Any], session_row: Dict[str, Any], *, min_seconds: int,
+) -> Dict[str, Any]:
+    """Never let a recomputation take back seconds that were already persisted.
+
+    Credited time is recomputed from the beat rows on every read, which is what
+    makes it restart-safe — and also what makes it vulnerable to the rows changing
+    meaning underneath it. An NTP step or a VM migration mid-session restamps a
+    beat, the next gap becomes enormous, the run breaks, and a session the server
+    already counted to twenty minutes silently becomes worth $0 (audit H3).
+
+    This is a floor, not a fudge. The stored value was itself computed from a
+    strict SUBSET of the same beats — every earlier beat is still there — so
+    holding at it can only preserve a number that was genuinely earned once. It
+    can never invent one, which is why a short session stays short.
+
+    The asymmetry is deliberate. Going UP is ordinary: the reviewer kept working.
+    Going DOWN means the record changed under a number somebody was already shown,
+    and the physician is not the right person to absorb that.
+    """
+    stored_credited = int(session_row.get("credited_seconds") or 0)
+    stored_continuous = int(session_row.get("continuous_seconds") or 0)
+    if (result["credited_seconds"] >= stored_credited
+            and result["continuous_seconds"] >= stored_continuous):
+        return result
+
+    result = dict(result)
+    result["regressed"] = {
+        "stored_credited_seconds": stored_credited,
+        "stored_continuous_seconds": stored_continuous,
+        "recomputed_credited_seconds": result["credited_seconds"],
+        "recomputed_continuous_seconds": result["continuous_seconds"],
+        "skipped_beats": int(result.get("skipped_beats") or 0),
+    }
+    result["credited_seconds"] = max(result["credited_seconds"], stored_credited)
+    result["continuous_seconds"] = max(result["continuous_seconds"], stored_continuous)
+    # Re-decide against the floored number, and against the key policy that was
+    # already applied — a session held at its stored value is still held to the
+    # same threshold.
+    result["qualified"] = (
+        result["continuous_seconds"] >= int(min_seconds)
+        and int(result.get("distinct_progress_keys") or 0) >= tr_min_progress_keys())
+    return result
+
+
+def _log_regression(store, *, session_id: str, session: Dict[str, Any],
+                    result: Dict[str, Any]) -> None:
+    """A binding ratchet means the infrastructure did something. Pay, and say so."""
+    regressed = result.get("regressed")
+    if not regressed:
+        return
+    log.error(
+        "asclepius.payments: recomputed credit for session %s went BACKWARDS "
+        "(%ds -> %ds continuous) — held at the stored value and flagged for payout "
+        "review. This is an infrastructure event, not a reviewer's fault.",
+        session_id, regressed["stored_continuous_seconds"],
+        regressed["recomputed_continuous_seconds"])
+    store.log_event(
+        entity_type="work_session", entity_id=session_id,
+        event_type="session_credit_regressed", actor=session.get("user_id"),
+        payload={**regressed, "action": "held_at_stored_value"},
+    )
 
 
 # ═══ Clock skew detection (signal only) ═══════════════════════════════════════
@@ -362,6 +509,74 @@ def _check_clock_skew(session_id: str, wall: datetime) -> Optional[float]:
 
 def _forget_session_clock(session_id: str) -> None:
     _MONOTONIC_REF.pop(session_id, None)
+    _SKEW_LOGGED.discard(session_id)
+    _JITTER_LOGGED.discard(session_id)
+
+
+# Say each per-session signal once (audit L2). Bounded and process-local: losing
+# these on a restart costs one extra log line, which is the right way round.
+_SKEW_LOGGED: set = set()
+_JITTER_LOGGED: set = set()
+_LOGGED_MAX = 2048
+
+
+def _first_time(seen: set, session_id: str) -> bool:
+    if session_id in seen:
+        return False
+    if len(seen) > _LOGGED_MAX:
+        seen.clear()
+    seen.add(session_id)
+    return True
+
+
+# ═══ Who may open a billable session (audit C1) ═══════════════════════════════
+def _authorize_session(store, *, user_id: str, kind: str) -> Dict[str, Any]:
+    """Three gates, checked in the order that produces the most useful refusal.
+
+    Before this existed, the entire gate on a $100-per-20-minutes endpoint was
+    "are you authenticated?" — so an approved LABELER, an account with no tier
+    assigned yet, and the internal ``qa_reviewer`` ops role could all open one and
+    earn. None of them were doing review work; two of them are not even
+    physicians doing clinical work on that surface.
+
+    The tier is read through ``capabilities.can`` and never off ``users.tier``
+    (context pack §3.3). A literal ``tier == "reviewer"`` here would be the exact
+    defect ``capabilities.py`` was built to remove, and it fails SILENTLY: "this
+    user is not a reviewer" is a legitimate answer for a labeler, so nothing logs
+    and the advisor tier quietly loses a surface it is entitled to.
+
+    ``auth.get_current_user`` already refuses ``pending``/``rejected`` across the
+    whole evaluator surface, so through the HTTP route the verification check here
+    is redundant — deliberately. It is repeated at the money boundary because R
+    calls ``open_session`` without going through that dependency at all, and
+    because a payment gate should not be one refactor of somebody else's
+    middleware away from opening.
+    """
+    user = store.get_user_by_id(user_id or "")
+    if user is None:
+        raise PaymentsDenied("unknown_user", "No such account.")
+    if not user.get("active"):
+        raise PaymentsDenied(
+            "inactive", "This account is not active.")
+
+    status = user.get("verification_status")
+    # NULL passes: a pre-verification-era account is 'never asked', which is a
+    # different fact from 'refused'. That tri-state is the same one held
+    # everywhere else in this codebase and narrowing it here would lock out every
+    # physician who signed up before credential review existed.
+    if status in ("pending", "rejected") and user.get("role") != "admin":
+        raise PaymentsDenied(
+            "verification",
+            "Your account is awaiting credential verification."
+            if status == "pending"
+            else "This account was not approved for the evaluator portal.")
+
+    if kind == SESSION_KIND_REVIEW and not _caps.can(user, _caps.REVIEW):
+        raise PaymentsDenied(
+            "capability",
+            "Review sessions are for physicians with the reviewer tier. "
+            "If you believe this is wrong, contact your workspace admin.")
+    return user
 
 
 # ═══ §3.1 — the frozen contract ═══════════════════════════════════════════════
@@ -370,12 +585,18 @@ def open_session(store, *, user_id: str, kind: str) -> Dict[str, Any]:
     credited_seconds, nonce, qualified}. Idempotent: an open session for this
     user+kind is returned rather than a second one being created.
 
+    Raises ``PaymentsDenied`` when this account may not open one — see
+    ``_authorize_session``. The signature is the frozen §3.1 contract, so the
+    gate loads the user itself rather than taking one; that is also what makes it
+    hold for PRD-R, which calls this function and not the route.
+
     Any open session that has gone silent past ``session_abandon_seconds`` — or
     that has been open past ``session_max_seconds`` — is finalised first, through
     the normal close path, so a session that already earned its time is still
     paid even though nobody closed it.
     """
     kind = (kind or SESSION_KIND_REVIEW).strip() or SESSION_KIND_REVIEW
+    _authorize_session(store, user_id=user_id, kind=kind)
     now = _now()
 
     fresh = []
@@ -441,6 +662,20 @@ def heartbeat(
     ``seq`` must strictly increase. ``client_ts`` is recorded as a fraud signal and
     never enters any calculation.
     """
+    # A beat that does not say what it is a beat FOR is not evidence of anything
+    # (audit C2). Before this, credit was a function of elapsed wall time with a
+    # request attached, and 28 blind POSTs 45 s apart were worth $100.
+    #
+    # The key stays OPAQUE here — counted, capped and recorded, never parsed or
+    # resolved. The moment payments looks up what a key means it has taken a
+    # dependency on PRD-R's schema and the seam in §8 is gone. Verifying that the
+    # key names work the server actually issued is R's half of the contract.
+    progress_key = (progress_key or "").strip() or None
+    if progress_key is None:
+        return _beat_error(
+            "missing_progress_key",
+            "A heartbeat must name the work it is a beat for.")
+
     session = store.get_work_session(session_id)
     if session is None:
         return _beat_error("not_found", "Session not found.")
@@ -465,18 +700,27 @@ def heartbeat(
 
     next_seq = int(seq) if seq is not None else None
     if next_seq is None:
-        # A client that does not track its own seq gets one derived server-side.
-        # Still strictly increasing, so the replay guard holds either way.
-        beats = store.session_beats(session_id)
-        next_seq = (max((int(b["seq"]) for b in beats), default=0)) + 1
+        # ``seq`` used to be optional forever, with the server deriving
+        # MAX(seq)+1 — which is precisely the affordance a replayer wants, since
+        # it means never having to know or send a sequence at all (audit H1).
+        #
+        # It stays optional for exactly one beat: a session with no beats behind
+        # it has nothing to replay, and letting the server number the first one
+        # keeps a fresh open simple. From the second beat on there IS something
+        # to replay, and the client must say where it is.
+        last = _last_seq(store, session_id)
+        if last:
+            return _beat_error("missing_seq", _BEAT_ERRORS["missing_seq"])
+        next_seq = last + 1
 
     skew = _check_clock_skew(session_id, now)
     min_seconds = int(session.get("min_seconds") or tr_min_seconds())
     before_continuous = int(session.get("continuous_seconds") or 0)
 
     def _credit(beat_rows, session_row):
-        result = credit_from_beats(
-            beat_rows, min_seconds=int(session_row.get("min_seconds") or min_seconds))
+        want = int(session_row.get("min_seconds") or min_seconds)
+        result = _ratchet(
+            credit_from_beats(beat_rows, min_seconds=want), session_row, min_seconds=want)
         result["clock_skew"] = skew is not None
         return result
 
@@ -489,10 +733,17 @@ def heartbeat(
         return _beat_error(result.get("error") or "rejected", _BEAT_ERRORS.get(
             result.get("error") or "", "Heartbeat rejected."), session=result.get("session"))
 
-    if skew is not None:
+    _log_regression(store, session_id=session_id, session=session, result=result)
+
+    # Both of these are per-SESSION facts, not per-beat ones, so they are said
+    # once per session (audit L2). Logged on every beat, modest NTP drift alone
+    # produced eighty WARNING lines a session — which is how a real signal gets
+    # filtered out by the person who has learned to ignore the noisy one.
+    if skew is not None and _first_time(_SKEW_LOGGED, session_id):
         log.warning(
             "asclepius.payments: clock skew %.2fs on session %s — wall clock kept as the "
-            "ledger authority (signal only)", skew, session_id)
+            "ledger authority (signal only). Further skew on this session is not logged.",
+            skew, session_id)
         store.log_event(
             entity_type="work_session", entity_id=session_id, event_type="clock_skew",
             actor=session.get("user_id"),
@@ -501,8 +752,11 @@ def heartbeat(
         )
 
     jitter = result.get("jitter_ms")
-    if jitter is not None and jitter < MIN_HUMAN_JITTER_MS:
-        # Logged and alerted, never auto-rejected (PRD-P §3).
+    if (jitter is not None and jitter < MIN_HUMAN_JITTER_MS
+            and _first_time(_JITTER_LOGGED, session_id)):
+        # Logged and alerted, never auto-rejected (PRD-P §3). The actionable
+        # artifact is the close-time event, which combines this with the distinct
+        # key count; this line is a breadcrumb, so once is enough.
         log.warning(
             "asclepius.payments: beat jitter %.1fms below the %.0fms human floor on "
             "session %s — recorded as a signal, payout unaffected",
@@ -582,8 +836,9 @@ def close_session(store, *, session_id: str, reason: str = END_CLOSED) -> Dict[s
         }
 
     def _credit(beat_rows, session_row):
-        return credit_from_beats(
-            beat_rows, min_seconds=int(session_row.get("min_seconds") or min_seconds))
+        want = int(session_row.get("min_seconds") or min_seconds)
+        return _ratchet(
+            credit_from_beats(beat_rows, min_seconds=want), session_row, min_seconds=want)
 
     result = store.finalize_work_session(
         session_id=session_id, end_reason=reason, ended_at=_ts(now),
@@ -599,6 +854,9 @@ def close_session(store, *, session_id: str, reason: str = END_CLOSED) -> Dict[s
     payout = int(written["amount_cents"]) if written else 0
 
     if not result.get("already_ended"):
+        _log_regression(store, session_id=session_id, session=session, result=result)
+        _flag_low_confidence(store, session_id=session_id, session=session, result=result,
+                             payout_cents=payout)
         store.log_event(
             entity_type="work_session", entity_id=session_id, event_type="session_closed",
             actor=session.get("user_id"),
@@ -628,13 +886,67 @@ def close_session(store, *, session_id: str, reason: str = END_CLOSED) -> Dict[s
     }
 
 
+def _flag_low_confidence(
+    store, *, session_id: str, session: Dict[str, Any], result: Dict[str, Any],
+    payout_cents: int,
+) -> None:
+    """Raise a reviewable event when a QUALIFYING session looks machine-made.
+
+    Neither signal is worth acting on alone, and that is the whole point of
+    combining them. Humans do hold one hard case for twenty minutes, so a single
+    progress key proves nothing. A clean network on a fast machine can look
+    regular, so low jitter proves nothing. A session that ran the full threshold
+    on one piece of work with machine-perfect beat spacing is a different claim,
+    and it is one no browser on a real network produces.
+
+    The answer is still to PAY and FLAG, never to refuse. The cost of a false
+    positive here is a physician not being paid $100 for work they did — which is
+    worse than paying for one session that turns out to be scripted, because the
+    second is recoverable and the first is how you lose a doctor. This writes the
+    artifact a human needs to make that call afterwards.
+    """
+    if not result.get("qualified"):
+        return
+    reasons = []
+    if int(result.get("distinct_progress_keys") or 0) <= 1:
+        reasons.append("single_key")
+    jitter = result.get("jitter_ms")
+    if jitter is not None and jitter < MIN_HUMAN_JITTER_MS:
+        reasons.append("no_jitter")
+    if len(reasons) < 2:
+        return
+    log.error(
+        "asclepius.payments: session %s qualified for %d cents with %s — PAID and "
+        "flagged for review, not refused", session_id, payout_cents, "+".join(reasons))
+    store.log_event(
+        entity_type="work_session", entity_id=session_id,
+        event_type="session_low_confidence", actor=session.get("user_id"),
+        payload={
+            "reasons": reasons,
+            "distinct_progress_keys": int(result.get("distinct_progress_keys") or 0),
+            "jitter_ms": jitter,
+            "credited_seconds": result.get("credited_seconds"),
+            "continuous_seconds": result.get("continuous_seconds"),
+            "resume_count": int(session.get("resume_count") or 0),
+            "payout_cents": payout_cents,
+            "action": "paid_and_flagged",
+        },
+    )
+
+
 # ─── Session helpers ──────────────────────────────────────────────────────────
 _BEAT_ERRORS = {
     "not_found": "Session not found.",
     "ended": "This session has already ended.",
     "stale_nonce": "Stale session token — this beat was not accepted.",
     "replayed_seq": "Replayed heartbeat sequence — this beat was not accepted.",
+    "missing_seq": "This session already has beats; a heartbeat must carry its sequence number.",
+    "missing_progress_key": "A heartbeat must name the work it is a beat for.",
 }
+# Rejections that mean the CLIENT sent something malformed (422) rather than
+# losing a race or replaying (409). The distinction matters to the client: a 409
+# means re-open, a 422 means fix your request.
+_BEAT_MALFORMED = frozenset({"missing_progress_key", "missing_seq"})
 
 
 def _beat_error(code: str, message: str, session: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -665,19 +977,71 @@ def _stale_reason(session: Dict[str, Any], now: datetime) -> Optional[str]:
 def _session_view(store, row: Dict[str, Any], *, existing_session: bool) -> Dict[str, Any]:
     min_seconds = int(row.get("min_seconds") or tr_min_seconds())
     continuous = int(row.get("continuous_seconds") or 0)
-    return {
+    view = {
         "session_id": row["session_id"],
         "started_at": row.get("started_at"),
         "min_seconds": min_seconds,
         "credited_seconds": int(row.get("credited_seconds") or 0),
         "continuous_seconds": continuous,
-        "nonce": row.get("nonce"),
+        # A nonce is a BEATING CREDENTIAL, and handing one out has to cost
+        # something (audit H1). A brand-new session is the one free issue: the
+        # caller demonstrably just created it. A RESUMED open returns state and
+        # no credential — otherwise ``open_session``'s idempotence, which exists
+        # so a reviewer never accidentally opens two billable sessions, doubles
+        # as an unlimited nonce dispenser for a client that never reads a
+        # heartbeat response. Resuming has its own endpoint for exactly that
+        # reason: rate-limited an order of magnitude harder, and counted.
+        "nonce": None if existing_session else row.get("nonce"),
         "qualified": bool(row.get("qualified")) or continuous >= min_seconds,
         "rate_cents": int(row.get("rate_cents") or tr_session_cents()),
         "remaining_seconds": max(0, min_seconds - continuous),
         "resumed": existing_session,
         "params": client_params(),
     }
+    if existing_session:
+        # Where the sequence got to, so a resuming client knows what to ask for
+        # next without being able to beat on the strength of knowing it.
+        view["seq"] = _last_seq(store, row["session_id"])
+    return view
+
+
+def _last_seq(store, session_id: str) -> int:
+    return max((int(b["seq"]) for b in store.session_beats(session_id)), default=0)
+
+
+def resume_session(store, *, session_id: str, user_id: str) -> Dict[str, Any]:
+    """Hand a fresh beating credential to a client that legitimately lost one.
+
+    A physician who reloads the page mid-session has lost their nonce and their
+    sequence and must be able to carry on without losing the time they earned.
+    That is the only case this exists for, which is why it is rate-limited far
+    below the beat rate and why every call is counted on the session row: one or
+    two resumes is a reload, thirty is a script.
+
+    Rotating on resume also means two tabs can never both hold a live credential —
+    the same property the per-beat rotation provides, extended to the one other
+    place a nonce can come from.
+    """
+    row = store.get_work_session(session_id)
+    if row is None or row.get("user_id") != user_id:
+        raise PaymentsDenied("not_found", "Session not found.")
+    if row.get("ended_at"):
+        # Never hand a live credential to a settled session: that would reopen
+        # for beating something that has already been paid or refused.
+        raise PaymentsDenied("ended", "This session has already ended.")
+
+    nonce = _mint_nonce()
+    if not store.rotate_session_nonce(session_id=session_id, nonce=nonce):
+        raise PaymentsDenied("ended", "This session has already ended.")
+
+    fresh = store.get_work_session(session_id) or row
+    store.log_event(
+        entity_type="work_session", entity_id=session_id, event_type="session_resumed",
+        actor=user_id, payload={"resume_count": int(fresh.get("resume_count") or 0)},
+    )
+    view = _session_view(store, fresh, existing_session=True)
+    view["nonce"] = nonce
+    return view
 
 
 def session_state(store, *, session_id: str, user_id: str) -> Optional[Dict[str, Any]]:
@@ -733,7 +1097,8 @@ def _verdict_status(verdicts: Optional[str]) -> Optional[str]:
 
 
 def reconcile_task_accruals(
-    store, *, limit: int = 2000, now: Optional[datetime] = None
+    store, *, user_id: Optional[str] = None, limit: int = 2000,
+    now: Optional[datetime] = None,
 ) -> Dict[str, int]:
     """Materialise and resolve TL task earnings. Idempotent; safe to call on every
     read. Returns a small counter dict for logging and tests.
@@ -745,6 +1110,14 @@ def reconcile_task_accruals(
 
     Reads ``case_reviews`` and never calls into the review module: a read is a
     contract-free dependency, a callback is not.
+
+    ``user_id`` scopes every pass to one physician (audit M1). A doctor opening
+    their Earnings page used to run this unfiltered, which meant one user's READ
+    wrote ledger rows for the whole company and ran everyone's auto-approve sweep,
+    inside their request. Scoped, a page load costs what that physician's own
+    backlog costs and nothing more. The unscoped form is still what the admin
+    ledger runs, because the fourteen-day promise must not depend on a physician
+    remembering to look.
     """
     now = now or _now()
     rate = tl_rate_cents()
@@ -752,7 +1125,7 @@ def reconcile_task_accruals(
 
     # 1. Work with no ledger row yet. Unpayable authors are filtered in SQL, so
     #    an advisor's submissions never enter this set at all.
-    for row in store.unaccrued_submissions(limit=limit):
+    for row in store.unaccrued_submissions(user_id=user_id, limit=limit):
         ref = row["submission_id"]
         implied = _verdict_status(row.get("review_verdicts"))
         # ``accrued_at`` is the moment the WORK happened, not the moment this
@@ -776,7 +1149,7 @@ def reconcile_task_accruals(
             )
 
     # 2. Rows awaiting a verdict. Terminal states are never re-examined.
-    for row in store.unresolved_task_earnings(limit=limit):
+    for row in store.unresolved_task_earnings(user_id=user_id, limit=limit):
         ref = row["submission_id"]
         status = row["status"]
         implied = _verdict_status(row.get("review_verdicts"))
@@ -792,7 +1165,7 @@ def reconcile_task_accruals(
                 counts["voided"] += 1
 
     # 3. The backlog escape hatch.
-    counts["auto_approved"] = _auto_approve(store, now=now)
+    counts["auto_approved"] = _auto_approve(store, now=now, user_id=user_id)
     return counts
 
 
@@ -805,7 +1178,7 @@ def _reject_note(row: Dict[str, Any]) -> str:
     return f"{base}: {note}" if note else base
 
 
-def _auto_approve(store, *, now: datetime) -> int:
+def _auto_approve(store, *, now: datetime, user_id: Optional[str] = None) -> int:
     """A labeler is never held hostage by a review backlog: if nobody reviews
     their work within the window, it approves.
 
@@ -815,7 +1188,7 @@ def _auto_approve(store, *, now: datetime) -> int:
     days = tl_auto_approve_days()
     cutoff = _ledger_ts(now - timedelta(days=days))
     moved = 0
-    for row in store.accrued_earnings_before(cutoff):
+    for row in store.accrued_earnings_before(cutoff, user_id=user_id):
         if store.resolve_earning(
             kind=row["kind"], ref_id=row["ref_id"], status=APPROVED,
             resolved_at=_ledger_ts(now), only_from=[ACCRUED],
@@ -828,6 +1201,63 @@ def _auto_approve(store, *, now: datetime) -> int:
                 payload={"kind": row["kind"], "ref_id": row["ref_id"], "days": days},
             )
     return moved
+
+
+# ═══ Disbursement — where money actually leaves ═══════════════════════════════
+def mark_paid(
+    store, *, payout_batch_id: str, actor_id: Optional[str] = None,
+    earning_ids: Optional[List[str]] = None, user_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Record that a batch of approved earnings has actually been disbursed.
+
+    Before this existed, ``paid`` was a state nothing could write: the ledger's
+    double-payment guard was airtight inside the system and absent at the only
+    boundary where a double payment costs real money. Paying a physician out of
+    band left the ledger unable to record it, the doctor still seeing the money as
+    owed, and the next export re-including every row.
+
+    This does NOT move money. It is the ledger's record that money moved, which is
+    the half that belongs here — the transfer itself is a treasury operation and
+    the batch id is how the two are reconciled afterwards.
+
+    ``payout_batch_id`` is the idempotency key, not a label. Replaying a batch is
+    a no-op, so a disbursement job that times out and retries is safe by
+    construction rather than by the operator remembering.
+    """
+    batch = (payout_batch_id or "").strip()
+    if not batch:
+        raise PaymentsDenied("batch_required", "A payout batch id is required.")
+    if not earning_ids and not user_id:
+        # A call with no target would mean "pay the entire company", which is
+        # never what anyone meant to type.
+        raise PaymentsDenied(
+            "target_required",
+            "Name the earnings to pay, or the physician to pay them to.")
+
+    now = _now()
+    result = store.mark_earnings_paid(
+        payout_batch_id=batch, paid_at=_ledger_ts(now),
+        earning_ids=earning_ids, user_id=user_id)
+
+    for row in result["marked"]:
+        store.log_event(
+            entity_type="earning", entity_id=row["earning_id"],
+            event_type="earning_paid", actor=actor_id,
+            payload={"payout_batch_id": batch, "kind": row["kind"],
+                     "ref_id": row["ref_id"], "user_id": row["user_id"],
+                     "amount_cents": int(row["amount_cents"])},
+        )
+    total = sum(int(r["amount_cents"]) for r in result["marked"])
+    log.warning(
+        "asclepius.payments: batch %s marked %d earnings paid (%d cents) by %s",
+        batch, len(result["marked"]), total, actor_id or "unknown")
+    return {
+        "payout_batch_id": batch,
+        "marked": len(result["marked"]),
+        "amount_cents": total,
+        "already_in_batch": result["already_in_batch"],
+        "skipped": result["skipped"],
+    }
 
 
 # ═══ The Earnings read model ══════════════════════════════════════════════════
@@ -848,7 +1278,9 @@ def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
     than an honest-looking zero.
     """
     try:
-        reconcile_task_accruals(store)
+        # Scoped to THIS physician (audit M1). One doctor's read must not
+        # materialize — or auto-approve — anybody else's money.
+        reconcile_task_accruals(store, user_id=user_id)
     except Exception:
         # A reconciliation failure must never turn the Earnings page into a 500:
         # the ledger rows that already exist are still the truth, and showing them
@@ -869,8 +1301,12 @@ def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
 
     # PAID is money that has actually left the building; it belongs in the
     # headline alongside APPROVED, because from the doctor's side both are
-    # "earned and not in doubt".
-    approved_cents = _cents(APPROVED) + _cents(PAID)
+    # "earned and not in doubt". But they are NOT interchangeable — "you have been
+    # paid $75" and "we owe you $75" are different sentences — so both halves are
+    # served separately and the page can say which is which.
+    paid_cents = _cents(PAID)
+    unpaid_cents = _cents(APPROVED)
+    approved_cents = unpaid_cents + paid_cents
 
     recent = []
     for r in rows:
@@ -886,6 +1322,7 @@ def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
             "accrued_at": r["accrued_at"],
             "resolved_at": r["resolved_at"],
             "note": r["note"],
+            "payout_batch_id": r["payout_batch_id"],
             "detail": None,
         }
         if r["kind"] == KIND_REVIEW_SESSION:
@@ -901,6 +1338,8 @@ def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
     return {
         "currency": "USD",
         "approved_cents": approved_cents,
+        "paid_cents": paid_cents,
+        "unpaid_cents": unpaid_cents,
         "pending_cents": _cents(ACCRUED),
         "void_cents": _cents(VOID),
         "lines": [

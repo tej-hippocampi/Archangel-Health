@@ -343,6 +343,60 @@ def test_an_advisors_submissions_never_occupy_the_scan_window():
     assert _earnings(advisor)["recent"] == []
 
 
+def test_one_physicians_read_does_not_materialize_everyone_elses_ledger():
+    """Audit M1. ``earnings_summary`` ran an unfiltered reconciliation, so one
+    physician opening Earnings wrote ledger rows for the whole company and ran the
+    14-day auto-approve sweep — in their request path. One user's READ mutating
+    every other user's money is wrong on its own terms, and it makes the cost of a
+    page load grow with the size of the business."""
+    admin_h = A.headers_for(_admin())
+    mine, theirs = _labeler(), _labeler()
+    my_sid = _submit(_create_task(admin_h), mine)
+    their_sid = _submit(_create_task(admin_h), theirs)
+
+    payload = _earnings(mine)
+    assert {r["ref_id"] for r in _task_rows(payload)} == {my_sid}
+
+    # The other physician's work is untouched until THEY look, or until an admin
+    # sweep runs. Their earning does not exist yet.
+    assert _store().get_earning(kind="task", ref_id=their_sid) is None
+
+    assert {r["ref_id"] for r in _task_rows(_earnings(theirs))} == {their_sid}
+    assert _store().get_earning(kind="task", ref_id=their_sid) is not None
+
+
+def test_a_scoped_reconciliation_only_sweeps_that_users_backlog():
+    """The auto-approve sweep is scoped too. A physician opening Earnings must not
+    be the thing that decides another physician's fourteen-day deadline."""
+    admin_h = A.headers_for(_admin())
+    mine, theirs = _labeler(), _labeler()
+    _submit(_create_task(admin_h), mine)
+    their_sid = _submit(_create_task(admin_h), theirs)
+    asc_payments.reconcile_task_accruals(_store())        # unscoped: seed both
+
+    later = datetime.now(timezone.utc) + timedelta(
+        days=asc_payments.tl_auto_approve_days() + 1)
+    asc_payments.reconcile_task_accruals(_store(), user_id=mine["id"], now=later)
+
+    assert _store().get_earning(kind="task", ref_id=their_sid)["status"] == "accrued"
+    assert [r["status"] for r in _task_rows(_earnings(mine))] == ["approved"]
+
+
+def test_the_admin_sweep_is_still_company_wide():
+    """The unscoped pass has to keep existing — it is what makes the auto-approve
+    deadline a real promise rather than one that only fires for physicians who
+    happen to check their earnings page."""
+    admin_h = A.headers_for(_admin())
+    a, b = _labeler(), _labeler()
+    a_sid = _submit(_create_task(admin_h), a)
+    b_sid = _submit(_create_task(admin_h), b)
+
+    client.get("/api/asclepius/admin/earnings", headers=admin_h)
+
+    assert _store().get_earning(kind="task", ref_id=a_sid) is not None
+    assert _store().get_earning(kind="task", ref_id=b_sid) is not None
+
+
 def test_reconciliation_is_stable_under_repetition():
     admin_h = A.headers_for(_admin())
     doctor = _labeler()

@@ -1321,6 +1321,22 @@ class AsclepiusStore:
             if "clock_skew_beats" not in cols("work_sessions"):
                 conn.execute(
                     "ALTER TABLE work_sessions ADD COLUMN clock_skew_beats INTEGER NOT NULL DEFAULT 0")
+            # How many distinct pieces of work this session's beats named (audit
+            # C2). A count, not a gate: one hard case adjudicated for twenty
+            # honest minutes is exactly one key, and refusing to pay that is the
+            # false positive this whole feature is built to avoid. Recorded so the
+            # threshold in ASCLEPIUS_TR_MIN_PROGRESS_KEYS can eventually be set
+            # from data rather than from a guess.
+            if "distinct_progress_keys" not in cols("work_sessions"):
+                conn.execute(
+                    "ALTER TABLE work_sessions ADD COLUMN distinct_progress_keys "
+                    "INTEGER NOT NULL DEFAULT 0")
+            # How many times a client asked for a fresh nonce mid-session (audit
+            # H1). One or two is a page reload; dozens is a script that never
+            # reads a heartbeat response.
+            if "resume_count" not in cols("work_sessions"):
+                conn.execute(
+                    "ALTER TABLE work_sessions ADD COLUMN resume_count INTEGER NOT NULL DEFAULT 0")
 
             # One durable row per accepted heartbeat. There is no server-side
             # stopwatch and no in-memory session state anywhere in this feature:
@@ -1368,8 +1384,18 @@ class AsclepiusStore:
                 )
                 """
             )
+            # The disbursement batch this row was paid in (audit H2). NULL until
+            # money actually leaves — which makes it, not the status alone, the
+            # thing that says a payment really happened. No DEFAULT, same rule as
+            # every other decision column in this file.
+            if "payout_batch_id" not in cols("earnings"):
+                conn.execute("ALTER TABLE earnings ADD COLUMN payout_batch_id TEXT")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_earnings_user ON earnings(user_id, status)")
+            # Reconciling a disbursement against the ledger is the first thing
+            # anyone does after running one.
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_earnings_batch ON earnings(payout_batch_id)")
             # The auto-approve sweep scans by (status, accrued_at). Unindexed that
             # is a full ledger scan on every Earnings page load, forever.
             conn.execute(
@@ -6195,6 +6221,21 @@ class AsclepiusStore:
             )
         return self.get_work_session(session_id)  # type: ignore[return-value]
 
+    def rotate_session_nonce(self, *, session_id: str, nonce: str) -> bool:
+        """Mint a fresh nonce onto an OPEN session and count the resume.
+
+        Separate from ``record_session_beat`` because resuming is not beating: it
+        credits no time and is rate-limited far harder. The ``ended_at IS NULL``
+        predicate lives in the UPDATE rather than in a preceding read, so a
+        session that closed underneath the caller cannot be handed a live nonce by
+        a racing resume."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE work_sessions SET nonce = ?, resume_count = resume_count + 1 "
+                "WHERE session_id = ? AND ended_at IS NULL",
+                (nonce, session_id))
+            return cur.rowcount > 0
+
     def session_beats(self, session_id: str) -> List[Dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(
@@ -6252,11 +6293,12 @@ class AsclepiusStore:
             credit = credit_fn(beats, session)
             conn.execute(
                 "UPDATE work_sessions SET last_beat_at = ?, credited_seconds = ?, "
-                "continuous_seconds = ?, jitter_ms = ?, clock_skew_beats = ?, nonce = ? "
-                "WHERE session_id = ?",
+                "continuous_seconds = ?, jitter_ms = ?, clock_skew_beats = ?, "
+                "distinct_progress_keys = ?, nonce = ? WHERE session_id = ?",
                 (server_ts, int(credit["credited_seconds"]), int(credit["continuous_seconds"]),
                  credit.get("jitter_ms"),
                  int(session.get("clock_skew_beats") or 0) + (1 if credit.get("clock_skew") else 0),
+                 int(credit.get("distinct_progress_keys") or 0),
                  next_nonce, session_id),
             )
             conn.execute("COMMIT")
@@ -6328,10 +6370,12 @@ class AsclepiusStore:
             qualified = bool(credit["qualified"])
             conn.execute(
                 "UPDATE work_sessions SET ended_at = ?, end_reason = ?, credited_seconds = ?, "
-                "continuous_seconds = ?, qualified = ?, jitter_ms = ? WHERE session_id = ?",
+                "continuous_seconds = ?, qualified = ?, jitter_ms = ?, "
+                "distinct_progress_keys = ? WHERE session_id = ?",
                 (ended_at, end_reason, int(credit["credited_seconds"]),
                  int(credit["continuous_seconds"]), 1 if qualified else 0,
-                 credit.get("jitter_ms"), session_id),
+                 credit.get("jitter_ms"), int(credit.get("distinct_progress_keys") or 0),
+                 session_id),
             )
             written = None
             if qualified and earning:
@@ -6364,6 +6408,16 @@ class AsclepiusStore:
             "continuous_seconds": int(credit["continuous_seconds"]),
             "qualified": qualified, "end_reason": end_reason, "ended_at": ended_at,
             "earning": written,
+            # Carried out of the transaction so the caller can decide whether this
+            # payout deserves a human look WITHOUT re-reading the session it just
+            # wrote — the values it would read back are exactly these.
+            "jitter_ms": credit.get("jitter_ms"),
+            "distinct_progress_keys": int(credit.get("distinct_progress_keys") or 0),
+            "skipped_beats": int(credit.get("skipped_beats") or 0),
+            # Set only when the ratchet bound — the caller turns it into a
+            # payout-review event. Carried out rather than re-derived, because
+            # once the floored value is written there is nothing left to compare.
+            "regressed": credit.get("regressed"),
         }
 
     # ─── Ledger ───────────────────────────────────────────────────────────────
@@ -6411,6 +6465,70 @@ class AsclepiusStore:
             cur = conn.execute(sql, params)
             return cur.rowcount > 0
 
+    def mark_earnings_paid(
+        self, *, payout_batch_id: str, paid_at: str,
+        earning_ids: Optional[List[str]] = None, user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Move ``approved`` rows to ``paid`` under one batch id, atomically.
+
+        The batch id is the IDEMPOTENCY KEY, and that is the whole design. A
+        disbursement job that times out and retries is the normal case, so
+        replaying a batch must be a no-op rather than a second payment — which is
+        why the UPDATE carries ``status = 'approved' AND payout_batch_id IS NULL``
+        as a compare-and-set instead of reading first and hoping.
+
+        Everything runs inside one BEGIN IMMEDIATE, for the same reason the
+        session finalizer does: two disbursement runs must not be able to
+        interleave a read and a write and pay the same physician twice.
+
+        Returns counts rather than rows: ``marked`` is what this call changed,
+        ``already_in_batch`` is what a previous identical call changed, and
+        ``skipped`` is everything that was not eligible. A retry is the case where
+        ``marked`` is 0 and ``already_in_batch`` is not."""
+        conn = self._conn()
+        try:
+            self._immediate(conn)
+            where, params = [], []
+            if earning_ids:
+                where.append("earning_id IN (%s)" % ",".join("?" * len(earning_ids)))
+                params.extend(earning_ids)
+            if user_id:
+                where.append("user_id = ?")
+                params.append(user_id)
+            scope = " AND ".join(where)
+
+            candidates = [dict(r) for r in conn.execute(
+                f"SELECT * FROM earnings WHERE {scope}", params).fetchall()]
+            already = [r for r in candidates
+                       if r["status"] == "paid" and r["payout_batch_id"] == payout_batch_id]
+            eligible = [r for r in candidates
+                        if r["status"] == "approved" and r["payout_batch_id"] is None]
+
+            marked = []
+            for row in eligible:
+                cur = conn.execute(
+                    "UPDATE earnings SET status = 'paid', payout_batch_id = ?, "
+                    "resolved_at = ? "
+                    "WHERE earning_id = ? AND status = 'approved' "
+                    "  AND payout_batch_id IS NULL",
+                    (payout_batch_id, paid_at, row["earning_id"]))
+                if cur.rowcount:
+                    marked.append(row)
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+        return {
+            "marked": marked,
+            "already_in_batch": len(already),
+            "skipped": len(candidates) - len(marked) - len(already),
+        }
+
     def earnings_for_user(
         self, user_id: str, *, limit: int = 200
     ) -> List[Dict[str, Any]]:
@@ -6436,7 +6554,7 @@ class AsclepiusStore:
 
     def list_earnings(
         self, *, user_id: Optional[str] = None, status: Optional[str] = None,
-        limit: int = 500,
+        payout_batch_id: Optional[str] = None, limit: int = 500,
     ) -> List[Dict[str, Any]]:
         """Admin ledger view, joined to the identity so the console can name the
         physician without a second round trip per row."""
@@ -6450,6 +6568,9 @@ class AsclepiusStore:
         if status:
             sql += " AND e.status = ?"
             params.append(status)
+        if payout_batch_id:
+            sql += " AND e.payout_batch_id = ?"
+            params.append(payout_batch_id)
         sql += " ORDER BY e.accrued_at DESC, e.earning_id DESC LIMIT ?"
         params.append(limit)
         with self._conn() as conn:
@@ -6502,7 +6623,9 @@ class AsclepiusStore:
         "submitted", "auto_validated", "qa_checked", "export_ready", "needs_qa", "exported",
     )
 
-    def unaccrued_submissions(self, *, limit: int = 2000) -> List[Dict[str, Any]]:
+    def unaccrued_submissions(
+        self, *, user_id: Optional[str] = None, limit: int = 2000
+    ) -> List[Dict[str, Any]]:
         """Payable submissions that have no ledger row yet, oldest first.
 
         The LEFT JOIN to ``users`` mirrors the audit-M6 reasoning next to
@@ -6538,13 +6661,16 @@ class AsclepiusStore:
                   AND {PAYABLE_SQL}
                   AND NOT EXISTS (SELECT 1 FROM earnings e
                                    WHERE e.kind = 'task' AND e.ref_id = s.submission_id)
+                  AND (? IS NULL OR s.evaluator_id = ?)
                 ORDER BY s.created_at ASC
                 LIMIT ?
                 """,
-                (*self._ACCRUABLE_STATUSES, limit)).fetchall()
+                (*self._ACCRUABLE_STATUSES, user_id, user_id, limit)).fetchall()
         return [dict(r) for r in rows]
 
-    def unresolved_task_earnings(self, *, limit: int = 2000) -> List[Dict[str, Any]]:
+    def unresolved_task_earnings(
+        self, *, user_id: Optional[str] = None, limit: int = 2000
+    ) -> List[Dict[str, Any]]:
         """Task ledger rows not yet in a decided state, with their verdicts.
 
         ``accrued`` is "awaiting a verdict"; ``void`` is included because a later
@@ -6562,10 +6688,11 @@ class AsclepiusStore:
                          ORDER BY cr.created_at DESC LIMIT 1) AS reject_note
                 FROM earnings e
                 WHERE e.kind = 'task' AND e.status IN ('accrued', 'void')
+                  AND (? IS NULL OR e.user_id = ?)
                 ORDER BY e.accrued_at ASC
                 LIMIT ?
                 """,
-                (limit,)).fetchall()
+                (user_id, user_id, limit)).fetchall()
         return [dict(r) for r in rows]
 
     def submission_specialties(self, submission_ids: List[str]) -> Dict[str, str]:
@@ -6587,13 +6714,25 @@ class AsclepiusStore:
                         out[r["sid"]] = r["specialty"]
         return out
 
-    def accrued_earnings_before(self, cutoff_iso: str, *, limit: int = 1000) -> List[Dict[str, Any]]:
+    def accrued_earnings_before(
+        self, cutoff_iso: str, *, user_id: Optional[str] = None, limit: int = 1000
+    ) -> List[Dict[str, Any]]:
         """``accrued`` rows older than the cutoff — the auto-approve sweep's input
-        (PRD-P §1.2: a labeler is never held hostage by a review backlog)."""
+        (PRD-P §1.2: a labeler is never held hostage by a review backlog).
+
+        ``user_id`` scopes it to one physician's backlog, which is what a doctor's
+        own Earnings read is entitled to touch. The unscoped form is the admin
+        sweep, and it has to keep existing: the fourteen-day promise cannot depend
+        on the physician remembering to open the page."""
+        sql = "SELECT * FROM earnings WHERE status = 'accrued' AND accrued_at < ?"
+        params: List[Any] = [cutoff_iso]
+        if user_id:
+            sql += " AND user_id = ?"
+            params.append(user_id)
+        sql += " ORDER BY accrued_at ASC LIMIT ?"
+        params.append(limit)
         with self._conn() as conn:
-            rows = conn.execute(
-                "SELECT * FROM earnings WHERE status = 'accrued' AND accrued_at < ? "
-                "ORDER BY accrued_at ASC LIMIT ?", (cutoff_iso, limit)).fetchall()
+            rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
     # ═══ END PRD-P STORE METHODS ═══
 

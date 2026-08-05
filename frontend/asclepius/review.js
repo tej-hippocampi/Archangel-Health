@@ -76,6 +76,10 @@
   }
 
   function signOut() {
+    // Settle the billable session before the token goes away, or the reviewer
+    // waits out the abandon window for time they have already earned.
+    var s = sessionClient();
+    if (s && SESSION_STARTED) { SESSION_STARTED = false; s.stop('closed'); }
     token = null;
     try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ }
     renderLogin();
@@ -112,10 +116,74 @@
       STATS = results[1];
       resetReview();
       if (!VIEW) { renderEmpty(results[0].message); return; }
+      // The reviewer is now on a pair — start the billable clock, or tell it
+      // which pair they moved to.
+      trackPair(VIEW.submission_id);
       renderReview();
     }).catch(function (err) {
       if (err.message !== 'Signed out') renderFatal(err.message);
     });
+  }
+
+  // ── billable session (PRD-P) ────────────────────────────────────────────────
+  // This surface decides WHAT a reviewer sees; payments decides whether they are
+  // paid for the time. So all this does is start the session, name the pair, and
+  // render the number the server sends back. There is no clock in this file —
+  // audit U2 found the opposite failure (no clock anywhere), and two clocks would
+  // be worse than none, because the reviewer would trust the wrong one.
+  var SESSION_STARTED = false;
+
+  function sessionClient() {
+    return window.AsclepiusSession || null;
+  }
+
+  function trackPair(submissionId) {
+    var s = sessionClient();
+    if (!s || !submissionId) return;
+    if (!SESSION_STARTED) {
+      SESSION_STARTED = true;
+      s.subscribe(function () { refreshSessionChip(); });
+      s.open('review', submissionId).catch(function () { SESSION_STARTED = false; });
+      return;
+    }
+    s.setProgress(submissionId);
+  }
+
+  function mmss(seconds) {
+    var v = Math.max(0, Math.round(Number(seconds || 0)));
+    var m = Math.floor(v / 60);
+    var r = v % 60;
+    return String(m) + ':' + (r < 10 ? '0' : '') + String(r);
+  }
+
+  /** The reviewer's clock, built ENTIRELY from the last heartbeat response.
+   *  Exposed on window so it can be tested against a known server state — the
+   *  instruction manual tells physicians to trust this number, so it has to be
+   *  provably the same one the payout is computed from. */
+  function sessionChip() {
+    var s = sessionClient();
+    var st = s && s.state();
+    if (!st || st.ended) return null;
+    if (st.error) {
+      return h('span', { class: 'rv-chrome rv-session is-warn' }, st.error);
+    }
+    var elapsed = mmss(st.continuous_seconds);
+    var target = mmss(st.min_seconds);
+    if (st.qualified) {
+      return h('span', { class: 'rv-chrome rv-session is-qualified' },
+        'Session ' + elapsed + ' of ' + target + ' \u00b7 this session is paid');
+    }
+    return h('span', { class: 'rv-chrome rv-session' },
+      'Session ' + elapsed + ' of ' + target
+      + ' \u00b7 leaving before ' + target + ' ends the session unpaid');
+  }
+  window.__reviewSessionChip = sessionChip;
+
+  function refreshSessionChip() {
+    var slot = document.getElementById('rvSessionSlot');
+    if (!slot) return;
+    clear(slot);
+    appendChild(slot, sessionChip());
   }
 
   // ── screens ─────────────────────────────────────────────────────────────────
@@ -129,6 +197,7 @@
     return h('header', { class: 'rv-header' },
       h('h1', null, 'Expert Review'),
       stats,
+      h('span', { id: 'rvSessionSlot' }, sessionChip()),
       h('button', { class: 'rv-linkbtn', onclick: signOut }, 'Sign out'));
   }
 

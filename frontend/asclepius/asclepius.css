@@ -2735,4 +2735,28 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
   .asc-pay-row .asc-pay-status { grid-column: 2 / -1; }
   .asc-pay-note { padding-left: 68px; }
 }
+
+/* ─── Audit U1 — the rule, stated before it can cost anyone anything ─────────
+   This card renders for every physician who accrues payment, session or not.
+   The sentence used to live only inside the live-session widget, which meant a
+   reviewer could not read it until they were already exposed to it. Lime, not
+   pink: this is "new, needs attention", never a safety flag. */
+.asc-pay-rule {
+  border: 1px solid var(--lime-line);
+  background: var(--lime-wash);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  margin-top: 26px;
+  max-width: 62ch;
+}
+.asc-pay-rule-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--asc-muted);
+  margin-bottom: 8px;
+}
+.asc-pay-rule-body { font-size: 13px; line-height: 1.6; color: var(--asc-text); }
+.asc-pay-rule-body + .asc-pay-rule-body { margin-top: 8px; }
 /* ═══ END PRD-P ═══ */

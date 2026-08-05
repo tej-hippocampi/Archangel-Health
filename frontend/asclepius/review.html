@@ -24,6 +24,18 @@
       border-bottom: 1px solid var(--hairline); padding: var(--sp-3) var(--sp-5);
       display: flex; align-items: center; gap: var(--sp-4); }
     .rv-header h1 { font-size: var(--t-h3); margin: 0; font-weight: 600; flex: none; }
+    /* PRD-P: the billable-session clock. Every value in it comes from a
+       heartbeat response — there is no timer in review.js. Lime while running
+       (new, needs attention), green once the session is worth paying, and never
+       pink: falling short of twenty minutes is not a safety event. */
+    .rv-session { flex: none; text-transform: none; letter-spacing: 0;
+      font-size: var(--t-sm); color: var(--ink-soft);
+      border: 1px solid var(--lime-line); border-radius: var(--r-chip);
+      padding: 4px 12px; background: var(--lime-wash); }
+    .rv-session.is-qualified { border-color: var(--green-line);
+      background: var(--green-wash); color: var(--green-deep); }
+    .rv-session.is-warn { border-color: var(--orange-line);
+      background: var(--orange-wash); color: var(--orange-deep); }
     .rv-headstats { flex: 1; display: flex; gap: var(--sp-3); align-items: baseline; }
     .rv-main { max-width: 880px; margin: 0 auto; padding: var(--sp-5); }
     .rv-card { background: var(--card); border: 1px solid var(--hairline);
@@ -87,6 +99,11 @@
 </head>
 <body class="rv-body">
   <div id="reviewRoot"></div>
+  <!-- PRD-P: the billable-session heartbeat client (window.AsclepiusSession).
+       MUST load before review.js, which calls it when a pair is drawn. Without
+       this tag a reviewer works and is credited nothing, silently — which is
+       exactly what audit U2 found. Both are `defer`, so document order holds. -->
+  <script src="/static/asclepius/earnings.js" defer></script>
   <script src="/static/asclepius/review.js" defer></script>
 </body>
 </html>

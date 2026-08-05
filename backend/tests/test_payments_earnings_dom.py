@@ -258,7 +258,7 @@ console.log(JSON.stringify({
     assert out["section"] is True
     assert out["client"] is True
     # The frozen shape PRD-R calls into.
-    for name in ("open", "attach", "stop", "state", "subscribe"):
+    for name in ("open", "attach", "setProgress", "stop", "state", "subscribe"):
         assert name in out["clientApi"]
 
 
@@ -311,6 +311,82 @@ done(function () {
     assert "asc-pay-void" in out["classes"][2]
     assert "pink" not in out["all"].lower()
     assert "critical" not in out["all"].lower()
+
+
+def test_the_twenty_minute_rule_is_visible_without_a_session_open():
+    """Audit U1, and the most consequential UX finding in the release.
+
+    The one sentence that states the $0 rule lived inside the session widget,
+    which renders nothing when there is no session. So a physician who had never
+    started a review could not find the rule on the Earnings page at all — and
+    once they DID have a session, the sentence was on a tab they were not looking
+    at. The rule has to be discoverable before it can cost anybody anything."""
+    out = _run_node(_script({"/asclepius/earnings": _LEDGER}, """
+var body = document.createElement('div');
+window.EarningsSection.render(body, ctx);
+done(function () {
+  console.log(JSON.stringify({
+    rule: find(body, 'asc-pay-rule').map(textOf),
+    widgets: find(body, 'asc-pay-session').length,
+  }));
+});
+"""))
+    assert out["widgets"] == 0, "no session is open — this is the case that was blank"
+    assert len(out["rule"]) == 1
+    rule = out["rule"][0]
+    assert "20:00" in rule
+    assert "unpaid" in rule
+    assert "$100" in rule
+
+
+def test_the_rule_card_is_not_shown_to_someone_it_does_not_apply_to():
+    """An advisor is not paid per session, so telling them what a session pays
+    would be noise at best and misleading at worst."""
+    ledger = dict(_LEDGER, accrues_payment=False, recent=[])
+    out = _run_node(_script({"/asclepius/earnings": ledger}, """
+var body = document.createElement('div');
+window.EarningsSection.render(body, ctx);
+done(function () { console.log(JSON.stringify({ rule: find(body, 'asc-pay-rule').length })); });
+"""))
+    assert out["rule"] == 0
+
+
+def test_the_page_heading_uses_the_section_scale_not_a_second_h1():
+    """Audit U3. The portal shell and each view already own the document's
+    heading structure; a section module adding its own ``h1`` puts two at the top
+    level of one page."""
+    out = _run_node(_script({"/asclepius/earnings": _LEDGER}, """
+var body = document.createElement('div');
+window.EarningsSection.render(body, ctx);
+done(function () {
+  var tags = [];
+  (function walk(el) {
+    (el.childNodes || []).forEach(function (c) {
+      if (!c.tagName) return;
+      tags.push(c.tagName);
+      walk(c);
+    });
+  })(body);
+  console.log(JSON.stringify({ h1: tags.filter(function (t) { return t === 'H1'; }).length,
+                               h2: tags.filter(function (t) { return t === 'H2'; }).length }));
+});
+"""))
+    assert out["h1"] == 0
+    assert out["h2"] >= 1
+
+
+def test_paid_money_is_distinguishable_from_money_still_owed():
+    """Audit H2's UI half. "You have been paid $75" and "we owe you $75" are
+    different sentences, and the headline used to render them identically."""
+    ledger = dict(_LEDGER, approved_cents=247500, paid_cents=200000, unpaid_cents=47500)
+    out = _run_node(_script({"/asclepius/earnings": ledger}, """
+var body = document.createElement('div');
+window.EarningsSection.render(body, ctx);
+done(function () { console.log(JSON.stringify({ sub: find(body, 'asc-pay-sub').map(textOf) })); });
+"""))
+    joined = " ".join(out["sub"])
+    assert "$2,000 paid" in joined
+    assert "$475 to come" in joined
 
 
 def test_a_number_that_went_down_carries_its_explanation():
@@ -469,7 +545,7 @@ def test_opening_a_session_starts_beating_and_carries_the_bearer_token():
             "remaining_seconds": 1185, "qualified": False, "next_nonce": "n1", "ended": False,
         },
     }, """
-window.AsclepiusSession.open('review').then(function () {
+window.AsclepiusSession.open('review', 'pair-1').then(function () {
   done(function () {
     console.log(JSON.stringify({
       calls: fetchCalls.map(function (c) {
@@ -490,12 +566,62 @@ window.AsclepiusSession.open('review').then(function () {
     assert calls[1]["url"] == "/api/asclepius/sessions/ws-9/heartbeat"
     assert calls[1]["body"]["nonce"] == "n0"
     assert calls[1]["body"]["active"] is True
+    # Every beat names the work it is a beat for (audit C2).
+    assert calls[1]["body"]["progress_key"] == "pair-1"
     # The cadence is the SERVER's number, taken from the open response.
     assert out["intervals"] == [15000]
     # And the countdown state is entirely the server's answer.
     assert out["state"]["continuous_seconds"] == 15
     assert out["state"]["remaining_seconds"] == 1185
     assert out["state"]["qualified"] is False
+
+
+def test_attaching_without_naming_the_work_fails_loudly_instead_of_beating():
+    """A caller that forgets the progress key would otherwise beat into a wall of
+    422s while looking like it was tracking time — and the reviewer would find out
+    as a missing $100. Refuse to start, and say so."""
+    out = _run_node(_script({
+        "FETCH /sessions": {"session_id": "ws-9", "nonce": "n0", "min_seconds": 1200,
+                            "resumed": False, "params": {"beat_interval_seconds": 15}},
+    }, """
+window.AsclepiusSession.open('review').then(function () {
+  done(function () {
+    console.log(JSON.stringify({
+      beats: fetchCalls.filter(function (c) { return c.url.indexOf('heartbeat') !== -1; }).length,
+      timers: globalThis.__intervals.filter(Boolean).length,
+      error: window.AsclepiusSession.state() && window.AsclepiusSession.state().error,
+    }));
+  });
+});
+"""))
+    assert out["beats"] == 0
+    assert out["timers"] == 0
+    assert "not being counted" in (out["error"] or "")
+
+
+def test_moving_to_the_next_case_renames_the_work_and_beats_immediately():
+    """PRD-R calls setProgress when the reviewer draws their next pair. The beat
+    goes out at once rather than at the next tick, so the key change is recorded
+    against the moment it happened."""
+    out = _run_node(_script({
+        "FETCH /sessions": {"session_id": "ws-9", "nonce": "n0", "min_seconds": 1200,
+                            "resumed": False, "params": {"beat_interval_seconds": 15}},
+        "FETCH /sessions/ws-9/heartbeat": {"credited_seconds": 15, "continuous_seconds": 15,
+                                           "next_nonce": "n1", "ended": False},
+    }, """
+window.AsclepiusSession.open('review', 'pair-1').then(function () {
+  done(function () {
+    window.AsclepiusSession.setProgress('pair-2');
+    done(function () {
+      console.log(JSON.stringify({
+        keys: fetchCalls.filter(function (c) { return c.url.indexOf('heartbeat') !== -1; })
+                        .map(function (c) { return c.body.progress_key; }),
+      }));
+    });
+  });
+});
+"""))
+    assert out["keys"] == ["pair-1", "pair-2"]
 
 
 def test_the_nonce_rotates_so_a_naive_replay_cannot_beat():
@@ -507,7 +633,7 @@ def test_the_nonce_rotates_so_a_naive_replay_cannot_beat():
             "credited_seconds": 15, "continuous_seconds": 15, "min_seconds": 1200,
             "remaining_seconds": 1185, "qualified": False, "next_nonce": "ROTATED", "ended": False},
     }, """
-window.AsclepiusSession.open('review').then(function () {
+window.AsclepiusSession.open('review', 'pair-1').then(function () {
   done(function () {
     window.AsclepiusSession.beat(true);
     done(function () {
@@ -537,7 +663,7 @@ def test_closing_uses_keepalive_so_the_last_seconds_survive_the_page():
                                        "qualified": True, "payout_cents": 10000,
                                        "min_seconds": 1200, "ended": True},
     }, """
-window.AsclepiusSession.open('review').then(function () {
+window.AsclepiusSession.open('review', 'pair-1').then(function () {
   window.AsclepiusSession.stop('closed', true).then(function () {
     done(function () {
       var close = fetchCalls.filter(function (c) { return c.url.indexOf('/close') !== -1; })[0];
@@ -568,7 +694,7 @@ def test_hiding_the_tab_sends_one_pause_beat_and_then_stops():
         "FETCH /sessions/ws-9/heartbeat": {"credited_seconds": 0, "continuous_seconds": 0,
                                            "next_nonce": "n1", "ended": False},
     }, """
-window.AsclepiusSession.open('review').then(function () {
+window.AsclepiusSession.open('review', 'pair-1').then(function () {
   done(function () {
     var before = globalThis.__intervals.filter(Boolean).length;
     document.visibilityState = 'hidden';
@@ -605,7 +731,7 @@ def test_pagehide_closes_the_session_and_unload_is_never_bound():
                                        "qualified": True, "payout_cents": 10000,
                                        "min_seconds": 1200, "ended": True},
     }, """
-window.AsclepiusSession.open('review').then(function () {
+window.AsclepiusSession.open('review', 'pair-1').then(function () {
   done(function () {
     window.dispatch('pagehide', {});
     done(function () {

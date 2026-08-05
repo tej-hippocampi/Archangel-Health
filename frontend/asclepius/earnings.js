@@ -113,6 +113,7 @@
   var session = {
     id: null,
     nonce: null,
+    progressKey: null,
     seq: 0,
     params: FALLBACK,
     timer: null,
@@ -132,7 +133,10 @@
   }
 
   function publicState() {
-    if (!session.id) return null;
+    // An error with no session is still state worth reporting: a caller that
+    // failed to start needs to be able to see WHY, and returning null there is
+    // how "your time is not being counted" becomes invisible.
+    if (!session.id && !session.error) return null;
     var s = session.state || {};
     return {
       session_id: session.id,
@@ -158,27 +162,45 @@
     };
   }
 
-  /** Open (or resume) a billable session. PRD-R calls this when a reviewer
-   *  draws their first pair, then does nothing else — this client takes it from
-   *  there. Idempotent server-side: opening twice resumes the same session. */
-  function open(kind) {
+  /** Open (or resume) a billable session and start beating for it.
+   *
+   *  PRD-R calls this when a reviewer draws their first pair, passing the pair's
+   *  identity as `progressKey`, and then does nothing else — this client takes it
+   *  from there. Idempotent server-side: opening twice resumes the same session.
+   *
+   *  `progressKey` is REQUIRED. Every beat must name the work it is a beat for,
+   *  or the server refuses it: credit used to be a function of elapsed time with
+   *  a request attached, which made 28 blind POSTs worth $100. */
+  function open(kind, progressKey) {
     return request('/sessions', { method: 'POST', body: { kind: kind || 'review' } })
-      .then(function (payload) { attach(payload); return payload; });
+      .then(function (payload) { attach(payload, progressKey); return payload; });
   }
 
   /** Start beating for an already-opened session. */
-  function attach(payload) {
+  function attach(payload, progressKey) {
     if (!payload || !payload.session_id) return null;
+    if (!progressKey) {
+      // Fail loudly rather than beating into a wall of 422s. A caller that
+      // forgot the key would otherwise look like it was tracking time and
+      // silently accrue nothing — which the reviewer discovers as a missing $100.
+      session.error = 'This review session cannot be tracked: no work was named. '
+        + 'Your time is not being counted — reload the page.';
+      notify();
+      return null;
+    }
     stopTimer();
+    session.progressKey = progressKey;
     session.id = payload.session_id;
     session.nonce = payload.nonce;
     session.params = payload.params || FALLBACK;
     session.paused = false;
     session.stopping = false;
     session.error = null;
-    // A resumed session already has beats behind it; continuing from 0 would be
-    // rejected as a replay on the very first beat.
-    session.seq = payload.resumed ? null : 0;
+    // A resumed open deliberately carries NO nonce — otherwise re-opening would
+    // be an unlimited supply of beating credentials for a client that never
+    // reads a response. Ask for one, once, through the endpoint that exists for
+    // it: `seq` comes back with it, so this tab knows where the sequence got to.
+    session.seq = payload.resumed ? (payload.seq || 0) : 0;
     session.state = {
       credited_seconds: payload.credited_seconds || 0,
       continuous_seconds: payload.continuous_seconds || 0,
@@ -188,10 +210,36 @@
       ended: false,
     };
     bindLifecycle();
-    beat(true);
-    startTimer();
+    if (!session.nonce && payload.resumed) {
+      resume().then(function (ok) { if (ok) { beat(true); startTimer(); } });
+    } else {
+      beat(true);
+      startTimer();
+    }
     notify();
     return publicState();
+  }
+
+  /** Ask for a fresh beating credential. Used on a resumed session, and after a
+   *  409 says this tab's nonce is no longer the live one. Hard rate-limited
+   *  server-side, so this is a recovery path and never a loop. */
+  function resume() {
+    if (!session.id) return Promise.resolve(false);
+    return request('/sessions/' + encodeURIComponent(session.id) + '/resume', {
+      method: 'POST', body: {},
+    }).then(function (res) {
+      session.nonce = res.nonce;
+      session.seq = res.seq || 0;
+      session.error = null;
+      notify();
+      return true;
+    }).catch(function (err) {
+      session.error = (err && err.status === 429)
+        ? 'Session tracking is reconnecting. Your credited time is safe on the server.'
+        : 'This review session is no longer being tracked here. Reload the page.';
+      notify();
+      return false;
+    });
   }
 
   function startTimer() {
@@ -214,7 +262,13 @@
 
   function beat(active, keepalive) {
     if (!session.id || !session.nonce) return Promise.resolve(null);
-    var body = { nonce: session.nonce, active: !!active };
+    var body = {
+      nonce: session.nonce,
+      active: !!active,
+      // What the reviewer is on right now. Opaque to payments — it counts and
+      // caps keys, it never resolves them — so R is free to change its shape.
+      progress_key: session.progressKey,
+    };
     var seq = nextSeq();
     if (seq != null) body.seq = seq;
     return request('/sessions/' + encodeURIComponent(session.id) + '/heartbeat', {
@@ -244,11 +298,22 @@
       // transient — keep beating, because a network blip must not end a session
       // the reviewer is still working.
       if (err && err.status === 409) {
+        // Lost the nonce race — another tab, or a resume elsewhere. Stop, ask
+        // once for a fresh credential, and pick up where the server is. Do NOT
+        // retry the beat: the whole point of rotation is that a stale nonce
+        // stays stale.
         stopTimer();
         session.error = 'This session is being tracked in another tab.';
+        resume().then(function (ok) { if (ok) { beat(true); startTimer(); } });
       } else if (err && err.status === 404) {
         stopTimer();
         session.error = 'Session not found.';
+      } else if (err && err.status === 422) {
+        // Malformed and it will stay malformed — retrying forever would burn
+        // the whole session while looking like it was working.
+        stopTimer();
+        session.error = 'This review session cannot be tracked. Your time is not '
+          + 'being counted — reload the page.';
       } else {
         session.error = 'Session time is not syncing. Your credited time is safe on '
           + 'the server; it will catch up when the connection returns.';
@@ -308,9 +373,18 @@
     });
   }
 
+  /** Tell the client the reviewer has moved to a different piece of work.
+   *  PRD-R calls this when the next pair is drawn. */
+  function setProgress(progressKey) {
+    if (!progressKey) return;
+    session.progressKey = progressKey;
+    if (session.id && !session.stopping) beat(true);
+  }
+
   window.AsclepiusSession = {
     open: open,
     attach: attach,
+    setProgress: setProgress,
     stop: stop,
     beat: beat,
     subscribe: subscribe,
@@ -319,6 +393,7 @@
     _reset: function () {
       stopTimer();
       session.id = null; session.nonce = null; session.seq = 0;
+      session.progressKey = null;
       session.state = null; session.error = null; session.paused = false;
       session.stopping = false; session.listeners = [];
     },
@@ -387,7 +462,7 @@
       return;
     }
 
-    rootEl.appendChild(h('h1', { class: 'asc-pay-title' }, 'Earnings'));
+    rootEl.appendChild(h('h2', { class: 'asc-pay-title' }, 'Earnings'));
     rootEl.appendChild(headline(h));
     // The countdown is about TIME, which an advisor works like anyone else — so
     // the session widget shows for them too.
@@ -399,6 +474,12 @@
     if (data.accrues_payment) {
       rootEl.appendChild(lines(h));
       rootEl.appendChild(recent(h));
+      // Always, session or not. The sentence used to live inside the session
+      // widget, which renders nothing when no session is open — so a physician
+      // who had never started a review could not find the rule at all, and one
+      // who had was looking at a different tab. A rule you can only read while
+      // you are already exposed to it is not a warning.
+      rootEl.appendChild(ruleCard(h));
     }
   }
 
@@ -420,6 +501,10 @@
       h('span', { class: 'asc-pay-hero-label' }, 'approved')));
 
     var subParts = [];
+    // Both halves of the headline, because "you have been paid $75" and "we owe
+    // you $75" are different sentences and the figure above sums them.
+    if (data.paid_cents) subParts.push(money(data.paid_cents) + ' paid');
+    if (data.unpaid_cents) subParts.push(money(data.unpaid_cents) + ' to come');
     if (data.pending_cents) subParts.push(money(data.pending_cents) + ' pending review');
     if (data.void_cents) subParts.push(money(data.void_cents) + ' not approved');
     if (subParts.length) {
@@ -431,6 +516,20 @@
       wrap.appendChild(sub);
     }
     return wrap;
+  }
+
+  function ruleCard(h) {
+    var p = data.params || {};
+    var min = clock(p.min_seconds || 1200);
+    return h('div', { class: 'asc-pay-rule' },
+      h('div', { class: 'asc-pay-rule-title' }, 'How review sessions are paid'),
+      h('div', { class: 'asc-pay-rule-body' },
+        'A review session pays ' + money(p.rate_cents || 10000) + ' once you have '
+        + 'reviewed for ' + min + ' continuously. The clock is measured by the '
+        + 'server and shown in the review page header while you work. '),
+      h('div', { class: 'asc-pay-rule-body' },
+        'Leaving before ' + min + ' ends the session unpaid. Time below '
+        + min + ' is still recorded — it is just not payable.'));
   }
 
   function lines(h) {

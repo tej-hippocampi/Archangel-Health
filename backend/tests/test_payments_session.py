@@ -49,7 +49,8 @@ def _reviewer(**kw):
     store = _store()
     u = A.make_user(store, role="evaluator", specialty="nephrology", **kw)
     with store._conn() as conn:
-        conn.execute("UPDATE users SET tier = 'reviewer' WHERE id = ?", (u["id"],))
+        conn.execute("UPDATE users SET tier = 'reviewer', verification_status = 'approved' "
+                     "WHERE id = ?", (u["id"],))
     return store.get_user_by_id(u["id"])
 
 
@@ -83,10 +84,18 @@ def _open(headers, kind="review"):
     return r.json()
 
 
-def _beat(headers, session_id, nonce, seq, active=True, expect=200):
+# Every beat names the work it is a beat for (audit C2). These tests are about
+# the CLOCK, so they hold one key throughout — which is also the shape of a real
+# reviewer on one hard case, and the shape that must keep paying.
+_KEY = "pair-under-test"
+
+
+def _beat(headers, session_id, nonce, seq, active=True, expect=200, key=_KEY):
+    body = {"nonce": nonce, "seq": seq, "active": active}
+    if key is not None:
+        body["progress_key"] = key
     r = client.post(
-        f"/api/asclepius/sessions/{session_id}/heartbeat",
-        json={"nonce": nonce, "seq": seq, "active": active}, headers=headers)
+        f"/api/asclepius/sessions/{session_id}/heartbeat", json=body, headers=headers)
     assert r.status_code == expect, r.text
     return r.json()
 
@@ -340,34 +349,12 @@ def test_open_session_is_idempotent(monkeypatch):
 
 
 # ─── Anti-replay ──────────────────────────────────────────────────────────────
-def test_a_client_that_omits_seq_is_still_replay_guarded(monkeypatch):
-    """A tab that RESUMED a session has never seen the beats behind it, so it
-    lets the server number the first one. The server derives max+1 — never a
-    replay — and tells the client which number it used, so the client can go back
-    to numbering its own."""
-    clock = Clock(monkeypatch)
-    h = A.headers_for(_reviewer())
-    session = _open(h)
-    sid = session["session_id"]
-
-    nonce = session["nonce"]
-    seqs = []
-    for _ in range(3):
-        r = client.post(f"/api/asclepius/sessions/{sid}/heartbeat",
-                        json={"nonce": nonce, "active": True}, headers=h)
-        assert r.status_code == 200, r.text
-        seqs.append(r.json()["seq"])
-        nonce = r.json()["next_nonce"]
-        clock.advance(15)
-
-    assert seqs == [1, 2, 3]
-    # And an explicitly replayed number is still refused.
-    client.post(f"/api/asclepius/sessions/{sid}/heartbeat",
-                json={"nonce": nonce, "seq": 3, "active": True}, headers=h)
-    assert client.post(f"/api/asclepius/sessions/{sid}/heartbeat",
-                       json={"nonce": nonce, "seq": 3, "active": True},
-                       headers=h).status_code == 409
-
+# ``seq`` used to be optional for the whole life of a session, with the server
+# deriving MAX(seq)+1 on every beat that omitted it. Audit H1 removed that: it is
+# the exact affordance a replayer wants, and it is now allowed only for the first
+# beat of a session, when there is nothing yet to replay. The rule and its
+# recovery path (POST /sessions/{id}/resume) are covered in
+# ``test_payments_nonce.py``; the test that lived here asserted the old policy.
 
 def test_a_replayed_seq_is_rejected(monkeypatch):
     clock = Clock(monkeypatch)
@@ -489,7 +476,8 @@ def test_a_session_belongs_to_exactly_one_physician(monkeypatch):
     sid = session["session_id"]
 
     assert client.post(f"/api/asclepius/sessions/{sid}/heartbeat",
-                       json={"nonce": session["nonce"], "seq": 1, "active": True},
+                       json={"nonce": session["nonce"], "seq": 1, "active": True,
+                             "progress_key": _KEY},
                        headers=other_h).status_code == 404
     assert client.post(f"/api/asclepius/sessions/{sid}/close",
                        json={"reason": "closed"}, headers=other_h).status_code == 404
@@ -680,12 +668,14 @@ def test_the_client_clock_never_enters_the_calculation(monkeypatch):
     nonce, seq = session["nonce"], 1
     r = client.post(f"/api/asclepius/sessions/{sid}/heartbeat",
                     json={"nonce": nonce, "seq": seq, "active": True,
+                          "progress_key": _KEY,
                           "client_ts": "2020-01-01T00:00:00Z"}, headers=h)
     assert r.status_code == 200
     nonce = r.json()["next_nonce"]
     clock.advance(15)
     r = client.post(f"/api/asclepius/sessions/{sid}/heartbeat",
                     json={"nonce": nonce, "seq": 2, "active": True,
+                          "progress_key": _KEY,
                           "client_ts": "2099-01-01T00:00:00Z"}, headers=h)
     assert r.status_code == 200
     assert r.json()["credited_seconds"] == 15
