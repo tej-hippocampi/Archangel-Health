@@ -210,7 +210,7 @@ def test_provision_creates_account_and_emails_once(email_ok):
     store = _store()
     res = client.post(
         "/api/asclepius/admin/health-systems/provision",
-        json={"organization": "Mass General Hospital", "email": "data@mgh.harvard.edu"},
+        json={"organization": "Mass General Hospital", "email": "data@mgh.harvard.edu", "purpose": "task_creation"},
         headers=_admin_headers(store),
     )
     assert res.status_code == 200, res.text
@@ -242,13 +242,13 @@ def test_provision_rotates_existing_account_instead_of_minting_second(email_ok):
     store = _store()
     headers = _admin_headers(store)
     r1 = client.post("/api/asclepius/admin/health-systems/provision",
-                     json={"organization": "Mercy Health", "email": "it@mercy.org"},
+                     json={"organization": "Mercy Health", "email": "it@mercy.org", "purpose": "task_creation"},
                      headers=headers)
     assert r1.status_code == 200
     first_hash = store.get_hs_portal_user(r1.json()["username"])["password_hash"]
 
     r2 = client.post("/api/asclepius/admin/health-systems/provision",
-                     json={"organization": "Mercy Health", "email": "it@mercy.org"},
+                     json={"organization": "Mercy Health", "email": "it@mercy.org", "purpose": "task_creation"},
                      headers=headers)
     assert r2.status_code == 200
     assert r2.json()["username"] == r1.json()["username"]
@@ -265,11 +265,11 @@ def test_provision_requires_admin(email_ok):
     store = _store()
     evaluator = A.make_user(store, role="evaluator")
     res = client.post("/api/asclepius/admin/health-systems/provision",
-                      json={"organization": "X Health", "email": "a@b.org"},
+                      json={"organization": "X Health", "email": "a@b.org", "purpose": "task_creation"},
                       headers=A.headers_for(evaluator))
     assert res.status_code in (401, 403)
     res2 = client.post("/api/asclepius/admin/health-systems/provision",
-                       json={"organization": "X Health", "email": "a@b.org"})
+                       json={"organization": "X Health", "email": "a@b.org", "purpose": "task_creation"})
     assert res2.status_code in (401, 403)
     assert email_ok == []
 
@@ -278,7 +278,7 @@ def test_provision_503_when_email_unconfigured(monkeypatch):
     store = _store()
     monkeypatch.setattr(R, "is_email_transport_configured", lambda: False)
     res = client.post("/api/asclepius/admin/health-systems/provision",
-                      json={"organization": "X Health", "email": "a@b.org"},
+                      json={"organization": "X Health", "email": "a@b.org", "purpose": "task_creation"},
                       headers=_admin_headers(store))
     assert res.status_code == 503
     # Nothing half-created without a way to tell the recipient.
@@ -754,7 +754,7 @@ def test_admin_list_health_systems(email_ok):
     store = _store()
     headers = _admin_headers(store)
     client.post("/api/asclepius/admin/health-systems/provision",
-                json={"organization": "Mass General Hospital", "email": "data@mgh.harvard.edu"},
+                json={"organization": "Mass General Hospital", "email": "data@mgh.harvard.edu", "purpose": "task_creation"},
                 headers=headers)
     res = client.get("/api/asclepius/admin/health-systems", headers=headers)
     assert res.status_code == 200

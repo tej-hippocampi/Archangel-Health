@@ -146,6 +146,33 @@ _EXECUTABLE_EXTS = (".exe", ".dll", ".so", ".sh", ".bat", ".cmd", ".ps1", ".msi"
                     ".jar", ".app", ".scr", ".com", ".vbs", ".js", ".py")
 
 
+# ─── Purpose (PRD-I §2) ───────────────────────────────────────────────────────
+# What an upload is FOR. Admin-side only: this vocabulary is imported by the admin
+# router and the promotion gate, and by nothing a provider can reach.
+PURPOSE_TASK_CREATION = "task_creation"
+PURPOSE_BROKERING = "brokering"
+PURPOSES = (PURPOSE_TASK_CREATION, PURPOSE_BROKERING)
+
+# A row from before this column existed. Rendered to the admin as a WORK ITEM,
+# never quietly filled in — a legacy link silently becoming task_creation on a
+# screen is how brokering data would end up in a training bundle.
+PURPOSE_UNSET_LABEL = "Purpose not set — legacy link"
+
+
+def effective_purpose(value: Optional[str]) -> str:
+    """Resolve a stored purpose for the PROMOTION GATE and nowhere else.
+
+    NULL resolves to task_creation here because that is the only reading that
+    preserves the behaviour legacy links already had. It is deliberately confined
+    to this one decision: everywhere the admin can SEE, NULL stays NULL so it gets
+    resolved rather than defaulted."""
+    return value if value in PURPOSES else PURPOSE_TASK_CREATION
+
+
+def is_brokering(value: Optional[str]) -> bool:
+    return effective_purpose(value) == PURPOSE_BROKERING
+
+
 class BundleRejected(ValueError):
     """The whole upload is unusable (not a zip, zip bomb, malware-scan fail,
     imaging-only). Recorded on the upload row with the reason."""
@@ -258,6 +285,38 @@ def load_raw(raw_path: str) -> bytes:
     it in memory (the admin download path). Prefer ``iter_raw`` /
     ``decrypted_copy`` on any path that can see a multi-GB bundle."""
     return b"".join(iter_raw(raw_path))
+
+
+def ensure_zip_on_disk(path: str, *, filename: Optional[str] = None) -> Tuple[str, bool]:
+    """(path_to_a_zip, wrapped). Wraps a bare clinical file into a one-entry zip.
+
+    The chunked door streams whatever the partner selected, which may be a bare
+    ``.json`` / ``.csv`` / ``.hl7`` / ``.txt`` — exactly what the single-request
+    doors accept, because ``wrap_loose_files`` packs those server-side. Without
+    the same treatment here, the SAME file would succeed through one door and be
+    rejected as "not a zip" through the other, which is precisely the drift
+    ``wrap_loose_files`` was extracted to prevent.
+
+    Done at unpack time rather than at upload time on purpose: the stored raw blob
+    stays byte-for-byte what the partner sent, so the sha256 on the upload row is a
+    digest of THEIR file and remains something you can ask them to verify."""
+    with open(path, "rb") as fh:
+        if fh.read(2) == b"PK":
+            return path, False
+    name = os.path.basename((filename or "upload.dat").replace("\\", "/")) or "upload.dat"
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", name).lstrip(".") or "upload.dat"
+    fd, wrapped = tempfile.mkstemp(prefix="wrapped-", suffix=".zip",
+                                   dir=str(quarantine_root()))
+    os.close(fd)
+    with zipfile.ZipFile(wrapped, "w", zipfile.ZIP_DEFLATED) as z, open(path, "rb") as src:
+        with z.open(name, "w") as dst:
+            while True:
+                chunk = src.read(1024 * 1024)
+                if not chunk:
+                    break
+                dst.write(chunk)
+    _chmod_600(Path(wrapped))
+    return wrapped, True
 
 
 @contextlib.contextmanager
@@ -1265,7 +1324,17 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
             if not ok:
                 return _fail(detail)
             store.update_ingest_upload(upload_id, status="parsing")
-            bundle = unpack_bundle_from_path(plain_path)
+            # A bare clinical file gets the same server-side packing the single-
+            # request doors apply, so the same file cannot succeed through one door
+            # and fail through another.
+            zip_path, wrapped = ensure_zip_on_disk(plain_path,
+                                                   filename=upload.get("filename"))
+            try:
+                bundle = unpack_bundle_from_path(zip_path)
+            finally:
+                if wrapped:
+                    with contextlib.suppress(OSError):
+                        os.unlink(zip_path)
             _staged.append(bundle["cleanup"])
     except BundleRejected as exc:
         # Partner-facing reason is the actionable copy (Audit §9.1), never the raw

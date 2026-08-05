@@ -1,0 +1,520 @@
+"""The promotion gate and the pipeline behind it — PRD-I §4.
+
+The gate is the functional half of the confidentiality requirement and the easy
+half to miss, because nothing visibly breaks without it. A promoted brokering
+case gets labelled by a physician and ships inside a training bundle sold to a
+lab — data a partner sent us to broker, resold as annotation work.
+
+Every test goes through the real routes. The gate is only worth anything at the
+HTTP boundary an admin actually reaches.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import os
+import sys
+import zipfile
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+os.environ["EMAIL_DEV_MODE"] = "1"
+
+import tests._asclepius as A  # noqa: E402
+from asclepius import ingestion as asc_ingestion  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+API = "/api/asclepius"
+client = TestClient(A.app)
+
+
+@pytest.fixture(autouse=True)
+def _isolated(monkeypatch, tmp_path):
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", str(tmp_path / "assets"))
+    monkeypatch.setenv("ASCLEPIUS_PORTAL_BUDGET_MS", "0")
+    yield
+
+
+def _store():
+    from asclepius.store import get_store
+    return get_store()
+
+
+def _admin_h(store):
+    return A.headers_for(A.make_user(store, role="admin"))
+
+
+def _stub_llm(monkeypatch):
+    """The promotion path calls out to two frontier models and a judge. Stubbed so
+    this file tests the GATE rather than the weather at an inference provider."""
+    from routers import asclepius as R
+    from asclepius import critic
+
+    async def fake_candidates(prompt, **kw):
+        return {"candidates": [{"id": "A", "text": "AKI from volume depletion; hydrate."},
+                               {"id": "B", "text": "Obstructive uropathy; image first."}],
+                "model": "cand", "intended_flawed_id": "B"}
+
+    async def fake_hardness(prompt, candidates=None, **kw):
+        return {"skipped": False, "hardness_score": 0.9, "hardness_axes": ["multi_step"]}
+
+    async def fake_case_judge(case, **kw):
+        return {"skipped": False, "coherence": 0.95, "multimodal_necessity": 0.95,
+                "reasoning_divergence_potential": 0.95}
+
+    monkeypatch.setattr(R, "generate_candidates_ex", fake_candidates)
+    monkeypatch.setattr(critic, "run_hardness_judge", fake_hardness)
+    monkeypatch.setattr(critic, "run_case_judge", fake_case_judge)
+    monkeypatch.setattr(R, "run_hardness_judge", fake_hardness, raising=False)
+    monkeypatch.setattr(R, "run_case_judge", fake_case_judge, raising=False)
+
+
+def _bundle(patient: str = "pt1") -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("manifest.json", json.dumps({"specialty": "nephrology",
+                                                "patient_key": patient}))
+        z.writestr("labs.csv",
+                   "patient_key,panel,analyte,value,unit,collected_at\n"
+                   f"{patient},BMP,Creatinine,2.4,mg/dL,2025-03-08\n"
+                   f"{patient},BMP,Creatinine,1.1,mg/dL,2025-03-01\n")
+        z.writestr("note.txt", "Progress nephrology: AKI, creatinine rising since "
+                               "3/1/2025, improving by 2025-03-09.")
+    return buf.getvalue()
+
+
+def _upload_as(purpose, *, org="Regional Health", patient="pt1"):
+    """Provision a portal account with the given purpose and push a bundle through
+    the REAL portal upload route, so the purpose is stamped the way production
+    stamps it — by a server-side join, not by the test writing the column."""
+    store = _store()
+    hs = store.ensure_health_system(org, contact_email="it@example.org")
+    username = "hs" + A.uniq(8)
+    store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
+                                password="portal-pass-123456", email="it@example.org")
+    store.set_hs_portal_password(username, "portal-pass-123456", must_reset=False)
+    if purpose:
+        store.set_hs_portal_purpose(username, purpose)
+    c = TestClient(A.app, base_url="https://testserver")
+    assert c.post(f"{API}/hs/login", json={"username": username,
+                                           "password": "portal-pass-123456"}).status_code == 200
+    r = c.post(f"{API}/hs/uploads",
+               files=[("files", ("bundle.zip", _bundle(patient), "application/zip"))])
+    assert r.status_code == 200, r.text
+    return hs, r.json()["upload_id"]
+
+
+def _cases(upload_id, status="ingested"):
+    return [c for c in _store().list_ingest_cases(upload_id=upload_id)
+            if c.get("status") == status]
+
+
+# ── purpose reaches the case, server-side ────────────────────────────────────
+def test_purpose_flows_from_the_account_to_the_case():
+    A.fresh_store()
+    for purpose in ("task_creation", "brokering"):
+        _hs, upload_id = _upload_as(purpose, org=f"Org {purpose}")
+        upload = _store().get_ingest_upload(upload_id)
+        assert upload["purpose"] == purpose
+        cases = _store().list_ingest_cases(upload_id=upload_id)
+        assert cases, "no cases produced"
+        assert {c["purpose"] for c in cases} == {purpose}, (
+            "purpose did not propagate to the cases — the promotion gate reads the "
+            "CASE, so a case with no purpose is a case that can be promoted")
+
+
+def test_a_client_cannot_choose_its_own_purpose():
+    """The one thing that would make the whole column meaningless."""
+    A.fresh_store()
+    store = _store()
+    hs = store.ensure_health_system("Sneaky General", contact_email="it@example.org")
+    username = "hs" + A.uniq(8)
+    store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
+                                password="portal-pass-123456", email="it@example.org")
+    store.set_hs_portal_password(username, "portal-pass-123456", must_reset=False)
+    store.set_hs_portal_purpose(username, "brokering")
+    c = TestClient(A.app, base_url="https://testserver")
+    c.post(f"{API}/hs/login", json={"username": username, "password": "portal-pass-123456"})
+
+    import hashlib
+    data = _bundle()
+    r = c.post(f"{API}/hs/uploads/sessions", json={
+        "filename": "b.zip", "size": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+        "purpose": "task_creation"})          # ← the attempt
+    assert r.status_code == 200
+    sid = r.json()["session_id"]
+    chunk = r.json()["chunk_size"]
+    for n, blob in enumerate([data[i:i + chunk] for i in range(0, len(data), chunk)], 1):
+        c.put(f"{API}/hs/uploads/sessions/{sid}/parts/{n}", content=blob,
+              headers={"X-Chunk-SHA256": hashlib.sha256(blob).hexdigest()})
+    done = c.post(f"{API}/hs/uploads/sessions/{sid}/complete")
+    assert done.status_code == 200
+    assert _store().get_ingest_upload(done.json()["upload_id"])["purpose"] == "brokering"
+
+
+# ── the gate ─────────────────────────────────────────────────────────────────
+def test_a_task_creation_case_becomes_a_task(monkeypatch):
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, upload_id = _upload_as("task_creation")
+    cases = _cases(upload_id)
+    assert cases, "the bundle produced no ingested case"
+
+    r = client.post(f"{API}/ingestion/cases/{cases[0]['ingest_case_id']}/promote",
+                    json={"question": "Classify the AKI and give the next step."},
+                    headers=admin_h)
+    assert r.status_code == 200, r.text
+    task = store.get_task(r.json()["task_id"])
+    assert task and task["source"] == "partner_ehr"
+
+
+def test_a_brokering_case_cannot_be_promoted(monkeypatch):
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, upload_id = _upload_as("brokering")
+    cases = _cases(upload_id)
+    assert cases
+
+    ic_id = cases[0]["ingest_case_id"]
+    r = client.post(f"{API}/ingestion/cases/{ic_id}/promote",
+                    json={"question": "Classify the AKI and give the next step."},
+                    headers=admin_h)
+    assert r.status_code == 409
+    assert "brokering" in r.json()["detail"]
+
+    # The case survives intact — refusing to promote is not a reason to damage it.
+    after = store.get_ingest_case(ic_id)
+    assert after["status"] == "ingested" and after["task_id"] is None
+    assert after["case"], "the case body was lost"
+    # …and the reason is on the record.
+    events = [e for e in store.list_events(entity_id=ic_id)
+              if e.get("event_type") == "promote_refused_brokering"]
+    assert events, "the refusal was not recorded"
+
+
+def test_no_task_exists_for_a_brokering_bundle_by_any_route(monkeypatch):
+    """The invariant stated as an outcome rather than as a status code."""
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, upload_id = _upload_as("brokering")
+    ic_id = _cases(upload_id)[0]["ingest_case_id"]
+
+    before = len(store.list_tasks(limit=100000))
+    client.post(f"{API}/ingestion/cases/{ic_id}/promote",
+                json={"question": "q"}, headers=admin_h)
+    client.post(f"{API}/ingestion/uploads/{upload_id}/promote-all",
+                json={"question": "q"}, headers=admin_h)
+    assert len(store.list_tasks(limit=100000)) == before
+
+
+def test_promote_all_promotes_the_task_creation_cases_and_counts_the_skipped(monkeypatch):
+    """A mixed upload must not fail wholesale. Failing the batch pushes the admin
+    toward promoting case-by-case, which is the workflow where one eventually
+    slips through."""
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, upload_id = _upload_as("task_creation")
+    cases = _cases(upload_id)
+    assert cases
+    # Mark one case brokering directly: a single upload is stamped one way, so a
+    # genuinely mixed BATCH is the state that arises from a purpose correction on
+    # part of an upload, and the batch logic has to handle it.
+    extra = store.insert_ingest_case(
+        upload_id=upload_id, patient_key="pk-broker", specialty="nephrology",
+        case=cases[0]["case"], status="ingested", report=None)
+    store.set_ingest_case_purpose(extra["ingest_case_id"], "brokering")
+
+    r = client.post(f"{API}/ingestion/uploads/{upload_id}/promote-all",
+                    json={"question": "Classify the AKI."}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["skipped_brokering"] == 1
+    assert body["promoted"] >= 1
+    assert store.get_ingest_case(extra["ingest_case_id"])["status"] == "ingested"
+    assert store.get_ingest_case(extra["ingest_case_id"])["task_id"] is None
+
+
+def test_an_all_brokering_upload_says_why_it_promoted_nothing(monkeypatch):
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    admin_h = _admin_h(_store())
+    _hs, upload_id = _upload_as("brokering")
+    r = client.post(f"{API}/ingestion/uploads/{upload_id}/promote-all",
+                    json={"question": "q"}, headers=admin_h)
+    assert r.status_code == 409
+    assert "brokering" in r.json()["detail"]
+
+
+def test_a_legacy_null_purpose_case_still_promotes(monkeypatch):
+    """NULL means a link minted before the column existed. It resolves to
+    task_creation HERE and only here, so legacy links keep the behaviour they had
+    — while everywhere the admin can see, NULL stays an unresolved work item."""
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, upload_id = _upload_as(None, org="Legacy Partner")
+    cases = _cases(upload_id)
+    assert cases and cases[0]["purpose"] is None
+    r = client.post(f"{API}/ingestion/cases/{cases[0]['ingest_case_id']}/promote",
+                    json={"question": "Classify the AKI."}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    assert asc_ingestion.effective_purpose(None) == "task_creation"
+    assert asc_ingestion.is_brokering(None) is False
+
+
+def test_the_refusal_never_reaches_a_provider(monkeypatch):
+    """The message names brokering, which is the one place that word is allowed —
+    behind require_admin. Assert the provider surface for the same upload says
+    nothing about it."""
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    hs = store.ensure_health_system("Quiet General", contact_email="it@example.org")
+    username = "hs" + A.uniq(8)
+    store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
+                                password="portal-pass-123456", email="it@example.org")
+    store.set_hs_portal_password(username, "portal-pass-123456", must_reset=False)
+    store.set_hs_portal_purpose(username, "brokering")
+    c = TestClient(A.app, base_url="https://testserver")
+    c.post(f"{API}/hs/login", json={"username": username, "password": "portal-pass-123456"})
+    c.post(f"{API}/hs/uploads",
+           files=[("files", ("bundle.zip", _bundle(), "application/zip"))])
+
+    for path in (f"{API}/hs/me", f"{API}/hs/uploads"):
+        body = c.get(path).content.decode().lower()
+        for word in ("brokering", "broker", "purpose", "promote"):
+            assert word not in body, f"{path} leaked {word!r}"
+
+
+# ── specialty: a wrong label is worse than a missing one ─────────────────────
+def test_a_case_with_no_specialty_is_refused_rather_than_defaulted(monkeypatch):
+    """The conversion path falls back to a hardcoded specialty for a case that has
+    none. A wrong specialty routes the case to the wrong physician pool and
+    mislabels it in the export, invisibly and irreversibly once it ships."""
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, upload_id = _upload_as("task_creation")
+    ic = _cases(upload_id)[0]
+    with store._conn() as conn:
+        conn.execute("UPDATE ingest_cases SET specialty = '' WHERE ingest_case_id = ?",
+                     (ic["ingest_case_id"],))
+
+    r = client.post(f"{API}/ingestion/cases/{ic['ingest_case_id']}/promote",
+                    json={"question": "q"}, headers=admin_h)
+    assert r.status_code == 409
+    assert "Specialty not determined" in r.json()["detail"]
+    assert store.get_ingest_case(ic["ingest_case_id"])["task_id"] is None
+
+
+def test_portal_uploads_are_never_stamped_with_a_guessed_specialty():
+    """A bundle that declares no specialty must land 'general' — honestly
+    undetermined — not the neutral-looking literal of whichever specialty the
+    pipeline happened to be written for."""
+    A.fresh_store()
+    store = _store()
+    hs = store.ensure_health_system("Unlabelled Health", contact_email="it@example.org")
+    username = "hs" + A.uniq(8)
+    store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
+                                password="portal-pass-123456", email="it@example.org")
+    store.set_hs_portal_password(username, "portal-pass-123456", must_reset=False)
+    c = TestClient(A.app, base_url="https://testserver")
+    c.post(f"{API}/hs/login", json={"username": username, "password": "portal-pass-123456"})
+    r = c.post(f"{API}/hs/uploads", files=[
+        ("files", ("note.txt", b"Cardiology consult: chest pain, troponin 0.9 on "
+                               b"2025-03-04, ECG with ST changes.", "text/plain"))])
+    assert r.status_code == 200
+    cases = store.list_ingest_cases(upload_id=r.json()["upload_id"])
+    assert cases
+    assert {c_["specialty"] for c_ in cases} == {"general"}, (
+        "ingest guessed a specialty for a bundle that declared none")
+
+
+# ── admin visibility ─────────────────────────────────────────────────────────
+def test_brokering_gets_its_own_bucket_and_never_appears_in_ready_to_promote():
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    hs, brokering_upload = _upload_as("brokering", org="Both Ways Health")
+    _hs2, task_upload = _upload_as("task_creation", org="Both Ways Health", patient="pt2")
+
+    r = client.get(f"{API}/admin/health-systems/{hs['hs_id']}", headers=admin_h)
+    assert r.status_code == 200, r.text
+    buckets = r.json()["buckets"]
+    ids = {name: {e["upload_id"] for e in rows} for name, rows in buckets.items()}
+    assert brokering_upload in ids["brokering"]
+    for name in ("ready_to_promote", "in_production", "needs_review", "needs_attention"):
+        assert brokering_upload not in ids[name], (
+            f"a brokering upload appeared in {name} — its own bucket exists so it "
+            "can never sit next to a Promote button")
+    assert task_upload in (ids["ready_to_promote"] | ids["needs_review"]
+                           | ids["needs_attention"])
+
+
+def test_every_admin_row_carries_the_chain_of_custody_and_a_purpose_chip():
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    hs, upload_id = _upload_as("task_creation")
+    detail = client.get(f"{API}/admin/health-systems/{hs['hs_id']}",
+                        headers=admin_h).json()
+    rows = [e for rows in detail["buckets"].values() for e in rows]
+    assert rows
+    row = [e for e in rows if e["upload_id"] == upload_id][0]
+    assert row["sha256"] and row["sha256_short"] and row["verified_at"]
+    assert row["label"] == "task creation" and row["accent"] == "green"
+    assert row["resolved"] is True
+
+
+def test_an_unset_purpose_renders_as_a_work_item_not_a_default():
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    hs, upload_id = _upload_as(None, org="Legacy Health")
+    detail = client.get(f"{API}/admin/health-systems/{hs['hs_id']}",
+                        headers=admin_h).json()
+    rows = [e for rows in detail["buckets"].values() for e in rows]
+    row = [e for e in rows if e["upload_id"] == upload_id][0]
+    assert row["resolved"] is False
+    assert row["label"] == asc_ingestion.PURPOSE_UNSET_LABEL
+    # Lime means "needs attention". Not pink — brokering and unresolved purposes
+    # are business states, and pink means blocking/PHI/critical.
+    assert row["accent"] == "lime"
+    assert detail["portal_users"][0]["resolved"] is False
+
+
+def test_an_admin_can_resolve_an_unset_purpose():
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, upload_id = _upload_as(None, org="Resolvable Health")
+    r = client.post(f"{API}/admin/uploads/{upload_id}/purpose",
+                    json={"purpose": "brokering"}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    assert r.json()["cases_updated"] >= 1
+    assert store.get_ingest_upload(upload_id)["purpose"] == "brokering"
+    assert {c["purpose"] for c in store.list_ingest_cases(upload_id=upload_id)} == {"brokering"}
+
+
+def test_provisioning_requires_a_purpose_and_rejects_anything_else():
+    A.fresh_store()
+    admin_h = _admin_h(_store())
+    missing = client.post(f"{API}/admin/health-systems/provision",
+                          json={"organization": "No Purpose Health",
+                                "email": "it@example.org"}, headers=admin_h)
+    assert missing.status_code == 422, "purpose must be required, not defaulted"
+    bad = client.post(f"{API}/admin/health-systems/provision",
+                      json={"organization": "Bad Purpose Health",
+                            "email": "it@example.org", "purpose": "whatever"},
+                      headers=admin_h)
+    assert bad.status_code == 400
+
+
+def test_both_buttons_take_the_same_code_path():
+    """Same form, same endpoint, same body shape — one field differs, and nothing
+    downstream of the mint does."""
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    out = {}
+    for purpose, org in (("task_creation", "Alpha Regional Hospital"),
+                         ("brokering", "Bravo Regional Hospital")):
+        r = client.post(f"{API}/admin/health-systems/provision",
+                        json={"organization": org, "email": "it@example.org",
+                              "purpose": purpose}, headers=admin_h)
+        assert r.status_code == 200, r.text
+        out[purpose] = r.json()
+    assert sorted(out["task_creation"]) == sorted(out["brokering"])
+    for purpose in out:
+        username = out[purpose]["username"]
+        assert store.get_hs_portal_user(username)["purpose"] == purpose
+
+
+# ── the rest of §4.2 ─────────────────────────────────────────────────────────
+def test_every_non_terminal_status_maps_to_processing():
+    """An unmapped status renders to a hospital as 'Needs attention' and generates
+    support traffic from a completely healthy upload."""
+    from routers import asclepius_provider as P
+
+    for status in asc_ingestion._NON_TERMINAL_UPLOAD_STATUSES:
+        assert P._HS_PORTAL_STATUS.get(status) in ("received", "processing"), status
+
+
+def test_a_rejected_upload_emails_the_health_systems_contact():
+    """The portal door had no failure loop at all: its sentinel link_id has no link
+    row, so a rejected hospital upload emailed nobody — on the one door whose users
+    we cannot support in real time."""
+    from asclepius import ingest_notify
+
+    A.fresh_store()
+    store = _store()
+    hs = store.ensure_health_system("Contactable Health", contact_email="itdesk@example.org")
+    upload = store.insert_ingest_upload(
+        link_id="hs-portal", partner_id=hs["hs_id"], filename="bad.zip",
+        sha256="d", size_bytes=10, raw_path=None, source_ip=None)
+    store.set_upload_health_system(upload["upload_id"], hs["hs_id"])
+    fresh = store.get_ingest_upload(upload["upload_id"])
+    email, name = ingest_notify._recipient_for(store, fresh)
+    assert email == "itdesk@example.org"
+    assert name == "Contactable Health"
+
+
+def test_uploaded_filenames_are_sanitized_before_the_filesystem():
+    """The stored name is echoed into a quoted Content-Disposition on the admin
+    download path, so an uploader who controls it controls what the admin's
+    browser saves."""
+    from asclepius import uploads as asc_uploads
+    from routers.asclepius_provider import _safe_upload_filename
+
+    hostile = 'x"; filename="Q3-invoice.pdf'
+    for fn in (_safe_upload_filename, asc_uploads._safe_name):
+        got = fn(hostile)
+        assert '"' not in got and ";" not in got and "/" not in got
+    assert asc_uploads._safe_name("../../etc/passwd") == "etc_passwd" or \
+        "/" not in asc_uploads._safe_name("../../etc/passwd")
+    assert asc_uploads._safe_name("") == "upload.zip"
+    assert asc_uploads._safe_name("réçu.zip").isascii()
+
+
+def test_the_gate_holds_even_if_the_purpose_never_reached_the_case():
+    """Purpose is copied onto cases at the end of ingest, and that copy is
+    best-effort by design — it must never strand an upload, so a failure there is
+    logged and swallowed. If the gate read only the case column, a swallowed
+    failure would present as NULL and resolve to task_creation: fail-open on the
+    one check whose whole job is to fail closed."""
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, upload_id = _upload_as("brokering")
+    ic_id = _cases(upload_id)[0]["ingest_case_id"]
+
+    # Exactly the state a swallowed propagation failure leaves behind.
+    with store._conn() as conn:
+        conn.execute("UPDATE ingest_cases SET purpose = NULL WHERE ingest_case_id = ?",
+                     (ic_id,))
+    assert store.get_ingest_case(ic_id)["purpose"] is None
+    assert store.ingest_case_effective_purpose(ic_id) == "brokering"
+
+    r = client.post(f"{API}/ingestion/cases/{ic_id}/promote",
+                    json={"question": "q"}, headers=admin_h)
+    assert r.status_code == 409 and "brokering" in r.json()["detail"]
+
+    r2 = client.post(f"{API}/ingestion/uploads/{upload_id}/promote-all",
+                     json={"question": "q"}, headers=admin_h)
+    assert r2.status_code == 409 and "brokering" in r2.json()["detail"]
+    assert store.get_ingest_case(ic_id)["task_id"] is None

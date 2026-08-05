@@ -3923,8 +3923,41 @@ async def promote_ingest_case(
     ic = store.get_ingest_case(ingest_case_id)
     if not ic:
         raise HTTPException(status_code=404, detail="Ingested case not found")
+    # ═══ PRD-I §4.1 — brokering data can never become a task ═══
+    # The functional half of the confidentiality requirement, and the easy half to
+    # miss because nothing visibly breaks without it. A promoted brokering case
+    # gets labelled by a physician and ships inside a training bundle sold to a
+    # lab — data the partner sent us to broker, resold as annotation work.
+    #
+    # Checked BEFORE the status check so the reason an admin sees is the real one:
+    # "this is brokering data", not "this case is already promoted".
+    #
+    # This message is ADMIN-FACING and reaches no provider — it is raised only from
+    # endpoints behind require_admin.
+    # The case's own purpose OR its upload's — the copy onto the case is
+    # best-effort by design (it must never strand an upload), so reading only the
+    # case column would let a swallowed copy failure present as NULL and resolve
+    # to task_creation. Fail-open on the one check whose job is to fail closed.
+    if asc_ingestion.is_brokering(store.ingest_case_effective_purpose(ingest_case_id)):
+        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                        event_type="promote_refused_brokering", actor=admin["id"])
+        raise HTTPException(
+            status_code=409,
+            detail="This case came in on a brokering link and cannot be promoted.")
     if ic["status"] != "ingested":
         raise HTTPException(status_code=409, detail=f"Case is {ic['status']!r}, not 'ingested'")
+    # PRD-I §4.2: a WRONG specialty is worse than a missing one. It routes the case
+    # to the wrong physician pool and mislabels it in the export, invisibly, and
+    # neither is visible again once the bundle ships. `_convert_and_gate` falls
+    # back to a hardcoded literal for a case with no specialty at all, so refuse
+    # here rather than let that literal be applied — the admin sets it on the
+    # upload (POST /admin/uploads/{id}/specialty) and promotes again.
+    if not (ic.get("specialty") or "").strip():
+        raise HTTPException(
+            status_code=409,
+            detail="Specialty not determined for this case. Set the specialty on the "
+                   "upload before promoting — promoting now would label it with a "
+                   "default that routes it to the wrong physician pool.")
     question = (body.question or "").strip()
     if not question:
         raise HTTPException(status_code=400, detail="A clinical question is required to promote")
@@ -4015,15 +4048,43 @@ async def promote_upload_all(
     upload = store.get_ingest_upload(upload_id)
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
-    ingested = [c for c in store.list_ingest_cases(upload_id=upload_id)
-                if c.get("status") == "ingested"]
+    candidates = [c for c in store.list_ingest_cases(upload_id=upload_id)
+                  if c.get("status") == "ingested"]
+    # PRD-I §4.1: brokering cases are FILTERED OUT of the batch rather than failing
+    # it. An admin promoting a mixed upload should get their task-creation cases
+    # promoted and a count of what was skipped — failing the whole batch would push
+    # them toward promoting case-by-case, which is the workflow where a brokering
+    # case eventually slips through.
+    _purposes = store.ingest_case_purposes_for_upload(upload_id)
+
+    def _is_brokering(c: Dict[str, Any]) -> bool:
+        return asc_ingestion.is_brokering(
+            _purposes.get(c.get("ingest_case_id"), c.get("purpose")))
+
+    ingested = [c for c in candidates if not _is_brokering(c)]
+    skipped_brokering = [c for c in candidates if _is_brokering(c)]
+    if skipped_brokering:
+        store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                        event_type="promote_skipped_brokering", actor=admin["id"],
+                        payload={"skipped": len(skipped_brokering)})
     if not ingested:
-        raise HTTPException(status_code=409,
-                            detail="No ingested cases awaiting promotion in this upload.")
+        detail = ("No ingested cases awaiting promotion in this upload."
+                  if not skipped_brokering else
+                  f"All {len(skipped_brokering)} case(s) in this upload came in on a "
+                  "brokering link and cannot be promoted.")
+        raise HTTPException(status_code=409, detail=detail)
     promoted: List[Dict[str, Any]] = []
     gated: List[Dict[str, Any]] = []
     failed: List[Dict[str, Any]] = []
     for ic in ingested:
+        # Same guard as the single-case endpoint: never let the hardcoded
+        # specialty fallback label a case (PRD-I §4.2). One unlabelled case does
+        # not fail the batch — it is reported alongside the gated ones.
+        if not (ic.get("specialty") or "").strip():
+            gated.append({"ingest_case_id": ic.get("ingest_case_id"),
+                          "failures": ["specialty not determined — set it on the "
+                                       "upload before promoting"]})
+            continue
         question = ((body.question or "").strip()
                     or _default_clinical_question(ic.get("specialty")))
         try:
@@ -4047,7 +4108,13 @@ async def promote_upload_all(
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="promote_all", actor=admin["id"],
                     payload={"promoted": len(promoted), "gated": len(gated),
-                             "failed": len(failed)})
+                             "failed": len(failed),
+                             "skipped_brokering": len(skipped_brokering)})
     return {"upload_id": upload_id, "promoted": len(promoted), "gated": len(gated),
-            "failed": len(failed), "task_ids": [p["task_id"] for p in promoted],
-            "details": {"promoted": promoted, "gated": gated, "failed": failed}}
+            "failed": len(failed), "skipped_brokering": len(skipped_brokering),
+            "task_ids": [p["task_id"] for p in promoted],
+            "details": {"promoted": promoted, "gated": gated, "failed": failed,
+                        "skipped_brokering": [
+                            {"ingest_case_id": c.get("ingest_case_id"),
+                             "reason": "came in on a brokering link"}
+                            for c in skipped_brokering]}}

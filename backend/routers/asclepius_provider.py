@@ -898,13 +898,14 @@ async def hs_upload(
         source_ip=(request.client.host if request.client else None),
     )
     store.set_upload_health_system(upload["upload_id"], hs_id)
-    # Same two server-side stamps as the chunked door (PRD-I §1.1, §2.1). The
-    # single-request path verifies by construction — the digest is computed over
-    # the exact bytes just written — so it is verified at the same moment it is
-    # stored, and the purpose is joined from the portal account row, never sent.
+    # Same two server-side stamps as the chunked door (PRD-I §1.1). The single-
+    # request path verifies by construction — the digest is computed over the exact
+    # bytes just written — so it is verified at the moment it is stored, and its
+    # provenance is joined from the account that sent it.
     store.mark_upload_verified(upload["upload_id"],
                                verified_at=datetime.now(timezone.utc).isoformat())
-    store.set_upload_purpose(upload["upload_id"], store.hs_purpose_for(hs_id))
+    store.attach_upload_provenance(upload["upload_id"],
+                                   portal_username=portal_user["username"])
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
                     event_type="upload_received", actor=portal_user["username"],
                     payload={"health_system_id": hs_id, "sha256": digest,
@@ -996,11 +997,8 @@ _UPLOAD_OWNER_KIND = "health_system"
 
 
 class HsUploadDeclareRequest(BaseModel):
-    """What the client declares up front.
-
-    There is no ``purpose`` field, and there is no code path by which one could be
-    honoured: the purpose is resolved server-side from the portal account row
-    (PRD-I §2.1). A client that invents the field is simply ignored."""
+    """What the client declares up front — an EXPLICIT list, so a field the client
+    invents is dropped by the model rather than reaching anything."""
 
     filename: str
     size: int = _Field(gt=0)
@@ -1093,8 +1091,11 @@ async def hs_upload_declare(
             store, owner_kind=_UPLOAD_OWNER_KIND, owner_id=hs_id,
             actor=portal_user["username"], filename=body.filename, size=body.size,
             sha256=body.sha256, content_type=body.content_type,
-            # SERVER-SIDE, from the portal account row. Never from the request.
-            purpose=store.hs_purpose_for(hs_id))
+            # The authorizing ACCOUNT, not anything derived from it. What the
+            # admin side reads off that account is resolved by the store, server-
+            # side; this door is given no way to name it and therefore no way to
+            # leak it (PRD-I §3.1).
+            portal_username=portal_user["username"])
     except asc_uploads.UploadSessionError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))
     if created:
@@ -1137,10 +1138,23 @@ async def hs_upload_part(
     session = _upload_session_or_404(store, session_id, portal_user)
     _hs_upload_preconditions(store, portal_user)
     limit = int(session["chunk_size"])
-    body = await request.body()
-    if len(body) > limit:
+    # Read the body as a STREAM with a running cap, not via request.body().
+    # request.body() buffers the entire body before returning, so the obvious
+    # `if len(body) > limit` check happens only after the memory has already been
+    # spent — an authenticated partner could push a 10 GB "part" and take the
+    # container down before the check it would eventually have failed. Aborting
+    # mid-stream costs us the bytes in flight instead.
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > limit:
         raise HTTPException(status_code=413,
                             detail=f"A part may not exceed {limit} bytes.")
+    buf = bytearray()
+    async for piece in request.stream():
+        buf.extend(piece)
+        if len(buf) > limit:
+            raise HTTPException(status_code=413,
+                                detail=f"A part may not exceed {limit} bytes.")
+    body = bytes(buf)
     try:
         stored = asc_uploads.store_part(
             session, part, body, request.headers.get("x-chunk-sha256"))
@@ -1193,9 +1207,9 @@ async def hs_upload_complete(
     # (sha256, byte_size, verified_at) — the chain-of-custody triple. Stamped only
     # after the digest was recomputed over the assembled bytes and matched.
     store.mark_upload_verified(upload["upload_id"], verified_at=result["verified_at"])
-    # Purpose is copied from the authorizing row here, server-side, by joining the
-    # session that the server itself stamped at declare (PRD-I §2.1).
-    store.set_upload_purpose(upload["upload_id"], session.get("purpose"))
+    # Provenance carried forward from the session the server itself stamped at
+    # declare — a server-side join, not a value that passed through this door.
+    store.attach_upload_provenance(upload["upload_id"], session_id=session_id)
     asc_uploads.finalize(store, session, result)
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
                     event_type="upload_received", actor=portal_user["username"],

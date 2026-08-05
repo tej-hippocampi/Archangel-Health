@@ -20,6 +20,135 @@
   const API_BASE = "/api/asclepius";
   const MIN_PW_LEN = 12;
 
+  // Above this, a single request cannot be relied on: the platform closes a
+  // request body that has not finished uploading within five minutes, and on a
+  // hospital link that is a matter of tens of megabytes, not gigabytes. Larger
+  // single files go through the resumable chunked handshake, where the five
+  // minutes applies per chunk and stops mattering.
+  const CHUNKED_MIN_BYTES = 8 * 1024 * 1024;
+  const HASH_SLICE = 8 * 1024 * 1024;
+
+  // ══════════════════════════════════════════════════════════
+  //  SHA-256, streaming
+  //
+  //  crypto.subtle.digest cannot do this job: it takes one buffer, so hashing a
+  //  3 GB selection would mean holding 3 GB in the tab. This reads the file in
+  //  slices and keeps only the 32-byte state, which is what makes declaring the
+  //  whole-file digest up front possible at all. Per-CHUNK digests still use
+  //  crypto.subtle — those are bounded and it is far faster.
+  // ══════════════════════════════════════════════════════════
+  const K256 = new Uint32Array([
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
+    0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
+    0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
+    0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
+    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+  ]);
+
+  function Sha256() {
+    this.h = new Uint32Array([
+      0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+      0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+    ]);
+    this.buf = new Uint8Array(64);
+    this.buflen = 0;
+    this.total = 0;
+    this.w = new Uint32Array(64);
+  }
+
+  Sha256.prototype._block = function (b, off) {
+    const w = this.w, h = this.h;
+    for (let i = 0; i < 16; i++) {
+      w[i] = (b[off + i * 4] << 24) | (b[off + i * 4 + 1] << 16) |
+             (b[off + i * 4 + 2] << 8) | b[off + i * 4 + 3];
+    }
+    for (let i = 16; i < 64; i++) {
+      const x = w[i - 15], y = w[i - 2];
+      const s0 = ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+      const s1 = ((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    let a = h[0], bb = h[1], c = h[2], d = h[3];
+    let e = h[4], f = h[5], g = h[6], hh = h[7];
+    for (let i = 0; i < 64; i++) {
+      const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (hh + S1 + ch + K256[i] + w[i]) | 0;
+      const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+      const maj = (a & bb) ^ (a & c) ^ (bb & c);
+      const t2 = (S0 + maj) | 0;
+      hh = g; g = f; f = e; e = (d + t1) | 0;
+      d = c; c = bb; bb = a; a = (t1 + t2) | 0;
+    }
+    h[0] = (h[0] + a) | 0; h[1] = (h[1] + bb) | 0;
+    h[2] = (h[2] + c) | 0; h[3] = (h[3] + d) | 0;
+    h[4] = (h[4] + e) | 0; h[5] = (h[5] + f) | 0;
+    h[6] = (h[6] + g) | 0; h[7] = (h[7] + hh) | 0;
+  };
+
+  Sha256.prototype.update = function (bytes) {
+    this.total += bytes.length;
+    let i = 0;
+    if (this.buflen) {
+      const need = Math.min(64 - this.buflen, bytes.length);
+      this.buf.set(bytes.subarray(0, need), this.buflen);
+      this.buflen += need;
+      i = need;
+      if (this.buflen === 64) { this._block(this.buf, 0); this.buflen = 0; }
+    }
+    for (; i + 64 <= bytes.length; i += 64) this._block(bytes, i);
+    if (i < bytes.length) {
+      this.buf.set(bytes.subarray(i), 0);
+      this.buflen = bytes.length - i;
+    }
+  };
+
+  Sha256.prototype.hex = function () {
+    const bitLen = this.total * 8;
+    const pad = new Uint8Array(this.buflen < 56 ? 64 : 128);
+    pad.set(this.buf.subarray(0, this.buflen), 0);
+    pad[this.buflen] = 0x80;
+    // Length as a 64-bit big-endian count of BITS. Written as a float-safe high
+    // and low word: a >>> 32 in JS is a no-op, so the obvious shift is wrong for
+    // anything over 512 MB — exactly the sizes this exists for.
+    const hi = Math.floor(bitLen / 0x100000000);
+    const lo = bitLen >>> 0;
+    const dv = new DataView(pad.buffer);
+    dv.setUint32(pad.length - 8, hi);
+    dv.setUint32(pad.length - 4, lo);
+    for (let i = 0; i < pad.length; i += 64) this._block(pad, i);
+    let out = "";
+    for (let i = 0; i < 8; i++) out += ("00000000" + (this.h[i] >>> 0).toString(16)).slice(-8);
+    return out;
+  };
+
+  async function sha256File(file, onProgress) {
+    const hasher = new Sha256();
+    for (let off = 0; off < file.size; off += HASH_SLICE) {
+      const slice = file.slice(off, Math.min(off + HASH_SLICE, file.size));
+      hasher.update(new Uint8Array(await slice.arrayBuffer()));
+      if (onProgress) onProgress(Math.min(off + HASH_SLICE, file.size), file.size);
+    }
+    return hasher.hex();
+  }
+
+  async function sha256Bytes(buf) {
+    if (window.crypto && window.crypto.subtle) {
+      const d = await window.crypto.subtle.digest("SHA-256", buf);
+      return Array.from(new Uint8Array(d))
+        .map((b) => ("0" + b.toString(16)).slice(-2)).join("");
+    }
+    const hasher = new Sha256();
+    hasher.update(new Uint8Array(buf));
+    return hasher.hex();
+  }
+
   // ─── DOM roots ──────────────────────────────────────────────
   const root = document.getElementById("prvRoot");
   const header = document.getElementById("prvHeader");
@@ -326,11 +455,112 @@
     loadHistory();
   }
 
+  // ══════════════════════════════════════════════════════════
+  //  Chunked, resumable upload
+  //
+  //  Used for a single large file. A batch of small loose files still goes
+  //  through the one-request door, which packages them server-side — the
+  //  chunked door streams exactly one thing, and asking a hospital to zip five
+  //  files themselves so we can avoid writing this branch would be solving our
+  //  problem with their time.
+  // ══════════════════════════════════════════════════════════
+  function progressUi() {
+    return {
+      wrap: document.getElementById("prvProgress"),
+      label: document.getElementById("prvProgressLabel"),
+      bar: document.getElementById("prvProgressBar"),
+      fill: document.getElementById("prvProgressFill")
+    };
+  }
+
+  function setProgress(ui, pct, label) {
+    ui.wrap.hidden = false;
+    ui.fill.style.width = pct + "%";
+    ui.bar.setAttribute("aria-valuenow", String(Math.round(pct)));
+    if (label) ui.label.textContent = label;
+  }
+
+  async function uploadChunked(file) {
+    const ui = progressUi();
+    const results = document.getElementById("prvResults");
+
+    // Hashing happens before anything is sent, so it gets its own phase in the
+    // progress copy — a silent minute on a multi-GB file reads as a hang.
+    setProgress(ui, 0, "Checking " + file.name + "…");
+    const digest = await sha256File(file, (done, total) =>
+      setProgress(ui, (done / total) * 100,
+        "Checking " + file.name + " — " + Math.round((done / total) * 100) + "%"));
+
+    let session = await apiPost("/hs/uploads/sessions", {
+      filename: file.name, size: file.size, sha256: digest,
+      content_type: file.type || "application/octet-stream"
+    });
+
+    // Already complete: the same bytes were sent before. Nothing to re-send.
+    if (session.complete) {
+      ui.wrap.hidden = true;
+      renderBatchResult(results, [file], { status: "received" });
+      toast("This file was already received.", "success");
+      loadHistory();
+      return;
+    }
+
+    const chunk = session.chunk_size;
+    const done = new Set(session.received_parts || []);
+    if (done.size) {
+      toast("Resuming — " + done.size + " of " + session.part_count +
+            " parts already received.", "info");
+    }
+
+    for (let n = 1; n <= session.part_count; n++) {
+      if (done.has(n)) continue;
+      const start = (n - 1) * chunk;
+      const blob = file.slice(start, Math.min(start + chunk, file.size));
+      const buf = await blob.arrayBuffer();
+      const partSha = await sha256Bytes(buf);
+      const res = await fetch(
+        API_BASE + "/hs/uploads/sessions/" + encodeURIComponent(session.session_id) +
+        "/parts/" + n,
+        { method: "PUT", credentials: "same-origin", body: buf,
+          headers: { "X-Chunk-SHA256": partSha, "Content-Type": "application/octet-stream" } });
+      if (res.status === 401 || res.status === 403) {
+        throw new AuthError("Your session has ended.");
+      }
+      if (!res.ok) {
+        const d = await parseJson(res);
+        throw new Error(d.detail || ("Part " + n + " failed (" + res.status + ")."));
+      }
+      setProgress(ui, ((n / session.part_count) * 100),
+        "Uploading " + file.name + " — part " + n + " of " + session.part_count);
+    }
+
+    setProgress(ui, 100, "Finishing up…");
+    const out = await apiPost(
+      "/hs/uploads/sessions/" + encodeURIComponent(session.session_id) + "/complete", {});
+    ui.wrap.hidden = true;
+    renderBatchResult(results, [file], out);
+    toast("Upload received.", "success");
+    loadHistory();
+  }
+
   // Upload a batch via XHR (for real upload progress), field name `files`.
   // Same-origin XHR carries the session cookie automatically.
   function uploadFiles(fileList) {
     const files = Array.prototype.slice.call(fileList);
     if (!files.length) return;
+
+    // One large file → the resumable path. Anything else stays on the
+    // single-request door, which is proven and packages loose files for us.
+    if (files.length === 1 && files[0].size >= CHUNKED_MIN_BYTES) {
+      uploadChunked(files[0]).catch((e) => {
+        const ui = progressUi();
+        ui.wrap.hidden = true;
+        if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+        toast(e.message || "Upload failed. Your progress was saved — " +
+              "drop the same file again to resume.", "error");
+      });
+      return;
+    }
 
     const progress = document.getElementById("prvProgress");
     const progressLabel = document.getElementById("prvProgressLabel");

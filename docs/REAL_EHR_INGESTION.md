@@ -50,6 +50,103 @@ off `case_source`, not the label.
 }
 ```
 
+## Chunked upload — how a multi-GB bundle arrives (PRD-I §1)
+
+The platform closes a request body that has not finished uploading within **five
+minutes**. That is an edge property, not a tunable: at a realistic hospital 20 Mbps
+that buys ~750 MB, at 5 Mbps ~180 MB. **A multi-GB single-request upload is
+physically impossible**, and raising a byte cap does nothing about it. So anything
+above `8 MB` goes through a three-phase handshake, where the five minutes applies
+*per chunk* and stops mattering.
+
+```
+POST   /api/asclepius/hs/uploads/sessions                    declare {filename, size, sha256}
+                                                             → server mints the session + chunk plan
+GET    /api/asclepius/hs/uploads/sessions/{id}               → which parts are already stored (resume)
+PUT    /api/asclepius/hs/uploads/sessions/{id}/parts/{n}     one chunk + X-Chunk-SHA256
+POST   /api/asclepius/hs/uploads/sessions/{id}/complete      assemble, re-verify, create the upload
+DELETE /api/asclepius/hs/uploads/sessions/{id}               abandon and release the parts
+```
+
+- **Nothing is an upload until it verifies.** No `ingest_uploads` row exists until
+  `complete` has recomputed the sha256 over the assembled bytes and matched it
+  against what was declared. An assembled-but-unverified file is invisible to the
+  application by construction, not by convention.
+- **`(sha256, byte_size, verified_at)` is the chain-of-custody record.** Per-chunk
+  digests catch a corrupt chunk but cannot catch a missing or reordered one, and
+  byte counts miss silent truncation — a short read that reports its own short
+  length is internally consistent all the way down. The whole-file digest is the
+  only thing that proves nothing was lost, and it is what you show a partner who
+  asks *"did you get everything."*
+- **Resumable and idempotent.** Re-declaring the same `{sha256, size}` returns the
+  **existing** session, so a refresh at 3.2 GB resumes rather than restarts. The
+  session id is the idempotency key. Unverified parts are reaped after
+  `ASCLEPIUS_UPLOAD_SESSION_TTL_HOURS` (24).
+- **Scale path.** Presigned direct-to-object-storage would scale further and is the
+  right answer *once a BAA with the storage vendor exists*. That is a contract
+  question, not an engineering one, and is deliberately not in this release.
+
+New env vars: `ASCLEPIUS_UPLOAD_CHUNK_BYTES` (16 MB) ·
+`ASCLEPIUS_INGEST_MAX_BUNDLE_BYTES` (8 GB) · `ASCLEPIUS_UPLOAD_MAX_PARTS` (4096) ·
+`ASCLEPIUS_UPLOAD_SESSION_TTL_HOURS` (24) · `ASCLEPIUS_INGEST_MAX_ENTRY_BYTES`
+(64 MB) · `ASCLEPIUS_INGEST_MAX_RATIO` (100) · `ASCLEPIUS_INGEST_TOTAL_RATIO` (10) ·
+`ASCLEPIUS_PORTAL_BUDGET_MS` (120).
+
+### Archive safety at size
+
+Header-declared entry sizes are attacker-controlled and are used for nothing. Every
+ceiling is enforced against bytes **actually produced**, mid-write, so a bomb costs
+the chunk in flight rather than the whole expansion: a per-entry byte cap, a
+per-entry compression-ratio cap, and a whole-archive output budget that scales with
+the bytes the partner really uploaded. Entry bytes are spilled to disk rather than
+all retained, so bundle memory is one entry rather than the sum of them. Nested
+archives are rejected rather than opened, which is the nesting-depth cap stated as
+a rule. There is **no inline antivirus**: ClamAV's own scan-size limits fight
+multi-GB files and its "unlimited" config OOMs a small container, so AV belongs in
+a separate worker against stored objects after `verified`.
+
+## Purpose — task creation vs brokering (PRD-I §2-§4)
+
+An upload is for one of two things, and **the health system must never be able to
+tell which**. Not from the URL, the page, an API response, an email, an error
+message, a header, a timing difference, or a response size. Only the admin knows.
+
+This is a business-confidentiality requirement rather than a legal one — brokering
+is permitted; the concern is that a partner who knows their data goes to brokering
+will go direct to the buyer. It is built to the standard of a security control
+anyway, because that is the only standard that actually holds.
+
+- **The admin mints one of two links.** Same form, same endpoint, same code path,
+  one different value: *Send link — task creation* / *Send link — brokering*.
+  Everything downstream of the mint is identical.
+- **`purpose` is a column, not a branch.** It lives on the row that authorizes an
+  upload (the portal account, or the magic link) and is copied server-side onto the
+  upload and then the case by a JOIN. It is never sent by a client, never accepted
+  from a request body, and never inferred from anything the provider controls. The
+  upload doors are not even given a way to *name* it — they pass the authorizing
+  account and the store resolves the rest.
+- **A brokering case can never become a task.** Both promote endpoints refuse, and
+  the refusal reads the case's purpose *or its upload's*, so a failed propagation
+  cannot present as NULL and resolve to task creation. A mixed batch promotes the
+  task-creation cases and reports the skipped count rather than failing wholesale.
+- **`NULL` means a link minted before this existed.** It resolves to task creation
+  in the promotion gate **and nowhere else** — everywhere the admin can see it
+  renders as *"Purpose not set — legacy link"*, in lime, with buttons to resolve it.
+- **Brokering has its own admin bucket**, with no Promote button in it. The server
+  refusing is the enforcement; the missing button is the affordance; a design that
+  relies on only one of the two eventually promotes one by accident.
+
+Three tests are deliverables, not extras — `test_purpose_isolation.py` (static:
+provider-reachable code may not name the distinction), `test_link_indistinguishability.py`
+(two partners provisioned identically except for purpose; every observable
+compared, including an error-differential fuzz over every failure mode), and
+`test_promotion_gate.py`.
+
+**Known gap, deliberately not closed here:** the legacy magic-link mint form
+(`POST /admin/upload-links`) does not yet carry the two buttons, so links minted
+from it arrive with `purpose = NULL` and the admin resolves them per-upload from
+the row. The admin UI says so.
+
 ## Ops
 
 - Raw zips: AES-GCM-encrypted at rest (`DATA_ENCRYPTION_KEY`), auto-purged after
@@ -84,8 +181,38 @@ off `case_source`, not the label.
   quarantine (held for review) does **not** auto-email.
 - **Partner Uploads list** paginates over full history (`GET /ingestion/uploads?
   limit=&offset=`, returns `total`) — nothing scrolls off at 50 anymore.
+- **Storage durability is a boot gate, not a warning** (PRD I-0). All three stores
+  — the **database**, the raw ingest dir, and the asset store — are checked at
+  startup. In production a non-durable store **refuses to boot**, and the log names
+  which one. A container that will not start is a five-minute incident; a container
+  that quietly eats uploads is a partnership. In development it warns and starts.
+  - Set all of `ASCLEPIUS_DATA_DIR`, `ASCLEPIUS_DB_PATH`, `ASCLEPIUS_ASSET_STORE`
+    and `ASCLEPIUS_INGEST_DIR` to paths on the mounted volume, plus `ENV=production`.
+    `ASCLEPIUS_DATA_DIR` alone would resolve the others by convention — set them
+    explicitly so a future reader does not need the resolution order to know where
+    the data is.
+  - **The database check is the one that matters most and was the last to exist.**
+    Losing image blobs degrades cases; losing `asclepius.db` destroys every user,
+    task, submission, review and payout row at once. It is probed for writability,
+    not merely non-ephemerality: a read-only or failed mount presents as a perfectly
+    healthy directory and fails on the first write.
+  - Pointing `ASCLEPIUS_ASSET_STORE` at `/tmp` now **triggers** the ephemeral
+    warning instead of silencing it. The old predicate answered "did anyone set the
+    variable", so setting it to an ephemeral path quieted the alarm without
+    touching the fire.
+- **`GET /api/asclepius/admin/storage/reconcile`** (admin) reports every asset
+  reference whose blob is gone and every blob with no reference, and the live
+  durability verdict for all three stores. It is **read-only**: an orphan blob costs
+  disk, a wrongly-deleted blob costs a case whose partner bundle has already aged
+  out of retention. A non-zero `missing_count` is an **incident, not a metric** —
+  the admin Health Systems page renders it in pink, and states the healthy case
+  explicitly ("All N asset references resolve") so an empty panel and a healthy
+  panel never look identical.
 - `ASCLEPIUS_MALWARE_SCAN_CMD` — plug a real AV (e.g. `clamscan --no-summary`);
-  fail-closed. Without it only structural zip checks run.
+  fail-closed. Without it only structural zip checks run. The scanner is handed
+  **plaintext**: it was previously given the encrypted blob, so with
+  `DATA_ENCRYPTION_KEY` configured a real engine scanned ciphertext and reported
+  clean every time.
 - `ASCLEPIUS_DEID_VERIFIER=baseline|presidio|comprehend_medical`.
 - Chain of custody: every step logs an audit event (upload checksum, scan,
   per-file outcome, transforms, gates, promote).

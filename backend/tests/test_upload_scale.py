@@ -464,3 +464,95 @@ def test_the_reaper_deletes_unverified_parts(client, monkeypatch):
     assert asc_uploads.reap_stale_sessions(store) == 1
     assert not parts_dir.exists()
     assert store.get_upload_session(session["session_id"])["status"] == "aborted"
+
+
+# ── the two doors must accept the same files ─────────────────────────────────
+def test_a_bare_clinical_file_through_the_chunked_door_ingests(client):
+    """The same file must not succeed through one door and fail through another.
+
+    The single-request doors pack a loose .csv/.json/.hl7/.txt into a bundle
+    server-side. The chunked door streams whatever was selected, so without the
+    same packing a hospital sending one bare CSV would get "we could not read this
+    upload" purely because of which door they happened to use."""
+    store = A.fresh_store()
+    _portal(client, store)
+    rows = b"".join(
+        b"pt1,BMP,Creatinine,%d.%d,mg/dL,2025-03-%02d\n" % (1 + i % 3, i % 10, 1 + i % 28)
+        for i in range(200))
+    csv = b"patient_key,panel,analyte,value,unit,collected_at\n" + rows
+    session = _declare(client, csv, filename="labs.csv")
+    r = _upload_all(client, csv, session)
+    assert r.status_code == 200, r.text
+    upload = store.get_ingest_upload(r.json()["upload_id"])
+    assert upload["status"] != "rejected", upload.get("reason")
+    assert store.list_ingest_cases(upload_id=upload["upload_id"])
+    # The stored raw blob is still byte-for-byte what the partner sent, so the
+    # sha256 on the row remains a digest of THEIR file.
+    assert upload["sha256"] == hashlib.sha256(csv).hexdigest()
+    assert asc_ingestion.load_raw(upload["raw_path"]) == csv
+
+
+def test_the_browser_side_streaming_sha256_matches_the_reference():
+    """The client declares the whole-file digest before sending a byte, so a wrong
+    hasher does not degrade anything — it makes every large upload fail. Checked
+    against Node's crypto, including a 600 MB case: JS `>>> 32` is a no-op, so the
+    naive length-padding shift is correct below 512 MB and wrong above it, which
+    is precisely the range this code exists for."""
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    node = _shutil.which("node")
+    if not node:
+        pytest.skip("node is not available in this environment")
+    script = Path(__file__).resolve().parent / "test_provider_upload_dom.js"
+    res = _subprocess.run([node, str(script)], capture_output=True, text=True, timeout=300)
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "all checks passed" in res.stdout
+
+
+# ── resource bounds on the part endpoint ─────────────────────────────────────
+def test_an_oversized_part_is_refused_without_buffering_it(client):
+    """``request.body()`` buffers the whole body BEFORE returning, so the obvious
+    length check happens only after the memory has already been spent — an
+    authenticated partner could push a body far larger than any part and take the
+    container down before failing the check. The read is capped mid-stream."""
+    store = A.fresh_store()
+    _portal(client, store)
+    data = _bundle(1024 * 1024)
+    session = _declare(client, data)
+    limit = session["chunk_size"]
+
+    # Lies about Content-Length so the cheap header gate cannot be what stops it,
+    # forcing the streaming cap to do the work.
+    oversized = b"x" * (limit * 3)
+    r = client.put(
+        f"{API}/hs/uploads/sessions/{session['session_id']}/parts/1",
+        content=oversized, headers={"X-Chunk-SHA256": hashlib.sha256(oversized).hexdigest()})
+    assert r.status_code == 413, r.text
+    state = client.get(f"{API}/hs/uploads/sessions/{session['session_id']}").json()
+    assert state["received_parts"] == []
+
+
+def test_a_declare_race_returns_one_session_not_a_500(client):
+    """The partial unique index makes concurrent declares for the same bytes
+    collide at the DB. That is the index doing its job, and the partner sees one
+    upload they asked for twice — not a 500."""
+    store = A.fresh_store()
+    hs, username = _portal(client, store)
+    data = _bundle(1024 * 1024)
+    from asclepius import uploads as U
+    kwargs = dict(owner_kind="health_system", owner_id=hs["hs_id"], actor=username,
+                  filename="bundle.zip", size=len(data),
+                  sha256=hashlib.sha256(data).hexdigest(),
+                  content_type="application/zip", portal_username=username)
+    first, created_a = U.declare(store, **kwargs)
+    assert created_a
+    # Simulate the racing INSERT: bypass the idempotency lookup the second caller
+    # would normally hit, so the DB constraint is what resolves it.
+    second = store.create_upload_session(
+        owner_kind="health_system", owner_id=hs["hs_id"], actor=username,
+        filename="bundle.zip", content_type="application/zip",
+        declared_sha256=hashlib.sha256(data).hexdigest(), declared_size=len(data),
+        chunk_size=first["chunk_size"], part_count=first["part_count"],
+        storage_root=str(U.sessions_root()), portal_username=username)
+    assert second["session_id"] == first["session_id"]

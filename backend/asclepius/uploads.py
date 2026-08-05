@@ -174,14 +174,15 @@ def _part_paths(session: Dict[str, Any], n: int) -> Tuple[Path, Path]:
 def declare(
     store: Any, *, owner_kind: str, owner_id: str, actor: Optional[str],
     filename: Optional[str], size: int, sha256: str,
-    content_type: Optional[str], purpose: Optional[str],
+    content_type: Optional[str], portal_username: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], bool]:
     """Authorize and mint (or resume) a session. Returns ``(session, created)``.
 
     Idempotent on ``(owner, sha256, size)``: re-declaring the same bytes returns
     the EXISTING session, so a browser refresh at 3.2 GB resumes rather than
-    restarting. ``purpose`` is resolved SERVER-SIDE by the caller from the
-    authorizing row — it is a parameter here, never a request field."""
+    restarting. ``portal_username`` names the authorizing account; everything the
+    admin side derives from it is resolved by the store, not here — this module is
+    provider-reachable and therefore has no business knowing what is derived."""
     sha = (sha256 or "").strip().lower()
     if not _SHA256_RE.match(sha):
         raise UploadSessionError("bad_digest",
@@ -213,7 +214,8 @@ def declare(
         owner_kind=owner_kind, owner_id=owner_id, actor=actor,
         filename=_safe_name(filename), content_type=(content_type or None),
         declared_sha256=sha, declared_size=size, chunk_size=chunk,
-        part_count=parts, storage_root=str(sessions_root()), purpose=purpose)
+        part_count=parts, storage_root=str(sessions_root()),
+        portal_username=portal_username)
     _session_dir(session).mkdir(parents=True, exist_ok=True, mode=0o700)
     return session, True
 
@@ -421,9 +423,10 @@ def public_session(session: Dict[str, Any], state: Optional[Dict[str, Any]] = No
                    ) -> Dict[str, Any]:
     """The partner-facing view of a session.
 
-    ``purpose`` is deliberately absent, and this is the ONLY place a session is
-    serialized for a provider — there is no second shape that could acquire the
-    field later without this function changing (PRD-I §3.1)."""
+    An EXPLICIT allowlist of fields, and the only place a session is serialized
+    for a provider. A ``{k: v for k, v in session.items()}`` here would ship every
+    column the row ever grows, which is precisely how an admin-only field reaches
+    a partner six months after anyone thought about it (PRD-I §3.1)."""
     state = state if state is not None else session_state(session)
     return {
         "session_id": session["session_id"],

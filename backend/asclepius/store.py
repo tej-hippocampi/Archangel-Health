@@ -6077,22 +6077,48 @@ class AsclepiusStore:
             conn.execute("UPDATE hs_portal_users SET purpose = ? WHERE username = ?",
                          (purpose, (username or "").lower()))
 
-    def hs_purpose_for(self, hs_id: str) -> Optional[str]:
-        """The purpose an upload from this health system inherits.
+    def hs_purposes_for(self, hs_id: str) -> List[Optional[str]]:
+        """Every distinct purpose across a health system's ACTIVE portal accounts.
 
-        Resolved from the system's portal ACCOUNTS, because the account is what an
-        admin mints when they press one of the two buttons. Where a system has
-        several accounts they normally agree; if they disagree we return None
-        rather than picking one, so the admin sees an unresolved work item instead
-        of a coin flip deciding whether data can become a task."""
+        For ADMIN DISPLAY only. Uploads are stamped from the specific account that
+        sent them (``attach_upload_provenance``), never from this aggregate — an
+        organization may legitimately hold one account of each kind, and picking a
+        winner between them is how a brokering upload would acquire a
+        task_creation stamp."""
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT DISTINCT purpose FROM hs_portal_users "
                 "WHERE hs_id = ? AND active = 1", (hs_id,)).fetchall()
-        vals = {r["purpose"] for r in rows if r["purpose"]}
-        return vals.pop() if len(vals) == 1 else None
+        return [r["purpose"] for r in rows]
+
+    def attach_upload_provenance(
+        self, upload_id: str, *, portal_username: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> None:
+        """Record where an upload came from, and copy forward what that implies.
+
+        The caller names the ORIGIN — the portal account, or the chunked session
+        the server itself stamped at declare — and this resolves everything derived
+        from it by joining server-side. Deliberately not a ``set_purpose(value)``
+        call: the upload doors have no business holding a purpose value, so they
+        are given no way to express one. Nothing a provider sends reaches this."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            if session_id:
+                conn.execute(
+                    "UPDATE ingest_uploads SET purpose = (SELECT purpose FROM "
+                    "ingest_upload_sessions WHERE session_id = ?), updated_at = ? "
+                    "WHERE upload_id = ?", (session_id, now, upload_id))
+            elif portal_username:
+                conn.execute(
+                    "UPDATE ingest_uploads SET purpose = (SELECT purpose FROM "
+                    "hs_portal_users WHERE username = ?), updated_at = ? "
+                    "WHERE upload_id = ?",
+                    ((portal_username or "").lower(), now, upload_id))
 
     def set_upload_purpose(self, upload_id: str, purpose: Optional[str]) -> None:
+        """Admin-side correction only (resolving a legacy row). The upload doors
+        do not call this — they call ``attach_upload_provenance``."""
         with self._conn() as conn:
             conn.execute(
                 "UPDATE ingest_uploads SET purpose = ?, updated_at = ? WHERE upload_id = ?",
@@ -6118,6 +6144,35 @@ class AsclepiusStore:
                 (upload_id, _utcnow_iso(), upload_id))
             return int(cur.rowcount or 0)
 
+    def ingest_case_effective_purpose(self, ingest_case_id: str) -> Optional[str]:
+        """The purpose the PROMOTION GATE must read: the case's own, falling back
+        to its upload's.
+
+        The fallback is the point. Purpose is copied onto cases at the end of
+        ingest, and that copy is best-effort — it must never strand an upload, so
+        a failure there is logged and swallowed. Reading only the case column would
+        turn that swallowed failure into a brokering case with a NULL purpose,
+        which the gate resolves as task_creation. Fail-open on the one check whose
+        whole job is to fail closed. COALESCE removes the possibility rather than
+        relying on the copy having happened."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(c.purpose, u.purpose) AS purpose FROM ingest_cases c "
+                "LEFT JOIN ingest_uploads u ON u.upload_id = c.upload_id "
+                "WHERE c.ingest_case_id = ?", (ingest_case_id,)).fetchone()
+        return row["purpose"] if row else None
+
+    def ingest_case_purposes_for_upload(self, upload_id: str) -> Dict[str, Optional[str]]:
+        """``{ingest_case_id: effective purpose}`` for a whole upload — one query
+        for the batch promote, same COALESCE semantics as above."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT c.ingest_case_id, COALESCE(c.purpose, u.purpose) AS purpose "
+                "FROM ingest_cases c LEFT JOIN ingest_uploads u "
+                "ON u.upload_id = c.upload_id WHERE c.upload_id = ?",
+                (upload_id,)).fetchall()
+        return {r["ingest_case_id"]: r["purpose"] for r in rows}
+
     def mark_upload_verified(self, upload_id: str, *, verified_at: str) -> None:
         with self._conn() as conn:
             conn.execute(
@@ -6129,23 +6184,40 @@ class AsclepiusStore:
         self, *, owner_kind: str, owner_id: str, actor: Optional[str],
         filename: Optional[str], content_type: Optional[str],
         declared_sha256: str, declared_size: int, chunk_size: int,
-        part_count: int, storage_root: str, purpose: Optional[str],
+        part_count: int, storage_root: str, portal_username: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """Open a session. ``portal_username`` names the ACCOUNT that authorized it;
+        anything derived from that account is resolved here by a server-side join,
+        so the upload door never handles the derived value (PRD-I §3.1)."""
         sid = _new_id("ups")
         now = _utcnow_iso()
         # Derived from the SERVER-minted session id, so no component of the parts
         # directory is ever client-controlled.
         storage_dir = os.path.join(storage_root, sid)
-        with self._conn() as conn:
-            conn.execute(
-                """INSERT INTO ingest_upload_sessions
-                   (session_id, owner_kind, owner_id, actor, filename, content_type,
-                    declared_sha256, declared_size, chunk_size, part_count,
-                    storage_dir, purpose, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (sid, owner_kind, owner_id, actor, filename, content_type,
-                 declared_sha256, int(declared_size), int(chunk_size),
-                 int(part_count), storage_dir, purpose, now, now))
+        try:
+            with self._conn() as conn:
+                conn.execute(
+                    """INSERT INTO ingest_upload_sessions
+                       (session_id, owner_kind, owner_id, actor, filename, content_type,
+                        declared_sha256, declared_size, chunk_size, part_count,
+                        storage_dir, purpose, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                               (SELECT purpose FROM hs_portal_users WHERE username = ?),
+                               ?, ?)""",
+                    (sid, owner_kind, owner_id, actor, filename, content_type,
+                     declared_sha256, int(declared_size), int(chunk_size),
+                     int(part_count), storage_dir, (portal_username or "").lower(),
+                     now, now))
+        except sqlite3.IntegrityError:
+            # Two declares for the same bytes raced. The idempotency index did its
+            # job — return the session that won rather than surfacing a 500 for
+            # what is, from the partner's side, one upload they asked for twice.
+            existing = self.find_open_upload_session(
+                owner_kind=owner_kind, owner_id=owner_id,
+                declared_sha256=declared_sha256, declared_size=int(declared_size))
+            if existing:
+                return existing
+            raise
         return self.get_upload_session(sid)  # type: ignore[return-value]
 
     def get_upload_session(self, session_id: str) -> Optional[Dict[str, Any]]:
