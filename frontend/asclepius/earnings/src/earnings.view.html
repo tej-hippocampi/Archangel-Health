@@ -1,0 +1,95 @@
+<!-- ============================================================
+     Asclepius — Earnings view (markup fragment).
+     Render this inside the product's <main id="ascRoot"> to wire it in.
+     All classes are either the existing console system (.asc-*) or the
+     earnings-only additions in earnings.css (.px-*). Demo data below.
+     ============================================================ -->
+<section class="asc-wrap px-narrow px-stack" aria-label="Earnings">
+
+  <!-- the one thing: what's coming and when -->
+  <div class="asc-card px-hero">
+    <span class="px-eyebrow">Next payout</span>
+    <div class="px-hero-amount">$360</div>
+    <div class="px-hero-sub">Arrives Friday, Aug 8</div>
+    <div class="px-hero-meta">
+      <span>Paid weekly to Stripe ••4291</span>
+      <span>·</span>
+      <span class="px-status"><span class="dot dot-green"></span>98% approval</span>
+    </div>
+  </div>
+
+  <!-- recent work: a plain list, not a table -->
+  <div class="asc-card asc-card-pad">
+    <div style="margin-bottom:8px">
+      <div class="px-card-title">Recent work</div>
+      <div class="px-card-hint">Fixed pay per case. Approved work is paid on the next Friday.</div>
+    </div>
+
+    <div class="px-item">
+      <div class="px-item-main">
+        <div class="px-item-title">Preference pair · Nephrology</div>
+        <div class="px-item-meta">Aug 3 · 14 min</div>
+      </div>
+      <div class="px-item-right">
+        <span class="px-money">$22.00</span>
+        <span class="px-status"><span class="dot dot-orange"></span>Awaiting review</span>
+      </div>
+    </div>
+    <div class="px-item">
+      <div class="px-item-main">
+        <div class="px-item-title">Ideal answer · Nephrology</div>
+        <div class="px-item-meta">Aug 3 · 21 min</div>
+      </div>
+      <div class="px-item-right">
+        <span class="px-money">$30.00</span>
+        <span class="px-status"><span class="dot dot-green"></span>Approved</span>
+      </div>
+    </div>
+    <div class="px-item">
+      <div class="px-item-main">
+        <div class="px-item-title">Preference pair · Nephrology</div>
+        <div class="px-item-meta">Aug 2 · 17 min</div>
+      </div>
+      <div class="px-item-right">
+        <span class="px-money">$22.00</span>
+        <span class="px-status"><span class="dot dot-green"></span>Paid</span>
+      </div>
+    </div>
+    <div class="px-item">
+      <div class="px-item-main">
+        <div class="px-item-title">Reasoning trace · Nephrology</div>
+        <div class="px-item-meta">Aug 1 · 18 min</div>
+      </div>
+      <div class="px-item-right">
+        <span class="px-money">$24.00</span>
+        <span class="px-status"><span class="dot dot-green"></span>Paid</span>
+      </div>
+    </div>
+    <div class="px-item">
+      <div class="px-item-main">
+        <div class="px-item-title">Ideal answer · Nephrology</div>
+        <div class="px-item-meta">Jul 30 · 24 min</div>
+      </div>
+      <div class="px-item-right">
+        <span class="px-money">$30.00</span>
+        <span class="px-status"><span class="dot dot-green"></span>Paid</span>
+      </div>
+    </div>
+
+    <div style="margin-top:14px">
+      <button class="asc-btn asc-btn-link" data-px-action="see-all">See all 214 cases →</button>
+    </div>
+  </div>
+
+  <!-- everything else lives behind one click -->
+  <details class="px-details">
+    <summary>Payment method &amp; tax</summary>
+    <div class="px-details-body">
+      <div class="px-kv-row"><span class="px-kv-key">Paid to</span><span class="px-kv-val">Stripe Connect · ••4291</span></div>
+      <div class="px-kv-row"><span class="px-kv-key">W-9 on file</span><span class="px-kv-val"><span class="px-status"><span class="dot dot-green"></span>Verified ✓</span></span></div>
+      <div class="px-kv-row"><span class="px-kv-key">Earned in 2026</span><span class="px-kv-val px-money">$1,840.00</span></div>
+      <p class="px-note" style="margin-top:12px">We send you a 1099-NEC once you pass <span class="px-money">$2,000</span> in a calendar year. You don't need to do anything.</p>
+    </div>
+  </details>
+
+</section>
