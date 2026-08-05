@@ -263,6 +263,59 @@ def test_a_metronome_session_on_one_key_raises_a_reviewable_event(monkeypatch):
     assert "single_key" in payload["reasons"] and "no_jitter" in payload["reasons"]
 
 
+def test_the_clients_fallback_key_is_not_read_as_evidence_of_anything(monkeypatch):
+    """Found by auditing this code against Agent R's real client.
+
+    R's review surface passes no progress key — it was built against a contract it
+    could not read — so P's client falls back to ``session:<id>``. That is the
+    right call for the physician: they get paid. But it means EVERY reviewer
+    session reports exactly one distinct key, and ``single_key`` is one of the two
+    conditions that raises a payout-review flag.
+
+    Left alone, the flag would fire on every session in the fleet. That is L2's
+    lesson repeating one layer up: a signal that fires on everything is a signal
+    nobody reads, and the one session that deserved a look would be buried under
+    thousands that did not.
+
+    The deeper point is that ``single_key`` MEANS "the reviewer stayed on one
+    piece of work", and that is a conclusion we are not entitled to draw when the
+    client never named any work. An unnamed session is recorded as unnamed — an
+    integration gap on our side — and never as a suspicion about the physician.
+    """
+    clock = Clock(monkeypatch)
+    h = A.headers_for(_reviewer())
+    session = _open(h)
+    sid = session["session_id"]
+    # Exactly what P's own client sends when the caller names no work.
+    _work(h, session, clock, beats=80, keys=(asc_payments.SESSION_FALLBACK_PREFIX + sid,))
+
+    result = client.post(f"/api/asclepius/sessions/{sid}/close",
+                         json={"reason": "closed"}, headers=h).json()
+    assert result["payout_cents"] == 10000
+
+    events = _store().list_events(entity_type="work_session", entity_id=sid)
+    assert [e for e in events if e["event_type"] == "session_low_confidence"] == [], \
+        "the client's own fallback was read as a fraud signal"
+
+    # It is still recorded — as our gap, in our words.
+    closed = next(e for e in events if e["event_type"] == "session_closed")
+    assert closed["payload"]["work_named"] is False
+
+
+def test_a_session_that_does_name_its_work_reports_it_as_named(monkeypatch):
+    clock = Clock(monkeypatch)
+    h = A.headers_for(_reviewer())
+    session = _open(h)
+    sid = session["session_id"]
+    _work(h, session, clock, beats=80, keys=("task-abc",))
+
+    client.post(f"/api/asclepius/sessions/{sid}/close",
+                json={"reason": "closed"}, headers=h)
+    closed = next(e for e in _store().list_events(entity_type="work_session", entity_id=sid)
+                  if e["event_type"] == "session_closed")
+    assert closed["payload"]["work_named"] is True
+
+
 def test_an_ordinary_multi_case_session_is_not_flagged(monkeypatch):
     """The negative case, so the signal stays worth reading. A flag that fires on
     every session is a flag nobody looks at."""

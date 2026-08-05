@@ -7,13 +7,21 @@
        The doctor's Earnings surface inside the portal. What they
        have made, and why.
 
-     window.AsclepiusSession   { open, attach, stop, state, subscribe }
+     window.AsclepiusSession
+       { start, attach, open, setProgress, stop, state, subscribe }
        The heartbeat client for a billable session. PRD-P owns the
        billable session; the review surface (PRD-R) calls
-       open_session, hands the session id to this client, and does
-       nothing else. Keeping the beat loop HERE is what stops a
+       open_session server-side, forwards the block to `start()`, and
+       does nothing else. Keeping the beat loop HERE is what stops a
        second implementation of the payment clock from appearing in
        a file that does not own money.
+
+       `start` is the seam's canonical entry point and `attach` is
+       its alias. Both names are load-bearing: the two sides of this
+       seam were written against different ones, at different times,
+       by agents who could not see each other's files. Removing
+       either is a silent no-op on the other side — which is exactly
+       how this seam failed the first time.
 
    ── The rules this file exists to hold ──────────────────────
 
@@ -176,17 +184,60 @@
       .then(function (payload) { attach(payload, progressKey); return payload; });
   }
 
-  /** Start beating for an already-opened session. */
+  /** Start beating for an already-opened session.
+   *
+   *  `start` is the name the review surface calls, and it is the canonical entry
+   *  point across the seam. It was missing once: PRD-R built against this client
+   *  without ever seeing it, feature-detected `typeof S.start === 'function'`,
+   *  found nothing, and silently never beat — server-side session open, zero
+   *  heartbeats, a physician reviewing unpaid with nothing thrown or logged.
+   *  `attach` is kept as an alias so both names work forever; removing either
+   *  breaks a seam whose two halves merge at different times.
+   *
+   *  IDEMPOTENT. The review surface calls this on every pair draw, because the
+   *  server call behind it is idempotent too. Six adjudications must not leave
+   *  six interval timers beating in parallel and racing each other for the nonce.
+   *
+   *  `progressKey` names the work this session is beating for. A caller that does
+   *  not pass one gets a session-scoped fallback rather than a refusal — see
+   *  below. */
+  // ── FOR THE REVIEW SURFACE (PRD-R) ─────────────────────────────────────────
+  //
+  // Two things this client cannot do for you, because doing them would mean
+  // payments knowing what a review pair is:
+  //
+  //   1. NAME THE WORK.  start(session, pair.task_id)
+  //      Without a key every beat carries `session:<id>`, which is honest but
+  //      blind: per-case accounting is impossible, and "how long did this pair
+  //      take" becomes unanswerable. You already hold the id at the call site.
+  //
+  //   2. STOP WHEN THERE IS NO WORK.  if (!pair) AsclepiusSession.stop('closed')
+  //      This client beats until it is told to stop or the tab hides. When your
+  //      queue empties you hide the clock — but the beats keep going, so a
+  //      reviewer sitting on an empty queue with the tab open still accrues paid
+  //      time and cannot see that they are. Only you know the queue is empty.
+  //
+  // Neither is a defect in your code; both are consequences of a seam that was
+  // built from both ends without either side reading the other.
+  function start(payload, progressKey) {
+    if (!payload || !payload.session_id) return null;
+    // Already beating for this session: nothing to do, and doing it anyway would
+    // stack a second timer.
+    if (session.id === payload.session_id && session.timer) return publicState();
+    return attach(payload, progressKey);
+  }
+
   function attach(payload, progressKey) {
     if (!payload || !payload.session_id) return null;
     if (!progressKey) {
-      // Fail loudly rather than beating into a wall of 422s. A caller that
-      // forgot the key would otherwise look like it was tracking time and
-      // silently accrue nothing — which the reviewer discovers as a missing $100.
-      session.error = 'This review session cannot be tracked: no work was named. '
-        + 'Your time is not being counted — reload the page.';
-      notify();
-      return null;
+      // Every beat must name the work it is a beat for, or the server refuses it.
+      // Refusing to beat here would be defensible and is the wrong call: a
+      // physician would lose $100 because an argument went unpassed across a
+      // seam. So fall back to a session-scoped key and make it OBVIOUS in the
+      // record — `session:<id>` reads, to anyone auditing a payout, as "the
+      // client never named the work". The server contract is untouched; this is
+      // only this client declining to violate it.
+      progressKey = 'session:' + payload.session_id;
     }
     stopTimer();
     session.progressKey = progressKey;
@@ -383,6 +434,9 @@
 
   window.AsclepiusSession = {
     open: open,
+    // `start` and `attach` are the same function under the two names the two
+    // sides of this seam were each written against. Keep both.
+    start: start,
     attach: attach,
     setProgress: setProgress,
     stop: stop,

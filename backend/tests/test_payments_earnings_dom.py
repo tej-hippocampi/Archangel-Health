@@ -576,27 +576,48 @@ window.AsclepiusSession.open('review', 'pair-1').then(function () {
     assert out["state"]["qualified"] is False
 
 
-def test_attaching_without_naming_the_work_fails_loudly_instead_of_beating():
-    """A caller that forgets the progress key would otherwise beat into a wall of
-    422s while looking like it was tracking time — and the reviewer would find out
-    as a missing $100. Refuse to start, and say so."""
+def test_attaching_without_naming_the_work_beats_with_a_visible_fallback_key():
+    """This test previously asserted the opposite, and the earlier policy was
+    wrong.
+
+    The original reasoning: a caller that forgot the progress key would beat into
+    a wall of 422s while looking like it was tracking time, so refuse to start and
+    say so. That is sound when the caller is a bug you can fix.
+
+    Then Agent R's real code arrived and passed no key — not from carelessness,
+    but because they built against this client without ever being able to read it.
+    Under the old policy a physician reviews for an hour and is paid nothing
+    because an argument went unpassed across a seam that merges in two pieces.
+    That is the worst outcome available, and it lands on the person with the least
+    ability to do anything about it.
+
+    So the client falls back to a session-scoped key and makes the fallback
+    obvious in the record: ``session:<id>`` reads, to anyone auditing a payout, as
+    "the client never named the work". The physician is paid, and the gap is
+    visible to us rather than to them.
+    """
     out = _run_node(_script({
         "FETCH /sessions": {"session_id": "ws-9", "nonce": "n0", "min_seconds": 1200,
                             "resumed": False, "params": {"beat_interval_seconds": 15}},
+        "FETCH /sessions/ws-9/heartbeat": {"credited_seconds": 15, "continuous_seconds": 15,
+                                           "next_nonce": "n1", "ended": False},
     }, """
 window.AsclepiusSession.open('review').then(function () {
   done(function () {
+    var beats = fetchCalls.filter(function (c) { return c.url.indexOf('heartbeat') !== -1; });
     console.log(JSON.stringify({
-      beats: fetchCalls.filter(function (c) { return c.url.indexOf('heartbeat') !== -1; }).length,
+      beats: beats.length,
+      key: beats.length ? beats[0].body.progress_key : null,
       timers: globalThis.__intervals.filter(Boolean).length,
       error: window.AsclepiusSession.state() && window.AsclepiusSession.state().error,
     }));
   });
 });
 """))
-    assert out["beats"] == 0
-    assert out["timers"] == 0
-    assert "not being counted" in (out["error"] or "")
+    assert out["beats"] == 1, "the physician's time must be counted"
+    assert out["key"] == "session:ws-9", "the unnamed work must be visible in the record"
+    assert out["timers"] == 1
+    assert out["error"] is None
 
 
 def test_moving_to_the_next_case_renames_the_work_and_beats_immediately():

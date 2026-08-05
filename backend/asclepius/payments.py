@@ -153,6 +153,15 @@ PAUSE_TOLERANCE_SECONDS = 90  # one resume inside 90 s stitches the run back
 # because of it: the cost of a false positive is not paying a physician $100.
 MIN_HUMAN_JITTER_MS = 50.0
 
+# The key P's OWN client sends when its caller named no work — `session:<id>`.
+#
+# This is a convention shared between payments and its client, and it deliberately
+# encodes nothing about review: the server recognises the shape without knowing
+# what a review pair is. It exists so an unnamed session is legible as OUR
+# integration gap rather than misread as a fact about the physician — see
+# `_flag_low_confidence`.
+SESSION_FALLBACK_PREFIX = "session:" 
+
 # Wall-vs-monotonic disagreement that is worth recording.
 CLOCK_SKEW_TOLERANCE_SECONDS = 2.0
 
@@ -306,6 +315,17 @@ def _mint_nonce() -> str:
 
 
 # ═══ The credit calculation — a pure function of the beat rows ════════════════
+def work_was_named(keys) -> bool:
+    """Did the CALLER name the work, or did P's own client fill in for it?
+
+    A session whose only key is the fallback tells us nothing about the reviewer.
+    It tells us that the surface driving the beats did not pass a work identity —
+    which is a gap on our side of a seam, and must never be read as a signal about
+    the person being paid."""
+    real = [k for k in keys if k and not str(k).startswith(SESSION_FALLBACK_PREFIX)]
+    return bool(real)
+
+
 def credit_from_beats(
     beats: List[Dict[str, Any]], *, min_seconds: int,
     max_gap: int = MAX_GAP_SECONDS, pause_tolerance: int = PAUSE_TOLERANCE_SECONDS,
@@ -393,6 +413,7 @@ def credit_from_beats(
     distinct = len(keys_seen)
 
     return {
+        "work_named": work_was_named(keys_seen),
         "credited_seconds": credited_i,
         "continuous_seconds": longest_i,
         "qualified": longest_i >= int(min_seconds) and distinct >= int(min_progress_keys),
@@ -871,6 +892,9 @@ def close_session(store, *, session_id: str, reason: str = END_CLOSED) -> Dict[s
                 "qualified": bool(result["qualified"]),
                 "payable": payable,
                 "payout_cents": payout,
+                # False means the surface driving the beats named no work, so
+                # this session's key count says nothing about the physician.
+                "work_named": bool(result.get("work_named")),
             },
         )
 
@@ -908,7 +932,12 @@ def _flag_low_confidence(
     if not result.get("qualified"):
         return
     reasons = []
-    if int(result.get("distinct_progress_keys") or 0) <= 1:
+    # ``single_key`` means "the reviewer stayed on one piece of work". That is a
+    # conclusion we are not entitled to draw when the client never named any work
+    # — and since P's own client falls back to a session-scoped key whenever its
+    # caller passes none, counting it would fire this flag on every session in the
+    # fleet and bury the one that deserved a look.
+    if result.get("work_named") and int(result.get("distinct_progress_keys") or 0) <= 1:
         reasons.append("single_key")
     jitter = result.get("jitter_ms")
     if jitter is not None and jitter < MIN_HUMAN_JITTER_MS:

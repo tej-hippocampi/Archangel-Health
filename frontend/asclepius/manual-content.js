@@ -326,27 +326,24 @@
   // ═══════════════════════════════════════════════════════════════════════════
   //  REVIEWER — PRD M §2
   //
-  //  Written against the review surface that SHIPS TODAY: one reviewer grades
-  //  one labeler's submission, blinded, across four dimensions, with a verdict
-  //  of accept / accept with edits / reject.
+  //  Written against the PAIRED review surface as Agent R actually built it: a
+  //  reviewer draws a CASE with two independent labels side by side, decides
+  //  which is stronger, and gives one verdict.
   //
-  //  PRD M §2 describes the PAIRED surface (two answers side by side, "Accept A ·
-  //  Accept B · Reject both") that Agent R has not merged. Documenting a screen a
-  //  physician cannot see would be worse than documenting nothing, so these
-  //  sections describe what is in front of them now.
+  //  Vocabulary taken from the shipped code, not from the PRD's sketch of it:
+  //    · four buttons  — Accept A · Accept B · Accept with edits · Reject both
+  //    · three stored verdicts — accept · accept_with_edits · reject, plus a side
+  //    · "Which is stronger?" is its own control and is ALWAYS required, including
+  //      on a rejection, and offers A / B / Equivalent
+  //    · four dimensions, three states, "Can't assess" among them
+  //    · A and B are a per-reviewer shuffle, so they mean nothing between people
   //
-  //  WHEN AGENT R'S PAIRED REVIEW MERGES, exactly these need rewriting — nothing
-  //  else in this file:
-  //    · title + subtitle          "How to review a pair"
-  //    · 00 what-review-is         "two people who already did it"
-  //    · 02 the-answer  ->  the-pair
-  //    · 06 the-judgment ->  stronger  (which of the two is stronger)
-  //    · 07 verdict                the Accept A / Accept B / Reject both set
-  //  Sections 01, 03, 04, 05, 08 and 09 are surface-independent and stand as-is.
+  //  That last point is the one a physician would otherwise get wrong, and it is
+  //  section 03. Everything else here is what a reviewer sees on the page.
   // ═══════════════════════════════════════════════════════════════════════════
   var REVIEWER = {
-    title: 'How to review',
-    subtitle: 'A four-minute guide to grading another physician\u2019s work.',
+    title: 'How to review a pair',
+    subtitle: 'A four-minute guide to adjudicating two physicians\u2019 work.',
     // A reviewer is senior and time-poor. If this reads longer than the labeling
     // manual, it is the wrong document.
     readingTimeMin: 4,
@@ -358,15 +355,15 @@
         num: '00',
         chromeLabel: 'WHAT YOU ARE DOING',
         title: 'What you are doing',
-        what: 'You are grading work another physician already completed, not redoing the case yourself.',
-        why: 'Expert acceptance is the number a buyer trusts, and only a peer can produce it.',
-        how: 'Judge what is in front of you. Write your own answer only where you must correct theirs.',
+        what: 'You are grading two physicians who already did this case, not redoing it yourself.',
+        why: 'Two blind labels plus your verdict are what make our quality numbers real.',
+        how: 'Read both answers. Say which is stronger, then give one verdict for the case.',
         callouts: [
-          { kind: 'why', text: 'Your agreement rate with labelers is a headline statistic we sell. It is only worth something if you disagree when you actually disagree.' },
+          { kind: 'why', text: 'Two statistics come out of this and they are different: how much the two labelers agreed with each other, and whether you accepted the work. Neither is ever reported as the other.' },
         ],
         detail: [
-          'Re-doing the case from scratch and then comparing is slower and biases you toward your own framing. Read what they wrote, decide whether a patient is well served by it, and correct the specific thing that is wrong.',
-          'The design target is a good submission accepted in under a minute. Spend your time on the ones that are wrong.',
+          'Re-doing the case from scratch and then comparing is slower and anchors you to your own framing. Read what they wrote, decide whether a patient is well served by it, and correct the specific thing that is wrong.',
+          'The design target is a sound pair adjudicated in about a minute. Spend your time on the ones where the two physicians disagree — that is where the case was hard.',
         ],
       },
       {
@@ -394,16 +391,16 @@
         ],
       },
       {
-        id: 'the-answer',
+        id: 'the-pair',
         num: '02',
-        chromeLabel: 'THE ANSWER YOU ARE GRADING',
-        title: 'The answer you are grading',
-        what: 'A physician\u2019s completed submission: their verdict, their corrected answer, their reasoning.',
-        why: 'The buyer is buying that judgment, so your grade decides whether it ships.',
-        how: 'Read the answer first. Open the case only when something in it looks wrong.',
+        chromeLabel: 'THE TWO ANSWERS',
+        title: 'The two answers',
+        what: 'Two physicians answered this case independently, neither able to see the other\u2019s work.',
+        why: 'Two blind answers are what make an agreement statistic real rather than assumed.',
+        how: 'Read both before judging either. They are shown side by side, in the same detail.',
         detail: [
-          'You see what they submitted, not how long they took or how many times they changed their mind. Grade the artifact.',
-          'A second physician labels many of these cases independently. Where two blind labelers agree, we can report a real agreement statistic; where you and they disagree, that is the signal worth having.',
+          'Independence is enforced, not requested: the second labeler cannot be the first, and neither could see the other\u2019s answer while writing their own. A case that somehow carries two labels from one physician is held back and never reaches you.',
+          'You always see exactly two. A case that picked up a third label is pulled out for a human to look at rather than shown to you with one answer quietly dropped.',
         ],
       },
       {
@@ -411,12 +408,16 @@
         num: '03',
         chromeLabel: 'WHY YOU CANNOT SEE WHO WROTE IT',
         title: 'Why you cannot see who wrote it',
-        what: 'Author names, credentials, and organizations are removed before the work reaches you.',
+        what: 'Names, credentials, and organizations are removed, and A and B are shuffled for you alone.',
         why: 'A grade that tracks reputation instead of medicine is worth nothing to a buyer.',
-        how: 'Grade the medicine. If you can work out who wrote it, tell us so we can fix it.',
+        how: 'Grade the medicine. If you can work out who wrote one, tell us so we can fix it.',
+        callouts: [
+          { kind: 'why', text: 'A and B are your own ordering. Another reviewer on the same case sees them the other way round, so the letters mean nothing outside your screen.' },
+        ],
         detail: [
+          'The shuffle is stable for you and different for everyone else, so reloading will not move the answers and no habit of always picking A can bias the dataset.',
           'Blinding is recorded per review. A review we cannot certify was blind is excluded from the agreement statistics rather than quietly counted \u2014 so telling us costs nothing and protects the number.',
-          'Recognising a colleague\u2019s writing style is not a failure on your part. It is a leak on ours.',
+          'Recognising a colleague\u2019s writing style is not a failure on your part. It is a leak on ours, and writing style is the part redaction cannot reach.',
         ],
       },
       {
@@ -424,12 +425,12 @@
         num: '04',
         chromeLabel: 'OPENING THE CASE',
         title: 'Opening the case',
-        what: 'The full case sits collapsed above the answer: labs, notes, medications, vitals, studies.',
+        what: 'The full case sits collapsed above the pair: labs, notes, medications, vitals, studies.',
         why: 'Reading every case in full would halve your throughput without improving your grades.',
-        how: 'Open it when you doubt something specific, not by default.',
+        how: 'Open it when the two answers disagree, or when you doubt something specific.',
         detail: [
-          'The case is collapsed on purpose. Most submissions are either clearly sound or clearly wrong from the answer alone, and the ones that are not are exactly where opening the case earns its time.',
-          'When you do open it, go to the datum you doubted rather than reading top to bottom.',
+          'The case is collapsed on purpose. Most pairs are either clearly sound or clearly split from the answers alone, and the ones that are not are exactly where opening the case earns its time.',
+          'Where the two physicians diverge is usually where the case is hard, and usually where the decisive datum is. Go to that datum rather than reading top to bottom.',
         ],
       },
       {
@@ -439,7 +440,7 @@
         title: 'The four dimensions',
         what: 'Clinically correct, reasoning holds, nothing decisive missing, grader is usable.',
         why: 'Separating them tells a buyer which part failed, not just that something did.',
-        how: 'Answer each one on its own. Cannot assess is a real answer, not a cop-out.',
+        how: 'Answer them once, about the answer you called stronger. Can\u2019t assess is a real answer.',
         callouts: [
           { kind: 'why', text: 'An answer can be correct with broken reasoning, or well reasoned and incomplete. Scoring them together loses exactly the distinction we sell.' },
         ],
@@ -451,16 +452,16 @@
         ],
       },
       {
-        id: 'the-judgment',
+        id: 'stronger',
         num: '06',
-        chromeLabel: 'CORRECT VERSUS BEST',
-        title: 'Correct versus best',
-        what: 'Whether an answer is safe to act on is a different question from whether it is the best answer.',
-        why: 'Practice variation is real, and grading it as error would train models toward one house style.',
-        how: 'Accept a defensible plan you would not have chosen. Reject one a patient is worse off for.',
+        chromeLabel: 'WHICH IS STRONGER',
+        title: 'Which is stronger',
+        what: 'A separate question from whether either is right: both can be wrong, and one still stronger.',
+        why: 'It is the comparison a single-label review cannot ask, and the reason we collect two.',
+        how: 'Always answer it, including when you reject both. Equivalent is a real answer.',
         detail: [
-          'Two competent physicians can manage the same patient differently and both be right. The question the verdict asks is not "is this what I would have written" but "would a patient be well served by this".',
-          'Where you would have done something different and both are defensible, accept and say so in your note. That disagreement is useful data and is not a mark against them.',
+          'Answer it before you pick a verdict. Deciding which is stronger and then deciding what to do about it keeps the two judgments from collapsing into one.',
+          'Two competent physicians can manage the same patient differently and both be right, so Equivalent is not a way of avoiding the question. Use it when neither is clinically ahead.',
         ],
       },
       {
@@ -468,16 +469,16 @@
         num: '07',
         chromeLabel: 'YOUR VERDICT',
         title: 'Your verdict',
-        what: 'Accept, accept with edits, or reject.',
+        what: 'Accept A, Accept B, Accept with edits, or Reject both.',
         why: 'This is the expert-acceptance number, so it has to mean the same thing every time.',
-        how: 'Accept what is safe to act on. Use edits for a fixable flaw, reject for an unsafe one.',
+        how: 'Accept what is safe to act on as written. Edits for a fixable flaw, reject for an unsafe one.',
         example: {
-          good: 'Accept with edits \u2014 sound plan, but it omits holding the ACE inhibitor before contrast.',
-          weak: 'Accept with edits \u2014 I would have phrased the reasoning differently.',
+          good: 'Accept with edits \u2014 A is stronger, but it omits holding the ACE inhibitor before contrast.',
+          weak: 'Accept with edits \u2014 A is stronger and I would have phrased the reasoning differently.',
         },
         detail: [
-          'Accept with edits means the submission is worth shipping once your correction is applied. Reject means it should not ship at all: an unsafe recommendation, a missed contraindication that changes management, or reasoning that cannot support the answer.',
-          'A rejection is not a judgment on the physician. It is a judgment on one record, and they are told the reason so they can act on it.',
+          'Accept A and Accept B are the same verdict pointing at different physicians: this answer is right as submitted. Accept with edits applies to whichever you called stronger and means it is worth shipping once your correction is applied. Reject both means neither should ship \u2014 an unsafe recommendation, a missed contraindication that changes management, or reasoning that cannot support the answer.',
+          'A rejection is not a judgment on either physician. It is a judgment on one case, and both are told the reason so they can act on it.',
         ],
       },
       {

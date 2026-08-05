@@ -6413,6 +6413,7 @@ class AsclepiusStore:
             # wrote — the values it would read back are exactly these.
             "jitter_ms": credit.get("jitter_ms"),
             "distinct_progress_keys": int(credit.get("distinct_progress_keys") or 0),
+            "work_named": bool(credit.get("work_named")),
             "skipped_beats": int(credit.get("skipped_beats") or 0),
             # Set only when the ratchet bound — the caller turns it into a
             # payout-review event. Carried out rather than re-derived, because
