@@ -1,8 +1,8 @@
 """How a contributor is paid — the seam that does not exist yet (Advisor PRD §2.4).
 
 There is no payment accrual **on the Asclepius contributor path** today. There
-is one elsewhere — ``routers/gold.py`` computes ``amount_earned_usd`` from a
-per-record rate — but it runs on team-store surgeon identities, never on
+is one elsewhere (audit L5) — ``routers/gold.py`` computes ``amount_earned_usd``
+from a per-record rate — but it runs on team-store surgeon identities, never on
 ``asclepius.users``, so no advisor can reach it and it does not consult
 ``accrues_payment``. That distinction is worth stating precisely rather than
 claiming the codebase has no payment logic at all: a module whose job is to be
