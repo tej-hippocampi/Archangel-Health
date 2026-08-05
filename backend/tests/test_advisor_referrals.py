@@ -182,7 +182,11 @@ def test_the_referrers_payload_never_carries_credentialing_internals():
     tier score, or verification notes."""
     store = asc_store.get_store()
     advisor = _advisor()
-    email = f"invitee-{uuid.uuid4().hex[:8]}@example.com"
+    # Alpha-only local part: the harness's random hex can contain any short
+    # digit run, and a two-character sentinel like "88" collides with it about
+    # as often as it catches anything. A test that fails spuriously gets muted,
+    # and a muted test guards nothing — so every sentinel here is distinctive.
+    email = f"invitee-{A.uniq(10)}@example.com"
     _invite(advisor, email, name="Dr Chen")
     invitee = store.provision_user(
         email=email, password="pw-12345678", role="evaluator",
@@ -190,13 +194,14 @@ def test_the_referrers_payload_never_carries_credentialing_internals():
     store.claim_referral_for_signup(email=email, user_id=invitee["id"])
     with store._conn() as conn:
         conn.execute(
-            "UPDATE users SET tier_score = 88, verification_notes = 'strong CV', "
-            "npi_verified = 1 WHERE id = ?", (invitee["id"],))
+            "UPDATE users SET tier_score = 88, verification_notes = "
+            "'SENTINEL-CV-NOTE-strong', npi_verified = 1 WHERE id = ?",
+            (invitee["id"],))
 
     raw = json.dumps(client.get("/api/asclepius/advisor/referrals",
                                 headers=A.headers_for(advisor)).json()).lower()
-    for leaked in ("npi", "tier_score", "verification", "strong cv",
-                   "1234567893", "88", "board_cert", "cv_asset"):
+    for leaked in ("npi", "tier_score", "verification", "sentinel-cv-note",
+                   "1234567893", "board_cert", "cv_asset", "id_hashed"):
         assert leaked not in raw, f"the referrer's payload leaked {leaked!r}"
 
 

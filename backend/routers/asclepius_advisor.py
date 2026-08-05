@@ -97,6 +97,36 @@ def _require(capability: str) -> Callable[..., Dict[str, Any]]:
 require_refer = _require(asc_caps.REFER)
 
 
+# ─── Referral throttles (audit H4) ───────────────────────────────────────────
+# Keyed on the ADVISOR, not the client IP. The router's threat model is "an
+# advisor is trusted; an advisor's stolen token is not" — and the IP is the one
+# attribute a token thief controls freely, so an IP-keyed limit throttles
+# nothing that matters. A global cap sits behind it as a volumetric backstop,
+# mirroring the public self-serve endpoint this path parallels.
+_REFERRALS_PER_ADVISOR = (10, 3600)     # 10 per hour, per advisor account
+_REFERRALS_GLOBAL = (60, 3600)          # 60 per hour, fleet-wide
+_REFERRALS_PER_INVITEE_24H = 3          # same address, same cap as self-serve
+
+
+def _throttle_referral(advisor: Dict[str, Any]) -> None:
+    """Per-advisor and fleet-wide limits. Raises 429."""
+    from ratelimit import check, is_enabled
+
+    if not is_enabled():
+        return
+    for key, (limit, window) in (
+        (f"asclepius_advisor_referral:{advisor.get('id')}", _REFERRALS_PER_ADVISOR),
+        ("asclepius_advisor_referral:__global__", _REFERRALS_GLOBAL),
+    ):
+        allowed, retry_after = check(key, limit, window)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many invitations sent recently. Try again shortly.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+
 def _relationship_for(user: Dict[str, Any]) -> str:
     """The relationship string stamped on a sign-off. An admin signing off is
     internal, not an equity-holding advisor — recording them identically would
@@ -112,6 +142,13 @@ class AppointAdvisorBody(BaseModel):
     name: Optional[str] = None
     specialty: Optional[str] = None
     agreement_ref: str
+    # Appointing someone this company previously REJECTED is a decision that
+    # deserves a sentence (audit H5). Without these, a rejected account is
+    # appointed straight through, its status flips to approved, and the note
+    # explaining why it was rejected — "NPI does not match the name on the
+    # license" — is silently replaced by the appointment note.
+    override_rejection: bool = False
+    override_reason: Optional[str] = None
 
 
 @router.post("/api/asclepius/admin/advisors")
@@ -158,37 +195,54 @@ async def appoint_advisor(
             status_code=409,
             detail="That account is not a physician account and cannot hold the "
                    "advisor tier.")
+    # A previously REJECTED account is not appointed by accident (audit H5). The
+    # rejection note is the most important sentence in the row — someone decided
+    # this physician could not be verified, and often said why — so overriding
+    # it is an explicit act that carries its own reason, and the original note
+    # is appended to rather than replaced.
+    override_reason = (body.override_reason or "").strip()
+    if user.get("verification_status") == "rejected":
+        if not body.override_rejection or not override_reason:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This physician was previously REJECTED in verification"
+                    + (f": “{user.get('verification_notes')}”"
+                       if user.get("verification_notes") else "")
+                    + ". Appointing them anyway requires override_rejection=true "
+                      "and override_reason explaining why that decision is being "
+                      "overturned."),
+            )
+    note = f"Appointed medical advisor · agreement {agreement_ref}"
+    if override_reason:
+        note += f" · overrides prior rejection: {override_reason}"
     if body.name:
         store.set_advisor_display_name(user["id"], body.name)
 
-    # ORDER MATTERS. Both writes set tier='advisor', and they are two separate
-    # statements, so something can fail between them. ``appoint_advisor`` goes
-    # FIRST because it sets the tier, the agreement reference and the
-    # equity_only model in ONE update: if the second write is lost, the account
-    # holds the advisor tier WITH an agreement on file. The other order fails
-    # the dangerous way round — an advisor with capabilities and no signed
-    # agreement, which is exactly the liability §2.3 names.
+    # ONE write. An appointed advisor is verified BY the appointment — the admin
+    # has a signed agreement in hand, which outranks anything an NPPES lookup
+    # could add — so the tier, the agreement, the compensation model, the
+    # referral code, the Slack label AND the verification stamp all land in a
+    # single UPDATE. There is no ordering of two writes that is safe here
+    # (audit H1): whichever goes second, a crash in between leaves an account
+    # in a state the PRD calls a liability.
+    prior_status = user.get("verification_status")
     updated = store.appoint_advisor(
-        user["id"], agreement_ref=agreement_ref, appointed_by=admin["email"])
+        user["id"], agreement_ref=agreement_ref, appointed_by=admin["email"],
+        approve=True, note=note,
+    )
     if updated is None:
         raise HTTPException(status_code=404, detail="No such user")
-    # An appointed advisor is verified BY the appointment: the admin has a
-    # signed agreement in hand, which outranks anything an NPPES lookup could
-    # add. Recorded through the normal decision path so verified_by/verified_at
-    # are stamped exactly as they are for every other approval.
-    store.record_verification_decision(
-        user["id"],
-        status="approved",
-        decided_by=admin["email"],
-        tier=asc_caps.ADVISOR,
-        note=f"Appointed medical advisor · agreement {agreement_ref}",
-    )
-    updated = store.get_user_by_id(user["id"]) or updated
     store.log_event(
         entity_type="user", entity_id=user["id"], event_type="advisor_appointed",
         actor=admin["email"],
         payload={"agreement_ref": agreement_ref, "provisioned": provisioned,
-                 "compensation_model": updated.get("compensation_model")},
+                 "compensation_model": updated.get("compensation_model"),
+                 # An overturned rejection is the event a future auditor will
+                 # look for; it goes in the log, not only in the notes column.
+                 "prior_verification_status": prior_status,
+                 "overrode_rejection": prior_status == "rejected",
+                 "override_reason": override_reason or None},
     )
     return {"ok": True, "advisor": _advisor_public(updated), "provisioned": provisioned}
 
@@ -319,12 +373,11 @@ def _invite_url(code: Optional[str]) -> Optional[str]:
 
 @router.post(
     "/api/asclepius/advisor/referrals",
-    # Each invite sends an email AND mints an onboarding row in the tenant
-    # store, so it is the same class of expensive, outward-facing action as the
-    # self-serve link endpoint — and it is limited the same way. An advisor is
-    # trusted; an advisor's stolen token is not, and "he only has three
-    # colleagues to invite" is a product assumption, not a control.
-    dependencies=[Depends(rate_limiter("asclepius_advisor_referral", 10, 600))],
+    # An IP-keyed limit stays as a cheap outer wall against a single noisy
+    # source, but the limits that matter are keyed on the advisor and on the
+    # fleet — see _throttle_referral, applied inside the handler where the
+    # authenticated identity is available.
+    dependencies=[Depends(rate_limiter("asclepius_advisor_referral_ip", 20, 600))],
 )
 async def create_referral(
     body: ReferralBody,
@@ -335,8 +388,15 @@ async def create_referral(
     exactly one invite email in this product — with one added line naming the
     referrer. A named referral converts several times better than a cold invite,
     and that sentence is the entire mechanism (§3.2)."""
+    _throttle_referral(advisor)
     store = _store()
     email = str(body.email).lower().strip()
+    # Per-invitee cap, matching the public path's "3 pending per 24h": the same
+    # address must not be invitable without bound by rotating advisors.
+    if store.count_recent_referrals_for_email(email, hours=24) >= _REFERRALS_PER_INVITEE_24H:
+        raise HTTPException(
+            status_code=429,
+            detail="That address has already been invited several times recently.")
     code = advisor.get("referral_code")
     if not code:
         # Every advisor gets a code at appointment; an advisor without one is a
@@ -387,7 +447,24 @@ async def _send_referral_invite(request: Request, advisor: Dict[str, Any],
                                 body: ReferralBody, email: str, code: str) -> bool:
     """Best-effort delivery of the invite. Never fails the request: the referral
     row and the shareable link are the deliverable, and losing the row because
-    SendGrid was down would lose the attribution permanently."""
+    SendGrid was down would lose the attribution permanently.
+
+    The link points at the PUBLIC physician-contributor entry point, and this
+    function deliberately mints nothing (audit H4). It previously called
+    ``team_store.create_health_system_invite`` directly, which inserts a
+    pending tenant row carrying a live 30-day token — and completing that wizard
+    provisions an account with ``role="admin"``. The public endpoint that mints
+    the same artifact layers five guards on it (per-IP limit, a global
+    volumetric cap, a per-email pending cap, a 7-day expiry, a honeypot) and a
+    lead-provenance row; reaching past it inherited none of them. A stolen
+    advisor token rotated across a proxy pool would have minted unlimited
+    admin-provisioning invites from a verified sending domain.
+
+    So the invitee lands on ``/physicians``, enters their address, and gets
+    their onboarding link from the guarded path like everybody else.
+    Attribution does not suffer: the referral resolves on the invitee's email at
+    provisioning time, not on a token surviving the round trip.
+    """
     from email_utils import is_email_transport_configured, send_html_email
     from onboarding_emails import build_asclepius_invite_email
 
@@ -402,20 +479,6 @@ async def _send_referral_invite(request: Request, advisor: Dict[str, Any],
     # copy rather than inventing or leaking one.
     referrer_name = (advisor.get("full_name") or "").strip()
     onboarding_url = _invite_url(code) or _portal_base()
-    try:
-        # Mint a real onboarding link when the tenant store is reachable, so the
-        # invitee lands in the existing wizard rather than a bare portal page.
-        ts = getattr(request.app.state, "team_store", None)
-        if ts is not None:
-            invite = await run_in_threadpool(
-                ts.create_health_system_invite,
-                invite_base_url=(os.getenv("LANDING_URL") or _portal_base()),
-                expires_days=30,
-                director_email=email,
-            )
-            onboarding_url = f"{invite['onboarding_url']}?ref={code}"
-    except Exception:
-        log.exception("[advisor] could not mint an onboarding link; using the bare invite URL")
 
     html_body = build_asclepius_invite_email(
         invitee_first_name=((body.name or "").strip().split(" ")[0] if body.name else ""),
@@ -612,15 +675,98 @@ def _export_bundle_view(store: Any, export_id: str) -> Dict[str, Any]:
     }
 
 
+# Case statuses whose BODY has provably been through ``cf.deidentify()``.
+#
+# This is a WHITELIST, and it is the most important line in this file. In
+# ``ingestion.py`` the de-identification call sits on the SUCCESS path only:
+# a case that quarantines never reaches it, and its stored body is the merged
+# hospital fragment. Worse, a case quarantines *precisely because* the
+# residual-identifier scanner flagged it or the timeline normalizer found raw
+# dates — so the un-de-identified bodies are exactly the ones most likely to
+# carry names, MRNs, dates of birth and SSNs.
+#
+# 'ingested' and 'needs_review' are both set after ``deidentify()`` succeeds;
+# 'promoted' was 'ingested' first. 'quarantined' and 'rejected' are NOT, and a
+# blocklist would silently admit the next status somebody adds.
+#
+# ``public_case()`` is not a second line of defence here: it strips
+# ``ground_truth``/``hard_hook``/``reasoning_divergence``. It is an answer-key
+# stripper, not a de-identifier.
+_DEIDENTIFIED_CASE_STATUSES = frozenset({"ingested", "needs_review", "promoted"})
+
+
+def _safe_quarantine_reason(reason: Optional[str]) -> Optional[str]:
+    """A category, never the exception text.
+
+    ``report['quarantine_reason']`` is ``str(exc)`` and the exceptions quote the
+    tokens that caused the failure — which, for a de-id flag or an unresolved
+    timeline, ARE the identifiers. The advisor needs to know a case failed and
+    what kind of failure it was; they do not need the offending string, and the
+    masked findings below already carry the shape of it.
+    """
+    text = (reason or "").strip().lower()
+    if not text:
+        return None
+    for needle, label in (
+        ("de-id verification flagged", "de-identification scan flagged residual identifiers"),
+        ("unresolved date-like", "timeline could not be normalized (ambiguous date tokens)"),
+        ("sealed answer key", "referring institution's adjudication could not be stored"),
+        ("completeness", "declared modality missing or unverified"),
+        ("answer leak", "answer-key leakage detected in the case body"),
+    ):
+        if needle in text:
+            return label
+    return "case failed intake validation"
+
+
+def _intake_case_view(case: Dict[str, Any]) -> Dict[str, Any]:
+    """One ingest case as an advisor may see it — built by WHITELIST.
+
+    The body rides only for statuses in ``_DEIDENTIFIED_CASE_STATUSES``. For
+    everything else the advisor still sees THAT the case failed and what kind of
+    failure it was, from the masked findings — which is the substance of an
+    intake review — but never the body. This mirrors the rule the admin
+    quarantine endpoint already applies (``routers/asclepius.py``:
+    ``c.pop("case", None)``); withholding the body from an advisor while showing
+    it to nobody else was never the intent.
+    """
+    status = case.get("status")
+    report = dict(case.get("report") or {})
+    # verify_deid findings are masked at source (``snippet_masked`` replaces
+    # every alphanumeric), so they are safe to serve verbatim.
+    if "quarantine_reason" in report:
+        report["quarantine_reason"] = _safe_quarantine_reason(report.get("quarantine_reason"))
+    # str(exc) again, same problem.
+    report.pop("unresolved_after_scrub", None)
+    out: Dict[str, Any] = {
+        "ingest_case_id": case.get("ingest_case_id"),
+        "specialty": case.get("specialty"),
+        "status": status,
+        "report": report,
+        "body_withheld": status not in _DEIDENTIFIED_CASE_STATUSES,
+    }
+    if status in _DEIDENTIFIED_CASE_STATUSES:
+        # De-identified at ingest; public_case additionally guarantees a
+        # promoted case's answer key cannot ride along.
+        out["case"] = public_case(case.get("case"))
+        out["override_reason"] = case.get("override_reason")
+    else:
+        out["case"] = None
+    return out
+
+
 def _inbound_upload_view(store: Any, upload_id: str) -> Dict[str, Any]:
     """The DE-IDENTIFIED ingest cases from a hospital and their intake findings —
-    completeness, residual-identifier scan, quarantine reasons.
+    completeness, residual-identifier scan, and the KIND of any quarantine.
 
     The raw pre-de-identification bundle is NEVER proxied here. It sits behind
     ``GET /api/asclepius/ingestion/uploads/{id}/download``, which is
-    ``require_admin``, and it stays there. That path is the easiest thing in
-    this whole build to hand over by accident, because it sits next to the
-    de-identified view in the same admin UI.
+    ``require_admin``, and it stays there.
+
+    Neither is the quarantined case BODY, which is the same PHI reached through
+    a different door — the database rather than the filesystem. An advisor is an
+    outside contractor holding equity, not an employee. See
+    ``_DEIDENTIFIED_CASE_STATUSES``.
     """
     upload = store.get_ingest_upload(upload_id)
     if upload is None:
@@ -639,21 +785,9 @@ def _inbound_upload_view(store: Any, upload_id: str) -> Dict[str, Any]:
             "signoff_status": upload.get("signoff_status"),
         },
         "n_cases": len(cases),
-        "cases": [
-            {
-                "ingest_case_id": c.get("ingest_case_id"),
-                "specialty": c.get("specialty"),
-                "status": c.get("status"),
-                # Already de-identified at ingest; run it through public_case
-                # anyway so a promoted case's answer key can never ride along.
-                "case": public_case(c.get("case")),
-                # Intake findings: completeness, residual-identifier scan,
-                # quarantine reason. This is the substance of the review.
-                "report": c.get("report"),
-                "override_reason": c.get("override_reason"),
-            }
-            for c in cases
-        ],
+        "n_bodies_withheld": sum(
+            1 for c in cases if c.get("status") not in _DEIDENTIFIED_CASE_STATUSES),
+        "cases": [_intake_case_view(c) for c in cases],
         "signoffs": store.list_advisory_signoffs(
             artifact_type="inbound_upload", artifact_id=upload_id),
     }

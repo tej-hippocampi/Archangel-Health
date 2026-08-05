@@ -287,20 +287,26 @@ async def approve_signup(
     store = _store()
     user = _load_user_or_404(user_id)
     prop = _proposal(store, user)
-    updated = store.record_verification_decision(
-        user_id,
-        status="approved",
-        decided_by=admin["email"],
-        tier=tier,
-        tier_score=float(prop["score"]),
-        note=(body.note or None),
-    )
     if tier == asc_caps.ADVISOR:
-        # Same terms as the appointment endpoint, because it is the same
-        # relationship: equity_only compensation, a referral code, and the
-        # Slack label — set HERE rather than left for someone to notice later.
+        # The SAME single transactional write the appointment endpoint uses —
+        # not "approve, then also set the advisor terms" (audit H1). Done as two
+        # statements in this order, a crash in between left the account approved
+        # and LIVE with advisory capability, no agreement on file and a NULL
+        # compensation model. Two doors, one write.
         updated = store.appoint_advisor(
-            user_id, agreement_ref=agreement_ref, appointed_by=admin["email"])
+            user_id, agreement_ref=agreement_ref, appointed_by=admin["email"],
+            approve=True,
+            note=(body.note or f"Approved as medical advisor · agreement {agreement_ref}"),
+        )
+    else:
+        updated = store.record_verification_decision(
+            user_id,
+            status="approved",
+            decided_by=admin["email"],
+            tier=tier,
+            tier_score=float(prop["score"]),
+            note=(body.note or None),
+        )
     store.log_event(
         entity_type="user", entity_id=user_id, event_type="verification_approved",
         actor=admin["email"],

@@ -339,19 +339,39 @@
     }
     if (type === 'inbound_upload') {
       var cases = d.cases || [];
+      var withheld = d.n_bodies_withheld || 0;
+      // Say what is actually being shown. A case that failed de-identification
+      // is stored with its RAW body, so its body is withheld — the findings
+      // still tell the advisor what went wrong, which is the review. Claiming
+      // "N de-identified cases" over a set that includes withheld ones would be
+      // the kind of imprecise label this product exists not to print.
+      var summary = (d.n_cases || 0) + ' case' + ((d.n_cases === 1) ? '' : 's')
+        + ' · upload status ' + ((d.upload || {}).status || '—');
+      if (withheld) {
+        summary += ' · ' + withheld + ' body' + (withheld === 1 ? '' : 'ies')
+          + ' withheld (failed de-identification)';
+      }
       return h('div', {},
-        h('div', { class: 'asc-card-sub' },
-          (d.n_cases || 0) + ' de-identified cases · upload status '
-          + ((d.upload || {}).status || '—')),
+        h('div', { class: 'asc-card-sub' }, summary),
+        withheld
+          ? h('div', { class: 'asc-card-sub' },
+              'A case that fails the identifier scan is stored exactly as the '
+              + 'hospital sent it, so its body is not shown to anyone outside '
+              + 'the admin team. The findings below are masked and are what the '
+              + 'review is for.')
+          : null,
         h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
             h('th', {}, 'Case'), h('th', {}, 'Specialty'), h('th', {}, 'Status'),
-            h('th', {}, 'Intake findings'))),
+            h('th', {}, 'Case body'), h('th', {}, 'Intake findings'))),
           h('tbody', {}, cases.map(function (c) {
             return h('tr', {},
               h('td', {}, h('code', { class: 'asc-mono' }, c.ingest_case_id || '—')),
               h('td', {}, c.specialty || '—'),
               h('td', {}, c.status || '—'),
+              h('td', {}, c.body_withheld
+                ? h('span', { class: 'asc-badge asc-badge-amber' }, 'Withheld')
+                : h('span', { class: 'asc-badge asc-badge-green' }, 'Shown')),
               h('td', {}, findingsText(c.report)));
           })))));
     }

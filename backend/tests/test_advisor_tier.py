@@ -330,6 +330,108 @@ def test_the_queue_door_enforces_the_same_agreement_rule():
     assert user["slack_role"] == "Medical Advisor"
 
 
+def test_no_account_can_hold_the_advisor_tier_without_an_agreement(monkeypatch):
+    """Audit H1: the appointment must be ONE write, at BOTH doors.
+
+    Previously each door did two statements, and the verification-queue door did
+    them in the order where a crash in between leaves an account approved and
+    LIVE with advisory capability, no agreement on file, and a NULL
+    compensation model — which the payment predicate would then treat as
+    payable. There is no safe ordering of two writes, so this asserts the
+    invariant directly: whatever fails, no row ends up an advisor without an
+    agreement.
+    """
+    store = asc_store.get_store()
+    admin_h = A.headers_for(_admin())
+
+    # Make the write that follows the appointment blow up at each door, then
+    # assert the invariant still holds.
+    def _boom(*a, **kw):
+        raise RuntimeError("simulated crash immediately after the appointment write")
+
+    monkeypatch.setattr(store, "log_event", _boom)
+
+    candidate = _physician()
+    try:
+        client.post(f"/api/asclepius/verify/queue/{candidate['id']}/approve",
+                    json={"tier": "advisor", "agreement_ref": "AGR-CRASH"},
+                    headers=admin_h)
+    except Exception:
+        pass
+    try:
+        client.post("/api/asclepius/admin/advisors",
+                    json={"email": f"crash-{uuid.uuid4().hex[:8]}@example.com",
+                          "agreement_ref": "AGR-CRASH-2"},
+                    headers=admin_h)
+    except Exception:
+        pass
+    monkeypatch.undo()
+
+    with store._conn() as conn:
+        bad = conn.execute(
+            "SELECT id, email, verification_status, compensation_model "
+            "FROM users WHERE tier = 'advisor' AND "
+            "(advisor_agreement_ref IS NULL OR TRIM(advisor_agreement_ref) = '')"
+        ).fetchall()
+    assert not bad, (
+        "an account holds tier='advisor' with no agreement on file — the exact "
+        f"liability §2.3 names: {[dict(r) for r in bad]}")
+    # And whatever DID become an advisor carries the whole relationship, not
+    # half of it.
+    with store._conn() as conn:
+        advisors = conn.execute(
+            "SELECT compensation_model, advisor_agreement_ref, referral_code, "
+            "slack_role FROM users WHERE tier = 'advisor'").fetchall()
+    for row in advisors:
+        assert row["compensation_model"] == "equity_only"
+        assert row["advisor_agreement_ref"]
+        assert row["referral_code"]
+        assert row["slack_role"] == "Medical Advisor"
+
+
+def test_appointing_a_rejected_physician_needs_an_explicit_override():
+    """Audit H5: a rejected account was appointed straight through, its status
+    flipped to approved, and the note explaining WHY it was rejected was
+    overwritten. The audit trail on the one decision that most needs one."""
+    store = asc_store.get_store()
+    admin_h = A.headers_for(_admin())
+    rejected = _physician()
+    reason = "NPI does not match the name on the license — suspected impersonation"
+    r = client.post(f"/api/asclepius/verify/queue/{rejected['id']}/reject",
+                    json={"note": reason}, headers=admin_h)
+    assert r.status_code == 200
+
+    # Appointing without an override is refused, and says why.
+    r = client.post("/api/asclepius/admin/advisors",
+                    json={"email": rejected["email"], "agreement_ref": "AGR-9"},
+                    headers=admin_h)
+    assert r.status_code == 409, r.text
+    assert "rejected" in r.text.lower()
+    assert store.get_user_by_id(rejected["id"])["verification_status"] == "rejected"
+
+    # An override needs a reason of its own.
+    r = client.post("/api/asclepius/admin/advisors",
+                    json={"email": rejected["email"], "agreement_ref": "AGR-9",
+                          "override_rejection": True},
+                    headers=admin_h)
+    assert r.status_code == 409
+
+    r = client.post("/api/asclepius/admin/advisors",
+                    json={"email": rejected["email"], "agreement_ref": "AGR-9",
+                          "override_rejection": True,
+                          "override_reason": "Identity confirmed in person by the "
+                                             "founder; NPPES record was stale."},
+                    headers=admin_h)
+    assert r.status_code == 200, r.text
+
+    after = store.get_user_by_id(rejected["id"])
+    assert after["tier"] == "advisor"
+    # The original rejection reason SURVIVES — appended to, never replaced.
+    assert reason in (after["verification_notes"] or ""), (
+        "the rejection reason was destroyed by the appointment")
+    assert "Identity confirmed in person" in after["verification_notes"]
+
+
 def test_approval_error_message_names_every_accepted_tier():
     admin_h = A.headers_for(_admin())
     candidate = _physician()

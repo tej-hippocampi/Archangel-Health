@@ -5381,18 +5381,32 @@ class AsclepiusStore:
         *,
         agreement_ref: str,
         appointed_by: str,
+        approve: bool = False,
+        note: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Promote an existing user to the advisor tier (Advisor PRD §2.3).
+        """Promote a user to the advisor tier — the WHOLE appointment, atomically.
 
-        Sets every term of the relationship in ONE write, because they are one
-        decision: ``tier='advisor'``, ``compensation_model='equity_only'`` (an
+        Every term of the relationship is one decision and therefore one
+        statement: ``tier='advisor'``, ``compensation_model='equity_only'`` (an
         advisor is not paid per task — see compensation.py), the appointment
-        stamp, the signed-agreement reference, and the Slack label. Idempotent
-        on the referral code: re-appointing keeps the code an advisor may have
-        already handed out.
+        stamp, the signed-agreement reference, the referral code and the Slack
+        label. With ``approve=True`` the verification stamp
+        (``verification_status``/``verified_by``/``verified_at``) lands in the
+        SAME update.
 
-        ``agreement_ref`` is required by both callers and re-checked here — an
-        advisor holds equity, and one with no agreement on file is a liability.
+        That single-statement property is the point, not a tidiness preference
+        (audit H1). Both appointment doors previously did two writes, and the
+        verification-queue door did them in the order where a crash in between
+        leaves an account APPROVED and LIVE with ``tier='advisor'``, no
+        agreement on file, and ``compensation_model`` NULL — full advisory
+        capability, no signed agreement, and a payment predicate that would
+        happily pay an equity-only advisor. There is no ordering of two writes
+        that is safe, so there is one write.
+
+        Idempotent on the referral code: re-appointing keeps the code an advisor
+        may already have handed out. ``agreement_ref`` is re-checked here — the
+        routers check it too, but this method is the last line and an advisor
+        with equity and no agreement on file is a liability.
         """
         agreement_ref = (agreement_ref or "").strip()
         if not agreement_ref:
@@ -5405,8 +5419,29 @@ class AsclepiusStore:
             if row is None:
                 return None
             code = row["referral_code"] or self._mint_referral_code(conn)
+            approval_sql = ""
+            params: List[Any] = [now, appointed_by, now, agreement_ref, code]
+            if approve:
+                # Appended to the same UPDATE rather than issued as a second
+                # statement — see the docstring. ``verification_notes`` APPENDS
+                # (audit H5): the reason a physician was previously rejected is
+                # the most important note in the table and must not be
+                # overwritten by an appointment.
+                approval_sql = (
+                    ", verification_status = 'approved'"
+                    ", verified_by = ?"
+                    ", verified_at = ?"
+                    ", verification_notes = CASE"
+                    "    WHEN ? IS NULL THEN verification_notes"
+                    "    WHEN verification_notes IS NULL OR TRIM(verification_notes) = ''"
+                    "      THEN ?"
+                    "    ELSE verification_notes || char(10) || ?"
+                    "  END"
+                )
+                params.extend([appointed_by, now, note, note, note])
+            params.append(user_id)
             conn.execute(
-                """
+                f"""
                 UPDATE users SET
                     tier = 'advisor',
                     tier_assigned_at = ?,
@@ -5416,9 +5451,10 @@ class AsclepiusStore:
                     advisor_agreement_ref = ?,
                     referral_code = ?,
                     slack_role = 'Medical Advisor'
+                    {approval_sql}
                 WHERE id = ?
                 """,
-                (now, appointed_by, now, agreement_ref, code, user_id),
+                tuple(params),
             )
         return self.get_user_by_id(user_id)
 
@@ -5499,6 +5535,25 @@ class AsclepiusStore:
                 "ORDER BY invited_at DESC LIMIT 1",
                 (email,)).fetchone()
         return dict(row) if row else None
+
+    def count_recent_referrals_for_email(self, email: str, *, hours: int = 24) -> int:
+        """How many times this address has been invited recently, by ANYONE.
+
+        Mirrors the public onboarding path's per-email pending cap (audit H4):
+        without it, the same inbox can be mailed without bound by rotating the
+        referring advisor, which is both a spam vector from a verified sending
+        domain and a way to bury a real invite.
+        """
+        email = (email or "").lower().strip()
+        if not email:
+            return 0
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=max(1, hours))
+                  ).replace(tzinfo=None).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM referrals WHERE invitee_email = ? "
+                "AND invited_at >= ?", (email, cutoff)).fetchone()
+        return int(row["n"] if row else 0)
 
     def has_referral_for_email(self, referrer_id: str, email: str) -> bool:
         """True when this advisor already invited this address — so a second

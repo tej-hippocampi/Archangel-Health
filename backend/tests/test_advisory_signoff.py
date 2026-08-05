@@ -178,6 +178,104 @@ def test_a_labeler_cannot_sign_off_on_anything():
 
 
 # ═══ The security boundary (§4.3) ════════════════════════════════════════════
+def test_a_quarantined_case_body_never_reaches_an_advisor():
+    """THE regression test for the PHI leak (audit C1).
+
+    De-identification happens at ``ingestion.py`` ``cf.deidentify(normalized)``,
+    which is on the SUCCESS path only. The quarantine path stores
+    ``quarantine_body`` — the merged hospital fragment — and a case quarantines
+    *precisely because* the residual-identifier scanner flagged it or the
+    timeline normalizer found raw dates. So the bodies most likely to carry PHI
+    are exactly the ones stored un-de-identified.
+
+    ``public_case()`` does not help: it strips ``ground_truth``, ``hard_hook``
+    and ``reasoning_divergence``. It is an answer-key stripper, not a
+    de-identifier.
+
+    The previous test at this boundary guarded the FILE path
+    (``/uploads/{id}/download``) and built an upload with zero cases, so it
+    passed vacuously while the leak came through the database. Sentinel strings
+    below, asserted absent from the serialized payload — the
+    ``_assert_no_identity`` pattern the codebase already uses for review
+    blinding, applied to ``inbound_upload``.
+    """
+    store = asc_store.get_store()
+    advisor = _advisor()
+    upload = store.insert_ingest_upload(
+        link_id="lnk-q", partner_id="hospital-a", filename="bundle.zip",
+        sha256=None, size_bytes=None, raw_path="/tmp/raw.zip", source_ip=None)
+    uid = upload["upload_id"]
+
+    # Shaped exactly as the quarantine path writes it: a RAW merged body.
+    phi = {
+        "patient_name": "JOHN Q. SMITH",
+        "mrn": "88213347",
+        "dob": "1961-03-14",
+        "phone": "650-555-0134",
+        "ssn": "512-88-4471",
+        "treating_clinician": "Alan Greenberg",
+        "facility": "Stanford Hospital",
+        "narrative": "Seen 03/14/2024 at Stanford Hospital by Dr Alan Greenberg.",
+        "ground_truth": {"answer": "SEALED-ANSWER"},
+    }
+    store.insert_ingest_case(
+        upload_id=uid, patient_key="pk-opaque", specialty="nephrology",
+        case=phi, status="quarantined",
+        report={"quarantine_reason": "de-id verification flagged 5 finding(s) "
+                                     "near 03/14/2024 for JOHN Q. SMITH",
+                "verification": {"status": "flagged", "verifier": "regex_v2",
+                                 "findings": [{"kind": "name"}]}})
+    # A clean case in the same upload, so the endpoint still has something to serve.
+    store.insert_ingest_case(
+        upload_id=uid, patient_key="pk-clean", specialty="nephrology",
+        case={"presentation": "CKD stage 3, creatinine trending up"},
+        status="ingested", report={"verification": {"status": "pass"}})
+
+    r = client.get(f"/api/asclepius/advisor/artifacts/inbound_upload/{uid}",
+                   headers=A.headers_for(advisor))
+    assert r.status_code == 200, r.text
+    raw = json.dumps(r.json())
+
+    for sentinel in ("JOHN Q. SMITH", "88213347", "1961-03-14", "650-555-0134",
+                     "512-88-4471", "Alan Greenberg", "Stanford Hospital",
+                     "03/14/2024", "SEALED-ANSWER"):
+        assert sentinel not in raw, (
+            f"a quarantined case leaked {sentinel!r} to an advisor — an advisor is "
+            f"an outside contractor with equity, and this is raw "
+            f"pre-de-identification PHI")
+
+    # The advisor must still be able to see THAT a case failed and roughly why —
+    # withholding the body is not the same as hiding the finding.
+    body = r.json()
+    assert body["n_cases"] >= 1
+    statuses = {c.get("status") for c in body["cases"]}
+    assert "ingested" in statuses
+    assert "CKD stage 3" in raw, "the de-identified case body should still be served"
+
+
+def test_the_quarantine_reason_is_scrubbed_before_an_advisor_sees_it():
+    """``report['quarantine_reason']`` is ``str(exc)`` and the exception text
+    quotes the tokens that caused the failure — which for a de-id flag are the
+    identifiers themselves."""
+    store = asc_store.get_store()
+    advisor = _advisor()
+    upload = store.insert_ingest_upload(
+        link_id="lnk-q2", partner_id="hospital-a", filename="b.zip",
+        sha256=None, size_bytes=None, raw_path="/tmp/r.zip", source_ip=None)
+    uid = upload["upload_id"]
+    store.insert_ingest_case(
+        upload_id=uid, patient_key="pk", specialty="nephrology",
+        case={"patient_name": "MARIA GARCIA"}, status="quarantined",
+        report={"quarantine_reason": "unresolved date-like tokens: 03/14/2024, "
+                                     "1961-03-14 for MARIA GARCIA"})
+    r = client.get(f"/api/asclepius/advisor/artifacts/inbound_upload/{uid}",
+                   headers=A.headers_for(advisor))
+    assert r.status_code == 200
+    raw = json.dumps(r.json())
+    for sentinel in ("MARIA GARCIA", "03/14/2024", "1961-03-14"):
+        assert sentinel not in raw, f"quarantine_reason leaked {sentinel!r}"
+
+
 def test_an_advisor_gets_403_on_the_raw_hospital_upload():
     """The single easiest thing in this build to hand over by accident: the raw
     pre-de-identification bundle sits next to the de-identified view in the same
