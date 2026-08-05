@@ -20,6 +20,7 @@ Design rules enforced here:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import io
 import json
@@ -27,11 +28,14 @@ import logging
 import os
 import re
 import shlex
+import shutil
+import struct
 import subprocess
+import tempfile
 import time
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from pydantic import ValidationError
 
@@ -52,17 +56,61 @@ def max_zip_bytes() -> int:
 
 
 def max_entries() -> int:
+    """Entry-count ceiling. Raised from 500 for the chunked door (PRD-I §1): a real
+    multi-GB hospital bundle routinely carries thousands of files, and the caps that
+    actually stop a zip bomb are the per-entry byte cap, the per-entry compression
+    ratio, and the total-output budget below — not the file count."""
     try:
-        return int(os.getenv("ASCLEPIUS_INGEST_MAX_ENTRIES", "500"))
+        return int(os.getenv("ASCLEPIUS_INGEST_MAX_ENTRIES", "5000"))
     except ValueError:
-        return 500
+        return 5000
 
 
 def max_uncompressed_bytes() -> int:
+    """FLOOR for the total decompressed-output budget. The effective budget is
+    ``max(this, total_expansion_ratio() * archive_size)`` — see
+    ``total_output_budget``: a 3 GB bundle cannot be held to a 500 MB output cap,
+    but its budget must still be a function of bytes the partner actually sent."""
     try:
         return int(os.getenv("ASCLEPIUS_INGEST_MAX_UNCOMPRESSED", str(500 * 1024 * 1024)))
     except ValueError:
         return 500 * 1024 * 1024
+
+
+def max_entry_bytes() -> int:
+    """Per-entry decompressed cap. This is the MEMORY bound: an entry is handed to
+    its format adapter as one ``bytes`` object, so this is the largest single
+    allocation the ingest path can be made to perform. Clinical text / FHIR / CSV /
+    a DICOM instance are all far below this."""
+    try:
+        return int(os.getenv("ASCLEPIUS_INGEST_MAX_ENTRY_BYTES", str(64 * 1024 * 1024)))
+    except ValueError:
+        return 64 * 1024 * 1024
+
+
+def entry_compression_ratio_cap() -> float:
+    """Per-entry decompressed:compressed ratio ceiling (PRD-I §1.3). Real clinical
+    text compresses ~5-15:1; 100:1 is comfortably above legitimate data and far
+    below what a bomb needs."""
+    try:
+        return max(2.0, float(os.getenv("ASCLEPIUS_INGEST_MAX_RATIO", "100")))
+    except ValueError:
+        return 100.0
+
+
+def total_expansion_ratio() -> float:
+    """Whole-archive decompressed:compressed ceiling. Bounds total output as a
+    multiple of what the partner actually uploaded, so the budget scales with real
+    bundles without ever being attacker-amplifiable beyond this factor."""
+    try:
+        return max(2.0, float(os.getenv("ASCLEPIUS_INGEST_TOTAL_RATIO", "10")))
+    except ValueError:
+        return 10.0
+
+
+def total_output_budget(archive_bytes: int) -> int:
+    return max(max_uncompressed_bytes(),
+               int(total_expansion_ratio() * max(0, int(archive_bytes))))
 
 
 def raw_retention_days() -> int:
@@ -104,22 +152,135 @@ class BundleRejected(ValueError):
 
 
 # ─── Raw storage (encrypted at rest) ─────────────────────────────────────────
-def store_raw(upload_id: str, data: bytes) -> str:
-    """Write the raw partner zip as an AES-GCM blob (field_crypto; passthrough
-    only when no DATA_ENCRYPTION_KEY is configured — dev). 0700 dir, 0600 file."""
-    from field_crypto import encrypt_bytes
-    path = quarantine_root() / f"{upload_id}.zip.enc"
-    path.write_bytes(encrypt_bytes(data))
+# Two on-disk shapes, both read transparently by ``load_raw`` / ``iter_raw``:
+#
+#   * LEGACY single-blob — one ``field_crypto.encrypt_bytes`` output covering the
+#     whole file. Simple, and every upload written before PRD-I looks like this.
+#   * FRAMED (``ASCRAWF1``) — ``magic || repeat(uint32 len || frame) || uint32 0``
+#     where each frame is an independent ``encrypt_bytes`` output over one plaintext
+#     chunk. This is what makes multi-GB possible at all: the single-blob form
+#     requires the entire file in RAM to encrypt AND again to decrypt, so a 3 GB
+#     bundle OOMs a small container long before it reaches the unpacker. Framing
+#     bounds peak memory at one chunk regardless of file size.
+#
+# Frames are individually authenticated (AES-GCM), so a tampered frame fails to
+# decrypt. Frame ORDER and COUNT are not themselves authenticated by the container
+# — the whole-file sha256 recorded at verification time is what covers those, and
+# it is checked before the upload row is ever written (PRD-I §1.1).
+_RAW_FRAME_MAGIC = b"ASCRAWF1"
+_RAW_FRAME_BYTES = 8 * 1024 * 1024
+
+
+def _raw_path_for(upload_id: str) -> Path:
+    return quarantine_root() / f"{upload_id}.zip.enc"
+
+
+def _chmod_600(path: Path) -> None:
     try:
         os.chmod(path, 0o600)
     except OSError:
         pass
+
+
+def store_raw(upload_id: str, data: bytes) -> str:
+    """Write the raw partner zip as an AES-GCM blob (field_crypto; passthrough
+    only when no DATA_ENCRYPTION_KEY is configured — dev). 0700 dir, 0600 file."""
+    from field_crypto import encrypt_bytes
+    path = _raw_path_for(upload_id)
+    path.write_bytes(encrypt_bytes(data))
+    _chmod_600(path)
     return str(path)
 
 
-def load_raw(raw_path: str) -> bytes:
+def store_raw_stream(upload_id: str, chunks: Iterable[bytes]) -> str:
+    """Write the raw partner bundle from a stream of plaintext chunks, encrypting
+    frame by frame so peak memory is one frame rather than the whole file.
+
+    Written to a ``.part`` file and atomically renamed, so a crash mid-assembly can
+    never leave a truncated blob at the path an upload row would point at."""
+    from field_crypto import encrypt_bytes
+    path = _raw_path_for(upload_id)
+    tmp = path.with_suffix(path.suffix + ".part")
+    try:
+        with open(tmp, "wb") as fh:
+            fh.write(_RAW_FRAME_MAGIC)
+            for chunk in chunks:
+                if not chunk:
+                    continue
+                frame = encrypt_bytes(bytes(chunk))
+                fh.write(struct.pack(">I", len(frame)))
+                fh.write(frame)
+            fh.write(struct.pack(">I", 0))
+            fh.flush()
+            os.fsync(fh.fileno())
+        _chmod_600(tmp)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        raise
+    _chmod_600(path)
+    return str(path)
+
+
+def iter_raw(raw_path: str, *, chunk_size: int = _RAW_FRAME_BYTES) -> Iterator[bytes]:
+    """Yield the decrypted raw bundle in bounded chunks, for either on-disk shape.
+
+    The legacy single-blob form cannot stream (the AES-GCM tag covers the whole
+    ciphertext, so it is one decrypt), and is yielded as a single chunk — those
+    blobs predate chunked upload and are bounded by the old 100 MB request cap."""
     from field_crypto import decrypt_bytes
-    return decrypt_bytes(Path(raw_path).read_bytes())
+    with open(raw_path, "rb") as fh:
+        magic = fh.read(len(_RAW_FRAME_MAGIC))
+        if magic != _RAW_FRAME_MAGIC:
+            fh.seek(0)
+            yield decrypt_bytes(fh.read()) or b""
+            return
+        while True:
+            header = fh.read(4)
+            if len(header) < 4:
+                raise ValueError("raw bundle is truncated (incomplete frame header)")
+            (length,) = struct.unpack(">I", header)
+            if length == 0:
+                return
+            frame = fh.read(length)
+            if len(frame) != length:
+                raise ValueError("raw bundle is truncated (incomplete frame body)")
+            plain = decrypt_bytes(frame) or b""
+            # Re-chunk to the caller's size so a large frame does not force a large
+            # allocation downstream.
+            for i in range(0, len(plain), chunk_size):
+                yield plain[i:i + chunk_size]
+
+
+def load_raw(raw_path: str) -> bytes:
+    """The whole decrypted bundle as one ``bytes``. Retained for callers that need
+    it in memory (the admin download path). Prefer ``iter_raw`` /
+    ``decrypted_copy`` on any path that can see a multi-GB bundle."""
+    return b"".join(iter_raw(raw_path))
+
+
+@contextlib.contextmanager
+def decrypted_copy(raw_path: str) -> Iterator[str]:
+    """Materialize the decrypted bundle to a private temp file and yield its path.
+
+    The unpacker needs random access (zip central directory lives at the end), so
+    a seekable file is required; doing it on disk instead of in RAM is what keeps
+    memory flat on a multi-GB bundle. The file is 0600 inside the 0700 quarantine
+    root and removed unconditionally — plaintext PHI exists on disk only for the
+    duration of the unpack, which is strictly less exposure than the previous
+    behaviour of holding the same plaintext in the process heap."""
+    root = quarantine_root()
+    fd, tmp = tempfile.mkstemp(prefix="unpack-", suffix=".zip", dir=str(root))
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            for chunk in iter_raw(raw_path):
+                fh.write(chunk)
+        _chmod_600(Path(tmp))
+        yield tmp
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
 
 
 def delete_raw(raw_path: Optional[str]) -> None:
@@ -135,8 +296,9 @@ def delete_raw(raw_path: Optional[str]) -> None:
 
 # Filesystems where a redeploy/restart wipes the data — never durable for the
 # raw partner bundle (this is what caused the "download failed (410)" incident:
-# blobs on /tmp vanished on redeploy while the DB row survived).
-_EPHEMERAL_PREFIXES = ("/tmp", "/var/tmp", "/dev/shm", "/run")
+# blobs on /tmp vanished on redeploy while the DB row survived). Imported from
+# constants so assets.py, constants.py and this module cannot drift (PRD I-0 §F1).
+from asclepius.constants import EPHEMERAL_PREFIXES as _EPHEMERAL_PREFIXES  # noqa: E402
 
 
 def ingest_storage_durable() -> Tuple[bool, str]:
@@ -198,7 +360,40 @@ def purge_expired_raw(store: Any) -> int:
     if deleted:
         store.log_event(entity_type="ingest", event_type="raw_purged",
                         payload={"deleted": deleted, "retention_days": raw_retention_days()})
+    purge_stale_scratch()
     return deleted
+
+
+# Scratch that ``process_upload`` normally removes itself: the decrypted archive
+# copy and the spilled entry bytes. Both are PLAINTEXT PHI, so a crash between
+# creating one and releasing it must not leave it lying around indefinitely. Six
+# hours is far longer than any ingest and far shorter than a retention window.
+_SCRATCH_PREFIXES = ("entries-", "unpack-", "unpack-mem-")
+_SCRATCH_MAX_AGE_SEC = 6 * 3600
+
+
+def purge_stale_scratch() -> int:
+    """Remove ingest scratch left behind by an interrupted run. Never raises."""
+    cutoff = time.time() - _SCRATCH_MAX_AGE_SEC
+    removed = 0
+    try:
+        root = quarantine_root()
+    except Exception:  # pragma: no cover - defensive
+        return 0
+    for p in root.iterdir() if root.exists() else []:
+        if not p.name.startswith(_SCRATCH_PREFIXES):
+            continue
+        try:
+            if p.stat().st_mtime >= cutoff:
+                continue
+            if p.is_dir():
+                shutil.rmtree(p, ignore_errors=True)
+            else:
+                p.unlink()
+            removed += 1
+        except OSError:
+            continue
+    return removed
 
 
 # Non-terminal upload states: the pipeline was mid-flight. A redeploy kills the
@@ -379,53 +574,214 @@ def _classify(name: str, head: bytes, text_head: str) -> str:
     return "unsupported"
 
 
-def unpack_bundle(zip_bytes: bytes) -> Dict[str, Any]:
-    """Zip → classified entries, with zip-bomb + path-traversal defense.
-    Returns ``{"entries": [{name, kind, data|None, reason}], "manifest": {...}}``.
-    Raises ``BundleRejected`` when the archive itself is unusable."""
-    if not zip_bytes or zip_bytes[:2] != b"PK":
-        raise BundleRejected("not a zip archive (bad magic bytes)")
-    try:
-        zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
-    except zipfile.BadZipFile as exc:
-        raise BundleRejected(f"corrupt zip: {exc}") from exc
+# Archive members we will not open. There is exactly ONE level of nesting in this
+# format (the bundle itself), which is the nesting-depth cap in PRD-I §1.3 stated
+# as a rule rather than a counter: nothing inside a bundle is ever extracted as an
+# archive, so recursive-bomb depth cannot exceed one by construction.
+_ARCHIVE_EXTS = (".zip", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".rar", ".zst")
+_ARCHIVE_MAGICS = (b"PK\x03\x04", b"PK\x05\x06", b"\x1f\x8b", b"7z\xbc\xaf", b"Rar!", b"\xfd7zXZ")
 
-    infos = [i for i in zf.infolist() if not i.is_dir()]
-    if len(infos) > max_entries():
-        raise BundleRejected(f"too many entries ({len(infos)} > {max_entries()})")
-    total_uncompressed = sum(i.file_size for i in infos)
-    if total_uncompressed > max_uncompressed_bytes():
-        raise BundleRejected(
-            f"uncompressed size {total_uncompressed} exceeds the "
-            f"{max_uncompressed_bytes()} cap (zip-bomb defense)")
+
+class _OutputBudgetExceeded(Exception):
+    """Total decompressed output crossed the budget mid-stream."""
+
+
+class _SpilledEntry(dict):
+    """A bundle entry whose decompressed bytes live on disk until asked for.
+
+    Streaming each entry out of the zip bounded the memory cost of ONE member, but
+    the entries were then all retained in a list — so a 3 GB bundle of ordinary
+    1 MB clinical files still held 3 GB, and the per-entry cap that looked like the
+    memory bound was doing nothing at the whole-bundle level. Spilling makes the
+    real bound one entry at a time, which is what §1.3's "never load the archive or
+    a member fully into memory" actually requires.
+
+    Behaves like the plain dict every existing caller expects: ``e["data"]`` and
+    ``e.get("data")`` both return the bytes, read fresh each time rather than
+    cached — caching would restore exactly the retention this exists to remove."""
+
+    __slots__ = ("_spill_path",)
+
+    def __init__(self, *args: Any, spill_path: str, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._spill_path = spill_path
+
+    def __getitem__(self, key: str) -> Any:
+        if key == "data":
+            with open(self._spill_path, "rb") as fh:
+                return fh.read()
+        return super().__getitem__(key)
+
+    def get(self, key: str, default: Any = None) -> Any:  # type: ignore[override]
+        if key == "data":
+            try:
+                return self["data"]
+            except OSError:
+                return default
+        return super().get(key, default)
+
+    def __contains__(self, key: object) -> bool:
+        return key == "data" or super().__contains__(key)
+
+
+def _read_entry_streamed(zf: zipfile.ZipFile, info: zipfile.ZipInfo,
+                         *, remaining_budget: int) -> Tuple[Optional[bytes], Optional[str]]:
+    """Decompress ONE entry with real byte accounting. Returns (data, reject_reason).
+
+    The declared ``info.file_size`` is attacker-controlled and is therefore used for
+    nothing here. Bytes are counted as they are produced and the read is abandoned
+    the moment any ceiling is crossed, so a bomb costs us the chunk in flight rather
+    than the whole expansion. Raises ``_OutputBudgetExceeded`` when the WHOLE-ARCHIVE
+    budget is gone — that condemns the bundle, not just this entry."""
+    entry_cap = max_entry_bytes()
+    ratio_cap = entry_compression_ratio_cap()
+    # A stored (uncompressed) entry has ratio 1 by definition; only guard entries
+    # that actually claim compression, and floor the divisor so a 0-byte compressed
+    # size cannot divide by zero.
+    ratio_allowance = max(1, int(ratio_cap * max(1, info.compress_size)))
+    out = io.BytesIO()
+    written = 0
+    with zf.open(info, "r") as src:
+        while True:
+            chunk = src.read(262144)
+            if not chunk:
+                break
+            written += len(chunk)
+            if written > entry_cap:
+                return None, f"entry too large (over {entry_cap} bytes decompressed)"
+            if written > ratio_allowance:
+                return None, (f"compression ratio over {int(ratio_cap)}:1 "
+                              "(zip-bomb defense)")
+            if written > remaining_budget:
+                raise _OutputBudgetExceeded(
+                    f"decompressed output exceeded the bundle budget mid-extraction "
+                    f"(zip-bomb defense)")
+            out.write(chunk)
+    return out.getvalue(), None
+
+
+def unpack_bundle_from_path(zip_path: str, *, spill: bool = True) -> Dict[str, Any]:
+    """Zip on disk → classified entries, with zip-bomb + path-traversal defense.
+
+    Path-based and streaming on purpose (PRD-I §1.3). The previous byte-based
+    implementation had two defects that only appear at scale: it trusted the
+    header-declared ``file_size`` sum as its bomb check (attacker-controlled, so no
+    check at all), and ``zf.read()`` materialized each member in full BEFORE any
+    ceiling could apply — a member declaring 100 bytes and decompressing to 10 GB
+    exhausted memory before the size assertion it would eventually have failed.
+    Here every ceiling is enforced against bytes actually produced, mid-write.
+
+    With ``spill`` (the default) each entry's bytes go to a private staging dir and
+    are read back on access, so the whole-bundle memory cost is one entry rather
+    than the sum of all of them. **The caller MUST invoke the returned ``cleanup``**
+    — ``process_upload`` does so in a ``finally``. ``spill=False`` returns the bytes
+    inline for callers that already hold the whole archive in memory anyway."""
+    try:
+        archive_bytes = os.path.getsize(zip_path)
+    except OSError as exc:
+        raise BundleRejected(f"unreadable archive: {exc}") from exc
+    with open(zip_path, "rb") as probe:
+        if probe.read(2) != b"PK":
+            raise BundleRejected("not a zip archive (bad magic bytes)")
 
     entries: List[Dict[str, Any]] = []
     manifest: Dict[str, Any] = {}
-    for info in infos:
-        name = info.filename
-        # Path traversal / absolute paths: reject the ENTRY, keep the bundle.
-        if name.startswith(("/", "\\")) or ".." in name.replace("\\", "/").split("/"):
-            entries.append({"name": name, "kind": "rejected", "reason": "path traversal"})
-            continue
-        if any(name.lower().endswith(ext) for ext in _EXECUTABLE_EXTS):
-            entries.append({"name": name, "kind": "rejected", "reason": "executable entry"})
-            continue
-        if info.file_size > max_uncompressed_bytes():
-            entries.append({"name": name, "kind": "rejected", "reason": "entry too large"})
-            continue
-        data = zf.read(info)  # bounded by the caps above
-        head = data[:512]
-        text_head = head.decode("utf-8", errors="replace").lstrip()[:200]
-        kind = _classify(name, data[:256] if len(data) < 512 else data[:512], text_head)
-        if kind == "manifest":
-            try:
-                manifest = json.loads(data.decode("utf-8", errors="replace"))
-                entries.append({"name": name, "kind": "manifest"})
-            except Exception:
-                entries.append({"name": name, "kind": "rejected", "reason": "unparseable manifest.json"})
-            continue
-        entries.append({"name": name, "kind": kind, "data": data})
-    return {"entries": entries, "manifest": manifest if isinstance(manifest, dict) else {}}
+    budget = total_output_budget(archive_bytes)
+    staging = tempfile.mkdtemp(prefix="entries-", dir=str(quarantine_root())) if spill else None
+
+    def _cleanup() -> None:
+        if staging:
+            shutil.rmtree(staging, ignore_errors=True)
+
+    def _hold(index: int, base: Dict[str, Any], data: bytes) -> Dict[str, Any]:
+        if not staging:
+            return {**base, "data": data}
+        path = os.path.join(staging, f"e{index:06d}")
+        with open(path, "wb") as fh:
+            fh.write(data)
+        with contextlib.suppress(OSError):
+            os.chmod(path, 0o600)
+        return _SpilledEntry(base, spill_path=path)
+
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            infos = [i for i in zf.infolist() if not i.is_dir()]
+            if len(infos) > max_entries():
+                raise BundleRejected(f"too many entries ({len(infos)} > {max_entries()})")
+            for index, info in enumerate(infos):
+                name = info.filename
+                # Path traversal / absolute paths: reject the ENTRY, keep the bundle.
+                if name.startswith(("/", "\\")) or ".." in name.replace("\\", "/").split("/"):
+                    entries.append({"name": name, "kind": "rejected",
+                                    "reason": "path traversal"})
+                    continue
+                lower = name.lower()
+                if any(lower.endswith(ext) for ext in _EXECUTABLE_EXTS):
+                    entries.append({"name": name, "kind": "rejected",
+                                    "reason": "executable entry"})
+                    continue
+                if any(lower.endswith(ext) for ext in _ARCHIVE_EXTS):
+                    entries.append({"name": name, "kind": "rejected",
+                                    "reason": "nested archive (not extracted)"})
+                    continue
+                data, reject = _read_entry_streamed(zf, info, remaining_budget=budget)
+                if reject is not None:
+                    entries.append({"name": name, "kind": "rejected", "reason": reject})
+                    continue
+                assert data is not None
+                budget -= len(data)
+                if data[:4] in _ARCHIVE_MAGICS or data[:2] == b"\x1f\x8b":
+                    entries.append({"name": name, "kind": "rejected",
+                                    "reason": "nested archive (not extracted)"})
+                    continue
+                head = data[:512]
+                text_head = head.decode("utf-8", errors="replace").lstrip()[:200]
+                kind = _classify(name, data[:256] if len(data) < 512 else data[:512],
+                                 text_head)
+                if kind == "manifest":
+                    try:
+                        manifest = json.loads(data.decode("utf-8", errors="replace"))
+                        entries.append({"name": name, "kind": "manifest"})
+                    except Exception:
+                        entries.append({"name": name, "kind": "rejected",
+                                        "reason": "unparseable manifest.json"})
+                    continue
+                entries.append(_hold(index, {"name": name, "kind": kind}, data))
+                del data  # the spilled copy is the one that survives this loop
+    except _OutputBudgetExceeded as exc:
+        _cleanup()
+        raise BundleRejected(str(exc)) from exc
+    except zipfile.BadZipFile as exc:
+        _cleanup()
+        raise BundleRejected(f"corrupt zip: {exc}") from exc
+    except BaseException:
+        _cleanup()
+        raise
+    return {"entries": entries, "manifest": manifest if isinstance(manifest, dict) else {},
+            "cleanup": _cleanup}
+
+
+def unpack_bundle(zip_bytes: bytes) -> Dict[str, Any]:
+    """In-memory convenience wrapper over ``unpack_bundle_from_path``.
+
+    ONE unpacking implementation, reached two ways — the caps and the classification
+    cannot drift between the byte and path callers. Callers that can see a large
+    bundle should use the path form (or ``decrypted_copy``) directly."""
+    if not zip_bytes or zip_bytes[:2] != b"PK":
+        raise BundleRejected("not a zip archive (bad magic bytes)")
+    root = quarantine_root()
+    fd, tmp = tempfile.mkstemp(prefix="unpack-mem-", suffix=".zip", dir=str(root))
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(zip_bytes)
+        _chmod_600(Path(tmp))
+        # spill=False: this caller already holds the whole archive in memory, so
+        # spilling would buy nothing and would hand back entries whose backing
+        # files this function is about to delete.
+        return unpack_bundle_from_path(tmp, spill=False)
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
 
 
 # ─── Assembly (PRD §3) ────────────────────────────────────────────────────────
@@ -857,7 +1213,20 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     if not upload:
         return {"error": "upload not found"}
 
+    # Entry bytes are spilled to a staging dir rather than retained in memory, so
+    # every exit from this function has to release it. Kept as a list rather than
+    # a `with` block because the body below has many early returns and wrapping
+    # ~180 lines in another indent level to gain what one call gives is a worse
+    # trade than being explicit.
+    _staged: List[Any] = []
+
+    def _discard_staged() -> None:
+        while _staged:
+            with contextlib.suppress(Exception):
+                _staged.pop()()
+
     def _fail(reason: str, *, retain_raw: bool = False) -> Dict[str, Any]:
+        _discard_staged()
         # retain_raw (Audit §9.4): keep the raw blob past the retention window when the
         # rejection is a fixable parser gap (every entry failed), so it can be re-run.
         fields: Dict[str, Any] = {"status": "rejected", "reason": reason}
@@ -876,17 +1245,28 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
             pass
         return {"status": "rejected", "reason": reason}
 
+    # ONE decrypted copy on disk, used for BOTH the malware scan and the unpack
+    # (PRD-I §1). Two changes from the previous shape, both required by scale:
+    #
+    #  * The bundle is no longer materialized in RAM. ``load_raw`` on a 3 GB blob
+    #    is an OOM, and the unpacker needs random access anyway (a zip's central
+    #    directory is at the end), so a seekable file on the durable volume is the
+    #    only shape that works.
+    #  * The scanner now sees PLAINTEXT. It was being handed the encrypted blob,
+    #    so with DATA_ENCRYPTION_KEY configured a real AV engine was scanning
+    #    ciphertext and reporting clean every time — a silent false negative in
+    #    exactly the control we tell operators is their AV hook.
     store.update_ingest_upload(upload_id, status="scanning")
-    ok, detail = malware_scan(upload["raw_path"])
-    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
-                    event_type="malware_scan", payload={"ok": ok, "detail": detail})
-    if not ok:
-        return _fail(detail)
-
-    store.update_ingest_upload(upload_id, status="parsing")
     try:
-        raw = load_raw(upload["raw_path"])
-        bundle = unpack_bundle(raw)
+        with decrypted_copy(upload["raw_path"]) as plain_path:
+            ok, detail = malware_scan(plain_path)
+            store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                            event_type="malware_scan", payload={"ok": ok, "detail": detail})
+            if not ok:
+                return _fail(detail)
+            store.update_ingest_upload(upload_id, status="parsing")
+            bundle = unpack_bundle_from_path(plain_path)
+            _staged.append(bundle["cleanup"])
     except BundleRejected as exc:
         # Partner-facing reason is the actionable copy (Audit §9.1), never the raw
         # "bad magic bytes" text; the specific detail is retained in the audit log.
@@ -1145,6 +1525,16 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                 log.exception("ingest: could not even quarantine patient %s in upload %s",
                               opaque_patient_key(pk), upload_id)
 
+    # Purpose flows link/account → upload → case, copied SERVER-SIDE by joining
+    # the upload row (PRD-I §2.1). Done once here rather than threaded through
+    # every insert_ingest_case call site, so a future case-creation path cannot
+    # forget it and produce a case with no purpose — which the promotion gate
+    # would then read as task_creation.
+    try:
+        store.propagate_purpose_to_cases(upload_id)
+    except Exception as exc:  # pragma: no cover - defensive; never strand an upload
+        log.warning("could not propagate purpose for upload %s: %s", upload_id, exc)
+
     status = _upload_status_from_cases(ingested, quarantined, needs_review)
     reason = None
     if status == "needs_review":
@@ -1159,6 +1549,7 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                     payload={"status": status, "ingested": ingested,
                              "quarantined": quarantined, "needs_review": needs_review,
                              "imaging_rejected": imaging_rejected})
+    _discard_staged()
     purge_expired_raw(store)
     return {"status": status, "ingested": ingested, "quarantined": quarantined,
             "needs_review": needs_review, "imaging_rejected": imaging_rejected,

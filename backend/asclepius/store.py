@@ -1243,6 +1243,78 @@ class AsclepiusStore:
             if "signoff_status" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN signoff_status TEXT")
             # ═══ END PRD-D ═══
+            # ═══ PRD-I INGESTION SCHEMA — owned by Agent I, do not edit from other PRDs ═══
+            # Purpose (PRD-I §2.1). 'task_creation' | 'brokering' | NULL.
+            #
+            # NO DEFAULT, deliberately, and this is the one column where that rule
+            # carries real consequence rather than tidiness: NULL means "minted
+            # before purpose existed", and the ONLY place it may be read as
+            # task_creation is the promotion gate (§4.1). Everywhere else it renders
+            # as an unresolved work item, because a legacy link silently defaulting
+            # to task_creation is exactly how brokering data would become a task.
+            #
+            # Purpose lives on the row that AUTHORIZES an upload, and there are two
+            # such rows because there are two doors: the magic-link door authorizes
+            # on ingest_upload_links, and the health-system portal authorizes on
+            # hs_portal_users (it has no link row at all — it carries the 'hs-portal'
+            # sentinel link_id). PRD-I §2.1 names only the link table; putting it
+            # solely there would leave every hospital-portal upload with no purpose,
+            # which is the door the PRD's own §1 handshake is built on.
+            for _tbl in ("ingest_upload_links", "hs_portal_users", "ingest_uploads",
+                         "ingest_cases"):
+                if "purpose" not in cols(_tbl):
+                    conn.execute(f"ALTER TABLE {_tbl} ADD COLUMN purpose TEXT")
+            # The chain-of-custody triple (PRD-I §1.1). sha256/size_bytes already
+            # exist on ingest_uploads; verified_at is what makes them a CLAIM rather
+            # than two numbers — it is stamped only after the whole-file digest was
+            # recomputed over the assembled bytes and matched the declared value.
+            if "verified_at" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN verified_at TEXT")
+            # Resumable chunked upload sessions (PRD-I §1.1). A session is NOT an
+            # upload: no ingest_uploads row exists until `complete` verifies the
+            # whole-file digest, which is what makes "an assembled file with no
+            # verified row is invisible to the application" true by construction
+            # rather than by convention.
+            #
+            # Per-part progress is deliberately NOT stored here — it is derived from
+            # the parts on disk. Writing a row per chunk would put a single-writer
+            # SQLite under a tight write loop for state the filesystem already holds.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ingest_upload_sessions (
+                    session_id      TEXT PRIMARY KEY,
+                    owner_kind      TEXT NOT NULL,   -- 'health_system'
+                    owner_id        TEXT NOT NULL,
+                    actor           TEXT,            -- portal username, for audit
+                    filename        TEXT,
+                    content_type    TEXT,
+                    declared_sha256 TEXT NOT NULL,
+                    declared_size   INTEGER NOT NULL,
+                    chunk_size      INTEGER NOT NULL,
+                    part_count      INTEGER NOT NULL,
+                    storage_dir     TEXT NOT NULL,
+                    purpose         TEXT,            -- copied server-side at declare
+                    status          TEXT,            -- NULL(open) | verified | failed | aborted
+                    upload_id       TEXT,            -- set at complete
+                    verified_at     TEXT,
+                    created_at      TEXT NOT NULL,
+                    updated_at      TEXT NOT NULL
+                )
+                """
+            )
+            # Idempotency key (PRD-I §1.1): re-declaring the same bytes for the same
+            # owner returns the EXISTING session rather than starting a second one,
+            # so "the contact refreshed the tab at 3.2 GB" is a non-event. Partial
+            # index over OPEN sessions only — a failed session must not block a
+            # genuine retry of the same file.
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_ingest_sessions_idem "
+                "ON ingest_upload_sessions(owner_kind, owner_id, declared_sha256, "
+                "declared_size) WHERE status IS NULL"
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_sessions_owner "
+                         "ON ingest_upload_sessions(owner_kind, owner_id)")
+            # ═══ END PRD-I ═══
 
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
@@ -5992,6 +6064,193 @@ class AsclepiusStore:
                 (limit,)).fetchall()
         return [dict(r) for r in rows]
     # ═══ END PRD-D STORE METHODS ═══
+
+    # ═══ PRD-I INGESTION STORE METHODS — owned by Agent I, do not edit elsewhere ═══
+    # ─── Purpose (PRD-I §2) ──────────────────────────────────────────────────
+    def set_upload_link_purpose(self, link_id: str, purpose: Optional[str]) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE ingest_upload_links SET purpose = ? WHERE link_id = ?",
+                         (purpose, link_id))
+
+    def set_hs_portal_purpose(self, username: str, purpose: Optional[str]) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_portal_users SET purpose = ? WHERE username = ?",
+                         (purpose, (username or "").lower()))
+
+    def hs_purpose_for(self, hs_id: str) -> Optional[str]:
+        """The purpose an upload from this health system inherits.
+
+        Resolved from the system's portal ACCOUNTS, because the account is what an
+        admin mints when they press one of the two buttons. Where a system has
+        several accounts they normally agree; if they disagree we return None
+        rather than picking one, so the admin sees an unresolved work item instead
+        of a coin flip deciding whether data can become a task."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT purpose FROM hs_portal_users "
+                "WHERE hs_id = ? AND active = 1", (hs_id,)).fetchall()
+        vals = {r["purpose"] for r in rows if r["purpose"]}
+        return vals.pop() if len(vals) == 1 else None
+
+    def set_upload_purpose(self, upload_id: str, purpose: Optional[str]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET purpose = ?, updated_at = ? WHERE upload_id = ?",
+                (purpose, _utcnow_iso(), upload_id))
+
+    def set_ingest_case_purpose(self, ingest_case_id: str, purpose: Optional[str]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_cases SET purpose = ?, updated_at = ? WHERE ingest_case_id = ?",
+                (purpose, _utcnow_iso(), ingest_case_id))
+
+    def propagate_purpose_to_cases(self, upload_id: str) -> int:
+        """Copy the upload's purpose onto every case it produced, server-side.
+
+        A JOIN from the authorizing row, never a value a client sent: the purpose
+        is not accepted from a request body anywhere, so there is no path by which
+        a provider could influence it."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE ingest_cases SET purpose = "
+                "(SELECT purpose FROM ingest_uploads WHERE upload_id = ?), "
+                "updated_at = ? WHERE upload_id = ?",
+                (upload_id, _utcnow_iso(), upload_id))
+            return int(cur.rowcount or 0)
+
+    def mark_upload_verified(self, upload_id: str, *, verified_at: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET verified_at = ?, updated_at = ? WHERE upload_id = ?",
+                (verified_at, _utcnow_iso(), upload_id))
+
+    # ─── Chunked upload sessions (PRD-I §1.1) ────────────────────────────────
+    def create_upload_session(
+        self, *, owner_kind: str, owner_id: str, actor: Optional[str],
+        filename: Optional[str], content_type: Optional[str],
+        declared_sha256: str, declared_size: int, chunk_size: int,
+        part_count: int, storage_root: str, purpose: Optional[str],
+    ) -> Dict[str, Any]:
+        sid = _new_id("ups")
+        now = _utcnow_iso()
+        # Derived from the SERVER-minted session id, so no component of the parts
+        # directory is ever client-controlled.
+        storage_dir = os.path.join(storage_root, sid)
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO ingest_upload_sessions
+                   (session_id, owner_kind, owner_id, actor, filename, content_type,
+                    declared_sha256, declared_size, chunk_size, part_count,
+                    storage_dir, purpose, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (sid, owner_kind, owner_id, actor, filename, content_type,
+                 declared_sha256, int(declared_size), int(chunk_size),
+                 int(part_count), storage_dir, purpose, now, now))
+        return self.get_upload_session(sid)  # type: ignore[return-value]
+
+    def get_upload_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ingest_upload_sessions WHERE session_id = ?",
+                (session_id,)).fetchone()
+        return dict(row) if row else None
+
+    def find_open_upload_session(
+        self, *, owner_kind: str, owner_id: str, declared_sha256: str,
+        declared_size: int,
+    ) -> Optional[Dict[str, Any]]:
+        """The idempotency lookup. Matches an OPEN session first (a resume), then a
+        VERIFIED one (a duplicate declare of bytes already ingested — returning the
+        existing upload_id is both idempotent and the only answer that does not
+        ingest the same content twice)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ingest_upload_sessions "
+                "WHERE owner_kind = ? AND owner_id = ? AND declared_sha256 = ? "
+                "AND declared_size = ? AND (status IS NULL OR status = 'verified') "
+                "ORDER BY CASE WHEN status IS NULL THEN 0 ELSE 1 END, created_at DESC "
+                "LIMIT 1",
+                (owner_kind, owner_id, declared_sha256, int(declared_size))).fetchone()
+        return dict(row) if row else None
+
+    def update_upload_session(self, session_id: str, **fields: Any) -> None:
+        allowed = {"status", "upload_id", "verified_at", "purpose"}
+        sets, params = [], []
+        for k, v in fields.items():
+            if k in allowed:
+                sets.append(f"{k} = ?")
+                params.append(v)
+        if not sets:
+            return
+        sets.append("updated_at = ?")
+        params.extend([_utcnow_iso(), session_id])
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE ingest_upload_sessions SET {', '.join(sets)} "
+                "WHERE session_id = ?", tuple(params))
+
+    def list_stale_upload_sessions(self, *, older_than_iso: str) -> List[Dict[str, Any]]:
+        """Open sessions past the reaper cutoff (PRD-I §1.1: unverified parts are
+        deleted after 24 h). Only OPEN ones — a verified session's parts are already
+        gone and its row is chain-of-custody history."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ingest_upload_sessions "
+                "WHERE status IS NULL AND updated_at < ?", (older_than_iso,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def hs_uploads_bytes_in_open_sessions(self, hs_id: str) -> int:
+        """Bytes already committed to open sessions for this health system. Counted
+        against the quota at DECLARE time — otherwise a partner could declare
+        unlimited concurrent multi-GB sessions and only trip the quota at complete,
+        after the disk was already spent."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(declared_size), 0) FROM ingest_upload_sessions "
+                "WHERE owner_kind = 'health_system' AND owner_id = ? AND status IS NULL",
+                (hs_id,)).fetchone()
+        return int(row[0] or 0)
+    # ═══ END PRD-I STORE METHODS ═══
+
+
+# ─── PRD-I §F3: database durability ───────────────────────────────────────────
+def _db_storage_durable() -> tuple:
+    """(ok, detail) — will the SQLite database survive a redeploy, and can we
+    actually write to it? (PRD I-0 §F3)
+
+    Every durability check that existed covered BLOBS. Nothing checked the database,
+    which is the one loss that is unrecoverable in kind rather than degree: losing
+    image blobs degrades cases, losing ``asclepius.db`` destroys every user, task,
+    submission, review and payout record at once.
+
+    Two questions, because they fail differently. Ephemerality is a configuration
+    mistake you can see. Writability is a mount that ATTACHED WRONG — a read-only
+    volume, or a failed attach leaving a bare directory where the mount should be —
+    which looks completely healthy until the first write. So we probe it."""
+    from asclepius.constants import path_is_ephemeral
+
+    db_path = os.getenv("ASCLEPIUS_DB_PATH") or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "asclepius.db")
+    db_dir = os.path.dirname(os.path.abspath(db_path)) or "/"
+    if path_is_ephemeral(db_dir):
+        return False, (
+            f"database directory {db_dir} is on ephemeral storage; a redeploy "
+            "destroys every user, task, submission and payout row. Set "
+            "ASCLEPIUS_DB_PATH to a path on your persistent volume.")
+    if not os.getenv("ASCLEPIUS_DB_PATH", "").strip():
+        return False, (
+            f"ASCLEPIUS_DB_PATH is not set, so the database lives beside the code "
+            f"at {db_path} and is replaced on every redeploy. Set it to a path on "
+            "your persistent volume.")
+    try:
+        os.makedirs(db_dir, exist_ok=True)
+        probe = os.path.join(db_dir, f".durability-probe-{os.getpid()}")
+        with open(probe, "w") as fh:
+            fh.write("ok")
+        os.remove(probe)
+    except OSError as exc:
+        return False, f"database directory {db_dir} is not writable: {exc}"
+    return True, f"database directory {db_dir} is durable and writable"
 
 
 # ─── Process-wide singleton ───────────────────────────────────────────────────

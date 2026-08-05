@@ -320,6 +320,43 @@ async def export_case_bundle(
     }
 
 
+# ─── Storage durability + reconciliation (PRD I-0 §F2/§F4) ───────────────────
+@router.get("/storage/reconcile")
+async def storage_reconcile(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """What the storage layer actually holds versus what the database believes.
+
+    Read-only. ``missing_blobs`` is an INCIDENT, not a metric: each entry is a case
+    that will 404 when a physician opens its image, or ship to a buyer as a
+    reference resolving to nothing. ``orphan_blobs`` is disk cost only — reported,
+    never deleted, because a wrongly-deleted blob is unrecoverable once the partner
+    bundle behind it has aged out of its retention window.
+
+    Also returns the live durability verdict for all three stores, so the operator
+    can see *why* blobs went missing rather than only that they did."""
+    from asclepius import assets as asc_assets
+    from asclepius import ingestion as asc_ingestion
+    from asclepius.store import _db_storage_durable
+
+    store = _store()
+    report = asc_assets.reconcile_assets(store)
+    stores = []
+    for name, fn in (("database", _db_storage_durable),
+                     ("raw ingest", asc_ingestion.ingest_storage_durable),
+                     ("asset store", asc_assets.asset_storage_durable)):
+        try:
+            ok, why = fn()
+        except Exception as exc:  # pragma: no cover - a check that cannot run fails
+            ok, why = False, f"durability check raised: {exc}"
+        stores.append({"store": name, "durable": bool(ok), "detail": why})
+    return {
+        **report,
+        "missing_count": len(report["missing_blobs"]),
+        "orphan_count": len(report["orphan_blobs"]),
+        "storage": stores,
+        "all_durable": all(s["durable"] for s in stores),
+    }
+
+
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 @router.post("/health-systems/provision")
 async def provision_health_system_portal(
