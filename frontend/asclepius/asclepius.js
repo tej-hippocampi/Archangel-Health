@@ -7245,6 +7245,14 @@
   // intro: shown as a smaller second line on the chapter's first step (chapter
   // interstitials were cut — one welcome screen, then an uninterrupted flow).
   // advanceOn: {state: (d) => bool} | {click: selector} | {manual: true}.
+  // "Skip this step" for a step that requires real app state to progress
+  // (everything below except the two pure-reading beats) does not just move
+  // a pointer — it performs a reasonable version of the real action through
+  // the app's own handlers/state, exactly as if the doctor had done it, so
+  // the underlying draft (and, for reveal/submit, the backend) actually
+  // advances and the tour lands on a REAL next step. Placeholder text is
+  // always visibly marked "(practice run)" and this data is never recorded
+  // (the tutorial submission is graded, never saved — see tutorial_case.py).
   const TUTORIAL_CHAPTERS = [
     {
       id: 'ch1', title: 'Read the case',
@@ -7258,20 +7266,29 @@
         { id: 'ch1-valid', target: TOUR_TARGETS.promptContinue,
           copy: 'If the case reads as real and answerable, continue. If not, flag it.',
           advanceOn: { state: (d) => d.stage !== 'prompt_review' },
+          autofill: () => validatePrompt(),
           note: 'Step 1 is a sanity gate: continue when the case is valid, or flag it with a reason — flagged cases leave your queue for admin review.' },
       ],
     },
     {
       id: 'ch2', title: 'Your take first',
-      intro: 'You commit one line before seeing any AI answers, so they can\u2019t anchor you.',
+      intro: 'You commit one line before seeing any AI answers, so they can’t anchor you.',
       steps: [
         { id: 'ch2-instinct', target: TOUR_TARGETS.instinct,
           copy: 'Type your first take on the case — one line.',
           advanceOn: { state: (d) => !!((d.independent_answer || {}).text || '').trim() },
-          note: 'The one-line gut check. It\u2019s why the AI answers look blurred at first — deliberate, not broken.' },
+          autofill: () => {
+            const d = state.draft;
+            if ((d.independent_answer.text || '').trim()) return;
+            d.independent_answer.text = 'Skipped (practice run).';
+            saveDraft();
+            renderTaskWorkspace();
+          },
+          note: 'The one-line gut check. It’s why the AI answers look blurred at first — deliberate, not broken.' },
         { id: 'ch2-reveal', target: TOUR_TARGETS.revealBtn,
           copy: 'Now reveal the two AI answers.',
           advanceOn: { state: (d) => d.stage === 'compare' },
+          autofill: () => commitIndependentAnswerAndReveal(),
           note: 'Reveal commits your line and unblinds the answers (Enter works too).' },
       ],
     },
@@ -7287,36 +7304,92 @@
         { id: 'ch3-verdict', target: TOUR_TARGETS.verdicts,
           copy: 'Pick the stronger answer — or mark both inadequate.',
           advanceOn: { state: (d) => !!d.verdict },
+          autofill: () => selectVerdict('B_better'),
           note: 'Keys 1 / 2 / 3 work. "Both inadequate" asks you to write the ideal answer yourself instead.' },
         { id: 'ch3-refine', target: TOUR_TARGETS.refine,
-          copy: 'Edit the answer if anything is off — or save it unchanged if it\u2019s right.',
+          copy: 'Edit the answer if anything is off — or save it unchanged if it’s right.',
           advanceOn: { state: (d) => !!d.refine_saved || !!d.from_scratch_saved },
+          autofill: () => {
+            const d = state.draft;
+            if (d.verdict === 'both_inadequate') {
+              if (!(d.from_scratch.ideal_answer || '').trim()) {
+                d.from_scratch.ideal_answer = 'Intensify decongestion given persistent volume overload (practice run).';
+              }
+              d.from_scratch_saved = true;
+            } else {
+              d.refine_saved = true;
+            }
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
           note: 'Your saved version becomes the gold answer. Saving with no edits is a valid choice when the answer is already correct.' },
       ],
     },
     {
-      id: 'ch4', title: 'Say what\u2019s right and wrong',
+      id: 'ch4', title: 'Say what’s right and wrong',
       intro: 'The structured critique is the product: tagged errors, severities, sources.',
       steps: [
         { id: 'ch4-why', target: TOUR_TARGETS.whyBetter,
           copy: 'Write one line on why it won, and tag at least one reason.',
           skipIf: (d) => d.verdict === 'both_inadequate',
           advanceOn: { state: () => substageComplete('why_better') },
+          autofill: () => {
+            const d = state.draft;
+            const rev = d.chosen_revision;
+            if (!(rev.why_better_notes || '').trim()) {
+              rev.why_better_notes = 'Reads the persistent-congestion evidence rather than the creatinine trend alone (practice run).';
+            }
+            if (!(rev.why_better_tags || []).length) {
+              rev.why_better_tags = [(state.taxonomy.why_better_tags || ['safer'])[0]];
+            }
+            d.why_better_done = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
           note: 'One sentence plus at least one why-better tag.' },
         { id: 'ch4-cite', target: TOUR_TARGETS.citations,
           copy: 'Attach a supporting citation — or continue without one.',
           skipIf: (d) => d.verdict === 'both_inadequate',
           advanceOn: { state: () => substageComplete('citations') },
+          autofill: () => {
+            const d = state.draft;
+            const rev = d.chosen_revision;
+            if ((state.task.grounding_mode === 'required') && !isValidAnchor(rev.evidence_anchor)) {
+              rev.evidence_anchor = { citation_text: 'KDIGO 2024 (practice placeholder)', source_type: 'guideline', identifier: '' };
+            }
+            d.citations_reviewed = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
           note: 'Citations are optional here (required on some tasks); the search box knows the major guidelines.' },
         { id: 'ch4-critique', target: TOUR_TARGETS.critique,
           copy: 'Tag each error in the other answer. Tap a tag again to set severity.',
           skipIf: (d) => d.verdict === 'both_inadequate',
           advanceOn: { state: () => substageComplete('critique_rejected') },
+          autofill: () => {
+            const d = state.draft;
+            const crit = d.rejected_critique;
+            if (!(crit.error_tags || []).length) {
+              const tag = (state.taxonomy.error_tags || ['unsafe_recommendation'])[0];
+              crit.error_tags = [tag];
+              crit.severities[tag] = crit.severities[tag] || 'high';
+            } else {
+              crit.error_tags.forEach((t) => { crit.severities[t] = crit.severities[t] || 'high'; });
+            }
+            if (!(crit.why_worse || '').trim()) {
+              crit.why_worse = 'A fluid bolus in a still-congested patient re-congests them (practice run).';
+            }
+            closeTagPopover();
+            d.critique_done = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
           note: 'Error tags come from a fixed taxonomy; the severity picker is behind a second tap on the tag — easy to miss.' },
         { id: 'ch4-reasoning', target: TOUR_TARGETS.reasoning,
-          copy: 'Confirm each reasoning step that\u2019s right; open any that aren\u2019t.',
+          copy: 'Confirm each reasoning step that’s right; open any that aren’t.',
           skipIf: () => !(state.task && state.task.capture_reasoning),
           advanceOn: { state: () => substageComplete('reasoning') },
+          autofill: () => autofillReasoningSteps(),
           note: 'The answer splits into steps; confirm the good ones, correct the bad ones.' },
       ],
     },
@@ -7327,18 +7400,52 @@
         { id: 'ch5-rubric', target: TOUR_TARGETS.rubric,
           copy: 'Add scoring criteria — include at least one critical negative.',
           advanceOn: { state: () => substageComplete('rubric') },
+          autofill: () => {
+            const d = state.draft;
+            if (!hasCriticalNegative(d.rubric)) {
+              d.rubric.push({
+                text: 'Recommends holding diuresis or giving IV fluids despite persistent congestion (practice run)',
+                points: -9, axis: 'safety', source: 'manual',
+              });
+            }
+            d.rubric_done = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
           note: 'Criteria carry points; a −8 to −10 negative is a critical negative (auto-fail) and each case needs at least one.' },
         { id: 'ch5-confidence', target: TOUR_TARGETS.confidence,
           copy: 'Rate your confidence.',
           advanceOn: { state: (d) => !!d.confidence_set },
+          autofill: () => {
+            const d = state.draft;
+            if (!d.confidence_set) { d.confidence = 'high'; d.confidence_set = true; saveDraft(); }
+            renderTaskWorkspace();
+          },
           note: 'Low / medium / high — honest calibration beats looking sure.' },
         { id: 'ch5-submit', target: TOUR_TARGETS.submit,
           copy: 'Submit — and see how you compare with the reference panel.',
           advanceOn: { state: () => false },  // the submit path ends the tour
+          autofill: () => submitEvaluation(),
           note: 'Submit packages your work into training records. On the practice case it scores you against the reference panel instead.' },
       ],
     },
   ];
+
+  // ch4-reasoning's autofill needs to wait out the async auto-split (heuristic
+  // or LLM-pregraded) before confirm buttons exist — retries briefly rather
+  // than assuming they're already on screen.
+  function autofillReasoningSteps(triesLeft) {
+    triesLeft = triesLeft == null ? 15 : triesLeft;
+    let btn;
+    let guard = 0;
+    while ((btn = document.querySelector(TOUR_TARGETS.reasoning + ' .asc-step-confirm:not(.active)')) && guard++ < 50) {
+      btn.click();
+    }
+    const cont = document.querySelector('#ascStepsCont');
+    if (cont && !cont.disabled) { cont.click(); return; }
+    if (triesLeft > 0) setTimeout(() => autofillReasoningSteps(triesLeft - 1), 200);
+  }
+
   const TUTORIAL_STEPS = [];
   TUTORIAL_CHAPTERS.forEach((ch) => ch.steps.forEach((s, i) => {
     TUTORIAL_STEPS.push(Object.assign({ chapter: ch, chapterFirst: i === 0 }, s));
@@ -7414,6 +7521,12 @@
   // scroll, and resize — cheap by design.
   function tutTick() {
     if (!tutorialActive()) return;
+    // A modal (the welcome screen or the skip-tutorial confirm) OWNS the
+    // screen while it's open. tutTick runs on a timer and on every DOM
+    // mutation/scroll/resize, so without this guard a stray re-tick while the
+    // confirm dialog is up would silently re-show the spotlight ring and
+    // tooltip right on top of it — exactly the "box is still there" bug.
+    if (document.getElementById('ascTourSkipConfirm')) return;
     const t = state.tutorial;
     resolveTourIndex();
     let step = tutCurrentStep();
@@ -7616,11 +7729,24 @@
       row.appendChild(h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
         onClick: tutAdvance }, 'Next →'));
     } else if (!waiting && !bounced) {
-      // Per-step skip: moves the pointer on without doing the action. Hidden
-      // right after a bounce — skipping again would just land back here, so
-      // offering it would be misleading rather than helpful.
+      // Per-step skip: for steps the app requires real data/action from
+      // (nearly all of them), this performs a reasonable version of that
+      // action through the app's own handlers — filling required fields with
+      // clearly-marked placeholder text, picking sensible defaults — so the
+      // draft (and, for reveal/submit, the backend) genuinely advances and
+      // the tour lands on the real next step, not a dead pointer. Read-only
+      // beats with no real state (ch1-tabs, ch3-read) have no autofill and
+      // just move the pointer on, since their next target already exists.
       row.appendChild(h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
-        onClick: tutAdvance }, 'Skip this step'));
+        onClick: () => {
+          if (step.autofill) {
+            try { step.autofill(); }
+            catch (e) { try { console.warn('[tutorial] autofill failed for', step.id, e); } catch (_e) { /* ok */ } }
+            tutTick(); // resync immediately; async actions catch up via their own re-render
+          } else {
+            tutAdvance();
+          }
+        } }, 'Skip this step'));
     }
     row.appendChild(h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button',
       onClick: confirmSkipTutorial }, 'Skip tutorial'));
