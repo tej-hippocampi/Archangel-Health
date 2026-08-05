@@ -8,7 +8,7 @@ to QA rather than rejected at the HTTP boundary (PRD §5 — "no lost submission
 from __future__ import annotations
 
 import re
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 from pydantic import AfterValidator, BaseModel, Field, model_validator
 
@@ -656,3 +656,11 @@ class BuyerDeliveryRequest(BaseModel):
     data_format: Optional[str] = None
     note: Optional[str] = None
     include_exported: bool = True
+
+
+class TutorialStateUpdate(BaseModel):
+    """PATCH /me/tutorial — one transition on the caller's own tutorial state."""
+
+    action: Literal["start", "advance", "skip", "complete", "reset"]
+    step: Optional[str] = None
+    version: Optional[int] = None

@@ -9,6 +9,7 @@ Reuses ``PyJWT`` + ``passlib`` (already in requirements) — no new auth library
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import secrets
@@ -106,7 +107,22 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         # "V4 · Real Cases" box unlocked/locked. Serving is enforced server-side
         # regardless — this is display truth, not the gate itself.
         "real_data_approved": bool(user.get("real_data_approved")),
+        # First-run tutorial state ("Calibration Case 1"). Display truth for the
+        # client's launch decision; the transition rules that make completion
+        # permanent live in PATCH /me/tutorial, not here.
+        "tutorial": _parse_tutorial(user.get("tutorial_json")),
     }
+
+
+def _parse_tutorial(raw: Any) -> Dict[str, Any]:
+    if raw:
+        try:
+            parsed = json.loads(raw) if isinstance(raw, str) else raw
+            if isinstance(parsed, dict) and parsed.get("status"):
+                return parsed
+        except (ValueError, TypeError):
+            pass
+    return {"status": "not_started", "version": None}
 
 
 # ─── FastAPI dependencies ─────────────────────────────────────────────────────
