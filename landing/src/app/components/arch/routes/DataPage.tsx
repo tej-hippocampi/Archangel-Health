@@ -173,21 +173,44 @@ const BENCH_NAMES = [
   "MedAgentsBench",
 ];
 
-// Generalized categories, not the full internal product list — each one
-// stands for a cluster of named offerings (evals, environments, reward
-// models, safety sets, etc.) without itemizing them on the page.
-const CATALOG = [
-  "Specialty evals",
-  "Multimodal & behavioral evals",
-  "RL environments",
-  "Reasoning traces & preference pairs",
-  "Reward models & graders",
-  "Safety & outcome validation",
-  "Conversational voice data",
-  "Physical & surgical AI",
+// The lifecycle spine (02.2). One physician network + one hospital relationship
+// build across every stage of getting a medical model into real clinical use.
+// Each stage's chips fold the internal product families in without itemizing the
+// full list; the demand-gauge close carries the long tail ("ask for what you need").
+const SPINE: { tag: string; title: string; line: string; chips: string[] }[] = [
+  {
+    tag: "Train",
+    title: "Reasoning data",
+    line: "Physician-graded cases, pairs, and traces that teach a model to reason like a specialist.",
+    chips: ["Preference pairs", "Reasoning traces", "RL environments"],
+  },
+  {
+    tag: "Evaluate",
+    title: "Evals & graders",
+    line: "Cases hard enough to break frontier models, with graders that measure real gains.",
+    chips: ["Specialty evals", "Multimodal & behavioral", "Rubric graders"],
+  },
+  {
+    tag: "Validate",
+    title: "Prospective validation",
+    line: "Test the model against real de-identified outcomes inside a partner hospital.",
+    chips: ["Outcome-linked truth", "Bias & subgroup", "Safety red-team"],
+  },
+  {
+    tag: "Deploy",
+    title: "In-house deployment",
+    line: "Stand the model up where the data lives, without weights or PHI leaving the building.",
+    chips: ["In-house fine-tuning", "On-prem inference", "Integration"],
+  },
+  {
+    tag: "Monitor",
+    title: "Drift & compliance",
+    line: "Catch drift and build the evidence that keeps a deployed model trusted over time.",
+    chips: ["Drift surveillance", "FDA / PCCP evidence", "Physician review"],
+  },
 ];
 
-export function DataPage(_props: { actions: ShellActions }) {
+export function DataPage({ actions }: { actions: ShellActions }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
@@ -338,25 +361,46 @@ export function DataPage(_props: { actions: ShellActions }) {
             Reasoning data is where we’re deepest. <span className="quiet">It’s not where we stop.</span>
           </h3>
           <p className="lede">
-            We’re embedded deep into health systems, with a close relationship to the
-            physicians who generate this data every day.
+            We’re embedded deep in health systems, working hand in hand with the physicians who
+            generate this data every day. That one relationship lets us build whatever a medical
+            model needs, at any stage of reaching real clinical use.
           </p>
         </div>
 
+        {/* the lifecycle spine — one relationship, every stage */}
+        <figure className="c-card spine reveal" aria-label="The lifecycle Archangel builds across: train, evaluate, validate, deploy, and monitor.">
+          <div className="spine-track">
+            {SPINE.map((s) => (
+              <div className="spine-stage" key={s.tag}>
+                <div className="spine-rail" aria-hidden="true"><span className="spine-node" /></div>
+                <span className="chrome chrome-box">{s.tag}</span>
+                <h3>{s.title}</h3>
+                <p>{s.line}</p>
+                <div className="spine-chips" aria-hidden="true">
+                  {s.chips.map((c) => (
+                    <span className="chip" key={c}>{c}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="spine-foot">
+            <span className="chip chip-lime">One relationship</span>
+            <span>One physician network. One hospital relationship. Every stage.</span>
+          </div>
+        </figure>
+
+        {/* demand-gauge close */}
         <div className="env-statement reveal">
           <p className="big">Ask for what you need. If it’s clinical data, we can build it.</p>
-          <p className="sub">Select any category below; we scope and pilot within weeks.</p>
+          <p className="sub">Tell us the stage and the gap. We scope and pilot within weeks.</p>
+          <div className="env-cta">
+            <button type="button" className="btn btn-primary" onClick={() => actions.openLead("request_data")}>
+              Request data →
+            </button>
+          </div>
+          <p className="env-bench"><span className="chrome">Already helping labs climb</span> {BENCH_NAMES.join(" · ")}</p>
         </div>
-
-        <div className="chip-row" aria-label="Data product categories">
-          {CATALOG.map((c) => (
-            <span className="chip" key={c}>{c}</span>
-          ))}
-        </div>
-
-        <p className="reveal" style={{ marginTop: "1.6rem" }}>
-          <span className="chrome">Already helping labs climb</span> {BENCH_NAMES.join(" · ")}
-        </p>
       </section>
 
       {drawerOpen && <SampleDrawer onClose={() => setDrawerOpen(false)} />}

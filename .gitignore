@@ -42,3 +42,6 @@ backend/*.db-shm
 # Landing (dependencies and build)
 landing/node_modules/
 landing/dist/
+
+# Stray local asset store (V4 image blobs) — never commit
+backend/asclepius/_assetstore/

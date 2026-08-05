@@ -13,8 +13,13 @@ ingest adapters pull in format-specific parsing (CSV / FHIR / HL7v2) and belong
 behind their own seam so nothing downstream depends on them.
 
 Design invariants carried from the model (PRD §2):
-  * **No imaging.** ``dicom`` is registered only to REJECT — images are never a
-    gradable modality, so an imaging export can never become a case.
+  * **Imaging is a gradable modality** (Buyer Response PRD §4 C3, 2026-07 — this
+    RETIRES the original "no imaging; ``dicom`` is registered only to REJECT" rule).
+    DICOM is de-identified (PS3.15 Annex E via :mod:`asclepius.dicom_deid`), screened
+    for burned-in pixel PHI, and rendered to a model-viewable PNG at ingest by the
+    bundle pipeline (:func:`asclepius.ingestion.process_upload`). The single-file
+    ``ingest_real_deid`` path still declines a bare DICOM and points at the bundle
+    pipeline, which owns the de-id/render/key-image flow.
   * **Relative offsets, age bands, no PHI.** ``deidentify`` collapses exact ages
     into bands (90+ merged), scans every free-text field with the shared
     Safe-Harbor scanner, and refuses a case that still carries residual
@@ -154,9 +159,16 @@ def deidentify(case: Any) -> Dict[str, Any]:
 
 # ─── Format adapters ──────────────────────────────────────────────────────────
 def _reject_imaging(raw: Any, *, specialty: str = "general", manifest: Any = None) -> Dict[str, Any]:
-    raise ImagingRejected(
-        "DICOM/imaging is never a gradable modality (PRD §2): cases are text + "
-        "structured tabular data only. Imaging exports are rejected at ingest."
+    # The "no imaging" invariant was RETIRED here (Buyer Response PRD §4 C3, 2026-07):
+    # DICOM is now de-identified + rendered by the BUNDLE pipeline
+    # (``ingestion.process_upload`` → ``asclepius.dicom_deid``), which owns series
+    # grouping, burned-in screening, and key-image designation. The single-file
+    # ``ingest_real_deid`` path deliberately does not attempt a bare DICOM (it lacks
+    # that context) and points the caller at the bundle pipeline instead.
+    raise CaseIngestError(
+        "A bare DICOM cannot be ingested through the single-file path; send it in a "
+        "bundle so it is de-identified (PS3.15 Annex E), screened for burned-in PHI, "
+        "and rendered to a model-viewable image (Buyer Response PRD §4)."
     )
 
 

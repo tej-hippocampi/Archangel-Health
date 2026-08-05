@@ -8,7 +8,10 @@ model + the text serialization that becomes ``task.prompt`` so packaging, export
 and every existing buyer profile keep working unchanged.
 
 Design invariants (PRD §2 rules):
-  * **No imaging.** There is no image field; images are never a gradable modality.
+  * **Imaging IS a gradable modality now** (Buyer Response PRD §3/§4, 2026-07 — this
+    supersedes the original "no imaging" rule). A :class:`Study` may carry a real
+    de-identified image ``asset`` (raster via the V4 image path, or a DICOM rendered
+    to PNG at ingest); the bytes still never live on the case, only the reference.
   * **Trends via relative offsets.** Labs carry ``collected_offset_days`` (0 =
     index day, −7 = a week earlier) — the clinically-vital interval survives, the
     identifying calendar date never exists.
@@ -26,7 +29,7 @@ drop-in with zero downstream change.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -79,6 +82,18 @@ ONCOLOGY_STUDY_MODALITIES = ("pathology", "molecular") + ONCOLOGY_IMAGING_MODALI
 # Accepted image asset MIME types for a V4 real-de-identified study (Image PRD §3.1).
 STUDY_ASSET_MIMES = ("image/png", "image/jpeg", "application/pdf")
 
+# Study-findings visibility policy (Buyer Response PRD §3 B2). A pathology caption
+# that STATES the finding defeats the multimodal claim — a model that reads the
+# caption never needs the pixels. The policy governs whether a study's interpretive
+# ``findings`` reach the model-facing prompt:
+#   * hidden   (V4 image cases): model sees label + pixels; findings are withheld.
+#              The real multimodal test.
+#   * visible  (V3, no asset):   findings ARE the evidence (there are no pixels), so
+#              hiding them makes the case unanswerable.
+#   * post_hoc (ablation):       hidden for scoring, revealed after, so a text-only
+#              vs image-only score can be published.
+STUDY_FINDINGS_POLICIES = ("hidden", "visible", "post_hoc")
+
 
 class LabResult(BaseModel):
     # extra="forbid" (BUG-1 §1): a key-name mismatch from the LLM (e.g. "result"
@@ -120,11 +135,30 @@ class ClinicalNote(BaseModel):
     note_type: str = "Progress"            # H&P | Progress | Consult | Nursing
     author_role: str = "clinician"
     text: str = ""
+    # Model-facing visibility (Buyer Response PRD §2 A6). Default True so no existing
+    # case changes behavior. A DiagnosticReport's interpretive conclusion — the
+    # sentence that performs the reasoning leap the case is testing — is split off
+    # into a note with ``model_visible=False`` so it reaches the annotator and the
+    # answer key but never the model-facing prompt.
+    model_visible: bool = True
+    withheld_reason: Optional[str] = None  # e.g. "interpretive_conclusion"
+    # RELATIVE day (0 = index/decision point, negative = earlier), mirroring
+    # ``LabPanel``. ``None`` = timing unknown. Populated by ``timeline`` from the
+    # note's ``collected_at`` on real de-identified cases so the V5 environment can
+    # enforce the temporal cutoff on narratives (a post-decision note is where the
+    # outcome is written). Synthetic/gold notes leave this ``None`` (no future zone).
+    collected_offset_days: Optional[int] = None
 
 
 class ProblemItem(BaseModel):
     condition: str
     since: Optional[str] = None            # generalized ("2019", "chronic") — never a date
+    # RELATIVE day the problem was RECORDED (0 = index/decision point, negative =
+    # earlier), mirroring ``LabPanel``/``ClinicalNote``. ``None`` = unknown.
+    # Critical for V5: a problem added AFTER the decision point is literally the
+    # answer ("cast nephropathy"), so the environment must be able to hold it out.
+    # ``since`` is clinical onset (generalized); this is chart-recording time.
+    collected_offset_days: Optional[int] = None
 
 
 class MedicationItem(BaseModel):
@@ -132,6 +166,10 @@ class MedicationItem(BaseModel):
     dose: Optional[str] = None
     route: Optional[str] = None
     freq: Optional[str] = None
+    # RELATIVE day the medication was ORDERED (see ProblemItem). Critical for V5: a
+    # drug started after the decision point IS the diagnosis (tolvaptan → SIADH,
+    # rasburicase → tumor lysis), so it must be holdable-out. ``None`` = unknown.
+    collected_offset_days: Optional[int] = None
 
 
 class Demographics(BaseModel):
@@ -170,6 +208,35 @@ class StudyAsset(BaseModel):
     source: str = "partner_deidentified"   # provenance stamp (never a partner id)
 
 
+class CaseSourceRef(BaseModel):
+    """A citation supplied by the CASE AUTHOR (partner or our generation engine),
+    distinct from an annotator's evidence_anchor (Buyer Response PRD §2 A3). Both
+    ship; they answer different buyer questions. This one: 'what grounds this
+    case?'. The anchor: 'what grounds this clinician's judgment?'. Collapsing them
+    would let case-level provenance inflate the grounded% that is supposed to
+    measure clinician citation, so ``source_refs`` MUST NOT feed the annotator
+    ``grounded`` count (enforced in packaging/export)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str
+    identifier: Optional[str] = None       # DOI / PMID / URL
+    source_type: Optional[str] = None      # guideline | consensus | primary | benchmark
+    role: str = "source"
+
+
+class CaseProvenance(BaseModel):
+    """Case-level provenance carried by a partner bundle (Buyer Response PRD §2 A3):
+    the FHIR ``Provenance.agent`` roles that authored/adjudicated the case and any
+    disclaimer extensions. Never an identity — roles and free-text disclaimers only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    agents: List[str] = Field(default_factory=list)        # generalized roles
+    disclaimers: List[str] = Field(default_factory=list)
+    recorded: Optional[str] = None          # generalized ("2025") — never a date
+
+
 class Study(BaseModel):
     """A structured study report — the decisive signal in cardiology/oncology cases
     often lives here (PRD §3). ``findings`` is the structured report text (the
@@ -186,6 +253,14 @@ class Study(BaseModel):
     measurements: List[LabResult] = Field(default_factory=list)
     impression: Optional[str] = None
     asset: Optional[StudyAsset] = None      # NEW (V4): optional real image reference
+    # Burned-in-PHI screening provenance for a DICOM-derived study (Audit PRD §M2):
+    # {method: ocr+tag|tag_only, burned_in_risk, reason, reviewed_by_hashed}. None for
+    # non-DICOM studies. Travels with the record so the screening method is auditable.
+    phi_screening: Optional[Dict[str, Any]] = None
+    # RELATIVE day of the study (see ClinicalNote.collected_offset_days). ``None`` =
+    # unknown timing; set by ``timeline`` on real cases so a post-decision study
+    # (e.g. the outcome path report) is held out by the V5 temporal cutoff.
+    collected_offset_days: Optional[int] = None
 
 
 class ClinicalCase(BaseModel):
@@ -210,6 +285,30 @@ class ClinicalCase(BaseModel):
     # molecular (oncology), renal biopsy/US (nephrology). Additive + backward
     # compatible — existing cases carry an empty list.
     studies: List[Study] = Field(default_factory=list)
+    # Case-author citations + provenance carried by a partner bundle (Buyer Response
+    # PRD §2 A3). Distinct from an annotator's evidence anchor; must not feed the
+    # annotator ``grounded`` count. Additive + backward compatible.
+    source_refs: List[CaseSourceRef] = Field(default_factory=list)
+    case_provenance: Optional[CaseProvenance] = None
+    # Author-declared difficulty (Buyer Response PRD §2 A4) — a CLAIM, stored as one.
+    # Never written to the measured ``empirical_difficulty`` field, which is
+    # demonstrated. Keeping claimed and measured in one field is how a benchmark
+    # starts asserting difficulty instead of demonstrating it.
+    declared_difficulty: Optional[str] = None
+    # Author-declared required modalities (Buyer Response PRD §2 A4) — the
+    # completeness assertion. If the bundle declares a modality that no study/panel
+    # delivered, the case is incomplete and quarantines rather than shipping easier
+    # than the author intended.
+    required_modalities: List[str] = Field(default_factory=list)
+    # Study-findings visibility policy (Buyer Response PRD §3 B2). Default "visible"
+    # so existing V3 cases (whose findings ARE the evidence) are unchanged; the V4
+    # image path sets "hidden" so the model must read the pixels, not the caption.
+    study_findings_policy: Literal["hidden", "visible", "post_hoc"] = "visible"
+    # Tri-state completeness outcome (Audit PRD §P1): "verified" (all declared
+    # modalities resolved), "unverified" (a declared token we could not parse — a
+    # parser gap, NOT missing evidence; surfaced as an advisory review reason), or
+    # None (no declaration). A truly-absent recognised modality quarantines instead.
+    completeness_status: Optional[str] = None
     # ── internal-only generation/QA metadata (never shipped raw) ──
     ground_truth: Optional[GroundTruth] = None
     hard_hook: Optional[str] = None
@@ -432,13 +531,20 @@ def _render_labs(lab_panels: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def _render_studies(studies: List[Dict[str, Any]]) -> str:
+def _render_studies(studies: List[Dict[str, Any]], findings_policy: str = "visible") -> str:
     """Render structured studies (ECG/echo/cath/imaging/pathology/molecular) as text
     so a model MUST read the decisive finding into its reasoning (PRD §3). Numeric
-    ``measurements`` render as a compact table (EF, gradient, SUVmax, VAF)."""
+    ``measurements`` render as a compact table (EF, gradient, SUVmax, VAF).
+
+    ``findings_policy`` (Buyer Response PRD §3 B2) governs whether interpretive
+    ``findings``/``impression`` reach the model-facing prompt. Under ``hidden`` or
+    ``post_hoc`` a study's interpretation is withheld — the model sees the neutral
+    label and the image, not the caption that states the answer. Objective numeric
+    ``measurements`` always render (they are evidence, not interpretation)."""
     studies = [s for s in (studies or []) if isinstance(s, dict)]
     if not studies:
         return ""
+    hide_findings = str(findings_policy or "visible").strip().lower() in ("hidden", "post_hoc")
     lines: List[str] = ["Studies:"]
     for s in studies:
         modality = str(s.get("modality") or "study").upper()
@@ -448,8 +554,12 @@ def _render_studies(studies: List[Dict[str, Any]]) -> str:
             head += "  (image attached)"
         lines.append(head)
         findings = str(s.get("findings") or "").strip()
-        if findings:
+        if findings and not hide_findings:
             lines.append(f"    Findings: {findings}")
+        elif s.get("asset") and hide_findings:
+            # Make the withholding legible in the prompt: the model is told to read
+            # the pixels rather than silently seeing a study with no findings.
+            lines.append("    Findings withheld — read the attached image.")
         measurements = [r for r in (s.get("measurements") or []) if isinstance(r, dict)]
         if measurements:
             lines.append(f"    {'Measure':<26}{'Value':<12}{'Unit':<12}{'Ref':<14}Flag")
@@ -460,7 +570,7 @@ def _render_studies(studies: List[Dict[str, Any]]) -> str:
                 flag = str(r.get("flag") or "")
                 lines.append(f"    {analyte:<26}{value:<12}{unit:<12}{_ref_range(r):<14}{flag}")
         impression = str(s.get("impression") or "").strip()
-        if impression:
+        if impression and not hide_findings:
             lines.append(f"    Impression: {impression}")
     return "\n".join(lines)
 
@@ -503,11 +613,17 @@ def render_case_prompt(case: Any, question: str) -> str:
     if labs:
         parts.append(labs)
 
-    studies = _render_studies(c.get("studies") or [])
+    studies = _render_studies(c.get("studies") or [],
+                              findings_policy=c.get("study_findings_policy") or "visible")
     if studies:
         parts.append(studies)
 
     for n in c.get("notes") or []:
+        # Model-invisible notes (Buyer Response PRD §2 A6) — e.g. a DiagnosticReport's
+        # interpretive conclusion — never enter the model-facing prompt. They remain
+        # on the case for the annotator and the answer key.
+        if n.get("model_visible") is False:
+            continue
         role = n.get("author_role") or "clinician"
         parts.append(f"[{n.get('note_type','Note')} — {role}]\n{(n.get('text') or '').strip()}")
 

@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 
-from ratelimit import rate_limiter
+from ratelimit import client_ip, rate_limiter
 
 from asclepius import auth as asc_auth
 from asclepius import ingestion as asc_ingestion
@@ -223,25 +223,12 @@ async def provider_password(
 
 
 def _bundle_zip(files: List[Dict[str, Any]], *, specialty: Optional[str]) -> bytes:
-    """Turn the uploaded file(s) into ONE .zip bundle for the shared pipeline. A
-    single already-zip upload is passed through untouched; loose files are packed
-    into a fresh zip (with a manifest.json carrying the provider's specialty when
-    the bundle doesn't already include one)."""
-    # Pass a single, genuinely-zip upload through untouched. Key off the real PK
-    # magic bytes — NOT the extension — so a mis-named single file (e.g. a CSV
-    # called "data.zip") is still wrapped into a valid bundle rather than handed to
-    # the unpacker as a non-zip and rejected.
-    if len(files) == 1 and files[0]["content"][:2] == b"PK":
-        return files[0]["content"]
-    has_manifest = any(os.path.basename(f["filename"]).lower() == "manifest.json" for f in files)
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        for f in files:
-            z.writestr(os.path.basename(f["filename"]) or "file", f["content"])
-        if not has_manifest and specialty:
-            import json as _json
-            z.writestr("manifest.json", _json.dumps({"specialty": specialty}))
-    return buf.getvalue()
+    """Turn the uploaded file(s) into ONE .zip bundle for the shared pipeline.
+
+    Thin alias for ``asclepius.ingestion.wrap_loose_files`` — the single packing
+    implementation shared with the magic-link door (Buyer Response PRD §2 A1), so
+    the two upload doors can never drift into accepting different files again."""
+    return asc_ingestion.wrap_loose_files(files, specialty=specialty)
 
 
 @router.post("/provider/uploads",
@@ -271,6 +258,11 @@ async def provider_upload(
                                 detail="Ingestion is disabled: DATA_ENCRYPTION_KEY is not configured.")
         # Fail closed on non-durable raw storage too (see the 410 incident).
         ok, why = asc_ingestion.ingest_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
+        # Audit PRD §P2: the DERIVED image blobs must be as durable as the raw upload.
+        from asclepius import assets as asc_assets
+        ok, why = asc_assets.asset_storage_durable()
         if not ok:
             raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
 
@@ -360,3 +352,466 @@ async def provider_uploads(provider_user: Dict[str, Any] = Depends(asc_auth.requ
             "files": files,
         })
     return {"uploads": out}
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  Health-system portal (PRD C) — username + password, cookie session.
+#
+#  The door a hospital IT contact uses: an admin provisions the account from an
+#  organization + email (routers/asclepius_admin.py); the contact signs in with
+#  the emailed username/passphrase, is forced to reset it, and uploads. Uploads
+#  flow through the SAME shared ingestion pipeline and are stamped with the
+#  health_system_id, so they land in the Health Systems admin section.
+# ════════════════════════════════════════════════════════════════════════════
+import asyncio
+import re as _re
+import tempfile as _tempfile
+import uuid as _uuid
+
+import jwt as _jwt
+from fastapi import Response
+from pydantic import BaseModel
+
+from asclepius.store import hash_password as _hash_password
+
+_HS_COOKIE = "hs_portal_session"
+_HS_LINK_ID = "hs-portal"     # link_id sentinel (shared ingest_uploads row needs one)
+_HS_LOCK_THRESHOLD = 5
+_HS_LOCK_MINUTES = 15
+_GENERIC_LOGIN_MSG = "Incorrect username or password."
+_LOCKED_LOGIN_MSG = ("Too many failed sign-in attempts. Please wait "
+                     f"{_HS_LOCK_MINUTES} minutes and try again.")
+
+# A real hash to verify unknown-username attempts against, so response timing
+# does not reveal whether a username exists.
+_DUMMY_HASH = _hash_password(os.urandom(16).hex())
+
+# Progressive delay on repeated failures for the same username. Bounded, because
+# an unbounded delay is a self-inflicted DoS, and applied on the SAME schedule
+# whether or not the username exists — a delay that differed would just move the
+# enumeration oracle from the status code into the response time.
+_HS_DELAY_CAP_SEC = 2.0
+
+
+def _is_production() -> bool:
+    return (os.getenv("ENV") or "").strip().lower() == "production"
+
+
+def _hs_session_ttl_min() -> int:
+    try:
+        return max(5, int(os.getenv("ASCLEPIUS_HS_SESSION_TTL_MIN", "720")))
+    except ValueError:
+        return 720
+
+
+def _hs_upload_quota_bytes() -> int:
+    """Cumulative upload allowance per health system per rolling window."""
+    try:
+        return max(1, int(os.getenv("ASCLEPIUS_HS_QUOTA_BYTES", str(5 * 1024 * 1024 * 1024))))
+    except ValueError:
+        return 5 * 1024 * 1024 * 1024
+
+
+def _hs_quota_window_hours() -> int:
+    try:
+        return max(1, int(os.getenv("ASCLEPIUS_HS_QUOTA_WINDOW_HOURS", "24")))
+    except ValueError:
+        return 24
+
+
+def _progressive_delay_sec(fails: int) -> float:
+    if fails <= 1:
+        return 0.0
+    return min(0.25 * (2 ** (fails - 2)), _HS_DELAY_CAP_SEC)
+
+
+def _safe_upload_filename(name: Optional[str]) -> str:
+    """Reduce an uploaded filename to a safe basename (FIX-C C-2.5).
+
+    The stored name is echoed into a quoted ``Content-Disposition`` on the admin
+    download path, so an uploader who controls it controls what the admin's
+    browser saves the file as — ``x"; filename="Q3-invoice.pdf`` renames an
+    attacker-supplied zip. Non-latin-1 names additionally blew up header
+    encoding with a 500. Strip to a conservative character set at INSERT time so
+    nothing downstream has to remember to."""
+    base = os.path.basename((name or "").strip().replace("\\", "/"))
+    base = _re.sub(r"[^A-Za-z0-9._-]", "_", base).lstrip(".")
+    return (base or "upload")[:120]
+
+
+class HsLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class HsPasswordRequest(BaseModel):
+    current_password: Optional[str] = None
+    new_password: str
+
+
+def _hs_token(username: str, hs_id: str, *, session_epoch: Any = 0) -> str:
+    payload = {
+        "typ": "hs_portal",
+        "sub": username,
+        "hs": hs_id,
+        # Binds the session to the password it was issued against, so a password
+        # change (or an admin-forced reset) invalidates every outstanding cookie
+        # immediately instead of leaving a leaked one live for the session TTL.
+        # A monotonic epoch, not a timestamp: _utcnow_iso() truncates to whole
+        # seconds, so a same-second change would not have changed the claim.
+        "se": int(session_epoch or 0),
+        "jti": _uuid.uuid4().hex,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=_hs_session_ttl_min()),
+    }
+    return _jwt.encode(payload, asc_auth.get_asclepius_secret(), algorithm=asc_auth.ALGORITHM)
+
+
+def _set_hs_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=_HS_COOKIE, value=token, max_age=_hs_session_ttl_min() * 60,
+        # Unconditionally Secure. This used to be gated on ENV == "production",
+        # which nothing in the deployment actually sets, so a PHI portal's
+        # session cookie shipped over plain HTTP. There is no plausible
+        # plain-HTTP deployment of this portal, so the gate bought nothing.
+        httponly=True, secure=True, samesite="strict", path="/",
+    )
+
+
+def require_hs_portal(request: Request) -> Dict[str, Any]:
+    """Cookie-session dependency for the health-system portal. Returns the
+    portal user row (sans password hash) with ``health_system`` attached.
+
+    Four things can end a session: expiry, an explicit sign-out (jti denylist),
+    a password change since the token was minted, and deactivation of either the
+    portal account or the health system."""
+    expired = HTTPException(status_code=401, detail="Your session has ended. Please sign in again.")
+    token = request.cookies.get(_HS_COOKIE) or ""
+    if not token:
+        raise expired
+    try:
+        payload = _jwt.decode(token, asc_auth.get_asclepius_secret(),
+                              algorithms=[asc_auth.ALGORITHM])
+    except _jwt.PyJWTError:
+        raise expired
+    if payload.get("typ") != "hs_portal":
+        raise expired
+    store = _store()
+    if store.hs_token_revoked(str(payload.get("jti") or "")):
+        raise expired
+    user = store.get_hs_portal_user(str(payload.get("sub") or ""))
+    if not user or not user.get("active"):
+        raise expired
+    if int(payload.get("se") or 0) != int(user.get("session_epoch") or 0):
+        raise expired
+    hs = store.get_health_system(user["hs_id"])
+    if not hs or not hs.get("active"):
+        raise expired
+    user.pop("password_hash", None)
+    user["health_system"] = hs
+    user["_jti"] = str(payload.get("jti") or "")
+    user["_exp"] = payload.get("exp")
+    return user
+
+
+@router.post("/hs/login", dependencies=[Depends(rate_limiter("hs_login", 10, 60))])
+async def hs_login(body: HsLoginRequest, request: Request, response: Response):
+    """Sign in with the emailed username + password.
+
+    ONE code path for existing and non-existing usernames. Every observable —
+    status code, message, Retry-After, and the progressive delay — is produced
+    by the same statements regardless of whether the account is real, so the
+    response cannot be used to enumerate which hospitals are partners. Usernames
+    here are derived deterministically from the organization name, which is what
+    made the old 5th-attempt 429/401 split a partnership-disclosure leak.
+
+    The hard lock is scoped to (username, ip): five wrong guesses stop THAT
+    caller, not the hospital. A username-only lock let anyone who could guess
+    `massgeneral` hold Mass General out of its own portal indefinitely.
+    """
+    store = _store()
+    username = (body.username or "").strip().lower()
+    password = body.password or ""
+    ip = client_ip(request)
+    generic = HTTPException(status_code=401, detail=_GENERIC_LOGIN_MSG)
+    locked_exc = HTTPException(status_code=429, detail=_LOCKED_LOGIN_MSG,
+                               headers={"Retry-After": str(_HS_LOCK_MINUTES * 60)})
+    if not username or not password:
+        raise generic
+
+    # 1. Lock check — before any lookup, identical for real and fake accounts.
+    if store.hs_login_locked(username, ip):
+        store.log_event(entity_type="hs_portal", entity_id=username,
+                        event_type="login_rejected_locked", payload={"ip": ip})
+        raise locked_exc
+
+    # 2. Look up and verify. A missing user still costs one hash verification,
+    #    so timing does not substitute for the status code as an oracle.
+    user = store.get_hs_portal_user(username)
+    hs = store.get_health_system(user["hs_id"]) if user else None
+    usable = bool(user) and bool(user.get("active")) and bool(hs) and bool(hs.get("active"))
+    expected_hash = (user or {}).get("password_hash") or _DUMMY_HASH
+    password_ok = verify_password(password, expected_hash)
+
+    # 3. One failure path. A deactivated account fails exactly like a wrong
+    #    password — "this account is disabled" would confirm the username.
+    if not password_ok or not usable:
+        outcome = store.record_hs_login_failure(
+            username, ip, lock_threshold=_HS_LOCK_THRESHOLD, lock_minutes=_HS_LOCK_MINUTES)
+        delay = _progressive_delay_sec(store.hs_login_failure_signal(username))
+        if delay:
+            await asyncio.sleep(delay)
+        # The reason is recorded for the operator and NEVER returned — the
+        # response body is identical in all three cases.
+        if not user:
+            reason = "unknown_user"
+        elif not password_ok:
+            reason = "bad_password"
+        else:
+            reason = "inactive"
+        store.log_event(entity_type="hs_portal", entity_id=username,
+                        event_type="login_failed",
+                        payload={"locked": outcome["locked"], "ip": ip, "reason": reason})
+        raise locked_exc if outcome["locked"] else generic
+
+    store.mark_hs_login_success(username, ip)
+    store.log_event(entity_type="hs_portal", entity_id=username,
+                    event_type="login_succeeded", actor=username,
+                    payload={"hs_id": user["hs_id"], "ip": ip})
+    _set_hs_cookie(response, _hs_token(username, user["hs_id"],
+                                       session_epoch=user.get("session_epoch")))
+    return {"ok": True, "username": username, "organization": hs["name"],
+            "must_reset": bool(user.get("must_reset"))}
+
+
+@router.post("/hs/logout")
+async def hs_logout(request: Request, response: Response):
+    """Sign out for real. The cookie is cleared AND the token's jti is denylisted
+    until it would have expired — on a shared hospital workstation a cookie the
+    browser already handed out has to stop working, not just stop being sent."""
+    response.delete_cookie(key=_HS_COOKIE, path="/")
+    token = request.cookies.get(_HS_COOKIE) or ""
+    if token:
+        try:
+            payload = _jwt.decode(token, asc_auth.get_asclepius_secret(),
+                                  algorithms=[asc_auth.ALGORITHM])
+        except _jwt.PyJWTError:
+            return {"ok": True}
+        if payload.get("typ") == "hs_portal":
+            exp = payload.get("exp")
+            expires_at = (datetime.fromtimestamp(int(exp), tz=timezone.utc).isoformat()
+                          if exp else datetime.now(timezone.utc).isoformat())
+            _store().revoke_hs_token(str(payload.get("jti") or ""), expires_at)
+            _store().log_event(entity_type="hs_portal", entity_id=str(payload.get("sub") or ""),
+                               event_type="logout", actor=str(payload.get("sub") or ""))
+    return {"ok": True}
+
+
+@router.get("/hs/me")
+async def hs_me(portal_user: Dict[str, Any] = Depends(require_hs_portal)):
+    return {
+        "username": portal_user["username"],
+        "organization": portal_user["health_system"]["name"],
+        "email": portal_user.get("email"),
+        "must_reset": bool(portal_user.get("must_reset")),
+    }
+
+
+@router.post("/hs/password", dependencies=[Depends(rate_limiter("hs_password", 10, 60))])
+async def hs_password(
+    body: HsPasswordRequest,
+    response: Response,
+    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+):
+    """Forced first-login reset (and normal change). On the FORCED reset the
+    session cookie is proof of identity (the temp passphrase was consumed at
+    login); a NORMAL change requires the current password.
+
+    Changing the password invalidates every session issued against the old one
+    (the ``se`` epoch claim), so this re-issues the caller's own cookie — otherwise
+    the user would be signed out by their own password change."""
+    store = _store()
+    if len((body.new_password or "").strip()) < 12:
+        raise HTTPException(status_code=400, detail="New password must be at least 12 characters.")
+    if not portal_user.get("must_reset"):
+        full = store.get_hs_portal_user(portal_user["username"]) or {}
+        if not verify_password(body.current_password or "", full.get("password_hash") or ""):
+            raise HTTPException(status_code=400, detail="Current password is incorrect.")
+    store.set_hs_portal_password(portal_user["username"], body.new_password, must_reset=False)
+    fresh = store.get_hs_portal_user(portal_user["username"]) or {}
+    _set_hs_cookie(response, _hs_token(portal_user["username"], portal_user["hs_id"],
+                                       session_epoch=fresh.get("session_epoch")))
+    store.log_event(entity_type="hs_portal", entity_id=portal_user["username"],
+                    event_type="password_reset", actor=portal_user["username"])
+    return {"ok": True}
+
+
+@router.post("/hs/uploads", dependencies=[Depends(rate_limiter("hs_upload", 30, 60))])
+async def hs_upload(
+    request: Request,
+    background: BackgroundTasks,
+    files: List[UploadFile] = File(...),
+    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+):
+    """Accept the health system's file(s) — a .zip or bare .json/.csv/.hl7/.txt —
+    bundle via the SHARED ``wrap_loose_files`` packer, and hand off to the shared
+    ingestion pipeline. The upload is stamped with the health_system_id so it
+    appears under that system in the admin. Specialty is NOT collected here — it
+    is a property of the data, determined at ingest."""
+    store = _store()
+    hs_id = portal_user["hs_id"]
+    if portal_user.get("must_reset"):
+        raise HTTPException(status_code=403, detail="Reset your password before uploading.")
+
+    # Fail CLOSED in production (mirrors the other two doors): refuse the most
+    # sensitive artifact if it cannot be encrypted and durably stored at rest.
+    if _is_production():
+        import field_crypto
+        if not field_crypto.is_configured():
+            raise HTTPException(status_code=503,
+                                detail="Uploads are temporarily disabled. Please try again later.")
+        ok, _why = asc_ingestion.ingest_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503,
+                                detail="Uploads are temporarily disabled. Please try again later.")
+        from asclepius import assets as asc_assets
+        ok, _why = asc_assets.asset_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503,
+                                detail="Uploads are temporarily disabled. Please try again later.")
+
+    # Cumulative quota per health system (FIX-C C-2.6). The per-request cap and
+    # the per-IP limiter together still allow unbounded total volume from one
+    # account; this is the only ceiling on how much a single partner can push.
+    quota = _hs_upload_quota_bytes()
+    window_start = (datetime.now(timezone.utc)
+                    - timedelta(hours=_hs_quota_window_hours())).isoformat()
+    used = store.hs_upload_bytes_since(hs_id, window_start)
+    if used >= quota:
+        raise HTTPException(
+            status_code=429,
+            detail="You have reached the upload limit for today. Please continue "
+                   "tomorrow, or reply to your welcome email and we will arrange "
+                   "a secure bulk transfer.",
+            headers={"Retry-After": str(_hs_quota_window_hours() * 3600)})
+
+    cap = asc_ingestion.max_zip_bytes()
+    remaining = min(cap, max(0, quota - used))
+    raw_files: List[Dict[str, Any]] = []
+    total = 0
+    for uf in files:
+        # Read in chunks through a spooled file rather than one read() of
+        # cap+1 bytes: the old path materialized the whole upload in RAM, then
+        # wrap_loose_files made a second copy and store_raw an encrypted third.
+        spool = _tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024)
+        size = 0
+        while True:
+            chunk = await uf.read(1024 * 1024)
+            if not chunk:
+                break
+            size += len(chunk)
+            total += len(chunk)
+            if size > remaining or total > remaining:
+                spool.close()
+                raise HTTPException(
+                    status_code=413,
+                    detail="This upload is too large. Please split it into smaller "
+                           "batches and send them one at a time.")
+            spool.write(chunk)
+        spool.seek(0)
+        raw_files.append({"filename": _safe_upload_filename(uf.filename),
+                          "content": spool.read()})
+        spool.close()
+
+    data = asc_ingestion.wrap_loose_files(raw_files, specialty=None)
+    if len(data) > cap:
+        raise HTTPException(status_code=413,
+                            detail="This upload is too large. Please split it into smaller "
+                                   "batches and send them one at a time.")
+    digest = asc_ingestion.sha256_hex(data)
+    upload_id = store.new_upload_id()
+    try:
+        raw_path = asc_ingestion.store_raw(upload_id, data)
+    except Exception as exc:
+        store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                        event_type="upload_store_failed", actor=portal_user["username"],
+                        payload={"error": str(exc), "hs_id": hs_id})
+        raise HTTPException(status_code=503,
+                            detail="We could not store the upload securely — please retry in a moment.")
+    upload = store.insert_ingest_upload(
+        upload_id=upload_id, link_id=_HS_LINK_ID, partner_id=hs_id,
+        filename=(raw_files[0]["filename"] if len(raw_files) == 1 else "bundle.zip")[:120],
+        sha256=digest, size_bytes=len(data), raw_path=raw_path,
+        source_ip=(request.client.host if request.client else None),
+    )
+    store.set_upload_health_system(upload["upload_id"], hs_id)
+    store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
+                    event_type="upload_received", actor=portal_user["username"],
+                    payload={"health_system_id": hs_id, "sha256": digest,
+                             "bytes": len(data), "via": "hs_portal"})
+    background.add_task(asc_ingestion.process_upload, store, upload["upload_id"])
+    return {"upload_id": upload["upload_id"], "status": "received",
+            "file_count": len(raw_files), "total_bytes": len(data)}
+
+
+# Internal upload status → the four plain-language portal states. Anything not
+# explicitly Received/Processing/Accepted is "Needs attention" — internal
+# vocabulary like `quarantined` must never reach a hospital IT contact.
+_HS_PORTAL_STATUS = {
+    "received": "received",
+    "scanning": "processing",
+    "parsing": "processing",
+    "ingested": "accepted",
+}
+
+# A healthy upload must never read as a problem. ``parsing`` was missing from the
+# map above and is the pipeline's most common in-flight state, so mid-parse
+# uploads told the hospital "Needs attention — our team is taking a closer look"
+# — support traffic from exactly the external users we cannot support in real
+# time. Asserting the whole non-terminal set is mapped means the next status the
+# pipeline introduces fails here, loudly, instead of silently reintroducing it.
+_UNMAPPED_INFLIGHT = [
+    s for s in asc_ingestion._NON_TERMINAL_UPLOAD_STATUSES
+    if _HS_PORTAL_STATUS.get(s) not in ("received", "processing")
+]
+if _UNMAPPED_INFLIGHT:  # pragma: no cover - import-time guard
+    raise RuntimeError(
+        "hs portal status map is missing in-flight pipeline statuses "
+        f"{_UNMAPPED_INFLIGHT!r}; an unmapped status renders to a hospital as "
+        "'Needs attention'. Map them to 'processing'."
+    )
+_HS_NEEDS_ATTENTION_DETAIL = (
+    "Our team is taking a closer look at this upload. Nothing more is needed "
+    "from you right now — we will reach out if anything else is required."
+)
+
+
+def _hs_upload_view(up: Dict[str, Any]) -> Dict[str, Any]:
+    status = _HS_PORTAL_STATUS.get(up.get("status") or "", "needs_attention")
+    detail = ""
+    if status == "needs_attention":
+        # A rejected/failed upload gets the actionable copy; everything else the
+        # reassuring generic. Raw pipeline reasons ("bad magic bytes") never pass.
+        if (up.get("status") or "") in ("rejected", "failed"):
+            detail = asc_ingestion.UNREADABLE_UPLOAD_MESSAGE
+        else:
+            detail = _HS_NEEDS_ATTENTION_DETAIL
+    files = [e.get("name") for e in (up.get("files") or [])
+             if e.get("kind") != "manifest" and e.get("name")]
+    return {
+        "upload_id": up["upload_id"],
+        "received_at": up.get("created_at"),
+        "filename": up.get("filename"),
+        "file_count": len(files) or 1,
+        "total_bytes": up.get("size_bytes") or 0,
+        "status": status,
+        "detail": detail,
+    }
+
+
+@router.get("/hs/uploads")
+async def hs_uploads(portal_user: Dict[str, Any] = Depends(require_hs_portal)):
+    """This health system's uploads — date, filename, size, and one of four
+    plain-language states: received · processing · accepted · needs_attention."""
+    store = _store()
+    ups = store.list_uploads_for_health_system(portal_user["hs_id"])
+    return {"uploads": [_hs_upload_view(u) for u in ups]}

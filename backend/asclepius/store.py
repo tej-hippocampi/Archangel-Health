@@ -23,11 +23,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import sqlite3
 import uuid
-from datetime import datetime
-from datetime import timedelta as _timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from passlib.context import CryptContext
@@ -37,6 +37,37 @@ _pwd = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 def _utcnow_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat()
+
+
+def _iso_minus_seconds(seconds: int) -> str:
+    """ISO timestamp ``seconds`` in the past — the cutoff for age-based sweeps
+    (e.g. reconciling sealed keys unbound longer than an hour)."""
+    return (datetime.utcnow() - timedelta(seconds=max(0, seconds))).replace(
+        microsecond=0).isoformat()
+
+
+def _needs_naming(raw: Optional[str]) -> str:
+    """Label a backfilled health system that has no real organization name.
+
+    A historical partner row may carry only an internal user id (``u_abc123``)
+    or a contact email. Neither is an organization, and rendering one in the
+    Health Systems table as though it were makes the operator believe a hospital
+    is called that. Mark it instead, so it is obviously waiting to be named."""
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    looks_internal = raw.lower().startswith(("u_", "u-")) or "@" in raw
+    return f"Unnamed partner ({raw})" if looks_internal else raw
+
+
+def _legacy_partner_name(label: str) -> Optional[str]:
+    """The raw name a previous release would have used for this label, or None.
+
+    Only meaningful for the ``Unnamed partner (…)`` form: it lets the boot
+    migration find and rename a row created before C-5.6 instead of inserting a
+    duplicate beside it."""
+    m = re.fullmatch(r"Unnamed partner \((.+)\)", label or "")
+    return m.group(1) if m else None
 
 
 def _new_id(prefix: str) -> str:
@@ -522,6 +553,37 @@ class AsclepiusStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_upload ON ingest_cases(upload_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_status ON ingest_cases(status)")
+            # Serving hot path (Audit §21.6): next_task_for_evaluator /
+            # eligible_tasks_for_evaluator run a NOT EXISTS correlated on ic.task_id to
+            # exclude blocking-review cases. Index task_id so that stays O(log n).
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_cases_task ON ingest_cases(task_id)")
+
+            # ── Sealed ground truth (Buyer Response PRD §3 B1) ───────────────
+            # The partner's adjudicated answer key, held SEPARATELY from the case,
+            # ENCRYPTED at rest (field_crypto), keyed to the ingest case, readable
+            # only by the adjudication surface, audited on ingest and on every read.
+            # It must never enter the case body, task.prompt, or any export profile.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sealed_ground_truth (
+                    sealed_id      TEXT PRIMARY KEY,
+                    -- NULLABLE on purpose (Audit §H1): the key is STAGED first, keyed
+                    -- on (upload_id, patient_key), then bound to the case row once it
+                    -- exists. A crash between the two leaves the key on disk unbound,
+                    -- never an ingested case with no answer key.
+                    ingest_case_id TEXT,
+                    upload_id      TEXT,
+                    patient_key    TEXT,            -- staging key before binding
+                    payload_enc    TEXT NOT NULL,   -- field_crypto-encrypted JSON
+                    created_at     TEXT NOT NULL,
+                    bound_at       TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sealed_case ON sealed_ground_truth(ingest_case_id)")
+            # NOTE: the (upload_id, patient_key) staging index is created in _migrate,
+            # AFTER the guarded rebuild adds patient_key — an existing DB has not been
+            # migrated yet at this point, so the column may not exist here.
 
             # ── Frontier-model failure capture (FEAT-1) ──────────────────────
             # ``baseline_runs``: a frontier model's VERBATIM cold answer to a case,
@@ -574,6 +636,46 @@ class AsclepiusStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_model_failures_task ON model_failures(task_id)")
             if "provider" not in cols("model_failures"):
                 conn.execute("ALTER TABLE model_failures ADD COLUMN provider TEXT")
+
+            # ── V5 Clinical RL Environments (Clinical RL Environments PRD §10).
+            # ONE row per environment OR per rollout run, keyed by run_id. A
+            # ``mode='generated'`` row is a compiled environment (compiled_json set,
+            # no trajectory); a ``mode='rollout'`` row is one agent trajectory over
+            # that environment (provider + trajectory_json set), sharing task_id.
+            # Fully additive; never touches the V1–V4 single-turn task queue.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS env_runs (
+                    run_id                   TEXT PRIMARY KEY,
+                    task_id                  TEXT NOT NULL,   -- the environment id (shared across providers)
+                    specialty                TEXT NOT NULL DEFAULT 'general',
+                    task_type                TEXT NOT NULL DEFAULT 'diagnostic_workup',
+                    case_id                  TEXT,
+                    case_source              TEXT NOT NULL DEFAULT 'gold',
+                    provider                 TEXT,
+                    model                    TEXT,
+                    ab_source                TEXT,
+                    mode                     TEXT NOT NULL DEFAULT 'generated',
+                    compiled_json            TEXT,            -- the compiled environment spec (§8.4)
+                    trajectory_json          TEXT,            -- the §1 record's trajectory
+                    verification_json        TEXT,            -- §5 reward block
+                    provenance_json          TEXT,
+                    physician_annotation_json TEXT,           -- §7 latest/primary annotation
+                    annotations_json         TEXT,            -- ALL annotator submissions (κ subset)
+                    empirical_difficulty     REAL,
+                    difficulty_measured      INTEGER NOT NULL DEFAULT 0,
+                    passes_difficulty_gate   INTEGER,
+                    created_at               TEXT NOT NULL,
+                    updated_at               TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_env_runs_task ON env_runs(task_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_env_runs_specialty ON env_runs(specialty)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_env_runs_mode ON env_runs(mode)")
+            # annotations_json added after the table shipped — guard for existing DBs.
+            if "annotations_json" not in cols("env_runs"):
+                conn.execute("ALTER TABLE env_runs ADD COLUMN annotations_json TEXT")
 
             task_cols = cols("tasks")
             if "grounding_mode" not in task_cols:
@@ -643,6 +745,93 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE tasks ADD COLUMN modality TEXT NOT NULL DEFAULT 'text'")
             if "case_json" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN case_json TEXT")
+            # Decisive action (Buyer Response PRD §9.2 / Audit §13): the physician-named
+            # verifiable outcome that turns a preference label into an RLVR reward.
+            # supervision.DecisiveAction + packaging read it, but nothing wrote it —
+            # so has_verifiable_outcome was false on every record. Persisted from the
+            # submission, keyed to the task.
+            if "decisive_action_json" not in task_cols:
+                conn.execute("ALTER TABLE tasks ADD COLUMN decisive_action_json TEXT")
+            # Buyer Response PRD §7 F1: an agreement observation records whether the
+            # second annotator was BLINDED. Only blinded observations enter the κ
+            # computation (an unblinded second rater measures anchoring, not
+            # agreement). NULLABLE with NO DEFAULT (Audit §H2): a legacy row whose
+            # blinding was never verified stays NULL and is EXCLUDED from κ — not
+            # silently asserted blinded. Every new observation is written with an
+            # explicit 0/1 by insert_agreement, so only pre-flag rows are NULL.
+            if "blinded" not in cols("agreement"):
+                conn.execute("ALTER TABLE agreement ADD COLUMN blinded INTEGER")
+
+            # Sealed-key ordering (Audit §H1). The original table declared
+            # ingest_case_id NOT NULL, which forced "insert case → then store key" and
+            # left a crash-window where an ingested case had no answer key. Relax it to
+            # nullable + add the (upload_id, patient_key) staging columns by rebuilding
+            # the table (SQLite can't ALTER a NOT NULL away).
+            #
+            # CRASH-IDEMPOTENT by construction: DDL auto-commits in sqlite3 (it does NOT
+            # roll back with the surrounding transaction), so a rebuild interrupted at
+            # boot must self-heal on the next boot without ever losing a sealed key. We
+            # build a ``_new`` copy (a COMPLETE copy — CREATE + INSERT run back-to-back),
+            # then drop+rename. Recovery invariant: whichever of the two tables HAS ROWS
+            # is authoritative. (Note ``_init_schema`` runs before this and recreates a
+            # missing ``sealed_ground_truth`` as an empty new-schema table, so "original
+            # gone" presents as "main table empty" — hence the row-count test, not a
+            # table-existence test.)
+            tbls = {r["name"] for r in
+                    conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if "sealed_ground_truth_new" in tbls:
+                main_n = (conn.execute("SELECT COUNT(*) FROM sealed_ground_truth").fetchone()[0]
+                          if "sealed_ground_truth" in tbls else 0)
+                if main_n == 0:
+                    # Main is empty — either a fresh recreation (the keys are in _new)
+                    # or there were never any keys; swap _new in, losing nothing.
+                    conn.execute("DROP TABLE IF EXISTS sealed_ground_truth")
+                    conn.execute("ALTER TABLE sealed_ground_truth_new RENAME TO sealed_ground_truth")
+                else:
+                    # Main holds the pre-migration rows → it is authoritative; _new is a
+                    # partial/stale copy. Discard it and let the rebuild below redo it.
+                    conn.execute("DROP TABLE sealed_ground_truth_new")
+            if "patient_key" not in cols("sealed_ground_truth"):
+                conn.execute(
+                    """
+                    CREATE TABLE sealed_ground_truth_new (
+                        sealed_id      TEXT PRIMARY KEY,
+                        ingest_case_id TEXT,
+                        upload_id      TEXT,
+                        patient_key    TEXT,
+                        payload_enc    TEXT NOT NULL,
+                        created_at     TEXT NOT NULL,
+                        bound_at       TEXT
+                    )
+                    """
+                )
+                conn.execute(
+                    """INSERT INTO sealed_ground_truth_new
+                       (sealed_id, ingest_case_id, upload_id, patient_key, payload_enc,
+                        created_at, bound_at)
+                       SELECT sealed_id, ingest_case_id, upload_id, NULL, payload_enc,
+                              created_at, created_at
+                         FROM sealed_ground_truth"""
+                )
+                # Drop-then-rename: if a crash lands between these two, the recovery
+                # clause above finishes the rename next boot (keys are safe in _new).
+                conn.execute("DROP TABLE sealed_ground_truth")
+                conn.execute("ALTER TABLE sealed_ground_truth_new RENAME TO sealed_ground_truth")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_sealed_case ON sealed_ground_truth(ingest_case_id)")
+            # The staging index is created here (not in _init_schema) so it lands after
+            # the column exists on both fresh (created above) and migrated DBs. Idempotent.
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sealed_stage ON sealed_ground_truth(upload_id, patient_key)")
+
+            # Admin review queue (Audit PRD §21). review_status is NULLABLE on purpose:
+            # NULL means "no check raised anything", which is NOT "reviewed and cleared"
+            # — the same fail-open lesson as the blinded flag; never backfill a verdict
+            # onto rows that were never assessed.
+            if "review_status" not in cols("ingest_cases"):
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN review_status TEXT")     # NULL|needs_review|cleared|rejected
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN review_json TEXT")       # [{reason,severity,detail,raised_at}]
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN reviewed_by_hashed TEXT")
+                conn.execute("ALTER TABLE ingest_cases ADD COLUMN reviewed_at TEXT")
+
             if "case_source" not in task_cols:
                 # Real EHR Ingestion PRD §9.5: 'synthetic' | 'real_deid' as a first-
                 # class COLUMN so the V4 routing wall filters in SQL (a real case is
@@ -699,6 +888,11 @@ class AsclepiusStore:
                 # cases) is served ONLY to contributors flagged approved (BAA /
                 # training complete). Default off for everyone.
                 ("real_data_approved", "INTEGER NOT NULL DEFAULT 0"),
+                # First-run tutorial ("Calibration Case 1") state. JSON blob —
+                # {status, step, version, started_at, completed_at, skipped_at,
+                # score} — because the shape evolves and nothing filters on it
+                # in SQL (same reasoning as credentials_json above).
+                ("tutorial_json", "TEXT"),
             ):
                 if col not in user_cols:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
@@ -736,6 +930,324 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE ingest_upload_links ADD COLUMN contact_email TEXT")
             if "failure_notified_at" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN failure_notified_at TEXT")
+            # Retain-raw (Audit §9.4): when every entry in a bundle failed to parse,
+            # the raw blob is kept past the normal retention window so it can be re-run
+            # after a parser fix rather than purged on schedule.
+            if "retain_raw" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN retain_raw INTEGER NOT NULL DEFAULT 0")
+
+            # ═══ PRD-B IDENTITY SCHEMA — owned by Agent 2, do not edit from other PRDs ═══
+            # Verification / credentialing / tiering columns (§4 shared contract).
+            # All nullable and deliberately WITHOUT defaults: on every status
+            # column NULL means "not yet checked / not yet decided" and must stay
+            # distinguishable from a decided value — a DEFAULT here would mark
+            # every pre-existing user as pending/approved, which is wrong.
+            for _col, _ddl in (
+                ("phone",               "TEXT"),
+                # Enumerated ONCE in asclepius/capabilities.py (TIERS). A stale
+                # comment here is how the next person reintroduces a two-state
+                # check, so it is kept in sync deliberately.
+                ("tier",                "TEXT"),     # labeler | reviewer | advisor | NULL(unassigned)
+                ("tier_score",          "REAL"),
+                ("tier_assigned_at",    "TEXT"),
+                ("tier_assigned_by",    "TEXT"),
+                ("verification_status", "TEXT"),     # pending | approved | rejected | NULL
+                ("verification_notes",  "TEXT"),
+                ("verified_by",         "TEXT"),
+                ("verified_at",         "TEXT"),
+                ("npi_verified",        "INTEGER"),  # 1 | 0 | NULL(not checked)
+                ("npi_payload_json",    "TEXT"),
+                ("npi_checked_at",      "TEXT"),
+                ("email_domain_class",  "TEXT"),     # academic | business | consumer
+                ("linkedin_url",        "TEXT"),
+                ("cv_asset_sha",        "TEXT"),
+                # PRD-B extension beyond the §4 contract: cache of the parsed-CV
+                # suggestions so the admin dossier doesn't re-parse (and possibly
+                # re-OCR) the document on every view. Advisory data only.
+                ("cv_parsed_json",      "TEXT"),
+                ("health_system_id",    "TEXT"),     # FK -> health_systems (PRD-C table)
+                ("slack_joined",        "INTEGER"),
+                ("slack_checked_at",    "TEXT"),
+                # F6: a non-definitive NPI check is an ATTEMPT, not a result.
+                # It is logged here instead of overwriting npi_payload_json /
+                # npi_verified, so a failed recheck can never erase evidence we
+                # already hold. Also drives the retry sweep.
+                ("npi_last_attempt_json", "TEXT"),
+                ("npi_last_attempt_at",   "TEXT"),
+            ):
+                if _col not in cols("users"):
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
+            # ═══ END PRD-B ═══
+            # ═══ PRD-A REVIEW SCHEMA — owned by Agent 1, do not edit from other PRDs ═══
+            # Two-tier review product (PRD A §1): senior reviewers grade a labeler's
+            # completed submission. One row per review; a submission may carry several.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS case_reviews (
+                    review_id          TEXT PRIMARY KEY,
+                    task_id            TEXT NOT NULL,
+                    submission_id      TEXT NOT NULL,        -- the labeler submission under review
+                    reviewer_user_id   TEXT NOT NULL,
+                    reviewer_id_hashed TEXT NOT NULL,
+                    verdict            TEXT NOT NULL,        -- accept | accept_with_edits | reject
+                    dimension_json     TEXT,                 -- per-dimension scores
+                    corrections_json   TEXT,                 -- reviewer's edits
+                    reviewer_notes     TEXT,
+                    time_spent_sec     INTEGER,
+                    blinded            INTEGER,              -- 1 only when the reviewer saw no labeler identity
+                    created_at         TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_review_task ON case_reviews(task_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_review_sub  ON case_reviews(submission_id)")
+            # Review lifecycle on the labeler submission. NULL = not yet routed /
+            # unreviewed; 'in_review' = claimed by a reviewer; 'reviewed' = at least
+            # one review submitted. Deliberately NO DEFAULT — NULL ("not yet decided")
+            # must stay distinguishable from any decided value (START_HERE §4).
+            if "review_status" not in cols("submissions"):
+                conn.execute("ALTER TABLE submissions ADD COLUMN review_status TEXT")
+            # Review CLAIM state (FIX A Phases 2/3). Three separate columns, all
+            # nullable, none defaulted:
+            #   review_claimed_by  — who holds the lease, so a second reviewer
+            #     cannot silently evict in-flight work by POSTing a guessed id.
+            #   review_claimed_at  — the lease clock. Dedicated on purpose:
+            #     ``updated_at`` is bumped by ANY write, so a background pipeline
+            #     touching the submission used to silently extend a reviewer's lease.
+            #   review_blinded     — the blinding DERIVED from the payload actually
+            #     served at draw time (1/0/NULL = never asserted). Read back at
+            #     submit; never recomputed from a payload we are no longer serving.
+            if "review_claimed_by" not in cols("submissions"):
+                conn.execute("ALTER TABLE submissions ADD COLUMN review_claimed_by TEXT")
+            if "review_claimed_at" not in cols("submissions"):
+                conn.execute("ALTER TABLE submissions ADD COLUMN review_claimed_at TEXT")
+            if "review_blinded" not in cols("submissions"):
+                conn.execute("ALTER TABLE submissions ADD COLUMN review_blinded INTEGER")
+            # next_review_for filters on review_status and review_queue_stats runs
+            # four COUNT(*)s over it on every draw — unindexed, that is four full
+            # table scans per reviewer per case (FIX A A-3.5).
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sub_review_status ON submissions(review_status)")
+            # Safe-Harbor identifier kinds found in the reviewer's own free text
+            # at insert time (FIX A A-5.3). Tri-state: NULL = never scanned
+            # (legacy row), '[]' = scanned clean, '["name",...]' = flagged, in
+            # which case the free text is withheld from the buyer-facing block.
+            if "identifier_flags" not in cols("case_reviews"):
+                conn.execute("ALTER TABLE case_reviews ADD COLUMN identifier_flags TEXT")
+            # ═══ END PRD-A ═══
+            # ═══ PRD-C HEALTH SYSTEM SCHEMA — owned by Agent 3, do not edit from other PRDs ═══
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS health_systems (
+                    hs_id         TEXT PRIMARY KEY,          -- hs-<slug>-<6hex>
+                    name          TEXT NOT NULL,
+                    contact_email TEXT,
+                    notes         TEXT,
+                    active        INTEGER NOT NULL DEFAULT 1,
+                    created_at    TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_portal_users (
+                    username      TEXT PRIMARY KEY,
+                    hs_id         TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    must_reset    INTEGER NOT NULL DEFAULT 1,
+                    email         TEXT,
+                    last_login    TEXT,
+                    active        INTEGER NOT NULL DEFAULT 1,
+                    created_at    TEXT NOT NULL
+                )
+                """
+            )
+            # Login-lockout bookkeeping — the portal is public on launch day, so a
+            # per-account lock (not just per-IP throttling) is required. Guarded
+            # ALTERs so a DB created from the bare contract table also gains them.
+            if "failed_logins" not in cols("hs_portal_users"):
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN failed_logins INTEGER NOT NULL DEFAULT 0")
+            if "locked_until" not in cols("hs_portal_users"):
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN locked_until TEXT")
+            if "health_system_id" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN health_system_id TEXT")
+            # Session invalidation (FIX-C C-2.3): a token minted before the last
+            # password change must stop working immediately. Stamped on every
+            # password write and carried as a token claim.
+            if "password_changed_at" not in cols("hs_portal_users"):
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN password_changed_at TEXT")
+            # The session binding is this COUNTER, not the timestamp beside it:
+            # ``_utcnow_iso()`` truncates to whole seconds, so a password change
+            # within the same second as a session's issuance would produce an
+            # identical stamp and silently fail to invalidate that session. A
+            # monotonic epoch cannot collide no matter how fast the clock ticks.
+            if "session_epoch" not in cols("hs_portal_users"):
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN "
+                             "session_epoch INTEGER NOT NULL DEFAULT 0")
+            # Brute-force bookkeeping keyed on (username, ip) — ONE table for
+            # known and unknown usernames alike (FIX-C C-2.1/C-2.2). Two separate
+            # mechanisms is what produced the enumeration oracle: the in-memory
+            # unknown-user path recorded a failure AFTER checking the threshold
+            # while the DB path recorded BEFORE, so the 5th attempt returned 429
+            # for a real account and 401 for a fake one. A single code path
+            # cannot drift like that. Scoping the hard lock to the IP as well as
+            # the username also stops a remote attacker from locking a hospital
+            # out of its own portal with five wrong guesses.
+            #
+            # DB-backed rather than a process dict so the threshold does not
+            # silently become N x the intended value when the app scales out to
+            # N workers — which would re-open C-2.1.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_login_attempts (
+                    attempt_key   TEXT PRIMARY KEY,   -- username|sha256(ip)[:16]
+                    username      TEXT NOT NULL,
+                    fails         INTEGER NOT NULL DEFAULT 0,
+                    first_fail_at TEXT,
+                    last_fail_at  TEXT,
+                    locked_until  TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_login_attempts_user "
+                         "ON hs_login_attempts(username)")
+            # Logout must actually end the session on a shared hospital
+            # workstation, so the token's jti goes on a denylist until it would
+            # have expired anyway (FIX-C C-2.3).
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_revoked_tokens (
+                    jti        TEXT PRIMARY KEY,
+                    expires_at TEXT NOT NULL,
+                    revoked_at TEXT NOT NULL
+                )
+                """
+            )
+            self._backfill_health_systems(conn)
+            # ═══ END PRD-C ═══
+            # ═══ PRD-D ADVISOR SCHEMA — owned by the advisor tier, do not edit from other PRDs ═══
+            # The third physician tier (Advisor PRD). Guarded ALTERs, and — the
+            # rule that holds everywhere in this file — NO DEFAULT on any status
+            # column: NULL means "not decided / not applicable" and must stay
+            # distinguishable from a decided value.
+            for _col, _ddl in (
+                # per_task | equity_only | NULL(unset). NULL is payable — see
+                # asclepius/compensation.py for why that is not a default.
+                ("compensation_model",    "TEXT"),
+                ("advisor_since",         "TEXT"),
+                ("advisor_agreement_ref", "TEXT"),  # signed advisor agreement on file
+                ("referral_code",         "TEXT"),  # unique, minted on appointment
+                ("slack_role",            "TEXT"),  # 'Medical Advisor' — the label, not a bool
+            ):
+                if _col not in cols("users"):
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
+            # A referral code is a claim on attribution, so two advisors must
+            # never hold the same one. Partial index: NULL is the normal state
+            # for the ~50 physicians who are not advisors, and SQLite would
+            # otherwise treat every one of those NULLs as distinct anyway — the
+            # WHERE clause states the intent rather than relying on that.
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code "
+                "ON users(referral_code) WHERE referral_code IS NOT NULL")
+
+            # Referrals (Advisor PRD §3.1). One row per invited physician.
+            # ``status`` is nullable with no DEFAULT: NULL means "we have not
+            # heard back", which is emphatically not "declined".
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS referrals (
+                    referral_id     TEXT PRIMARY KEY,
+                    referrer_id     TEXT NOT NULL,   -- users.id of the advisor
+                    referral_code   TEXT NOT NULL,
+                    invitee_email   TEXT,
+                    invitee_name    TEXT,
+                    note            TEXT,            -- "knows her from Stanford ortho"
+                    status          TEXT,            -- invited|signed_up|verified|approved|declined|NULL
+                    invited_at      TEXT NOT NULL,
+                    user_id         TEXT,            -- set when the invitee actually signs up
+                    resolved_at     TEXT
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_referrals_code ON referrals(referral_code)")
+            # Resolution is by invitee email at provision time, so that lookup
+            # must not be a full scan of a growing table.
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_referrals_email ON referrals(invitee_email)")
+
+            # Advisory sign-offs (Advisor PRD §4.1). ONE mechanism, four
+            # artifacts, discriminated by ``artifact_type`` — not four features
+            # with four UIs and four permission checks to forget to update.
+            #
+            # ``relationship`` is written by the SERVER and never accepted from
+            # the client (§0.2): an advisor holding equity who attests that a
+            # batch is good enough to ship is a related-party attestation, and
+            # recording the relationship next to the verdict converts something
+            # a buyer could discover into something we disclosed.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS advisory_signoffs (
+                    signoff_id     TEXT PRIMARY KEY,
+                    artifact_type  TEXT NOT NULL,  -- task_batch|export_bundle|inbound_upload|product_spec
+                    artifact_id    TEXT NOT NULL,
+                    advisor_id     TEXT NOT NULL,
+                    verdict        TEXT NOT NULL,  -- approved|approved_with_comments|changes_requested
+                    comments       TEXT,
+                    relationship   TEXT NOT NULL,  -- 'advisor_equity' — see PRD §0.2
+                    created_at     TEXT NOT NULL
+                )
+                """
+            )
+            # What the advisor actually signed off ON (audit M3). A task_batch
+            # id is a DERIVED key (specialty:YYYY-MM-DD over status='open'), so
+            # its membership changes after the fact: tasks generated later the
+            # same day join the batch and silently inherit an approval nobody
+            # gave them. Resolving the member ids at write time makes the
+            # subject of an attestation reconstructible, which is the whole
+            # point of recording one.
+            if "subject_ids" not in cols("advisory_signoffs"):
+                conn.execute("ALTER TABLE advisory_signoffs ADD COLUMN subject_ids TEXT")
+            if "subject_n" not in cols("advisory_signoffs"):
+                conn.execute("ALTER TABLE advisory_signoffs ADD COLUMN subject_n INTEGER")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_signoff_artifact "
+                "ON advisory_signoffs(artifact_type, artifact_id)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_signoff_advisor "
+                "ON advisory_signoffs(advisor_id)")
+
+            # Product specs (Advisor PRD §4.2, artifact_type='product_spec'): a
+            # markdown document an admin puts up for advisory comment. Kept
+            # deliberately thin — it is a document with a title, not a CMS.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS product_specs (
+                    spec_id     TEXT PRIMARY KEY,
+                    title       TEXT NOT NULL,
+                    body_md     TEXT NOT NULL,
+                    created_by  TEXT,
+                    created_at  TEXT NOT NULL
+                )
+                """
+            )
+
+            # Sign-off state, surfaced next to the thing it describes. Recorded
+            # and shown in admin — it NEVER blocks a build or a shipment. One
+            # advisor with a day job must not sit on the revenue path, so an
+            # export always builds and always ships; the advisor's verdict and
+            # comments ride alongside it as feedback.
+            # Tri-state and no DEFAULT: NULL = nobody has looked yet, which is a
+            # different fact from 'approved' and from 'changes_requested'.
+            if "signoff_status" not in cols("exports"):
+                conn.execute("ALTER TABLE exports ADD COLUMN signoff_status TEXT")
+            if "signoff_status" not in cols("tasks"):
+                conn.execute("ALTER TABLE tasks ADD COLUMN signoff_status TEXT")
+            if "signoff_status" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN signoff_status TEXT")
+            # ═══ END PRD-D ═══
 
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
@@ -1225,7 +1737,7 @@ class AsclepiusStore:
         return self.get_ingest_upload(uid)  # type: ignore[return-value]
 
     def update_ingest_upload(self, upload_id: str, **fields: Any) -> None:
-        allowed = {"status", "reason", "files_json", "raw_path"}
+        allowed = {"status", "reason", "files_json", "raw_path", "retain_raw"}
         sets, params = [], []
         for k, v in fields.items():
             if k not in allowed:
@@ -1250,11 +1762,17 @@ class AsclepiusStore:
         rec["files"] = json.loads(rec.pop("files_json") or "[]")
         return rec
 
-    def list_ingest_uploads(self, *, limit: int = 200, offset: int = 0) -> List[Dict[str, Any]]:
+    def list_ingest_uploads(self, *, limit: int = 200, offset: int = 0,
+                            status: Optional[str] = None) -> List[Dict[str, Any]]:
+        where, params = "", []
+        if status:
+            where = "WHERE status = ? "
+            params.append(status)
+        params += [max(1, limit), max(0, offset)]
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM ingest_uploads ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (max(1, limit), max(0, offset)),
+                f"SELECT * FROM ingest_uploads {where}ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                tuple(params),
             ).fetchall()
         out = []
         for r in rows:
@@ -1263,9 +1781,14 @@ class AsclepiusStore:
             out.append(rec)
         return out
 
-    def count_ingest_uploads(self) -> int:
-        """Total upload rows — lets the admin UI paginate over full history."""
+    def count_ingest_uploads(self, *, status: Optional[str] = None) -> int:
+        """Total upload rows — lets the admin UI paginate over full history.
+        With ``status`` set, counts only rows in that state (drives the filter chips)."""
         with self._conn() as conn:
+            if status:
+                return int(conn.execute(
+                    "SELECT COUNT(*) FROM ingest_uploads WHERE status = ?", (status,)
+                ).fetchone()[0])
             return int(conn.execute("SELECT COUNT(*) FROM ingest_uploads").fetchone()[0])
 
     def mark_upload_failure_notified(self, upload_id: str) -> None:
@@ -1282,6 +1805,7 @@ class AsclepiusStore:
     def insert_ingest_case(
         self, *, upload_id: str, patient_key: Optional[str], specialty: Optional[str],
         case: Optional[Dict[str, Any]], status: str, report: Optional[Dict[str, Any]],
+        review_status: Optional[str] = None, review_json: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         cid = _new_id("icase")
         now = _utcnow_iso()
@@ -1289,21 +1813,23 @@ class AsclepiusStore:
             conn.execute(
                 """INSERT INTO ingest_cases
                    (ingest_case_id, upload_id, patient_key, specialty, case_json,
-                    status, report_json, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    status, report_json, review_status, review_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (cid, upload_id, patient_key, specialty,
                  json.dumps(case) if case else None, status,
-                 json.dumps(report) if report else None, now, now),
+                 json.dumps(report) if report else None, review_status,
+                 json.dumps(review_json) if review_json else None, now, now),
             )
         return self.get_ingest_case(cid)  # type: ignore[return-value]
 
     def update_ingest_case(self, ingest_case_id: str, **fields: Any) -> None:
-        allowed = {"status", "case_json", "report_json", "task_id", "override_reason"}
+        allowed = {"status", "case_json", "report_json", "task_id", "override_reason",
+                   "review_status", "review_json", "reviewed_by_hashed", "reviewed_at"}
         sets, params = [], []
         for k, v in fields.items():
             if k not in allowed:
                 continue
-            if k in ("case_json", "report_json") and not isinstance(v, (str, type(None))):
+            if k in ("case_json", "report_json", "review_json") and not isinstance(v, (str, type(None))):
                 v = json.dumps(v)
             sets.append(f"{k} = ?")
             params.append(v)
@@ -1316,6 +1842,164 @@ class AsclepiusStore:
                 f"UPDATE ingest_cases SET {', '.join(sets)} WHERE ingest_case_id = ?", tuple(params)
             )
 
+    # ─── Sealed ground truth (Buyer Response PRD §3 B1) ──────────────────────
+    def insert_sealed_ground_truth(
+        self, *, ingest_case_id: str, upload_id: Optional[str],
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Store the adjudicated answer key ENCRYPTED at rest, keyed to the ingest
+        case. Same field_crypto pattern as the raw partner blob — the payload is
+        never written in cleartext when a key is configured.
+
+        NOTE (Audit §H1): the crash-safe ingest path stages then binds
+        (``stage_sealed_ground_truth`` → ``bind_sealed_ground_truth``). This
+        one-shot insert is retained for callers that already have a case id."""
+        from field_crypto import encrypt_field
+        sid = _new_id("sealed")
+        now = _utcnow_iso()
+        blob = encrypt_field(json.dumps(payload))
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO sealed_ground_truth
+                   (sealed_id, ingest_case_id, upload_id, payload_enc, created_at, bound_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (sid, ingest_case_id, upload_id, blob, now, now),
+            )
+        return {"sealed_id": sid, "ingest_case_id": ingest_case_id}
+
+    def stage_sealed_ground_truth(
+        self, *, upload_id: Optional[str], patient_key: Optional[str],
+        payload: Dict[str, Any],
+    ) -> str:
+        """Stage the sealed answer key BEFORE the case row exists (Audit §H1), keyed
+        on (upload_id, patient_key) with a NULL ingest_case_id. Encrypted at rest,
+        exactly like the bound path. Returns the ``sealed_id`` to bind once the case
+        is inserted. A crash after this and before binding leaves the key on disk,
+        unbound — the strictly better failure than an ingested case with no key."""
+        from field_crypto import encrypt_field
+        sid = _new_id("sealed")
+        now = _utcnow_iso()
+        blob = encrypt_field(json.dumps(payload))
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO sealed_ground_truth
+                   (sealed_id, ingest_case_id, upload_id, patient_key, payload_enc,
+                    created_at, bound_at)
+                   VALUES (?, NULL, ?, ?, ?, ?, NULL)""",
+                (sid, upload_id, patient_key, blob, now),
+            )
+        return sid
+
+    def bind_sealed_ground_truth(self, sealed_id: str, ingest_case_id: str) -> None:
+        """Bind a staged key to its case row (Audit §H1). Idempotent; a bind that
+        never lands leaves the row unbound for reconciliation to catch."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE sealed_ground_truth SET ingest_case_id = ?, bound_at = ? "
+                "WHERE sealed_id = ?",
+                (ingest_case_id, now, sealed_id),
+            )
+
+    def hold_ingest_case_for_review(self, ingest_case_id: str, reason: str,
+                                    detail: str, *, severity: str = "blocking") -> bool:
+        """Add a review reason to an already-terminal case and hold it out of the
+        annotation queue (Audit §9.3). Idempotent per reason code; returns True if a
+        new reason was added. Used by post-hoc reconciliation (unbound sealed key,
+        missing asset blob) to flag a case that reached a terminal state but is
+        internally inconsistent — a defect the ingest-time checks could not see."""
+        existing = self.get_ingest_case(ingest_case_id)
+        if not existing:
+            return False
+        reasons = list(existing.get("review") or [])
+        if any(x.get("reason") == reason for x in reasons):
+            return False
+        reasons.append({"reason": reason, "severity": severity, "detail": detail,
+                        "raised_at": _utcnow_iso()})
+        fields: Dict[str, Any] = {"review_status": "needs_review", "review_json": reasons}
+        # A blocking reason also flips the case status so the queue-hold SQL excludes
+        # it; an advisory one leaves the case where it is.
+        if severity == "blocking" and existing.get("status") == "ingested":
+            fields["status"] = "needs_review"
+        self.update_ingest_case(ingest_case_id, **fields)
+        return True
+
+    def reconcile_sealed_ground_truth(self, *, older_than_seconds: int = 3600) -> Dict[str, Any]:
+        """Recover sealed keys left UNBOUND by a crash between staging and binding
+        (Audit §H1). For each unbound row older than the threshold, try to bind it to
+        its case by (upload_id, patient_key); if the case is found, bind it and raise a
+        blocking ``sealed_key_unbound`` review reason on that case (a human confirms the
+        recovered key before the case is annotated). A row with no matching case is
+        reported as an orphan — the key exists but its case never landed."""
+        cutoff = _iso_minus_seconds(older_than_seconds)
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT sealed_id, upload_id, patient_key, created_at "
+                "FROM sealed_ground_truth "
+                "WHERE ingest_case_id IS NULL AND created_at <= ?",
+                (cutoff,),
+            ).fetchall()
+        bound, orphans = 0, []
+        for r in rows:
+            rec = dict(r)
+            case = None
+            with self._conn() as conn:
+                crow = conn.execute(
+                    "SELECT ingest_case_id, status FROM ingest_cases "
+                    "WHERE upload_id = ? AND patient_key = ? "
+                    "ORDER BY created_at ASC LIMIT 1",
+                    (rec.get("upload_id"), rec.get("patient_key")),
+                ).fetchone()
+                if crow:
+                    case = dict(crow)
+            if case:
+                self.bind_sealed_ground_truth(rec["sealed_id"], case["ingest_case_id"])
+                # Hold the recovered case for review — a key that had to be reconciled
+                # is a blocking signal until a human confirms the adjudication.
+                self.hold_ingest_case_for_review(
+                    case["ingest_case_id"], "sealed_key_unbound",
+                    "sealed answer key was recovered by reconciliation after an "
+                    "interrupted ingest")
+                bound += 1
+            else:
+                orphans.append({"sealed_id": rec["sealed_id"], "upload_id": rec.get("upload_id"),
+                                "reason": "sealed_key_unbound", "severity": "blocking",
+                                "detail": "staged answer key has no matching ingest case"})
+        return {"checked": len(rows), "bound": bound, "orphans": orphans}
+
+    def get_sealed_ground_truth(
+        self, ingest_case_id: str, *, actor: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Decrypt + return the sealed answer key for an ingest case, emitting an
+        audit event on EVERY read (Buyer Response PRD §3 B1). Only the adjudication
+        surface should call this — never render_case_prompt, an export profile, or a
+        baseline runner."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM sealed_ground_truth WHERE ingest_case_id = ? "
+                "ORDER BY created_at DESC LIMIT 1", (ingest_case_id,),
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        from field_crypto import decrypt_field
+        payload = json.loads(decrypt_field(rec.get("payload_enc")) or "null")
+        self.log_event(entity_type="sealed_ground_truth", entity_id=ingest_case_id,
+                       event_type="sealed_ground_truth_read", actor=actor,
+                       payload={"sealed_id": rec.get("sealed_id")})
+        return {"sealed_id": rec.get("sealed_id"), "ingest_case_id": ingest_case_id,
+                "upload_id": rec.get("upload_id"), "payload": payload}
+
+    def get_sealed_ground_truth_raw(self, ingest_case_id: str) -> Optional[str]:
+        """Return the ON-DISK (still-encrypted) payload token WITHOUT decrypting or
+        auditing — used by tests to assert the content is unreadable at rest."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT payload_enc FROM sealed_ground_truth WHERE ingest_case_id = ? "
+                "ORDER BY created_at DESC LIMIT 1", (ingest_case_id,),
+            ).fetchone()
+        return dict(row)["payload_enc"] if row else None
+
     def get_ingest_case(self, ingest_case_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(
@@ -1326,6 +2010,7 @@ class AsclepiusStore:
         rec = dict(row)
         rec["case"] = json.loads(rec.pop("case_json") or "null")
         rec["report"] = json.loads(rec.pop("report_json") or "null")
+        rec["review"] = json.loads((rec.get("review_json") or "null") or "null")
         return rec
 
     def list_ingest_cases(
@@ -1351,6 +2036,7 @@ class AsclepiusStore:
             rec = dict(r)
             rec["case"] = json.loads(rec.pop("case_json") or "null")
             rec["report"] = json.loads(rec.pop("report_json") or "null")
+            rec["review"] = json.loads((rec.get("review_json") or "null") or "null")
             out.append(rec)
         return out
 
@@ -1366,6 +2052,16 @@ class AsclepiusStore:
                 (upload_id,),
             )
             return cur.rowcount
+
+    def list_uploads_with_retained_raw(self) -> List[Dict[str, Any]]:
+        """Uploads whose raw blob is retained past the normal window (Audit §9.4) —
+        every entry failed to parse, so the file is kept for re-run after a fix. The
+        retention purge skips these paths."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT upload_id, raw_path FROM ingest_uploads WHERE retain_raw = 1"
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def list_uploads_in_status(self, statuses: List[str]) -> List[Dict[str, Any]]:
         """Uploads currently sitting in any of ``statuses`` — used by startup
@@ -1391,6 +2087,30 @@ class AsclepiusStore:
             conn.execute(
                 "UPDATE users SET real_data_approved = ? WHERE id = ?",
                 (1 if approved else 0, user_id),
+            )
+
+    def get_tutorial_state(self, user_id: str) -> Dict[str, Any]:
+        """The user's first-run tutorial state; a default not_started shape when
+        unset or unparseable (a corrupt blob must never lock someone out)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT tutorial_json FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+        raw = row[0] if row else None
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict) and parsed.get("status"):
+                    return parsed
+            except (ValueError, TypeError):
+                pass
+        return {"status": "not_started", "version": None}
+
+    def set_tutorial_state(self, user_id: str, state: Dict[str, Any]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET tutorial_json = ? WHERE id = ?",
+                (json.dumps(state), user_id),
             )
 
     def mock_annotator_id_hashes(self) -> set:
@@ -1451,15 +2171,28 @@ class AsclepiusStore:
         return self.get_user_by_email(email)  # type: ignore[return-value]
 
     def annotator_block(self, user: Dict[str, Any]) -> Dict[str, Any]:
-        """The credential block copied onto every emitted record (PRD §6.2)."""
+        """The credential block copied onto every emitted record (PRD §6.2).
+
+        Emits the credential under the canonical key ``credential`` (singular) AND
+        the deprecated alias ``credentials`` (plural) for one release. Two names for
+        one concept is exactly the mechanism that produced the buyer's finding
+        (Buyer Response PRD §6 E1: ``store.annotator_block`` wrote ``credentials``
+        while the contributor rollup wrote ``credential``), so both are emitted here
+        during the migration and packaging reads either."""
         cred = user.get("board_cert") or (
             f"board_certified_{user.get('specialty')}" if user.get("specialty") else "unspecified"
         )
         return {
             "id_hashed": user.get("id_hashed") or "",
-            "credentials": cred,
+            "credential": cred,       # canonical (Buyer Response PRD §6 E1)
+            "credentials": cred,      # deprecated alias — kept for one release
             "specialty": user.get("specialty"),
             "years_experience": user.get("years_experience"),
+            # Advisor PRD §5.1: the tier rides along so packaging can stamp
+            # ``related_party`` from the SAME resolution that produced the
+            # credential. Resolving them separately is how one of them ends up
+            # hydrated and the other silently null on a record that ships.
+            "tier": user.get("tier"),
         }
 
     # ─── Tasks ──────────────────────────────────────────────────────────────--
@@ -1590,6 +2323,16 @@ class AsclepiusStore:
             return None
         return self._task_row(row)
 
+    def set_task_decisive_action(self, task_id: str, action: Dict[str, Any]) -> None:
+        """Persist the physician-named verifiable outcome (Audit §13), written from the
+        submission — never by an admin or a model: only the clinician who reasoned
+        through the case can say which step the answer depends on."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE tasks SET decisive_action_json = ? WHERE task_id = ?",
+                (json.dumps(action) if action else None, task_id),
+            )
+
     @staticmethod
     def _task_row(row: sqlite3.Row) -> Dict[str, Any]:
         rec = dict(row)
@@ -1598,6 +2341,9 @@ class AsclepiusStore:
         rec["generation"] = json.loads(rec.pop("generation_json", "null") or "null")
         # Multimodal case (may be absent on legacy rows / text tasks).
         rec["case"] = json.loads(rec.pop("case_json", "null") or "null")
+        # Decisive action (Audit §13): deserialize so packaging/export see a dict,
+        # not a JSON string. Absent on legacy rows / tasks nobody named one for.
+        rec["decisive_action"] = json.loads(rec.pop("decisive_action_json", "null") or "null")
         return rec
 
     def list_tasks(
@@ -1664,6 +2410,15 @@ class AsclepiusStore:
             "t.case_source = 'real_deid'" if real_only
             else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
         )
+        # Admin review queue (Audit PRD §21.6): a task whose ingest case still carries
+        # an unresolved BLOCKING review reason (ingest_cases.status = 'needs_review')
+        # must never be served for annotation — a physician must not label a case whose
+        # image may still carry burned-in PHI. Clearing/rejecting flips that status, so
+        # this releases the case the moment a human resolves it.
+        clauses.append(
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id "
+            "AND ic.status = 'needs_review')"
+        )
         where = " AND ".join(clauses)
         with self._conn() as conn:
             row = conn.execute(
@@ -1725,6 +2480,13 @@ class AsclepiusStore:
         clauses.append(
             "t.case_source = 'real_deid'" if real_only
             else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
+        )
+        # Hold blocking-review cases out of the candidate set too (Audit PRD §21.6) —
+        # same rule as next_task_for_evaluator, so value-aware routing never ranks a
+        # case a human has not yet cleared.
+        clauses.append(
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id "
+            "AND ic.status = 'needs_review')"
         )
         where = " AND ".join(clauses)
         with self._conn() as conn:
@@ -2539,7 +3301,7 @@ class AsclepiusStore:
         cases this evaluator has completed, how many in the last 7 days, and
         when they last submitted one. No earnings/streak data exists anywhere
         in this schema, so this stays limited to what's actually true."""
-        week_cutoff = (datetime.utcnow().replace(microsecond=0) - _timedelta(days=7)).isoformat()
+        week_cutoff = (datetime.utcnow().replace(microsecond=0) - timedelta(days=7)).isoformat()
         with self._conn() as conn:
             total = conn.execute(
                 "SELECT COUNT(*) AS n FROM submissions WHERE evaluator_id = ?",
@@ -2951,23 +3713,67 @@ class AsclepiusStore:
         self, *, task_id: str, specialty: Optional[str], sub_a: str, sub_b: str,
         verdict_a: Optional[str], verdict_b: Optional[str],
         tags_a: List[str], tags_b: List[str], jaccard_tags: float,
-        verdict_agree: bool, n_labels: int, flagged: bool,
+        verdict_agree: bool, n_labels: int, flagged: bool, blinded: bool = True,
     ) -> None:
+        # ``blinded`` (Buyer Response PRD §7 F1): whether the second annotator was
+        # blind to the first's verdict. Only blinded observations enter κ.
         with self._conn() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO agreement
                   (task_id, specialty, sub_a, sub_b, verdict_a, verdict_b, tags_a_json,
-                   tags_b_json, jaccard_tags, verdict_agree, n_labels, flagged, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   tags_b_json, jaccard_tags, verdict_agree, n_labels, flagged, blinded, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     task_id, specialty, sub_a, sub_b, verdict_a, verdict_b,
                     json.dumps(tags_a or []), json.dumps(tags_b or []),
                     jaccard_tags, 1 if verdict_agree else 0, int(n_labels),
-                    1 if flagged else 0, _utcnow_iso(),
+                    1 if flagged else 0, 1 if blinded else 0, _utcnow_iso(),
                 ),
             )
+
+    def external_adjudication_pairs(self) -> List[tuple]:
+        """(partner_verdict, physician_verdict) pairs for external-adjudication
+        agreement (Buyer Response PRD §7 F3). Reads the ``external_adjudication`` table
+        when present; returns [] otherwise so the export degrades to a null-with-reason
+        stat rather than failing. The table is populated by the adjudication surface
+        as physicians answer cases that carry a sealed partner adjudication."""
+        try:
+            with self._conn() as conn:
+                rows = conn.execute(
+                    "SELECT partner_verdict, physician_verdict FROM external_adjudication "
+                    "WHERE partner_verdict IS NOT NULL AND physician_verdict IS NOT NULL"
+                ).fetchall()
+        except Exception:
+            return []
+        return [(dict(r)["partner_verdict"], dict(r)["physician_verdict"]) for r in rows]
+
+    def record_external_adjudication(
+        self, *, ingest_case_id: str, partner_verdict: Optional[str],
+        physician_verdict: Optional[str], physician_hashed: Optional[str] = None,
+    ) -> None:
+        """Record a physician's independent verdict against the partner's sealed
+        adjudication for a case (Buyer Response PRD §7 F3)."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS external_adjudication (
+                    ingest_case_id   TEXT PRIMARY KEY,
+                    partner_verdict  TEXT,
+                    physician_verdict TEXT,
+                    physician_hashed TEXT,
+                    created_at       TEXT NOT NULL
+                )""")
+            conn.execute(
+                """INSERT INTO external_adjudication
+                   (ingest_case_id, partner_verdict, physician_verdict, physician_hashed, created_at)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(ingest_case_id) DO UPDATE SET
+                     partner_verdict=excluded.partner_verdict,
+                     physician_verdict=excluded.physician_verdict,
+                     physician_hashed=excluded.physician_hashed""",
+                (ingest_case_id, partner_verdict, physician_verdict, physician_hashed, now))
 
     def list_agreement_observations(self, *, specialty: Optional[str] = None) -> List[Dict[str, Any]]:
         clauses, params = [], []
@@ -3219,6 +4025,2043 @@ class AsclepiusStore:
         caught = int(row["caught"] or 0)
         rate = round(caught / scored, 3) if scored else None
         return {"scored": scored, "caught": caught, "rate": rate}
+
+    # ─── V5 Clinical RL Environments (env_runs, PRD §10) ─────────────────────
+    def insert_env_run(
+        self, *, task_id: str, specialty: str, task_type: str,
+        case_id: Optional[str] = None, case_source: str = "gold",
+        provider: Optional[str] = None, model: Optional[str] = None,
+        ab_source: Optional[str] = None, mode: str = "generated",
+        compiled: Optional[Dict[str, Any]] = None,
+        trajectory: Optional[List[Dict[str, Any]]] = None,
+        verification: Optional[Dict[str, Any]] = None,
+        provenance: Optional[Dict[str, Any]] = None,
+        physician_annotation: Optional[Dict[str, Any]] = None,
+        annotations: Optional[List[Dict[str, Any]]] = None,
+        empirical_difficulty: Optional[float] = None,
+        difficulty_measured: bool = False,
+        passes_difficulty_gate: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        rid = _new_id("env")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO env_runs
+                   (run_id, task_id, specialty, task_type, case_id, case_source, provider,
+                    model, ab_source, mode, compiled_json, trajectory_json, verification_json,
+                    provenance_json, physician_annotation_json, annotations_json, empirical_difficulty,
+                    difficulty_measured, passes_difficulty_gate, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (rid, task_id, specialty, task_type, case_id, case_source, provider, model,
+                 ab_source, mode,
+                 json.dumps(compiled) if compiled is not None else None,
+                 json.dumps(trajectory) if trajectory is not None else None,
+                 json.dumps(verification) if verification is not None else None,
+                 json.dumps(provenance) if provenance is not None else None,
+                 json.dumps(physician_annotation) if physician_annotation is not None else None,
+                 json.dumps(annotations) if annotations is not None else None,
+                 empirical_difficulty, 1 if difficulty_measured else 0,
+                 (None if passes_difficulty_gate is None else (1 if passes_difficulty_gate else 0)),
+                 now, now),
+            )
+        return self.get_env_run(rid)  # type: ignore[return-value]
+
+    @staticmethod
+    def _env_run_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        for col in ("compiled", "trajectory", "verification", "provenance",
+                    "physician_annotation", "annotations"):
+            raw = rec.pop(f"{col}_json", None)
+            rec[col] = json.loads(raw) if raw else None
+        rec["difficulty_measured"] = bool(rec.get("difficulty_measured"))
+        pg = rec.get("passes_difficulty_gate")
+        rec["passes_difficulty_gate"] = None if pg is None else bool(pg)
+        return rec
+
+    def get_env_run(self, run_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM env_runs WHERE run_id = ?", (run_id,)).fetchone()
+        return self._env_run_row(row) if row else None
+
+    def get_environment(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """The compiled-environment row (mode='generated') for a task_id."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM env_runs WHERE task_id = ? AND mode = 'generated' "
+                "ORDER BY created_at ASC LIMIT 1", (task_id,)
+            ).fetchone()
+        return self._env_run_row(row) if row else None
+
+    def list_env_runs(
+        self, *, task_id: Optional[str] = None, specialty: Optional[str] = None,
+        mode: Optional[str] = None, case_source: Optional[str] = None,
+        has_annotation: Optional[bool] = None, limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if task_id:
+            clauses.append("task_id = ?"); params.append(task_id)
+        if specialty:
+            clauses.append("specialty = ?"); params.append(specialty)
+        if mode:
+            clauses.append("mode = ?"); params.append(mode)
+        if case_source:
+            clauses.append("case_source = ?"); params.append(case_source)
+        if has_annotation is True:
+            clauses.append("physician_annotation_json IS NOT NULL")
+        elif has_annotation is False:
+            clauses.append("physician_annotation_json IS NULL")
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM env_runs {where} ORDER BY created_at DESC LIMIT ?", tuple(params)
+            ).fetchall()
+        return [self._env_run_row(r) for r in rows]
+
+    def update_env_run(self, run_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
+        if not fields:
+            return self.get_env_run(run_id)
+        json_cols = {"compiled", "trajectory", "verification", "provenance",
+                     "physician_annotation", "annotations"}
+        sets, params = [], []
+        for key, val in fields.items():
+            if key in json_cols:
+                sets.append(f"{key}_json = ?")
+                params.append(json.dumps(val) if val is not None else None)
+            elif key == "difficulty_measured":
+                sets.append("difficulty_measured = ?"); params.append(1 if val else 0)
+            elif key == "passes_difficulty_gate":
+                sets.append("passes_difficulty_gate = ?")
+                params.append(None if val is None else (1 if val else 0))
+            else:
+                sets.append(f"{key} = ?"); params.append(val)
+        sets.append("updated_at = ?"); params.append(_utcnow_iso())
+        params.append(run_id)
+        with self._conn() as conn:
+            conn.execute(f"UPDATE env_runs SET {', '.join(sets)} WHERE run_id = ?", tuple(params))
+        return self.get_env_run(run_id)
+
+    def env_annotation_records(self, *, specialty: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Rollout rows that carry a physician annotation — the PRM training set
+        (PRD §7.5). Each dict has ``trajectory`` + ``physician_annotation``."""
+        return self.list_env_runs(specialty=specialty, mode="rollout", has_annotation=True)
+
+    # ═══ PRD-B IDENTITY METHODS — owned by Agent 2, do not edit from other PRDs ═══
+    # NPIs are normalized on WRITE, but rows created before that fix can hold
+    # "1234-567893". Comparing the raw column would leave those legacy rows
+    # invisible to duplicate detection and to the cache — the exact defect the
+    # write-side fix closed, still open for everyone already in the database.
+    # Normalizing in SQL fixes them without rewriting stored data. Mirrors
+    # ``credentialing.clean_npi`` (strips ``[\s\-\.]``).
+    _NPI_NORM = ("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(npi, '-', ''), '.', ''), "
+                 "' ', ''), CHAR(9), ''), CHAR(10), '')")
+
+    def set_npi_result(self, user_id: str, result: Dict[str, Any]) -> None:
+        """Persist an NPI check outcome onto the user row.
+
+        Three states, never collapsed:
+          verified              -> npi_verified = 1
+          mismatch / not_found  -> npi_verified = 0   (definitive negative)
+          unavailable / other   -> npi_verified = NULL (could NOT check)
+
+        ``npi_checked_at`` is stamped ONLY on definitive outcomes, so an
+        UNAVAILABLE attempt never satisfies the 30-day NPI cache and never
+        suppresses a retry.
+        """
+        outcome = (result or {}).get("result")
+        if outcome == "verified":
+            flag: Optional[int] = 1
+        elif outcome in ("mismatch", "not_found"):
+            flag = 0
+        else:
+            flag = None
+
+        if flag is None:
+            # F6: a failed check is an EVENT, not a result. Writing it through
+            # would set npi_verified back to NULL, replace the NPPES record
+            # with {"result":"unavailable","record":null}, and clear
+            # npi_checked_at — erasing evidence we already have, dropping the
+            # user's score by 25, making 'reviewer' unproposable, and evicting
+            # the 30-day cache entry FOR EVERY user of that NPI. That happens
+            # on the admin's Recheck click while NPPES is rate-limiting, i.e.
+            # at exactly the moment the button gets used, and on any
+            # re-onboard (provision_user is an idempotent upsert).
+            with self._conn() as conn:
+                conn.execute(
+                    "UPDATE users SET npi_last_attempt_json = ?, "
+                    "npi_last_attempt_at = ? WHERE id = ?",
+                    (json.dumps(result or {}), _utcnow_iso(), user_id),
+                )
+            return
+
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET npi_verified = ?, npi_payload_json = ?, "
+                "npi_checked_at = ?, npi_last_attempt_json = NULL, "
+                "npi_last_attempt_at = NULL WHERE id = ?",
+                (flag, json.dumps(result or {}), _utcnow_iso(), user_id),
+            )
+
+    def get_cached_npi_fetch(self, npi: str, max_age_days: int = 30) -> Optional[Dict[str, Any]]:
+        """A fresh definitive NPPES answer for this NPI, if any user row holds
+        one — shaped like ``credentialing.fetch_npi_record`` output so the
+        caller can recompute the name match for the CURRENT signup (a cache
+        keyed by NPI alone must never cache the verdict).
+
+        Returns None when there is no definitive check within the window;
+        UNAVAILABLE attempts never populate the cache (``npi_checked_at`` stays
+        NULL for them).
+        """
+        npi = (npi or "").strip()
+        if not npi:
+            return None
+        cutoff = (datetime.utcnow() - timedelta(days=max(0, max_age_days))).replace(
+            microsecond=0).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT npi_payload_json FROM users "
+                f"WHERE {self._NPI_NORM} = ? AND npi_checked_at IS NOT NULL "
+                "AND npi_checked_at >= ? "
+                "AND npi_payload_json IS NOT NULL "
+                "ORDER BY npi_checked_at DESC LIMIT 1",
+                (npi, cutoff),
+            ).fetchone()
+        if not row:
+            return None
+        try:
+            stored = json.loads(row["npi_payload_json"] or "{}")
+        except (TypeError, ValueError):
+            return None
+        outcome = stored.get("result")
+        if outcome == "not_found":
+            return {"status": "not_found", "record": None, "reason": "cached"}
+        if outcome in ("verified", "mismatch") and stored.get("record"):
+            return {"status": "found", "record": stored["record"], "reason": "cached"}
+        return None
+
+    def set_verification_status(
+        self, user_id: str, status: Optional[str], *, notes: Optional[str] = None
+    ) -> None:
+        """Set the human-review lifecycle state (pending | approved | rejected).
+        Notes are only overwritten when provided."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET verification_status = ?, "
+                "verification_notes = COALESCE(?, verification_notes) WHERE id = ?",
+                (status, notes, user_id),
+            )
+
+    def update_identity_capture(
+        self,
+        user_id: str,
+        *,
+        phone: Optional[str] = None,
+        linkedin_url: Optional[str] = None,
+        email_domain_class: Optional[str] = None,
+    ) -> None:
+        """Signup-time identity fields (PRD-B Phase 4). Only overwrites a field
+        when a value is provided, so a sparse re-onboard never wipes data."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET phone = COALESCE(?, phone), "
+                "linkedin_url = COALESCE(?, linkedin_url), "
+                "email_domain_class = COALESCE(?, email_domain_class) WHERE id = ?",
+                (phone, linkedin_url, email_domain_class, user_id),
+            )
+
+    def set_cv(
+        self, user_id: str, asset_sha: Optional[str],
+        parsed: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Attach an uploaded CV (content-addressed sha) and its best-effort
+        parse to the user row. The parse is advisory dossier data only."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET cv_asset_sha = ?, cv_parsed_json = ? WHERE id = ?",
+                (asset_sha, json.dumps(parsed) if parsed is not None else None, user_id),
+            )
+
+    def find_users_by_npi(self, npi: str) -> List[Dict[str, Any]]:
+        """All user rows claiming this NPI — duplicate detection for the tier
+        scorer's blocker list."""
+        npi = (npi or "").strip()
+        if not npi:
+            return []
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM users WHERE {self._NPI_NORM} = ? ORDER BY created_at ASC",
+                (npi,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def users_pending_npi_recheck(
+        self, *, older_than_minutes: int = 60, limit: int = 200
+    ) -> List[Dict[str, Any]]:
+        """Rows whose NPI check never reached a definitive answer — the retry
+        list PRD §1.2 asked for ("UNAVAILABLE routes to manual review AND
+        schedules a retry").
+
+        Deliberately a list an admin can bulk-run rather than a scheduler: no
+        job framework, no background thread, and the work is visible and
+        auditable. A row qualifies when it claims an NPI, has no definitive
+        result (``npi_checked_at IS NULL``), and either has never been
+        attempted or was last attempted longer than ``older_than_minutes`` ago
+        — so a sweep cannot hot-loop against a rate-limiting registry.
+        """
+        cutoff = (datetime.utcnow() - timedelta(minutes=max(0, older_than_minutes))).replace(
+            microsecond=0).isoformat()
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users "
+                "WHERE npi IS NOT NULL AND TRIM(npi) != '' "
+                "  AND npi_checked_at IS NULL "
+                "  AND (npi_last_attempt_at IS NULL OR npi_last_attempt_at <= ?) "
+                "ORDER BY COALESCE(npi_last_attempt_at, created_at) ASC LIMIT ?",
+                (cutoff, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def npi_claim_counts(self) -> Dict[str, int]:
+        """{normalized npi: number of accounts claiming it} — one grouped query
+        so the queue does not run a full-table scan per row (B-5.8). Keyed by
+        the NORMALIZED value so callers can look up with ``clean_npi(...)`` and
+        so a legacy "1234-567893" row groups with its clean twin. Only NPIs
+        with more than one claimant are returned; everything else is 1 by
+        absence."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT {self._NPI_NORM} AS norm_npi, COUNT(*) AS n FROM users "
+                "WHERE npi IS NOT NULL AND TRIM(npi) != '' "
+                "GROUP BY norm_npi HAVING n > 1"
+            ).fetchall()
+        return {r["norm_npi"]: r["n"] for r in rows}
+
+    def list_verification_queue(self, status: str = "pending") -> List[Dict[str, Any]]:
+        """User rows in one verification state, newest signup first (the admin
+        works the top of the queue). ``status`` ∈ pending|approved|rejected."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                # rowid tiebreak: created_at has second granularity, and two
+                # launch-day signups in the same second must still order
+                # deterministically (newest insertion first).
+                "SELECT * FROM users WHERE verification_status = ? "
+                "ORDER BY created_at DESC, rowid DESC",
+                (status,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def record_verification_decision(
+        self,
+        user_id: str,
+        *,
+        status: str,
+        decided_by: str,
+        tier: Optional[str] = None,
+        tier_score: Optional[float] = None,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """The human decision (PRD-B Phase 5). Stamps verified_by/verified_at on
+        EVERY decision; tier fields are written only on approval — the tier is
+        a decision, not a computation, so it arrives only from this method."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            if status == "approved":
+                conn.execute(
+                    "UPDATE users SET verification_status = 'approved', "
+                    "verification_notes = COALESCE(?, verification_notes), "
+                    "verified_by = ?, verified_at = ?, tier = ?, tier_score = ?, "
+                    "tier_assigned_at = ?, tier_assigned_by = ? WHERE id = ?",
+                    (note, decided_by, now, tier, tier_score, now, decided_by, user_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE users SET verification_status = ?, "
+                    "verification_notes = COALESCE(?, verification_notes), "
+                    "verified_by = ?, verified_at = ? WHERE id = ?",
+                    (status, note, decided_by, now, user_id),
+                )
+        return self.get_user_by_id(user_id)
+
+    def mark_community_welcomed(self, user_id: str) -> bool:
+        """Community v2: idempotency flag for the one-time community welcome
+        (repurposes the reserved ``slack_joined`` column — the community IS
+        our Slack). Set BEFORE posting: the safe failure is a missed welcome,
+        never a double-post. The guarded UPDATE is the arbiter — under
+        multi-worker deploys a concurrent queue-approval + credential-PUT for
+        the same user must not both win. Returns True when THIS call claimed
+        the welcome."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE users SET slack_joined = 1, slack_checked_at = ? "
+                "WHERE id = ? AND COALESCE(slack_joined, 0) = 0",
+                (_utcnow_iso(), user_id),
+            )
+            return bool(cur.rowcount)
+    # ═══ END PRD-B ═══
+    # ═══ PRD-A REVIEW STORE METHODS — owned by Agent 1, do not edit from other PRDs ═══
+    # Two-tier review product (PRD A): reviewer queue, case_reviews CRUD, and
+    # double-label routing. Appended per START_HERE §3.2 — existing methods above
+    # are never modified.
+
+    @staticmethod
+    def _case_review_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["dimensions"] = json.loads(rec.pop("dimension_json", "{}") or "{}")
+        rec["corrections"] = json.loads(rec.pop("corrections_json", "null") or "null")
+        raw_flags = rec.pop("identifier_flags", None)
+        # None (never scanned) stays distinct from [] (scanned clean).
+        rec["identifier_flags"] = json.loads(raw_flags) if raw_flags else (
+            [] if raw_flags == "[]" else None)
+        return rec
+
+    def insert_case_review(
+        self,
+        *,
+        task_id: str,
+        submission_id: str,
+        reviewer_user_id: str,
+        reviewer_id_hashed: str,
+        verdict: str,
+        dimensions: Optional[Dict[str, str]] = None,
+        corrections: Optional[Dict[str, Any]] = None,
+        reviewer_notes: Optional[str] = None,
+        time_spent_sec: Optional[int] = None,
+        blinded: Optional[bool] = True,
+        identifier_flags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """One senior-reviewer verdict on a labeler submission (PRD A §2).
+
+        ``blinded`` is tri-state on purpose (START_HERE §5 rule 4): 1 = the payload
+        served to the reviewer verifiably carried no labeler identity, 0 = identity
+        was (or may have been) visible, NULL = not asserted either way."""
+        review_id = _new_id("rev")
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO case_reviews
+                  (review_id, task_id, submission_id, reviewer_user_id, reviewer_id_hashed,
+                   verdict, dimension_json, corrections_json, reviewer_notes,
+                   time_spent_sec, blinded, identifier_flags, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    review_id,
+                    task_id,
+                    submission_id,
+                    reviewer_user_id,
+                    reviewer_id_hashed,
+                    verdict,
+                    json.dumps(dimensions or {}),
+                    json.dumps(corrections) if corrections is not None else None,
+                    reviewer_notes,
+                    int(time_spent_sec) if time_spent_sec is not None else None,
+                    None if blinded is None else (1 if blinded else 0),
+                    None if identifier_flags is None else json.dumps(sorted(identifier_flags)),
+                    _utcnow_iso(),
+                ),
+            )
+        return self.get_case_review(review_id)  # type: ignore[return-value]
+
+    def get_case_review(self, review_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM case_reviews WHERE review_id = ?", (review_id,)
+            ).fetchone()
+        return self._case_review_row(row) if row else None
+
+    def reviews_for_submission(self, submission_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM case_reviews WHERE submission_id = ? ORDER BY created_at ASC",
+                (submission_id,),
+            ).fetchall()
+        return [self._case_review_row(r) for r in rows]
+
+    def reviews_for_task(self, task_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM case_reviews WHERE task_id = ? ORDER BY created_at ASC",
+                (task_id,),
+            ).fetchall()
+        return [self._case_review_row(r) for r in rows]
+
+    def has_review_by(self, submission_id: str, reviewer_user_id: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM case_reviews WHERE submission_id = ? AND reviewer_user_id = ? LIMIT 1",
+                (submission_id, reviewer_user_id),
+            ).fetchone()
+        return row is not None
+
+    def next_review_for(
+        self,
+        user_id: str,
+        *,
+        specialty: Optional[str] = None,
+        lease_minutes: int = 45,
+        predicate: Any = None,
+        scan_limit: int = 200,
+        persist_routing_decision: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """Oldest reviewable submission for this reviewer (PRD A §1.4).
+
+        Self-review is impossible BY QUERY (``s.evaluator_id != ?``), not by caller
+        discipline. Serves submissions never routed (``review_status IS NULL``) plus
+        stale ``in_review`` claims past the lease, so an abandoned draw re-queues
+        instead of vanishing forever. Excludes submissions this reviewer already
+        reviewed and tasks held for blocking ingest review (Audit PRD §21.6 —
+        a reviewer must not see a case whose image may carry burned-in PHI).
+
+        ``predicate(task, submission) -> bool`` filters candidates in Python (the
+        rate-based ``needs_review`` policy lives in ``asclepius.review``, not in SQL).
+        """
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        clauses = [
+            "s.evaluator_id != ?",
+            "s.verdict IS NOT NULL",
+            # NULL = never routed; an 'in_review' row past its lease re-queues.
+            # The lease clock is review_claimed_at, NOT updated_at — any unrelated
+            # write (a pipeline re-value, a status change) bumps updated_at and
+            # used to silently extend a reviewer's claim (FIX A A-3.7).
+            # 'reviewed', 'orphaned' and 'not_routed' are all terminal here.
+            "(s.review_status IS NULL OR (s.review_status = 'in_review'"
+            " AND (s.review_claimed_at IS NULL OR s.review_claimed_at < ?)))",
+            "NOT EXISTS (SELECT 1 FROM case_reviews cr WHERE cr.submission_id = s.submission_id"
+            " AND cr.reviewer_user_id = ?)",
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = s.task_id"
+            " AND ic.status = 'needs_review')",
+        ]
+        params: List[Any] = [user_id, cutoff, user_id]
+        if specialty:
+            clauses.append("t.specialty = ?")
+            params.append(specialty)
+        params.append(int(scan_limit))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT s.* FROM submissions s
+                JOIN tasks t ON t.task_id = s.task_id
+                WHERE {' AND '.join(clauses)}
+                ORDER BY s.created_at ASC LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        declined: List[str] = []
+        orphaned: List[str] = []
+        chosen: Optional[Dict[str, Any]] = None
+        for r in rows:
+            sub = self._submission_row(r)
+            if predicate is not None:
+                task = self.get_task(sub["task_id"])
+                if task is None:
+                    # A missing task is an ORPHAN, not a routing decline. Two
+                    # different terminal states because they mean two different
+                    # things: 'not_routed' is a decision the policy made, and
+                    # 'orphaned' is data damage someone has to look at.
+                    orphaned.append(sub["submission_id"])
+                    continue
+                if not predicate(task, sub):
+                    declined.append(sub["submission_id"])
+                    continue
+            chosen = sub
+            break
+        # Persist the routing decision (FIX A A-3.3). Without this, a submission
+        # the policy declines stays review_status IS NULL forever and re-occupies
+        # a slot in this LIMITed window on every single draw. Once `scan_limit`
+        # declined rows accumulate at the head, the portal reports "no submissions
+        # awaiting review" permanently while real work sits behind them. Masked at
+        # launch only because ASCLEPIUS_REVIEW_RATE defaults to 1.0.
+        if persist_routing_decision and (declined or orphaned):
+            with self._conn() as conn:
+                if declined:
+                    conn.executemany(
+                        "UPDATE submissions SET review_status = 'not_routed' "
+                        "WHERE submission_id = ? AND review_status IS NULL",
+                        [(sid,) for sid in declined],
+                    )
+                if orphaned:
+                    conn.executemany(
+                        "UPDATE submissions SET review_status = 'orphaned' "
+                        "WHERE submission_id = ? AND review_status IS NULL",
+                        [(sid,) for sid in orphaned],
+                    )
+        return chosen
+
+    def requeue_not_routed(self) -> int:
+        """Clear every ``not_routed`` decision back to NULL (undecided).
+
+        The escape hatch for raising ``ASCLEPIUS_REVIEW_RATE`` after launch:
+        routing decisions are persisted, so without this a submission declined
+        under a 0.5 rate would stay declined forever under a 1.0 rate. Returns
+        the number of submissions returned to the queue."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE submissions SET review_status = NULL WHERE review_status = 'not_routed'")
+            return int(cur.rowcount)
+
+    def agreement_observation_count(self, *, specialty: Optional[str] = None) -> int:
+        """COUNT(*) of stored agreement observations. Exists because the routing
+        sweep only ever needed the count and used to materialize every row to
+        call len() on it, once per candidate (FIX A A-3.4)."""
+        sql = "SELECT COUNT(*) FROM agreement"
+        params: tuple = ()
+        if specialty:
+            sql += " WHERE specialty = ?"
+            params = (specialty,)
+        with self._conn() as conn:
+            return int(conn.execute(sql, params).fetchone()[0])
+
+    def claim_submission_for_review(
+        self, submission_id: str, *, reviewer_id: str, blinded: Optional[bool] = None,
+        lease_minutes: int = 45,
+    ) -> bool:
+        """Atomically claim a submission for review (``review_status='in_review'``).
+
+        Compare-and-set: the UPDATE only wins when the row is still unclaimed or its
+        prior claim's lease has expired, so two reviewers drawing concurrently cannot
+        both claim the same submission. Returns True when this caller won the claim.
+
+        The claim also records WHO holds it and the blinding DERIVED from the
+        payload served to them (FIX A F2). ``review_claimed_at`` is the lease
+        clock rather than ``updated_at``, which any unrelated write bumps."""
+        now = _utcnow_iso()
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE submissions
+                   SET review_status = 'in_review', review_claimed_by = ?,
+                       review_claimed_at = ?, review_blinded = ?, updated_at = ?
+                WHERE submission_id = ?
+                  AND (review_status IS NULL
+                       OR (review_status = 'in_review'
+                           AND (review_claimed_at IS NULL OR review_claimed_at < ?)))
+                """,
+                (reviewer_id, now, None if blinded is None else (1 if blinded else 0),
+                 now, submission_id, cutoff),
+            )
+            return cur.rowcount > 0
+
+    def review_claim(self, submission_id: str, *, lease_minutes: int = 45) -> Dict[str, Any]:
+        """The current claim on a submission: ``{holder, claimed_at, blinded,
+        expired, status}``. ``blinded`` is tri-state (True/False/None) — None
+        means no draw ever asserted it, which is NOT the same as unblinded."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT review_status, review_claimed_by, review_claimed_at, review_blinded "
+                "FROM submissions WHERE submission_id = ?", (submission_id,)
+            ).fetchone()
+        if row is None:
+            return {"holder": None, "claimed_at": None, "blinded": None,
+                    "expired": True, "status": None}
+        rec = dict(row)
+        claimed_at = rec.get("review_claimed_at")
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        blinded = rec.get("review_blinded")
+        return {
+            "holder": rec.get("review_claimed_by"),
+            "claimed_at": claimed_at,
+            "blinded": None if blinded is None else bool(blinded),
+            "expired": (claimed_at is None) or (claimed_at < cutoff),
+            "status": rec.get("review_status"),
+        }
+
+    def review_queue_stats(self) -> Dict[str, Any]:
+        """Counts for the review portal header, in ONE pass over an indexed
+        column (four separate COUNT(*) full scans used to fire on every draw —
+        FIX A A-3.5).
+
+        ``unreviewed`` counts only genuinely undecided rows (review_status NULL).
+        Declined ('not_routed') and orphaned rows are reported separately rather
+        than folded in: a header claiming work exists that the draw cannot serve
+        is how A-3.3 stayed invisible."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT review_status AS st, COUNT(*) AS n FROM submissions "
+                "WHERE verdict IS NOT NULL GROUP BY review_status"
+            ).fetchall()
+            n_reviews = conn.execute("SELECT COUNT(*) FROM case_reviews").fetchone()[0]
+        counts = {(dict(r)["st"] or "__null__"): int(dict(r)["n"]) for r in rows}
+        return {
+            "unreviewed": counts.get("__null__", 0),
+            "in_review": counts.get("in_review", 0),
+            "reviewed": counts.get("reviewed", 0),
+            "not_routed": counts.get("not_routed", 0),
+            "orphaned": counts.get("orphaned", 0),
+            "n_reviews": int(n_reviews),
+        }
+
+    def flag_task_for_double_label(self, task_id: str) -> bool:
+        """Route a task to a second INDEPENDENT labeler (PRD A §1.3) by lifting its
+        label capacity to 2 AND reopening it.
+
+        The reopen is the load-bearing half. A ``max_labels=1`` task is ALREADY
+        ``'done'`` by the time a first label exists — ``refresh_task_status``
+        closes it on the first submission, on the hot submit path. So routing a
+        second independent label is always a REOPEN, never a flag on an open
+        task; lifting ``max_labels`` without restoring ``status='open'`` leaves a
+        task that neither ``next_double_label_for`` nor the ordinary labeler
+        queue can ever serve, which is what made the whole κ deliverable dead
+        code in the first round.
+
+        Terminal statuses are NOT reopened: ``prompt_flagged`` / ``not_hard`` /
+        ``case_incoherent`` mean a clinician rejected the prompt itself, and
+        dragging one back into the labeler queue for a second opinion would
+        re-serve work a physician already ruled out. Idempotent."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE tasks SET max_labels = 2, status = 'open' "
+                "WHERE task_id = ? AND status IN ('open', 'done') AND max_labels < 2",
+                (task_id,),
+            )
+            return cur.rowcount > 0
+
+    def flag_tasks_for_double_label(
+        self, decisions: List[Dict[str, Any]]
+    ) -> List[str]:
+        """Batch form of :meth:`flag_task_for_double_label` (FIX A A-3.4).
+
+        One connection, one UPDATE per task and one event INSERT per flag,
+        instead of two fresh connections (each paying two PRAGMAs) per candidate.
+        This runs on the same single SQLite writer that labeler submissions need,
+        so its statement count must not scale with the sweep window.
+
+        ``decisions`` is ``[{task_id, specialty, current_rate}, ...]``. Returns
+        the task_ids actually flagged (the UPDATE is the arbiter, so this stays
+        idempotent under concurrent sweeps)."""
+        if not decisions:
+            return []
+        flagged: List[str] = []
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            for d in decisions:
+                cur = conn.execute(
+                    "UPDATE tasks SET max_labels = 2, status = 'open' "
+                    "WHERE task_id = ? AND status IN ('open', 'done') AND max_labels < 2",
+                    (d["task_id"],),
+                )
+                if cur.rowcount > 0:
+                    flagged.append(d["task_id"])
+            if flagged:
+                by_id = {d["task_id"]: d for d in decisions}
+                conn.executemany(
+                    "INSERT INTO events (entity_type, entity_id, event_type, actor, "
+                    "occurred_at, payload_json) VALUES ('task', ?, 'double_label_flagged', "
+                    "NULL, ?, ?)",
+                    [(tid, now, json.dumps({
+                        "specialty": by_id[tid].get("specialty"),
+                        "current_rate": by_id[tid].get("current_rate"),
+                    })) for tid in flagged],
+                )
+        return flagged
+
+    def tasks_awaiting_double_label_decision(self, *, limit: int = 100) -> List[Dict[str, Any]]:
+        """Single-label tasks that already carry at least one verdict-bearing
+        submission — the candidate set the double-label router decides over.
+
+        Accepts ``'done'`` as well as ``'open'``: on the real submit route a
+        singly-labeled task is closed by the time this runs, so a status='open'
+        filter here matches nothing, by construction. Terminal statuses stay
+        excluded — a rejected prompt is not a double-label candidate."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT t.*,
+                       (SELECT s.submission_id FROM submissions s
+                         WHERE s.task_id = t.task_id AND s.verdict IS NOT NULL
+                         ORDER BY s.created_at ASC LIMIT 1) AS first_submission_id,
+                       -- Carried here so the sweep does not re-open a connection
+                       -- per candidate just to read one column (FIX A A-3.4).
+                       (SELECT s2.confidence FROM submissions s2
+                         WHERE s2.task_id = t.task_id AND s2.verdict IS NOT NULL
+                         ORDER BY s2.created_at ASC LIMIT 1) AS first_confidence
+                FROM tasks t
+                WHERE t.status IN ('open', 'done') AND t.max_labels < 2
+                  AND EXISTS (SELECT 1 FROM submissions sf
+                               WHERE sf.task_id = t.task_id AND sf.verdict IS NOT NULL)
+                ORDER BY t.created_at ASC LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchall()
+        out = []
+        for r in rows:
+            rec = self._task_row(r)
+            out.append(rec)
+        return out
+
+    def double_label_counts(self) -> tuple:
+        """``(n_labeled_tasks, n_flagged_for_double_label)`` in ONE pass.
+
+        The sweep needs both numbers once per run, not a recomputed ratio per
+        candidate (FIX A A-3.4). Returning the raw counts lets the caller advance
+        the rate locally as it flags."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS labeled, "
+                "       SUM(CASE WHEN t.max_labels >= 2 THEN 1 ELSE 0 END) AS flagged "
+                "FROM tasks t WHERE EXISTS "
+                "(SELECT 1 FROM submissions s WHERE s.task_id = t.task_id)"
+            ).fetchone()
+        rec = dict(row) if row else {}
+        return int(rec.get("labeled") or 0), int(rec.get("flagged") or 0)
+
+    def double_label_flag_rate(self) -> float:
+        """Share of labeled tasks currently routed for a second independent label —
+        the ``current_rate`` input to the stratified top-up policy (PRD A §1.3)."""
+        labeled, flagged = self.double_label_counts()
+        return (flagged / labeled) if labeled else 0.0
+
+    def next_double_label_for(
+        self,
+        user_id: str,
+        *,
+        specialty: Optional[str] = None,
+        allow_real: bool = False,
+        scan_limit: int = 200,
+    ) -> Optional[Dict[str, Any]]:
+        """Oldest task flagged for a second independent label that this user may
+        take (PRD A §1.4). The first labeler — and anyone who already submitted —
+        is excluded BY QUERY (``NOT EXISTS`` on their submissions), never by caller
+        discipline: the second observation must be independent or κ is fiction.
+        ``allow_real`` is the V4 wall (EHR PRD §9.5): real_deid tasks are excluded
+        unless the caller verified ``real_data_approved``."""
+        clauses = [
+            "t.status = 'open'",
+            "t.max_labels >= 2",
+            "EXISTS (SELECT 1 FROM submissions sf WHERE sf.task_id = t.task_id"
+            " AND sf.verdict IS NOT NULL)",
+            "NOT EXISTS (SELECT 1 FROM submissions sm WHERE sm.task_id = t.task_id"
+            " AND sm.evaluator_id = ?)",
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id"
+            " AND ic.status = 'needs_review')",
+        ]
+        params: List[Any] = [user_id]
+        if specialty:
+            clauses.append("t.specialty = ?")
+            params.append(specialty)
+        if not allow_real:
+            clauses.append("(t.case_source IS NULL OR t.case_source != 'real_deid')")
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT t.*,
+                       (SELECT COUNT(*) FROM submissions s WHERE s.task_id = t.task_id) AS sub_count
+                FROM tasks t
+                WHERE {' AND '.join(clauses)}
+                ORDER BY t.created_at ASC LIMIT ?
+                """,
+                tuple(params + [int(scan_limit)]),
+            ).fetchall()
+        for r in rows:
+            rec = self._task_row(r)
+            if int(rec.get("sub_count") or 0) >= int(rec.get("max_labels") or 1):
+                continue  # already at capacity — second label landed
+            rec.pop("sub_count", None)
+            return rec
+        return None
+
+    def get_agreement_observation(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """The double-label agreement observation for one task, if it exists —
+        the source of truth for a record's ``independent_second_label`` flag
+        (PRD A Phase 3)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM agreement WHERE task_id = ?", (task_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        rec = dict(row)
+        rec["tags_a"] = json.loads(rec.pop("tags_a_json", "[]") or "[]")
+        rec["tags_b"] = json.loads(rec.pop("tags_b_json", "[]") or "[]")
+        return rec
+    # ═══ END PRD-A ═══
+    # ═══ PRD-C HEALTH SYSTEM STORE METHODS — owned by Agent 3, do not edit from other PRDs ═══
+    @staticmethod
+    def hs_id_for_name(name: str) -> str:
+        """Deterministic ``hs-<slug>-<6hex>`` from the organization name, so the
+        boot-time backfill mints the same id on every run (idempotent)."""
+        norm = " ".join((name or "").lower().split())
+        words = re.findall(r"[a-z0-9]+", norm)
+        slug = "-".join(words)[:24].strip("-") or "org"
+        hexpart = hashlib.sha256(norm.encode("utf-8")).hexdigest()[:6]
+        return f"hs-{slug}-{hexpart}"
+
+    def _backfill_health_systems(self, conn: sqlite3.Connection) -> None:
+        """One ``health_systems`` row per distinct historical partner label, and a
+        ``health_system_id`` stamp on that partner's uploads — so no pre-portal
+        upload is orphaned. Idempotent: matches by (case-insensitive) name and
+        only touches uploads still missing a health_system_id."""
+        labels: Dict[str, str] = {}
+        for r in conn.execute("SELECT provider_id, org_name, email FROM data_providers").fetchall():
+            # An email address is not an organization name (C-5.6). Where
+            # org_name is blank there is nothing human to show, so the row is
+            # named for manual correction rather than rendered as if a hospital
+            # were literally called "it@mercy.org".
+            label = (r["org_name"] or "").strip() or _needs_naming(r["email"])
+            if label:
+                labels[r["provider_id"]] = label
+        for r in conn.execute("SELECT DISTINCT partner_id, partner_label FROM ingest_upload_links").fetchall():
+            label = (r["partner_label"] or "").strip() or _needs_naming(r["partner_id"])
+            if label:
+                labels.setdefault(r["partner_id"], label)
+        for r in conn.execute(
+            "SELECT DISTINCT partner_id FROM ingest_uploads WHERE health_system_id IS NULL"
+        ).fetchall():
+            pid = (r["partner_id"] or "").strip()
+            # 'account' is the LINK_ID sentinel and never a partner_id, so the
+            # old guard here was dead — which is how an internal user id such as
+            # 'u_abc123' ended up rendering in the Health Systems table as an
+            # organization.
+            if pid:
+                labels.setdefault(pid, _needs_naming(pid))
+        for partner_id, label in labels.items():
+            row = conn.execute(
+                "SELECT hs_id FROM health_systems WHERE LOWER(name) = LOWER(?)", (label,)
+            ).fetchone()
+            if not row:
+                # UPGRADE PATH: a database written by the previous release may
+                # already hold this partner under its raw internal id or email
+                # (the name C-5.6 stopped producing). Rename that row in place
+                # rather than inserting a second one — otherwise the operator
+                # sees the same hospital twice with its upload history split
+                # between them, and only on deployments that have run before.
+                legacy = _legacy_partner_name(label)
+                if legacy:
+                    row = conn.execute(
+                        "SELECT hs_id FROM health_systems WHERE LOWER(name) = LOWER(?)",
+                        (legacy,),
+                    ).fetchone()
+                    if row:
+                        conn.execute("UPDATE health_systems SET name = ? WHERE hs_id = ?",
+                                     (label, row["hs_id"]))
+            hs_id = row["hs_id"] if row else self.hs_id_for_name(label)
+            if not row:
+                conn.execute(
+                    "INSERT OR IGNORE INTO health_systems (hs_id, name, active, created_at) "
+                    "VALUES (?, ?, 1, ?)",
+                    (hs_id, label, _utcnow_iso()),
+                )
+            conn.execute(
+                "UPDATE ingest_uploads SET health_system_id = ? "
+                "WHERE partner_id = ? AND health_system_id IS NULL",
+                (hs_id, partner_id),
+            )
+
+    def ensure_health_system(self, name: str, *, contact_email: Optional[str] = None,
+                             notes: Optional[str] = None) -> Dict[str, Any]:
+        """Create-or-reuse by (case-insensitive) organization name."""
+        clean = " ".join((name or "").split())
+        if not clean:
+            raise ValueError("health system name is required")
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM health_systems WHERE LOWER(name) = LOWER(?)", (clean,)
+            ).fetchone()
+            if row:
+                if contact_email and not row["contact_email"]:
+                    conn.execute("UPDATE health_systems SET contact_email = ? WHERE hs_id = ?",
+                                 (contact_email, row["hs_id"]))
+                    # Return the UPDATED values from this connection rather than
+                    # re-reading (C-5.5): get_health_system opens a SECOND
+                    # connection, and from inside this still-uncommitted block it
+                    # read the pre-update row — so the caller got contact_email
+                    # None while the committed row held the real address.
+                    merged = dict(row)
+                    merged["contact_email"] = contact_email
+                    return merged
+                return dict(row)
+            hs_id = self.hs_id_for_name(clean)
+            now = _utcnow_iso()
+            conn.execute(
+                "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at) "
+                "VALUES (?, ?, ?, ?, 1, ?)",
+                (hs_id, clean, contact_email, notes, now),
+            )
+            return {"hs_id": hs_id, "name": clean, "contact_email": contact_email,
+                    "notes": notes, "active": 1, "created_at": now}
+
+    def get_health_system(self, hs_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM health_systems WHERE hs_id = ?", (hs_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_health_systems(self) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM health_systems ORDER BY created_at DESC").fetchall()
+        return [dict(r) for r in rows]
+
+    @staticmethod
+    def _hs_user_public(row: sqlite3.Row) -> Dict[str, Any]:
+        d = dict(row)
+        d.pop("password_hash", None)
+        return d
+
+    def create_hs_portal_user(self, *, username: str, hs_id: str, password: str,
+                              email: Optional[str] = None) -> Dict[str, Any]:
+        uname = (username or "").strip().lower()
+        if not uname:
+            raise ValueError("username is required")
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO hs_portal_users (username, hs_id, password_hash, must_reset, "
+                "email, active, created_at) VALUES (?, ?, ?, 1, ?, 1, ?)",
+                (uname, hs_id, hash_password(password), email, _utcnow_iso()),
+            )
+        return self.get_hs_portal_user_public(uname)  # type: ignore[return-value]
+
+    def get_hs_portal_user(self, username: str) -> Optional[Dict[str, Any]]:
+        """Full row including password_hash — internal auth use only."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_portal_users WHERE username = ?", ((username or "").lower(),)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_hs_portal_user_public(self, username: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_portal_users WHERE username = ?", ((username or "").lower(),)
+            ).fetchone()
+        return self._hs_user_public(row) if row else None
+
+    def list_hs_portal_users(self, hs_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            if hs_id:
+                rows = conn.execute(
+                    "SELECT * FROM hs_portal_users WHERE hs_id = ? ORDER BY created_at DESC", (hs_id,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM hs_portal_users ORDER BY created_at DESC").fetchall()
+        return [self._hs_user_public(r) for r in rows]
+
+    def hs_username_exists(self, username: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM hs_portal_users WHERE username = ?", ((username or "").lower(),)
+            ).fetchone()
+        return row is not None
+
+    def set_hs_portal_password(self, username: str, new_password: str, *,
+                               must_reset: bool = False) -> None:
+        """Set the password and stamp ``password_changed_at``. The stamp is what
+        invalidates outstanding session cookies (FIX-C C-2.3) — without it a
+        leaked cookie outlived the victim's own password reset by up to the full
+        12-hour session TTL."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_portal_users SET password_hash = ?, must_reset = ?, "
+                "failed_logins = 0, locked_until = NULL, password_changed_at = ?, "
+                "session_epoch = session_epoch + 1 WHERE username = ?",
+                (hash_password(new_password), 1 if must_reset else 0, _utcnow_iso(),
+                 (username or "").lower()),
+            )
+
+    def set_hs_portal_active(self, username: str, active: bool) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_portal_users SET active = ? WHERE username = ?",
+                         (1 if active else 0, (username or "").lower()))
+
+    def set_health_system_active(self, hs_id: str, active: bool) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE health_systems SET active = ? WHERE hs_id = ?",
+                         (1 if active else 0, hs_id))
+
+    # ─── Brute-force bookkeeping, keyed on (username, ip) ────────────────────
+    # ONE path for known and unknown usernames — see the schema note. Every
+    # method here behaves identically whether or not the username exists, which
+    # is the property that closes the enumeration oracle.
+    @staticmethod
+    def _hs_attempt_key(username: str, ip: str) -> str:
+        ip_hash = hashlib.sha256((ip or "unknown").encode("utf-8")).hexdigest()[:16]
+        return f"{(username or '').lower()}|{ip_hash}"
+
+    def hs_login_locked(self, username: str, ip: str) -> bool:
+        """True while (username, ip) is inside its lock window."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT locked_until FROM hs_login_attempts WHERE attempt_key = ?",
+                (self._hs_attempt_key(username, ip),),
+            ).fetchone()
+        if not row or not row["locked_until"]:
+            return False
+        try:
+            until = datetime.fromisoformat(row["locked_until"])
+        except (TypeError, ValueError):
+            return False
+        if until.tzinfo is None:
+            until = until.replace(tzinfo=timezone.utc)
+        return until > datetime.now(timezone.utc)
+
+    def record_hs_login_failure(self, username: str, ip: str, *, lock_threshold: int = 5,
+                                lock_minutes: int = 15) -> Dict[str, Any]:
+        """Count a failed sign-in for (username, ip). Returns
+        ``{"fails": n, "locked": bool}``.
+
+        Counting happens BEFORE the caller decides the status code, and the
+        decay window runs from the LAST failure for both the known and unknown
+        case — the old split (record-after-check on one path, record-before on
+        the other, decay from first vs fifth failure) is what leaked account
+        existence on the 5th attempt.
+        """
+        uname = (username or "").lower()
+        key = self._hs_attempt_key(uname, ip)
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        window_start = now - timedelta(minutes=lock_minutes)
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT fails, last_fail_at FROM hs_login_attempts WHERE attempt_key = ?", (key,)
+            ).fetchone()
+            fails = 0
+            if row:
+                try:
+                    last = datetime.fromisoformat(row["last_fail_at"] or "")
+                    if last.tzinfo is None:
+                        last = last.replace(tzinfo=timezone.utc)
+                except (TypeError, ValueError):
+                    last = None
+                # A stale streak decays; a live one accumulates.
+                fails = int(row["fails"] or 0) if (last and last > window_start) else 0
+            fails += 1
+            locked = fails >= lock_threshold
+            until = (now + timedelta(minutes=lock_minutes)).isoformat() if locked else None
+            conn.execute(
+                "INSERT INTO hs_login_attempts (attempt_key, username, fails, first_fail_at, "
+                "last_fail_at, locked_until) VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(attempt_key) DO UPDATE SET fails = excluded.fails, "
+                "last_fail_at = excluded.last_fail_at, locked_until = excluded.locked_until",
+                (key, uname, fails, now_iso, now_iso, until),
+            )
+            # Opportunistic sweep: a username-spray attack mints one row per
+            # (guessed name, ip) and nothing else would ever remove them, so the
+            # table would grow without bound on a public endpoint. Rows past
+            # their window carry no signal — they neither lock nor count.
+            conn.execute(
+                "DELETE FROM hs_login_attempts WHERE last_fail_at < ? "
+                "AND (locked_until IS NULL OR locked_until < ?)",
+                (window_start.isoformat(), now_iso),
+            )
+            # Username-scoped signal for the admin ("this account is being
+            # attacked"). Deliberately NOT a gate: making it one is what turned
+            # the lockout into a remote kill switch for a whole hospital.
+            conn.execute(
+                "UPDATE hs_portal_users SET failed_logins = failed_logins + 1 WHERE username = ?",
+                (uname,),
+            )
+        return {"fails": fails, "locked": locked}
+
+    def clear_hs_login_attempts(self, username: str, *, ip: Optional[str] = None) -> int:
+        """Clear lock state for a username (optionally just from one ip).
+        Returns the number of attempt rows cleared."""
+        uname = (username or "").lower()
+        with self._conn() as conn:
+            if ip is not None:
+                cur = conn.execute("DELETE FROM hs_login_attempts WHERE attempt_key = ?",
+                                   (self._hs_attempt_key(uname, ip),))
+            else:
+                cur = conn.execute("DELETE FROM hs_login_attempts WHERE username = ?", (uname,))
+            n = cur.rowcount or 0
+            conn.execute(
+                "UPDATE hs_portal_users SET failed_logins = 0, locked_until = NULL "
+                "WHERE username = ?", (uname,),
+            )
+        return n
+
+    def hs_login_failure_signal(self, username: str) -> int:
+        """Live failure count for a username across all IPs — the admin-facing
+        'under attack' signal, and the input to the progressive delay."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(fails), 0) FROM hs_login_attempts WHERE username = ?",
+                ((username or "").lower(),),
+            ).fetchone()
+        return int(row[0] or 0)
+
+    def mark_hs_login_success(self, username: str, ip: Optional[str] = None) -> None:
+        self.clear_hs_login_attempts(username, ip=ip)
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_portal_users SET last_login = ? WHERE username = ?",
+                (_utcnow_iso(), (username or "").lower()),
+            )
+
+    # ─── Session revocation ──────────────────────────────────────────────────
+    def revoke_hs_token(self, jti: str, expires_at: str) -> None:
+        """Denylist a session token until it would have expired anyway, so
+        'Sign out' on a shared hospital workstation is real, not cosmetic."""
+        if not jti:
+            return
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO hs_revoked_tokens (jti, expires_at, revoked_at) "
+                "VALUES (?, ?, ?)", (jti, expires_at, _utcnow_iso()),
+            )
+            # Opportunistic sweep — the denylist only needs to hold unexpired
+            # tokens, so it stays small without a scheduled job.
+            conn.execute("DELETE FROM hs_revoked_tokens WHERE expires_at < ?",
+                         (datetime.now(timezone.utc).isoformat(),))
+
+    def hs_token_revoked(self, jti: str) -> bool:
+        if not jti:
+            return False
+        with self._conn() as conn:
+            row = conn.execute("SELECT 1 FROM hs_revoked_tokens WHERE jti = ?", (jti,)).fetchone()
+        return row is not None
+
+    def hs_upload_bytes_since(self, hs_id: str, since_iso: str) -> int:
+        """Bytes this health system has uploaded since ``since_iso`` — the input
+        to the per-account quota (FIX-C C-2.6)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(size_bytes), 0) FROM ingest_uploads "
+                "WHERE health_system_id = ? AND created_at >= ?", (hs_id, since_iso),
+            ).fetchone()
+        return int(row[0] or 0)
+
+    def set_ingest_specialty_for_upload(self, upload_id: str, specialty: str) -> int:
+        """Operator-assigned specialty for every case from one upload.
+
+        Ingest leaves specialty NULL when nothing declared it (FIX-C C-3.2);
+        promotion downstream still falls back to a literal, so the operator has
+        to be able to set the real value BEFORE promoting rather than after a
+        mislabeled case has shipped."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE ingest_cases SET specialty = ?, updated_at = ? WHERE upload_id = ?",
+                (specialty, _utcnow_iso(), upload_id),
+            )
+            return cur.rowcount or 0
+
+    def list_ingest_cases_for_uploads(self, upload_ids: List[str]) -> List[Dict[str, Any]]:
+        """Every ingest case for a set of uploads in ONE query (FIX-C C-5.4).
+        The health-system detail page issued one query per upload, up to 500."""
+        if not upload_ids:
+            return []
+        out: List[Dict[str, Any]] = []
+        with self._conn() as conn:
+            # Chunked to stay under SQLite's variable limit on a large page.
+            for i in range(0, len(upload_ids), 400):
+                chunk = upload_ids[i:i + 400]
+                qs = ",".join("?" for _ in chunk)
+                rows = conn.execute(
+                    f"SELECT * FROM ingest_cases WHERE upload_id IN ({qs}) "
+                    "ORDER BY created_at DESC", tuple(chunk),
+                ).fetchall()
+                for r in rows:
+                    rec = dict(r)
+                    rec["case"] = json.loads(rec.pop("case_json") or "null")
+                    rec["report"] = json.loads(rec.pop("report_json") or "null")
+                    rec["review"] = json.loads((rec.get("review_json") or "null") or "null")
+                    out.append(rec)
+        return out
+
+    def upload_specialties(self, upload_id: str) -> List[Optional[str]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT specialty FROM ingest_cases WHERE upload_id = ?", (upload_id,)
+            ).fetchall()
+        return [r["specialty"] for r in rows]
+
+    def set_upload_health_system(self, upload_id: str, hs_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET health_system_id = ? WHERE upload_id = ?",
+                (hs_id, upload_id),
+            )
+
+    def list_case_reviews_for_reviewer(self, user_id: str, *, limit: int = 200) -> List[Dict[str, Any]]:
+        """A reviewer's case_reviews rows (PRD-A table, read-only from PRD-C).
+        Defensive: before PRD-A merges the table does not exist — return []
+        rather than 500 the physicians page."""
+        try:
+            with self._conn() as conn:
+                rows = conn.execute(
+                    "SELECT review_id, task_id, submission_id, verdict, created_at "
+                    "FROM case_reviews WHERE reviewer_user_id = ? "
+                    "ORDER BY created_at DESC LIMIT ?", (user_id, limit),
+                ).fetchall()
+            return [dict(r) for r in rows]
+        except sqlite3.OperationalError:
+            return []
+
+    # Metrics — the four questions (PRD-C Phase 6). All reads, all defensive:
+    # PRD-A's case_reviews may not exist yet, and a missing table must read as
+    # "no data", never a 500 on the metrics page.
+    _METRIC_SPARK_SOURCES = {
+        # kind → (table, timestamp column, extra WHERE)
+        "submissions": ("submissions", "created_at", ""),
+        "reviews": ("case_reviews", "created_at", ""),
+        "uploads": ("ingest_uploads", "created_at", ""),
+        "exports": ("exports", "created_at", ""),
+    }
+
+    def metrics_daily_counts(self, kind: str, *, days: int = 14) -> List[int]:
+        """Per-day row counts over the trailing window, oldest first — the
+        sparkline series. Unknown/missing tables yield a flat zero series."""
+        src = self._METRIC_SPARK_SOURCES.get(kind)
+        if not src:
+            return [0] * days
+        table, col, extra = src
+        start = (datetime.now(timezone.utc) - timedelta(days=days - 1)).date().isoformat()
+        counts = {i: 0 for i in range(days)}
+        try:
+            with self._conn() as conn:
+                rows = conn.execute(
+                    f"SELECT DATE({col}) AS d, COUNT(*) AS n FROM {table} "
+                    f"WHERE DATE({col}) >= ? {extra} GROUP BY DATE({col})", (start,),
+                ).fetchall()
+        except sqlite3.OperationalError:
+            return [0] * days
+        base = datetime.now(timezone.utc).date()
+        for r in rows:
+            try:
+                offset = (base - datetime.fromisoformat(r["d"]).date()).days
+            except (TypeError, ValueError):
+                continue
+            if 0 <= offset < days:
+                counts[days - 1 - offset] = int(r["n"])
+        return [counts[i] for i in range(days)]
+
+    def metrics_four_questions(self) -> Dict[str, Any]:
+        """SUPPLY · QUALITY · PIPELINE · DEMAND — one rollup for the admin
+        metrics header. Expert acceptance and Cohen's κ are computed and
+        returned SEPARATELY (κ belongs to the caller's /stats agreement slice;
+        acceptance comes from PRD-A's review verdicts here)."""
+        week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        with self._conn() as conn:
+            active_week = conn.execute(
+                "SELECT COUNT(DISTINCT s.evaluator_id) FROM submissions s "
+                "JOIN users u ON u.id = s.evaluator_id "
+                "WHERE s.created_at >= ? AND u.is_mock = 0", (week_ago,),
+            ).fetchone()[0]
+            labeled_total = conn.execute("SELECT COUNT(*) FROM submissions").fetchone()[0]
+            uploads_received = conn.execute("SELECT COUNT(*) FROM ingest_uploads").fetchone()[0]
+            awaiting_review = conn.execute(
+                "SELECT COUNT(*) FROM ingest_uploads WHERE status IN "
+                "('received', 'scanning', 'parsing', 'needs_review')").fetchone()[0]
+            promoted = conn.execute(
+                "SELECT COUNT(*) FROM ingest_cases WHERE status = 'promoted'").fetchone()[0]
+            buyer_requests = conn.execute("SELECT COUNT(*) FROM buyer_requests").fetchone()[0]
+            exports_n = conn.execute("SELECT COUNT(*) FROM exports").fetchone()[0]
+            shipped = conn.execute(
+                "SELECT COUNT(*) FROM records WHERE status = 'exported'").fetchone()[0]
+        # ONE definition of expert acceptance (Seam 3): PRD-A's
+        # ``agreement.review_acceptance``. This block used to run its own SQL
+        # that also counted edited-accept verdicts, while agreement.py counted
+        # strict accepts only — the same word, over the same table, at two
+        # numbers (~97% on the dashboard, ~84% in quality_report.md). It is the
+        # figure a buyer audits most closely, so it gets one owner. The combined
+        # figure is still available, under a DIFFERENT name ("not rejected").
+        reviews: List[Dict[str, Any]] = []
+        try:
+            with self._conn() as conn:
+                reviews = [dict(r) for r in conn.execute(
+                    "SELECT verdict, dimension_json FROM case_reviews").fetchall()]
+        except sqlite3.OperationalError:
+            pass  # PRD-A not merged — reviews read as "no data", not zero-rate
+        from asclepius import agreement as asc_agreement
+        _review_acceptance = getattr(asc_agreement, "review_acceptance", None)
+        if _review_acceptance is None:
+            # The owner of the definition is not present (PRD-A not merged).
+            # Report "unknown", never a locally-computed substitute — a second
+            # definition is the defect, and a wrong number is worse than none.
+            acc = {"n": len(reviews), "accept_rate": None, "edit_rate": None}
+        else:
+            acc = _review_acceptance(reviews)
+        reviews_total = int(acc.get("n") or 0)
+        acceptance = acc.get("accept_rate")
+        edit_rate = acc.get("edit_rate")
+        # "Not rejected" is a different number and therefore a different word.
+        not_rejected = (None if (not reviews_total or acceptance is None)
+                        else round((acceptance or 0) + (edit_rate or 0), 4))
+        return {
+            "supply": {
+                "physicians_active_week": int(active_week or 0),
+                "cases_labeled": int(labeled_total or 0),
+                "cases_reviewed": int(reviews_total or 0),
+                "spark": self.metrics_daily_counts("submissions"),
+            },
+            "quality": {
+                # Tri-state: a float when reviews exist, null when none — "no
+                # reviews yet" must never render as a 0% acceptance rate.
+                # Strict accepts only, exactly as agreement.review_acceptance
+                # defines it and as quality_report.md reports it.
+                "expert_acceptance": acceptance,
+                "edit_rate": edit_rate,
+                "not_rejected": not_rejected,
+                "reviews_scored": reviews_total,
+                "spark": self.metrics_daily_counts("reviews"),
+            },
+            "pipeline": {
+                "uploads_received": int(uploads_received or 0),
+                "awaiting_review": int(awaiting_review or 0),
+                "promoted_to_task": int(promoted or 0),
+                "spark": self.metrics_daily_counts("uploads"),
+            },
+            "demand": {
+                "buyer_requests": int(buyer_requests or 0),
+                "exports": int(exports_n or 0),
+                "records_shipped": int(shipped or 0),
+                "spark": self.metrics_daily_counts("exports"),
+            },
+        }
+
+    def count_case_reviews_for_tasks(self, task_ids: List[str]) -> int:
+        """How many PRD-A case_reviews cover these tasks (read-only). Defensive:
+        0 when the table does not exist yet (pre-merge-A)."""
+        if not task_ids:
+            return 0
+        qs = ",".join("?" for _ in task_ids)
+        try:
+            with self._conn() as conn:
+                row = conn.execute(
+                    f"SELECT COUNT(*) FROM case_reviews WHERE task_id IN ({qs})",
+                    tuple(task_ids),
+                ).fetchone()
+            return int(row[0] or 0)
+        except sqlite3.OperationalError:
+            return 0
+
+    def list_uploads_for_health_system(self, hs_id: str, *, limit: int = 500) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ingest_uploads WHERE health_system_id = ? "
+                "ORDER BY created_at DESC LIMIT ?", (hs_id, limit),
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["files"] = json.loads(d.pop("files_json") or "[]")
+            out.append(d)
+        return out
+    # ═══ END PRD-C STORE METHODS ═══
+    # ═══ PRD-D ADVISOR STORE METHODS — owned by the advisor tier, do not edit from other PRDs ═══
+    # Appointment, referrals, and advisory sign-off. Appended per START_HERE
+    # §3.2 — existing methods above are never modified.
+
+    # ─── Appointment ─────────────────────────────────────────────────────────
+    def _mint_referral_code(self, conn: sqlite3.Connection) -> str:
+        """A short, speakable, collision-checked code. Advisors read these to
+        people over the phone, so no ambiguous glyphs (0/O, 1/I/l).
+
+        The SELECT is an optimisation, not the guarantee — the partial unique
+        index on ``users(referral_code)`` is (audit L7). Two concurrent
+        appointments could both see a free code and race; the loser used to
+        surface as a 500. Retried here instead, so a race is invisible to the
+        caller rather than an error page on the one action that mints an
+        advisor.
+        """
+        alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+        for _ in range(12):
+            code = "".join(secrets.choice(alphabet) for _ in range(8))
+            row = conn.execute(
+                "SELECT 1 FROM users WHERE referral_code = ?", (code,)).fetchone()
+            if row is None:
+                return code
+        # 31^8 with a dozen tries: reaching here means something is very wrong
+        # (a code column full of one value), and a silent duplicate would break
+        # referral attribution invisibly.
+        raise RuntimeError("could not mint a unique referral code")
+
+    def appoint_advisor(
+        self,
+        user_id: str,
+        *,
+        agreement_ref: str,
+        appointed_by: str,
+        approve: bool = False,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Promote a user to the advisor tier — the WHOLE appointment, atomically.
+
+        Every term of the relationship is one decision and therefore one
+        statement: ``tier='advisor'``, ``compensation_model='equity_only'`` (an
+        advisor is not paid per task — see compensation.py), the appointment
+        stamp, the signed-agreement reference, the referral code and the Slack
+        label. With ``approve=True`` the verification stamp
+        (``verification_status``/``verified_by``/``verified_at``) lands in the
+        SAME update.
+
+        That single-statement property is the point, not a tidiness preference
+        (audit H1). Both appointment doors previously did two writes, and the
+        verification-queue door did them in the order where a crash in between
+        leaves an account APPROVED and LIVE with ``tier='advisor'``, no
+        agreement on file, and ``compensation_model`` NULL — full advisory
+        capability, no signed agreement, and a payment predicate that would
+        happily pay an equity-only advisor. There is no ordering of two writes
+        that is safe, so there is one write.
+
+        Idempotent on the referral code: re-appointing keeps the code an advisor
+        may already have handed out. ``agreement_ref`` is re-checked here — the
+        routers check it too, but this method is the last line and an advisor
+        with equity and no agreement on file is a liability.
+        """
+        agreement_ref = (agreement_ref or "").strip()
+        if not agreement_ref:
+            raise ValueError("appoint_advisor requires a signed agreement reference")
+        # A lost code race is retried rather than surfaced (audit L7): the
+        # unique index is the guarantee, and two admins appointing at the same
+        # moment should not produce a 500 on the action that mints an advisor.
+        for attempt in range(3):
+            try:
+                return self._appoint_advisor_once(
+                    user_id, agreement_ref=agreement_ref, appointed_by=appointed_by,
+                    approve=approve, note=note)
+            except sqlite3.IntegrityError:
+                if attempt == 2:
+                    raise
+        return None  # pragma: no cover - unreachable; the loop returns or raises
+
+    def _appoint_advisor_once(
+        self,
+        user_id: str,
+        *,
+        agreement_ref: str,
+        appointed_by: str,
+        approve: bool = False,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT referral_code, advisor_since FROM users WHERE id = ?",
+                (user_id,)).fetchone()
+            if row is None:
+                return None
+            code = row["referral_code"] or self._mint_referral_code(conn)
+            approval_sql = ""
+            params: List[Any] = [now, appointed_by, now, agreement_ref, code]
+            if approve:
+                # Appended to the same UPDATE rather than issued as a second
+                # statement — see the docstring. ``verification_notes`` APPENDS
+                # (audit H5): the reason a physician was previously rejected is
+                # the most important note in the table and must not be
+                # overwritten by an appointment.
+                approval_sql = (
+                    ", verification_status = 'approved'"
+                    ", verified_by = ?"
+                    ", verified_at = ?"
+                    ", verification_notes = CASE"
+                    "    WHEN ? IS NULL THEN verification_notes"
+                    "    WHEN verification_notes IS NULL OR TRIM(verification_notes) = ''"
+                    "      THEN ?"
+                    "    ELSE verification_notes || char(10) || ?"
+                    "  END"
+                )
+                params.extend([appointed_by, now, note, note, note])
+            params.append(user_id)
+            conn.execute(
+                f"""
+                UPDATE users SET
+                    tier = 'advisor',
+                    tier_assigned_at = ?,
+                    tier_assigned_by = ?,
+                    compensation_model = 'equity_only',
+                    advisor_since = COALESCE(advisor_since, ?),
+                    advisor_agreement_ref = ?,
+                    referral_code = ?,
+                    slack_role = 'Medical Advisor'
+                    {approval_sql}
+                WHERE id = ?
+                """,
+                tuple(params),
+            )
+        return self.get_user_by_id(user_id)
+
+    def set_advisor_display_name(self, user_id: str, full_name: str) -> None:
+        """Fill in a name the appointment supplied, WITHOUT overwriting one the
+        physician already gave us. COALESCE on the existing value, not the new
+        one: an admin typing a name into the appointment form must never
+        clobber the verified legal name on a credential record."""
+        name = (full_name or "").strip()
+        if not name:
+            return
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET full_name = COALESCE(NULLIF(TRIM(full_name), ''), ?) "
+                "WHERE id = ?", (name, user_id))
+
+    def get_user_by_referral_code(self, code: str) -> Optional[Dict[str, Any]]:
+        code = (code or "").strip().upper()
+        if not code:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE referral_code = ?", (code,)).fetchone()
+        return dict(row) if row else None
+
+    # ─── Referrals (PRD §3) ──────────────────────────────────────────────────
+    def insert_referral(
+        self,
+        *,
+        referrer_id: str,
+        referral_code: str,
+        invitee_email: Optional[str] = None,
+        invitee_name: Optional[str] = None,
+        note: Optional[str] = None,
+        status: Optional[str] = "invited",
+    ) -> Dict[str, Any]:
+        rid = _new_id("ref")
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO referrals (referral_id, referrer_id, referral_code,
+                                       invitee_email, invitee_name, note, status, invited_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (rid, referrer_id, referral_code,
+                 (invitee_email or "").lower().strip() or None,
+                 invitee_name, note, status, _utcnow_iso()),
+            )
+        return self.get_referral(rid)  # type: ignore[return-value]
+
+    def get_referral(self, referral_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM referrals WHERE referral_id = ?", (referral_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_referrals_by_referrer(self, referrer_id: str,
+                                   *, limit: int = 500) -> List[Dict[str, Any]]:
+        """Every referral THIS advisor made. Scoped by the caller's session id —
+        never by a query parameter (the IDOR rule from the portal work).
+
+        Bounded (audit L6): every other list method in this file takes a limit,
+        and an unbounded SELECT on a table that only grows is a slow leak rather
+        than a bug you notice.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM referrals WHERE referrer_id = ? "
+                "ORDER BY invited_at DESC LIMIT ?",
+                (referrer_id, max(1, limit))).fetchall()
+        return [dict(r) for r in rows]
+
+    def referral_counts_by_referrer(self, referrer_ids: List[str]) -> Dict[str, Dict[str, int]]:
+        """{referrer_id: {total, active}} for a page of advisors in ONE query.
+
+        The admin roster previously ran two queries per advisor inside a loop
+        over a full user scan (audit L6), each on a fresh SQLite connection.
+        """
+        ids = [i for i in (referrer_ids or []) if i]
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT referrer_id, "
+                f"       COUNT(*) AS total, "
+                f"       SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS active "
+                f"FROM referrals WHERE referrer_id IN ({placeholders}) "
+                f"GROUP BY referrer_id",
+                tuple(ids)).fetchall()
+        return {r["referrer_id"]: {"total": int(r["total"] or 0),
+                                   "active": int(r["active"] or 0)} for r in rows}
+
+    def signoff_counts_by_advisor(self, advisor_ids: List[str]) -> Dict[str, int]:
+        """{advisor_id: n} in one query — same reason as above."""
+        ids = [i for i in (advisor_ids or []) if i]
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT advisor_id, COUNT(*) AS n FROM advisory_signoffs "
+                f"WHERE advisor_id IN ({placeholders}) GROUP BY advisor_id",
+                tuple(ids)).fetchall()
+        return {r["advisor_id"]: int(r["n"] or 0) for r in rows}
+
+    def find_open_referral_for_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """The newest referral for this email that has not yet been claimed by a
+        signup. Resolution is by email because that is the identifier the invite
+        was addressed to and the one the invitee signs up with; a code that has
+        to survive a React landing app, a tenant-store wizard and two redirects
+        is a code that arrives NULL and attributes the referral to nobody."""
+        email = (email or "").lower().strip()
+        if not email:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM referrals WHERE invitee_email = ? AND user_id IS NULL "
+                "ORDER BY invited_at DESC LIMIT 1",
+                (email,)).fetchone()
+        return dict(row) if row else None
+
+    def count_recent_referrals_for_email(self, email: str, *, hours: int = 24) -> int:
+        """How many times this address has been invited recently, by ANYONE.
+
+        Mirrors the public onboarding path's per-email pending cap (audit H4):
+        without it, the same inbox can be mailed without bound by rotating the
+        referring advisor, which is both a spam vector from a verified sending
+        domain and a way to bury a real invite.
+        """
+        email = (email or "").lower().strip()
+        if not email:
+            return 0
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=max(1, hours))
+                  ).replace(tzinfo=None).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM referrals WHERE invitee_email = ? "
+                "AND invited_at >= ?", (email, cutoff)).fetchone()
+        return int(row["n"] if row else 0)
+
+    def has_referral_for_email(self, referrer_id: str, email: str) -> bool:
+        """True when this advisor already invited this address — so a second
+        click reports 'already invited' rather than minting a duplicate row."""
+        email = (email or "").lower().strip()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM referrals WHERE referrer_id = ? AND invitee_email = ?",
+                (referrer_id, email)).fetchone()
+        return row is not None
+
+    # The funnel, in order. Status only ever moves FORWARD: a later NPI recheck
+    # or a re-onboard must never walk an 'approved' referral back to
+    # 'signed_up'. NULL ("we have not heard back") sorts before 'invited'.
+    _REFERRAL_LADDER = ("invited", "signed_up", "verified", "approved")
+
+    def advance_referral(self, referral_id: str, status: str) -> Optional[Dict[str, Any]]:
+        """Move a referral forward along the funnel, or to a terminal
+        'declined'. Monotonic by design — see ``_REFERRAL_LADDER``."""
+        ref = self.get_referral(referral_id)
+        if ref is None:
+            return None
+        current = ref.get("status")
+        if status != "declined" and current in self._REFERRAL_LADDER and status in self._REFERRAL_LADDER:
+            if self._REFERRAL_LADDER.index(status) <= self._REFERRAL_LADDER.index(current):
+                return ref
+        terminal = status in ("approved", "declined")
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE referrals SET status = ?, resolved_at = CASE WHEN ? THEN ? "
+                "ELSE resolved_at END WHERE referral_id = ?",
+                (status, 1 if terminal else 0, _utcnow_iso(), referral_id),
+            )
+        return self.get_referral(referral_id)
+
+    def claim_referral_for_signup(self, *, email: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Attach a fresh signup to the referral(s) that invited them.
+
+        ALL open referrals for the address resolve, not just the first (audit
+        M5). Two advisors can both invite the same physician — the interesting
+        case, since a well-connected candidate is exactly who gets referred
+        twice — and claiming only one left the other sitting at ``invited``
+        forever, rendering in that advisor's funnel as still pending long after
+        the person joined. Attribution is not exclusive: both advisors did in
+        fact refer them, and the funnel should say so.
+        """
+        email = (email or "").lower().strip()
+        if not email:
+            return None
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT referral_id FROM referrals WHERE invitee_email = ? "
+                "AND user_id IS NULL ORDER BY invited_at ASC", (email,)).fetchall()
+            if not rows:
+                return None
+            conn.execute(
+                "UPDATE referrals SET user_id = ?, status = 'signed_up' "
+                "WHERE invitee_email = ? AND user_id IS NULL",
+                (user_id, email),
+            )
+        # The earliest invite is returned as "the" referral for logging; every
+        # one of them is now resolved.
+        return self.get_referral(rows[0]["referral_id"])
+
+    def advance_referral_for_user(self, user_id: str, status: str) -> Optional[Dict[str, Any]]:
+        """Move EVERY referral that claimed this user along the funnel.
+
+        Used by the verification decision points, which know a user id and not a
+        referral id. Plural for the same reason ``claim_referral_for_signup`` is
+        (audit M5): two advisors may have referred the same physician, and
+        advancing only one leaves the other's funnel permanently wrong.
+        """
+        if not user_id:
+            return None
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT referral_id FROM referrals WHERE user_id = ? "
+                "ORDER BY invited_at ASC", (user_id,)).fetchall()
+        out = None
+        for row in rows:
+            out = self.advance_referral(row["referral_id"], status) or out
+        return out
+
+    # ─── Advisory sign-off (PRD §4) ──────────────────────────────────────────
+    def insert_advisory_signoff(
+        self,
+        *,
+        artifact_type: str,
+        artifact_id: str,
+        advisor_id: str,
+        verdict: str,
+        comments: Optional[str],
+        relationship: str,
+        subject_ids: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Record one advisory verdict. ``relationship`` is supplied by the
+        ROUTER from the advisor's own user row and is never accepted from the
+        client — the disclosure is only worth something if the subject of it
+        cannot write it.
+
+        ``subject_ids`` pins WHAT was signed off (audit M3), which matters for
+        artifact ids that are derived rather than stored: a task batch is
+        ``specialty:YYYY-MM-DD`` over open tasks, so without this the membership
+        keeps changing after the attestation and later work inherits an approval
+        nobody gave it.
+        """
+        sid = _new_id("sgn")
+        ids = [str(i) for i in (subject_ids or []) if i]
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO advisory_signoffs (signoff_id, artifact_type, artifact_id,
+                                               advisor_id, verdict, comments,
+                                               relationship, created_at,
+                                               subject_ids, subject_n)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (sid, artifact_type, artifact_id, advisor_id, verdict,
+                 (comments or "").strip() or None, relationship, _utcnow_iso(),
+                 json.dumps(ids) if ids else None, len(ids) if ids else None),
+            )
+        return self.get_advisory_signoff(sid)  # type: ignore[return-value]
+
+    @staticmethod
+    def _signoff_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        raw = rec.pop("subject_ids", None)
+        rec["subject_ids"] = json.loads(raw) if raw else []
+        return rec
+
+    def get_advisory_signoff(self, signoff_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM advisory_signoffs WHERE signoff_id = ?",
+                (signoff_id,)).fetchone()
+        return self._signoff_row(row) if row else None
+
+    def list_advisory_signoffs(
+        self,
+        *,
+        artifact_type: Optional[str] = None,
+        artifact_id: Optional[str] = None,
+        advisor_id: Optional[str] = None,
+        limit: int = 200,
+    ) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if artifact_type:
+            clauses.append("artifact_type = ?")
+            params.append(artifact_type)
+        if artifact_id:
+            clauses.append("artifact_id = ?")
+            params.append(artifact_id)
+        if advisor_id:
+            clauses.append("advisor_id = ?")
+            params.append(advisor_id)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM advisory_signoffs {where} ORDER BY created_at DESC LIMIT ?",
+                tuple(params)).fetchall()
+        return [self._signoff_row(r) for r in rows]
+
+    # Verdict severity, worst first. The operator-facing status must reflect the
+    # WORST outstanding verdict, not the most recent one (audit M2): with two
+    # advisors, one approving after another requested changes would otherwise
+    # erase the objection from the field an operator reads before shipping.
+    # ``created_at`` is second-granularity, so "most recent" is not even
+    # well-defined for same-second writes.
+    _VERDICT_SEVERITY = {"changes_requested": 2, "approved_with_comments": 1, "approved": 0}
+
+    @classmethod
+    def worst_verdict(cls, verdicts: List[str]) -> Optional[str]:
+        """The verdict an operator needs to see. Unknown values sort worst —
+        an unrecognized verdict is not evidence of approval."""
+        known = [v for v in verdicts if v]
+        if not known:
+            return None
+        return max(known, key=lambda v: cls._VERDICT_SEVERITY.get(v, 99))
+
+    def signoff_summary(self, artifact_type: str, artifact_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """{artifact_id: {n, verdict, latest_verdict, latest_at, verdicts}} for a
+        page of artifacts — one query, not one per row, so the admin list does
+        not degrade with the number of exports.
+
+        ``verdict`` is the WORST outstanding verdict and is the one to display;
+        ``latest_verdict`` is kept for anyone who genuinely wants recency, and
+        the full list rides along so a caller can render "2 approved · 1 change
+        requested" without a second query.
+        """
+        ids = [i for i in (artifact_ids or []) if i]
+        if not ids:
+            return {}
+        out: Dict[str, Dict[str, Any]] = {}
+        placeholders = ",".join("?" for _ in ids)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT artifact_id, verdict, created_at FROM advisory_signoffs "
+                f"WHERE artifact_type = ? AND artifact_id IN ({placeholders}) "
+                f"ORDER BY created_at ASC",
+                tuple([artifact_type] + ids)).fetchall()
+        for r in rows:
+            cur = out.setdefault(r["artifact_id"], {"n": 0, "verdict": None,
+                                                    "latest_verdict": None,
+                                                    "latest_at": None, "verdicts": []})
+            cur["n"] += 1
+            cur["verdicts"].append(r["verdict"])
+            cur["latest_verdict"] = r["verdict"]   # ASC order -> last write wins
+            cur["latest_at"] = r["created_at"]
+        for cur in out.values():
+            cur["verdict"] = self.worst_verdict(cur["verdicts"])
+        return out
+
+    def set_signoff_status(self, table: str, id_column: str, artifact_id: str,
+                           status: Optional[str]) -> None:
+        """Mirror the latest verdict onto the artifact's own row so admin lists
+        can show it without a join. Advisory only — nothing reads this to decide
+        whether work may proceed (PRD §4.4 as amended: sign-off never blocks an
+        export or a shipment)."""
+        allowed = {
+            "exports": "export_id",
+            "tasks": "task_id",
+            "ingest_uploads": "upload_id",
+        }
+        # The table/column names are interpolated into SQL, so they are checked
+        # against a literal allowlist rather than trusted from the caller.
+        if allowed.get(table) != id_column:
+            raise ValueError(f"refusing to write signoff_status to {table}.{id_column}")
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE {table} SET signoff_status = ? WHERE {id_column} = ?",
+                (status, artifact_id))
+
+    # ─── Task batches (PRD §4.2, artifact_type='task_batch') ─────────────────
+    # There is no persisted generation-batch id on ``tasks``, and inventing one
+    # would need a backfill that could only guess at history. The batch key is
+    # DERIVED instead — specialty plus generation date over still-open tasks —
+    # so it is stable, re-derivable, and means something to a human ("the
+    # nephrology cases from the 3rd"). If a real batch id is ever persisted,
+    # this method is the single place that changes.
+    @staticmethod
+    def task_batch_key(task: Dict[str, Any]) -> str:
+        created = str(task.get("created_at") or "")[:10] or "unknown"
+        return f"{task.get('specialty') or 'general'}:{created}"
+
+    def list_open_task_batches(self, *, limit: int = 200) -> List[Dict[str, Any]]:
+        """Open (not yet labeled out) tasks grouped into previewable batches.
+
+        Counted with GROUP BY rather than by scanning a capped list of tasks and
+        tallying in Python (audit M3). The old form applied a global 500-task
+        cap and then grouped, so with enough open work a batch's ``n_tasks``
+        silently under-reported — and the artifact view applied a *different*
+        cap, so the same batch was two different sizes depending on which screen
+        you were looking at. ``limit`` here bounds the number of BATCHES
+        returned, not the count within one.
+
+        Deliberately NO ``signoff_status``: a batch spans many task rows and the
+        sign-off is not mirrored onto any of them, so reporting one row's column
+        as the batch's status would be a field that looks authoritative and is
+        whichever task happened to sort first. Callers read ``signoff_summary``.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT specialty,
+                       substr(created_at, 1, 10) AS created_on,
+                       COUNT(*)                  AS n_tasks
+                FROM tasks
+                WHERE status = 'open'
+                GROUP BY specialty, substr(created_at, 1, 10)
+                ORDER BY created_on DESC, specialty ASC
+                LIMIT ?
+                """,
+                (limit,)).fetchall()
+        return [
+            {"batch_key": f"{r['specialty'] or 'general'}:{r['created_on'] or 'unknown'}",
+             "specialty": r["specialty"],
+             "created_on": r["created_on"],
+             "n_tasks": r["n_tasks"]}
+            for r in rows
+        ]
+
+    def list_tasks_in_batch(self, batch_key: str, *, limit: int = 50) -> List[Dict[str, Any]]:
+        """Open tasks belonging to a derived batch key.
+
+        The key is ``specialty:YYYY-MM-DD``, so both halves are pushed into SQL
+        rather than filtered in Python: this is called on every sign-off POST
+        (to prove the artifact exists) and scanning every open task each time
+        would put an avoidable full scan on the single SQLite writer that
+        labeler submissions also need.
+        """
+        specialty, _, created_on = (batch_key or "").rpartition(":")
+        if not specialty or not created_on:
+            return []
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE status = 'open' AND specialty = ? "
+                "AND substr(created_at, 1, 10) = ? ORDER BY created_at DESC LIMIT ?",
+                (specialty, created_on, limit)).fetchall()
+        return [self._task_row(r) for r in rows]
+
+    # ─── Product specs (PRD §4.2, artifact_type='product_spec') ──────────────
+    def insert_product_spec(self, *, title: str, body_md: str,
+                            created_by: Optional[str]) -> Dict[str, Any]:
+        sid = _new_id("spec")
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO product_specs (spec_id, title, body_md, created_by, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (sid, title, body_md, created_by, _utcnow_iso()))
+        return self.get_product_spec(sid)  # type: ignore[return-value]
+
+    def get_product_spec(self, spec_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM product_specs WHERE spec_id = ?", (spec_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_product_specs(self, *, limit: int = 100) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM product_specs ORDER BY created_at DESC LIMIT ?",
+                (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+    # ─── Compensation (PRD §2.4) ─────────────────────────────────────────────
+    def submissions_for_payment(self, *, limit: int = 1000) -> List[Dict[str, Any]]:
+        """Completed submissions that should accrue money.
+
+        There is NO payment feature today. This exists so that when one is
+        built, the person building it finds a query that already excludes
+        equity-only advisors instead of writing a fresh ``SELECT * FROM
+        submissions`` that quietly bills the company for volunteer work.
+        See ``asclepius/compensation.py`` — NULL is payable on purpose.
+        """
+        from asclepius.compensation import PAYABLE_SQL
+
+        # LEFT, not INNER (audit M6). compensation.py argues at length that
+        # under-paying a physician who did the work is worse than over-counting
+        # a volunteer — and an INNER JOIN silently drops any submission whose
+        # user row is missing, which is under-payment by a one-word typo. The
+        # NULL a LEFT JOIN produces is then handled correctly by PAYABLE_SQL,
+        # written `IS NULL OR != 'equity_only'` precisely so three-valued logic
+        # cannot swallow it.
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT s.submission_id, s.evaluator_id, s.task_id, s.status, s.created_at
+                FROM submissions s
+                LEFT JOIN users u ON u.id = s.evaluator_id
+                WHERE s.status != 'rejected' AND {PAYABLE_SQL}
+                ORDER BY s.created_at DESC LIMIT ?
+                """,
+                (limit,)).fetchall()
+        return [dict(r) for r in rows]
+    # ═══ END PRD-D STORE METHODS ═══
 
 
 # ─── Process-wide singleton ───────────────────────────────────────────────────

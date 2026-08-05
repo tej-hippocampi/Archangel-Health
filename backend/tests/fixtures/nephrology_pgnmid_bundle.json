@@ -1,0 +1,2886 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-1",
+        "name": [
+          {
+            "family": "Price",
+            "given": [
+              "Eleanor",
+              "V"
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(555) 010-8821"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1961-11-08",
+        "address": [
+          {
+            "city": "Sacramento",
+            "state": "CA",
+            "postalCode": "958XX"
+          }
+        ],
+        "identifier": [
+          {
+            "system": "urn:mrn",
+            "value": "SYN-MRN-8841902"
+          }
+        ],
+        "extension": [
+          {
+            "url": "https://archangel.health/fhir/StructureDefinition/synthetic-patient",
+            "valueBoolean": true
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-1",
+        "status": "finished",
+        "class": {
+          "code": "IMP"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-1",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2160-0",
+              "display": "Creatinine"
+            },
+            {
+              "display": "Creatinine"
+            }
+          ],
+          "text": "Creatinine"
+        },
+        "effectiveDateTime": "2025-01-06T09:00:00Z",
+        "valueQuantity": {
+          "value": 1.1,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 0.6
+            },
+            "high": {
+              "value": 1.2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-2",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "3094-0",
+              "display": "Blood urea nitrogen"
+            },
+            {
+              "display": "Blood urea nitrogen"
+            }
+          ],
+          "text": "Blood urea nitrogen"
+        },
+        "effectiveDateTime": "2025-01-06T09:00:00Z",
+        "valueQuantity": {
+          "value": 18,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 7
+            },
+            "high": {
+              "value": 20
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-3",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "48642-3",
+              "display": "eGFR"
+            },
+            {
+              "display": "eGFR"
+            }
+          ],
+          "text": "eGFR"
+        },
+        "effectiveDateTime": "2025-01-06T09:00:00Z",
+        "valueQuantity": {
+          "value": 72,
+          "unit": "mL/min/1.73m2"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 90
+            },
+            "high": {
+              "value": 120
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-4",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "1751-7",
+              "display": "Albumin"
+            },
+            {
+              "display": "Albumin"
+            }
+          ],
+          "text": "Albumin"
+        },
+        "effectiveDateTime": "2025-01-06T09:00:00Z",
+        "valueQuantity": {
+          "value": 3.6,
+          "unit": "g/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 3.5
+            },
+            "high": {
+              "value": 5.0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-5",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4485-1",
+              "display": "C3 complement"
+            },
+            {
+              "display": "C3 complement"
+            }
+          ],
+          "text": "C3 complement"
+        },
+        "effectiveDateTime": "2025-01-06T09:00:00Z",
+        "valueQuantity": {
+          "value": 78,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 90
+            },
+            "high": {
+              "value": 180
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-6",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4498-4",
+              "display": "C4 complement"
+            },
+            {
+              "display": "C4 complement"
+            }
+          ],
+          "text": "C4 complement"
+        },
+        "effectiveDateTime": "2025-01-06T09:00:00Z",
+        "valueQuantity": {
+          "value": 22,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 10
+            },
+            "high": {
+              "value": 40
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-7",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "718-7",
+              "display": "Hemoglobin"
+            },
+            {
+              "display": "Hemoglobin"
+            }
+          ],
+          "text": "Hemoglobin"
+        },
+        "effectiveDateTime": "2025-01-06T09:00:00Z",
+        "valueQuantity": {
+          "value": 12.4,
+          "unit": "g/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 12
+            },
+            "high": {
+              "value": 16
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-8",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "34366-5",
+              "display": "Urine protein/creatinine ratio"
+            },
+            {
+              "display": "Urine protein/creatinine ratio"
+            }
+          ],
+          "text": "Urine protein/creatinine ratio"
+        },
+        "effectiveDateTime": "2025-01-06T09:00:00Z",
+        "valueQuantity": {
+          "value": 1.8,
+          "unit": "mg/mg"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 0.0
+            },
+            "high": {
+              "value": 0.2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-9",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "36916-5",
+              "display": "Serum free kappa"
+            },
+            {
+              "display": "Serum free kappa"
+            }
+          ],
+          "text": "Serum free kappa"
+        },
+        "effectiveDateTime": "2025-01-06T09:00:00Z",
+        "valueQuantity": {
+          "value": 24,
+          "unit": "mg/L"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 3.3
+            },
+            "high": {
+              "value": 19.4
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-10",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2160-0",
+              "display": "Creatinine"
+            },
+            {
+              "display": "Creatinine"
+            }
+          ],
+          "text": "Creatinine"
+        },
+        "effectiveDateTime": "2025-01-27T09:00:00Z",
+        "valueQuantity": {
+          "value": 1.4,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 0.6
+            },
+            "high": {
+              "value": 1.2
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-11",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "3094-0",
+              "display": "Blood urea nitrogen"
+            },
+            {
+              "display": "Blood urea nitrogen"
+            }
+          ],
+          "text": "Blood urea nitrogen"
+        },
+        "effectiveDateTime": "2025-01-27T09:00:00Z",
+        "valueQuantity": {
+          "value": 24,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 7
+            },
+            "high": {
+              "value": 20
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-12",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "48642-3",
+              "display": "eGFR"
+            },
+            {
+              "display": "eGFR"
+            }
+          ],
+          "text": "eGFR"
+        },
+        "effectiveDateTime": "2025-01-27T09:00:00Z",
+        "valueQuantity": {
+          "value": 58,
+          "unit": "mL/min/1.73m2"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 90
+            },
+            "high": {
+              "value": 120
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-13",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "1751-7",
+              "display": "Albumin"
+            },
+            {
+              "display": "Albumin"
+            }
+          ],
+          "text": "Albumin"
+        },
+        "effectiveDateTime": "2025-01-27T09:00:00Z",
+        "valueQuantity": {
+          "value": 3.2,
+          "unit": "g/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 3.5
+            },
+            "high": {
+              "value": 5.0
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-14",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4485-1",
+              "display": "C3 complement"
+            },
+            {
+              "display": "C3 complement"
+            }
+          ],
+          "text": "C3 complement"
+        },
+        "effectiveDateTime": "2025-01-27T09:00:00Z",
+        "valueQuantity": {
+          "value": 74,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 90
+            },
+            "high": {
+              "value": 180
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-15",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4498-4",
+              "display": "C4 complement"
+            },
+            {
+              "display": "C4 complement"
+            }
+          ],
+          "text": "C4 complement"
+        },
+        "effectiveDateTime": "2025-01-27T09:00:00Z",
+        "valueQuantity": {
+          "value": 21,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 10
+            },
+            "high": {
+              "value": 40
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-16",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "718-7",
+              "display": "Hemoglobin"
+            },
+            {
+              "display": "Hemoglobin"
+            }
+          ],
+          "text": "Hemoglobin"
+        },
+        "effectiveDateTime": "2025-01-27T09:00:00Z",
+        "valueQuantity": {
+          "value": 11.8,
+          "unit": "g/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 12
+            },
+            "high": {
+              "value": 16
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-17",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "34366-5",
+              "display": "Urine protein/creatinine ratio"
+            },
+            {
+              "display": "Urine protein/creatinine ratio"
+            }
+          ],
+          "text": "Urine protein/creatinine ratio"
+        },
+        "effectiveDateTime": "2025-01-27T09:00:00Z",
+        "valueQuantity": {
+          "value": 2.6,
+          "unit": "mg/mg"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 0.0
+            },
+            "high": {
+              "value": 0.2
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-18",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "36916-5",
+              "display": "Serum free kappa"
+            },
+            {
+              "display": "Serum free kappa"
+            }
+          ],
+          "text": "Serum free kappa"
+        },
+        "effectiveDateTime": "2025-01-27T09:00:00Z",
+        "valueQuantity": {
+          "value": 31,
+          "unit": "mg/L"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 3.3
+            },
+            "high": {
+              "value": 19.4
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-19",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2160-0",
+              "display": "Creatinine"
+            },
+            {
+              "display": "Creatinine"
+            }
+          ],
+          "text": "Creatinine"
+        },
+        "effectiveDateTime": "2025-02-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 1.8,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 0.6
+            },
+            "high": {
+              "value": 1.2
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-20",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "3094-0",
+              "display": "Blood urea nitrogen"
+            },
+            {
+              "display": "Blood urea nitrogen"
+            }
+          ],
+          "text": "Blood urea nitrogen"
+        },
+        "effectiveDateTime": "2025-02-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 31,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 7
+            },
+            "high": {
+              "value": 20
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-21",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "48642-3",
+              "display": "eGFR"
+            },
+            {
+              "display": "eGFR"
+            }
+          ],
+          "text": "eGFR"
+        },
+        "effectiveDateTime": "2025-02-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 44,
+          "unit": "mL/min/1.73m2"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 90
+            },
+            "high": {
+              "value": 120
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-22",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "1751-7",
+              "display": "Albumin"
+            },
+            {
+              "display": "Albumin"
+            }
+          ],
+          "text": "Albumin"
+        },
+        "effectiveDateTime": "2025-02-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 2.9,
+          "unit": "g/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 3.5
+            },
+            "high": {
+              "value": 5.0
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-23",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4485-1",
+              "display": "C3 complement"
+            },
+            {
+              "display": "C3 complement"
+            }
+          ],
+          "text": "C3 complement"
+        },
+        "effectiveDateTime": "2025-02-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 70,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 90
+            },
+            "high": {
+              "value": 180
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-24",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4498-4",
+              "display": "C4 complement"
+            },
+            {
+              "display": "C4 complement"
+            }
+          ],
+          "text": "C4 complement"
+        },
+        "effectiveDateTime": "2025-02-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 20,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 10
+            },
+            "high": {
+              "value": 40
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-25",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "718-7",
+              "display": "Hemoglobin"
+            },
+            {
+              "display": "Hemoglobin"
+            }
+          ],
+          "text": "Hemoglobin"
+        },
+        "effectiveDateTime": "2025-02-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 11.2,
+          "unit": "g/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 12
+            },
+            "high": {
+              "value": 16
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-26",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "34366-5",
+              "display": "Urine protein/creatinine ratio"
+            },
+            {
+              "display": "Urine protein/creatinine ratio"
+            }
+          ],
+          "text": "Urine protein/creatinine ratio"
+        },
+        "effectiveDateTime": "2025-02-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 3.4,
+          "unit": "mg/mg"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 0.0
+            },
+            "high": {
+              "value": 0.2
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-27",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "36916-5",
+              "display": "Serum free kappa"
+            },
+            {
+              "display": "Serum free kappa"
+            }
+          ],
+          "text": "Serum free kappa"
+        },
+        "effectiveDateTime": "2025-02-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 39,
+          "unit": "mg/L"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 3.3
+            },
+            "high": {
+              "value": 19.4
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-28",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2160-0",
+              "display": "Creatinine"
+            },
+            {
+              "display": "Creatinine"
+            }
+          ],
+          "text": "Creatinine"
+        },
+        "effectiveDateTime": "2025-03-03T09:00:00Z",
+        "valueQuantity": {
+          "value": 2.3,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 0.6
+            },
+            "high": {
+              "value": 1.2
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-29",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "3094-0",
+              "display": "Blood urea nitrogen"
+            },
+            {
+              "display": "Blood urea nitrogen"
+            }
+          ],
+          "text": "Blood urea nitrogen"
+        },
+        "effectiveDateTime": "2025-03-03T09:00:00Z",
+        "valueQuantity": {
+          "value": 38,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 7
+            },
+            "high": {
+              "value": 20
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-30",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "48642-3",
+              "display": "eGFR"
+            },
+            {
+              "display": "eGFR"
+            }
+          ],
+          "text": "eGFR"
+        },
+        "effectiveDateTime": "2025-03-03T09:00:00Z",
+        "valueQuantity": {
+          "value": 33,
+          "unit": "mL/min/1.73m2"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 90
+            },
+            "high": {
+              "value": 120
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-31",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "1751-7",
+              "display": "Albumin"
+            },
+            {
+              "display": "Albumin"
+            }
+          ],
+          "text": "Albumin"
+        },
+        "effectiveDateTime": "2025-03-03T09:00:00Z",
+        "valueQuantity": {
+          "value": 2.7,
+          "unit": "g/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 3.5
+            },
+            "high": {
+              "value": 5.0
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-32",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4485-1",
+              "display": "C3 complement"
+            },
+            {
+              "display": "C3 complement"
+            }
+          ],
+          "text": "C3 complement"
+        },
+        "effectiveDateTime": "2025-03-03T09:00:00Z",
+        "valueQuantity": {
+          "value": 69,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 90
+            },
+            "high": {
+              "value": 180
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-33",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4498-4",
+              "display": "C4 complement"
+            },
+            {
+              "display": "C4 complement"
+            }
+          ],
+          "text": "C4 complement"
+        },
+        "effectiveDateTime": "2025-03-03T09:00:00Z",
+        "valueQuantity": {
+          "value": 19,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 10
+            },
+            "high": {
+              "value": 40
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-34",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "718-7",
+              "display": "Hemoglobin"
+            },
+            {
+              "display": "Hemoglobin"
+            }
+          ],
+          "text": "Hemoglobin"
+        },
+        "effectiveDateTime": "2025-03-03T09:00:00Z",
+        "valueQuantity": {
+          "value": 10.9,
+          "unit": "g/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 12
+            },
+            "high": {
+              "value": 16
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-35",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "34366-5",
+              "display": "Urine protein/creatinine ratio"
+            },
+            {
+              "display": "Urine protein/creatinine ratio"
+            }
+          ],
+          "text": "Urine protein/creatinine ratio"
+        },
+        "effectiveDateTime": "2025-03-03T09:00:00Z",
+        "valueQuantity": {
+          "value": 4.1,
+          "unit": "mg/mg"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 0.0
+            },
+            "high": {
+              "value": 0.2
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-36",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "36916-5",
+              "display": "Serum free kappa"
+            },
+            {
+              "display": "Serum free kappa"
+            }
+          ],
+          "text": "Serum free kappa"
+        },
+        "effectiveDateTime": "2025-03-03T09:00:00Z",
+        "valueQuantity": {
+          "value": 47,
+          "unit": "mg/L"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 3.3
+            },
+            "high": {
+              "value": 19.4
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-37",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2160-0",
+              "display": "Creatinine"
+            },
+            {
+              "display": "Creatinine"
+            }
+          ],
+          "text": "Creatinine"
+        },
+        "effectiveDateTime": "2025-03-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 2.6,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 0.6
+            },
+            "high": {
+              "value": 1.2
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-38",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "3094-0",
+              "display": "Blood urea nitrogen"
+            },
+            {
+              "display": "Blood urea nitrogen"
+            }
+          ],
+          "text": "Blood urea nitrogen"
+        },
+        "effectiveDateTime": "2025-03-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 44,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 7
+            },
+            "high": {
+              "value": 20
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-39",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "48642-3",
+              "display": "eGFR"
+            },
+            {
+              "display": "eGFR"
+            }
+          ],
+          "text": "eGFR"
+        },
+        "effectiveDateTime": "2025-03-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 28,
+          "unit": "mL/min/1.73m2"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 90
+            },
+            "high": {
+              "value": 120
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-40",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "1751-7",
+              "display": "Albumin"
+            },
+            {
+              "display": "Albumin"
+            }
+          ],
+          "text": "Albumin"
+        },
+        "effectiveDateTime": "2025-03-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 2.6,
+          "unit": "g/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 3.5
+            },
+            "high": {
+              "value": 5.0
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-41",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4485-1",
+              "display": "C3 complement"
+            },
+            {
+              "display": "C3 complement"
+            }
+          ],
+          "text": "C3 complement"
+        },
+        "effectiveDateTime": "2025-03-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 71,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 90
+            },
+            "high": {
+              "value": 180
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-42",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4498-4",
+              "display": "C4 complement"
+            },
+            {
+              "display": "C4 complement"
+            }
+          ],
+          "text": "C4 complement"
+        },
+        "effectiveDateTime": "2025-03-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 20,
+          "unit": "mg/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 10
+            },
+            "high": {
+              "value": 40
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-43",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "718-7",
+              "display": "Hemoglobin"
+            },
+            {
+              "display": "Hemoglobin"
+            }
+          ],
+          "text": "Hemoglobin"
+        },
+        "effectiveDateTime": "2025-03-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 10.6,
+          "unit": "g/dL"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 12
+            },
+            "high": {
+              "value": 16
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "L"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-44",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "34366-5",
+              "display": "Urine protein/creatinine ratio"
+            },
+            {
+              "display": "Urine protein/creatinine ratio"
+            }
+          ],
+          "text": "Urine protein/creatinine ratio"
+        },
+        "effectiveDateTime": "2025-03-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 4.6,
+          "unit": "mg/mg"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 0.0
+            },
+            "high": {
+              "value": 0.2
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-45",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "36916-5",
+              "display": "Serum free kappa"
+            },
+            {
+              "display": "Serum free kappa"
+            }
+          ],
+          "text": "Serum free kappa"
+        },
+        "effectiveDateTime": "2025-03-17T09:00:00Z",
+        "valueQuantity": {
+          "value": 52,
+          "unit": "mg/L"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 3.3
+            },
+            "high": {
+              "value": 19.4
+            }
+          }
+        ],
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "code": "H"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "id": "med-1",
+        "status": "active",
+        "medicationCodeableConcept": {
+          "text": "Lisinopril"
+        },
+        "dosage": [
+          {
+            "route": {
+              "text": "oral"
+            },
+            "timing": {
+              "code": {
+                "text": "daily"
+              }
+            },
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 10.0,
+                  "unit": "mg"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "id": "med-2",
+        "status": "active",
+        "medicationCodeableConcept": {
+          "text": "Furosemide"
+        },
+        "dosage": [
+          {
+            "route": {
+              "text": "oral"
+            },
+            "timing": {
+              "code": {
+                "text": "twice daily"
+              }
+            },
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 40.0,
+                  "unit": "mg"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "id": "med-3",
+        "status": "active",
+        "medicationCodeableConcept": {
+          "text": "Atorvastatin"
+        },
+        "dosage": [
+          {
+            "route": {
+              "text": "oral"
+            },
+            "timing": {
+              "code": {
+                "text": "nightly"
+              }
+            },
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 20.0,
+                  "unit": "mg"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "id": "med-4",
+        "status": "active",
+        "medicationCodeableConcept": {
+          "text": "Cholecalciferol"
+        },
+        "dosage": [
+          {
+            "route": {
+              "text": "oral"
+            },
+            "timing": {
+              "code": {
+                "text": "daily"
+              }
+            },
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 2000.0,
+                  "unit": "units"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "id": "med-5",
+        "status": "active",
+        "medicationCodeableConcept": {
+          "text": "Pantoprazole"
+        },
+        "dosage": [
+          {
+            "route": {
+              "text": "oral"
+            },
+            "timing": {
+              "code": {
+                "text": "daily"
+              }
+            },
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 40.0,
+                  "unit": "mg"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "id": "med-6",
+        "status": "active",
+        "medicationCodeableConcept": {
+          "text": "Cefazolin"
+        },
+        "dosage": [
+          {
+            "route": {
+              "text": "intravenous"
+            },
+            "timing": {
+              "code": {
+                "text": "completed course"
+              }
+            },
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 2.0,
+                  "unit": "g"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-1",
+        "code": {
+          "text": "Acute kidney injury"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-2",
+        "code": {
+          "text": "Proteinuria"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-3",
+        "code": {
+          "text": "Microscopic hematuria"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-4",
+        "code": {
+          "text": "Resolved methicillin-sensitive Staphylococcus aureus bacteremia"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-5",
+        "code": {
+          "text": "Anemia of chronic disease"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "DocumentReference",
+        "id": "doc-1",
+        "type": {
+          "text": "Nephrology H&P"
+        },
+        "content": [
+          {
+            "attachment": {
+              "contentType": "text/plain",
+              "data": "QWR1bHQgcHJlc2VudGluZyB3aXRoIHN1YmFjdXRlIHJpc2UgaW4gY3JlYXRpbmluZSwgbmV3IHByb3RlaW51cmlhIGFuZCBtaWNyb3Njb3BpYyBoZW1hdHVyaWEuIFJlY2VudCBob3NwaXRhbGl6YXRpb24gZm9yIGEgYmxvb2RzdHJlYW0gaW5mZWN0aW9uLCBzaW5jZSB0cmVhdGVkIGFuZCByZXNvbHZlZC4gQmxvb2QgcHJlc3N1cmUgbWlsZGx5IGVsZXZhdGVkLiBObyByYXNoLCBubyBhcnRocmFsZ2lhLiBUaGUgZGlmZmVyZW50aWFsIHByaW9yaXRpemVzIGEgcHJvbGlmZXJhdGl2ZSBnbG9tZXJ1bG9uZXBocml0aXMgYW5kIHRoZSBpbnRlcnBsYXkgb2YgYSBsb3cgY29tcGxlbWVudCBsZXZlbCB3aXRoIGEgcmVjZW50bHkgcmVzb2x2ZWQgaW5mZWN0aW9uIGlzIG5vdGVkIGJ1dCBkZWxpYmVyYXRlbHkgbm90IHlldCBhZGp1ZGljYXRlZC4="
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "DocumentReference",
+        "id": "doc-2",
+        "type": {
+          "text": "Nephrology progress note"
+        },
+        "content": [
+          {
+            "attachment": {
+              "contentType": "text/plain",
+              "data": "UmVuYWwgZnVuY3Rpb24gY29udGludWVzIHRvIGRlY2xpbmUgYWNyb3NzIHNlcmlhbCBtZWFzdXJlbWVudHMgd2l0aCByaXNpbmcgdXJpbmUgcHJvdGVpbiB0byBjcmVhdGluaW5lIHJhdGlvLiBDb21wbGVtZW50IHJlbWFpbnMgcGVyc2lzdGVudGx5IGxvdy4gVGhlIHRlYW0gZWxlY3RzIHRvIHByb2NlZWQgd2l0aCBhIHBlcmN1dGFuZW91cyByZW5hbCBiaW9wc3kgZm9yIHRpc3N1ZSBkaWFnbm9zaXMgZ2l2ZW4gdGhlIHRyYWplY3RvcnkgYW5kIHRoZSBkaWFnbm9zdGljIHVuY2VydGFpbnR5IGJldHdlZW4gYW4gaW5mZWN0aW9uIHJlbGF0ZWQgcHJvY2VzcyBhbmQgYSBtb25vY2xvbmFsIHByb2Nlc3Mu"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "DocumentReference",
+        "id": "doc-3",
+        "type": {
+          "text": "Renal pathology gross description"
+        },
+        "content": [
+          {
+            "attachment": {
+              "contentType": "text/plain",
+              "data": "QSBwZXJjdXRhbmVvdXMgY29yZSBvZiByZW5hbCBjb3J0ZXggYW5kIG1lZHVsbGEgaXMgcmVjZWl2ZWQgZm9yIGxpZ2h0IG1pY3Jvc2NvcHksIGltbXVub2ZsdW9yZXNjZW5jZSBhbmQgZWxlY3Ryb24gbWljcm9zY29weS4gQWRlcXVhdGUgZ2xvbWVydWxpIGFyZSBwcmVzZW50IGZvciBldmFsdWF0aW9uLiBBbmNpbGxhcnkgc3RhaW5pbmcgaW5jbHVkaW5nIGEgcGFyYWZmaW4gaW1tdW5vZmx1b3Jlc2NlbmNlIHByb3RvY29sIHdpdGggcHJvdGVhc2UgYW50aWdlbiByZXRyaWV2YWwgaXMgYXJyYW5nZWQu"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "DocumentReference",
+        "id": "doc-4",
+        "type": {
+          "text": "Hematology consult"
+        },
+        "content": [
+          {
+            "attachment": {
+              "contentType": "text/plain",
+              "data": "Q29uc3VsdGVkIGZvciBhIHBlcnNpc3RlbnRseSBlbGV2YXRlZCBzZXJ1bSBmcmVlIGxpZ2h0IGNoYWluIHdpdGggYW4gYWJub3JtYWwgcmF0aW8gaW4gdGhlIHNldHRpbmcgb2Yga2lkbmV5IGRpc2Vhc2UuIEEgYm9uZSBtYXJyb3cgZXZhbHVhdGlvbiBhbmQgcGVyaXBoZXJhbCBmbG93IGFyZSByZWNvbW1lbmRlZCB0byBjaGFyYWN0ZXJpemUgYW55IHVuZGVybHlpbmcgY2xvbmFsIGx5bXBob3Byb2xpZmVyYXRpdmUgb3IgcGxhc21hIGNlbGwgcG9wdWxhdGlvbiBjb250cmlidXRpbmcgdG8gcmVuYWwgaW5qdXJ5Lg=="
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "DocumentReference",
+        "id": "doc-5",
+        "type": {
+          "text": "Infectious disease note"
+        },
+        "content": [
+          {
+            "attachment": {
+              "contentType": "text/plain",
+              "data": "VGhlIHByaW9yIGJsb29kc3RyZWFtIGluZmVjdGlvbiB3YXMgdHJlYXRlZCB0byBjb21wbGV0aW9uIHdpdGggY2xpbmljYWwgcmVzb2x1dGlvbiBhbmQgbmVnYXRpdmUgc3VydmVpbGxhbmNlIGN1bHR1cmVzLiBUaGVyZSBpcyBubyBldmlkZW5jZSBvZiBvbmdvaW5nIGVuZG92YXNjdWxhciBpbmZlY3Rpb24uIFRoZSBwZXJzaXN0ZW50IGxvdyBjb21wbGVtZW50IGFuZCB3b3JzZW5pbmcgcmVuYWwgcGljdHVyZSBhcmUgdW5saWtlbHkgdG8gYmUgZXhwbGFpbmVkIGJ5IHRoZSByZXNvbHZlZCBpbmZlY3Rpb24gYWxvbmUu"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "DocumentReference",
+        "id": "doc-6",
+        "type": {
+          "text": "Nursing note"
+        },
+        "content": [
+          {
+            "attachment": {
+              "contentType": "text/plain",
+              "data": "UGF0aWVudCB0b2xlcmF0ZWQgdGhlIGJpb3BzeSBwcm9jZWR1cmUgd2l0aG91dCBpbW1lZGlhdGUgY29tcGxpY2F0aW9uLiBWaXRhbCBzaWducyBzdGFibGUgdGhyb3VnaG91dCB0aGUgb2JzZXJ2YXRpb24gd2luZG93LiBVcmluZSBvdXRwdXQgbW9uaXRvcmVkIGFuZCBkb2N1bWVudGVkLiBObyBncm9zcyBoZW1hdHVyaWEgYWZ0ZXIgdGhlIHByb2NlZHVyZS4gRWR1Y2F0aW9uIHByb3ZpZGVkIG9uIHBvc3QgcHJvY2VkdXJlIGFjdGl2aXR5IHJlc3RyaWN0aW9ucyBhbmQgd2FybmluZyBzaWducyB0byByZXBvcnQu"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "DiagnosticReport",
+        "id": "report-flow",
+        "status": "final",
+        "type": {
+          "text": "Flow cytometry, peripheral blood"
+        },
+        "code": {
+          "text": "Flow cytometry, peripheral blood"
+        },
+        "effectiveDateTime": "2025-03-10T09:00:00Z",
+        "conclusion": "Flow cytometry of peripheral blood was performed. A small kappa-restricted CD20-positive B-cell population is present. This finding is below criteria for overt lymphoma but may be clinically significant in the setting of renal monoclonal immunoglobulin deposition."
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Media",
+        "id": "media-urine",
+        "status": "completed",
+        "content": {
+          "contentType": "image/png",
+          "title": "Urine sediment, phase contrast 400x",
+          "data": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP88OEOAwMDEwMDAwMDAwAhDgLAz/qthwAAAABJRU5ErkJggg=="
+        },
+        "note": [
+          {
+            "text": "Dysmorphic erythrocytes and an RBC cast."
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Media",
+        "id": "media-lm",
+        "status": "completed",
+        "content": {
+          "contentType": "image/png",
+          "title": "Renal biopsy, light microscopy (PAS) 400x",
+          "data": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGN8duISAwMDEwMDAwMDAwAePgKEGvER7wAAAABJRU5ErkJggg=="
+        },
+        "note": [
+          {
+            "text": "Endocapillary hypercellularity, mesangial expansion, duplicated capillary contours."
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Media",
+        "id": "media-ifc3",
+        "status": "completed",
+        "content": {
+          "contentType": "image/png",
+          "title": "Routine frozen IF, C3",
+          "data": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGM88ewSAwMDEwMDAwMDAwAeIAKETyBnzgAAAABJRU5ErkJggg=="
+        },
+        "note": [
+          {
+            "text": "Bright granular C3 with little to no IgG on routine frozen IF."
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Media",
+        "id": "media-pronase",
+        "status": "completed",
+        "content": {
+          "contentType": "image/png",
+          "title": "Pronase paraffin IF, kappa and lambda",
+          "data": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGO8dOkDAwMDEwMDAwMDAwAe/AKYs9PrYAAAAABJRU5ErkJggg=="
+        },
+        "note": [
+          {
+            "text": "Strong kappa staining with absent lambda, revealing monotypic deposits."
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Media",
+        "id": "media-em",
+        "status": "completed",
+        "content": {
+          "contentType": "image/png",
+          "title": "Electron microscopy",
+          "data": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGO8c+cEAwMDEwMDAwMDAwAePgKEaAr/hgAAAABJRU5ErkJggg=="
+        },
+        "note": [
+          {
+            "text": "Numerous granular subendothelial and mesangial electron dense deposits."
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Basic",
+        "id": "eval-task",
+        "code": {
+          "text": "Evaluation task"
+        },
+        "extension": [
+          {
+            "url": "https://archangel.health/fhir/StructureDefinition/task-prompt",
+            "valueString": "Given the longitudinal labs, notes and renal pathology, provide the most likely unifying diagnosis and the single next test that confirms it. State why the initial infection-related hypothesis is a trap."
+          },
+          {
+            "url": "https://archangel.health/fhir/StructureDefinition/difficulty",
+            "valueString": "frontier-hard"
+          },
+          {
+            "url": "https://archangel.health/fhir/StructureDefinition/required-modalities",
+            "valueString": "longitudinal labs + clinical notes + urine microscopy + LM + routine IF + pronase IF + EM + hematology studies"
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Basic",
+        "id": "sealed-ground-truth",
+        "code": {
+          "text": "Internal adjudicated answer key \u2014 remove before model evaluation"
+        },
+        "extension": [
+          {
+            "url": "https://archangel.health/fhir/StructureDefinition/sealed-json",
+            "valueString": "{\"diagnosis\": \"Proliferative GN with monoclonal IgG deposits, MGRS spectrum\", \"why_initial_fails\": \"Resolved MSSA bacteremia plus a depressed complement invites a post-infectious label, but the pathology reveals a monotypic process.\", \"decisive_evidence\": [\"pronase paraffin technique reveals monotypic light chain restriction\", \"electron microscopy shows abundant organized deposits discordant with routine stain\", \"serum free light chain ratio is abnormal and rising\", \"peripheral clone identified on hematology workup\", \"complement depression persists despite infection resolution\"], \"management\": \"clone directed therapy, rituximab based, with nephrology comanagement\", \"critical_errors\": [\"committing to post-infectious GN without paraffin retrieval\", \"ignoring the discordance between routine stain and ultrastructure\", \"attributing the low complement solely to the resolved infection\", \"omitting a hematologic clonal workup\", \"stopping at the routine frozen panel\"], \"reasoning_traps\": [\"low complement anchoring\", \"recent infection anchoring\", \"routine immunofluorescence false reassurance\", \"single timepoint interpretation\", \"premature closure\"]}"
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Provenance",
+        "id": "prov-1",
+        "agent": [
+          {
+            "type": {
+              "text": "author"
+            },
+            "who": {
+              "display": "referring nephrology"
+            }
+          },
+          {
+            "type": {
+              "text": "adjudicator"
+            },
+            "who": {
+              "display": "renal pathology"
+            }
+          }
+        ],
+        "entity": [
+          {
+            "role": "source",
+            "what": {
+              "display": "KDIGO 2021 Glomerular Diseases Guideline",
+              "identifier": {
+                "value": "10.1016/j.kint.2021.05.021"
+              }
+            }
+          },
+          {
+            "role": "source",
+            "what": {
+              "display": "IKMG MGRS consensus report",
+              "identifier": {
+                "value": "10.1038/s41581.019.0129.4"
+              }
+            }
+          },
+          {
+            "role": "source",
+            "what": {
+              "display": "Masked monoclonal deposits and paraffin immunofluorescence",
+              "identifier": {
+                "value": "10.1111/his.13478"
+              }
+            }
+          },
+          {
+            "role": "source",
+            "what": {
+              "display": "Protease digestion immunofluorescence technique",
+              "identifier": {
+                "value": "10.1093/ajcp/aqaa105"
+              }
+            }
+          },
+          {
+            "role": "source",
+            "what": {
+              "display": "Monoclonal gammopathy of renal significance review",
+              "identifier": {
+                "value": "10.1053/j.ackd.2020.06.004"
+              }
+            }
+          },
+          {
+            "role": "source",
+            "what": {
+              "display": "Clinical agent benchmark for diagnostic reasoning",
+              "identifier": {
+                "value": "arXiv:2311.12983"
+              }
+            }
+          },
+          {
+            "role": "source",
+            "what": {
+              "display": "Multimodal medical agent evaluation",
+              "identifier": {
+                "value": "arXiv:2407.19783"
+              }
+            }
+          }
+        ],
+        "extension": [
+          {
+            "url": "https://archangel.health/fhir/StructureDefinition/disclaimer",
+            "valueString": "Synthetic, de-identified teaching case; not a real patient."
+          }
+        ]
+      }
+    }
+  ]
+}

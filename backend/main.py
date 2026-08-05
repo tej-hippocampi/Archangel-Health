@@ -71,8 +71,14 @@ from routers.triage_explain import router as triage_explain_router
 from routers.messaging import router as messaging_router
 from routers.telehealth import router as telehealth_router
 from routers.asclepius import router as asclepius_router
+from community.router import router as community_router
+from community.router import page_router as community_page_router
 from routers.asclepius_provider import router as asclepius_provider_router
+from routers.asclepius_admin import router as asclepius_admin_router
 from routers.asclepius_buyer import router as asclepius_buyer_router
+from routers.asclepius_verify import router as asclepius_verify_router
+from routers.asclepius_review import router as asclepius_review_router
+from routers.asclepius_advisor import router as asclepius_advisor_router
 from routers.leads import router as leads_router
 from eligibility import store as elig_store
 import demo_credentials
@@ -2411,6 +2417,33 @@ async def asclepius_portal():
     top-level tab in the doctor portal (embedded via iframe) or directly. Static
     assets load from /static/asclepius/. No PHI."""
     html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/index.html")
+    with open(html_path) as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/asclepius/v5/annotate", response_class=HTMLResponse)
+async def asclepius_v5_annotate_page():
+    """Asclepius V5 — clinical RL trajectory annotation surface (Clinical RL
+    Environments PRD §7). A new content TYPE inside the same evaluator portal
+    design system (§7.6), not a new app. Served unauthenticated by design (like
+    /asclepius); the page JS gates on the Asclepius token. Optional ``?run_id=``
+    query param opens a specific trajectory; otherwise it pulls the next
+    unannotated one from the V5 queue. No PHI (de-identified context only)."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/v5/annotate.html")
+    with open(html_path) as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/community", response_class=HTMLResponse)
+async def community_page():
+    """Asclepius Community — private colleague workspace for verified
+    contributor physicians (Community PRD §1). The HTML shell is served
+    unauthenticated by design (like /asclepius): the page JS presents the
+    existing Asclepius session token and every API/WS call enforces the
+    verified-contributor gate server-side. There is no public registration
+    route, no invite link, and no join form — the only way in is a verified
+    contributor account arriving from the doctor portal (PRD §1, §9.3)."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/community.html")
     with open(html_path) as f:
         return HTMLResponse(content=f.read())
 
@@ -5836,6 +5869,25 @@ async def _postop_nightly_retier_loop() -> None:
 async def startup_team_scheduler():
     # Fail closed in production if secrets are still default/weak (PRD-2 §8).
     assert_production_secrets()
+    # Buyer Response PRD §10 G1: every model-call role must have an explicit
+    # temperature. A KeyError at boot beats a silent provider default (~1.0) baked
+    # into shipped records.
+    try:
+        from asclepius.model_sampling import assert_temperatures_configured
+        assert_temperatures_configured()
+    except Exception:
+        _auth_logger.exception("[asclepius] temperature configuration assertion failed")
+        raise
+    # Audit PRD §C1: probe the tesseract BINARY at boot. LOG, never raise — a missing
+    # binary must degrade DICOM burned-in screening to manual review, not refuse boot.
+    try:
+        from asclepius.dicom_deid import ocr_available
+        if not ocr_available():
+            _auth_logger.error(
+                "[asclepius] tesseract is NOT installed. DICOM burned-in PHI screening "
+                "will route every study to manual review. Install tesseract-ocr.")
+    except Exception:
+        _auth_logger.exception("[asclepius] OCR availability probe failed")
     # PRD-4: warn loudly if PHI email would go through a non-BAA transport.
     try:
         from email_utils import active_email_vendor, email_phi_allowed
@@ -5907,6 +5959,55 @@ async def startup_team_scheduler():
     app.state.postop_nightly_task = asyncio.create_task(_postop_nightly_retier_loop())
 
 
+@app.on_event("startup")
+async def startup_community():
+    """Asclepius Community (Community PRD): init the standalone store (seeds the
+    three fixed channels) and start the mention/announcement email-digest loop.
+    Isolated from the team scheduler above — demo-mode early returns there must
+    not disable the community."""
+    try:
+        from community.store import get_community_store as _get_cstore
+        from community import notify as _cnotify
+        from community.router import resolve_member_for_notify as _resolve_member
+
+        app.state.community_store = _get_cstore()
+        _cnotify.start_digest_loop(resolve_member=_resolve_member)
+        # Community v2: the #medical-ai-news content loop is OPT-IN
+        # (COMMUNITY_NEWS_ENABLED=1); the internal trigger endpoint below
+        # fires a run on demand either way.
+        from community import digest as _cdigest
+        if _cdigest.news_enabled():
+            _cdigest.start_content_loop()
+        # Community v2.1: the event-reminder loop (emails interested members
+        # before an event starts). No-ops without email transport.
+        from community import events as _cevents
+        _cevents.start_reminder_loop(resolve_member=_resolve_member)
+    except Exception:
+        _auth_logger.warning("[community] startup init failed; community disabled", exc_info=True)
+
+
+@app.on_event("shutdown")
+async def shutdown_community():
+    try:
+        from community import notify as _cnotify
+
+        _cnotify.stop_digest_loop()
+    except Exception:
+        pass
+    try:
+        from community import digest as _cdigest
+
+        _cdigest.stop_content_loop()
+    except Exception:
+        pass
+    try:
+        from community import events as _cevents
+
+        _cevents.stop_reminder_loop()
+    except Exception:
+        pass
+
+
 @app.on_event("shutdown")
 async def shutdown_team_scheduler():
     for attr in (
@@ -5925,6 +6026,30 @@ async def internal_run_team_daily_jobs(authorization: Optional[str] = Header(Non
     _check_internal_auth(authorization)
     await _run_team_daily_jobs()
     return {"ok": True, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/community/run-digest", include_in_schema=False)
+async def internal_run_community_digest(
+    kind: str = "news", authorization: Optional[str] = Header(None)
+):
+    """Manual trigger for a Community v2 content digest run (demo/QA — works
+    whether or not the scheduled loop is enabled)."""
+    _check_internal_auth(authorization)
+    if kind not in ("news", "papers"):
+        raise HTTPException(status_code=400, detail="kind must be 'news' or 'papers'")
+    from community import digest as _cdigest
+    result = await _cdigest.run_digest(kind)
+    return {**result, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/community/run-event-reminders", include_in_schema=False)
+async def internal_run_event_reminders(authorization: Optional[str] = Header(None)):
+    """Manual trigger for the Community v2.1 event-reminder sweep (demo/QA)."""
+    _check_internal_auth(authorization)
+    from community import events as _cevents
+    from community.router import resolve_member_for_notify as _resolve_member
+    sent = await _cevents.send_due_reminders(resolve_member=_resolve_member)
+    return {"ok": True, "reminders_sent": sent, "ran_at": _utcnow_iso()}
 
 
 async def _send_sms(
@@ -5963,7 +6088,29 @@ app.include_router(messaging_router)
 app.include_router(telehealth_router)
 app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
+app.include_router(asclepius_admin_router)
 app.include_router(asclepius_buyer_router)
+app.include_router(asclepius_verify_router)
+app.include_router(asclepius_review_router)
+app.include_router(asclepius_advisor_router)
+# V5 Clinical RL Environments (agentic tier). Additive; mounted defensively so a
+# missing optional dependency disables V5 rather than crashing the app. V1–V4 are
+# unaffected (the environments live in their own env_runs table + /environments routes).
+try:
+    from routers.asclepius_env import router as asclepius_env_router
+
+    app.include_router(asclepius_env_router)
+except Exception as _asc_env_exc:  # pragma: no cover
+    __import__("logging").getLogger("asclepius.boot").warning(
+        "Asclepius V5 environments router not mounted: %s", _asc_env_exc
+    )
+app.include_router(community_router)
+app.include_router(community_page_router)
+try:
+    from community.social import router as community_social_router  # noqa: E402
+    app.include_router(community_social_router)  # v2.1: events/polls/pins/bookmarks
+except Exception as _social_exc:  # pragma: no cover
+    _auth_logger.warning("Community social router not mounted: %s", _social_exc)
 app.include_router(leads_router)
 
 # Gold Standard — conversation-capture training data (Data Training tab). Mounted

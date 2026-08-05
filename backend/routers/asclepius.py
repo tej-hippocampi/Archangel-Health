@@ -61,6 +61,9 @@ from asclepius.constants import (
     INDEPENDENT_MODES,
     NOT_HARD_TASK_STATUS,
     PORTAL_VERSIONS,
+    SINGLE_TURN_PORTAL_VERSIONS,
+    DEFAULT_PORTAL_VERSION,
+    ENV_PORTAL_VERSION,
     PREFERENCE_VARIANTS,
     REAL_CASE_PORTAL_VERSION,
     SYNTHETIC_PORTAL_VERSIONS,
@@ -113,6 +116,7 @@ from asclepius.schemas import (
     ContributorCredentialsIn,
     CreateUserRequest,
     PromoteCaseRequest,
+    ReviewClearRequest,
     UploadPromoteRequest,
     QuarantineOverrideRequest,
     RealDataApprovalRequest,
@@ -129,8 +133,15 @@ from asclepius.schemas import (
     SsoRequest,
     SubmissionIn,
     TaskUploadRequest,
+    TutorialStateUpdate,
 )
-from asclepius.store import get_store
+from asclepius.tutorial_case import (
+    TUTORIAL_TASK_ID,
+    TUTORIAL_VERSION,
+    grade_tutorial_submission,
+    tutorial_raw_task,
+)
+from asclepius.store import get_store, _utcnow_iso
 from ratelimit import rate_limiter
 from asclepius.validation import compute_dedupe_hash, grounding_status, is_grounded, residual_identifiers
 
@@ -240,7 +251,7 @@ async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user
         "failure_modes": [{"id": mid, "label": label, "definition": definition}
                           for (mid, label, definition) in FAILURE_MODES],
         "independent_modes": list(INDEPENDENT_MODES),
-        "portal_versions": list(PORTAL_VERSIONS),
+        "portal_versions": list(SINGLE_TURN_PORTAL_VERSIONS),
         "value_tiers": list(VALUE_TIERS),
         "preference_variants": list(PREFERENCE_VARIANTS),
         "export_profiles": asc_profiles.list_profiles(),
@@ -299,6 +310,14 @@ async def sso(body: SsoRequest):
             # the next boot-time backfill.
             organization=(email.split("@", 1)[0] if "@" in email else email),
         )
+        # FIX-B F5: new SSO accounts land pending like every other signup —
+        # otherwise a clinician arriving through this bridge gets an evaluator
+        # seat, never appears in the verification queue, and draws tasks with
+        # zero credentialing. NULL still means "pre-verification-era account"
+        # for rows that predate the migration (auth.py passes those through);
+        # it must not also mean "arrived through a side door yesterday".
+        store.set_verification_status(user["id"], "pending")
+        user = store.get_user_by_id(user["id"]) or user
         provisioned = True
     if not user.get("active"):
         raise HTTPException(status_code=403, detail="This evaluator account is disabled.")
@@ -315,6 +334,143 @@ async def sso(body: SsoRequest):
 @router.get("/auth/me")
 async def me(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     return asc_auth.public_user(user)
+
+
+@router.patch("/me/tutorial")
+async def update_my_tutorial(
+    body: TutorialStateUpdate, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """One transition on the caller's own first-run tutorial state.
+
+    Server-authoritative: the "the tutorial never re-triggers once finished"
+    invariant lives in THESE rules, not in client flags. ``start`` after
+    completed/skipped is a deliberate no-op (replay is a client-side affair and
+    must never clear completion); ``reset`` is allowed self-service because the
+    tutorial writes no real data.
+    """
+    store = _store()
+    current = store.get_tutorial_state(user["id"])
+    status = current.get("status") or "not_started"
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    action = body.action
+
+    if action == "start":
+        if status in ("completed", "skipped"):
+            return asc_auth.public_user(store.get_user_by_id(user["id"]))
+        if status == "not_started":
+            current = {
+                "status": "in_progress",
+                "step": body.step,
+                "version": body.version or TUTORIAL_VERSION,
+                "started_at": now,
+                "completed_at": None,
+                "skipped_at": None,
+            }
+        # already in_progress: keep position, refresh nothing
+    elif action == "advance":
+        if status in ("completed", "skipped"):
+            return asc_auth.public_user(store.get_user_by_id(user["id"]))
+        if status == "not_started":
+            current = {"status": "in_progress", "version": body.version or TUTORIAL_VERSION,
+                       "started_at": now, "completed_at": None, "skipped_at": None}
+        current["step"] = body.step
+    elif action == "skip":
+        if status != "completed" and not current.get("skipped_at"):
+            current["status"] = "skipped"
+            current["skipped_at"] = now
+            if not current.get("version"):
+                current["version"] = body.version or TUTORIAL_VERSION
+    elif action == "complete":
+        if not current.get("completed_at"):
+            current["status"] = "completed"
+            current["completed_at"] = now
+            current["skipped_at"] = None
+            if not current.get("version"):
+                current["version"] = body.version or TUTORIAL_VERSION
+            current.pop("step", None)
+    elif action == "reset":
+        current = {"status": "not_started", "version": None}
+
+    store.set_tutorial_state(user["id"], current)
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="tutorial_" + action, actor=user["id"],
+        payload={"step": body.step} if body.step else None,
+    )
+    return asc_auth.public_user(store.get_user_by_id(user["id"]))
+
+
+# ─── Tutorial — Calibration Case 1 ───────────────────────────────────────────
+# The practice case is a fully VIRTUAL task: assembled in memory from
+# ``tutorial_case.py``, never inserted into ``tasks``, its submission never
+# entering the pipeline. Isolation from the queue, records, exports, stats,
+# agreement, and value metrics is therefore structural (those all read the DB),
+# not a filter that someone can forget. Only ``events`` rows are written.
+@router.get("/tutorial/task")
+async def get_tutorial_task(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+    """The practice case, blinded EXACTLY like a real task (same
+    ``_blind_task`` path: ground_truth stripped, answer texts withheld)."""
+    return {"task": _blind_task(tutorial_raw_task())}
+
+
+@router.post("/tutorial/reveal")
+async def tutorial_reveal(
+    body: IndependentAnswer, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Mirror of ``POST /tasks/{id}/reveal`` minus persistence: the same
+    non-empty-instinct gate (the tutorial teaches the real rule), but no
+    ``independent_commits`` row — the practice case leaves no data behind."""
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "independent_answer_required",
+                "message": "Write your independent answer before revealing the AI answers.",
+            },
+        )
+    store = _store()
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="tutorial_reveal", actor=user["id"],
+    )
+    return {"answers": _task_answers(tutorial_raw_task()), "committed": True}
+
+
+@router.post("/tutorial/submit")
+async def tutorial_submit(
+    body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Grade the practice submission against the answer key and stamp the
+    caller's tutorial state completed. Never touches the real submit pipeline —
+    no ``submissions`` row, no ``records``, no QA routing."""
+    if body.task_id != TUTORIAL_TASK_ID:
+        raise HTTPException(status_code=400, detail="Not the tutorial task.")
+    payload = body.model_dump()
+    result = grade_tutorial_submission(payload)
+    store = _store()
+    current = store.get_tutorial_state(user["id"])
+    already_done = bool(current.get("completed_at"))
+    if not already_done:
+        now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+        current.update({
+            "status": "completed",
+            "completed_at": now,
+            "skipped_at": None,
+            "score": {"matched": result["matched"], "total": result["total"]},
+        })
+        if not current.get("version"):
+            current["version"] = TUTORIAL_VERSION
+        current.pop("step", None)
+        store.set_tutorial_state(user["id"], current)
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="tutorial_submitted", actor=user["id"],
+        payload={"matched": result["matched"], "total": result["total"],
+                 "replay": already_done},
+    )
+    return {"result": result,
+            "user": asc_auth.public_user(store.get_user_by_id(user["id"]))}
 
 
 # ─── Users (admin) ────────────────────────────────────────────────────────────
@@ -1395,7 +1551,19 @@ def _derive_portal_version(task: Dict[str, Any], claimed: Optional[str]) -> str:
             status_code=400,
             detail="portal_version 'v4' is reserved for real-case tasks; this task is synthetic.",
         )
-    return normalize_portal_version(claimed)
+    # Single-turn stamping stays within v1–v4. V5 (the agentic tier) is a different
+    # KIND of task with its own /environments surface, queue, and env_runs table — it
+    # is never stamped onto a single-turn submission. An explicit v5 claim here is a
+    # client bug, so it is REJECTED rather than silently relabeled: quietly stamping
+    # it v3 would attribute agentic work to V3 and corrupt the buyer's provenance.
+    if claimed == ENV_PORTAL_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail=("portal_version 'v5' is the agentic environments tier; it is not a "
+                    "single-turn evaluation flow. Use /api/asclepius/environments/*."),
+        )
+    pv = normalize_portal_version(claimed)
+    return pv if pv in SINGLE_TURN_PORTAL_VERSIONS else DEFAULT_PORTAL_VERSION
 
 
 def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
@@ -1727,6 +1895,23 @@ async def submit(
         actor=user["id"],
         payload={"task_id": body.task_id, "verdict": body.verdict, "time_spent_sec": body.time_spent_sec},
     )
+
+    # Decisive action (Audit §13): if the clinician named the verifiable outcome —
+    # the test/action the correct answer depends on — persist it onto the task so
+    # every packaged record from it ships an environment-verifiable outcome. Written
+    # ONLY from the physician's own submission, never by an admin or a model.
+    da = payload.get("decisive_action") or {}
+    da_action = str(da.get("action") or "").strip()
+    if da_action and len(da_action.split()) >= 2:
+        store.set_task_decisive_action(body.task_id, {
+            "action": da_action,
+            "tool_name": (da.get("tool_name") or "").strip() or None,
+            "must_precede_final_answer": bool(da.get("must_precede_final_answer", True)),
+            "rationale": (da.get("rationale") or "").strip(),
+            "physician_authored": True,
+            "author_id_hashed": user["id_hashed"],
+            "authored_at": _utcnow_iso(),
+        })
 
     # Real submit progress (BUG-5): run the genuinely-slow multi-stage pipeline
     # (validate → package → LLM consistency → LLM grounding → agreement → store)
@@ -2278,8 +2463,17 @@ async def create_export(
     body: ExportRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
 ):
     store = _store()
-    if body.portal_version is not None and body.portal_version not in PORTAL_VERSIONS:
-        raise HTTPException(status_code=400, detail="Invalid portal_version")
+    # SINGLE_TURN only: this builds a V1–V4 preference/ideal-answer bundle. A V5
+    # (agentic trajectory) export is a different artifact with its own endpoint,
+    # /api/asclepius/environments/export — accepting 'v5' here would silently
+    # produce an empty V1–V4 bundle labeled as the agentic tier.
+    if body.portal_version is not None and body.portal_version not in SINGLE_TURN_PORTAL_VERSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=("Invalid portal_version. V5 (agentic trajectories) exports via "
+                    "/api/asclepius/environments/export?mode=raw|graded|expert."
+                    if body.portal_version == ENV_PORTAL_VERSION else "Invalid portal_version"),
+        )
     if body.modality is not None and body.modality not in asc_cases.MODALITIES:
         raise HTTPException(status_code=400, detail="Invalid modality")
     if body.case_source is not None and body.case_source not in asc_cases.CASE_SOURCES:
@@ -2542,6 +2736,17 @@ async def upsert_contributor(
         event_type="credentials_updated", actor=admin["id"],
         payload={"organization": body.organization, "verified": body.credentials_verified},
     )
+    # Community v2: the vault flag is the OTHER path to "verified colleague" —
+    # fire the same one-time community welcome as queue approval. Guarded +
+    # idempotent inside; never fails the credential write.
+    if body.credentials_verified and (user or {}).get("user_id"):
+        try:
+            from community.onboard import welcome_new_member  # noqa: PLC0415
+            full_user = store.get_user_by_id(user["user_id"])
+            if full_user:
+                await welcome_new_member(full_user)
+        except Exception:
+            log.exception("[contributors] community welcome failed (credential write stands)")
     return {
         "id_hashed": id_hashed,
         "organization": saved.get("organization"),
@@ -3289,12 +3494,43 @@ async def partner_upload(
         ok, why = asc_ingestion.ingest_storage_durable()
         if not ok:
             raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
+        # Audit PRD §P2: the DERIVED image blobs must be as durable as the raw upload.
+        # Losing a blob leaves a case with neither the image nor its withheld caption.
+        from asclepius import assets as asc_assets
+        ok, why = asc_assets.asset_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
     link = _validate_upload_token(store, t)
-    data = await file.read()
-    if len(data) > int(link.get("max_bytes") or asc_ingestion.max_zip_bytes()):
+    cap = int(link.get("max_bytes") or asc_ingestion.max_zip_bytes())
+    # Read at most cap+1 bytes so a valid-token holder cannot OOM the process with a
+    # multi-GB POST before the cap is enforced (matches the account door's bounded
+    # read). Reject as soon as the cap is exceeded, before buffering the whole body.
+    raw = await file.read(cap + 1)
+    if len(raw) > cap:
         raise HTTPException(status_code=413, detail="Upload exceeds the link's size cap")
-    if data[:2] != b"PK":
-        raise HTTPException(status_code=400, detail="Only .zip bundles are accepted")
+    # Buyer Response PRD §2 A1: accept a bare partner file (.json / .csv / .hl7 /
+    # .txt) through the magic link, not only a pre-zipped bundle. Both upload doors
+    # now wrap loose files with the SAME implementation, so the exact file we mail a
+    # partner lands identically regardless of which URL they used. A rejection with
+    # a message about "zip magic bytes" meant nothing to a hospital IT team.
+    data = asc_ingestion.wrap_loose_files(
+        [{"filename": file.filename or "file", "content": raw}],
+        specialty=(link.get("specialty") or None),
+    )
+    if len(data) > cap:
+        raise HTTPException(status_code=413, detail="Upload exceeds the link's size cap")
+    # Import-link hardening (Audit §9.1): reject a STRUCTURALLY-unreadable upload
+    # synchronously with actionable copy — a hospital IT team must be told what to DO,
+    # never that the "zip magic bytes" were wrong. Only a corrupt archive fails here;
+    # a bare .json/.csv/.hl7/.txt was wrapped above and unpacks fine, and a readable
+    # bundle with no gradable content is handled (and explained) by the pipeline.
+    try:
+        asc_ingestion.unpack_bundle(data)
+    except asc_ingestion.BundleRejected:
+        store.log_event(entity_type="ingest_link", entity_id=link["link_id"],
+                        event_type="upload_unreadable",
+                        payload={"filename": (file.filename or "")[:120]})
+        raise HTTPException(status_code=400, detail=asc_ingestion.UNREADABLE_UPLOAD_MESSAGE)
     digest = asc_ingestion.sha256_hex(data)
     # ── Order matters for data safety (see the 410 incident) ──────────────────
     # 1. Persist the encrypted bytes to DURABLE storage FIRST, under a fresh id.
@@ -3344,9 +3580,26 @@ async def partner_upload_status(upload_id: str, t: Optional[str] = Query(None)):
     upload = store.get_ingest_upload(upload_id)
     if not upload or upload.get("link_id") != link["link_id"]:
         raise HTTPException(status_code=404, detail="Upload not found")
+    # Content summary (Audit §9.2): once terminal, tell the partner WHAT came through
+    # — patient cases, lab results, images, notes — aggregate counts only, no PHI, so
+    # the status page reads "Received. 1 patient case · 33 lab results · 5 images · 8
+    # notes." rather than a bare status token.
+    summary = None
+    if upload["status"] in ("ingested", "needs_review", "quarantined"):
+        cases = store.list_ingest_cases(upload_id=upload_id)
+        landed = [c for c in cases if c.get("status") in ("ingested", "needs_review")]
+        labs = images = notes = 0
+        for c in landed:
+            case = c.get("case") or {}
+            for p in case.get("lab_panels") or []:
+                labs += len(p.get("results") or []) or 1
+            images += sum(1 for s in (case.get("studies") or []) if (s or {}).get("asset"))
+            notes += len(case.get("notes") or [])
+        summary = {"cases": len(landed), "lab_results": labs, "images": images, "notes": notes}
     return {"upload_id": upload_id, "status": upload["status"],
             "reason": upload.get("reason"),
-            "filename": upload.get("filename"), "sha256": upload.get("sha256")}
+            "filename": upload.get("filename"), "sha256": upload.get("sha256"),
+            "summary": summary}
 
 
 def _validate_upload_token_lenient(store: Any, token: Optional[str]) -> Dict[str, Any]:
@@ -3397,13 +3650,25 @@ def _contact_email_for_upload(store: Any, upload: Dict[str, Any]) -> Optional[st
 async def list_ingestion_uploads(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    status: Optional[str] = Query(None),
     _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Paginated over FULL history (newest first). Returns the page plus the
-    grand total so the admin UI can page through every upload ever received."""
+    grand total so the admin UI can page through every upload ever received.
+
+    ``status`` (Audit PRD §21.5) narrows to one state — ``needs_review`` surfaces
+    the admin review queue. ``counts`` always carries the per-status totals so the
+    filter chips render real numbers regardless of the active filter."""
     store = _store()
-    total = store.count_ingest_uploads()
-    uploads = store.list_ingest_uploads(limit=limit, offset=offset)
+    total = store.count_ingest_uploads(status=status)
+    counts = {
+        "all": store.count_ingest_uploads(),
+        "ingested": store.count_ingest_uploads(status="ingested"),
+        "needs_review": store.count_ingest_uploads(status="needs_review"),
+        "quarantined": store.count_ingest_uploads(status="quarantined"),
+        "rejected": store.count_ingest_uploads(status="rejected"),
+    }
+    uploads = store.list_ingest_uploads(limit=limit, offset=offset, status=status)
     for u in uploads:
         u["partner_label"] = _partner_label_for_upload(store, u)
         # How many ingested cases are ready to promote from THIS upload file —
@@ -3415,7 +3680,8 @@ async def list_ingestion_uploads(
         u["contact_email"] = _contact_email_for_upload(store, u)
         u["failure_notified"] = bool(u.get("failure_notified_at"))
         u.pop("raw_path", None)  # server-side path is not admin-relevant
-    return {"uploads": uploads, "total": total, "limit": limit, "offset": offset}
+    return {"uploads": uploads, "total": total, "limit": limit, "offset": offset,
+            "counts": counts, "status": status}
 
 
 def _upload_past_raw_retention(upload: Dict[str, Any]) -> bool:
@@ -3468,8 +3734,9 @@ async def download_ingestion_upload(
         raise HTTPException(status_code=500, detail=f"Could not read the upload: {exc}")
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="upload_downloaded", actor=_admin["id"])
-    fname = (upload.get("filename") or f"{upload_id}.zip")
-    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    fname = "".join(c if c.isascii() and (c.isalnum() or c in "._-") else "_"
+                    for c in (upload.get("filename") or f"{upload_id}.zip")) or "upload.zip"
+    headers = {"Content-Disposition": f"attachment; filename=\"{fname}\"; filename*=UTF-8''{fname}"}
     return StreamingResponse(io.BytesIO(data), media_type="application/zip", headers=headers)
 
 
@@ -3508,6 +3775,110 @@ async def get_ingestion_upload(
     upload.pop("raw_path", None)  # server-side path is not admin-relevant
     upload["cases"] = store.list_ingest_cases(upload_id=upload_id)
     return upload
+
+
+@router.post("/ingestion/reconcile")
+async def run_ingestion_reconcile(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """Run terminal-state reconciliation on demand (Audit §9.3): re-bind unbound sealed
+    keys and hold cases with missing/corrupt asset blobs. Also runs at startup and can
+    be scheduled nightly. Returns the counts the admin ingestion card surfaces."""
+    store = _store()
+    counts = asc_ingestion.reconcile_ingested_cases(store)
+    return {"reconcile": counts}
+
+
+@router.get("/ingestion/uploads/{upload_id}/review")
+async def get_upload_review(
+    upload_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+):
+    """The admin review queue for one upload (Audit PRD §21.5): every case that
+    raised a review reason, with its reasons split blocking-first so the UI renders
+    the PHI hold above the advisory note. A case with no reasons is omitted."""
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    out = []
+    for c in store.list_ingest_cases(upload_id=upload_id):
+        reasons = c.get("review") or []
+        if not reasons:
+            continue
+        blocking = [r for r in reasons if r.get("severity") == "blocking"]
+        advisory = [r for r in reasons if r.get("severity") != "blocking"]
+        out.append({
+            "ingest_case_id": c["ingest_case_id"],
+            "status": c.get("status"),
+            "review_status": c.get("review_status"),
+            "reviewed_by_hashed": c.get("reviewed_by_hashed"),
+            "reviewed_at": c.get("reviewed_at"),
+            # Blocking reasons first, always (§21.7) — a certifier must see the PHI
+            # hold before the advisory note.
+            "reasons": blocking + advisory,
+            "blocking_count": len(blocking),
+            "studies": (c.get("case") or {}).get("studies") or [],
+        })
+    return {"upload_id": upload_id, "cases": out}
+
+
+def _review_actor_hashed(admin: Dict[str, Any]) -> str:
+    """Hash the clearing admin's id the same way the store hashes user ids
+    (sha256[:16]) so a cleared flag is attributable without storing the raw id."""
+    return hashlib.sha256(str(admin.get("id") or "").encode("utf-8")).hexdigest()[:16]
+
+
+@router.post("/ingestion/cases/{ingest_case_id}/review/clear")
+async def clear_case_review(
+    ingest_case_id: str, body: ReviewClearRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Clear a case's blocking review reasons (Audit PRD §21.5). A note is
+    mandatory (the schema enforces presence; we reject whitespace-only here) and the
+    action stamps ``reviewed_by_hashed`` + ``reviewed_at``. Clearing all blocking
+    reasons flips the case back to ``ingested`` so it re-enters the annotation queue;
+    advisory reasons are retained on the record but never held the case."""
+    if not (body.note or "").strip():
+        raise HTTPException(status_code=400, detail="A review note is required to clear a case.")
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic or ic.get("status") != "needs_review":
+        raise HTTPException(status_code=404, detail="Case is not awaiting review")
+    reasons = list(ic.get("review") or [])
+    cleared_at = _utcnow_iso()
+    actor = _review_actor_hashed(admin)
+    # Drop the blocking reasons (the human has affirmatively resolved them); keep
+    # advisory reasons as a record. If any advisory remains, the case is still
+    # 'ingested' (advisory never held it) with review_status 'cleared'.
+    remaining = [r for r in reasons if r.get("severity") != "blocking"]
+    store.update_ingest_case(
+        ingest_case_id, status="ingested", review_status="cleared",
+        review_json=remaining, reviewed_by_hashed=actor, reviewed_at=cleared_at)
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="review_cleared", actor=admin["id"],
+                    payload={"note": body.note, "reason": body.reason,
+                             "cleared_blocking": [r.get("reason") for r in reasons
+                                                  if r.get("severity") == "blocking"]})
+    return {"status": "ingested", "review_status": "cleared",
+            "reviewed_by_hashed": actor, "reviewed_at": cleared_at}
+
+
+@router.post("/ingestion/cases/{ingest_case_id}/review/reject")
+async def reject_case_review(
+    ingest_case_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Reject a case awaiting review (Audit PRD §21.5) — the reviewer found the flag
+    is real (e.g. the image does carry burned-in PHI). The case is quarantined, never
+    served for annotation, and the action is attributable."""
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic or ic.get("status") != "needs_review":
+        raise HTTPException(status_code=404, detail="Case is not awaiting review")
+    actor = _review_actor_hashed(admin)
+    store.update_ingest_case(
+        ingest_case_id, status="quarantined", review_status="rejected",
+        reviewed_by_hashed=actor, reviewed_at=_utcnow_iso())
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="review_rejected", actor=admin["id"])
+    return {"status": "quarantined", "review_status": "rejected"}
 
 
 @router.post("/ingestion/uploads/{upload_id}/retry")

@@ -101,6 +101,61 @@ def is_valid_anchor(anchor: Optional[Dict[str, Any]]) -> bool:
     return True
 
 
+_DOI_RE = re.compile(r"\b10\.\d{4,9}/\S+\b", re.I)
+_PMID_RE = re.compile(r"\b(?:pmid[:\s]*)?\d{6,9}\b", re.I)
+_URL_RE = re.compile(r"\bhttps?://\S+\b", re.I)
+
+
+def is_resolvable_identifier(identifier: Optional[str]) -> bool:
+    """True when an anchor identifier is something a buyer can actually FOLLOW — a
+    DOI, a PMID, or a URL (Buyer Response PRD §5 D1). An anchor nobody can follow is
+    not an anchor, and a buyer will spot-check three of them."""
+    s = (identifier or "").strip()
+    if not s:
+        return False
+    return bool(_DOI_RE.search(s) or _URL_RE.search(s)
+                or (s.lower().startswith("pmid") and _PMID_RE.search(s))
+                or (s.isdigit() and 6 <= len(s) <= 9))
+
+
+def grounding_tier(anchor: Optional[Dict[str, Any]], *, library_id: Optional[str] = None) -> str:
+    """Grade an anchor into a value tier (Buyer Response PRD §5 D2): guideline >
+    primary > consensus > textbook > unverified. Free text with nothing resolvable is
+    ``unverified`` and MUST NOT count as grounded.
+
+    A named authoritative source (a guideline with a section, a specific paper, a
+    society consensus, a reference work) resolves by NAME — a ``library_id`` always
+    resolves, and so does a non-empty identifier on a known source_type. An UNKNOWN /
+    ``other`` source_type resolves only with a real DOI / PMID / URL, so a hand-typed
+    citation with nothing followable is ``unverified``."""
+    if not anchor or not isinstance(anchor, dict):
+        return "unverified"
+    st = (anchor.get("source_type") or "").strip().lower()
+    ident = anchor.get("identifier")
+    named = bool(library_id) or bool((ident or "").strip())
+    known = {
+        "guideline": "guideline",
+        "primary_literature": "primary", "primary": "primary", "fda_label": "primary",
+        "expert_consensus": "consensus", "consensus": "consensus",
+        "textbook": "textbook", "reference": "textbook",
+    }
+    if st in known:
+        return known[st] if named else "unverified"
+    # Unknown / 'other' source_type: only a truly resolvable identifier counts.
+    if bool(library_id) or is_resolvable_identifier(ident):
+        return "primary"
+    return "unverified"
+
+
+def anchor_is_grounded(anchor: Optional[Dict[str, Any]], *, library_id: Optional[str] = None) -> bool:
+    """An anchor counts toward grounded only if it is valid AND carries a resolvable
+    identifier or a library id (Buyer Response PRD §5 D1/D2) — the ``unverified`` tier
+    never counts."""
+    if not is_valid_anchor(anchor):
+        return False
+    return grounding_tier(anchor, library_id=library_id) != "unverified"
+
+
 def all_anchors(obj: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Every evidence anchor carried by an object (a chosen_revision, from_scratch,
     reasoning step, or independent_answer), MERGING the multi-citation
@@ -288,12 +343,20 @@ def validate_submission(
             elif reason not in STEP_CORRECTION_REASONS:
                 issues.append("unknown_correction_reason")
 
-    # 1d. Rubric capture (FEAT-2): a confirmed criterion must sit on a known axis
+    # 1d. Rubric capture (FEAT-2): a confirmed criterion must sit on known axes
     # and carry a non-zero weight. Off-vocabulary values route to QA (never a hard
     # reject — no lost submissions) so the sellable scoring function stays clean.
+    # §11: `axes` is the authoritative list; `axis` is still checked so an older
+    # client sending only the single value is validated exactly as before.
     for c in payload.get("rubric") or []:
         if not isinstance(c, dict) or not (c.get("text") or "").strip():
             continue
+        raw_axes = c.get("axes")
+        if isinstance(raw_axes, list):
+            if any(a not in RUBRIC_AXES for a in raw_axes):
+                issues.append("unknown_rubric_axis")
+        elif raw_axes is not None:
+            issues.append("unknown_rubric_axis")
         if c.get("axis") is not None and c.get("axis") not in RUBRIC_AXES:
             issues.append("unknown_rubric_axis")
         try:
@@ -376,6 +439,14 @@ def validate_submission(
         ok, reasons = grounding_status(task, payload)
         if not ok:
             issues.extend(reasons)
+
+    # 7b. Decisive action (Buyer Response PRD §9.2 / Audit §13): skippable by design —
+    # a physician who cannot name one must not be forced to invent one, and a
+    # fabricated decisive action is worse than none. But if one IS named it must
+    # specify a real test/action; a one-word "labs" is not a verifiable outcome.
+    da_action = str(((payload.get("decisive_action") or {}).get("action")) or "").strip()
+    if da_action and len(da_action.split()) < 2:
+        issues.append("decisive_action_underspecified")
 
     # 8. license / rights attestation present on every emitted record (opt §1.4)
     for r in records:

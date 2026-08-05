@@ -9,6 +9,7 @@ Reuses ``PyJWT`` + ``passlib`` (already in requirements) — no new auth library
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import secrets
@@ -19,6 +20,7 @@ from typing import Any, Dict, Optional
 import jwt
 from fastapi import Depends, Header, HTTPException
 
+from asclepius import capabilities as _caps
 from asclepius.store import AsclepiusStore, get_store, verify_password
 
 log = logging.getLogger("asclepius.auth")
@@ -106,7 +108,30 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         # "V4 · Real Cases" box unlocked/locked. Serving is enforced server-side
         # regardless — this is display truth, not the gate itself.
         "real_data_approved": bool(user.get("real_data_approved")),
+        # First-run tutorial state ("Calibration Case 1"). Display truth for the
+        # client's launch decision; the transition rules that make completion
+        # permanent live in PATCH /me/tutorial, not here.
+        "tutorial": _parse_tutorial(user.get("tutorial_json")),
+        # Advisor PRD §6.2: the portal decides which sections to render from
+        # CAPABILITIES, not from a tier string it has to interpret. Shipping the
+        # tier alone would push the two-state check into the frontend, which is
+        # exactly the failure this build exists to remove. Display truth only —
+        # every endpoint re-checks server-side.
+        "tier": user.get("tier"),
+        "tier_word": _caps.tier_word(user.get("tier")),
+        "capabilities": sorted(_caps.granted(user)),
     }
+
+
+def _parse_tutorial(raw: Any) -> Dict[str, Any]:
+    if raw:
+        try:
+            parsed = json.loads(raw) if isinstance(raw, str) else raw
+            if isinstance(parsed, dict) and parsed.get("status"):
+                return parsed
+        except (ValueError, TypeError):
+            pass
+    return {"status": "not_started", "version": None}
 
 
 # ─── FastAPI dependencies ─────────────────────────────────────────────────────
@@ -152,6 +177,26 @@ def get_current_user(
         raise HTTPException(
             status_code=403,
             detail="This account can only use the buyer data workspace.",
+        )
+    # PRD-B verification gate: a signup awaiting (or refused) human credential
+    # review cannot use the evaluator surface — which is what makes "a pending
+    # user cannot draw tasks" enforceable server-side, in one place, exactly
+    # like the role gates above. Three states, deliberately:
+    #   NULL             -> pre-verification-era account, passes untouched
+    #   pending/rejected -> blocked with a clear reason
+    #   approved         -> passes
+    # Admins are exempt so a workspace director is never locked out of the
+    # workspace they just created, and so a bootstrap admin can always act.
+    status = user.get("verification_status")
+    if status in ("pending", "rejected") and user.get("role") != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Your account is awaiting credential verification — you'll hear "
+                "from us within 24 hours."
+                if status == "pending"
+                else "This account was not approved for the evaluator portal."
+            ),
         )
     return user
 

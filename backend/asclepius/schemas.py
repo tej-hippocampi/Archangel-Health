@@ -8,7 +8,7 @@ to QA rather than rejected at the HTTP boundary (PRD §5 — "no lost submission
 from __future__ import annotations
 
 import re
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 from pydantic import AfterValidator, BaseModel, Field, model_validator
 
@@ -106,6 +106,15 @@ class QuarantineOverrideRequest(BaseModel):
     guard still applies and cannot be overridden."""
 
     reason: str
+
+
+class ReviewClearRequest(BaseModel):
+    """Admin clearance of a blocking review reason (Audit PRD §21.5). Clearing a
+    burned-in-PHI flag is an affirmative human statement that the image carries no
+    PHI, so a note is MANDATORY — it must be attributable, not a silent unblock."""
+
+    note: str
+    reason: Optional[str] = None  # which reason code was cleared (audit breadcrumb)
 
 
 class PromoteCaseRequest(BaseModel):
@@ -345,8 +354,13 @@ class RubricCriterion(BaseModel):
     """One weighted criterion of a HealthBench-shaped scoring rubric (FEAT-2).
 
     ``points`` is signed: POSITIVE for "a correct answer must include this",
-    NEGATIVE for "a correct answer must never say this". ``axis`` is one of
-    RUBRIC_AXES. ``source`` records how the criterion was seeded (e.g.
+    NEGATIVE for "a correct answer must never say this". ``axes`` is a non-empty
+    list drawn from RUBRIC_AXES — a criterion routinely scores on more than one
+    ("must never give thrombolytics in dissection" is safety AND accuracy), so
+    forcing a single pick discarded a real distinction (Eval UI Overhaul §11).
+    ``axis`` is the DEPRECATED single-value mirror of ``axes[0]``, kept so stored
+    records and readers written against the old shape keep working.
+    ``source`` records how the criterion was seeded (e.g.
     ``error_tag:dosing_error``, ``why_better:safer``, ``good_step``,
     ``corrected_step``, or ``manual``) so a buyer can trace provenance. Nothing is
     auto-applied — the doctor confirms/edits every criterion before it ships.
@@ -359,6 +373,11 @@ class RubricCriterion(BaseModel):
 
     text: str = ""
     points: float = 0.0
+    # §11: the authoritative multi-select. Empty on the wire is tolerated — the
+    # normalizer fills it from `axis`, then from the default.
+    axes: List[str] = Field(default_factory=list)
+    # Deprecated single-value mirror of axes[0]. Still accepted from older
+    # clients and still emitted, so nothing downstream has to change at once.
     axis: Optional[str] = None
     source: Optional[str] = None
     # Criticality tier — filled from |points| in the validator when absent.
@@ -382,11 +401,16 @@ class RubricCriterion(BaseModel):
         # unconditionally so tier/critical can't drift from the weight, matching
         # rubric.normalize_rubric / has_critical_negative / the exported score.py.
         from asclepius.constants import tier_for_points
-        from asclepius.rubric import is_specific_text
+        from asclepius.rubric import _axes, is_specific_text
         self.tier = tier_for_points(self.points)
         self.critical = self.tier == "critical"
         # Recompute concreteness from the (possibly edited) text — never trust the wire.
         self.specific = is_specific_text(self.text)
+        # §11: `axes` is the authority and is always non-empty; `axis` follows it.
+        # An older client that sends only `axis` is normalized into the new shape
+        # here, so nothing downstream has to handle two shapes.
+        self.axes = _axes(self.axes, self.axis)
+        self.axis = self.axes[0]
         return self
 
 
@@ -459,6 +483,11 @@ class SubmissionIn(BaseModel):
     # rate is monitorable and rubber-stamping is catchable. Suggestions are
     # NEVER applied server-side — this is provenance only.
     assist: Optional[Dict[str, Any]] = None
+    # Decisive action (Buyer Response PRD §9.2 / Audit §13): the physician-named
+    # verifiable outcome — {action, tool_name?, must_precede_final_answer?,
+    # rationale?}. Skippable; when present it's persisted onto the task so every
+    # packaged record ships an environment-verifiable outcome.
+    decisive_action: Optional[Dict[str, Any]] = None
 
 
 class PrelabelRequest(BaseModel):
@@ -656,3 +685,11 @@ class BuyerDeliveryRequest(BaseModel):
     data_format: Optional[str] = None
     note: Optional[str] = None
     include_exported: bool = True
+
+
+class TutorialStateUpdate(BaseModel):
+    """PATCH /me/tutorial — one transition on the caller's own tutorial state."""
+
+    action: Literal["start", "advance", "skip", "complete", "reset"]
+    step: Optional[str] = None
+    version: Optional[int] = None

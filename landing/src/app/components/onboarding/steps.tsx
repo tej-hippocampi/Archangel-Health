@@ -9,7 +9,7 @@
  * PrimaryButton in the Idle state (so server errors don't fake-flash success).
  */
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import {
   Avatar,
@@ -79,6 +79,18 @@ export type TrainingRow = { institution: string; year: string };
 
 export type Credentials = {
   fullLegalName: string;
+  /* The PHYSICIAN's own mobile — deliberately NOT `OnboardingData.phone`,
+     which is the organization's front-office line posted to
+     /asclepius/institution. Two different humans answer these. */
+  phone: string;
+  linkedinUrl: string;
+  /* Free text; resolved to a health-system id downstream. */
+  healthSystem: string;
+  /* Set by the CV upload step for UI state only. The asset sha itself is
+     recorded server-side at upload time and is never carried by the client —
+     a client-supplied sha would be an unvalidated reference into the shared
+     asset store. */
+  cvFilename: string;
   npi: string;
   degree: string;
   boardCertifications: BoardCert[];
@@ -104,6 +116,10 @@ export type Attestations = {
 export function emptyCredentials(fullLegalName = ""): Credentials {
   return {
     fullLegalName,
+    phone: "",
+    linkedinUrl: "",
+    healthSystem: "",
+    cvFilename: "",
     npi: "",
     degree: "",
     boardCertifications: [{ board: "", specialty: "", subspecialty: "", active: true }],
@@ -1221,6 +1237,128 @@ const PRACTICE_SETTING_SUGGESTIONS = [
 ];
 const LANGUAGE_SUGGESTIONS = ["English", "Spanish", "Mandarin", "Hindi", "Arabic", "French"];
 
+/** The onboarding token, read from the route the wizard was opened on
+ *  (`/onboard/<token>` or `/onboard/m/<token>` — see App.tsx). Taken from the
+ *  URL rather than threaded through props so the CV control stays inside the
+ *  onboarding step files. Returns "" when it cannot be determined, and the
+ *  upload control then hides itself rather than offering an action that
+ *  cannot work. */
+function onboardingTokenFromLocation(): string {
+  if (typeof window === "undefined") return "";
+  const m = window.location.pathname.match(/\/onboard\/(?:m\/)?([^/?#]+)/);
+  try {
+    return m ? decodeURIComponent(m[1]) : "";
+  } catch {
+    return m ? m[1] : "";
+  }
+}
+
+const CV_MAX_BYTES = 10 * 1024 * 1024;
+const CV_ACCEPT = ".pdf,.txt,application/pdf,text/plain";
+
+/** Optional CV upload.
+ *
+ *  Non-blocking on the form by construction: this control owns its own error
+ *  state and never propagates failure to the step's `valid` gate, so a
+ *  physician whose upload fails still completes signup with an empty field.
+ *  The response deliberately carries no asset sha — the server records it
+ *  against this person's row, so the client cannot name a file it did not
+ *  upload. */
+function CvUploadField({
+  filename,
+  onUploaded,
+}: {
+  filename: string;
+  onUploaded: (filename: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const token = onboardingTokenFromLocation();
+  if (!token) return null;
+
+  const upload = async (file: File) => {
+    setProblem("");
+    if (file.size > CV_MAX_BYTES) {
+      setProblem("That file is over 10 MB. You can continue without it.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append("token", token);
+      form.append("file", file);
+      const res = await fetch("/api/onboarding/asclepius/cv", {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        setProblem("We couldn't attach that file. You can continue without it.");
+      } else {
+        onUploaded(file.name);
+      }
+    } catch {
+      setProblem("We couldn't attach that file. You can continue without it.");
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <FieldLabel optional>CV or résumé</FieldLabel>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          background: "var(--card-in)",
+          border: "1px solid var(--hairline)",
+          borderRadius: 10,
+          padding: "12px 16px",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          style={{
+            background: "transparent",
+            border: "1px solid var(--hairline-strong)",
+            borderRadius: 8,
+            padding: "7px 14px",
+            font: "inherit",
+            fontSize: 14,
+            color: "var(--ink)",
+            cursor: busy ? "default" : "pointer",
+            opacity: busy ? 0.6 : 1,
+          }}
+        >
+          {busy ? "Attaching…" : filename ? "Replace file" : "Attach a file"}
+        </button>
+        <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
+          {filename ? `${filename} attached` : "PDF or text, up to 10 MB. Optional."}
+        </span>
+        <input
+          ref={inputRef}
+          type="file"
+          accept={CV_ACCEPT}
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void upload(f);
+          }}
+        />
+      </div>
+      {problem && (
+        <div style={{ marginTop: 8, fontSize: 13, color: "var(--ah-pink)" }}>{problem}</div>
+      )}
+    </div>
+  );
+}
+
 export function Step5Credentials({
   data,
   setData,
@@ -1244,6 +1382,9 @@ export function Step5Credentials({
   const valid =
     c.fullLegalName.trim().length > 0 &&
     /^\d{10}$/.test(c.npi.trim()) &&
+    // The physician's own phone is required (PRD Phase 4). Their mobile is
+    // how verification actually gets resolved when NPPES is ambiguous.
+    c.phone.trim().length >= 7 &&
     c.degree.trim().length > 0 &&
     c.primarySpecialty.trim().length > 0 &&
     c.currentlyActive !== null;
@@ -1290,6 +1431,47 @@ export function Step5Credentials({
         placeholder="Nephrology"
         value={c.primarySpecialty}
         onChange={(v) => set({ primarySpecialty: v })}
+      />
+
+      {/* ── Contact & corroboration (PRD-B Seam 4) ──────────────────────────
+          These are the physician's OWN details. `data.phone` elsewhere in this
+          wizard is the organization's front-office line — a different field
+          for a different human. Do not merge them. */}
+      <div style={TWO_COL}>
+        <TextField
+          label="Your mobile number"
+          placeholder="+1 (555) 010-7788"
+          type="tel"
+          value={c.phone}
+          onChange={(v) => set({ phone: v })}
+          hint="Direct line for you — not your practice's main number."
+          error={
+            c.phone.trim().length > 0 && c.phone.trim().length < 7
+              ? "Enter a reachable phone number."
+              : undefined
+          }
+        />
+        <TextField
+          label="LinkedIn profile"
+          optional
+          placeholder="linkedin.com/in/yourname"
+          value={c.linkedinUrl}
+          onChange={(v) => set({ linkedinUrl: v })}
+          hint="A link our team opens during review."
+        />
+      </div>
+
+      <TextField
+        label="Health system or practice"
+        optional
+        placeholder="Northridge Nephrology Associates"
+        value={c.healthSystem}
+        onChange={(v) => set({ healthSystem: v })}
+      />
+
+      <CvUploadField
+        filename={c.cvFilename}
+        onUploaded={(filename) => set({ cvFilename: filename })}
       />
 
       <YesNoToggle
