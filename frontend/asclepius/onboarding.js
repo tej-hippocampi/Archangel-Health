@@ -223,6 +223,161 @@
         : null);
   }
 
+  /* ─── PRD-CRED · tiering panel (PRD C §6) ──────────────────────────────────
+   * An admin who cannot see WHY will ignore the score, and then the scoring
+   * system is decoration. So this renders four things and nothing else:
+   * the proposed tier, the reasons ranked by contribution, where the score fell
+   * relative to the two thresholds, and an explicit override — because the
+   * override IS the training signal.
+   *
+   * Colour is meaning, not decoration (design system §5). PINK is reserved for a
+   * genuine blocker: a failed hard gate, a duplicate NPI, an OIG hit. A merely
+   * LOW score is not pink — it is the muted default. An UNRESOLVED gate is not
+   * pink either: "we could not check" is not "this person failed", and painting
+   * it as a blocker is how an admin learns to distrust the colour.
+   *
+   * No new CSS. asclepius.css is outside Agent C's write allowlist (context pack
+   * §2), so every class below already exists in the PRD-B and PRD-C blocks.
+   */
+  function gateLine(gid, gate) {
+    var cls = gate.state === 'fail' ? 'vq-flag'
+            : gate.state === 'pass' ? 'vq-reason' : 'vq-attempt';
+    var mark = gate.state === 'pass' ? '✓' : gate.state === 'fail' ? '✕' : '?';
+    return h('div', { class: cls }, mark + '  ' + gid + ' · ' + gate.label
+                                    + ' — ' + gate.detail);
+  }
+
+  function thresholdLine(t) {
+    // Where the score fell, in words. A bare number tells an admin nothing about
+    // whether it was close.
+    var s = t.score, tr = t.thresholds.tr, tl = t.thresholds.tl;
+    if (s >= tr) {
+      return 'score ' + s.toFixed(2) + ' — ' + (s - tr).toFixed(2)
+             + ' above the reviewer threshold (' + tr.toFixed(1) + ')';
+    }
+    if (s <= tl) {
+      return 'score ' + s.toFixed(2) + ' — ' + (tl - s).toFixed(2)
+             + ' below the labeler threshold (' + tl.toFixed(1) + ')';
+    }
+    return 'score ' + s.toFixed(2) + ' — between the thresholds ('
+           + tl.toFixed(1) + ' … ' + tr.toFixed(1) + '), so the model defers to you';
+  }
+
+  function tieringPanel(row, d) {
+    var t = d.tiering;
+    if (!t) return null;
+    if (t.error) {
+      // A visible failure, never a silent placeholder.
+      return h('div', { class: 'vq-error', role: 'alert' }, t.error);
+    }
+
+    var domainSelect = h('select', {
+      class: 'vq-tier-select', 'aria-label': 'Score against which case domain',
+      onchange: function () { reloadTiering(row.user_id, domainSelect.value); },
+    });
+    var domains = ['nephrology', 'cardiology', 'oncology'];
+    if (t.case_domain && domains.indexOf(t.case_domain) === -1) domains.unshift(t.case_domain);
+    domains.forEach(function (dom) {
+      domainSelect.appendChild(h('option', { value: dom }, dom + ' case'));
+    });
+    // Set .value explicitly rather than relying on a `selected` attribute being
+    // reflected back into it. Both work in a browser; only this one is readable
+    // by the code below without a round-trip through the option list.
+    domainSelect.value = t.case_domain || domains[0];
+
+    var tierChip;
+    if (t.gates_failed && t.gates_failed.length) {
+      tierChip = h('span', { class: 'vq-badge vq-badge-blocked' }, 'ineligible — hard gate');
+    } else if (t.proposed_tier) {
+      tierChip = h('span', { class: 'vq-badge vq-badge-' + t.proposed_tier },
+                   'proposes ' + t.proposed_tier);
+    } else {
+      tierChip = h('span', { class: 'vq-badge vq-badge-none' }, 'admin decision');
+    }
+
+    var decideSelect = h('select', { class: 'vq-tier-select', 'aria-label': 'Record tier' },
+      h('option', { value: '' }, '— record a tier decision —'),
+      h('option', { value: 'labeler' }, 'labeler'),
+      h('option', { value: 'reviewer' }, 'reviewer'));
+
+    return h('div', { class: 'vq-dossier' },
+      h('div', { class: 'vq-section-label' }, 'Tier proposal'),
+      h('div', { class: 'vq-facts' },
+        tierChip,
+        ' ',
+        // Lime is "new / needs attention" in the locked palette — exactly right for
+        // "this proposal was a deliberate probe, not the model's best guess".
+        t.was_exploration
+          ? h('span', { class: 'asc-badge asc-badge-lime',
+                        title: 'Thompson-sampled: the model is uncertain here and is '
+                               + 'deliberately probing. Your decision is worth more than usual.' },
+              'Exploration')
+          : null,
+        ' ', domainSelect),
+      h('div', { class: 'vq-reason' }, thresholdLine(t)),
+      t.domain_match_why ? h('div', { class: 'vq-attempt' }, 'domain: ' + t.domain_match_why)
+                         : null,
+
+      h('div', { class: 'vq-section-label' }, 'Why — ranked by contribution'),
+      (t.reasons || []).map(function (r) {
+        var blocking = r.indexOf('BLOCKER') === 0;
+        return h('div', { class: blocking ? 'vq-flag' : 'vq-reason' }, r);
+      }),
+
+      h('div', { class: 'vq-section-label' }, 'Hard gates — a score cannot open one'),
+      Object.keys(t.gates || {}).sort().map(function (gid) {
+        return gateLine(gid, t.gates[gid]);
+      }),
+
+      (t.tr_missing && t.tr_missing.length)
+        ? h('div', { class: 'vq-attempt' },
+            'Not yet reviewer-eligible: ' + t.tr_missing.join(' · '))
+        : null,
+      t.calibration
+        ? h('div', { class: 'vq-attempt' },
+            'Calibration exam ' + (t.calibration.composite * 100).toFixed(0) + '% agreement'
+            + (t.calibration.tr_gate_passed ? ' — at the reviewer gate' : ' — below the gate'))
+        : h('div', { class: 'vq-attempt' }, 'Calibration exam not sat'),
+      t.leie_loaded_at
+        ? null
+        : h('div', { class: 'vq-attempt' },
+            'OIG exclusion list has never been loaded, so gate A5 is unresolved for every '
+            + 'physician. Load the monthly LEIE snapshot to close it.'),
+
+      h('div', { class: 'vq-actions' },
+        decideSelect,
+        h('button', {
+          class: 'vq-btn', disabled: state.busy,
+          title: 'Records your judgment as a training observation without changing the '
+                 + 'approval lifecycle. The override IS the training signal.',
+          onclick: function () {
+            if (!decideSelect.value) { setError('Pick a tier to record.'); return; }
+            recordTierDecision(row.user_id, decideSelect.value, domainSelect.value);
+          },
+        }, 'Record decision')));
+  }
+
+  function reloadTiering(userId, domain) {
+    api('/verify/queue/' + encodeURIComponent(userId)
+        + '?case_domain=' + encodeURIComponent(domain))
+      .then(function (d) { state.dossiers[userId] = d; render(); })
+      .catch(function (e) { setError(e.message); });
+  }
+
+  function recordTierDecision(userId, tier, domain) {
+    state.busy = true; render();
+    api('/verify/tiering/' + encodeURIComponent(userId) + '/decide',
+        { method: 'POST', body: { tier: tier, case_domain: domain || null } })
+      .then(function (out) {
+        state.busy = false;
+        var flipped = out && out.decision && out.decision.was_flip;
+        setNotice('Recorded ' + tier + (flipped ? ' — an override of the proposal, which is '
+                                                  + 'the most informative kind.' : '.'));
+        reloadTiering(userId, domain);
+      })
+      .catch(function (e) { state.busy = false; setError(e.message); });
+  }
+
   function dossierPanel(row) {
     var d = state.dossiers[row.user_id];
     if (!d) return h('div', { class: 'vq-dossier' }, h('em', null, 'Loading dossier…'));
@@ -274,7 +429,9 @@
       cvBits.push(h('span', null, 'No CV uploaded'));
     }
 
-    return h('div', { class: 'vq-dossier' },
+    return h('div', null,
+      tieringPanel(row, d),
+      h('div', { class: 'vq-dossier' },
       npiLine(d.npi),
       // Offer the retry whenever there is no definitive answer yet — not only
       // when the stored result literally reads 'unavailable', which is no
@@ -330,7 +487,7 @@
             if (!noteInput.value.trim()) { setError('Rejection requires a note.'); return; }
             decide(row.user_id, 'reject', { note: noteInput.value.trim() }, 'Rejected.');
           },
-        }, 'Reject')));
+        }, 'Reject'))));
   }
 
   function rowEl(row) {

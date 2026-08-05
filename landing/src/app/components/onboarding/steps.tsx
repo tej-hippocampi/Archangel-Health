@@ -97,20 +97,62 @@ export type Credentials = {
   boardCertifications: BoardCert[];
   fellowship: Fellowship[];
   residency: TrainingRow[];
-  medicalSchool: TrainingRow;
   primarySpecialty: string;
   subspecialties: string[];
   practiceSettings: string[];
   currentlyActive: boolean | null;
   yearsInActivePractice: string;
   languages: string[];
+  /* ── Reviewer eligibility (PRD C §2 gates + §3.2 features) ──────────────
+     Every field below is read exactly once and reduced to a boolean or a
+     licence cross-check. None is stored as a magnitude the model can scale on. */
+  licenseNumber: string;
+  licenseState: string;
+  residencyCompleted: boolean | null;
+  /* Consumed as `post_residency_ge_3yr`, a CAPPED BINARY, and discarded. The
+     Choudhry review found an INVERSE relationship between years in practice and
+     quality of care, and years-in-practice is simultaneously the most direct
+     available proxy for age — so it is a gate, never a continuous scaling term. */
+  residencyCompletionYear: string;
+  /* Threshold input for `currently_practicing` (>= 4 = practising). Someone
+     doing 20 half-days is not "more practising" than someone doing 4. */
+  clinicalHalfDaysPerMonth: string;
+  continuingCertification: boolean | null;
+  structuredReviewExperience: string[];
 };
+
+/* NOT ON THIS TYPE, DELIBERATELY, AND NOT TO BE RE-ADDED (PRD C §3.3):
+   medical school name or rank · US-MD vs IMG · ECFMG certification as a SCORE
+   input (it satisfies gate A3 as one of several equivalent degrees, and nothing
+   more) · graduation year · date of birth · sex · continuous years in practice ·
+   practice ZIP or region · self-rated expertise.
+
+   `medicalSchool` was on this type and on the form until this release. It
+   satisfied no gate, and both of its fields — institution and year — are on the
+   never-collect list. `backend/asclepius/tiering.py` additionally refuses to read
+   any of these keys, and `test_tiering_score.py` asserts that varying each of
+   them across its plausible range changes the score by exactly 0.0, so a legacy
+   row that still carries one cannot influence a tier. */
+
+const STRUCTURED_REVIEW_SUGGESTIONS = [
+  "cec_dsmb",
+  "journal_peer_review",
+  "board_item_writing",
+  "guideline_panel",
+  "core_faculty",
+  "program_director",
+];
 
 export type Attestations = {
   consentCredentialShare: boolean;
   attestIndependentJudgment: boolean;
   ipAssignment: boolean;
   noPhi: boolean;
+  /* Hard gates A7 and A6 (PRD C §2). Separate from `attestIndependentJudgment`
+     on purpose: confidentiality and independence are two different promises, and
+     a single combined checkbox cannot be revoked or audited separately. */
+  attestConfidentiality: boolean;
+  attestNoDisciplinaryAction: boolean;
   signedInitials: string;
 };
 
@@ -126,13 +168,19 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     boardCertifications: [{ board: "", specialty: "", subspecialty: "", active: true }],
     fellowship: [{ institution: "", specialty: "", year: "" }],
     residency: [{ institution: "", year: "" }],
-    medicalSchool: { institution: "", year: "" },
     primarySpecialty: "",
     subspecialties: [],
     practiceSettings: [],
     currentlyActive: null,
     yearsInActivePractice: "",
     languages: [],
+    licenseNumber: "",
+    licenseState: "",
+    residencyCompleted: null,
+    residencyCompletionYear: "",
+    clinicalHalfDaysPerMonth: "",
+    continuingCertification: null,
+    structuredReviewExperience: [],
   };
 }
 
@@ -142,6 +190,8 @@ export function emptyAttestations(): Attestations {
     attestIndependentJudgment: false,
     ipAssignment: false,
     noPhi: false,
+    attestConfidentiality: false,
+    attestNoDisciplinaryAction: false,
     signedInitials: "",
   };
 }
@@ -1468,7 +1518,13 @@ export function Step5Credentials({
     c.phone.trim().length >= 7 &&
     c.degree.trim().length > 0 &&
     c.primarySpecialty.trim().length > 0 &&
-    c.currentlyActive !== null;
+    c.currentlyActive !== null &&
+    // Gate A2 needs both halves; gate A4 needs the attestation. Required at the
+    // form rather than surfaced later as an "unresolved gate" in the admin queue,
+    // because a physician can answer these in five seconds and an admin cannot.
+    c.licenseNumber.trim().length > 0 &&
+    c.licenseState.trim().length === 2 &&
+    c.residencyCompleted !== null;
 
   return (
     <OnboardingCard
@@ -1721,24 +1777,71 @@ export function Step5Credentials({
         onClick={() => set({ residency: [...c.residency, { institution: "", year: "" }] })}
       />
 
-      {/* Medical school */}
-      <SectionHeading title="Medical school" sub="Institution + year." />
+      {/* Medical school is DELIBERATELY NOT COLLECTED — see the `medicalSchool`
+          removal note on the Credentials type. It satisfies no gate, and both the
+          institution and the graduation year are on the never-collect list. */}
+
+      {/* Reviewer eligibility (PRD C §2 gates A2/A4 and §3.2 features).
+          Each field below feeds exactly one gate or one binary feature, and none
+          of them is stored as a magnitude. */}
+      <SectionHeading
+        title="Licence & practice"
+        sub="What we verify. Nothing here is scored by seniority."
+      />
       <div style={TWO_COL}>
         <TextField
-          label="Institution"
-          placeholder="UCLA David Geffen School of Medicine"
-          value={c.medicalSchool.institution}
-          onChange={(v) => set({ medicalSchool: { ...c.medicalSchool, institution: v } })}
+          label="State licence number"
+          placeholder="MD-99881"
+          value={c.licenseNumber}
+          onChange={(v) => set({ licenseNumber: v })}
+          hint="Cross-checked against your NPPES record."
         />
         <TextField
-          label="Year"
-          placeholder="2007"
-          value={c.medicalSchool.year}
-          onChange={(v) =>
-            set({ medicalSchool: { ...c.medicalSchool, year: v.replace(/\D/g, "").slice(0, 4) } })
-          }
+          label="Licence state"
+          placeholder="MA"
+          value={c.licenseState}
+          onChange={(v) => set({ licenseState: v.toUpperCase().slice(0, 2) })}
         />
       </div>
+
+      <YesNoToggle
+        label="Residency complete — not currently in training?"
+        value={c.residencyCompleted}
+        onChange={(v) => set({ residencyCompleted: v })}
+      />
+      <TextField
+        label="Year you completed residency"
+        placeholder="2010"
+        value={c.residencyCompletionYear}
+        onChange={(v) => set({ residencyCompletionYear: v.replace(/\D/g, "").slice(0, 4) })}
+        hint="Used once, as a yes/no: at least three years post-residency. It is never scored as a number of years."
+      />
+
+      <div style={TWO_COL}>
+        <TextField
+          label="Clinical half-days per month"
+          placeholder="8"
+          value={c.clinicalHalfDaysPerMonth}
+          onChange={(v) => set({ clinicalHalfDaysPerMonth: v.replace(/\D/g, "").slice(0, 3) })}
+          hint="Averaged over the last 12 months. Four or more counts as currently practising."
+        />
+        <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 4 }}>
+          <YesNoToggle
+            label="Participating in continuing certification (MOC/CC)?"
+            value={c.continuingCertification}
+            onChange={(v) => set({ continuingCertification: v })}
+          />
+        </div>
+      </div>
+
+      <ChipMultiSelect
+        label="Structured review experience"
+        value={c.structuredReviewExperience}
+        onChange={(v) => set({ structuredReviewExperience: v })}
+        placeholder="Select all that apply"
+        suggestions={STRUCTURED_REVIEW_SUGGESTIONS}
+        hint="Adjudicating against a rubric is the skill this work needs, and it is learned in these rooms."
+      />
 
       {/* Focus areas */}
       <SectionHeading title="Clinical focus" />
@@ -1860,7 +1963,8 @@ export function Step6Attestations({
   const set = (patch: Partial<Attestations>) => setData({ attestations: { ...a, ...patch } });
   const initials = a.signedInitials.trim();
   const allChecked =
-    a.consentCredentialShare && a.attestIndependentJudgment && a.ipAssignment && a.noPhi;
+    a.consentCredentialShare && a.attestIndependentJudgment && a.ipAssignment && a.noPhi &&
+    a.attestConfidentiality && a.attestNoDisciplinaryAction;
   const valid = allChecked && initials.length >= 2;
 
   return (
@@ -1895,6 +1999,25 @@ export function Step6Attestations({
         onToggle={() => set({ noPhi: !a.noPhi })}
         title="No PHI"
         body="I confirm I will not enter any patient health information (PHI) into Asclepius."
+      />
+      {/* Gate A7. Independence is attested above; confidentiality is its own
+          promise and its own checkbox, because they can be breached separately. */}
+      <CheckRow
+        checked={a.attestConfidentiality}
+        onToggle={() => set({ attestConfidentiality: !a.attestConfidentiality })}
+        title="Confidentiality"
+        body="I will keep the cases, prompts, model outputs and other physicians' work I see confidential, and will not reproduce or republish them."
+      />
+      {/* Gate A6. Declining is a definitive answer, not a blank — which is why
+          this is a checkbox and not an optional field: the gate distinguishes
+          'disclosed an action' from 'never asked'. */}
+      <CheckRow
+        checked={a.attestNoDisciplinaryAction}
+        onToggle={() =>
+          set({ attestNoDisciplinaryAction: !a.attestNoDisciplinaryAction })
+        }
+        title="No active board disciplinary action"
+        body="I attest that I am not currently subject to an active disciplinary action by any state medical board, and that my licence is active and unrestricted."
       />
 
       <div style={{ marginTop: 18 }}>

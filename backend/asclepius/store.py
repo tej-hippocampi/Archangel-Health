@@ -1243,6 +1243,147 @@ class AsclepiusStore:
             if "signoff_status" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN signoff_status TEXT")
             # ═══ END PRD-D ═══
+            # ═══ PRD-CRED TIERING SCHEMA — owned by Agent C, do not edit from other PRDs ═══
+            # The context pack calls this Agent C's "PRD-C sentinel". That label is already
+            # taken, at :1033 and :4808, by the HEALTH-SYSTEM schema from an earlier release
+            # owned by a different agent. Reusing it would make the expected four-way merge
+            # conflict unresolvable by inspection, so this block is PRD-CRED and sits at the
+            # same insertion point. Nothing above is touched.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tiering_weights (
+                    feature    TEXT PRIMARY KEY,
+                    m          REAL NOT NULL,
+                    q          REAL NOT NULL,
+                    pinned     INTEGER NOT NULL DEFAULT 0,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tiering_decisions (
+                    decision_id     TEXT PRIMARY KEY,
+                    user_id         TEXT NOT NULL,
+                    case_domain     TEXT,
+                    features_json   TEXT NOT NULL,
+                    proposed_tier   TEXT,
+                    admin_tier      TEXT,
+                    was_flip        INTEGER,
+                    was_exploration INTEGER,
+                    -- 'admin' (an opinion label) | 'shadow_tr' (a REAL outcome label, scored
+                    -- against a settled gold adjudication). The distinction is the only thing
+                    -- that breaks the circularity of learning from the system's own routing,
+                    -- so it is a column rather than something inferred later.
+                    outcome_source  TEXT,
+                    score           REAL,
+                    decided_by      TEXT,
+                    decided_at      TEXT NOT NULL,
+                    -- NULL until folded into the weights, exactly once. This is the guard
+                    -- against replaying old decisions: each event contributes precision once,
+                    -- or you fabricate confidence.
+                    applied_at      TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tiering_dec_user "
+                         "ON tiering_decisions(user_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tiering_dec_unapplied "
+                         "ON tiering_decisions(applied_at)")
+
+            # ── Calibration exam (PRD C §4) ─────────────────────────────────────────────
+            # key_json is the AGGREGATE of a reference panel, never one person's opinion.
+            # active is nullable-free but responses are raw: an item can be re-keyed and every
+            # past attempt rescored without re-testing anyone.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS calibration_items (
+                    item_id        TEXT PRIMARY KEY,
+                    specialty      TEXT NOT NULL,
+                    source_task_id TEXT,
+                    vignette_json  TEXT NOT NULL,
+                    key_json       TEXT NOT NULL,
+                    panel_n        INTEGER,
+                    active         INTEGER NOT NULL DEFAULT 1,
+                    created_at     TEXT NOT NULL,
+                    updated_at     TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_calib_items_spec "
+                         "ON calibration_items(specialty)")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS calibration_attempts (
+                    attempt_id     TEXT PRIMARY KEY,
+                    user_id        TEXT NOT NULL,
+                    specialty      TEXT NOT NULL,
+                    item_ids_json  TEXT NOT NULL,
+                    -- The RAW per-item responses, always. Storing only the score would make
+                    -- every future re-key a re-recruitment (PRD C §4).
+                    responses_json TEXT,
+                    scores_json    TEXT,
+                    composite      REAL,
+                    -- Deliberately no DEFAULT on either gate column: NULL means "not yet
+                    -- graded" and must stay distinguishable from a graded fail.
+                    tr_gate_passed INTEGER,
+                    tl_gate_passed INTEGER,
+                    started_at     TEXT NOT NULL,
+                    submitted_at   TEXT,
+                    rescored_at    TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_calib_att_user "
+                         "ON calibration_attempts(user_id)")
+
+            # ── OIG LEIE exclusions (gate A5) ───────────────────────────────────────────
+            # Loaded from the monthly CSV. leie_meta records WHEN, so a stale or never-loaded
+            # list resolves to UNKNOWN rather than silently to "clear" — an exclusion check
+            # that fails open is not a check.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS leie_exclusions (
+                    npi        TEXT PRIMARY KEY,
+                    excl_type  TEXT,
+                    excl_date  TEXT,
+                    loaded_at  TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS leie_meta (
+                    id          INTEGER PRIMARY KEY CHECK (id = 1),
+                    loaded_at   TEXT NOT NULL,
+                    row_count   INTEGER NOT NULL,
+                    source_note TEXT
+                )
+                """
+            )
+
+            # ── Fairness monitor (PRD C §6) ─────────────────────────────────────────────
+            # Voluntary, self-reported demographics, in a table that is NOT joinable into the
+            # feature store — and the non-joinability is structural, not a naming convention:
+            # the row is keyed by an HMAC of the user id under a secret the scorer never
+            # holds, and the tier is COPIED IN at decision time. The monitor therefore needs
+            # no join at all, and possession of this table does not re-identify anyone.
+            # Collecting it separately is exactly what makes the monitor possible without
+            # making the model able to see it.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS fairness_observations (
+                    obs_id       TEXT PRIMARY KEY,
+                    subject_key  TEXT NOT NULL,
+                    demographics_json TEXT NOT NULL,
+                    decided_tier TEXT,
+                    decided_at   TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_fairness_subject "
+                         "ON fairness_observations(subject_key)")
+            # ═══ END PRD-CRED ═══
 
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
@@ -5992,6 +6133,517 @@ class AsclepiusStore:
                 (limit,)).fetchall()
         return [dict(r) for r in rows]
     # ═══ END PRD-D STORE METHODS ═══
+    # ═══ PRD-CRED TIERING STORE METHODS — owned by Agent C, do not edit from other PRDs ═══
+
+    # ─── Weights ──────────────────────────────────────────────────────────────
+    def get_tiering_weights(self) -> Dict[str, Dict[str, float]]:
+        """The current posterior, seeded from the priors on first read.
+
+        Seeding on read rather than in ``_init_schema`` keeps the priors in
+        ``tiering.py`` where they are documented and reviewable, instead of
+        duplicating nine numbers into a migration where they would drift.
+        """
+        from asclepius import tiering
+
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM tiering_weights").fetchall()
+            existing = {r["feature"]: {"m": float(r["m"]), "q": float(r["q"]),
+                                       "pinned": int(r["pinned"] or 0)} for r in rows}
+            defaults = tiering.default_weights()
+            missing = {k: v for k, v in defaults.items() if k not in existing}
+            if missing:
+                now = _utcnow_iso()
+                conn.executemany(
+                    "INSERT OR IGNORE INTO tiering_weights (feature, m, q, pinned, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    [(k, v["m"], v["q"], int(v["pinned"]), now) for k, v in missing.items()],
+                )
+                existing.update({k: dict(v) for k, v in missing.items()})
+        return existing
+
+    def record_tiering_decision(
+        self,
+        *,
+        user_id: str,
+        case_domain: Optional[str],
+        features: Dict[str, float],
+        proposed_tier: Optional[str],
+        admin_tier: Optional[str] = None,
+        was_exploration: bool = False,
+        outcome_source: str = "admin",
+        score: Optional[float] = None,
+        decided_by: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """One row per decision the model made or a human overrode.
+
+        ``was_flip`` is computed here rather than passed in: it is a fact about the two
+        columns beside it, and a caller that computes it separately is a caller that can get
+        it wrong. NULL when there is no admin decision yet — "not yet decided" is not "the
+        admin agreed".
+        """
+        decision_id = _new_id("tdec")
+        flip: Optional[int] = None
+        if admin_tier:
+            flip = 1 if admin_tier != proposed_tier else 0
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO tiering_decisions (decision_id, user_id, case_domain, "
+                "features_json, proposed_tier, admin_tier, was_flip, was_exploration, "
+                "outcome_source, score, decided_by, decided_at, applied_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+                (decision_id, user_id, case_domain, json.dumps(features), proposed_tier,
+                 admin_tier, flip, 1 if was_exploration else 0, outcome_source, score,
+                 decided_by, _utcnow_iso()),
+            )
+        return self.get_tiering_decision(decision_id) or {"decision_id": decision_id}
+
+    def get_tiering_decision(self, decision_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM tiering_decisions WHERE decision_id = ?",
+                               (decision_id,)).fetchone()
+        return dict(row) if row else None
+
+    def pending_tiering_decisions(self, *, limit: int = 500) -> List[Dict[str, Any]]:
+        """The un-applied batch. ``applied_at IS NULL`` is the whole guard against replay —
+        rows carrying no admin decision yet are excluded because an unlabelled row is not an
+        observation."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tiering_decisions WHERE applied_at IS NULL "
+                "AND admin_tier IS NOT NULL ORDER BY decided_at ASC LIMIT ?",
+                (max(1, int(limit)),),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def apply_tiering_batch(self, decision_ids: List[str],
+                            *, weights: Optional[Dict[str, Dict[str, float]]]) -> int:
+        """Stamp ``applied_at`` and write the new weights in ONE transaction.
+
+        Atomicity is the point. Written as two statements, a crash between them either
+        double-counts a batch (fabricated confidence) or loses it (silent non-learning), and
+        both failures look exactly like a healthy system from the outside.
+        """
+        if not decision_ids and weights is None:
+            return 0
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            if weights:
+                conn.executemany(
+                    "INSERT INTO tiering_weights (feature, m, q, pinned, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?) ON CONFLICT(feature) DO UPDATE SET "
+                    "m = excluded.m, q = excluded.q, pinned = excluded.pinned, "
+                    "updated_at = excluded.updated_at",
+                    [(k, float(v["m"]), float(v["q"]), int(v.get("pinned") or 0), now)
+                     for k, v in weights.items()],
+                )
+            if decision_ids:
+                marks = ",".join("?" for _ in decision_ids)
+                conn.execute(
+                    f"UPDATE tiering_decisions SET applied_at = ? "
+                    f"WHERE applied_at IS NULL AND decision_id IN ({marks})",
+                    [now, *decision_ids],
+                )
+        return len(decision_ids)
+
+    def tiering_decision_history(self, *, user_id: Optional[str] = None,
+                                 limit: int = 100) -> List[Dict[str, Any]]:
+        clause, params = "", []
+        if user_id:
+            clause, params = "WHERE user_id = ?", [user_id]
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM tiering_decisions {clause} ORDER BY decided_at DESC LIMIT ?",
+                [*params, max(1, int(limit))],
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ─── Calibration ──────────────────────────────────────────────────────────
+    @staticmethod
+    def _calibration_item_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["vignette"] = json.loads(rec.pop("vignette_json", "{}") or "{}")
+        rec["key"] = json.loads(rec.pop("key_json", "{}") or "{}")
+        return rec
+
+    def upsert_calibration_item(self, *, specialty: str, vignette: Dict[str, Any],
+                                key: Dict[str, Any], source_task_id: Optional[str] = None,
+                                item_id: Optional[str] = None,
+                                active: bool = True) -> Dict[str, Any]:
+        item_id = item_id or _new_id("cal")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO calibration_items (item_id, specialty, source_task_id, "
+                "vignette_json, key_json, panel_n, active, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(item_id) DO UPDATE SET "
+                "vignette_json = excluded.vignette_json, key_json = excluded.key_json, "
+                "panel_n = excluded.panel_n, active = excluded.active, "
+                "updated_at = excluded.updated_at",
+                (item_id, (specialty or "").strip().lower(), source_task_id,
+                 json.dumps(vignette), json.dumps(key), int(key.get("panel_n") or 0),
+                 1 if active else 0, now, now),
+            )
+            row = conn.execute("SELECT * FROM calibration_items WHERE item_id = ?",
+                               (item_id,)).fetchone()
+        return self._calibration_item_row(row)
+
+    def list_calibration_items(self, *, specialty: Optional[str] = None,
+                               active_only: bool = True) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if specialty:
+            clauses.append("specialty = ?")
+            params.append((specialty or "").strip().lower())
+        if active_only:
+            clauses.append("active = 1")
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM calibration_items {where} ORDER BY created_at ASC",
+                params).fetchall()
+        return [self._calibration_item_row(r) for r in rows]
+
+    def get_calibration_items(self, item_ids: List[str]) -> List[Dict[str, Any]]:
+        if not item_ids:
+            return []
+        marks = ",".join("?" for _ in item_ids)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM calibration_items WHERE item_id IN ({marks})", item_ids
+            ).fetchall()
+        by_id = {r["item_id"]: self._calibration_item_row(r) for r in rows}
+        return [by_id[i] for i in item_ids if i in by_id]
+
+    def start_calibration_attempt(self, *, user_id: str, specialty: str,
+                                  item_ids: List[str]) -> Dict[str, Any]:
+        attempt_id = _new_id("catt")
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO calibration_attempts (attempt_id, user_id, specialty, "
+                "item_ids_json, started_at) VALUES (?, ?, ?, ?, ?)",
+                (attempt_id, user_id, (specialty or "").strip().lower(),
+                 json.dumps(item_ids), _utcnow_iso()),
+            )
+        return {"attempt_id": attempt_id, "user_id": user_id, "specialty": specialty,
+                "item_ids": item_ids}
+
+    @staticmethod
+    def _calibration_attempt_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["item_ids"] = json.loads(rec.pop("item_ids_json", "[]") or "[]")
+        rec["responses"] = json.loads(rec.pop("responses_json", "null") or "null") or {}
+        rec["scores"] = json.loads(rec.pop("scores_json", "null") or "null")
+        # Tri-state preserved on the way out: NULL ("not yet graded") must not become False.
+        for gate in ("tr_gate_passed", "tl_gate_passed"):
+            rec[gate] = None if rec.get(gate) is None else bool(rec[gate])
+        return rec
+
+    def get_calibration_attempt(self, attempt_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM calibration_attempts WHERE attempt_id = ?",
+                               (attempt_id,)).fetchone()
+        return self._calibration_attempt_row(row) if row else None
+
+    def record_calibration_responses(self, attempt_id: str,
+                                     responses: Dict[str, Any]) -> None:
+        """The RAW responses, exactly as submitted. Never the graded form — see PRD C §4."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE calibration_attempts SET responses_json = ?, submitted_at = ? "
+                "WHERE attempt_id = ?",
+                (json.dumps(responses), _utcnow_iso(), attempt_id),
+            )
+
+    def record_calibration_score(self, attempt_id: str, result: Dict[str, Any],
+                                 *, rescored: bool = False) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE calibration_attempts SET scores_json = ?, composite = ?, "
+                "tr_gate_passed = ?, tl_gate_passed = ?, rescored_at = COALESCE(?, "
+                "rescored_at) WHERE attempt_id = ?",
+                (json.dumps(result), result.get("composite"),
+                 1 if result.get("tr_gate_passed") else 0,
+                 1 if result.get("tl_gate_passed") else 0,
+                 _utcnow_iso() if rescored else None, attempt_id),
+            )
+
+    def latest_calibration_for_user(self, user_id: str,
+                                    specialty: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        clauses, params = ["user_id = ?", "submitted_at IS NOT NULL"], [user_id]
+        if specialty:
+            clauses.append("specialty = ?")
+            params.append((specialty or "").strip().lower())
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM calibration_attempts WHERE " + " AND ".join(clauses) +
+                " ORDER BY submitted_at DESC LIMIT 1", params
+            ).fetchone()
+        return self._calibration_attempt_row(row) if row else None
+
+    def calibration_attempts_for_user(self, user_id: str,
+                                      specialty: Optional[str] = None) -> List[Dict[str, Any]]:
+        clauses, params = ["user_id = ?"], [user_id]
+        if specialty:
+            clauses.append("specialty = ?")
+            params.append((specialty or "").strip().lower())
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM calibration_attempts WHERE " + " AND ".join(clauses) +
+                " ORDER BY started_at ASC", params).fetchall()
+        return [self._calibration_attempt_row(r) for r in rows]
+
+    def open_calibration_attempt(self, user_id: str,
+                                 specialty: str) -> Optional[Dict[str, Any]]:
+        """An attempt this candidate started and never submitted.
+
+        Returned instead of minting a second one, so a reload or a dropped connection does not
+        silently spend one of two attempts — and so a candidate cannot reroll the item sample
+        by refreshing until an easier draw comes up.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM calibration_attempts WHERE user_id = ? AND specialty = ? "
+                "AND submitted_at IS NULL ORDER BY started_at DESC LIMIT 1",
+                (user_id, (specialty or "").strip().lower())).fetchone()
+        return self._calibration_attempt_row(row) if row else None
+
+    def calibration_population(self, specialty: str) -> List[float]:
+        """Every graded composite in a specialty — the population ``calibration_z``
+        standardizes against once there are enough of them to mean anything."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT composite FROM calibration_attempts WHERE specialty = ? "
+                "AND composite IS NOT NULL", ((specialty or "").strip().lower(),)
+            ).fetchall()
+        return [float(r["composite"]) for r in rows]
+
+    # ─── OIG LEIE (gate A5) ───────────────────────────────────────────────────
+    def replace_leie_exclusions(self, rows: List[Dict[str, Any]],
+                                *, source_note: Optional[str] = None) -> int:
+        """Swap in a freshly downloaded LEIE snapshot, atomically.
+
+        DELETE-then-INSERT inside one transaction, so a reader never observes an empty table
+        and concludes that every physician is clear. That window is the difference between a
+        hard gate and a formality.
+        """
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute("DELETE FROM leie_exclusions")
+            conn.executemany(
+                "INSERT OR REPLACE INTO leie_exclusions (npi, excl_type, excl_date, loaded_at) "
+                "VALUES (?, ?, ?, ?)",
+                [(str(r.get("npi") or "").strip(), r.get("excl_type"), r.get("excl_date"), now)
+                 for r in rows if str(r.get("npi") or "").strip()],
+            )
+            n = conn.execute("SELECT COUNT(*) AS n FROM leie_exclusions").fetchone()["n"]
+            conn.execute(
+                "INSERT INTO leie_meta (id, loaded_at, row_count, source_note) "
+                "VALUES (1, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET loaded_at = excluded.loaded_at, "
+                "row_count = excluded.row_count, source_note = excluded.source_note",
+                (now, int(n), source_note),
+            )
+        return int(n)
+
+    def leie_loaded_at(self) -> Optional[str]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT loaded_at, row_count FROM leie_meta WHERE id = 1"
+                               ).fetchone()
+        return row["loaded_at"] if row else None
+
+    def leie_status(self, npi: str) -> str:
+        """``excluded`` | ``clear`` | ``unknown``.
+
+        ``unknown`` when no snapshot has ever been loaded. A never-loaded exclusion list must
+        not answer "clear" — that is a check that fails open, which is not a check. Gate A5
+        reads this and routes UNKNOWN to the admin, exactly as an unreachable NPPES does.
+        """
+        npi = (npi or "").strip()
+        if not npi:
+            return "unknown"
+        if not self.leie_loaded_at():
+            return "unknown"
+        with self._conn() as conn:
+            row = conn.execute("SELECT 1 FROM leie_exclusions WHERE npi = ?", (npi,)).fetchone()
+        return "excluded" if row else "clear"
+
+    # ─── Fairness monitor (PRD C §6) ──────────────────────────────────────────
+    @staticmethod
+    def _fairness_subject_key(user_id: str) -> str:
+        """A per-purpose pseudonym, not the user id.
+
+        The demographics table must not be joinable into the feature store. Storing
+        ``user_id`` would make that a naming convention enforced by good intentions; an HMAC
+        under a secret the scorer never reads makes it a property of the data. The monitor
+        needs no join because the decided tier is copied onto the row at decision time.
+        """
+        secret = (os.getenv("ASCLEPIUS_FAIRNESS_SALT")
+                  or os.getenv("ASCLEPIUS_AUTH_SECRET") or "asclepius-fairness")
+        return hashlib.blake2b(f"{user_id}".encode("utf-8"),
+                               key=secret.encode("utf-8")[:64], digest_size=16).hexdigest()
+
+    def record_fairness_observation(self, *, user_id: str, demographics: Dict[str, Any],
+                                    decided_tier: Optional[str] = None) -> Optional[str]:
+        """Voluntary and self-reported, written STRAIGHT here at signup.
+
+        Deliberately not a column on ``users``. Every feature path loads a physician with
+        ``SELECT * FROM users``, so a demographics column there would be a column the model
+        can reach — and "we remembered not to read it" is not the guarantee §6 asks for. No
+        demographics ⇒ no row, never an inferred one.
+
+        One row per subject: re-submitting replaces the answers rather than accumulating
+        duplicates that would each be counted by the monitor.
+        """
+        if not demographics:
+            return None
+        key = self._fairness_subject_key(user_id)
+        with self._conn() as conn:
+            existing = conn.execute(
+                "SELECT obs_id, decided_tier FROM fairness_observations WHERE subject_key = ?",
+                (key,)).fetchone()
+            if existing:
+                conn.execute(
+                    "UPDATE fairness_observations SET demographics_json = ?, "
+                    "decided_tier = COALESCE(?, decided_tier) WHERE obs_id = ?",
+                    (json.dumps(demographics), decided_tier, existing["obs_id"]))
+                return existing["obs_id"]
+            obs_id = _new_id("fair")
+            conn.execute(
+                "INSERT INTO fairness_observations (obs_id, subject_key, demographics_json, "
+                "decided_tier, decided_at) VALUES (?, ?, ?, ?, ?)",
+                (obs_id, key, json.dumps(demographics), decided_tier, _utcnow_iso()),
+            )
+        return obs_id
+
+    def stamp_fairness_tier(self, user_id: str, tier: Optional[str]) -> None:
+        """Copy the decided tier onto the pseudonymous row, so the monitor needs no join.
+
+        A no-op when the physician declined to supply demographics — which is most of them,
+        and is fine: the four-fifths rule is a rate comparison, not a census.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE fairness_observations SET decided_tier = ? WHERE subject_key = ?",
+                (tier, self._fairness_subject_key(user_id)))
+
+    def fairness_selection_rates(self, *, since: Optional[str] = None) -> Dict[str, Any]:
+        """TR selection rate by self-reported group, with the four-fifths comparison.
+
+        The four-fifths (80%) rule: if any group's selection rate falls below 80% of the
+        highest group's, that is the EEOC's rule-of-thumb threshold for adverse impact. It is
+        a screening signal, not a verdict — small groups swing wildly, so ``n`` is reported
+        beside every rate and a group under ``MIN_GROUP_N`` is listed but never triggers the
+        alert on its own.
+        """
+        MIN_GROUP_N = 5
+        rows = self.fairness_observations(since=since)
+        buckets: Dict[str, Dict[str, Dict[str, int]]] = {}
+        for row in rows:
+            if not row.get("decided_tier"):
+                continue        # not yet decided is not a negative outcome
+            for dimension, value in (row.get("demographics") or {}).items():
+                if value in (None, "", "prefer_not_to_say"):
+                    continue
+                slot = buckets.setdefault(dimension, {}).setdefault(
+                    str(value), {"n": 0, "tr": 0})
+                slot["n"] += 1
+                slot["tr"] += 1 if row["decided_tier"] == "reviewer" else 0
+
+        out: Dict[str, Any] = {"dimensions": {}, "alerts": [], "min_group_n": MIN_GROUP_N}
+        for dimension, groups in buckets.items():
+            rates = {g: (v["tr"] / v["n"] if v["n"] else 0.0) for g, v in groups.items()}
+            eligible = {g: r for g, r in rates.items() if groups[g]["n"] >= MIN_GROUP_N}
+            best = max(eligible.values(), default=0.0)
+            detail = {}
+            for g, v in groups.items():
+                ratio = (rates[g] / best) if best > 0 else None
+                detail[g] = {"n": v["n"], "tr": v["tr"], "rate": round(rates[g], 4),
+                             "impact_ratio": None if ratio is None else round(ratio, 4),
+                             "counted": groups[g]["n"] >= MIN_GROUP_N}
+                if detail[g]["counted"] and ratio is not None and ratio < 0.8:
+                    out["alerts"].append(
+                        {"dimension": dimension, "group": g, "impact_ratio": round(ratio, 4),
+                         "n": v["n"],
+                         "message": f"{dimension}={g} TR selection rate is "
+                                    f"{round(ratio * 100)}% of the highest group — below the "
+                                    f"four-fifths threshold."})
+            out["dimensions"][dimension] = detail
+        out["total_observations"] = len(rows)
+        return out
+
+    def fairness_observations(self, *, since: Optional[str] = None) -> List[Dict[str, Any]]:
+        clause, params = "", []
+        if since:
+            clause, params = "WHERE decided_at >= ?", [since]
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM fairness_observations {clause} ORDER BY decided_at DESC",
+                params).fetchall()
+        out = []
+        for r in rows:
+            rec = dict(r)
+            rec["demographics"] = json.loads(rec.pop("demographics_json", "{}") or "{}")
+            rec.pop("subject_key", None)   # never leaves the store
+            out.append(rec)
+        return out
+
+    # ─── Measured quality inputs (PRD C §5.4) ─────────────────────────────────
+    def completed_task_count(self, user_id: str) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM submissions WHERE evaluator_id = ? "
+                "AND status != 'rejected'", (user_id,)).fetchone()
+        return int(row["n"] if row else 0)
+
+    def paired_label_observations(self, *, specialty: Optional[str] = None,
+                                  limit: int = 5000) -> Dict[str, Any]:
+        """``(task_id, labeler_id, chosen_id)`` for every task carrying at least two
+        independent labels, plus the TR adjudication as near-gold where one exists.
+
+        This is exactly the input One-Coin Dawid–Skene needs. The structure is Agent R's; this
+        only reads it, and degrades to an empty result rather than failing when the paired path
+        has not produced anything yet — a physician with no measured work is not a physician
+        with measured-zero work.
+        """
+        params: List[Any] = []
+        spec = ""
+        if specialty:
+            spec = "AND t.specialty = ?"
+            params.append((specialty or "").strip().lower())
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT s.task_id, s.evaluator_id, s.chosen_id, s.submission_id
+                FROM submissions s JOIN tasks t ON t.task_id = s.task_id
+                WHERE s.status != 'rejected' AND s.chosen_id IS NOT NULL {spec}
+                  AND s.task_id IN (
+                      SELECT task_id FROM submissions WHERE status != 'rejected'
+                        AND chosen_id IS NOT NULL
+                      GROUP BY task_id HAVING COUNT(DISTINCT evaluator_id) >= 2)
+                ORDER BY s.created_at ASC LIMIT ?
+                """, [*params, int(limit)]).fetchall()
+            observations = [(r["task_id"], r["evaluator_id"], r["chosen_id"]) for r in rows]
+            gold: Dict[str, str] = {}
+            if observations:
+                task_ids = sorted({o[0] for o in observations})
+                marks = ",".join("?" for _ in task_ids)
+                grows = conn.execute(
+                    f"""SELECT cr.task_id, s.chosen_id, cr.verdict FROM case_reviews cr
+                        JOIN submissions s ON s.submission_id = cr.submission_id
+                        WHERE cr.task_id IN ({marks}) AND cr.verdict IS NOT NULL
+                        ORDER BY cr.created_at ASC""", task_ids).fetchall()
+                for r in grows:
+                    # NOT-REJECTED, deliberately — not "accepted" (context pack Seam 3).
+                    # ``agreement.review_acceptance`` is the single definition of expert
+                    # acceptance, and re-deriving 'accept OR accept_with_edits' here would be
+                    # exactly the rival number that once had the dashboard reading 97% while
+                    # quality_report.md read 84%. What Dawid–Skene needs as a near-gold label
+                    # is weaker and different: a TR who did not reject a submission has
+                    # endorsed its chosen answer well enough to anchor the EM. First
+                    # non-rejection wins; later reviews cannot flip it.
+                    if r["verdict"] == "reject":
+                        continue
+                    gold.setdefault(r["task_id"], r["chosen_id"])
+        return {"observations": observations, "gold": gold}
+    # ═══ END PRD-CRED STORE METHODS ═══
 
 
 # ─── Process-wide singleton ───────────────────────────────────────────────────

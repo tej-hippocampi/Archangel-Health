@@ -86,8 +86,102 @@
     if (rootEl && rootCtx) render(rootEl, rootCtx);
   }
 
+  /* ─── PRD-CRED · model health + fairness monitor (PRD C §5.2, §6) ──────────
+   * Rendered ABOVE the queue, collapsed, because it is not what an admin came
+   * here to do — but it has to be somewhere they will see it weekly.
+   *
+   * Two things live here that nothing else in the product can tell you:
+   *
+   *  1. The per-batch weight delta. §8: "a model that silently stops updating
+   *     looks exactly like a model that has converged." The drift column is the
+   *     only cheap way to tell those apart from a screen.
+   *  2. The four-fifths fairness comparison. It reads a table that carries no
+   *     user ids at all — voluntary self-reported demographics under an HMAC
+   *     pseudonym, with the decided tier copied in at decision time. That is
+   *     what makes the monitor possible without making the model able to see it.
+   *
+   * Mounted here rather than as a new sub-tab because the shell's tab list
+   * lives in asclepius.js, which is outside Agent C's write allowlist.
+   */
+  function renderModelHealth(container, ctx) {
+    const { h, api } = ctx;
+    const box = h('details', { class: 'asc-card' });
+    const body = h('div', { class: 'asc-card-pad' });
+    box.appendChild(h('summary', { class: 'asc-card-pad' },
+      'Model health · learning loop + fairness monitor'));
+    box.appendChild(body);
+    container.appendChild(box);
+
+    let loaded = false;
+    box.addEventListener('toggle', function () {
+      if (!box.open || loaded) return;
+      loaded = true;
+      Promise.all([
+        api('/verify/tiering-weights'),
+        api('/verify/fairness'),
+      ]).then(function (res) {
+        renderModelHealthBody(body, ctx, res[0], res[1]);
+      }).catch(function (e) {
+        clearNode(body);
+        body.appendChild(h('div', { class: 'asc-error' },
+          'Could not load model health: ' + e.message));
+      });
+    });
+  }
+
+  function renderModelHealthBody(body, ctx, weights, fairness) {
+    const { h } = ctx;
+    clearNode(body);
+
+    body.appendChild(h('div', { class: 'vq-section-label' },
+      'Tier weights — posterior vs the rule it started from'));
+    body.appendChild(h('div', { class: 'vq-attempt' },
+      (weights.pending_decisions || 0) + ' decision(s) not yet folded in · '
+      + 'each batch may move any weight by at most ' + weights.max_delta_per_batch));
+
+    (weights.weights || []).forEach(function (w) {
+      // A pinned row that has drifted is the single most serious thing this page
+      // can show, so it is the only thing on it painted pink.
+      const broken = w.pinned && Math.abs(w.drift) > 0;
+      body.appendChild(h('div', { class: broken ? 'vq-flag' : 'vq-reason' },
+        (w.pinned ? 'PINNED  ' : '        ')
+        + w.feature + '  m=' + w.m.toFixed(3)
+        + '  drift=' + (w.drift >= 0 ? '+' : '') + w.drift.toFixed(3)
+        + '  sd=' + w.sd.toFixed(3)
+        + (broken ? '  ← PINNED WEIGHT MOVED. Stop writing weights and investigate.' : '')));
+    });
+
+    body.appendChild(h('div', { class: 'vq-section-label' },
+      'Reviewer selection rate by voluntary self-report — four-fifths rule'));
+    const dims = fairness.dimensions || {};
+    if (!Object.keys(dims).length) {
+      body.appendChild(h('div', { class: 'vq-attempt' },
+        'No self-reported demographics on file yet. The monitor needs volunteers, not '
+        + 'inference — nothing here is derived from a name, a school, or a region.'));
+    }
+    Object.keys(dims).sort().forEach(function (dim) {
+      body.appendChild(h('div', { class: 'vq-reason' }, dim));
+      const groups = dims[dim];
+      Object.keys(groups).sort().forEach(function (g) {
+        const row = groups[g];
+        const flagged = row.counted && row.impact_ratio !== null && row.impact_ratio < 0.8;
+        body.appendChild(h('div', { class: flagged ? 'vq-flag' : 'vq-attempt' },
+          '  ' + g + ': ' + (row.rate * 100).toFixed(0) + '% reviewer'
+          + ' (n=' + row.n + ')'
+          + (row.impact_ratio === null ? ''
+             : '  impact ratio ' + row.impact_ratio.toFixed(2))
+          + (row.counted ? '' : '  — below n=' + fairness.min_group_n
+                                + ', reported but not alerted on')));
+      });
+    });
+    (fairness.alerts || []).forEach(function (a) {
+      body.appendChild(h('div', { class: 'vq-flag' }, a.message));
+    });
+  }
+
   function renderVerifyTab(container, ctx) {
     const { h } = ctx;
+    renderModelHealth(container, ctx);
     // PRD-B owns this global (Seam 1). Do not re-derive the name — an invented
     // name is the exact bug this replaced: for a whole build round this tab
     // probed a global nobody defined and quietly rendered a placeholder, while
