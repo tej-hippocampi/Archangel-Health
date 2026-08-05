@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import secrets
 from typing import Any, Callable, Dict, List, Optional
 
@@ -382,6 +383,14 @@ async def my_referrals(advisor: Dict[str, Any] = Depends(require_refer)):
     }
 
 
+def _header_safe(text: str, *, limit: int = 120) -> str:
+    """A string safe to place in an email header. Collapses CR/LF (and the
+    unicode line separators an email library may normalize into them) to a
+    space, then bounds the length."""
+    collapsed = re.sub(r"[\r\n  ]+", " ", text or "")
+    return " ".join(collapsed.split())[:limit]
+
+
 def _portal_base() -> str:
     return (os.getenv("ASCLEPIUS_PORTAL_URL") or os.getenv("LANDING_URL")
             or os.getenv("BASE_URL") or "http://localhost:8000").strip().rstrip("/")
@@ -525,7 +534,13 @@ async def _send_referral_invite(request: Request, advisor: Dict[str, Any],
     # you'd be a good fit" is not the sentence that makes a named referral work.
     # No name means no named referral: the invite falls back to the ordinary
     # copy rather than inventing or leaking one.
-    referrer_name = (advisor.get("full_name") or "").strip()
+    # Collapse any newline before this reaches a Subject header (audit L8).
+    # SendGrid's JSON transport is immune, but the SMTP fallback assigns the
+    # string straight into a MIME header, where a CR/LF is header injection.
+    # Only an admin can set a display name today, which is what keeps it low —
+    # but "the only person who can exploit this is trusted" is a fact about
+    # today's permissions, not a property of the code.
+    referrer_name = _header_safe((advisor.get("full_name") or "").strip())
     onboarding_url = _invite_url(code) or _portal_base()
 
     html_body = build_asclepius_invite_email(
