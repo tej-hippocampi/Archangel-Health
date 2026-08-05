@@ -200,6 +200,7 @@
       helpBtn.addEventListener('click', toggleHelpMenu);
       badge.parentNode.insertBefore(helpBtn, badge);
     }
+    ensureInstrTab();
 
     document.getElementById('ascLogoutBtn').onclick = logout;
   }
@@ -301,6 +302,11 @@
   function logout() {
     state.token = null;
     state.user = null;
+    // Tear down the logged-in-only chrome (corner ? tab, instructions panel).
+    const instrTab = document.getElementById('ascInstrTab');
+    if (instrTab) instrTab.remove();
+    const instrDrawer = document.getElementById('ascInstrDrawer');
+    if (instrDrawer) instrDrawer.remove();
     localStorage.removeItem(TOKEN_KEY);
     // Suppress the silent doctor-portal SSO on the next boot so signing out
     // actually lands on the sign-in form (otherwise an active doctor session
@@ -7209,112 +7215,133 @@
   const TUTORIAL_TASK_ID = 'tutorial-calibration-1';
   const INSTR_SEEN_KEY = 'asc_instr_seen';
 
-  // ─── Content: 5 chapters, ≤5 action beats each ─────────────────────────────
-  // copy: one verb-first line (<12 words). note: the instruction-drawer text.
+  // ─── Tour targets: THE contract with the labeling UI ───────────────────────
+  // Every selector the tour points at lives HERE, in one map, so a UI redesign
+  // (case panel, substage cards, buttons) is a one-place fix. Preference order:
+  // data-tour attributes > stable ids > data-substage. If a redesign removes a
+  // target entirely, the step auto-skips after a short wait (see
+  // renderTourSpotlight) — a missing element must never strand the doctor.
+  const TOUR_TARGETS = {
+    caseTabs: '[data-tour="case-tabs"]',
+    labsTab: '[data-tour="case-tabs"] [data-tab="labs"]',
+    promptContinue: '[data-tour="prompt-continue"]',
+    instinct: '[data-tour="instinct-field"]',
+    revealBtn: '#ascRevealBtn',
+    answers: '#ascAnswers',
+    verdicts: '#ascVerdicts',
+    refine: '[data-substage="refine"], [data-substage="from_scratch"]',
+    whyBetter: '[data-substage="why_better"]',
+    citations: '[data-substage="citations"]',
+    critique: '[data-substage="critique_rejected"]',
+    reasoning: '[data-substage="reasoning"]',
+    rubric: '[data-substage="rubric"]',
+    confidence: '[data-substage="confidence"]',
+    submit: '#ascSubmit',
+  };
+
+  // ─── Content: functionality-first, both-path cues, no clinical spoilers ────
+  // copy: one plain instruction (do this with the case). Where the doctor might
+  // legitimately do nothing (no edits, no citation), the copy names BOTH paths.
+  // intro: shown as a smaller second line on the chapter's first step (chapter
+  // interstitials were cut — one welcome screen, then an uninterrupted flow).
   // advanceOn: {state: (d) => bool} | {click: selector} | {manual: true}.
-  // skipIf: step doesn't apply to this draft (auto-skipped).
   const TUTORIAL_CHAPTERS = [
     {
       id: 'ch1', title: 'Read the case',
-      intro: 'Every case is a real clinical decision with a trap in it. The decisive data is usually in a quiet place — a lab trend, a med line, the exam.',
+      intro: 'The tabs hold the chart: labs, notes, meds, vitals.',
       steps: [
-        { id: 'ch1-labs', target: '[data-tour="case-tabs"]',
-          copy: 'Open the Labs tab.',
-          advanceOn: { click: '[data-tour="case-tabs"] [data-tab="labs"]' },
+        { id: 'ch1-tabs', target: TOUR_TARGETS.caseTabs,
+          copy: 'Read the case — open each tab, starting with Labs.',
+          advanceOn: { click: TOUR_TARGETS.labsTab },
           doneWhen: (d) => d.stage !== 'prompt_review',
-          note: 'The case panel tabs (Patient, Labs, EHR, Meds, Vitals) hold the structured chart. Read all of them before judging anything.' },
-        { id: 'ch1-trend', target: '.asc-case-host',
-          copy: 'Note the creatinine trend — then check the exam in Vitals.',
-          advanceOn: { manual: true },
-          doneWhen: (d) => d.stage !== 'prompt_review',
-          note: 'Lab tables show the trend across draws. Weigh it against the volume exam — numbers rarely decide a case alone.' },
-        { id: 'ch1-valid', target: '[data-tour="prompt-continue"]',
-          copy: 'Confirm the case is clinically valid.',
+          note: 'Every case starts with the chart. Open each tab (Patient, Labs, EHR, Meds, Vitals) and read it through before judging anything.' },
+        { id: 'ch1-valid', target: TOUR_TARGETS.promptContinue,
+          copy: 'If the case reads as real and answerable, continue. If not, flag it.',
           advanceOn: { state: (d) => d.stage !== 'prompt_review' },
-          note: 'Stage 1 is a sanity gate: confirm the case is real and answerable, or flag it with a reason — flagged cases leave your queue for admin review.' },
+          note: 'Step 1 is a sanity gate: continue when the case is valid, or flag it with a reason — flagged cases leave your queue for admin review.' },
       ],
     },
     {
-      id: 'ch2', title: 'Gut check',
-      intro: 'Before you see any AI answers you commit a one-line instinct. It is captured server-side first, so their reasoning can never anchor yours.',
+      id: 'ch2', title: 'Your take first',
+      intro: 'You commit one line before seeing any AI answers, so they can\u2019t anchor you.',
       steps: [
-        { id: 'ch2-instinct', target: '[data-tour="instinct-field"]',
-          copy: 'Type your one-line take on the right move.',
+        { id: 'ch2-instinct', target: TOUR_TARGETS.instinct,
+          copy: 'Type your first take on the case — one line.',
           advanceOn: { state: (d) => !!((d.independent_answer || {}).text || '').trim() },
-          note: 'The ~10-second gut check. One line on the crux of the right answer, before the reveal. This is why the AI answers look blurred until now — it’s deliberate, not broken.' },
-        { id: 'ch2-reveal', target: '#ascRevealBtn',
-          copy: 'Reveal the two AI answers.',
+          note: 'The one-line gut check. It\u2019s why the AI answers look blurred at first — deliberate, not broken.' },
+        { id: 'ch2-reveal', target: TOUR_TARGETS.revealBtn,
+          copy: 'Now reveal the two AI answers.',
           advanceOn: { state: (d) => d.stage === 'compare' },
-          note: 'Reveal commits your instinct and unblinds the answers. Enter does the same from the input.' },
+          note: 'Reveal commits your line and unblinds the answers (Enter works too).' },
       ],
     },
     {
       id: 'ch3', title: 'Compare & pick',
-      intro: 'Two frontier models answered this case cold, blinded to each other. One takes a documented reasoning trap.',
+      intro: 'Two anonymized model answers to the same case. Judge the reasoning.',
       steps: [
-        { id: 'ch3-read', target: '#ascAnswers',
-          copy: 'Read both answers closely.',
+        { id: 'ch3-read', target: TOUR_TARGETS.answers,
+          copy: 'Read both answers, then continue.',
           advanceOn: { manual: true },
           doneWhen: (d) => !!d.verdict,
-          note: 'Answers are anonymized (Model A / Model B) and order-randomized. Judge the reasoning, not the style.' },
-        { id: 'ch3-verdict', target: '#ascVerdicts',
-          copy: 'Pick the stronger answer.',
+          note: 'Answers are anonymized (Model A / Model B) and order-randomized.' },
+        { id: 'ch3-verdict', target: TOUR_TARGETS.verdicts,
+          copy: 'Pick the stronger answer — or mark both inadequate.',
           advanceOn: { state: (d) => !!d.verdict },
-          note: 'Keys 1 / 2 / 3 work: A better, B better, or both inadequate (which asks you to write the ideal answer yourself).' },
-        { id: 'ch3-refine', target: '[data-substage="refine"], [data-substage="from_scratch"]',
-          copy: 'Edit the answer until you would sign it, then save.',
+          note: 'Keys 1 / 2 / 3 work. "Both inadequate" asks you to write the ideal answer yourself instead.' },
+        { id: 'ch3-refine', target: TOUR_TARGETS.refine,
+          copy: 'Edit the answer if anything is off — or save it unchanged if it\u2019s right.',
           advanceOn: { state: (d) => !!d.refine_saved || !!d.from_scratch_saved },
-          note: 'Your refined version of the winning answer becomes the gold answer a lab trains on. Saving as-is is allowed when it is already right.' },
+          note: 'Your saved version becomes the gold answer. Saving with no edits is a valid choice when the answer is already correct.' },
       ],
     },
     {
-      id: 'ch4', title: 'Critique & cite',
-      intro: 'The structured critique is what buyers pay for: tagged errors with severities, and reasoning grounded in sources.',
+      id: 'ch4', title: 'Say what\u2019s right and wrong',
+      intro: 'The structured critique is the product: tagged errors, severities, sources.',
       steps: [
-        { id: 'ch4-why', target: '[data-substage="why_better"]',
-          copy: 'Tag why it’s better and add one line.',
+        { id: 'ch4-why', target: TOUR_TARGETS.whyBetter,
+          copy: 'Write one line on why it won, and tag at least one reason.',
           skipIf: (d) => d.verdict === 'both_inadequate',
           advanceOn: { state: () => substageComplete('why_better') },
-          note: 'At least one why-better tag plus a one-line note. Name the discriminating evidence, not just the conclusion.' },
-        { id: 'ch4-cite', target: '[data-substage="citations"]',
-          copy: 'Ground your judgment in a source, then continue.',
+          note: 'One sentence plus at least one why-better tag.' },
+        { id: 'ch4-cite', target: TOUR_TARGETS.citations,
+          copy: 'Attach a supporting citation — or continue without one.',
           skipIf: (d) => d.verdict === 'both_inadequate',
           advanceOn: { state: () => substageComplete('citations') },
-          note: 'Cite the guideline or trial your judgment rests on (the search box knows the major ones). Grounded records are the premium tier.' },
-        { id: 'ch4-critique', target: '[data-substage="critique_rejected"]',
-          copy: 'Tag each error — tap a tag to set severity.',
+          note: 'Citations are optional here (required on some tasks); the search box knows the major guidelines.' },
+        { id: 'ch4-critique', target: TOUR_TARGETS.critique,
+          copy: 'Tag each error in the other answer. Tap a tag again to set severity.',
           skipIf: (d) => d.verdict === 'both_inadequate',
           advanceOn: { state: () => substageComplete('critique_rejected') },
-          note: 'Error tags come from a controlled taxonomy. After selecting a tag, tap it again to set severity (and a reason) in the popover — easy to miss.' },
-        { id: 'ch4-reasoning', target: '[data-substage="reasoning"]',
-          copy: 'Confirm or correct each reasoning step.',
+          note: 'Error tags come from a fixed taxonomy; the severity picker is behind a second tap on the tag — easy to miss.' },
+        { id: 'ch4-reasoning', target: TOUR_TARGETS.reasoning,
+          copy: 'Confirm each reasoning step that\u2019s right; open any that aren\u2019t.',
           skipIf: () => !(state.task && state.task.capture_reasoning),
           advanceOn: { state: () => substageComplete('reasoning') },
-          note: 'The chosen answer is split into steps; mark each good, neutral, or bad and fix the broken ones. Step-level labels are what catch right-answer-wrong-reason.' },
+          note: 'The answer splits into steps; confirm the good ones, correct the bad ones.' },
       ],
     },
     {
       id: 'ch5', title: 'Score & submit',
-      intro: 'Your scoring guide becomes a runnable grader for future models — the most reusable thing you produce.',
+      intro: 'Your scoring guide becomes a reusable grader for future models.',
       steps: [
-        { id: 'ch5-rubric', target: '[data-substage="rubric"]',
-          copy: 'Build the scoring guide — include one critical negative.',
+        { id: 'ch5-rubric', target: TOUR_TARGETS.rubric,
+          copy: 'Add scoring criteria — include at least one critical negative.',
           advanceOn: { state: () => substageComplete('rubric') },
-          note: 'Criteria carry points; a large negative (−8 to −10) is a critical negative — an error that fails the answer outright. V3/V4 cases require at least one.' },
-        { id: 'ch5-confidence', target: '[data-substage="confidence"]',
-          copy: 'Set your confidence.',
+          note: 'Criteria carry points; a −8 to −10 negative is a critical negative (auto-fail) and each case needs at least one.' },
+        { id: 'ch5-confidence', target: TOUR_TARGETS.confidence,
+          copy: 'Rate your confidence.',
           advanceOn: { state: (d) => !!d.confidence_set },
-          note: 'Low / medium / high — honest calibration matters more than looking sure.' },
-        { id: 'ch5-submit', target: '#ascSubmit',
-          copy: 'Submit — see how you compare to the panel.',
+          note: 'Low / medium / high — honest calibration beats looking sure.' },
+        { id: 'ch5-submit', target: TOUR_TARGETS.submit,
+          copy: 'Submit — and see how you compare with the reference panel.',
           advanceOn: { state: () => false },  // the submit path ends the tour
-          note: 'Submit packages your work into training records. On the practice case it instead scores you against the reference panel.' },
+          note: 'Submit packages your work into training records. On the practice case it scores you against the reference panel instead.' },
       ],
     },
   ];
   const TUTORIAL_STEPS = [];
-  TUTORIAL_CHAPTERS.forEach((ch) => ch.steps.forEach((s) => {
-    TUTORIAL_STEPS.push(Object.assign({ chapter: ch }, s));
+  TUTORIAL_CHAPTERS.forEach((ch) => ch.steps.forEach((s, i) => {
+    TUTORIAL_STEPS.push(Object.assign({ chapter: ch, chapterFirst: i === 0 }, s));
   }));
 
   // ─── Engine ────────────────────────────────────────────────────────────────
@@ -7372,7 +7399,9 @@
     while (step && tutStepSatisfied(step)) { t.idx += 1; moved = true; step = tutCurrentStep(); }
     if (moved && step) tutPersistStep(step.id);
     if (!step) { hideTourLayer(); return; }  // waiting on the submit path
-    if (!t.seenChapters[step.chapter.id]) { renderTourInterstitial(step.chapter); return; }
+    // One welcome screen, then an uninterrupted flow (chapter intros ride
+    // along as a second line on each chapter's first tooltip instead).
+    if (!t.welcomed) { renderTourWelcome(); return; }
     renderTourSpotlight(step);
   }
   function scheduleTutTick() {
@@ -7457,15 +7486,33 @@
     const layer = ensureTourLayer();
     const pop = layer.querySelector('.asc-tour-pop');
     if (!target) {
-      // Target not rendered yet (async section) — dim everything, show a
-      // waiting popover centered so the doctor is never stranded.
+      // Target not rendered yet. NEVER block the app here — the section may be
+      // gated on work the doctor still has to do (e.g. after "Skip this step"),
+      // so masks stay off and the popover waits quietly in the corner.
+      // Auto-skip applies ONLY to DOM-gated steps (click / manual): if a UI
+      // redesign removed their target, the step is dead and must not brick the
+      // tutorial. State-gated steps wait indefinitely — their predicate (or the
+      // fast-forward loop) advances them the moment the doctor gets there.
+      const domGated = !!(step.advanceOn && (step.advanceOn.click || step.advanceOn.manual));
+      if (!step._waitSince) step._waitSince = Date.now();
+      if (domGated && Date.now() - step._waitSince > 8000) {
+        try { console.warn('[tutorial] target missing, skipping step:', step.id, step.target); } catch (e) { /* ok */ }
+        step._waitSince = null;
+        tutAdvance();
+        return;
+      }
       layer.style.display = '';
-      positionMasks(null, layer);
+      hideMasks(layer);
       renderTourPop(pop, step, true);
-      pop.style.left = '50%'; pop.style.top = '50%';
-      pop.style.transform = 'translate(-50%,-50%)';
+      pop.style.transform = '';
+      pop.style.top = 'auto';
+      pop.style.left = '16px';
+      pop.style.bottom = '16px';
+      scheduleTutTick(); // keep polling for the target (or the auto-skip)
       return;
     }
+    step._waitSince = null;
+    pop.style.bottom = 'auto';
     // Auto-center the target ONCE per step. Never on later ticks — repositioning
     // runs on every scroll, and re-centering there would yank the page back and
     // fight the user's own scrolling.
@@ -7483,6 +7530,10 @@
   }
 
   const TOUR_PAD = 6;
+  function hideMasks(layer) {
+    layer.querySelectorAll('.asc-tour-mask').forEach((m) => setRect(m, 0, 0, 0, 0));
+    layer.querySelector('.asc-tour-ring').style.display = 'none';
+  }
   function positionMasks(r, layer) {
     const masks = layer.querySelectorAll('.asc-tour-mask');
     const ring = layer.querySelector('.asc-tour-ring');
@@ -7528,14 +7579,23 @@
     pop.appendChild(h('div', { class: 'asc-tour-chrome' },
       'STEP ' + num.n + ' OF ' + num.total + ' · ' + step.chapter.title.toUpperCase()));
     pop.appendChild(h('div', { class: 'asc-tour-copy', 'aria-live': 'polite' },
-      waiting ? 'One moment — this section is loading.' : step.copy));
+      waiting ? 'Next up: ' + step.copy.replace(/\.$/, '') + '. This appears when the step before it is done.'
+        : step.copy));
+    if (!waiting && step.chapterFirst && step.chapter.intro) {
+      pop.appendChild(h('div', { class: 'asc-tour-sub' }, step.chapter.intro));
+    }
     const row = h('div', { class: 'asc-tour-actions' });
     if (step.advanceOn && step.advanceOn.manual && !waiting) {
       row.appendChild(h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
         onClick: tutAdvance }, 'Next →'));
+    } else if (!waiting) {
+      // Per-step skip: moves the pointer on without doing the action. If the
+      // app itself requires the action, its own inline hints keep coaching.
+      row.appendChild(h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+        onClick: tutAdvance }, 'Skip this step'));
     }
     row.appendChild(h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button',
-      onClick: confirmSkipTutorial }, 'Skip, I’ll figure it out'));
+      onClick: confirmSkipTutorial }, 'Skip tutorial'));
     pop.appendChild(row);
     const frac = h('div', { class: 'asc-tour-bar' });
     frac.appendChild(h('div', { class: 'asc-tour-bar-fill',
@@ -7543,30 +7603,25 @@
     pop.appendChild(frac);
   }
 
-  // ─── Chapter interstitials (reuse the app's modal pattern) ─────────────────
-  function renderTourInterstitial(chapter) {
+  // ─── Welcome screen (the ONLY interstitial — then an uninterrupted flow) ───
+  function renderTourWelcome() {
     hideTourLayer();
     if (document.getElementById('ascTourInterstitial')) return;
-    const chIdx = TUTORIAL_CHAPTERS.indexOf(chapter) + 1;
     const overlay = h('div', { class: 'call-team-overlay is-open asc-tour-interstitial', id: 'ascTourInterstitial' });
-    const isFirst = chIdx === 1;
     const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
-      h('div', { class: 'asc-tour-chrome' },
-        isFirst ? 'CALIBRATION CASE 1' : ('CHAPTER ' + chIdx + ' OF ' + TUTORIAL_CHAPTERS.length)),
-      h('div', { class: 'call-team-title' }, isFirst ? 'One practice case. About 4 minutes.' : chapter.title),
+      h('div', { class: 'asc-tour-chrome' }, 'CALIBRATION CASE 1'),
+      h('div', { class: 'call-team-title' }, 'One practice case. About 4 minutes.'),
       h('p', { class: 'asc-help', style: 'margin:6px 0 16px' },
-        isFirst
-          ? 'You’ll label one practice case with the real controls, then see how your reads compare with the reference panel. Nothing here is recorded or sold.'
-          : chapter.intro),
+        'A guided walk through labeling one case: read it, give your take, compare two AI answers, '
+        + 'say what’s right and wrong, score it. Then you’ll see how your reads compare with the '
+        + 'reference panel. Nothing here is recorded or sold.'),
       h('div', { style: 'display:flex;gap:10px;align-items:center' },
-        h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: proceed },
-          isFirst ? 'Start the case →' : 'Continue →'),
-        h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button', onClick: () => { close(); confirmSkipTutorial(); } },
-          'Skip, I’ll figure it out')));
-    function close() { overlay.remove(); }
+        h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: proceed }, 'Start the case →'),
+        h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button', onClick: () => { overlay.remove(); confirmSkipTutorial(); } },
+          'Skip tutorial')));
     function proceed() {
-      state.tutorial.seenChapters[chapter.id] = true;
-      close();
+      state.tutorial.welcomed = true;
+      overlay.remove();
       tutTick();
     }
     overlay.appendChild(popup);
@@ -7582,7 +7637,7 @@
       api('/me/tutorial', { method: 'PATCH', body: { action: 'start' } })
         .then((u) => { state.user = u; }).catch(() => { /* best-effort */ });
     }
-    state.tutorial = { active: true, replay: !!opts.replay, idx: 0, seenChapters: {} };
+    state.tutorial = { active: true, replay: !!opts.replay, idx: 0, welcomed: false };
     state.portalChosen = true;
     state.specialtyChosen = true;
     const wrap = h('div', { class: 'asc-wrap' },
@@ -7644,12 +7699,13 @@
     state.portalChosen = false;
     state.specialtyChosen = false;
     renderEvalView();
-    // First skip auto-opens the instructions once — never again after that.
+    // First skip: pulse the corner ? tab once so they know where the written
+    // instructions live — never auto-open a panel over their screen.
     let seen = null;
     try { seen = localStorage.getItem(INSTR_SEEN_KEY); } catch (e) { seen = null; }
     if (!wasReplay && !seen) {
       try { localStorage.setItem(INSTR_SEEN_KEY, '1'); } catch (e) { /* ignore */ }
-      openInstructionDrawer();
+      pulseInstrTab();
     }
   }
 
@@ -7728,6 +7784,24 @@
     }, 0);
   }
 
+  // Floating corner tab — the always-there, always-small entry point to the
+  // written instructions. The panel only ever opens from an explicit click
+  // (tab, help menu, or reveal screen) and always closes back to the tab.
+  function ensureInstrTab() {
+    if (document.getElementById('ascInstrTab')) return;
+    const tab = h('button', {
+      id: 'ascInstrTab', class: 'asc-instr-tab', type: 'button',
+      title: 'How to label a case', 'aria-label': 'Instructions',
+    }, '?');
+    tab.addEventListener('click', toggleInstructionDrawer);
+    document.body.appendChild(tab);
+  }
+  function pulseInstrTab() {
+    ensureInstrTab();
+    const tab = document.getElementById('ascInstrTab');
+    tab.classList.add('pulse');
+    setTimeout(() => tab.classList.remove('pulse'), 6000);
+  }
   function toggleInstructionDrawer() {
     if (document.getElementById('ascInstrDrawer')) closeInstructionDrawer();
     else openInstructionDrawer();

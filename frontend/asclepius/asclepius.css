@@ -1809,8 +1809,11 @@
 /* Layer sits above everything (header 100, top overlay 1000). The four mask
    rects block interaction outside the target; the ring outlines the hole. */
 #ascTourLayer { position: fixed; inset: 0; z-index: 1200; pointer-events: none; }
+/* Dim, never block: the overlay is wayfinding, not a cage. The doctor can
+   always interact with anything (a skipped step must not trap them behind a
+   mask); genuinely dangerous off-script paths have their own JS guards. */
 .asc-tour-mask {
-  position: fixed; background: rgba(26, 27, 26, 0.45); pointer-events: auto;
+  position: fixed; background: rgba(26, 27, 26, 0.45); pointer-events: none;
 }
 .asc-tour-ring {
   position: fixed; pointer-events: none; border-radius: var(--r-sm);
@@ -1827,6 +1830,7 @@
   color: var(--ink-faint); margin-bottom: 6px;
 }
 .asc-tour-copy { font-size: 15px; color: var(--ink); line-height: 1.45; }
+.asc-tour-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; line-height: 1.4; }
 .asc-tour-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 .asc-tour-skip { color: var(--ink-faint); font-size: 12.5px; }
 .asc-tour-skip:hover { color: var(--ink-soft); }
@@ -1872,9 +1876,27 @@
   color: var(--ink); border-radius: 8px; cursor: pointer;
 }
 .asc-help-menu-item:hover { background: var(--card-in); }
+/* Corner ? tab — the small, always-there entry point to the instructions. */
+.asc-instr-tab {
+  position: fixed; right: 18px; bottom: 18px; z-index: 89;
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--hairline-strong); background: var(--card);
+  color: var(--ink-soft); font-family: var(--mono); font-size: 17px;
+  box-shadow: var(--shadow-float); cursor: pointer;
+}
+.asc-instr-tab:hover { color: var(--ink); }
+.asc-instr-tab.pulse { animation: asc-instr-pulse 1.2s ease-out 4; }
+@keyframes asc-instr-pulse {
+  0% { box-shadow: 0 0 0 0 var(--green-line); }
+  70% { box-shadow: 0 0 0 12px rgba(76, 166, 60, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(76, 166, 60, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .asc-instr-tab.pulse { animation: none; outline: 2px solid var(--green); } }
+/* The panel pops up from the tab — never a full-height wall over the app. */
 .asc-instr-drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: 360px; max-width: 92vw;
-  z-index: 90; background: var(--card); border-left: 1px solid var(--hairline-strong);
+  position: fixed; right: 16px; bottom: 70px; width: 380px; max-width: 92vw;
+  max-height: 72vh; z-index: 90; background: var(--card);
+  border: 1px solid var(--hairline-strong); border-radius: var(--r-md);
   box-shadow: var(--shadow-float); display: flex; flex-direction: column;
 }
 .asc-instr-head {
