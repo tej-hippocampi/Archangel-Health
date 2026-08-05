@@ -221,6 +221,166 @@ def test_the_flag_is_as_of_authorship_not_as_of_export():
                for r in packaging.package_submission(task, after, store=store))
 
 
+def test_an_export_sample_cannot_de_blind_a_reviewed_submission():
+    """Audit M1: an advisor holds REVIEW and SIGNOFF_EXPORT at the same time.
+
+    A blinded review serves ``submission_id``; the export sample joined that id
+    to a stable annotator pseudonym, specialty and experience band. Note the id
+    from a review, page the samples until it appears, and the labeler is
+    identified — in a fifty-physician pool, by name.
+    """
+    import routers.asclepius_advisor as advisor_router
+
+    shipped = {
+        "type": "preference", "prompt": "p", "chosen": "a", "rejected": "b",
+        "submission_id": "sub-LINKABLE", "task_id": "task-LINKABLE",
+        "annotator_credential": "ABIM — Nephrology",
+        "annotator_specialty": "nephrology",
+        "annotator_id_hashed": "PSEUDONYM-abc123",
+        "annotator_years_experience_band": "10-20",
+        "supervision": {"labeler_id_hashed": "PSEUDONYM-abc123"},
+        "review": {"reviewed": True},
+    }
+    view = advisor_router._sampled_record_view(shipped)
+    raw = json.dumps(view)
+    for linkage in ("sub-LINKABLE", "task-LINKABLE", "PSEUDONYM-abc123", "10-20"):
+        assert linkage not in raw, f"the export sample still carries {linkage!r}"
+    # The advisor keeps what they are actually reviewing.
+    assert view["prompt"] == "p"
+    assert view["annotator_credential"] == "ABIM — Nephrology"
+
+
+def test_the_export_manifest_withholds_server_internals():
+    """Audit L1: dir_path is a server filesystem path and created_by is an
+    admin's email. Neither is part of judging a bundle."""
+    import routers.asclepius_advisor as advisor_router
+
+    public = advisor_router._public_manifest({
+        "profile": "default", "record_count": 240,
+        "dir_path": "/srv/asclepius/exports/exp-1",
+        "created_by": "founder@archangel.example",
+    })
+    assert public["profile"] == "default"
+    assert "dir_path" not in public
+    assert "created_by" not in public
+
+
+def test_a_submission_whose_user_row_is_missing_is_still_payable():
+    """Audit M6: compensation.py argues under-paying is the worse error, and the
+    one query encoding that rule used an INNER JOIN, which silently drops the
+    row."""
+    store = asc_store.get_store()
+    task = _task(store)
+    orphan_sid = f"sub-orphan-{uuid.uuid4().hex[:8]}"
+    store.insert_submission(
+        submission_id=orphan_sid, task_id=task["task_id"],
+        evaluator_id="user-that-no-longer-exists", verdict="A_better",
+        chosen_id="A", rejected_id="B", confidence="high", time_spent_sec=60,
+        payload={}, annotator={}, dedupe_hash=None)
+    payable = {r["submission_id"] for r in store.submissions_for_payment()}
+    assert orphan_sid in payable, (
+        "a submission with no user row was silently dropped from the payment "
+        "query — that is under-payment by a one-word typo")
+
+
+def test_the_disclosure_survives_a_demotion(monkeypatch):
+    """Audit H2: the disclosure was keyed to the tier; the equity is keyed to
+    the agreement. They disagreed.
+
+    compensation.py deliberately keeps ``equity_only`` through a tier change —
+    the equity does not evaporate. But ``related_party`` read the live tier, so
+    demoting an advisor to reviewer flipped every legacy record they authored to
+    ``related_party: false`` while the equity and the signed agreement were both
+    still on file: a real credential shipped with the relationship qualifier
+    stripped off. That is §0.2 failing in the bad direction.
+    """
+    store = asc_store.get_store()
+    advisor = _advisor()
+    # A record with NO authored-time snapshot — i.e. every pre-changeset record.
+    legacy = {"evaluator_id": advisor["id"],
+              "annotator": {"id_hashed": "x", "credential": "ABIM — Nephrology"}}
+    assert packaging._annotator_related_party(legacy, store) is True
+
+    store.record_verification_decision(
+        advisor["id"], status="approved", decided_by="admin@x", tier="reviewer")
+    demoted = store.get_user_by_id(advisor["id"])
+    assert demoted["tier"] == "reviewer"
+    assert demoted["compensation_model"] == "equity_only"   # equity survives
+    assert demoted["advisor_agreement_ref"]                 # agreement survives
+
+    assert packaging._annotator_related_party(legacy, store) is True, (
+        "the disclosure went stale on demotion while the equity stayed on file")
+
+
+def test_an_authored_time_snapshot_still_wins_over_the_relationship():
+    """The relationship fallback must not override a record that carries its own
+    tier — otherwise as-of-authorship collapses into as-of-now."""
+    store = asc_store.get_store()
+    advisor = _advisor()
+    snapshot_says_labeler = {
+        "evaluator_id": advisor["id"],
+        "annotator": {"id_hashed": "x", "credential": "ABIM", "tier": "labeler"}}
+    assert packaging._annotator_related_party(snapshot_says_labeler, store) is False
+
+
+def test_no_shipped_line_is_ever_missing_the_key(monkeypatch):
+    """Audit H3: packaging runs once, at submit, so every record already in the
+    database predates this field. The first export after deploy was a MIXED
+    file — the data dictionary documenting a field most lines did not have. A
+    buyer doing ``rec["related_party"]`` gets a KeyError.
+
+    And the backfill must RESOLVE, not default to False: a blind default would
+    strip the qualifier off the entire back catalogue at once.
+    """
+    import json as _json
+
+    from asclepius import export as asc_export
+
+    store = asc_store.get_store()
+    advisor = _advisor()
+    labeler = _labeler()
+    task = _task(store)
+    base = {
+        "type": "preference", "prompt": "p", "chosen": "a", "rejected": "b",
+        "annotator_credential": "ABIM — Nephrology", "license": "CC-BY-4.0",
+        "ip_cleared": True, "contains_phi": False, "taxonomy_version": "1",
+        "config_version": "1", "captured_at": "2026-01-01T00:00:00",
+        "source": "lab_supplied", "task_id": task["task_id"],
+    }
+    for who, user in (("adv", advisor), ("lab", labeler)):
+        sid = f"s-legacy-{who}-{uuid.uuid4().hex[:6]}"
+        store.insert_submission(
+            submission_id=sid, task_id=task["task_id"], evaluator_id=user["id"],
+            verdict="A_better", chosen_id="A", rejected_id="B", confidence="high",
+            time_spent_sec=60, payload={}, annotator={}, dedupe_hash=None)
+        # Deliberately NO related_party key — a pre-changeset record.
+        payload = {**base, "submission_id": sid, "annotator_id_hashed": who}
+        assert "related_party" not in payload
+        store.insert_record(submission_id=sid, task_id=task["task_id"],
+                            rtype="preference", specialty="nephrology",
+                            payload=payload, status="export_ready")
+
+    # Demote the advisor before exporting: the back catalogue must still tell
+    # the truth about the relationship.
+    store.record_verification_decision(
+        advisor["id"], status="approved", decided_by="admin@x", tier="reviewer")
+
+    manifest = asc_export.build_export(store, created_by="admin@x", profile="default")
+    lines = [_json.loads(x) for x in
+             (Path(manifest["dir_path"]) / "records.jsonl").read_text(
+                 encoding="utf-8").splitlines() if x]
+    assert len(lines) == 2
+    by_who = {l["annotator_id_hashed"]: l for l in lines}
+    for who, line in by_who.items():
+        assert "related_party" in line, (
+            f"a shipped line ({who}) is missing a field the data dictionary "
+            f"documents — a buyer indexing it gets a KeyError")
+    assert by_who["adv"]["related_party"] is True, (
+        "a legacy record from an equity-holding physician shipped without the "
+        "disclosure")
+    assert by_who["lab"]["related_party"] is False
+
+
 # ═══ §5.1 — the disclosure text ══════════════════════════════════════════════
 def test_the_data_dictionary_documents_related_party():
     from asclepius.export import _data_dictionary_md

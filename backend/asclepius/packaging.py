@@ -105,21 +105,75 @@ def _annotator_related_party(submission: Dict[str, Any], store: Any = None) -> b
     """
     annotator = submission.get("annotator") or {}
     tier = annotator.get("tier")
-    if tier is None and store is not None:
-        uid = submission.get("evaluator_id") or submission.get("user_id")
-        if uid:
+    if tier is not None:
+        # The authored-time snapshot always wins. Every record packaged since
+        # this field existed carries one, so this is the normal path and the
+        # as-of-authorship rule above is what it implements.
+        return tier == "advisor"
+
+    # No snapshot — a record authored before the field existed. Fall back to the
+    # RELATIONSHIP, not the current tier (audit H2).
+    #
+    # Keying this on ``users.tier`` was wrong in the one direction that matters.
+    # compensation.py states the policy correctly and states it well: an
+    # advisor's equity does not evaporate when their tier changes, so
+    # ``compensation_model`` deliberately survives a demotion. The disclosure
+    # was keyed to the tier while the equity was keyed to the agreement, and
+    # they disagreed: demote an advisor to reviewer and every legacy record they
+    # authored would ship ``annotator_credential: board_certified_nephrology``
+    # with ``related_party: false`` — a real credential asserted with the
+    # relationship qualifier stripped off, while the equity is still on file.
+    # That is precisely what §0.2 exists to prevent, failing the bad way round.
+    if store is None:
+        return False
+    uid = submission.get("evaluator_id") or submission.get("user_id")
+    if not uid:
+        return False
+    try:
+        user = store.get_user_by_id(uid)
+    except Exception:  # pragma: no cover - defensive; treated as unresolved
+        return False
+    if not user:
+        return False
+    # Any evidence of an advisory relationship, ever. Over-disclosing a
+    # historical record is a cost we accept; under-disclosing one is the
+    # compliance failure. A disclosure is not a disqualification.
+    return bool(
+        user.get("tier") == "advisor"
+        or user.get("compensation_model") == "equity_only"
+        or user.get("advisor_since")
+        or user.get("advisor_agreement_ref")
+    )
+
+
+def backfill_related_party(payload: Dict[str, Any], record: Dict[str, Any],
+                           store: Any = None) -> bool:
+    """Resolve ``related_party`` for a record that was packaged before the field
+    existed (audit H3). Returns the value; the caller writes it onto the payload.
+
+    Packaging runs ONCE, at submit — so every record already in the database
+    predates this field and carries no key at all. The first export after deploy
+    is therefore a MIXED file: the data dictionary documents ``related_party``
+    while most lines lack it. A buyer doing ``rec["related_party"]`` gets a
+    KeyError; one doing ``.get("related_party", True)`` mislabels the entire
+    back catalogue.
+
+    This must RESOLVE rather than default to ``False``. A blind default would
+    re-create the H2 failure across every historical record at once: the
+    credential shipped with the relationship qualifier silently removed.
+    """
+    uid = record.get("evaluator_id") or payload.get("evaluator_id")
+    if not uid and store is not None:
+        sid = record.get("submission_id") or payload.get("submission_id")
+        if sid:
             try:
-                user = store.get_user_by_id(uid)
-            except Exception:  # pragma: no cover - defensive; treated as unresolved
-                user = None
-            if user:
-                tier = user.get("tier")
-    # An unresolvable tier reports False: "no advisory relationship on record".
-    # Every production export path hydrates from the users table (see
-    # ``_provenance``'s store argument), so this branch is the pure-unit-test
-    # one. It is stated rather than assumed because a disclosure that quietly
-    # defaults is worth less than no disclosure at all.
-    return tier == "advisor"
+                sub = store.get_submission(sid)
+            except Exception:  # pragma: no cover - defensive
+                sub = None
+            if sub:
+                uid = sub.get("evaluator_id")
+    return _annotator_related_party(
+        {"evaluator_id": uid, "annotator": payload.get("annotator") or {}}, store)
 
 
 def _candidate_text(task: Dict[str, Any], cid: Optional[str]) -> str:

@@ -1326,10 +1326,24 @@ def build_export(
     # with many records per submission does one lookup each.
     _reviews_by_sid: Dict[Any, List[Dict[str, Any]]] = {}
     _obs_by_tid: Dict[Any, Optional[Dict[str, Any]]] = {}
+    # Related-party disclosure on records packaged before the field existed
+    # (audit H3). Packaging runs once, at submit, so the entire back catalogue
+    # has no key — and the data dictionary now documents one. Filled HERE, at
+    # emit, so no line in a shipped file is missing it; resolved from the
+    # annotating physician's relationship rather than defaulted to False, which
+    # would strip the qualifier off every historical record at once. Cached per
+    # submission so a batch with many records per submission does one lookup.
+    _rp_by_sid: Dict[Any, bool] = {}
     for rec in records:
         payload = dict(rec.get("payload") or {})
         payload.pop("record_id", None)
         payload["exported_at"] = exported_at
+        if "related_party" not in payload:
+            _sid = rec.get("submission_id") or payload.get("submission_id")
+            if _sid not in _rp_by_sid:
+                _rp_by_sid[_sid] = asc_packaging.backfill_related_party(
+                    payload, rec, store)
+            payload["related_party"] = _rp_by_sid[_sid]
         rtype = payload.get("type") or rec.get("type")
         mapped = profiles.map_record(prof, payload)
         if mapped is None:

@@ -633,10 +633,62 @@ def _task_batch_view(store: Any, batch_key: str) -> Dict[str, Any]:
     }
 
 
+# Keys stripped from every sampled export record before an advisor sees it
+# (audit M1). An advisor holds REVIEW and SIGNOFF_EXPORT at the same time, and
+# `blinded_review_view` correctly serves `submission_id` with zero identity — so
+# an advisor could note the id from a blinded review, page through export
+# samples until it appeared, and read off the labeler's stable pseudonym,
+# specialty and experience band. In a fifty-physician pool with a handful of
+# nephrologists that names them, and the referral funnel already gives the
+# advisor real names and emails for everyone they referred.
+#
+# Two things have to go, not one: the LINKAGE key (submission/task id, which
+# ties a blinded review to a row) and the stable PSEUDONYM (any hashed id, which
+# ties rows to each other across bundles). Removing either alone leaves the
+# attack half-working.
+_SAMPLE_IDENTITY_KEYS = frozenset({
+    "submission_id", "task_id", "record_id", "evaluator_id",
+    "annotator_id_hashed", "annotator_years_experience",
+    "annotator_years_experience_band",
+})
+# Annexes carrying their own hashed ids — supervision.labeler_id_hashed is the
+# same pseudonym by another name.
+_SAMPLE_DROP_BLOCKS = frozenset({"supervision", "review"})
+
+
+def _sampled_record_view(rec: Dict[str, Any]) -> Dict[str, Any]:
+    """One sampled export record as an advisor may see it.
+
+    Built by REMOVAL of a named set rather than a positive whitelist, on
+    purpose: the sample's whole job is to show an advisor what is actually about
+    to ship, field for field, so a whitelist here would quietly hide the thing
+    they are being asked to judge. The credential stays — it is the premium
+    claim the advisor is checking — but nothing that links one row to another
+    row or to a review does.
+    """
+    out = {k: v for k, v in rec.items()
+           if k not in _SAMPLE_IDENTITY_KEYS and k not in _SAMPLE_DROP_BLOCKS}
+    return out
+
+
+def _public_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    """The manifest minus operational internals (audit L1).
+
+    ``dir_path`` is a server filesystem path and ``created_by`` is an admin's
+    email address; neither is part of judging a bundle, and every other advisor
+    payload in this module is a deliberate whitelist.
+    """
+    return {k: v for k, v in (manifest or {}).items()
+            if k not in ("dir_path", "created_by", "destination")}
+
+
 def _export_bundle_view(store: Any, export_id: str) -> Dict[str, Any]:
     """The manifest and a SAMPLED slice of what is about to ship to a buyer:
     schema, field list, data dictionary, N sampled records. Synchronous file
-    reads — reached through a threadpool by the caller."""
+    reads — reached through a threadpool by the caller.
+
+    The sample is de-linked first — see ``_SAMPLE_IDENTITY_KEYS``.
+    """
     export = store.get_export(export_id)
     if export is None:
         raise HTTPException(status_code=404, detail="No such export")
@@ -659,16 +711,28 @@ def _export_bundle_view(store: Any, export_id: str) -> Dict[str, Any]:
         if os.path.exists(dict_path):
             with open(dict_path, encoding="utf-8") as f:
                 dictionary = f.read()
+    # The FULL field list is computed before de-linking, because "what fields
+    # does this bundle ship" is exactly the question the advisor is reviewing —
+    # they must be able to see that lineage and annotator fields go to the
+    # buyer, even though the sample they read is de-linked.
     field_list = sorted({k for rec in sample for k in rec.keys()})
+    sample = [_sampled_record_view(r) for r in sample]
     return {
         "artifact_type": "export_bundle",
         "artifact_id": export_id,
-        "manifest": manifest,
+        "manifest": _public_manifest(manifest),
         "record_count": export.get("record_count"),
         "field_list": field_list,
         "data_dictionary_md": dictionary,
         "sample": sample,
         "sample_n": len(sample),
+        # Said plainly, so an advisor does not mistake the de-linked sample for
+        # what ships and report a field as missing.
+        "sample_delinked": sorted(_SAMPLE_IDENTITY_KEYS | _SAMPLE_DROP_BLOCKS),
+        "sample_note": ("Lineage and annotator-identity fields are withheld from "
+                        "this preview so an export sample cannot be used to "
+                        "de-blind a reviewed submission. They are present in the "
+                        "shipped bundle — see the field list above."),
         "signoff_status": export.get("signoff_status"),
         "signoffs": store.list_advisory_signoffs(
             artifact_type="export_bundle", artifact_id=export_id),

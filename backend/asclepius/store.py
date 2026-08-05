@@ -5816,12 +5816,19 @@ class AsclepiusStore:
         """
         from asclepius.compensation import PAYABLE_SQL
 
+        # LEFT, not INNER (audit M6). compensation.py argues at length that
+        # under-paying a physician who did the work is worse than over-counting
+        # a volunteer — and an INNER JOIN silently drops any submission whose
+        # user row is missing, which is under-payment by a one-word typo. The
+        # NULL a LEFT JOIN produces is then handled correctly by PAYABLE_SQL,
+        # written `IS NULL OR != 'equity_only'` precisely so three-valued logic
+        # cannot swallow it.
         with self._conn() as conn:
             rows = conn.execute(
                 f"""
                 SELECT s.submission_id, s.evaluator_id, s.task_id, s.status, s.created_at
                 FROM submissions s
-                JOIN users u ON u.id = s.evaluator_id
+                LEFT JOIN users u ON u.id = s.evaluator_id
                 WHERE s.status != 'rejected' AND {PAYABLE_SQL}
                 ORDER BY s.created_at DESC LIMIT ?
                 """,
