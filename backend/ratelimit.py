@@ -21,6 +21,13 @@ from typing import Deque, Dict, Tuple
 
 from fastapi import HTTPException, Request
 
+# NOTE (FIX-C C-2.7): these buckets are PROCESS-LOCAL. With one worker that is
+# the intended behaviour. Scale out to N workers and every per-IP throttle
+# silently becomes N x its configured threshold, because each process keeps its
+# own count — which would re-open the portal's brute-force ceiling. The
+# health-system login lock is deliberately DB-backed for that reason
+# (``hs_login_attempts``); if this module ever needs to survive horizontal
+# scaling, it needs shared state (Redis or a table) rather than a bigger number.
 _BUCKETS: Dict[str, Deque[float]] = defaultdict(deque)
 _LOCK = threading.Lock()
 

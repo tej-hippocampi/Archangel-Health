@@ -579,16 +579,35 @@ def test_numeric_patient_key_does_not_kill_case():
 
 # ─── Imaging policy (PRD §11 criterion 5) ─────────────────────────────────────
 def test_dicom_entry_rejected_rest_ingests():
+    # Buyer Response PRD §4 C3 (2026-07): DICOM is no longer auto-rejected. A DICOM
+    # that cannot be made a gradable image (here: an unreadable/emtpy stub that fails
+    # burned-in screening) goes through the DICOM path — needs review or unreadable —
+    # while the rest of the bundle still lands. It is never "rejected_imaging".
+    #
+    # V4 Build Spec Phase 4 (Audit §21): the stub screens `suspect` (pixels can't be
+    # inspected), and because it shares patient p1 with the labs it merges into that
+    # one case, which is now HELD for review (blocking `burned_in_phi_unverified`)
+    # rather than auto-ingesting green with an unscreened image — the exact "green row"
+    # failure this phase fixes. The clinical content is still retained (not dropped),
+    # and the file outcome is still the DICOM path, never `rejected_imaging`.
     link = _mint(_admin_h())
     zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV,
                "scan.dcm": b"\x00" * 128 + b"DICM" + b"\x00" * 64})
     res = _upload(link["token"], zb)
     st = client.get(f"/api/asclepius/partner/uploads/{res['upload_id']}?t={link['token']}").json()
-    assert st["status"] == "ingested"                     # the rest still lands
+    assert st["status"] == "needs_review"                 # case retained + held, not dropped
     detail = client.get(f"/api/asclepius/ingestion/uploads/{res['upload_id']}",
                         headers=_admin_h()).json()
     outcomes = {f["name"]: f["outcome"] for f in detail["files"]}
-    assert outcomes["scan.dcm"] == "rejected_imaging"
+    assert outcomes["labs.csv"] == "parsed"               # the rest still landed
+    assert outcomes["scan.dcm"] != "rejected_imaging"
+    assert any(k in outcomes["scan.dcm"]
+               for k in ("needs_burnin_review", "rejected_unreadable", "archived_only"))
+    # The retained case carries the blocking review reason (not a silent green ingest).
+    held = [c for c in _store().list_ingest_cases(upload_id=res["upload_id"])
+            if c["status"] == "needs_review"]
+    assert held and any(r["reason"] == "burned_in_phi_unverified"
+                        for r in (held[0].get("review") or []))
 
 
 def test_imaging_only_bundle_rejected():

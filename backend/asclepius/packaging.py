@@ -24,6 +24,7 @@ license, ip_cleared, contains_phi (asserted), and grounded (evidence-anchored).
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List, Optional
 
 from asclepius.constants import (
@@ -34,6 +35,145 @@ from asclepius.constants import (
     label_for_correction_reason,
 )
 from asclepius.validation import all_anchors, has_valid_anchor, is_valid_anchor
+
+
+class PackagingError(ValueError):
+    """A submission cannot be packaged into a shippable record (Buyer Response PRD
+    §6 E1). Raised — never defaulted around — when a record's annotator credential
+    cannot be resolved, so we never emit a record that would render 'unspecified'
+    at the record level while the aggregate credential section claims board
+    certification. That contradiction is what the buyer found, and an honest gap is
+    less damaging than an inconsistent claim."""
+
+
+def _years_band(years: Any) -> Optional[str]:
+    """Band an exact years-of-experience integer (Buyer Response PRD §6 E2). Kept
+    local to avoid a hard dependency on credentials.py from packaging."""
+    from asclepius.credentials import years_experience_band
+    return years_experience_band(years)
+
+
+def _annotator_credential(submission: Dict[str, Any], store: Any = None) -> Optional[str]:
+    """Resolve the record-level credential from the source of truth, never from an
+    optional/unhydrated dict (Buyer Response PRD §6 E1).
+
+    The aggregate credential section joins the users table live and gets the real
+    credential; the record-level section used to read ``submission['annotator']``,
+    which is not always hydrated, and an ``or 'unspecified'`` fallback downstream
+    converted a missing join into a confident-looking false claim. Read the canonical
+    ``credential`` (or the deprecated ``credentials`` alias); if it is missing and a
+    store is available, hydrate from the users table by evaluator id."""
+    annotator = submission.get("annotator") or {}
+    cred = annotator.get("credential") or annotator.get("credentials")
+    if cred:
+        return cred
+    if store is not None:
+        uid = submission.get("evaluator_id") or submission.get("user_id")
+        if uid:
+            try:
+                user = store.get_user_by_id(uid)
+            except Exception:  # pragma: no cover - defensive; treated as unresolved
+                user = None
+            if user:
+                block = store.annotator_block(user)
+                return block.get("credential") or block.get("credentials")
+    return None
+
+
+def _annotator_related_party(submission: Dict[str, Any], store: Any = None) -> bool:
+    """True when the annotating physician holds an advisory relationship with
+    Archangel Health, including equity (Advisor PRD §5.1).
+
+    Resolved the same way and from the same source as the credential: the
+    annotator block if it is hydrated (``store.annotator_block`` now carries
+    ``tier``), otherwise the users table. Two separately-resolved facts about
+    one person is how one of them ends up stale on a record that ships.
+
+    This is a DISCLOSURE, not a disqualification. An advisor's clinical
+    credentials are real and stated in the same block; the flag exists so a
+    buyer sophisticated enough to ask "who signed off, and what is their
+    interest" finds the answer already in the data rather than discovering it
+    later. Costs one boolean.
+
+    AS OF AUTHORSHIP, not as of export. A hydrated annotator block carries the
+    tier the physician held when they did the work, and that is what ships — a
+    contributor who labeled fifty cases before being appointed did not have a
+    financial interest at the time, and back-stamping those records would be
+    the same kind of inaccuracy in the opposite direction. Records authored
+    before this field existed carry no tier in their block and resolve from the
+    users table, which is the closest honest answer available for them.
+    """
+    annotator = submission.get("annotator") or {}
+    tier = annotator.get("tier")
+    if tier is not None:
+        # The authored-time snapshot always wins. Every record packaged since
+        # this field existed carries one, so this is the normal path and the
+        # as-of-authorship rule above is what it implements.
+        return tier == "advisor"
+
+    # No snapshot — a record authored before the field existed. Fall back to the
+    # RELATIONSHIP, not the current tier (audit H2).
+    #
+    # Keying this on ``users.tier`` was wrong in the one direction that matters.
+    # compensation.py states the policy correctly and states it well: an
+    # advisor's equity does not evaporate when their tier changes, so
+    # ``compensation_model`` deliberately survives a demotion. The disclosure
+    # was keyed to the tier while the equity was keyed to the agreement, and
+    # they disagreed: demote an advisor to reviewer and every legacy record they
+    # authored would ship ``annotator_credential: board_certified_nephrology``
+    # with ``related_party: false`` — a real credential asserted with the
+    # relationship qualifier stripped off, while the equity is still on file.
+    # That is precisely what §0.2 exists to prevent, failing the bad way round.
+    if store is None:
+        return False
+    uid = submission.get("evaluator_id") or submission.get("user_id")
+    if not uid:
+        return False
+    try:
+        user = store.get_user_by_id(uid)
+    except Exception:  # pragma: no cover - defensive; treated as unresolved
+        return False
+    if not user:
+        return False
+    # Any evidence of an advisory relationship, ever. Over-disclosing a
+    # historical record is a cost we accept; under-disclosing one is the
+    # compliance failure. A disclosure is not a disqualification.
+    return bool(
+        user.get("tier") == "advisor"
+        or user.get("compensation_model") == "equity_only"
+        or user.get("advisor_since")
+        or user.get("advisor_agreement_ref")
+    )
+
+
+def backfill_related_party(payload: Dict[str, Any], record: Dict[str, Any],
+                           store: Any = None) -> bool:
+    """Resolve ``related_party`` for a record that was packaged before the field
+    existed (audit H3). Returns the value; the caller writes it onto the payload.
+
+    Packaging runs ONCE, at submit — so every record already in the database
+    predates this field and carries no key at all. The first export after deploy
+    is therefore a MIXED file: the data dictionary documents ``related_party``
+    while most lines lack it. A buyer doing ``rec["related_party"]`` gets a
+    KeyError; one doing ``.get("related_party", True)`` mislabels the entire
+    back catalogue.
+
+    This must RESOLVE rather than default to ``False``. A blind default would
+    re-create the H2 failure across every historical record at once: the
+    credential shipped with the relationship qualifier silently removed.
+    """
+    uid = record.get("evaluator_id") or payload.get("evaluator_id")
+    if not uid and store is not None:
+        sid = record.get("submission_id") or payload.get("submission_id")
+        if sid:
+            try:
+                sub = store.get_submission(sid)
+            except Exception:  # pragma: no cover - defensive
+                sub = None
+            if sub:
+                uid = sub.get("evaluator_id")
+    return _annotator_related_party(
+        {"evaluator_id": uid, "annotator": payload.get("annotator") or {}}, store)
 
 
 def _candidate_text(task: Dict[str, Any], cid: Optional[str]) -> str:
@@ -82,6 +222,12 @@ def _anchor(a: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         out["url"] = a.get("url")
     if a.get("citation_confirmed") is not None:
         out["citation_confirmed"] = bool(a.get("citation_confirmed"))
+    # Grounding tier (Buyer Response PRD §5 D2): buyers price tiers, so the binary
+    # grounded flag is not enough — a named guideline is worth more than free text.
+    # A library citation (carrying a url/library id) always resolves; a hand-typed
+    # one must carry a resolvable DOI/PMID/URL or it is 'unverified'.
+    from asclepius.validation import grounding_tier as _tier
+    out["grounding_tier"] = _tier(a, library_id=a.get("library_id") or a.get("url"))
     # §11 (additive): capture provenance — present only when the V3/V4 UI set it,
     # so V1/V2 records stay byte-identical.
     if a.get("entry_method"):
@@ -156,9 +302,20 @@ def _specialty_case_fields(task: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, Any]:
+def _provenance(task: Dict[str, Any], submission: Dict[str, Any],
+                store: Any = None) -> Dict[str, Any]:
     annotator = submission.get("annotator") or {}
     payload = submission.get("payload") or {}
+    # Resolve the credential from the source of truth and FAIL CLOSED if it cannot
+    # be established (Buyer Response PRD §6 E1) — a record must never ship claiming
+    # 'unspecified' while the aggregate section claims board certification.
+    credential = _annotator_credential(submission, store)
+    if not credential:
+        raise PackagingError(
+            f"submission {submission.get('submission_id')!r} has no resolvable "
+            f"annotator credential; refusing to emit a record that would render "
+            f"'unspecified' while the aggregate credential section claims board "
+            f"certification (Buyer Response PRD §6 E1)")
     prov = {
         # Which evaluator flow produced this record (Asclepius V2): "v1" classic
         # | "v2" assisted — carried onto every record so admin/buyers segment by
@@ -167,11 +324,22 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, A
         # prompt provenance upgrade (Eval Flow Upgrade §2) — the prompt was
         # reviewed and accepted as clinically valid by the credentialed evaluator.
         "prompt_clinician_reviewed": _prompt_clinician_reviewed(submission),
-        # credentialing (the premium signal)
-        "annotator_credential": annotator.get("credentials"),
+        # credentialing (the premium signal) — hydrated + fail-closed above
+        "annotator_credential": credential,
         "annotator_specialty": annotator.get("specialty"),
-        "annotator_years_experience": annotator.get("years_experience"),
+        # Years of experience ships as a BAND, never the exact integer (Buyer Response
+        # PRD §6 E2): an exact year + specialty + state is close to identifying in a
+        # small subspecialty. The key is kept (buyer profiles map it) but the value is
+        # banded.
+        "annotator_years_experience": _years_band(annotator.get("years_experience")),
+        "annotator_years_experience_band": _years_band(annotator.get("years_experience")),
         "annotator_id_hashed": annotator.get("id_hashed"),
+        # Related-party disclosure (Advisor PRD §5.1). True when the annotating
+        # physician holds an advisory relationship with Archangel Health,
+        # including equity. Their clinical credentials are unchanged and stated
+        # above; this flag exists so provenance is COMPLETE — it converts a
+        # thing a buyer could discover into a thing we disclosed.
+        "related_party": _annotator_related_party(submission, store),
         # lineage
         "submission_id": submission.get("submission_id"),
         "task_id": task.get("task_id"),
@@ -199,7 +367,79 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, A
     gen = _generation_provenance(task)
     if gen is not None:
         prov["generation"] = gen
+    # Signal ceiling (Buyer Response PRD §8): name what bounds this record's signal —
+    # volunteering it is the credibility move, and it makes the physician-authored
+    # upsell obvious. Ladder position (§9.3): where this record sits on the
+    # preference -> process -> environment ladder.
+    prov["signal_ceiling"] = _signal_ceiling(task)
+    prov["supervision_type"] = _supervision_type(task, submission)
+    # The physician-named decisive action becomes the record's verifiable outcome
+    # (Audit §13) — the boolean, human-free verifier a buyer can turn into an RLVR
+    # reward: the decisive test must precede the final answer.
+    if task.get("decisive_action"):
+        prov["verifiable_outcome"] = {**task["decisive_action"],
+                                      "verifier": "decisive_action_precedes_final_answer"}
+    prov.update(_ladder_position(task, submission))
     return prov
+
+
+# ─── Signal ceiling + supervision ladder (Buyer Response PRD §8, §9) ──────────
+def _answer_mode(task: Dict[str, Any]) -> str:
+    """model_pair (current V3 A/B) | physician_authored | physician_corrected."""
+    mode = (task.get("answer_mode") or (task.get("generation") or {}).get("answer_mode")
+            or "model_pair")
+    return str(mode)
+
+
+def _signal_ceiling(task: Dict[str, Any]) -> Dict[str, Any]:
+    mode = _answer_mode(task)
+    gen = task.get("generation") or {}
+    ab_source = gen.get("ab_source") or task.get("ab_source")
+    same_family = bool(ab_source in ("legacy_fallback", "anthropic_only_v4",
+                                     "same_family", "anthropic_only"))
+    families: List[str] = []
+    for c in task.get("candidate_answers") or []:
+        fam = c.get("generator_family") or c.get("generator_model")
+        if fam:
+            families.append(str(fam))
+    physician_authored = mode in ("physician_authored", "physician_corrected")
+    return {
+        "mode": mode,
+        "bounded_by": ("physician" if physician_authored else "best_of_two_frontier_models"),
+        "generators": families,
+        "same_family_fallback": same_family,
+        "human_contribution": ("authored_reference" if physician_authored
+                               else "selection_and_critique"),
+        "physician_authored_content": physician_authored,
+    }
+
+
+def _supervision_type(task: Dict[str, Any], submission: Dict[str, Any]) -> str:
+    if task.get("has_environment") or (submission.get("payload") or {}).get("tool_calls"):
+        return "environment_verifiable"
+    # A physician-named decisive action is itself a verifiable outcome (Audit §13):
+    # the reward function can check the trajectory ordered the decisive test before
+    # its final answer, no human in the loop. That lifts the record onto the
+    # environment-verifiable rung even without a live tool environment.
+    if task.get("decisive_action") or task.get("has_verifiable_outcome"):
+        return "environment_verifiable"
+    if (submission.get("payload") or {}).get("reasoning_steps"):
+        return "process_supervision"
+    return "pairwise_preference"
+
+
+def _ladder_position(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, Any]:
+    payload = submission.get("payload") or {}
+    has_env = bool(task.get("has_environment"))
+    has_tools = bool(payload.get("tool_calls"))
+    has_verifiable = bool(task.get("decisive_action") or task.get("has_verifiable_outcome"))
+    n_turns = int(task.get("n_turns") or 1)
+    return {
+        "has_environment": has_env,
+        "has_tool_calls": has_tools,
+        "has_verifiable_outcome": has_verifiable,
+        "n_turns": n_turns,
+    }
 
 
 # ─── step_note → step_error_tag (Eval UX Overhaul §13) ───────────────────────
@@ -401,11 +641,16 @@ def _assist_block(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
-def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List[Dict[str, Any]]:
+def package_submission(task: Dict[str, Any], submission: Dict[str, Any],
+                       store: Any = None) -> List[Dict[str, Any]]:
     payload = submission.get("payload") or {}
     verdict = submission.get("verdict") or payload.get("verdict")
     prompt = task.get("prompt", "")
-    prov = _provenance(task, submission)
+    # ``store`` is optional and used ONLY to hydrate a missing annotator credential
+    # from the source of truth (Buyer Response PRD §6 E1); packaging stays pure
+    # otherwise. When present, the credential is resolved and fail-closed inside
+    # ``_provenance``.
+    prov = _provenance(task, submission, store)
     records: List[Dict[str, Any]] = []
 
     # Stage-2 independent capture (Eval Flow Upgrade §3 / Speed Optimization §1).
@@ -618,7 +863,12 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
         axes: Dict[str, int] = {}
         tiers: Dict[str, int] = {}
         for c in criteria:
-            axes[c["axis"]] = axes.get(c["axis"], 0) + 1
+            # §11: a criterion counts once per axis it scores. `normalize_rubric`
+            # guarantees a non-empty `axes`, so the `axis` fallback is only for
+            # a record shaped by an older writer.
+            for ax in (c.get("axes") or [c.get("axis")]):
+                if ax:
+                    axes[ax] = axes.get(ax, 0) + 1
             tiers[c["tier"]] = tiers.get(c["tier"], 0) + 1
         grounding = grounding_summary(criteria)          # FIX-3
         completeness = rubric_completeness(criteria)     # FIX-4
@@ -654,3 +904,113 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any]) -> List
         )
 
     return records
+
+
+# ─── Case-centric review metadata (PRD A Phase 3) ─────────────────────────────
+# Reviews land AFTER a record is packaged, so these blocks are built at export
+# time from the source of truth and attached to the emitted record. They live
+# under ``review`` / ``supervision`` — NEVER under a ``kappa`` or ``agreement``
+# key (PRD A §0): the reviewer SAW the labeler's answer, so this is expert
+# adjudication, not inter-rater agreement, and naming it κ would be claiming a
+# number nobody measured.
+def _review_dimensions(review: Dict[str, Any]) -> Dict[str, Any]:
+    if isinstance(review.get("dimensions"), dict):
+        return review["dimensions"]
+    try:
+        return json.loads(review.get("dimension_json") or "{}") or {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _review_corrections(review: Dict[str, Any]) -> Dict[str, Any]:
+    if isinstance(review.get("corrections"), dict):
+        return review["corrections"]
+    try:
+        return json.loads(review.get("corrections_json") or "{}") or {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _identifier_flagged(review: Dict[str, Any]) -> bool:
+    """True when the insert-time identifier scan found something in the
+    reviewer's free text. NULL (never scanned, e.g. a legacy row) is NOT treated
+    as flagged — it is treated as unknown, and unknown prose is withheld too,
+    because 'we never checked' is not 'we checked and it was clean'."""
+    flags = review.get("identifier_flags")
+    if flags is None:
+        raw = review.get("identifier_flags_json")
+        if raw is None:
+            return True          # never scanned -> withhold, fail safe
+        try:
+            flags = json.loads(raw) or []
+        except (TypeError, ValueError):
+            return True
+    return bool(flags)
+
+
+def _reviewer_credential(review: Dict[str, Any], store: Any = None) -> Optional[str]:
+    """Resolve the reviewer's credential ATTRIBUTE from the users table (the same
+    source-of-truth rule as ``_annotator_credential``). Never a name, never an
+    NPI — the Tier B leak gate scans this block like every other."""
+    if store is None:
+        return None
+    uid = review.get("reviewer_user_id")
+    if not uid:
+        return None
+    try:
+        user = store.get_user_by_id(uid)
+    except Exception:  # pragma: no cover - defensive; treated as unresolved
+        user = None
+    if not user:
+        return None
+    try:
+        block = store.annotator_block(user)
+    except Exception:  # pragma: no cover - defensive
+        return None
+    return block.get("credential") or block.get("credentials")
+
+
+def review_block(reviews: List[Dict[str, Any]], store: Any = None) -> Dict[str, Any]:
+    """The record's expert-review block: every review of the underlying labeler
+    submission, plus the rollups a buyer filters on. ``blinded`` ships as a
+    strict bool per review — a NULL (never-verified) flag reads as False, the
+    conservative direction: unverified is not blinded."""
+    reviews = reviews or []
+    return {
+        "reviewed": bool(reviews),
+        "n_reviews": len(reviews),
+        "reviews": [
+            {
+                "reviewer_id_hashed": r.get("reviewer_id_hashed"),
+                "reviewer_credential": _reviewer_credential(r, store),
+                "verdict": r.get("verdict"),
+                "dimensions": _review_dimensions(r),
+                # Reviewer free text is withheld when the insert-time
+                # Safe-Harbor scan flagged an identifier in it (FIX A A-5.3).
+                # The export leak gate scans KEYS, not values, so prose like
+                # "per Dr. Chen's note, K+ 6.2 on 3/14" would otherwise ship to
+                # a lab verbatim. The verdict and dimensions still ship — only
+                # the prose is held back, and the record says so out loud.
+                "corrections": {} if _identifier_flagged(r) else _review_corrections(r),
+                "corrections_withheld": _identifier_flagged(r),
+                "blinded": r.get("blinded") in (True, 1),
+                "reviewed_at": r.get("created_at"),
+            }
+            for r in reviews
+        ],
+        "accepted_without_edits": bool(reviews)
+        and all(r.get("verdict") == "accept" for r in reviews),
+    }
+
+
+def supervision_block(
+    *, labeler_id_hashed: Optional[str], observation: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Who supervised this record. ``independent_second_label`` is True ONLY for
+    the double-labeled slice whose second observation was explicitly blinded —
+    the slice a real Cohen's κ can be computed on (PRD A §0)."""
+    return {
+        "labeler_id_hashed": labeler_id_hashed,
+        "independent_second_label": bool(observation)
+        and (observation or {}).get("blinded") in (True, 1),
+    }

@@ -1,14 +1,18 @@
 """Health system onboarding (magic link, email OTP, team invites)."""
 
+import hashlib
 import html
+import logging
 import os
 import string
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
+from fastapi import Form
 from pydantic import BaseModel, EmailStr, Field
+from starlette.concurrency import run_in_threadpool
 
 from ratelimit import client_ip, global_rate_limiter, rate_limiter
 
@@ -49,6 +53,65 @@ _ASCLEPIUS_DIRECTOR_ROLE_LABEL = "Director of Data Training"
 _ASCLEPIUS_TEAM_CAP = 10  # director + up to 10 invited clinicians
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
+
+log = logging.getLogger("onboarding")
+
+
+def _asc_credentialing():
+    """Lazy import — keeps the Asclepius package out of this router's import
+    graph for the clinical-only paths."""
+    from asclepius import credentialing
+    return credentialing
+
+
+# ─── Signup throttling (B-5.3) ────────────────────────────────────────────────
+# A per-IP bucket is the wrong key for this endpoint. A health system egresses
+# through one NAT gateway, so the 6th physician of a 10-person team invited in
+# the same hour hit a 429 and could not finish signup — and "a physician who
+# cannot complete signup on launch day is gone for good". Worse, client_ip()
+# uses the LAST X-Forwarded-For hop, which is correct with exactly one
+# appending proxy; with Cloudflare AND the platform proxy the last hop is an
+# edge IP, so every signup on the planet shared one bucket per PoP.
+#
+# The onboarding token is the right key: one account per token by
+# construction, so a legitimate flow spends one of its attempts and a replayed
+# token is exactly what we want to throttle. The per-IP ceiling is kept as a
+# much looser abuse guard, and a global limiter backstops both in case the XFF
+# chain makes per-IP meaningless.
+_SIGNUP_PER_TOKEN = (6, 3600)      # retries of one account's final step
+_SIGNUP_PER_IP = (20, 3600)        # a whole team behind one NAT, comfortably
+_SIGNUP_GLOBAL = (300, 3600)       # volumetric backstop
+
+
+async def _signup_rate_guard(request: Request) -> None:
+    """Throttle signup completion on the onboarding TOKEN first, then IP."""
+    from ratelimit import check, is_enabled
+
+    if not is_enabled():
+        return
+    token = ""
+    try:
+        body = await request.json()
+        token = str((body or {}).get("token") or "").strip()
+    except Exception:
+        token = ""
+    if token:
+        digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
+        allowed, retry_after = check(f"asclepius_signup_tok:{digest}", *_SIGNUP_PER_TOKEN)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many attempts for this invitation. Please try again shortly.",
+                headers={"Retry-After": str(retry_after)},
+            )
+    allowed, retry_after = check(
+        f"asclepius_signup_ip:{client_ip(request)}", *_SIGNUP_PER_IP)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many requests. Please slow down and try again shortly.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
 
 def _ts(request: Request):
@@ -647,7 +710,8 @@ def _provision_asclepius_user(
         years = int(years) if years not in (None, "") else None
     except (TypeError, ValueError):
         years = None
-    _asclepius_store(request).provision_user(
+    store = _asclepius_store(request)
+    user = store.provision_user(
         email=email,
         password=password,
         role=role,
@@ -656,11 +720,116 @@ def _provision_asclepius_user(
         clinical_role=clinical_role or None,
         specialty=primary_specialty,
         board_cert=board_cert,
-        npi=(creds.get("npi") or None),
+        # B-5.1: store the NORMALIZED NPI. Every lookup uses the cleaned form
+        # (get_cached_npi_fetch, find_users_by_npi), so a value posted as
+        # "1234-567893" through the API matched no cache row and no duplicate
+        # row — a dash defeated the duplicate-NPI blocker outright.
+        npi=(_asc_credentialing().clean_npi(creds.get("npi") or "") or None),
         years_experience=years,
         credentials=creds,
         attestations=attestations or {},
     )
+    # Advisor PRD §3.2 step 3: attach this signup to whichever advisor referred
+    # them. Resolution is by the address the invite was addressed to — see
+    # ``store.find_open_referral_for_email``. Best-effort: a referral that
+    # cannot be claimed must never cost a physician their account.
+    try:
+        claimed = store.claim_referral_for_signup(email=email, user_id=user["id"])
+        if claimed is not None:
+            store.log_event(
+                entity_type="user", entity_id=user["id"],
+                event_type="referral_claimed", actor=email,
+                payload={"referral_id": claimed["referral_id"],
+                         "referrer_id": claimed["referrer_id"]},
+            )
+    except Exception:
+        log.exception("[referral] could not attach signup to a referral (non-fatal)")
+
+    # PRD-B: identity capture + credential verification. This function is
+    # SYNCHRONOUS and both callers are async, so it must be reached through
+    # ``run_in_threadpool`` — see the comment at each call site. Do not call it
+    # directly from an async handler.
+    _run_signup_verification(store, user, creds)
+
+
+def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, Any]) -> None:
+    """Capture PRD-B identity fields and run the NPI check for a fresh signup.
+
+    Every failure path in here degrades to a 'pending' queue entry — never an
+    exception out of the signup handler, never a rejection. Blocking the form
+    on a third-party API is how launch day turns into a support queue.
+    """
+    from asclepius import credentialing
+
+    uid = user["id"]
+    try:
+        store.update_identity_capture(
+            uid,
+            phone=(str(creds.get("phone") or "").strip() or None),
+            linkedin_url=(str(creds.get("linkedinUrl") or creds.get("linkedin_url") or "").strip()
+                          or None),
+            email_domain_class=credentialing.classify_email_domain(user.get("email") or ""),
+        )
+    except Exception:
+        log.exception("[credentialing] identity capture failed (non-fatal)")
+
+    try:
+        # The sha and its parse were both recorded server-side at upload time
+        # (see asclepius_cv_upload). Nothing is parsed here: OCR on the signup
+        # path is exactly the CPU-bound work B-1.1 is about, and the parse is
+        # advisory anyway.
+        cv_sha = str(creds.get("cvAssetSha") or "").strip()
+        if cv_sha:
+            parsed = creds.get("cvParsed")
+            store.set_cv(uid, cv_sha, parsed if isinstance(parsed, dict) else None)
+    except Exception:
+        # A CV that cannot be attached is empty-fields + raw file for the admin.
+        log.exception("[credentialing] CV attach failed (non-fatal)")
+
+    npi = credentialing.clean_npi(str(creds.get("npi") or ""))
+    if npi:
+        family_name = credentialing.family_name_from_legal_name(
+            str(creds.get("fullLegalName") or user.get("full_name") or ""))
+        try:
+            cached = store.get_cached_npi_fetch(npi)
+            result = credentialing.verify_npi(npi, family_name, cached=cached)
+            store.set_npi_result(uid, result)
+            if result.get("result") == "verified":
+                # Advisor PRD §3.2 step 4: the referrer's funnel follows the
+                # invitee. 'verified' is the NPI coming back clean; 'approved'
+                # is the admin's decision and is stamped from the verify router.
+                try:
+                    store.advance_referral_for_user(uid, "verified")
+                except Exception:
+                    log.exception("[referral] could not advance to verified (non-fatal)")
+        except Exception:
+            # "Could not check" is NOT "does not exist": route to manual review.
+            log.exception("[credentialing] NPI check failed; queued for retry")
+            try:
+                store.set_npi_result(uid, {"result": "unavailable", "reason": "exception"})
+            except Exception:
+                log.exception("[credentialing] could not persist NPI result (non-fatal)")
+
+    try:
+        # Land in the admin verification queue — but never downgrade a decided
+        # record: a re-onboard of an already approved/rejected physician keeps
+        # the human decision until an admin changes it.
+        current = store.get_user_by_id(uid) or {}
+        if current.get("verification_status") in (None, "pending"):
+            store.set_verification_status(uid, "pending")
+            store.log_event(
+                entity_type="user",
+                entity_id=uid,
+                event_type="verification_pending",
+                actor=user.get("email"),
+                payload={
+                    "npi_result": ((current.get("npi_payload_json") and
+                                    "checked") or ("submitted" if npi else "absent")),
+                    "email_domain_class": current.get("email_domain_class"),
+                },
+            )
+    except Exception:
+        log.exception("[credentialing] could not mark signup pending (non-fatal)")
 
 
 @router.post("/select-product")
@@ -729,7 +898,9 @@ async def asclepius_credentials(body: AsclepiusCredentialsBody, request: Request
     director_email = (row.get("director_email") or "").strip()
     if not director_email or not ts.get_asclepius_person(row["id"], director_email):
         raise HTTPException(status_code=400, detail="Complete your institution details first.")
-    ts.save_asclepius_credentials(row["id"], director_email, body.credentials)
+    ts.save_asclepius_credentials(
+        row["id"], director_email,
+        _preserve_server_cv_fields(ts, row["id"], director_email, body.credentials))
     return {"ok": True}
 
 
@@ -747,6 +918,133 @@ async def asclepius_attestations(body: AsclepiusAttestationsBody, request: Reque
         raise HTTPException(status_code=400, detail="Complete your institution details first.")
     ts.save_asclepius_attestations(row["id"], director_email, body.attestations)
     return {"ok": True}
+
+
+@router.post(
+    "/asclepius/cv",
+    dependencies=[Depends(rate_limiter("onboarding_cv", 10, 3600))],
+)
+async def asclepius_cv_upload(
+    request: Request,
+    background: BackgroundTasks,
+    token: str = Form(...),
+    file: UploadFile = File(...),
+):
+    """Optional CV upload during signup (PRD-B Phase 2/4).
+
+    Accepts either the director onboarding token or an invited-member token,
+    stores the raw document content-addressed, and records the sha **on the
+    person's own row, server-side** (B-5.7). The sha is never round-tripped
+    through the client: ``credentials`` is a free-form dict, so a client-set
+    ``cvAssetSha`` would be an unvalidated reference into the shared asset
+    store — which also holds de-identified clinical images.
+
+    Parsing happens AFTER the response is sent (B-1.1): pdfminer/PyPDF2 and
+    especially the OCR fallback are tens of CPU-seconds, and nothing about the
+    CV needs to be parsed before the form returns.
+    """
+    from asclepius import credentialing
+
+    ts = _ts(request)
+    # Resolve which person this upload belongs to, from the token alone.
+    hs_id = person_email = None
+    try:
+        row = _load_hs(request, token)
+        row = ts.get_health_system_by_id(row["id"]) or row
+        hs_id, person_email = row["id"], (row.get("director_email") or "").strip()
+    except HTTPException:
+        _ts_m, person, hs = _load_asclepius_member(request, token)  # 404s if invalid
+        hs_id, person_email = hs["id"], person["email"]
+    if not hs_id or not person_email:
+        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+
+    data = await _read_capped(file, credentialing.CV_MAX_BYTES, request)
+    try:
+        meta = credentialing.store_cv(data, file.content_type or "")
+    except credentialing.CvUploadError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:
+        # Asset-store trouble (disk, verification) must surface as a clean,
+        # retryable error — the CV is optional and signup continues without it.
+        log.exception("[credentialing] CV blob write failed")
+        raise HTTPException(status_code=503,
+                            detail="Could not store the CV right now — you can "
+                                   "finish signup without it.")
+
+    _record_cv_on_person(ts, hs_id, person_email, sha=meta["sha256"], mime=meta["mime"])
+    # Sync function -> FastAPI runs it in a threadpool after the response.
+    background.add_task(_parse_cv_into_person, ts, hs_id, person_email,
+                        meta["sha256"], meta["mime"])
+    return {"ok": True, "filename": file.filename, "byte_size": meta["byte_size"]}
+
+
+async def _read_capped(file: UploadFile, max_bytes: int, request: Request) -> bytes:
+    """Read an upload with a running cap (B-5.4).
+
+    ``await file.read()`` buffers the entire body before any size check, so an
+    arbitrarily large upload is resident in memory before it can be rejected —
+    cheap memory pressure against a single-worker process. Reject on a
+    declared Content-Length first, then stream and abort the moment the cap is
+    passed rather than trusting the declaration.
+    """
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > max_bytes + 8192:
+        raise HTTPException(status_code=413,
+                            detail=f"CV is too large; the limit is {max_bytes} bytes.")
+    chunks, total = [], 0
+    while True:
+        chunk = await file.read(256 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(status_code=413,
+                                detail=f"CV is too large; the limit is {max_bytes} bytes.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _record_cv_on_person(ts: Any, hs_id: str, email: str, *, sha: str, mime: str,
+                         parsed: Optional[Dict[str, Any]] = None) -> None:
+    """Merge CV facts into the person's stored credentials, server-side."""
+    person = ts.get_asclepius_person(hs_id, email) or {}
+    creds = dict(person.get("credentials") or {})
+    creds["cvAssetSha"] = sha
+    creds["cvMime"] = mime
+    if parsed is not None:
+        creds["cvParsed"] = parsed
+    ts.save_asclepius_credentials(hs_id, email, creds)
+
+
+def _parse_cv_into_person(ts: Any, hs_id: str, email: str, sha: str, mime: str) -> None:
+    """Background CV parse. Best-effort by construction: a CV that cannot be
+    parsed leaves the suggestions empty and the admin reads the raw file."""
+    from asclepius import credentialing
+    try:
+        parsed = credentialing.parse_cv(sha, mime=mime)
+        _record_cv_on_person(ts, hs_id, email, sha=sha, mime=mime, parsed=parsed)
+    except Exception:
+        log.exception("[credentialing] background CV parse failed (non-fatal)")
+
+
+def _preserve_server_cv_fields(ts: Any, hs_id: str, email: str,
+                               incoming: Dict[str, Any]) -> Dict[str, Any]:
+    """Strip client-supplied CV fields and restore the server-recorded ones.
+
+    B-5.7: ``credentials`` is ``Dict[str, Any]``, so a signup could otherwise
+    name any sha in the shared asset store and have it parsed and served back
+    through the admin dossier. The sha is authoritative only when this server
+    wrote it at upload time. This also stops the credentials POST — which the
+    form sends after the upload — from erasing the recorded CV.
+    """
+    creds = {k: v for k, v in (incoming or {}).items()
+             if k not in ("cvAssetSha", "cvMime", "cvParsed")}
+    person = ts.get_asclepius_person(hs_id, email) or {}
+    stored = person.get("credentials") or {}
+    for key in ("cvAssetSha", "cvMime", "cvParsed"):
+        if stored.get(key) is not None:
+            creds[key] = stored[key]
+    return creds
 
 
 @router.post("/asclepius/add-member")
@@ -809,7 +1107,16 @@ async def asclepius_add_member(body: AsclepiusAddMemberBody, request: Request):
     return {"ok": True}
 
 
-@router.post("/asclepius/finish")
+@router.post(
+    "/asclepius/finish",
+    # Launch-day guard: signup completion is the expensive, account-creating
+    # step. Keyed on the onboarding token, not the IP — see _signup_rate_guard
+    # for why a per-IP bucket locked out whole hospitals.
+    dependencies=[
+        Depends(_signup_rate_guard),
+        Depends(global_rate_limiter("asclepius_signup_all", *_SIGNUP_GLOBAL)),
+    ],
+)
 async def asclepius_finish(body: OnboardTokenBody, request: Request):
     if not _email_configured():
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
@@ -832,7 +1139,14 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     director_pwd = generate_secure_password()
     org_name = (row.get("name") or "").strip()
     specialty = (row.get("specialty") or "").strip()
-    _provision_asclepius_user(
+    # B-1.1: _provision_asclepius_user is synchronous and reaches a synchronous
+    # httpx call to NPPES (plus pbkdf2 hashing and sqlite writes). Calling it
+    # directly from this async handler runs all of that ON THE EVENT LOOP, so
+    # one hung NPPES response stalls every request in the process — not just
+    # this one. The try/except inside prevents a 500; it does not prevent a
+    # hang. The threadpool hop is what makes the "non-blocking" claim true.
+    await run_in_threadpool(
+        _provision_asclepius_user,
         request,
         email=director_email,
         password=director_pwd,
@@ -861,6 +1175,7 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         workspace_url=workspace_url,
         is_director=True,
         team_count=len(invited),
+        verification_notice=True,
     )
     await send_html_email(
         director_email, "Your Asclepius workspace is ready", html_body, importance_headers=True
@@ -911,7 +1226,9 @@ async def member_session(token: str, request: Request):
 @router.post("/member/credentials")
 async def member_credentials(body: MemberCredentialsBody, request: Request):
     ts, person, hs = _load_asclepius_member(request, body.token)
-    ts.save_asclepius_credentials(hs["id"], person["email"], body.credentials)
+    ts.save_asclepius_credentials(
+        hs["id"], person["email"],
+        _preserve_server_cv_fields(ts, hs["id"], person["email"], body.credentials))
     return {"ok": True}
 
 
@@ -922,7 +1239,13 @@ async def member_attestations(body: MemberAttestationsBody, request: Request):
     return {"ok": True}
 
 
-@router.post("/member/finish")
+@router.post(
+    "/member/finish",
+    dependencies=[
+        Depends(_signup_rate_guard),
+        Depends(global_rate_limiter("asclepius_signup_all", *_SIGNUP_GLOBAL)),
+    ],
+)
 async def member_finish(body: OnboardTokenBody, request: Request):
     if not _email_configured():
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
@@ -937,7 +1260,10 @@ async def member_finish(body: OnboardTokenBody, request: Request):
     org_name = (hs.get("name") or "").strip()
     specialty = (hs.get("specialty") or "").strip()
     role = (person.get("clinical_role") or "").strip().lower()
-    _provision_asclepius_user(
+    # B-1.1: see the director path — synchronous NPPES/pbkdf2/sqlite work must
+    # not run on the event loop.
+    await run_in_threadpool(
+        _provision_asclepius_user,
         request,
         email=person["email"],
         password=member_pwd,
@@ -962,6 +1288,7 @@ async def member_finish(body: OnboardTokenBody, request: Request):
         temporary_password=member_pwd,
         workspace_url=workspace_url,
         is_director=False,
+        verification_notice=True,
     )
     await send_html_email(
         person["email"], "Your Asclepius workspace is ready", html_body, importance_headers=True

@@ -182,10 +182,12 @@ def test_deidentify_scans_all_string_fields_not_just_note_text():
 def test_format_registry_dicom_rejected_others_real():
     """The adapters are REAL now (EHR Ingestion PRD §6): junk input raises a
     clean quarantinable CaseIngestError (not CaseFormatNotImplemented, not a raw
-    parser exception); dicom still rejects outright; unknown formats error."""
+    parser exception); a bare DICOM on the SINGLE-FILE path declines with a
+    CaseIngestError pointing at the bundle pipeline (Buyer Response PRD §4 C3, which
+    retired the outright imaging rejection); unknown formats error."""
     from asclepius import case_formats as cf
     assert set(cf.FORMATS) == set(cf.CASE_FORMATS)
-    with pytest.raises(cf.ImagingRejected):
+    with pytest.raises(cf.CaseIngestError):
         cf.ingest_real_deid(b"DICM", "dicom")
     for fmt in ("lab_csv", "fhir_r4", "hl7v2"):
         with pytest.raises(cf.CaseIngestError):

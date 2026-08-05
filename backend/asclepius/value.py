@@ -31,6 +31,21 @@ def _difficulty_mult(difficulty: Optional[str]) -> float:
     return table.get((difficulty or "medium").strip().lower(), table.get("medium", 1.0))
 
 
+def priced_empirical_difficulty(ed_block: Optional[Dict[str, Any]]) -> Optional[float]:
+    """The empirical-difficulty number PRICING must use (Buyer Response PRD §10 G2):
+    the Wilson LOWER bound of a measured block, never the point estimate. Pricing a
+    case as frontier-hard off a point estimate of 0.67 whose interval runs [0.21, 0.94]
+    is a claim we cannot support in a diligence conversation. Returns None for an
+    unmeasured/absent block so the caller falls back to declared difficulty."""
+    if not isinstance(ed_block, dict) or not ed_block.get("measured"):
+        return None
+    if ed_block.get("value_lower") is not None:
+        return float(ed_block["value_lower"])
+    # A measured block from before intervals were added — fall back to the point
+    # estimate but never invent an interval it does not carry.
+    return float(ed_block["value"]) if ed_block.get("value") is not None else None
+
+
 def _content_value(
     *, has_ideal: bool, has_reasoning: bool, num_step_pairs: int, rubric_value: float = 0.0
 ) -> float:

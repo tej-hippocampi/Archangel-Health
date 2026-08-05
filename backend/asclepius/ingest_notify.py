@@ -55,13 +55,24 @@ def _run_coro(coro: Any) -> Any:
 def _recipient_for(store: Any, upload: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
     """(email, display_name) for the sender of this upload, or (None, name).
 
-    Scoped to the secure-LINK door for now: the recipient is the link's
-    ``contact_email``. Account-door uploads (link_id == 'account') intentionally
-    resolve to NO recipient — wiring notifications for that door is a deliberate
-    follow-up, so a rejected account upload never emails the provider."""
+    Two doors resolve differently:
+      * secure LINK door — the recipient is the link's ``contact_email``.
+      * health-system PORTAL door — the recipient is the health system's
+        ``contact_email`` (FIX-C C-3.3). This door had no failure loop at all:
+        its sentinel link_id has no link row, so a rejected hospital upload
+        emailed nobody, on the one door whose users we cannot support in real
+        time and whose URL is public.
+
+    The account door (link_id == 'account') still resolves to no recipient."""
     link_id = upload.get("link_id")
     if not link_id or link_id == "account":
         return None, None
+    if link_id == "hs-portal" or upload.get("health_system_id"):
+        getter = getattr(store, "get_health_system", None)
+        hs = (getter(upload.get("health_system_id") or "") or {}) if getter else {}
+        name = (hs.get("name") or "").strip() or None
+        email = (hs.get("contact_email") or "").strip() or None
+        return (email or None), name
     link = store.get_upload_link(link_id) or {}
     name = (link.get("partner_label") or "").strip() or None
     email = (link.get("contact_email") or "").strip() or None

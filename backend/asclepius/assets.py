@@ -197,6 +197,37 @@ def process_upload(
     return asset
 
 
+def asset_storage_durable() -> Tuple[bool, str]:
+    """(ok, detail) — is the asset store safe for V4 image blobs? (Audit PRD §P2)
+
+    Mirrors ``ingestion.ingest_storage_durable()``. Images must be exactly as durable
+    as the case rows that reference them: a surviving row pointing at a vanished blob
+    is WORSE than a refused upload, because ``study_findings_policy='hidden'`` means the
+    caption was withheld on purpose and the case becomes unanswerable, not merely
+    degraded. The raw-upload path already fails closed (503) on non-durable storage;
+    this extends the same gate to the derived image blobs."""
+    from asclepius.constants import asset_store, asset_store_is_ephemeral
+    root = asset_store()
+    if root.startswith("s3://"):
+        return True, "s3 backend configured"
+    if asset_store_is_ephemeral():
+        return False, (f"asset store {root} is under the code tree; V4 image blobs will "
+                       f"be lost on redeploy. Set ASCLEPIUS_ASSET_STORE to a persistent "
+                       f"volume.")
+    for pre in ("/tmp", "/var/tmp", "/dev/shm", "/run"):
+        if root == pre or root.startswith(pre + "/"):
+            return False, f"asset store {root} is on ephemeral storage ({pre})"
+    db_path = os.getenv("ASCLEPIUS_DB_PATH", "").strip()
+    if db_path:
+        try:
+            if os.stat(root).st_dev != os.stat(os.path.dirname(os.path.abspath(db_path))).st_dev:
+                return True, (f"asset store {root} is on a different volume than the DB; "
+                              f"confirm that volume is persistent")
+        except OSError:
+            pass
+    return True, f"asset store {root} is durable"
+
+
 def _write_blob(sha256: str, data: bytes) -> None:
     path = _blob_path(sha256)
     if os.path.exists(path):
@@ -208,14 +239,27 @@ def _write_blob(sha256: str, data: bytes) -> None:
     tmp = f"{path}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
     with open(tmp, "wb") as f:
         f.write(data)
+        f.flush()
+        os.fsync(f.fileno())          # survive an unclean container stop (Audit §P2)
     try:
-        os.replace(tmp, path)
+        os.replace(tmp, path)         # atomic: no half-written blob is ever visible
     except OSError:  # a concurrent writer won the race — identical content, fine
         if os.path.exists(tmp):
             try:
                 os.remove(tmp)
             except OSError:
                 pass
+        return
+    # Read back and re-hash. A blob that cannot be re-read does not exist, and finding
+    # out now beats a physician annotating a case whose image 404s (Audit §P2). A blob
+    # that fails verification is removed so nothing can later resolve corrupt content.
+    with open(path, "rb") as f:
+        if _sha256(f.read()) != sha256:
+            try:
+                os.remove(path)
+            except OSError:  # pragma: no cover
+                pass
+            raise AssetError(f"blob {sha256[:12]} failed post-write verification")
 
 
 def load_asset(asset_or_sha: Any, *, verify: bool = False) -> Tuple[bytes, str]:
@@ -295,3 +339,47 @@ def _maybe_burnin_scan(data: bytes, mime: str) -> Optional[Dict[str, Any]]:
                          re.search(r"\b\d{2}[/-]\d{2}[/-]\d{2,4}\b", text))
     return {"scanned": True, "flagged": looks_like_id,
             "note": "advisory only — partner attestation trusted; not a gate (§9)"}
+
+
+def verify_case_assets(store: Any) -> Dict[str, Any]:
+    """Every V4 study asset → does its blob still exist and hash correctly? Run at
+    startup and nightly (Audit PRD §P2). Returns ``{checked, ok, missing, corrupt}``
+    where ``missing``/``corrupt`` are review-reason-shaped dicts. A case with a missing
+    blob raises the ``asset_blob_missing`` BLOCKING review reason so it leaves the
+    annotation queue rather than being annotated blind — wired to the review queue in
+    Phase 4. A surviving row pointing at a vanished blob is the failure this detects."""
+    checked = ok = 0
+    missing: List[Dict[str, Any]] = []
+    corrupt: List[Dict[str, Any]] = []
+    try:
+        cases = store.list_ingest_cases(status="ingested", limit=1000000)
+    except Exception:  # pragma: no cover - defensive
+        cases = []
+    for c in cases:
+        case = c.get("case") or {}
+        if case.get("case_source") != "real_deid":
+            continue
+        for s in case.get("studies") or []:
+            a = (s or {}).get("asset")
+            if not (isinstance(a, dict) and a.get("sha256")):
+                continue
+            checked += 1
+            sha = a["sha256"]
+            path = _blob_path(sha)
+            if not os.path.exists(path):
+                missing.append({"ingest_case_id": c.get("ingest_case_id"),
+                                "reason": "asset_blob_missing", "severity": "blocking",
+                                "detail": f"asset blob {sha[:12]}… is missing on disk"})
+                continue
+            try:
+                with open(path, "rb") as fh:
+                    good = _sha256(fh.read()) == sha
+            except OSError:
+                good = False
+            if good:
+                ok += 1
+            else:
+                corrupt.append({"ingest_case_id": c.get("ingest_case_id"),
+                                "reason": "asset_blob_missing", "severity": "blocking",
+                                "detail": f"asset blob {sha[:12]}… failed re-hash"})
+    return {"checked": checked, "ok": ok, "missing": missing, "corrupt": corrupt}

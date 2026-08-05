@@ -32,8 +32,22 @@
     token: localStorage.getItem(TOKEN_KEY) || null,
     user: null,
     taxonomy: null,
-    view: 'eval',          // 'eval' | 'admin'
-    adminTab: 'tasks',     // tasks | buyers | exports | metrics
+    view: 'eval',          // 'eval' | 'admin'  (header-level: evaluate vs admin console)
+    panel: 'tasks',        // side-panel destination: 'tasks' | 'guide' (Community is external nav)
+    // Community integration state (Community PRD boundary — every field optional,
+    // degrades silently if the community backend is unbuilt). unread drives the
+    // badge; handoffToken is pre-minted so the new tab can open synchronously.
+    community: { unread: 0, handoffToken: null, unavailable: false, unreadUnavailable: false, pollTimer: null },
+    // PRD-C admin restructure: sections mirror the assets the company owns
+    // (Physicians · Health Systems · Export · Metrics); the old stage-named
+    // views live on as sub-tabs inside them.
+    adminTab: 'physicians',   // physicians | health | export | metrics
+    pipelineFocus: null,      // upload_id deep-linked from a Health Systems bucket row
+    adminSub: {               // active sub-tab per section
+      physicians: 'roster',   //   roster | verify | tasks | qa
+      health: 'systems',      //   systems | pipeline
+      export: 'bycase',       //   bycase | buyers | history
+    },
     // Org → contributor drill-down state, shared shape across Exports + Metrics.
     browse: {
       export: { level: 'orgs', org: null, idHashed: null, contributor: null },
@@ -148,6 +162,9 @@
     state.user = null;
     localStorage.removeItem(TOKEN_KEY);
     stopTimer();
+    stopCommunityPolling();
+    resetCommunityState(); // bump generation now so any in-flight fetch is voided
+    teardownSidePanel();
     renderHeader();
     renderLogin('Your session expired. Please sign in again.');
   }
@@ -183,6 +200,8 @@
         onClick: () => switchView('admin'),
       }, 'Admin console'));
     }
+    // Community entry lives in the persistent SIDE PANEL (per the Community
+    // PRD §1 and the Side Panel PRD), not the header — see renderSidePanel().
 
     const badge = document.getElementById('ascUserBadge');
     clear(badge);
@@ -200,10 +219,558 @@
   function switchView(view) {
     if (view === 'admin' && state.view !== 'admin') saveDraft();
     state.view = view;
+    // The header nav (Evaluate / Admin console) always lands back inside the
+    // Tasks side-panel destination — the Guide is a peer, not a sub-view of it.
+    // Leaving the Guide this way must also stop its scroll-spy observer.
+    if (state.panel === 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
+    state.panel = 'tasks';
     renderHeader();
+    renderSidePanel();
     if (view === 'eval') renderEvalView();
     else renderAdminView();
   }
+
+  // ─── Side panel destination router (Tasks / Guide; Community is external) ────
+  // Tasks re-enters the existing header view (eval or admin); Guide renders the
+  // in-portal Instruction Manual. Community never routes here — it opens a tab.
+  function setPanel(dest) {
+    if (dest === 'community') { openCommunity(); return; }
+    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'advisor') return;
+    // Server-gated destinations are re-checked here, not only hidden in the
+    // rail: a stale deep link or a hand-typed state change must not open a
+    // section the session was never granted. (The API 403s regardless — this
+    // just avoids rendering an empty shell over it.)
+    if (dest === 'advisor' && !sessionCan('refer')) return;
+    if (dest === state.panel) return; // already here — no needless re-render/refetch
+    saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
+    // Leaving the Guide: stop the scroll-spy observer so it never watches the
+    // detached section nodes that setRoot() is about to replace.
+    if (dest !== 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
+    state.panel = dest;
+    renderSidePanel();
+    if (dest === 'advisor') {
+      renderAdvisorView();
+    } else if (dest === 'guide') {
+      renderGuide();
+    } else if (state.view === 'admin') {
+      renderAdminView();
+    } else {
+      renderEvalView();
+    }
+    updateHeaderProgress();
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     SIDE PANEL — a persistent left rail (Tasks / Community / Guide) that lives
+     OUTSIDE #ascRoot, so the per-view setRoot() re-renders never wipe it. Built
+     once, then updated in place. Collapses to icons < 1100px; becomes a bottom
+     tab bar on mobile (all handled in CSS).
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  // Inline, token-palette icons (stroke = currentColor, no fills). 20×20 grid.
+  const RAIL_ICONS = {
+    tasks: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 4h9M7 10h9M7 16h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M3.2 4.2l1 1 1.4-1.7M3.2 10.2l1 1 1.4-1.7M3.2 16.2l1 1 1.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    advisor: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.8l5.4 2.1v4.4c0 3.2-2.2 6-5.4 7-3.2-1-5.4-3.8-5.4-7V4.9L10 2.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.7 9.9l1.6 1.7 3-3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    community: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 15V6a1.5 1.5 0 011.5-1.5h9A1.5 1.5 0 0116 6v5.5A1.5 1.5 0 0114.5 13H7l-3 2.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.5 8.5h5M7.5 10.5h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    guide: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 4.5A1.5 1.5 0 015.5 3H10v14H5.5A1.5 1.5 0 014 15.5v-11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 3h4.5A1.5 1.5 0 0116 4.5v11a1.5 1.5 0 01-1.5 1.5H10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 7h1.5M6.5 9.5h1.5M12 7h1.5M12 9.5h1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  };
+
+  const RAIL_ITEMS = [
+    { dest: 'tasks',     label: 'Tasks' },
+    { dest: 'community', label: 'Community', external: true },
+    // Advisor PRD §6.2: shown only to a session whose SERVER-supplied
+    // capabilities include 'refer'. The gate is `capability`, never a tier
+    // string — re-deriving "is this an advisor?" in the client would push the
+    // exact two-state check this build removed back into the frontend.
+    { dest: 'advisor',   label: 'Advisor', capability: 'refer' },
+    { dest: 'guide',     label: 'Guide' },
+  ];
+
+  // The capability list the server put on the session. Absent (an older token,
+  // a cached payload) means no extra sections — deny, never assume.
+  function sessionCan(capability) {
+    const caps = (state.user && state.user.capabilities) || [];
+    return caps.indexOf(capability) !== -1;
+  }
+
+  function visibleRailItems() {
+    return RAIL_ITEMS.filter((it) => !it.capability || sessionCan(it.capability));
+  }
+
+  let chromeMetricsBound = false;
+  let communityGen = 0; // session generation — see resetCommunityState()
+
+  // Deterministic specialty → accent-dot color (palette only). Purely cosmetic
+  // wayfinding; any specialty maps stably to one of the four console accents.
+  function specialtyDotColor(spec) {
+    const s = String(spec || '').toLowerCase();
+    const accents = ['dot-green', 'dot-orange', 'dot-pink', 'dot-lime'];
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) & 0xffff;
+    return accents[hash % accents.length];
+  }
+
+  // Best-effort human display name. The session user has no guaranteed `name`
+  // field (email is the identity), so fall back to a title-cased email local part.
+  function railDisplayName() {
+    const u = state.user || {};
+    const explicit = u.name || u.full_name || u.display_name;
+    if (explicit) return String(explicit);
+    const email = String(u.email || '');
+    const local = email.split('@')[0] || 'Clinician';
+    const pretty = local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+    return pretty ? ('Dr. ' + pretty) : 'Clinician';
+  }
+
+  function railItemActive(dest) {
+    if (dest === 'guide') return state.panel === 'guide';
+    if (dest === 'advisor') return state.panel === 'advisor';
+    return state.panel === 'tasks' && dest === 'tasks';
+  }
+
+  function renderSidePanel() {
+    if (!state.user) { teardownSidePanel(); return; }
+    document.body.classList.add('asc-has-rail');
+    // Mark the guide view so the print stylesheet can scope its aggressive
+    // header/padding overrides to the manual only (never to eval/admin prints).
+    document.body.classList.toggle('asc-view-guide', state.panel === 'guide');
+    syncChromeMetrics();
+
+    let rail = document.getElementById('ascRail');
+    if (!rail) {
+      rail = h('aside', { class: 'asc-rail', id: 'ascRail', 'aria-label': 'Portal navigation' });
+      // Insert as a body child so it is never inside the header or #ascRoot.
+      document.body.appendChild(rail);
+    }
+    // Bind the re-measure listeners exactly once for the app's lifetime, so
+    // repeated sign-in/out cycles never stack duplicates. Re-measure on resize,
+    // on full load, and once web fonts settle — the header's height changes when
+    // Instrument Sans / IBM Plex Mono swap in, and the rail is pinned to it.
+    if (!chromeMetricsBound) {
+      window.addEventListener('resize', syncChromeMetrics);
+      window.addEventListener('load', syncChromeMetrics);
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(syncChromeMetrics).catch(function () {});
+      }
+      chromeMetricsBound = true;
+    }
+    clear(rail);
+
+    const nav = h('nav', { class: 'asc-rail-nav', 'aria-label': 'Sections' });
+    visibleRailItems().forEach((item) => {
+      const active = railItemActive(item.dest);
+      const children = [
+        h('span', { class: 'asc-rail-ico', 'aria-hidden': 'true', html: RAIL_ICONS[item.dest] }),
+        h('span', { class: 'asc-rail-label' }, item.label),
+      ];
+      if (item.dest === 'community') children.push(communityBadgeEl());
+      nav.appendChild(h('button', {
+        type: 'button',
+        class: 'asc-rail-item' + (active ? ' active' : ''),
+        'aria-current': active ? 'page' : null,
+        // aria-label carries the accessible name even in the icon-collapsed rail,
+        // where the visible label span is display:none (and thus off the a11y tree).
+        'aria-label': item.external ? item.label + ' (opens in a new tab)' : item.label,
+        title: item.external ? item.label + ' (opens in a new tab)' : item.label,
+        onClick: () => setPanel(item.dest),
+      }, children));
+    });
+
+    const specColor = specialtyDotColor(state.user.specialty);
+    const foot = h('div', { class: 'asc-rail-foot' },
+      h('div', { class: 'asc-rail-user' },
+        h('span', { class: 'asc-rail-name', title: railDisplayName() }, railDisplayName()),
+        state.user.specialty
+          ? h('span', { class: 'asc-rail-spec' },
+              h('span', { class: 'dot ' + specColor, 'aria-hidden': 'true' }),
+              h('span', {}, state.user.specialty))
+          : null),
+      h('button', { type: 'button', class: 'asc-rail-signout', onClick: logout }, 'Sign out'));
+
+    rail.appendChild(nav);
+    rail.appendChild(foot);
+  }
+
+  function teardownSidePanel() {
+    if (guideObserver) { guideObserver.disconnect(); guideObserver = null; }
+    const rail = document.getElementById('ascRail');
+    if (rail) rail.remove();
+    document.body.classList.remove('asc-has-rail', 'asc-view-guide');
+  }
+
+  // Pin the fixed rail directly beneath the (variable-height) sticky header by
+  // publishing the header height as a CSS var. Called on render + resize.
+  function syncChromeMetrics() {
+    const header = document.getElementById('ascHeader');
+    const hVisible = header && !header.hasAttribute('hidden');
+    const hh = hVisible ? header.offsetHeight : 0;
+    // Only publish a real measurement. If layout isn't ready (offsetHeight 0),
+    // clear the var so the CSS fallback (57px) applies instead of pinning the
+    // rail to 0 and tucking its first item under the header.
+    if (hh > 0) document.documentElement.style.setProperty('--asc-header-h', hh + 'px');
+    else document.documentElement.style.removeProperty('--asc-header-h');
+  }
+
+  /* ── Community integration (Community PRD boundary; all endpoints optional) ── */
+
+  function communityBadgeEl() {
+    const n = state.community.unread | 0;
+    const badge = h('span', {
+      class: 'asc-rail-badge', id: 'ascCommunityBadge',
+      hidden: n <= 0,
+      'aria-label': n > 0 ? (n + ' unread') : null,
+    },
+      h('span', { class: 'dot dot-lime', 'aria-hidden': 'true' }),
+      h('span', { class: 'asc-rail-badge-n' }, n > 99 ? '99+' : String(n)));
+    return badge;
+  }
+
+  function updateCommunityBadge() {
+    const rail = document.getElementById('ascRail');
+    if (!rail) return;
+    const old = document.getElementById('ascCommunityBadge');
+    if (old) old.replaceWith(communityBadgeEl());
+  }
+
+  // Open the Community in a NEW TAB. window.open is called synchronously inside
+  // the click gesture (never after an await) so it is never popup-blocked; a
+  // pre-minted handoff token, if we have one, rides along to skip a second login.
+  // noopener per the integration contract.
+  function openCommunity() {
+    const t = state.community.handoffToken;
+    // Handoff codes are SINGLE-USE server-side: consume it here so a second
+    // click inside the refresh window opens bare (same-origin session covers
+    // it) instead of sending an already-spent code, and pre-mint the next one.
+    state.community.handoffToken = null;
+    const url = t ? ('/community?t=' + encodeURIComponent(t)) : '/community';
+    window.open(url, '_blank', 'noopener');
+    refreshCommunityHandoff();
+  }
+
+  // Mint a short-lived signed handoff token (reuses the Asclepius session). Kept
+  // fresh by the poll loop so openCommunity() always has a recent one ready.
+  // Degrades silently: any failure just means the community tab opens bare and
+  // falls back to its own session cookie.
+  async function refreshCommunityHandoff() {
+    if (state.community.unavailable) return;
+    const gen = communityGen;
+    try {
+      const res = await fetch('/community/handoff', {
+        method: 'POST',
+        headers: state.token ? { 'Authorization': 'Bearer ' + state.token } : {},
+        credentials: 'include',
+      });
+      if (gen !== communityGen) return; // session changed mid-flight — drop result
+      if (res.status === 404) { state.community.unavailable = true; return; }
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      if (gen !== communityGen) return; // re-check after the second await
+      if (data && data.token) state.community.handoffToken = data.token;
+    } catch (_) { /* network error — keep any existing token, open bare otherwise */ }
+  }
+
+  async function refreshCommunityUnread() {
+    if (state.community.unreadUnavailable) return;
+    const gen = communityGen;
+    try {
+      const res = await fetch('/community/unread', {
+        headers: state.token ? { 'Authorization': 'Bearer ' + state.token } : {},
+        credentials: 'include',
+      });
+      if (gen !== communityGen) return; // session changed mid-flight — drop result
+      // 404 → the unread endpoint isn't deployed; back off permanently for this
+      // session (mirrors handoff) so we don't hammer a missing route every 60s.
+      if (res.status === 404) { state.community.unreadUnavailable = true; return; }
+      if (!res.ok) return; // transient (500/timeout) → leave badge as-is, retry next tick
+      const data = await res.json().catch(() => null);
+      if (gen !== communityGen) return; // re-check after the second await
+      const total = data && typeof data.total === 'number' ? data.total : 0;
+      if (total !== state.community.unread) {
+        state.community.unread = Math.max(0, total | 0);
+        updateCommunityBadge();
+      }
+    } catch (_) { /* degrade silently — never surface a community error in the rail */ }
+  }
+
+  function pollCommunityOnce() {
+    if (!state.community.unreadUnavailable) refreshCommunityUnread();
+    if (!state.community.unavailable) refreshCommunityHandoff();
+    // Both endpoints confirmed absent (community backend unbuilt) → stop polling
+    // entirely; there is nothing left to fetch this session.
+    if (state.community.unreadUnavailable && state.community.unavailable) stopCommunityPolling();
+  }
+
+  // Poll every 60s while the portal is open (integration contract §3).
+  function startCommunityPolling() {
+    stopCommunityPolling();
+    pollCommunityOnce();
+    state.community.pollTimer = setInterval(pollCommunityOnce, 60000);
+  }
+  function stopCommunityPolling() {
+    if (state.community.pollTimer) { clearInterval(state.community.pollTimer); state.community.pollTimer = null; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     INSTRUCTION MANUAL (Guide) — renders window.ASC_MANUAL (structured data)
+     through this one component. Two columns: a sticky scroll-spy TOC + the
+     sections. Three-line sections, good/weak examples, collapsed detail,
+     per-section anchors, a reading-time estimate, and a print stylesheet.
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  let guideObserver = null;
+
+  function renderGuide() {
+    const manual = window.ASC_MANUAL;
+    if (!manual || !Array.isArray(manual.sections)) {
+      setRoot(h('div', { class: 'asc-wrap' },
+        h('div', { class: 'asc-card asc-card-pad' },
+          h('div', { class: 'asc-inline-error' }, 'The instruction manual failed to load.'))));
+      return;
+    }
+    if (guideObserver) { guideObserver.disconnect(); guideObserver = null; }
+
+    const sections = manual.sections;
+
+    // Sticky TOC (desktop) — one link per section, scroll-spy highlights.
+    const tocList = h('ul', { class: 'asc-guide-toc-list' });
+    sections.forEach((sec) => {
+      tocList.appendChild(h('li', {},
+        h('a', {
+          class: 'asc-guide-toc-link', href: '#' + sec.id, dataset: { tocId: sec.id },
+          onClick: () => { setGuideHash(sec.id); },
+        },
+          h('span', { class: 'asc-guide-toc-num' }, sec.num),
+          h('span', { class: 'asc-guide-toc-txt' }, sec.title))));
+    });
+    const toc = h('nav', { class: 'asc-guide-toc', 'aria-label': 'Contents' },
+      h('div', { class: 'chrome asc-guide-toc-head' }, 'Contents'),
+      tocList);
+
+    // Mobile TOC — a dropdown that jumps to a section.
+    const mobileSelect = h('select', {
+      class: 'asc-guide-toc-select', 'aria-label': 'Jump to section',
+      onChange: (e) => { const id = e.target.value; if (id) scrollToSection(id); },
+    }, h('option', { value: '' }, 'Jump to a section…'),
+       ...sections.map((s) => h('option', { value: s.id }, s.num + ' · ' + s.title)));
+
+    // Content column: intro header + every section.
+    const content = h('div', { class: 'asc-guide-content' });
+    content.appendChild(h('header', { class: 'asc-guide-intro' },
+      h('div', { class: 'chrome chrome-strong' }, 'INSTRUCTION MANUAL'),
+      h('h1', { class: 'asc-guide-h1' }, manual.title),
+      manual.subtitle ? h('p', { class: 'asc-guide-sub' }, manual.subtitle) : null,
+      h('div', { class: 'asc-guide-meta' },
+        h('span', { class: 'chip' },
+          h('span', { class: 'dot dot-lime', 'aria-hidden': 'true' }),
+          (manual.readingTimeMin || 5) + ' min read'),
+        h('span', { class: 'asc-guide-meta-hint chrome' }, 'V3 · V4 tasks')),
+      mobileSelect));
+
+    sections.forEach((sec) => content.appendChild(guideSection(sec)));
+
+    const layout = h('div', { class: 'asc-guide' }, toc, content);
+    setRoot(layout);
+
+    // Scroll-spy: highlight the section nearest the top of the viewport.
+    setupGuideScrollSpy(sections);
+
+    // Deep-link: if the URL already targets a section, jump to it after mount.
+    const hash = (location.hash || '').replace('#', '');
+    if (hash && sections.some((s) => s.id === hash)) {
+      requestAnimationFrame(() => scrollToSection(hash));
+    } else {
+      const main = document.getElementById('ascRoot');
+      if (main) main.scrollIntoView({ block: 'start' });
+    }
+  }
+
+  function guideSection(sec) {
+    const card = h('section', { class: 'asc-card asc-guide-section', id: sec.id, tabindex: '-1' });
+
+    // Chrome micro-label + anchored title.
+    card.appendChild(h('div', { class: 'asc-guide-sec-head' },
+      h('span', { class: 'chrome asc-guide-sec-chrome' }, sec.num + ' · ' + (sec.chromeLabel || sec.title)),
+      h('a', {
+        class: 'asc-guide-anchor', href: '#' + sec.id,
+        'aria-label': 'Link to “' + sec.title + '”', title: 'Copy link to this section',
+        onClick: () => { setGuideHash(sec.id); },
+      }, '#')));
+    card.appendChild(h('h2', { class: 'asc-guide-sec-title' }, sec.title));
+
+    // Body: the three-line form, or a list / note where the section calls for it.
+    if (Array.isArray(sec.list)) {
+      const ul = h('ul', { class: 'asc-guide-checklist' });
+      sec.list.forEach((item) => ul.appendChild(h('li', {},
+        h('span', { class: 'asc-guide-check', 'aria-hidden': 'true' }, '✓'),
+        h('span', {}, item))));
+      card.appendChild(ul);
+    } else if (sec.note) {
+      card.appendChild(h('blockquote', { class: 'asc-guide-note' }, guideNoteNodes(sec.note)));
+    } else {
+      card.appendChild(guideThreeLines(sec));
+    }
+
+    if (sec.wireframe) { const fig = guideWireframe(sec.wireframe); if (fig) card.appendChild(fig); }
+
+    if (sec.example) card.appendChild(guideExample(sec.example));
+
+    (sec.callouts || []).forEach((c) => card.appendChild(guideCallout(c)));
+
+    if (sec.detail) card.appendChild(guideDetail(sec.detail));
+
+    return card;
+  }
+
+  function guideThreeLines(sec) {
+    const wrap = h('div', { class: 'asc-guide-lines' });
+    const line = (tag, cls, text) => h('div', { class: 'asc-guide-line ' + cls },
+      h('span', { class: 'chrome asc-guide-line-tag' }, tag),
+      h('span', { class: 'asc-guide-line-txt' }, text));
+    if (sec.what) wrap.appendChild(line('WHAT', 'is-what', sec.what));
+    if (sec.why) wrap.appendChild(line('WHY', 'is-why', sec.why));
+    if (sec.how) wrap.appendChild(line('HOW', 'is-how', sec.how));
+    return wrap;
+  }
+
+  function guideExample(ex) {
+    return h('div', { class: 'asc-guide-eg' },
+      h('div', { class: 'asc-guide-eg-col asc-guide-eg-good' },
+        h('div', { class: 'asc-guide-eg-head' },
+          h('span', { class: 'dot dot-green', 'aria-hidden': 'true' }),
+          h('span', { class: 'chrome' }, 'STRONG')),
+        h('p', { class: 'asc-guide-eg-txt' }, ex.good)),
+      h('div', { class: 'asc-guide-eg-col asc-guide-eg-weak' },
+        h('div', { class: 'asc-guide-eg-head' },
+          h('span', { class: 'dot dot-pink', 'aria-hidden': 'true' }),
+          h('span', { class: 'chrome' }, 'WEAK')),
+        h('p', { class: 'asc-guide-eg-txt' }, ex.weak)));
+  }
+
+  function guideCallout(c) {
+    const isMistake = c.kind === 'mistake';
+    return h('div', { class: 'asc-guide-callout ' + (isMistake ? 'is-mistake' : 'is-why') },
+      h('span', { class: 'chrome asc-guide-callout-tag' }, isMistake ? 'COMMON MISTAKE' : 'WHY THIS MATTERS'),
+      h('span', { class: 'asc-guide-callout-txt' }, c.text));
+  }
+
+  function guideDetail(detail) {
+    const paras = Array.isArray(detail) ? detail : [detail];
+    const d = h('details', { class: 'asc-guide-detail' },
+      h('summary', { class: 'asc-guide-detail-sum' }, 'Show detail'));
+    paras.forEach((p) => d.appendChild(h('p', { class: 'asc-guide-detail-p' }, p)));
+    return d;
+  }
+
+  // Linkify a note: bold #channel tokens, mailto: for email addresses.
+  function guideNoteNodes(text) {
+    const nodes = [];
+    const re = /(#[a-z0-9-]+|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})/gi;
+    let last = 0, m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) nodes.push(text.slice(last, m.index));
+      const tok = m[0];
+      if (tok[0] === '#') nodes.push(h('strong', { class: 'asc-guide-channel' }, tok));
+      else nodes.push(h('a', { class: 'asc-guide-link', href: 'mailto:' + tok }, tok));
+      last = m.index + tok.length;
+    }
+    if (last < text.length) nodes.push(text.slice(last));
+    return nodes;
+  }
+
+  // Update the URL hash without a scroll jump (native anchor handles scrolling).
+  function setGuideHash(id) {
+    try { history.replaceState(null, '', '#' + id); } catch (_) { /* ignore */ }
+  }
+
+  function prefersReducedMotion() {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; }
+  }
+
+  function scrollToSection(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    // Honor reduced-motion for programmatic scroll — the JS smooth option ignores
+    // the CSS scroll-behavior override, so gate it explicitly.
+    el.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    setGuideHash(id);
+    // Move focus for keyboard/AT users without yanking the scroll position.
+    try { el.focus({ preventScroll: true }); } catch (_) { el.focus(); }
+  }
+
+  function setupGuideScrollSpy(sections) {
+    if (!('IntersectionObserver' in window)) return;
+    const setActive = (id) => {
+      document.querySelectorAll('.asc-guide-toc-link').forEach((a) => {
+        a.classList.toggle('active', a.dataset.tocId === id);
+        if (a.dataset.tocId === id) a.setAttribute('aria-current', 'true');
+        else a.removeAttribute('aria-current');
+      });
+    };
+    guideObserver = new IntersectionObserver((entries) => {
+      // Choose the entry closest to the top band that is intersecting.
+      const visible = entries.filter((e) => e.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (visible.length) setActive(visible[0].target.id);
+    }, { rootMargin: '-38% 0px -55% 0px', threshold: 0 });
+    sections.forEach((s) => { const el = document.getElementById(s.id); if (el) guideObserver.observe(el); });
+    if (sections.length) setActive(sections[0].id);
+  }
+
+  // ── Labeled token-palette SVG wireframes (monochrome ink; accent classes only
+  //    where the green/pink semantics carry meaning). Recognizable, not literal. ──
+  function guideWireframe(kind) {
+    const svg = GUIDE_WIREFRAMES[kind];
+    if (!svg) return null;
+    return h('figure', { class: 'asc-guide-fig', 'aria-hidden': 'true' },
+      h('div', { class: 'asc-guide-fig-inner', html: svg }));
+  }
+
+  const GUIDE_WIREFRAMES = {
+    casePanel:
+      '<svg viewBox="0 0 300 104" role="img">' +
+      '<g class="wl">' +
+      '<rect x="8" y="10" width="46" height="16" rx="4"/><rect x="58" y="10" width="40" height="16" rx="4" class="wf"/>' +
+      '<rect x="102" y="10" width="42" height="16" rx="4"/><rect x="148" y="10" width="40" height="16" rx="4"/><rect x="192" y="10" width="44" height="16" rx="4"/>' +
+      '<rect x="8" y="36" width="284" height="60" rx="6" class="wbox"/>' +
+      '<polyline points="24,80 60,66 96,72 132,50 168,58 204,40 240,46 276,30" class="wtrend"/>' +
+      '<circle cx="132" cy="50" r="3.5" class="wdot"/></g></svg>',
+    compare:
+      '<svg viewBox="0 0 300 104" role="img"><g class="wl">' +
+      '<rect x="8" y="10" width="134" height="84" rx="6" class="wbox"/>' +
+      '<rect x="158" y="10" width="134" height="84" rx="6" class="wbox"/>' +
+      '<text x="20" y="28" class="wtx">A</text><text x="170" y="28" class="wtx">B</text>' +
+      '<rect x="20" y="40" width="110" height="7" rx="3.5" class="wln"/>' +
+      '<rect x="20" y="54" width="90" height="7" rx="3.5" class="wln wmark"/>' +
+      '<rect x="20" y="68" width="100" height="7" rx="3.5" class="wln"/>' +
+      '<rect x="170" y="40" width="110" height="7" rx="3.5" class="wln"/>' +
+      '<rect x="170" y="54" width="90" height="7" rx="3.5" class="wln wmark2"/>' +
+      '<rect x="170" y="68" width="100" height="7" rx="3.5" class="wln"/></g></svg>',
+    verdict:
+      '<svg viewBox="0 0 300 76" role="img"><g class="wl">' +
+      '<rect x="8" y="20" width="88" height="36" rx="8" class="wbox wgreenline"/>' +
+      '<text x="52" y="43" class="wtc">A is better</text>' +
+      '<rect x="106" y="20" width="88" height="36" rx="8" class="wbox"/>' +
+      '<text x="150" y="43" class="wtc">B is better</text>' +
+      '<rect x="204" y="20" width="88" height="36" rx="8" class="wbox wpinkline"/>' +
+      '<text x="248" y="43" class="wtc">Both inadequate</text></g></svg>',
+    reasoning:
+      '<svg viewBox="0 0 300 104" role="img"><g class="wl">' +
+      '<circle cx="20" cy="20" r="8" class="wnum"/><text x="20" y="24" class="wtn">1</text><rect x="38" y="14" width="240" height="10" rx="5" class="wln"/>' +
+      '<circle cx="20" cy="46" r="8" class="wnum"/><text x="20" y="50" class="wtn">2</text><rect x="38" y="40" width="220" height="10" rx="5" class="wln"/>' +
+      '<circle cx="20" cy="72" r="8" class="wnum wpinkfill"/><text x="20" y="76" class="wtn">3</text><rect x="38" y="66" width="128" height="10" rx="5" class="wln wmark2"/>' +
+      '<text x="292" y="75" class="wflag">first break</text></g></svg>',
+    rubric:
+      '<svg viewBox="0 0 300 104" role="img"><g class="wl">' +
+      '<rect x="8" y="12" width="284" height="26" rx="6" class="wbox"/>' +
+      '<rect x="18" y="21" width="180" height="8" rx="4" class="wln"/>' +
+      '<rect x="212" y="18" width="70" height="14" rx="7" class="wpill wgreenfill"/>' +
+      '<rect x="8" y="44" width="284" height="26" rx="6" class="wbox"/>' +
+      '<rect x="18" y="53" width="150" height="8" rx="4" class="wln"/>' +
+      '<rect x="212" y="50" width="70" height="14" rx="7" class="wpill"/>' +
+      '<rect x="8" y="76" width="284" height="26" rx="6" class="wbox wpinkline"/>' +
+      '<rect x="18" y="85" width="160" height="8" rx="4" class="wln wmark2"/>' +
+      '<rect x="204" y="82" width="78" height="14" rx="7" class="wpill wpinkfill2"/></g></svg>',
+  };
 
   // ─── Auth / bootstrap ────────────────────────────────────────────────────--
   async function boot() {
@@ -278,7 +845,14 @@
 
   function enterApp() {
     state.view = 'eval';
+    state.panel = 'tasks';
+    // Fresh community state for this session. On a shared device, a prior user's
+    // unread count or (more importantly) their signed handoff token must never
+    // bleed into the next login before the first poll overwrites it.
+    resetCommunityState();
     renderHeader();
+    renderSidePanel();
+    startCommunityPolling();
     // First-run tutorial gate (Calibration Case 1): a brand-new evaluator lands
     // in the practice case; in_progress resumes it. completed/skipped NEVER
     // re-trigger (server-authoritative via PATCH /me/tutorial). Admin/QA skip it.
@@ -289,6 +863,19 @@
       return;
     }
     renderEvalView();
+  }
+
+  // Bumping the generation invalidates any community fetch that is still in
+  // flight: its late-resolving .then() sees a newer generation and drops its
+  // result, so a hung request from a previous user can never write that user's
+  // unread count — or, critically, their signed handoff token — into this
+  // session's state on a shared device.
+  function resetCommunityState() {
+    communityGen++;
+    state.community.unread = 0;
+    state.community.handoffToken = null;
+    state.community.unavailable = false;       // handoff endpoint
+    state.community.unreadUnavailable = false; // unread endpoint
   }
 
   function logout() {
@@ -307,12 +894,19 @@
     // would re-exchange straight back in, trapping the user on that identity).
     try { localStorage.setItem(SUPPRESS_SSO_KEY, '1'); } catch (_) { /* ignore */ }
     stopTimer();
+    stopCommunityPolling();
+    resetCommunityState(); // bump generation now so any in-flight fetch is voided
+    teardownSidePanel();
     renderHeader();
     renderLogin();
   }
 
   // ─── Login screen ────────────────────────────────────────────────────────--
   function renderLogin(errorMsg) {
+    // Defensive: the login screen is never behind the portal chrome. Every caller
+    // already tears the rail down, but guarantee it here so a stray path can't
+    // leave an orphaned rail over the sign-in form.
+    teardownSidePanel();
     document.getElementById('ascHeader').setAttribute('hidden', '');
     // Accepts an email OR a username/id (e.g. the `mockadmin` sandbox login), so
     // it's a plain text field, not type=email (which would block a username).
@@ -398,11 +992,21 @@
     // V3/V4 are the specialty-scoped flows: pick the specialty before the case
     // loads (PRD §1). V1/V2 are text prompts and skip the picker.
     const ver = getPortalVersion();
-    if ((ver === 'v3' || ver === 'v4') && !state.specialtyChosen) { await renderSpecialtyPicker(); return; }
+    const needsSpecialty = (ver === 'v3' || ver === 'v4') && !state.specialtyChosen;
     const wrap = h('div', { class: 'asc-wrap' });
-    wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
-      h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Loading next evaluation…')));
+    const loadCard = h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Loading next evaluation…'));
+    wrap.appendChild(loadCard);
     setRoot(wrap);
+    // §2: no separate route for the picker. The workspace scaffold mounts once;
+    // the picker floats over it and hands control back here, so entry costs one
+    // render instead of two full page transitions.
+    if (needsSpecialty) {
+      stopTimer();
+      loadCard.hidden = true;
+      await renderSpecialtyPicker({ dismissable: false });
+      loadCard.hidden = false;
+    }
     try {
       // Declare the active flow so the server applies it: V3 serves the hard-case
       // queue (difficulty=hard only) with value-aware routing; V2 value-aware;
@@ -446,8 +1050,16 @@
             : 'No evaluation tasks are waiting for you right now. Check back soon.'),
           h('div', { style: 'margin-top:16px' },
             h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', onClick: renderEvalView }, 'Refresh queue'),
+            // §2: the popover, same as the workspace badge. Routing through
+            // `specialtyChosen = false` would re-enter renderEvalView's
+            // first-entry branch, which mounts the picker NON-dismissable —
+            // stranding a physician who opened it here just to look.
             isSpecScoped ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', style: 'margin-left:8px',
-              onClick: () => { state.specialtyChosen = false; renderEvalView(); } }, 'Change specialty') : null),
+              onClick: async () => {
+                const before = getPortalSpecialty();
+                const picked = await renderSpecialtyPicker({ dismissable: true });
+                if (picked && picked !== before) renderEvalView();
+              } }, 'Change specialty') : null),
         ))));
   }
 
@@ -478,6 +1090,8 @@
       chosen_revision: { edited: false, revised_text: null, why_better_tags: [], why_better_notes: '', evidence_anchor: emptyAnchor() },
       rejected_critique: { error_tags: [], severities: {}, why_worse: '', error_tag_anchors: {}, error_tag_reasons: {}, failure_tags: [] },
       from_scratch: { ideal_answer: '', approach_notes: '', reasoning_steps: [], evidence_anchor: emptyAnchor() },
+      // Decisive action (Audit §13): physician-named verifiable outcome, skippable.
+      decisive_action: { action: '', tool_name: '', rationale: '', must_precede_final_answer: true },
       reasoning_steps: [],
       // §1 substage machine (Evaluation UX Overhaul) — V3/V4 only. ``substage``
       // is the persisted position INSIDE stage==='compare'; the *_done flags are
@@ -521,6 +1135,7 @@
     if (!draft.independent_answer) draft.independent_answer = { text: '', evidence_anchor: emptyAnchor(), captured_at: null };
     if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
     if (!Array.isArray(draft.rubric)) draft.rubric = [];
+    if (!draft.decisive_action) draft.decisive_action = { action: '', tool_name: '', rationale: '', must_precede_final_answer: true };
     if (draft.rubricSeeded === undefined) draft.rubricSeeded = false;
     if (!draft.stage) draft.stage = 'prompt_review';
     // §1 substage machine backfill (all additive; an in-flight draft resumes at
@@ -1049,7 +1664,9 @@
     const rubric = (state.draft.rubric || []).filter((c) => (c.text || '').trim());
     if (!rubric.length) return { ok: true };
     if (hasCriticalNegative(rubric)) return { ok: true };
-    return { ok: false, msg: 'mark one critical “never” criterion (−8 to −10) to continue' };
+    // §12: name the control the physician actually taps — "must never", set
+    // Critical.
+    return { ok: false, msg: 'mark one “must never” criterion as Critical (−8 to −10) to continue' };
   }
 
   // ─── Rubric Rigor (§C) + Model-Failure Taxonomy (§D) — V3/V4 only ──────────
@@ -1085,7 +1702,11 @@
     const n = crit.length;
     const nPos = crit.filter((c) => (Number(c.points) || 0) > 0).length;
     const nNeg = crit.filter((c) => (Number(c.points) || 0) < 0).length;
-    const axes = new Set(crit.map((c) => c.axis).filter(Boolean));
+    // §11: a criterion can score on several axes, so coverage counts EVERY one.
+    // Reading `c.axis` alone would under-count the moment multi-select ships.
+    // Falls back to the legacy single value for stored/V2-shaped records.
+    const axes = new Set(crit.reduce((acc, c) => acc.concat(
+      (Array.isArray(c.axes) && c.axes.length) ? c.axes : (c.axis ? [c.axis] : [])), []).filter(Boolean));
     const hasCritNeg = hasCriticalNegative(crit);
     const keyCriteria = crit.filter((c) => { const tr = tierForPoints(c.points); return tr === 'critical' || tr === 'important'; });
     const allKeySpecific = keyCriteria.length ? keyCriteria.every((c) => isSpecificText(c.text)) : false;
@@ -1296,8 +1917,8 @@
     const header = document.getElementById('ascHeader');
     if (!header) return;
     let host = document.getElementById('ascHeaderProgress');
-    const active = !!(state.user && state.view === 'eval' && state.portalChosen
-      && state.task && state.draft && state.draft.stage && isV3());
+    const active = !!(state.user && state.view === 'eval' && state.panel === 'tasks'
+      && state.portalChosen && state.task && state.draft && state.draft.stage && isV3());
     if (!active) { if (host) host.remove(); return; }
     if (!host) {
       const fill = h('div', { class: 'asc-hp-fill', id: 'ascHeaderProgressFill' });
@@ -1411,7 +2032,7 @@
       // V4 (EHR PRD §9.5): the V3 flow over REAL de-identified patient cases.
       // Shown LOCKED unless the contributor is real_data_approved — serving is
       // enforced server-side regardless; the lock is honest UI, not the gate.
-      v: 'v4', label: 'Real · De-identified Cases', tag: 'Real patient data', dot: 'asc-dot-pink',
+      v: 'v4', label: 'Real De-Identified Multimodal Cases', tag: 'Real patient data', dot: 'asc-dot-pink',
       requiresRealData: true,
       blurb: 'Work through real, de-identified patient cases — labs, notes, and a real clinical snapshot. Same task as synthetic; the data is real.',
       bullets: [
@@ -1433,13 +2054,18 @@
       ],
     },
     {
-      v: 'v5', label: 'Real Longitudinal Cases', tag: 'Coming soon', dot: 'asc-dot-faint',
-      comingSoon: true,
-      blurb: 'Follow one real patient across time — multiple visits, evolving labs, and what actually happened next.',
+      // V5 — the AGENTIC tier (Clinical RL Environments PRD). A different KIND of
+      // task, not a variant of the single-turn flow, so selecting it navigates to
+      // its own surface instead of calling chooseVersion(): the single-turn queue,
+      // submit path, and portal_version stamping are never touched by V5.
+      v: 'v5', label: 'Clinical RL Environment', tag: 'New', dot: 'asc-dot-orange',
+      route: '/asclepius/v5/annotate',
+      blurb: 'Review an AI agent working a case step by step — label each move and write what it should have done instead.',
       bullets: [
-        'A real patient followed across multiple timepoints',
-        'Reason about how the case evolves, not a single snapshot',
-        'Outcomes linked past the decision',
+        'Watch an agent order tests and reason across multiple steps',
+        'Label each step correct / suboptimal / wrong',
+        'Mark the first error and write the correct next action',
+        'Validate the environment’s auto-reward against your judgment',
       ],
     },
   ];
@@ -1470,6 +2096,14 @@
     state.portalChosen = true;
     renderEvalView();
   }
+  // A version option may either enter the single-turn flow (chooseVersion) or, for a
+  // tier that is a different KIND of task (V5 agentic), navigate to its own surface.
+  // V5 deliberately does NOT go through setPortalVersion(), so 'v5' can never end up
+  // in the single-turn queue params or on a single-turn submission.
+  function selectVersion(o) {
+    if (o.route) { window.location.href = o.route; return; }
+    chooseVersion(o.v);
+  }
   function versionCard(o, last, approved) {
     const locked = !!(o.requiresRealData && !approved);
     const soon = !!o.comingSoon;
@@ -1480,9 +2114,9 @@
       role: soon ? null : 'button',
       tabindex: soon ? null : '0',
       'aria-disabled': inert ? 'true' : null,
-      onClick: inert ? null : () => chooseVersion(o.v),
+      onClick: inert ? null : () => selectVersion(o),
       onKeydown: inert ? null : (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseVersion(o.v); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectVersion(o); }
       },
     },
       h('div', { class: 'asc-ver-card-head' },
@@ -1533,77 +2167,134 @@
   }
 
   // ─── V3/V4 specialty picker (Specialty Hyper-Personalization PRD §1) ────────
-  // An inline selector on the same view, before the case loads — styled with the
-  // existing ``.asc-ver-card``/chip vocabulary (no new component). Each option has
-  // its palette dot (nephrology green · cardiology orange · oncology pink) + a
-  // one-line scope blurb. The choice sets ``state.portalSpecialty`` (persisted) and
-  // is sent on every task fetch. Reads GET /specialties, so enabling a 4th specialty
-  // later needs NO frontend change.
+  // A popover over the current view (Eval UI Overhaul §2), shown before the case
+  // loads. Each option is one card: its palette dot (nephrology green ·
+  // cardiology orange · oncology pink) and the specialty name — nothing else.
+  // The choice sets ``state.portalSpecialty`` (persisted) and is sent on every
+  // task fetch. Reads GET /specialties, so enabling a 4th specialty later needs
+  // NO frontend change.
+  //
+  // §2: a pick sets state and nothing else. The picker is a popover now, so a
+  // pick no longer implies a route — the two call sites decide what it means
+  // (first entry continues into the load it is already running; "Change
+  // specialty" reloads only when the specialty actually changed).
   function chooseSpecialty(sp) {
     setPortalSpecialty(sp);
     state.specialtyChosen = true;
-    renderEvalView();
   }
-  async function renderSpecialtyPicker() {
-    stopTimer();
+
+  // §2: three options, reversible. A full-page route reads as a bigger decision
+  // than it is, and the return trip re-renders the whole view. Same data, same
+  // fetch, no navigation — a centred popover over whatever is already on screen.
+  //
+  // Resolves with the chosen specialty, or null if dismissed. ``dismissable``
+  // is false on first entry: the choice is required there, so an escape hatch
+  // would leave the physician looking at a view with no case in it.
+  async function renderSpecialtyPicker(opts) {
+    opts = opts || {};
+    const dismissable = !!opts.dismissable;
     if (!state.specialties) {
       try { const d = await api('/specialties'); state.specialties = (d && d.specialties) || []; }
       catch (e) { state.specialties = []; }
     }
-    const ver = getPortalVersion();
     const last = getPortalSpecialty();
     const enabled = (state.specialties || []).filter((s) => s.enabled);
-    const cards = h('div', { class: 'asc-ver-cards' });
-    (enabled.length ? enabled : [{ specialty: 'nephrology', accent: 'green', blurb: '', buckets: [] }]).forEach((s) => {
-      const nBuckets = (s.buckets || []).length;
-      const card = h('div', {
-        class: 'asc-ver-card' + (last === s.specialty ? ' last-used' : ''),
-        role: 'button', tabindex: '0',
-        onClick: () => chooseSpecialty(s.specialty),
-        onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseSpecialty(s.specialty); } },
-      },
-        h('div', { class: 'asc-ver-card-head' },
-          h('span', { class: 'asc-ver-card-icon ' + specialtyDot(s.specialty), 'aria-hidden': 'true' }),
-          h('div', {},
-            h('div', { class: 'asc-ver-card-title' },
-              s.specialty.charAt(0).toUpperCase() + s.specialty.slice(1),
-              last === s.specialty ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null),
-            h('div', { class: 'asc-ver-card-blurb' }, s.blurb || ''))),
-        nBuckets ? h('ul', { class: 'asc-ver-card-list' }, (s.buckets || []).slice(0, 4).map((b) => h('li', {}, b.label || b.id))) : null,
-        h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
-          'Grade ' + s.specialty.charAt(0).toUpperCase() + s.specialty.slice(1) + ' →'));
-      cards.appendChild(card);
+    const list = enabled.length ? enabled : [{ specialty: 'nephrology', blurb: '', buckets: [] }];
+
+    return new Promise((resolve) => {
+      const restoreFocus = document.activeElement;
+      let settled = false;
+      const close = (value) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener('keydown', onKeydown, true);
+        if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+        document.body.classList.remove('asc-sheet-open');
+        if (restoreFocus && restoreFocus.focus) { try { restoreFocus.focus(); } catch (e) { /* detached */ } }
+        resolve(value);
+      };
+
+      const cards = h('div', { class: 'asc-spec-grid' });
+      list.forEach((s) => {
+        const name = s.specialty.charAt(0).toUpperCase() + s.specialty.slice(1);
+        // The card IS the button — a "Grade Nephrology →" button inside a
+        // clickable card is the same tap described twice.
+        cards.appendChild(h('button', {
+          class: 'asc-spec-card' + (last === s.specialty ? ' last-used' : ''),
+          type: 'button',
+          onClick: () => { chooseSpecialty(s.specialty); close(s.specialty); },
+        },
+          h('span', { class: 'asc-spec-card-dot ' + specialtyDot(s.specialty), 'aria-hidden': 'true' }),
+          h('span', { class: 'asc-spec-card-name' }, name),
+          last === s.specialty ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null));
+      });
+
+      const card = h('div', { class: 'asc-sheet-card' },
+        h('h2', { class: 'asc-sheet-title', id: 'ascSheetTitle' }, 'Choose a specialty'),
+        cards);
+      const sheet = h('div', {
+        class: 'asc-sheet', role: 'dialog', 'aria-modal': 'true',
+        'aria-labelledby': 'ascSheetTitle',
+        onClick: (e) => { if (dismissable && e.target === sheet) close(null); },
+      }, card);
+
+      function onKeydown(e) {
+        if (e.key === 'Escape' && dismissable) { e.preventDefault(); close(null); return; }
+        if (e.key !== 'Tab') return;
+        // Keep Tab inside the dialog — aria-modal is a promise to assistive
+        // tech that has to be true of the focus order too.
+        const focusable = Array.from(sheet.querySelectorAll('button:not([disabled])'));
+        if (!focusable.length) return;
+        const first = focusable[0], lastEl = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); lastEl.focus(); }
+        else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); first.focus(); }
+      }
+
+      document.addEventListener('keydown', onKeydown, true);
+      document.body.classList.add('asc-sheet-open');
+      document.body.appendChild(sheet);
+      const preferred = cards.querySelector('.last-used') || cards.firstChild;
+      if (preferred && preferred.focus) preferred.focus();
     });
-    setRoot(h('div', { class: 'asc-wrap' },
-      h('div', { class: 'asc-ver-home' },
-        h('div', { class: 'asc-exp-badge', style: 'margin-bottom:14px' },
-          h('span', { class: 'asc-exp-badge-label' }, ver === 'v4' ? 'V4 · Real Cases' : 'V3 · Seamless'),
-          h('button', { class: 'asc-btn-link', type: 'button',
-            onClick: () => { state.portalChosen = false; renderEvalView(); } }, 'Change experience')),
-        h('h1', { class: 'asc-ver-home-title' }, 'Choose a specialty'),
-        h('p', { class: 'asc-ver-home-sub' },
-          'Each specialty serves hard, model-breaking cases in the modality it lives in — cardiology in the ECG/echo, oncology in the pathology and molecular panel. Same fast flow across all of them.'),
-        cards)));
   }
 
   // Small read-only indicator inside the workspace: which experience this task
   // is being graded under, with a one-tap route back to the home chooser.
   function renderExperienceBadge() {
     const v = draftVersion();
-    const meta = { v4: ['', 'Real · De-identified Cases'], v3: ['', 'Synthetic Multimodal'], v2: ['', 'V2 · Assisted'], v1: ['', 'V1 · Classic'] }[v] || ['', 'V1 · Classic'];
+    const meta = { v4: 'Real De-Identified Multimodal Cases', v3: 'Synthetic Multimodal',
+                   v2: 'V2 · Assisted', v1: 'V1 · Classic' }[v] || 'V1 · Classic';
     // V3/V4 also carry the chosen specialty + a one-tap route back to the picker.
     const specLink = (v === 'v3' || v === 'v4')
       ? h('button', { class: 'asc-btn-link', type: 'button',
-          onClick: () => { state.specialtyChosen = false; renderEvalView(); } },
+          onClick: async () => {
+            // §2: opens over the live workspace. Reload only if the specialty
+            // actually changed — re-picking the one you already had must not
+            // throw away the case you are mid-way through.
+            //
+            // The case timer deliberately keeps running: the physician has not
+            // left the case, and if they dismiss the sheet that time really was
+            // spent on this task. (The old full-page route stopped it because it
+            // genuinely left the view.) If they DO switch, the next task's
+            // initDraftForTask restarts the timer from its own draft.
+            const before = getPortalSpecialty();
+            const picked = await renderSpecialtyPicker({ dismissable: true });
+            if (picked && picked !== before) renderEvalView();
+          } },
           'Change specialty')
       : null;
-    return h('div', { class: 'asc-exp-badge' },
-      h('span', { class: 'asc-exp-badge-label' }, meta[0] + meta[1]),
+    // §13: the two links are the same KIND of control, so they read as one
+    // unit. Wrapping them means `space-between` has two children instead of
+    // three — "label left, controls right" — rather than scattering two
+    // related links to opposite edges of the full width.
+    const links = h('div', { class: 'asc-exp-links' },
       h('button', {
         class: 'asc-btn-link', type: 'button',
         onClick: () => { state.portalChosen = false; renderEvalView(); },
       }, 'Change experience'),
       specLink);
+    return h('div', { class: 'asc-exp-badge' },
+      h('span', { class: 'asc-exp-badge-label' }, meta), links);
   }
 
   // ─── §6 semantic case-tag chips (V3/V4) ─────────────────────────────────────
@@ -1812,6 +2503,11 @@
     const el = document.getElementById('ascAssistHint');
     if (!el) return;
     clear(el);
+    // §4 (V3/V4): the model's weaker-answer guess is retained in `assist` — it
+    // still rides the submitted payload for override-rate analysis — but it is
+    // never rendered. Surfacing it anchors the physician before they commit,
+    // which is the exact bias the blinded A/B exists to prevent.
+    if (isV3()) return;
     const a = assistData();
     if (!a) return;
     el.appendChild(h('span', { class: 'asc-assist-chip', 'aria-hidden': 'true' }));
@@ -1853,10 +2549,14 @@
     const answers = h('div', { class: 'asc-answers', id: 'ascAnswers' });
     renderAnswersInto(answers);
 
-    // Diff view (Speed Optimization §3) — assisted flows (V2 + V3). V1 (classic)
-    // shows the full answer text with no diff toggle, exactly as the original.
+    // Diff view (Speed Optimization §3) — V2 only. §3: V3/V4 drop the diff
+    // entirely (toggle, legend and help line). The legend used to be appended
+    // INTO `.asc-answers` — a 2-column grid — which pushed A into cell 2 and B
+    // onto row 2; removing it restores the symmetric side-by-side layout with
+    // no CSS change. V1 (classic) never had a toggle.
     const assisted = isAssisted();
-    const diffToggle = assisted ? h('button', {
+    const showDiff = assisted && !isV3();
+    const diffToggle = showDiff ? h('button', {
       class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button', id: 'ascDiffToggle',
       onClick: () => {
         state.showFullText = !state.showFullText;
@@ -1880,7 +2580,7 @@
       h('div', { class: 'asc-compare-head' },
         h('div', { class: 'asc-card-title' }, 'Compare the answers'),
         diffToggle),
-      assisted ? h('p', { class: 'asc-help', style: 'margin:2px 0 14px' },
+      showDiff ? h('p', { class: 'asc-help', style: 'margin:2px 0 14px' },
         'Shared text is dimmed; passages where the answers diverge are highlighted.') : null,
       answers));
     wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
@@ -2042,20 +2742,16 @@
   function renderAnswersInto(container) {
     if (!container) return;
     clear(container);
-    // V1 (classic) renders plain full text — no diff, no error-span marks. The
-    // assisted flows (V2 + V3) get the marked A/B diff.
-    const diff = (!isAssisted() || state.showFullText) ? null : computeAnswerDiff();
+    // V1 (classic) renders plain full text — no diff, no error-span marks. V2
+    // keeps the marked A/B diff. §3: V3/V4 render full text side by side — the
+    // highlight asked the physician to trust a machine's notion of "what
+    // differs" before they had read either answer.
+    //
+    // NOTE: this function must only ever append answer CARDS to `container`.
+    // `.asc-answers` is a `1fr 1fr` grid, so any extra child (the old legend)
+    // silently staggers A and B across two rows.
+    const diff = (!isAssisted() || isV3() || state.showFullText) ? null : computeAnswerDiff();
     const a = assistData();
-    // WS5 (V3): brighter, unmissable divergence marking + a one-line legend so the
-    // doctor adjudicates the deltas, not the boilerplate. V2 keeps its subtler diff.
-    container.classList.toggle('asc-answers-v3diff', !!(diff && isV3()));
-    if (diff && isV3()) {
-      container.appendChild(h('div', { class: 'asc-diff-legend' },
-        h('span', { class: 'asc-diff-legend-mark' }, '⬍'),
-        diff.allDivergent
-          ? ' These answers share no text — they diverge throughout, so both are highlighted in full.'
-          : ' Bright passages are where A and B differ — shared text is dimmed.'));
-    }
     (state.task.candidate_answers || []).forEach((c) => {
       container.appendChild(renderAnswerCard(c, diff, a));
     });
@@ -3060,10 +3756,9 @@
         saveDraft(); renderStepsListV3(listId); updateSubmitState();
       },
     }, '+ Add step');
-    const resplitBtn = canAutoSplit ? h('button', {
-      class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
-      onClick: () => autoSplitChosen(listId, true),
-    }, '↻ Re-split from answer') : null;
+    // §5: no "Re-split from answer". The split already runs automatically on
+    // mount (below) — a button for something that already happened is a
+    // decision the physician has to make about nothing.
 
     const hint = h('span', { class: 'asc-submit-hint', id: 'ascStepsContHint' });
     const contBtn = h('button', {
@@ -3085,7 +3780,7 @@
         forBoth ? 'Optionally lay out the reasoning steps behind your ideal answer.'
           : 'Confirm each step, or open it and say what’s off — one step at a time.'),
       h('div', { class: 'asc-steps', id: listId }),
-      h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn, resplitBtn),
+      h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn),
       sectionActions(hint, contBtn));
 
     setTimeout(() => {
@@ -3120,195 +3815,295 @@
     }
   }
 
+  // The status pill for one step. Hoisted out of the list renderer so a single
+  // repainted row (§7) derives its pill identically to a full list render —
+  // two copies of this would drift.
+  function stepStatusOf(s) {
+    if (s.added) return { text: 'added', cls: 'added' };
+    if (s.corrected) {
+      return (s.step_note || '').trim()
+        ? { text: 'corrected ✎', cls: 'corrected' }
+        : { text: 'corrected — say what’s off', cls: 'corrected' };
+    }
+    if (s.confirmed) return { text: 'confirmed ✓', cls: 'confirmed' };
+    return { text: 'pending', cls: 'pending' };
+  }
+
+  // §5: three placeholder rows while the auto-split is in flight. A blank card
+  // reads as "nothing here"; a spinner asks the physician to interpret it.
+  function stepsSkeleton() {
+    return h('div', { class: 'asc-steps-skeleton', 'aria-hidden': 'true' },
+      h('div', {}), h('div', {}), h('div', {}));
+  }
+
+  // §7: a scroll-anchor CORRECTION, not a navigation. `_base.css` sets
+  // `html { scroll-behavior: smooth }`, which would make this animate — turning
+  // the jolt into a slower visible glide, which is the same defect wearing a
+  // nicer coat. Suspending the property beats `behavior: 'instant'`: an engine
+  // that doesn't know that enum value throws on the dictionary conversion.
+  function scrollByInstant(dy) {
+    if (!dy) return;
+    const root = document.documentElement;
+    const prev = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    window.scrollBy(0, dy);
+    root.style.scrollBehavior = prev;
+  }
+
+  // §7: rebuild exactly ONE step row in place. `renderStepsListV3` clears and
+  // rebuilds every row, which collapses the page height and makes the browser
+  // drop its scroll anchor — that is the jolt on steps 4–7. An open/close is a
+  // change to at most two rows, so repaint at most two.
+  function repaintStepRow(idx, listId) {
+    if (idx == null || idx < 0) return;
+    const list = document.getElementById(listId || 'ascStepsList');
+    if (!list) return;
+    const node = list.querySelector('[data-step-idx="' + idx + '"]');
+    const s = activeSteps()[idx];
+    if (!node || !s) return;
+    list.replaceChild(buildStepRowV3(s, idx, list.id), node);
+  }
+
   // V3/V4 steps list (§13): single-open accordion; an edited step captures a
   // free-text ``step_note`` (the server derives the error-tag classification);
   // NO tag picker and NO citation block inside step editing.
+  //
+  // §7: keep this for GENUINE list changes (add, insert, remove, re-split).
+  // Never call it for a state toggle — use `repaintStepRow` instead.
   function renderStepsListV3(listId) {
     const list = document.getElementById(listId);
     if (!list) return;
     clear(list);
     const steps = activeSteps();
-    // Grounding-required tasks keep the per-step citation editor (§13's "no
-    // citation block in step editing" yields here: the server hard-gates a
-    // valid anchor on every step, so removing the UI would dead-end submit).
-    const groundingRequired = (state.task.grounding_mode === 'required');
     if (state.splitting) {
-      list.appendChild(h('p', { class: 'asc-help' }, 'Splitting the chosen answer into steps…'));
+      list.appendChild(stepsSkeleton());
       return;
     }
     if (!steps.length) {
-      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually' +
-        (state.draft.verdict !== 'both_inadequate' ? ', or use “Re-split from answer”.' : '.')));
+      // §5: no "Re-split from answer" to point at any more — the split runs
+      // automatically on mount, so the only manual route is adding a step.
+      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually.'));
       syncStepsCont();
       return;
     }
-
-    const statusOf = (s) => {
-      if (s.added) return { text: 'added', cls: 'added' };
-      if (s.corrected) {
-        return (s.step_note || '').trim()
-          ? { text: 'corrected ✎', cls: 'corrected' }
-          : { text: 'corrected — say what’s off', cls: 'corrected' };
-      }
-      if (s.confirmed) return { text: 'confirmed ✓', cls: 'confirmed' };
-      return { text: 'pending', cls: 'pending' };
-    };
 
     // Bulk confirm for model-passed, untouched steps (kept from the pre-graded
     // flow — reading then one tap is still an explicit endorsement).
     const untouchedGood = steps.filter((s) => s.suggested_label === 'good' && !s.confirmed
       && !s.corrected && !s.added && (s.text || '').trim() === (s.original_text || '').trim());
     if (untouchedGood.length > 1) {
-      list.appendChild(h('div', { class: 'asc-step-bulkbar' },
+      const bulkbar = h('div', { class: 'asc-step-bulkbar' },
         h('span', { class: 'asc-step-bulk-label' },
           untouchedGood.length + ' steps look correct to the model — read them, then confirm in one tap.'),
         h('button', {
           class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
           onClick: () => {
+            const touched = untouchedGood.map((s) => steps.indexOf(s));
             untouchedGood.forEach((s) => setStepConfirmed(s, true));
-            saveDraft(); renderStepsListV3(listId); updateSubmitState();
+            saveDraft();
+            // §7 again: repaint only the rows this actually changed, then drop
+            // the bar itself. A full rebuild here would jolt the page exactly
+            // as the per-row toggle used to.
+            touched.forEach((i) => repaintStepRow(i, listId));
+            if (bulkbar.parentNode) bulkbar.parentNode.removeChild(bulkbar);
+            syncStepsCont(); updateSubmitState();
           },
-        }, '✓ Confirm all correct')));
+        }, '✓ Confirm all correct'));
+      list.appendChild(bulkbar);
     }
 
-    steps.forEach((s, idx) => {
-      s.step = idx + 1;
-      const open = state._openStep === idx;
-      const st = statusOf(s);
-      const flaggedBadge = (s.suggested_label === 'bad')
-        ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, 'model · flags this')
-        : (s.suggested_label === 'good')
-          ? h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, 'model · looks correct')
-          : null;
+    steps.forEach((s, idx) => list.appendChild(buildStepRowV3(s, idx, listId)));
+    syncStepsCont();
+  }
 
-      const confirmBtn = h('button', {
-        class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm' + (s.confirmed ? ' active' : ''),
-        type: 'button', hidden: s.corrected || s.added,
-        onClick: (e) => {
-          e.stopPropagation();
-          setStepConfirmed(s, !s.confirmed);
-          if (s.confirmed && state._openStep === idx) state._openStep = null;
-          saveDraft(); renderStepsListV3(listId); updateSubmitState();
-        },
-      }, s.confirmed ? '✓ Confirmed' : '✓ Correct as-is');
+  // One V3/V4 step row, collapsed or expanded. Returns a detached node so both
+  // the full list render and the single-row repaint (§7) go through one path.
+  function buildStepRowV3(s, idx, listId) {
+    // Grounding-required tasks keep the per-step citation editor (§13's "no
+    // citation block in step editing" yields here: the server hard-gates a
+    // valid anchor on every step, so removing the UI would dead-end submit).
+    const groundingRequired = (state.task.grounding_mode === 'required');
+    s.step = idx + 1;
+    const open = state._openStep === idx;
+    const st = stepStatusOf(s);
+    const flaggedBadge = (s.suggested_label === 'bad')
+      ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, 'model · flags this')
+      : (s.suggested_label === 'good')
+        ? h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, 'model · looks correct')
+        : null;
 
-      const head = h('div', { class: 'asc-step-head' },
-        h('div', { style: 'display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap' },
-          h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)),
-          flaggedBadge,
-          h('span', { class: 'asc-step-status ' + st.cls }, st.text)),
-        h('div', { style: 'display:flex;align-items:center;gap:8px' },
-          confirmBtn,
-          h('button', {
-            class: 'asc-btn-link', type: 'button',
-            onClick: () => {
-              state._openStep = open ? null : idx;
-              renderStepsListV3(listId);
-            },
-          }, open ? 'Close' : (s.corrected || s.added ? 'Edit' : 'Open'))));
+    // Repaint just this row's status pill after an in-place mutation.
+    const repaintPill = () => {
+      const pill = row.querySelector('.asc-step-status');
+      const st2 = stepStatusOf(s);
+      if (pill) { pill.textContent = st2.text; pill.className = 'asc-step-status ' + st2.cls; }
+    };
 
-      const row = h('div', {
-        class: 'asc-step' + (open ? '' : ' asc-step-collapsed') + (s.confirmed ? ' is-confirmed' : ''),
-      }, head);
-
-      if (!open) {
-        row.appendChild(h('div', { class: 'asc-step-collapsed-text' }, s.text || ''));
-        if (groundingRequired && (s.text || '').trim() && !isValidAnchor(s.evidence_anchor)) {
-          row.appendChild(h('div', { class: 'asc-anchor-valid asc-anchor-invalid', style: 'margin-top:4px' },
-            '· citation needed — open the step to attach one'));
-        }
-        list.appendChild(row);
-        return;
-      }
-
-      // Expanded editor: the step text + the single free-text "what's off" box.
-      const ta = h('textarea', { class: 'asc-textarea', placeholder: 'Describe this reasoning step…' }, s.text || '');
-      const noteWrap = h('div', { class: 'asc-field', style: 'margin-top:8px' });
-      const note = h('input', {
-        class: 'asc-input',
-        placeholder: 'e.g. treats the creatinine bump as intrinsic AKI — it’s decongestion-related hemoconcentration',
-        value: s.step_note || '',
-      });
-      note.addEventListener('input', () => {
-        s.step_note = note.value;
-        if ((s.step_note || '').trim()) {
-          // The server derives the error-tag classification from this note
-          // (step_note → step_error_tag); the physician never picks a tag.
-          s.label = 'bad'; s.step_reward = 0; s.correction_reason = null;
+    const confirmBtn = h('button', {
+      class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm' + (s.confirmed ? ' active' : ''),
+      type: 'button', hidden: s.corrected || s.added,
+      onClick: (e) => {
+        e.stopPropagation();
+        const wasOpen = state._openStep === idx;
+        setStepConfirmed(s, !s.confirmed);
+        // Confirming an open row collapses it — that IS a structural change to
+        // this row, so it needs a rebuild (of this row only).
+        const collapsing = s.confirmed && wasOpen;
+        if (collapsing) state._openStep = null;
+        saveDraft();
+        if (collapsing) {
+          repaintStepRow(idx, listId);
         } else {
+          // §7 surgical update: three properties change — the button's state
+          // and label, the row's confirmed class, and the status pill.
+          confirmBtn.classList.toggle('active', !!s.confirmed);
+          confirmBtn.textContent = s.confirmed ? '✓ Confirmed' : '✓ Correct as-is';
+          row.classList.toggle('is-confirmed', !!s.confirmed);
+          repaintPill();
+        }
+        syncStepsCont();
+        updateSubmitState();
+      },
+    }, s.confirmed ? '✓ Confirmed' : '✓ Correct as-is');
+
+    const head = h('div', { class: 'asc-step-head' },
+      h('div', { style: 'display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap' },
+        h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)),
+        flaggedBadge,
+        h('span', { class: 'asc-step-status ' + st.cls }, st.text)),
+      h('div', { style: 'display:flex;align-items:center;gap:8px' },
+        confirmBtn,
+        h('button', {
+          // §6: one action, one label. "Has this been touched?" is already
+          // carried by the status pill beside it, and "Edit" names the
+          // physician's intent where "Open" named the widget's mechanics.
+          class: 'asc-btn-link', type: 'button', 'aria-expanded': String(open),
+          onClick: () => {
+            const prev = state._openStep;
+            state._openStep = open ? null : idx;
+            saveDraft();
+            // Anchor on the clicked row: the row above it may change height
+            // when it collapses, and without this the clicked row slides out
+            // from under the cursor.
+            const anchor = row.getBoundingClientRect().top;
+            if (prev != null && prev !== idx) repaintStepRow(prev, listId);
+            repaintStepRow(idx, listId);
+            const list = document.getElementById(listId || 'ascStepsList');
+            const after = list && list.querySelector('[data-step-idx="' + idx + '"]');
+            if (after) scrollByInstant(after.getBoundingClientRect().top - anchor);
+          },
+        }, open ? 'Close' : 'Edit')));
+
+    const row = h('div', {
+      class: 'asc-step' + (open ? '' : ' asc-step-collapsed') + (s.confirmed ? ' is-confirmed' : ''),
+      // The handle `repaintStepRow` finds the row by — index alone is not
+      // enough, since the bulk bar is also a child of the list.
+      dataset: { stepIdx: String(idx) },
+    }, head);
+
+    if (!open) {
+      row.appendChild(h('div', { class: 'asc-step-collapsed-text' }, s.text || ''));
+      if (groundingRequired && (s.text || '').trim() && !isValidAnchor(s.evidence_anchor)) {
+        row.appendChild(h('div', { class: 'asc-anchor-valid asc-anchor-invalid', style: 'margin-top:4px' },
+          '· citation needed — open the step to attach one'));
+      }
+      return row;
+    }
+
+    // Expanded editor: the step text + the single free-text "what's off" box.
+    const ta = h('textarea', { class: 'asc-textarea', placeholder: 'Describe this reasoning step…' }, s.text || '');
+    const noteWrap = h('div', { class: 'asc-field', style: 'margin-top:8px' });
+    const note = h('input', {
+      class: 'asc-input',
+      placeholder: 'e.g. treats the creatinine bump as intrinsic AKI — it’s decongestion-related hemoconcentration',
+      value: s.step_note || '',
+    });
+    note.addEventListener('input', () => {
+      s.step_note = note.value;
+      if ((s.step_note || '').trim()) {
+        // The server derives the error-tag classification from this note
+        // (step_note → step_error_tag); the physician never picks a tag.
+        s.label = 'bad'; s.step_reward = 0; s.correction_reason = null;
+      } else {
+        s.label = null; s.step_reward = null;
+      }
+      saveDraft(); syncStepsCont(); updateSubmitState();
+      repaintPill();
+    });
+    noteWrap.appendChild(h('label', { class: 'asc-label' }, 'What’s off with this step?'));
+    noteWrap.appendChild(withMic(note));
+    noteWrap.hidden = !s.corrected;
+
+    const hasOriginal = s.original_text != null;
+    // §8: the FULL original goes into the DOM; CSS ellipsises it at the true
+    // edge of the bar. The old 80-char JS cut was right at exactly one width
+    // and stopped a third of the way across a desktop card.
+    const originalBox = hasOriginal
+      ? h('details', { class: 'asc-step-original', hidden: !s.corrected },
+          h('summary', { class: 'asc-step-original-sum' },
+            h('span', { class: 'asc-step-original-tag' }, 'original'),
+            h('span', { class: 'asc-step-original-preview' }, s.original_text || '')),
+          h('div', { class: 'asc-step-original-full' }, s.original_text || ''))
+      : null;
+
+    const suggestHint = (s.suggested_label === 'bad' && s.suggested_critique)
+      ? h('div', { class: 'asc-step-suggest-hint' }, 'Model: ' + s.suggested_critique)
+      : null;
+
+    ta.addEventListener('input', () => {
+      s.text = ta.value;
+      if (hasOriginal) {
+        if (ta.value.trim() !== (s.original_text || '').trim()) {
+          if (!s.corrected) { s.corrected = true; s.confirmed = false; }
+        } else {
+          s.corrected = false; s.confirmed = false; s.correction_reason = null;
           s.label = null; s.step_reward = null;
         }
-        saveDraft(); syncStepsCont(); updateSubmitState();
-        const pill = row.querySelector('.asc-step-status');
-        const st2 = statusOf(s);
-        if (pill) { pill.textContent = st2.text; pill.className = 'asc-step-status ' + st2.cls; }
-      });
-      noteWrap.appendChild(h('label', { class: 'asc-label' }, 'What’s off with this step?'));
-      noteWrap.appendChild(withMic(note));
-      noteWrap.hidden = !s.corrected;
-
-      const hasOriginal = s.original_text != null;
-      const originalBox = hasOriginal
-        ? h('details', { class: 'asc-step-original', hidden: !s.corrected },
-            h('summary', {}, 'original: ' + ((s.original_text || '').length > 80
-              ? (s.original_text || '').slice(0, 80) + '…' : (s.original_text || ''))),
-            h('div', { class: 'asc-step-original-full' }, s.original_text || ''))
-        : null;
-
-      const suggestHint = (s.suggested_label === 'bad' && s.suggested_critique)
-        ? h('div', { class: 'asc-step-suggest-hint' }, 'Model: ' + s.suggested_critique)
-        : null;
-
-      ta.addEventListener('input', () => {
-        s.text = ta.value;
-        if (hasOriginal) {
-          if (ta.value.trim() !== (s.original_text || '').trim()) {
-            if (!s.corrected) { s.corrected = true; s.confirmed = false; }
-          } else {
-            s.corrected = false; s.confirmed = false; s.correction_reason = null;
-            s.label = null; s.step_reward = null;
-          }
-        }
-        noteWrap.hidden = !s.corrected;
-        if (originalBox) originalBox.hidden = !s.corrected;
-        const pill = row.querySelector('.asc-step-status');
-        const st2 = statusOf(s);
-        if (pill) { pill.textContent = st2.text; pill.className = 'asc-step-status ' + st2.cls; }
-        saveDraft(); syncStepsCont(); updateSubmitState();
-      });
-
-      const rowActions = h('div', { style: 'margin-top:8px;display:flex;gap:10px' },
-        h('button', {
-          class: 'asc-btn-link', type: 'button',
-          onClick: () => {
-            activeSteps().splice(idx + 1, 0, newAuthoredStep());
-            state._openStep = idx + 1;
-            saveDraft(); renderStepsListV3(listId); updateSubmitState();
-          },
-        }, '+ insert below'),
-        h('button', {
-          class: 'asc-btn-link', type: 'button', style: 'color:var(--asc-danger)',
-          onClick: () => {
-            activeSteps().splice(idx, 1);
-            state._openStep = null;
-            saveDraft(); renderStepsListV3(listId); updateSubmitState();
-          },
-        }, 'Remove'));
-
-      // Per-step citation editor ONLY when the task requires grounding (see
-      // groundingRequired above) — everywhere else §13 keeps step editing lean.
-      let anchorBlock = null;
-      if (groundingRequired) {
-        if (!s.evidence_anchor) s.evidence_anchor = emptyAnchor();
-        anchorBlock = renderAnchorBlock(s.evidence_anchor, { label: 'citation for this step', required: true });
-        // Keep the section's Continue honest as the anchor fields are filled.
-        anchorBlock.addEventListener('input', () => setTimeout(() => { syncStepsCont(); updateSubmitState(); }, 0));
-        anchorBlock.addEventListener('change', () => setTimeout(() => { syncStepsCont(); updateSubmitState(); }, 0));
+        // The confirm button is hidden for a corrected step; keep it honest
+        // without rebuilding the row (which would blur the textarea mid-type).
+        confirmBtn.hidden = !!(s.corrected || s.added);
+        confirmBtn.classList.toggle('active', !!s.confirmed);
+        confirmBtn.textContent = s.confirmed ? '✓ Confirmed' : '✓ Correct as-is';
+        row.classList.toggle('is-confirmed', !!s.confirmed);
       }
-      appendChildren(row, [suggestHint, ta, noteWrap, originalBox, anchorBlock, rowActions]);
-      list.appendChild(row);
+      noteWrap.hidden = !s.corrected;
+      if (originalBox) originalBox.hidden = !s.corrected;
+      repaintPill();
+      saveDraft(); syncStepsCont(); updateSubmitState();
     });
-    syncStepsCont();
+
+    const rowActions = h('div', { style: 'margin-top:8px;display:flex;gap:10px' },
+      h('button', {
+        class: 'asc-btn-link', type: 'button',
+        onClick: () => {
+          activeSteps().splice(idx + 1, 0, newAuthoredStep());
+          state._openStep = idx + 1;
+          // A genuine list change — the indices below this row all shift, so
+          // the full renderer is correct here.
+          saveDraft(); renderStepsListV3(listId); updateSubmitState();
+        },
+      }, '+ insert below'),
+      h('button', {
+        class: 'asc-btn-link', type: 'button', style: 'color:var(--asc-danger)',
+        onClick: () => {
+          activeSteps().splice(idx, 1);
+          state._openStep = null;
+          saveDraft(); renderStepsListV3(listId); updateSubmitState();
+        },
+      }, 'Remove'));
+
+    // Per-step citation editor ONLY when the task requires grounding (see
+    // groundingRequired above) — everywhere else §13 keeps step editing lean.
+    let anchorBlock = null;
+    if (groundingRequired) {
+      if (!s.evidence_anchor) s.evidence_anchor = emptyAnchor();
+      anchorBlock = renderAnchorBlock(s.evidence_anchor, { label: 'citation for this step', required: true });
+      // Keep the section's Continue honest as the anchor fields are filled.
+      anchorBlock.addEventListener('input', () => setTimeout(() => { syncStepsCont(); updateSubmitState(); }, 0));
+      anchorBlock.addEventListener('change', () => setTimeout(() => { syncStepsCont(); updateSubmitState(); }, 0));
+    }
+    appendChildren(row, [suggestHint, ta, noteWrap, originalBox, anchorBlock, rowActions]);
+    return row;
   }
 
   // ─── §15 Confidence + submit — mounts ONLY at the confidence substage ───────
@@ -3336,11 +4131,71 @@
       class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascSubmit', onClick: submitEvaluation,
     }, 'Submit evaluation');
     const hint = h('span', { class: 'asc-submit-hint', id: 'ascSubmitHint' });
-    const card = sectionCard('confidence', null,
+    const confidenceCard = sectionCard('confidence', null,
       confPills,
       h('div', { class: 'asc-submit-row' }, hint, submitBtn));
     setTimeout(updateSubmitState, 0);
-    return card;
+    // The decisive-action capture is OPTIONAL, so it lives in its own card ABOVE the
+    // confidence + submit gate — never wedged into the commit moment (Audit §13).
+    const decisive = renderDecisiveActionCard();
+    return decisive ? h('div', {}, decisive, confidenceCard) : confidenceCard;
+  }
+
+  // Decisive action (Audit §13): the physician-named verifiable outcome — the test or
+  // action the correct answer depends on. Naming it turns a preference label into a
+  // checkable reward. Its own clearly-OPTIONAL card (not a numbered required step, and
+  // not jammed into the submit gate); a physician who can't name one leaves it blank,
+  // and a fabricated decisive action is worse than none.
+  function renderDecisiveActionCard() {
+    const d = state.draft;
+    if (!isV3()) return null;   // V3/V4 evaluation screen only
+    d.decisive_action = d.decisive_action || { action: '', tool_name: '', rationale: '' };
+    const da = d.decisive_action;
+
+    // Primary field: one free-text question, auto-growing so a long answer never clips.
+    const action = autoGrow(h('textarea', {
+      class: 'asc-textarea',
+      placeholder: 'e.g. order pronase-digested paraffin immunofluorescence',
+    }, da.action || ''));
+    action.addEventListener('input', () => { da.action = action.value; saveDraft(); });
+
+    // Secondary field behind progressive disclosure — the default view is one clean
+    // question, not two stacked inputs. Auto-expanded when a resumed draft has a value.
+    const toolInput = h('input', { class: 'asc-input', placeholder: 'e.g. order_pronase_if',
+      value: da.tool_name || '' });
+    toolInput.addEventListener('input', () => { da.tool_name = toolInput.value; saveDraft(); });
+    const toolField = h('div', { class: 'asc-field', style: 'margin-top:12px;margin-bottom:0' },
+      h('label', { class: 'asc-label' }, 'Tool or order name ',
+        h('span', { class: 'asc-label-hint' }, 'optional')),
+      toolInput);
+    const addTool = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+      type: 'button', style: 'margin-top:10px' }, '+ Add a tool or order name');
+    const toolSlot = h('div', {});
+    const paintTool = (shown) => {
+      clear(toolSlot);
+      toolSlot.appendChild(shown ? toolField : addTool);
+    };
+    addTool.addEventListener('click', () => { paintTool(true); setTimeout(() => toolInput.focus(), 0); });
+    paintTool(!!(da.tool_name || '').trim());
+
+    const info = infoDot('Why we ask', [
+      'If you name the decisive step, we can verify a model actually ordered it before '
+      + 'answering — turning this preference label into a checkable reward.',
+      'Skip it when no single step decides the answer. A made-up decisive action is '
+      + 'worse than none.',
+    ]);
+
+    return h('div', { class: 'asc-card asc-card-pad asc-substage' },
+      h('div', { class: 'asc-substage-head' },
+        h('div', { class: 'asc-substage-step asc-substage-step--optional' }, 'Optional'),
+        h('div', { class: 'asc-substage-title' }, 'Decisive action', info)),
+      h('div', { class: 'asc-field', style: 'margin-bottom:0' },
+        h('label', { class: 'asc-label' },
+          'Which test or action, if skipped, makes the correct answer unreachable?'),
+        h('div', { class: 'asc-help', style: 'margin-bottom:8px' },
+          'Free text. Leave blank if none applies.'),
+        action),
+      toolSlot);
   }
 
   // ─── §14 Rubric — build the scoring guide, one criterion at a time ──────────
@@ -3350,11 +4205,39 @@
   // doctor's tags, and plain-language weights (numeric bands live in the
   // info-dot, not the primary copy).
   const TIER_DEFAULT_PTS = { critical: 9, important: 5, helpful: 2 };
+  // §10: "Must-have" and "Important" are synonyms in ordinary English — nothing
+  // in the words says which outranks the other, so the physician had to learn an
+  // arbitrary mapping. Critical > Major > Minor is a severity scale clinicians
+  // already rank without thinking. The explanations state CONSEQUENCE ("the
+  // answer is wrong without this"), which is checkable, rather than priority,
+  // which is an opinion. The tier KEYS are unchanged, so `tierForPoints`,
+  // `TIER_DEFAULT_PTS`, the backend, and every stored record keep working —
+  // this is a label-only change.
   const TIER_CHOICES = [
-    ['critical', 'Must-have', 'decides correctness on its own'],
-    ['important', 'Important', 'a real quality difference'],
-    ['helpful', 'Nice-to-have', 'polish — good if present'],
+    ['critical', 'Critical', 'the answer is wrong or unsafe without this'],
+    ['important', 'Major', 'the answer is clearly worse without this'],
+    ['helpful', 'Minor', 'a refinement — good, not decisive'],
   ];
+  // §11: "axis" is ML vocabulary a clinician has no reason to know. The enum
+  // keys are the wire format and never change; these are what the physician
+  // reads. [label, explanation] — the explanation is the button's title.
+  const AXIS_LABELS = {
+    accuracy: ['Got the facts right', 'values, doses, findings are correct'],
+    completeness: ['Didn’t miss anything', 'nothing decisive left out'],
+    safety: ['Safe for the patient', 'no harmful action or omission'],
+    reasoning: ['Sound reasoning', 'the logic actually follows'],
+    grounding: ['Backed by evidence', 'guideline or literature support'],
+    communication: ['Clearly explained', 'a colleague could act on it'],
+  };
+  // Every criterion carries `axes` (a list). `axis` is mirrored from `axes[0]`
+  // for backward compatibility with stored records and the V2 path. A criterion
+  // always has at least one axis.
+  function criterionAxes(c) {
+    if (!c) return ['accuracy'];
+    if (!Array.isArray(c.axes) || !c.axes.length) c.axes = c.axis ? [c.axis] : ['accuracy'];
+    c.axis = c.axes[0];
+    return c.axes;
+  }
 
   // 14.4: auto-growing textarea (min 2 rows) — the full criterion text is always
   // visible and editable; nothing clips.
@@ -3422,12 +4305,16 @@
 
     return sectionCard('rubric',
       infoDot('Build the scoring guide', [
-        'Weights: must-have / important / nice-to-have map to high / medium / low points; a “must-never” auto-fails the answer.',
+        'Weights: critical / major / minor map to high / medium / low points; a “must never” auto-fails the answer.',
         'Confirm or edit each drafted criterion, then add your own if something is missing.',
       ]),
       // 14.1: layman's description — no numeric tiers in the primary copy.
+      // §12: the phrase in the UI is "must never" (two words, no hyphen), so
+      // the copy that names it has to match what the physician actually taps.
       h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
-        'List what a correct answer must get right and what it must never do. Each item is weighted by how much it matters. Name at least one “must-never”: the single thing that makes an answer wrong no matter what.'),
+        'List what a correct answer must get right and what it must never do. Each item is weighted by how much it matters. Name at least one ',
+        h('strong', {}, 'must never'),
+        ' — the single thing that makes an answer wrong no matter what.'),
       pinned,
       body);
   }
@@ -3457,22 +4344,38 @@
     };
     ta.addEventListener('input', () => { c.text = ta.value; paintSpec(); saveDraft(); updateSubmitState(); });
 
-    const signRow = h('div', { class: 'asc-sev-pills' });
     const tierRow = h('div', { class: 'asc-rubric-tier-row' });
     const ptsLabel = h('span', { class: 'asc-rubric-pts' });
-    const slider = h('input', { type: 'range', min: '1', max: '10', step: '1', style: 'width:120px' });
+    const slider = h('input', {
+      type: 'range', min: '1', max: '10', step: '1',
+      'aria-label': 'How many points this criterion is worth',
+    });
     const autoFail = h('span', {
       class: 'asc-badge asc-badge-amber', hidden: true,
-      title: 'A “must-never” — the grader hard-fails an answer that does this.',
+      title: 'A “must never” — the grader hard-fails an answer that does this.',
     }, 'auto-fail ✓');
 
     const mag = () => Math.max(1, Math.abs(Number(c.points) || 5));
     const neg = () => (Number(c.points) || 0) < 0;
+    // §9: the polarity toggle IS the sentence stem — "A correct answer [must
+    // never] — give thrombolytics in dissection" reads as one sentence rather
+    // than as two form fields. It still sets the sign of `c.points`, which is
+    // what drives auto-fail and the grader's hard-fail, so no data is lost.
+    // Pink for “must never” (the flag/critical accent); lime for “must”.
+    const stemToggle = h('button', {
+      class: 'asc-rubric-stem-toggle', type: 'button',
+      'aria-label': 'Switch between must and must never',
+      onClick: () => { setPoints(mag(), !neg()); ta.focus(); },
+    }, 'must');
     function paintAll() {
       slider.value = String(mag());
       ptsLabel.textContent = (neg() ? '−' : '+') + mag();
       ptsLabel.className = 'asc-rubric-pts ' + (neg() ? 'neg' : 'pos');
-      Array.from(signRow.children).forEach((b) => b.classList.toggle('active', (b.dataset.sign === 'neg') === neg()));
+      stemToggle.textContent = neg() ? 'must never' : 'must';
+      stemToggle.className = 'asc-rubric-stem-toggle ' + (neg() ? 'neg' : 'pos');
+      stemToggle.title = neg()
+        ? 'This is a “must never” — switch to “must” if the answer is required to do it.'
+        : 'This is a “must” — switch to “must never” if the answer is required NOT to do it.';
       Array.from(tierRow.children).forEach((b) => b.classList.toggle('active', b.dataset.tier === tierForPoints(c.points)));
       autoFail.hidden = !(neg() && tierForPoints(c.points) === 'critical');
       paintSpec();
@@ -3485,12 +4388,6 @@
       saveDraft();
       updateSubmitState();
     };
-    [['pos', 'Must include ✓'], ['neg', 'Must never ✕']].forEach(([sign, label]) => {
-      signRow.appendChild(h('button', {
-        class: 'asc-sev-pill', type: 'button', dataset: { sign },
-        onClick: () => setPoints(mag(), sign === 'neg'),
-      }, label));
-    });
     TIER_CHOICES.forEach(([tier, label, expl]) => {
       tierRow.appendChild(h('button', {
         class: 'asc-rubric-tier-btn', type: 'button', dataset: { tier }, title: expl,
@@ -3501,18 +4398,32 @@
     });
     slider.addEventListener('input', () => setPoints(parseInt(slider.value, 10) || 1, neg()));
 
+    // §11: MULTI-select, in plain words. A criterion routinely scores on more
+    // than one axis — "must never give thrombolytics in dissection" is safety
+    // AND accuracy — and forcing a single pick discards a distinction the buyer
+    // is paying for. `c.axes` is authoritative; `c.axis` mirrors `axes[0]` so
+    // stored records and the V2/backend single-value path keep working.
     const axes = (state.taxonomy.rubric_axes
       || ['accuracy', 'completeness', 'safety', 'reasoning', 'grounding', 'communication']);
+    criterionAxes(c);
     const axisRow = h('div', { class: 'asc-sev-pills asc-axis-row' });
     axes.forEach((ax) => {
+      const [label, expl] = AXIS_LABELS[ax] || [ax, ''];
       axisRow.appendChild(h('button', {
-        class: 'asc-sev-pill' + ((c.axis || 'accuracy') === ax ? ' active' : ''), type: 'button',
+        class: 'asc-sev-pill' + (c.axes.indexOf(ax) !== -1 ? ' active' : ''),
+        type: 'button', title: expl, 'aria-pressed': String(c.axes.indexOf(ax) !== -1),
         onClick: (e) => {
-          c.axis = ax;
-          Array.from(axisRow.children).forEach((b) => b.classList.toggle('active', b === e.currentTarget));
+          const on = c.axes.indexOf(ax) !== -1;
+          if (on && c.axes.length === 1) return;   // a criterion always has ≥1 axis
+          c.axes = on ? c.axes.filter((x) => x !== ax) : c.axes.concat([ax]);
+          c.axis = c.axes[0];                      // legacy single-value mirror
+          e.currentTarget.classList.toggle('active', !on);
+          e.currentTarget.setAttribute('aria-pressed', String(!on));
           saveDraft();
+          // The premium/axis-coverage readout on the finish card counts axes.
+          updateSubmitState();
         },
-      }, ax));
+      }, label));
     });
 
     const citeArea = h('div', { class: 'asc-rubric-cite', hidden: 'hidden' });
@@ -3544,26 +4455,31 @@
       onClick: () => { c.text = ta.value; d.rubricCursor = i + 1; saveDraft(); renderRationale(); },
     }, 'Next →');
 
+    // §9: the stem replaces the "Type" field entirely — the sentence already
+    // answered the question the field was asking.
     card.appendChild(h('div', { class: 'asc-field' },
-      h('label', { class: 'asc-label' }, 'A correct answer… ', specChip),
+      h('div', { class: 'asc-rubric-stem' },
+        h('span', { class: 'asc-rubric-stem-lead' }, 'A correct answer'),
+        stemToggle,
+        specChip),
       ta));
     card.appendChild(h('div', { class: 'asc-field' },
-      h('label', { class: 'asc-label' }, 'Type'), signRow));
+      // §10: the scale sits BESIDE the question, not below the choices — the
+      // tier buttons and the slider are two ways to set ONE value, and the
+      // readout is what makes that obvious.
+      h('div', { class: 'asc-rubric-matter-head' },
+        h('label', { class: 'asc-label' }, 'How much does it matter? ',
+          infoDot('Weights', [
+            'Critical / major / minor map to high / medium / low points.',
+            'A “must never” marked critical is the auto-fail — the grader hard-fails on it.',
+          ])),
+        h('div', { class: 'asc-rubric-scale' }, slider, ptsLabel, autoFail)),
+      tierRow));
     card.appendChild(h('div', { class: 'asc-field' },
-      h('label', { class: 'asc-label' }, 'How much does it matter? ',
-        infoDot('Weights', [
-          'Must-have / important / nice-to-have map to high / medium / low points.',
-          'A “must never” marked must-have is the auto-fail — the grader hard-fails on it.',
-        ])),
-      tierRow,
-      h('div', { style: 'display:flex;align-items:center;gap:10px;margin-top:8px' },
-        slider, ptsLabel, autoFail)));
-    card.appendChild(h('div', { class: 'asc-field' },
-      h('label', { class: 'asc-label' }, 'Which axis does it score? ',
-        infoDot('Axes', [
-          'Accuracy = facts right · completeness = nothing missing · safety = no harm · reasoning = sound logic.',
-          'Grounding = evidence-backed · communication = clear to the reader.',
-        ])),
+      // §11: the label states the job and the options explain themselves, so
+      // the "Axes" tooltip that used to translate the enum is gone.
+      h('label', { class: 'asc-label' }, 'What does this criterion check? ',
+        h('span', { class: 'asc-label-hint' }, '(select all that apply)')),
       axisRow));
     card.appendChild(h('div', { style: 'display:flex;gap:14px;margin-top:4px' }, citeBtn, removeBtn));
     card.appendChild(citeArea);
@@ -3606,7 +4522,7 @@
     const addBtn = h('button', {
       class: 'asc-btn asc-btn-subtle', type: 'button',
       onClick: () => {
-        d.rubric.push({ text: '', points: 5, axis: 'accuracy', source: 'manual' });
+        d.rubric.push({ text: '', points: 5, axes: ['accuracy'], axis: 'accuracy', source: 'manual' });
         d.rubricCursor = d.rubric.length - 1;
         saveDraft(); renderRationale();
       },
@@ -4050,10 +4966,11 @@
 
   // Auto-split the chosen answer into gradable steps — pre-graded when the LLM
   // is available (Speed Optimization §2): each step arrives with a suggested
-  // good/bad label so the doctor spends time only on the flagged ones. Force
-  // re-runs even when steps already exist (the "Re-split" affordance). Degrades
-  // gracefully — offline the steps arrive unlabeled and the doctor grades
-  // manually; on failure the doctor just adds steps.
+  // good/bad label so the doctor spends time only on the flagged ones. ``force``
+  // re-runs even when steps already exist; §5 removed the button that passed it,
+  // so the only live caller is the on-mount auto-fire. Degrades gracefully —
+  // offline the steps arrive unlabeled and the doctor grades manually; on
+  // failure the doctor just adds steps.
   async function autoSplitChosen(listId, force) {
     const text = chosenRefinedText().trim();
     const startedChosen = state.draft.chosen_id;
@@ -4061,7 +4978,13 @@
     if (!force && activeSteps().length) return;
     state.splitting = true;
     const list = document.getElementById(listId);
-    if (list) { clear(list); list.appendChild(h('p', { class: 'asc-help' }, 'Splitting the chosen answer into steps…')); }
+    // §5 (V3/V4): skeleton rows, not a blank card — "this is arriving" without
+    // a spinner to interpret. V1/V2 keep the sentence.
+    if (list) {
+      clear(list);
+      list.appendChild(isV3() ? stepsSkeleton()
+        : h('p', { class: 'asc-help' }, 'Splitting the chosen answer into steps…'));
+    }
     if (isV3()) syncStepsCont(); // §13: Continue stays locked while splitting
     try {
       // Assisted flows (V2 + V3) pre-grade each step (suggested good/bad); V1
@@ -4104,6 +5027,9 @@
       class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
       onClick: () => { activeSteps().push(newAuthoredStep()); saveDraft(); renderStepsList(listId); updateSubmitState(); },
     }, '+ Add step');
+    // V1/V2 (classic) keeps its re-split control. The Eval UI Overhaul §5 removal
+    // is scoped to the V3/V4 accordion, where the split auto-fires on mount; here
+    // it is still the only way to re-run a bad split.
     const resplitBtn = canAutoSplit ? h('button', {
       class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
       onClick: () => autoSplitChosen(listId, true),
@@ -4236,6 +5162,8 @@
 
       // Collapsed "original:" reference — the AI's split step we're correcting.
       const originalBox = hasOriginal
+        // V1/V2 (classic) keeps the original 80-char JS truncation. The §8
+        // fill-the-width fix is scoped to the V3/V4 renderer.
         ? h('details', { class: 'asc-step-original' },
             h('summary', {}, 'original: ' + ((s.original_text || '').length > 80
               ? (s.original_text || '').slice(0, 80) + '…' : (s.original_text || ''))),
@@ -4933,8 +5861,12 @@
       // Rubric capture (FEAT-2): the confirmed weighted criteria (empty when the
       // doctor didn't capture a rubric). Zero-point/empty rows are dropped server-side.
       rubric: (d.rubric || []).filter((c) => (c.text || '').trim()).map((c) => {
+        // §11: `axes` is authoritative; `axis` ships alongside it as `axes[0]`
+        // (deprecated) so older readers and stored records keep working.
+        const axs = (Array.isArray(c.axes) && c.axes.length) ? c.axes.slice() : (c.axis ? [c.axis] : []);
         const entry = {
-          text: (c.text || '').trim(), points: c.points || 0, axis: c.axis || null, source: c.source || 'manual',
+          text: (c.text || '').trim(), points: c.points || 0,
+          axes: axs, axis: axs[0] || c.axis || null, source: c.source || 'manual',
           // Tier (Two-Model PRD WS-B) — the server re-derives from |points| when it
           // doesn't match, so this is a hint, never authoritative.
           tier: tierForPoints(c.points),
@@ -5008,21 +5940,85 @@
       };
       payload.reasoning_steps = payload.from_scratch.reasoning_steps;
     }
+    // Decisive action (Audit §13): the physician-named verifiable outcome — the test
+    // or action the correct answer depends on. Skippable by design, so it's only sent
+    // when the clinician actually named one; a fabricated one is worse than none.
+    const da = d.decisive_action || {};
+    const daAction = (da.action || '').trim();
+    if (daAction) {
+      payload.decisive_action = {
+        action: daAction,
+        tool_name: (da.tool_name || '').trim() || null,
+        must_precede_final_answer: da.must_precede_final_answer !== false,
+        rationale: (da.rationale || '').trim(),
+      };
+    }
     return payload;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  ADVISOR SECTION (Advisor PRD §6.2)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Lives in its own file (frontend/asclepius/advisor.js) and is mounted here
+  // the same way AdminPhysiciansSection is — this file is already 8,000 lines
+  // and does not need 400 more.
+  function renderAdvisorView() {
+    stopTimer();
+    updateHeaderProgress();
+    const body = h('div', { id: 'ascAdvisorBody' });
+    setRoot(h('div', { class: 'asc-wrap' }, body));
+    if (window.AdvisorSection && typeof window.AdvisorSection.render === 'function') {
+      window.AdvisorSection.render(body, adminSectionCtx());
+      return;
+    }
+    // A VISIBLE error, never a quiet placeholder. A silent fallback is how a
+    // shipped feature stayed invisible for an entire build round — the advisor
+    // must be able to see that something is broken and say so.
+    body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-error' },
+        'The Advisor section failed to load. Reload the page; if it persists, '
+        + 'this is a deploy problem — check that advisor.js is included in '
+        + 'index.html. Your referrals and sign-offs are unaffected.'))));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  ADMIN CONSOLE
   // ═══════════════════════════════════════════════════════════════════════════
+  // Legacy tab ids (deep links, stale state) → new section + sub-tab.
+  const ADMIN_TAB_ALIASES = {
+    tasks: ['physicians', 'tasks'], qa: ['physicians', 'qa'],
+    ingestion: ['health', 'pipeline'], buyers: ['export', 'buyers'],
+    exports: ['export', 'history'],
+  };
+
+  // Shared helpers handed to the section modules (admin_physicians.js,
+  // admin_health.js, admin_export.js) — they live in their own files (§3.3
+  // ownership) and build DOM exclusively through this ctx.
+  function adminSectionCtx() {
+    return {
+      h, api, clear, toast, loadingCard, downloadBlob, fmtDate,
+      // Jump to the pipeline tools (the ingestion review/promote surface),
+      // deep-linked to the row that was clicked (C-5.2). The bucket buttons
+      // always passed their upload; this used to ignore the argument and just
+      // switch tabs, so the operator had to re-find the upload they had just
+      // clicked on.
+      openPipeline: (entry) => {
+        state.adminTab = 'health'; state.adminSub.health = 'pipeline';
+        state.pipelineFocus = (entry && (entry.upload_id || entry.uploadId)) || null;
+        renderAdminView();
+      },
+    };
+  }
+
   function renderAdminView() {
     stopTimer();
     updateHeaderProgress(); // admin view — the §16 bar hides here
+    const alias = ADMIN_TAB_ALIASES[state.adminTab];
+    if (alias) { state.adminTab = alias[0]; state.adminSub[alias[0]] = alias[1]; }
     const tabs = [
-      ['tasks', 'Tasks'],
-      ['qa', 'QA'],
-      ['ingestion', 'Ingestion'],
-      ['buyers', 'Buyers & Requests'],
-      ['exports', 'Exports'],
+      ['physicians', 'Physicians'],
+      ['health', 'Health Systems'],
+      ['export', 'Export'],
       ['metrics', 'Metrics'],
     ];
     const subnav = h('div', { class: 'asc-subnav' },
@@ -5031,8 +6027,10 @@
           class: 'asc-subnav-btn' + (state.adminTab === id ? ' active' : ''),
           onClick: () => { state.adminTab = id; renderAdminView(); },
         }, label);
-        // QA (BUG-2): a live pending-count badge so the backlog is never invisible.
-        if (id === 'qa') btn.appendChild(h('span', { class: 'asc-badge asc-badge-count', id: 'ascQaBadge', style: 'margin-left:6px', hidden: true }));
+        // QA (BUG-2): the pending-count badge stays visible at the top level so
+        // the backlog is never invisible — it now rides on Physicians (QA lives
+        // inside it as a sub-tab).
+        if (id === 'physicians') btn.appendChild(h('span', { class: 'asc-badge asc-badge-count', id: 'ascQaBadge', style: 'margin-left:6px', hidden: true }));
         return btn;
       }));
 
@@ -5040,12 +6038,75 @@
     setRoot(h('div', { class: 'asc-wrap' }, subnav, body));
     refreshQaBadge();
 
-    if (state.adminTab === 'tasks') renderAdminTasks(body);
-    else if (state.adminTab === 'qa') renderAdminQA(body);
-    else if (state.adminTab === 'ingestion') renderAdminIngestion(body);
-    else if (state.adminTab === 'buyers') renderAdminBuyers(body);
-    else if (state.adminTab === 'exports') renderAdminExports(body);
+    if (state.adminTab === 'physicians') renderAdminPhysiciansSection(body);
+    else if (state.adminTab === 'health') renderAdminHealthSection(body);
+    else if (state.adminTab === 'export') renderAdminExportSection(body);
     else if (state.adminTab === 'metrics') renderAdminMetrics(body);
+  }
+
+  // Sub-tab strip shared by the three restructured sections.
+  function adminSubnav(section, items) {
+    return h('div', { class: 'asc-subnav', style: 'margin-bottom:14px' },
+      items.map(([id, label]) => h('button', {
+        class: 'asc-subnav-btn' + (state.adminSub[section] === id ? ' active' : ''),
+        onClick: () => { state.adminSub[section] = id; renderAdminView(); },
+      }, label)));
+  }
+
+  function sectionModuleMissing(body, name) {
+    body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-inline-error' },
+        name + ' failed to load — refresh the page. If it persists, check that the ' +
+        'script is included in index.html.'))));
+  }
+
+  // Physicians — who supplies our judgment. Tasks and QA live here now, next to
+  // the people who produce them.
+  function renderAdminPhysiciansSection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('physicians', [
+      ['roster', 'Roster'], ['verify', 'Verification'],
+      ['tasks', 'Tasks'], ['qa', 'QA'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    const sub = state.adminSub.physicians;
+    if (sub === 'tasks') renderAdminTasks(inner);
+    else if (sub === 'qa') renderAdminQA(inner);
+    else if (window.AdminPhysiciansSection) {
+      window.AdminPhysiciansSection.render(inner, adminSectionCtx(),
+        sub === 'verify' ? 'verify' : 'roster');
+    } else sectionModuleMissing(inner, 'The Physicians section');
+  }
+
+  // Health Systems — who supplies our data. The ingestion review/promote surface
+  // lives here as "Pipeline tools".
+  function renderAdminHealthSection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('health', [
+      ['systems', 'Systems'], ['pipeline', 'Pipeline tools'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    if (state.adminSub.health === 'pipeline') renderAdminIngestion(inner);
+    else if (window.AdminHealthSection) window.AdminHealthSection.render(inner, adminSectionCtx());
+    else sectionModuleMissing(inner, 'The Health Systems section');
+  }
+
+  // Export — what can we sell, and how do we cut it. By-case is the primary
+  // view; buyer relationships and past export batches stay reachable beside it.
+  function renderAdminExportSection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('export', [
+      ['bycase', 'Export by case'], ['buyers', 'Buyers & Requests'], ['history', 'Export history'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    const sub = state.adminSub.export;
+    if (sub === 'buyers') renderAdminBuyers(inner);
+    else if (sub === 'history') renderAdminExports(inner);
+    else if (window.AdminExportSection) window.AdminExportSection.render(inner, adminSectionCtx());
+    else sectionModuleMissing(inner, 'The Export section');
   }
 
   async function refreshQaBadge() {
@@ -5251,59 +6312,97 @@
   function renderAdminIngestion(body) {
     clear(body);
 
-    // Mint a secure upload link
-    const pid = h('input', { class: 'asc-input', placeholder: 'partner id (e.g. mercy-health)' });
-    const plabel = h('input', { class: 'asc-input', placeholder: 'display label (optional)' });
-    const pspec = selectFrom(['nephrology', 'cardiology'], 'nephrology');
-    const phours = h('input', { type: 'number', class: 'asc-input', value: '72', min: '1', max: '720' });
-    const pcontact = h('input', { type: 'email', class: 'asc-input', placeholder: 'partner contact email (optional)' });
-    const ponce = h('input', { type: 'checkbox', checked: 'checked' });
+    // PRD-C: send upload access to a health system. Two fields; everything else
+    // (health-system row, username, passphrase, forced reset) is derived
+    // server-side. Replaces the old six-field link-minting form.
+    const hsOrg = h('input', { class: 'asc-input', placeholder: 'Mass General Hospital' });
+    const hsEmail = h('input', { type: 'email', class: 'asc-input', placeholder: 'data@mgh.harvard.edu' });
     const mintStatus = h('div', {});
-    const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Mint secure upload link');
+    const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send upload link');
     mintBtn.addEventListener('click', async () => {
       clear(mintStatus);
-      if (!pid.value.trim()) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Partner id is required.')); return; }
+      const org = hsOrg.value.trim();
+      const email = hsEmail.value.trim();
+      if (!org) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Organization is required.')); return; }
+      if (!email) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Email is required.')); return; }
+      mintBtn.setAttribute('disabled', '');
       try {
-        const res = await api('/admin/upload-links', { method: 'POST', body: {
-          partner_id: pid.value.trim(), partner_label: plabel.value.trim() || null,
-          specialty: pspec.value, expires_hours: Math.max(1, parseInt(phours.value, 10) || 72),
-          one_time: ponce.checked, contact_email: pcontact.value.trim() || null,
+        const res = await api('/admin/health-systems/provision', { method: 'POST', body: {
+          organization: org, email: email,
         } });
-        const url = res.upload_url || ('/partner/upload?t=' + res.token);
-        mintStatus.appendChild(h('div', { class: 'asc-inline-warn' },
-          'Copy this link NOW — the token is shown once and never stored: '));
-        const urlBox = h('input', { class: 'asc-input asc-mono', value: url, readonly: 'readonly', style: 'margin-top:8px' });
-        urlBox.addEventListener('click', () => { urlBox.select(); });
-        mintStatus.appendChild(urlBox);
-        mintStatus.appendChild(h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', style: 'margin-top:8px', onClick: () => {
-          navigator.clipboard.writeText(url).then(() => toast('Link copied.', 'success')).catch(() => {});
-        } }, 'Copy link'));
+        mintStatus.appendChild(h('div', { class: 'asc-inline-ok' }, res.message
+          || ('Upload access sent to ' + email + '.')));
+        hsOrg.value = ''; hsEmail.value = '';
         loadIngestionLists();
       } catch (e) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
+      finally { mintBtn.removeAttribute('disabled'); }
     });
     const mintCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Secure partner upload link'),
-        h('div', { class: 'asc-card-sub' }, 'Tokenized, expiring, single-purpose. The partner uploads a de-identified .zip — no app account. This is the only door that produces V4 real cases.'))),
+        h('div', { class: 'asc-card-title' }, 'Send a health system its upload access'),
+        h('div', { class: 'asc-card-sub' }, 'The contact receives a username and one-time passphrase by email, signs into the password-protected portal, and uploads. Specialty is determined at ingest — not asked of hospital IT.'))),
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Partner id'), pid),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Label'), plabel),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), pspec)),
-        h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Expires (hours)'), phours),
-          h('label', { class: 'asc-checkbox-row', style: 'align-self:end;margin-bottom:14px' }, ponce, 'Single use'),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Contact email'), pcontact)),
-        h('div', { class: 'asc-card-sub', style: 'margin:-4px 0 12px' },
-          'If an upload through this link fails, we email this address that it didn’t come through (no PHI, no breach) so they can re-send.'),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Organization'), hsOrg),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Email'), hsEmail)),
         mintBtn, mintStatus));
 
     const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));
     const casesCard = h('div', { class: 'asc-card', id: 'ascIngestCases' }, loadingCard('Loading ingested cases…'));
     body.appendChild(mintCard);
+    body.appendChild(renderReconcileCard());
     body.appendChild(uploadsCard);
     body.appendChild(casesCard);
+    // Deep-linked from a Health Systems bucket row (C-5.2): say which upload the
+    // operator arrived for, and scroll to it once the lists land — otherwise
+    // [Review] / [Promote to task] drop them into an unfiltered page.
+    if (state.pipelineFocus) {
+      const focus = state.pipelineFocus;
+      state.pipelineFocus = null;
+      body.insertBefore(h('div', { class: 'asc-inline-ok', style: 'margin-bottom:12px' },
+        'Showing pipeline tools for upload ', h('code', { class: 'asc-mono' }, focus)), mintCard);
+      loadIngestionLists().then(() => {
+        const row = document.querySelector('[data-upload="' + focus + '"]');
+        if (row && row.scrollIntoView) row.scrollIntoView({ block: 'center' });
+        if (row && row.classList) row.classList.add('asc-row-focus');
+      }).catch(() => {});
+      return;
+    }
     loadIngestionLists();
+  }
+
+  // Terminal-state reconciliation (V4 Build Spec §9.3): re-bind unbound sealed keys
+  // and hold cases whose asset blob went missing. Runs at startup + nightly; this is
+  // the on-demand trigger with a live count readout.
+  function renderReconcileCard() {
+    const out = h('div', { class: 'asc-card-sub', style: 'margin-top:10px' },
+      'Checks ingested cases for an unbound answer key or a missing image blob — defects that develop after ingest.');
+    const btn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm' }, 'Run reconciliation');
+    btn.addEventListener('click', async () => {
+      btn.setAttribute('disabled', ''); btn.textContent = 'Reconciling…';
+      try {
+        const res = await api('/ingestion/reconcile', { method: 'POST', body: {} });
+        const c = res.reconcile || {};
+        clear(out);
+        out.appendChild(h('div', {},
+          'Sealed keys re-bound: ' + (c.sealed_bound || 0)
+          + ' · orphaned keys: ' + (c.sealed_orphans || 0)
+          + ' · missing image blobs: ' + (c.assets_missing || 0)
+          + ' · corrupt blobs: ' + (c.assets_corrupt || 0)
+          + ' · cases held for review: ' + (c.cases_held || 0) + '.'));
+        if ((c.cases_held || 0) > 0) loadIngestionLists();
+        toast('Reconciliation complete.', 'success');
+      } catch (e) {
+        toast('Reconciliation failed: ' + (e.detail || e.message || ''), 'error');
+      } finally {
+        btn.removeAttribute('disabled'); btn.textContent = 'Run reconciliation';
+      }
+    });
+    return h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Integrity reconciliation'),
+        h('div', { class: 'asc-card-sub' }, 'Terminal-state consistency check for ingested real cases.'))),
+      h('div', { class: 'asc-card-pad' }, btn, out));
   }
 
   // Cached uploads (used to filter the promote list by partner/file search).
@@ -5312,6 +6411,23 @@
   const _UPLOADS_PAGE = 50;
   let _uploadsOffset = 0;
   let _uploadsTotal = 0;
+  // Admin review queue (V4 Build Spec §21.5): the active status filter for the
+  // uploads table. null == All. `needs_review` surfaces the review queue.
+  let _uploadsStatus = null;
+
+  // Every other status on this screen is a real word — render 'Needs review',
+  // never the raw `needs_review` token (§21.7).
+  const UPLOAD_STATUS_LABEL = {
+    ingested: 'Ready', needs_review: 'Needs review', quarantined: 'Quarantined',
+    rejected: 'Rejected', received: 'Received', parsing: 'Parsing', failed: 'Failed',
+  };
+  const uploadStatusLabel = (s) => UPLOAD_STATUS_LABEL[s] || s || '—';
+  // `asc-badge-accent` already exists and is unused in this table, so no CSS change.
+  const uploadBadgeClass = (s) => (
+    s === 'ingested' ? 'asc-badge-green'
+      : s === 'needs_review' ? 'asc-badge-accent'
+        : s === 'quarantined' ? 'asc-badge-amber'
+          : s === 'rejected' ? 'asc-badge-red' : 'asc-badge-gray');
 
   async function loadIngestionLists() {
     const up = document.getElementById('ascIngestUploads');
@@ -5335,23 +6451,56 @@
     const up = document.getElementById('ascIngestUploads');
     if (!up) return;
     try {
-      const data = await api('/ingestion/uploads?limit=' + _UPLOADS_PAGE + '&offset=' + Math.max(0, offset));
+      const q = '/ingestion/uploads?limit=' + _UPLOADS_PAGE + '&offset=' + Math.max(0, offset)
+        + (_uploadsStatus ? '&status=' + encodeURIComponent(_uploadsStatus) : '');
+      const data = await api(q);
       const uploads = data.uploads || [];
+      const counts = data.counts || {};
       _uploadsOffset = data.offset || 0;
       _uploadsTotal = data.total || 0;
       clear(up);
       up.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' },
-        'Partner uploads (' + _uploadsTotal + ')')));
-      if (!_uploadsTotal) {
+        'Partner uploads (' + (counts.all != null ? counts.all : _uploadsTotal) + ')')));
+      // Filter chips (default All). Counts come from the server so they hold across
+      // pages and the active filter.
+      const chipDefs = [
+        { key: null, label: 'All', n: counts.all },
+        { key: 'ingested', label: 'Ready', n: counts.ingested },
+        { key: 'needs_review', label: 'Needs review', n: counts.needs_review },
+        { key: 'quarantined', label: 'Quarantined', n: counts.quarantined },
+        { key: 'rejected', label: 'Rejected', n: counts.rejected },
+      ];
+      const chips = chipDefs.map((d) => {
+        const active = (_uploadsStatus || null) === (d.key || null);
+        // `.active.err` is the design-system pink emphasis — use it for the review
+        // chip when there's a real queue so the hold is visible even unselected.
+        const accent = d.key === 'needs_review' && (d.n || 0) > 0;
+        const chip = h('button', {
+          class: 'asc-chip' + (active ? ' active' : '') + (accent ? ' err' : ''),
+        }, d.label + (d.n != null ? ' (' + d.n + ')' : ''));
+        chip.addEventListener('click', () => { _uploadsStatus = d.key || null; renderUploadsTable(0); });
+        return chip;
+      });
+      up.appendChild(h('div', { class: 'asc-chips asc-card-pad', style: 'padding-top:0' }, chips));
+      if (!uploads.length) {
         up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
-          'No uploads yet — mint a link above and send it to the partner.')));
+          _uploadsStatus ? ('No uploads with status "' + uploadStatusLabel(_uploadsStatus) + '".')
+                         : 'No uploads yet — mint a link above and send it to the partner.')));
         return;
       }
-      const rows = uploads.map((u) => {
+      const rows = [];
+      uploads.forEach((u) => {
         const dlBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
           onClick: () => downloadBlob('/ingestion/uploads/' + u.upload_id + '/download', u.filename || (u.upload_id + '.zip')) },
           '⬇ Download file');
         const actions = [dlBtn];
+        // A held upload gets a Review action that expands an inline drawer (never a
+        // modal — the table already renders rows).
+        if (u.status === 'needs_review') {
+          const rbtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Review');
+          rbtn.addEventListener('click', () => toggleReviewDrawer(u, rbtn));
+          actions.push(rbtn);
+        }
         if (u.status !== 'ingested') {
           const canNotify = !!u.contact_email;
           const nbtn = h('button', {
@@ -5363,12 +6512,17 @@
           if (!canNotify) nbtn.disabled = true;
           actions.push(nbtn);
         }
-        return h('tr', {},
+        const row = h('tr', { 'data-upload': u.upload_id },
           h('td', {}, fmtDate(u.created_at)),
           h('td', {}, u.partner_label || u.partner_id || '—'),
           h('td', { class: 'asc-mono' }, (u.filename || '') + ' · ' + Math.round((u.size_bytes || 0) / 1024) + 'KB'),
-          h('td', {}, h('span', { class: 'asc-badge ' + (u.status === 'ingested' ? 'asc-badge-green' : (u.status === 'quarantined' ? 'asc-badge-amber' : (u.status === 'rejected' ? 'asc-badge-red' : 'asc-badge-gray'))) }, u.status)),
+          h('td', {}, h('span', { class: 'asc-badge ' + uploadBadgeClass(u.status) }, uploadStatusLabel(u.status))),
           h('td', {}, h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' }, actions)));
+        rows.push(row);
+        // Placeholder row the drawer expands into, kept adjacent for correct order.
+        const drawer = h('tr', { class: 'asc-review-drawer-row', 'data-drawer-for': u.upload_id, style: 'display:none' },
+          h('td', { colspan: '5', style: 'padding:0' }, h('div', { class: 'asc-review-drawer' })));
+        rows.push(drawer);
       });
       up.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
         h('thead', {}, h('tr', {}, ['When', 'Partner', 'File', 'Status', ''].map((c) => h('th', {}, c)))),
@@ -5400,6 +6554,172 @@
     }
   }
 
+  // ── Admin review queue drawer (V4 Build Spec §21.5-§21.7) ────────────────────
+  // Expands inline under a `needs_review` row. Blocking reasons render ABOVE
+  // advisory, always. A blocking image row outlines the top/bottom 12% bands in the
+  // design-system flag colour so a reviewer certifies "no PHI" from pixels, not a
+  // filename. The advisory row states the case is already in the annotation queue.
+  async function toggleReviewDrawer(upload, btn) {
+    const drawerRow = document.querySelector('tr[data-drawer-for="' + upload.upload_id + '"]');
+    if (!drawerRow) return;
+    if (drawerRow.style.display !== 'none') {
+      drawerRow.style.display = 'none';
+      if (btn) btn.textContent = 'Review';
+      return;
+    }
+    drawerRow.style.display = '';
+    if (btn) btn.textContent = 'Hide review';
+    const host = drawerRow.querySelector('.asc-review-drawer');
+    clear(host);
+    host.appendChild(loadingCard('Loading review reasons…'));
+    let data;
+    try {
+      data = await api('/ingestion/uploads/' + upload.upload_id + '/review');
+    } catch (e) {
+      clear(host);
+      host.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Could not load review reasons.'));
+      return;
+    }
+    renderReviewDrawer(host, upload, data.cases || []);
+  }
+
+  function renderReviewDrawer(host, upload, cases) {
+    clear(host);
+    if (!cases.length) {
+      host.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
+        'Nothing left to review on this upload.')));
+      return;
+    }
+    const box = h('div', { class: 'asc-card-pad', style: 'display:flex;flex-direction:column;gap:14px' });
+    cases.forEach((c) => box.appendChild(renderReviewCase(upload, c)));
+    host.appendChild(box);
+  }
+
+  function renderReviewCase(upload, c) {
+    const reasons = c.reasons || [];              // already blocking-first from the API
+    const blocking = reasons.filter((r) => r.severity === 'blocking');
+    const advisory = reasons.filter((r) => r.severity !== 'blocking');
+    const studiesByAsset = {};
+    (c.studies || []).forEach((s) => { if (s && s.asset && s.asset.asset_id) studiesByAsset[s.asset.asset_id] = s; });
+
+    const wrap = h('div', { class: 'asc-review-case', style: 'border:1px solid var(--asc-line);border-radius:10px;padding:12px' });
+    wrap.appendChild(h('div', { class: 'asc-card-sub asc-mono', style: 'margin-bottom:8px' },
+      'case ' + c.ingest_case_id + (c.review_status ? ' · ' + c.review_status : '')));
+
+    // Blocking reasons FIRST — the PHI hold outranks the advisory note.
+    blocking.forEach((r) => {
+      const block = h('div', { style: 'margin-bottom:12px' });
+      block.appendChild(h('div', { style: 'display:flex;align-items:center;gap:8px' },
+        h('span', { class: 'asc-badge asc-badge-red' }, 'Blocking'),
+        h('strong', {}, reasonTitle(r.reason))));
+      block.appendChild(h('div', { class: 'asc-card-sub', style: 'margin:4px 0 8px' }, r.detail || ''));
+      // Show a study image with the top/bottom bands flagged, when we have one.
+      const firstStudy = (c.studies || [])[0];
+      const withAsset = (c.studies || []).find((s) => s && s.asset && s.asset.asset_id);
+      if (withAsset) {
+        block.appendChild(renderBandedImage(withAsset));
+      } else {
+        block.appendChild(h('div', { class: 'asc-inline-warn' },
+          'No render is available for this study — its pixels were withheld from the content store '
+          + 'until a human clears them. Download the original bundle above to inspect the source image '
+          + 'before certifying no PHI.'));
+      }
+      wrap.appendChild(block);
+    });
+
+    // Advisory reasons — the case is clinically intact and, if not otherwise held,
+    // already in the annotation queue. Nobody needs to chase it.
+    advisory.forEach((r) => {
+      const adv = h('div', { style: 'margin-bottom:10px' });
+      adv.appendChild(h('div', { style: 'display:flex;align-items:center;gap:8px' },
+        h('span', { class: 'asc-badge asc-badge-gray' }, 'Advisory'),
+        h('strong', {}, reasonTitle(r.reason))));
+      adv.appendChild(h('div', { class: 'asc-card-sub', style: 'margin:4px 0' }, r.detail || ''));
+      adv.appendChild(h('div', { class: 'asc-card-sub' },
+        blocking.length ? 'This note travels with the case; it did not hold it.'
+                        : 'This case is already in the annotation queue — no action needed.'));
+      wrap.appendChild(adv);
+    });
+
+    // Actions. Only a blocking hold needs clear/reject; a pure-advisory case just
+    // gets an Acknowledge that closes the drawer.
+    const status = h('div', { style: 'margin-top:8px' });
+    const actions = h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' });
+    if (blocking.length) {
+      const clearBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'No PHI — clear');
+      clearBtn.addEventListener('click', () => clearReview(upload, c, status));
+      const rejectBtn = h('button', { class: 'asc-btn asc-btn-danger asc-btn-sm' }, 'PHI present — reject case');
+      rejectBtn.addEventListener('click', () => rejectReview(upload, c, status));
+      actions.appendChild(clearBtn);
+      actions.appendChild(rejectBtn);
+    } else {
+      const ackBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm' }, 'Acknowledge');
+      ackBtn.addEventListener('click', () => renderUploadsTable(_uploadsOffset));
+      actions.appendChild(ackBtn);
+    }
+    wrap.appendChild(actions);
+    wrap.appendChild(status);
+    return wrap;
+  }
+
+  function reasonTitle(code) {
+    return ({
+      burned_in_phi_unverified: 'Burned-in PHI could not be screened',
+      asset_blob_missing: 'Image asset is missing from storage',
+      sealed_key_unbound: 'Sealed answer key is unbound',
+      completeness_unverified: 'Declared evidence could not be verified',
+      deid_partner_flag_only: 'Image cleared on DICOM tags alone (no OCR)',
+    })[code] || code;
+  }
+
+  // Render a study image at review size with the top and bottom 12% bands outlined
+  // in the design-system flag colour — the regions where burned-in PHI lives.
+  function renderBandedImage(study) {
+    const frame = h('div', { style: 'position:relative;max-width:420px;border:1px solid var(--asc-line);border-radius:8px;overflow:hidden;background:var(--asc-surface-2)' });
+    const img = h('img', { alt: (study.label || study.modality || 'clinical') + ' image', style: 'display:block;width:100%;height:auto' });
+    frame.appendChild(img);
+    const band = (top) => h('div', { style: 'position:absolute;left:0;right:0;height:12%;'
+      + (top ? 'top:0;' : 'bottom:0;')
+      + 'border:2px solid var(--pink-deep);background:var(--pink-wash);pointer-events:none' });
+    frame.appendChild(band(true));
+    frame.appendChild(band(false));
+    fetchAssetBlobUrl(study.asset.asset_id).then((url) => { img.src = url; }).catch(() => {
+      frame.appendChild(h('div', { class: 'asc-inline-warn' }, 'Could not load the image.'));
+    });
+    return frame;
+  }
+
+  async function clearReview(upload, c, status) {
+    const note = window.prompt('Certify no burned-in PHI in this image. Enter a review note (required):');
+    if (note == null) return;                     // cancelled
+    if (!note.trim()) { toast('A review note is required to clear a case.', 'error'); return; }
+    clear(status);
+    status.appendChild(loadingCard('Clearing…'));
+    try {
+      await api('/ingestion/cases/' + c.ingest_case_id + '/review/clear',
+        { method: 'POST', body: { note: note, reason: (c.reasons && c.reasons[0] && c.reasons[0].reason) || null } });
+      toast('Case cleared — back in the annotation queue.', 'success');
+      loadIngestionLists();
+    } catch (e) {
+      clear(status);
+      status.appendChild(h('div', { class: 'asc-inline-error' }, e.detail || e.message || 'Clear failed.'));
+    }
+  }
+
+  async function rejectReview(upload, c, status) {
+    if (!window.confirm('Reject this case? It will be quarantined and never served for annotation.')) return;
+    clear(status);
+    status.appendChild(loadingCard('Rejecting…'));
+    try {
+      await api('/ingestion/cases/' + c.ingest_case_id + '/review/reject', { method: 'POST' });
+      toast('Case rejected and quarantined.', 'success');
+      loadIngestionLists();
+    } catch (e) {
+      clear(status);
+      status.appendChild(h('div', { class: 'asc-inline-error' }, e.detail || e.message || 'Reject failed.'));
+    }
+  }
+
   // Group ingested cases by the partner upload they came from, filtered by a
   // partner/file search box. Promote runs on the WHOLE file: prepare a sample →
   // review → extend case creation to the rest.
@@ -5422,7 +6742,10 @@
   function renderPromoteList(listBox, query) {
     clear(listBox);
     const q = (query || '').trim().toLowerCase();
-    const eligible = (_ingestUploads || []).filter((u) => (u.ingested_case_count || 0) > 0
+    // Include held uploads too (V4 §4.7) so a `needs_review` file is visible here —
+    // with a "Held for review" marker instead of a promote button — rather than
+    // silently vanishing while an unresolved blocking reason keeps its cases out.
+    const eligible = (_ingestUploads || []).filter((u) => ((u.ingested_case_count || 0) > 0 || u.status === 'needs_review')
       && (!q || (u.partner_label || '').toLowerCase().includes(q)
               || (u.partner_id || '').toLowerCase().includes(q)
               || (u.filename || '').toLowerCase().includes(q)));
@@ -5433,17 +6756,28 @@
     }
     eligible.forEach((u) => {
       const st = h('div', { style: 'margin-top:10px' });
-      const promoteBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Promote to V4 task');
-      promoteBtn.addEventListener('click', () => openPromoteReview(u, st));
+      const ready = (u.ingested_case_count || 0) > 0;
+      // A blocking review reason keeps its cases out of promotion — show a
+      // "Held for review" marker in place of the button until it's cleared.
+      const action = ready
+        ? (() => {
+            const b = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Promote to V4 task');
+            b.addEventListener('click', () => openPromoteReview(u, st));
+            return b;
+          })()
+        : h('span', { class: 'asc-badge asc-badge-accent', title: 'A case in this upload is held for admin review — clear it in Partner uploads above.' }, 'Held for review');
+      const sub = ready
+        ? (u.ingested_case_count || 0) + ' case(s) ready · uploaded ' + fmtDate(u.created_at)
+        : 'Held for review · uploaded ' + fmtDate(u.created_at);
       listBox.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
         h('div', { style: 'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center' },
           h('div', {},
             h('strong', {}, (u.partner_label || u.partner_id || 'partner')),
             h('div', { class: 'asc-card-sub asc-mono' }, u.filename || ''),
-            h('div', { class: 'asc-card-sub' }, (u.ingested_case_count || 0) + ' case(s) ready · uploaded ' + fmtDate(u.created_at))),
+            h('div', { class: 'asc-card-sub' }, sub)),
           h('div', { style: 'display:flex;gap:8px;align-items:center' },
             h('span', { class: 'asc-badge-real' }, 'real · V4'),
-            promoteBtn)),
+            action)),
         st));
     });
   }
@@ -6946,6 +8280,95 @@
   }
 
   // ─── Admin: Metrics ────────────────────────────────────────────────────────
+  // ─── Metrics: the four questions (PRD-C Phase 6) ───────────────────────────
+  function metricSparkBars(series) {
+    const vals = (series || []).slice(-14);
+    const max = Math.max.apply(null, vals.concat([1]));
+    return h('div', { class: 'asc-metric-q-spark', 'aria-hidden': 'true' },
+      vals.map((v) => h('span', {
+        class: 'asc-metric-spark-bar' + (v ? '' : ' is-zero'),
+        style: 'height:' + (2 + Math.round((v / max) * 26)) + 'px',
+      })));
+  }
+
+  function metricQuestionCard(name, headline, subLabel, spark, rows) {
+    return h('div', { class: 'asc-metric-q' },
+      h('div', { class: 'asc-metric-q-name' }, name),
+      h('div', { class: 'asc-metric-q-headline' }, String(headline)),
+      h('div', { class: 'asc-metric-q-sub' }, subLabel),
+      metricSparkBars(spark),
+      h('div', { class: 'asc-metric-q-rows' }, rows.map(([label, value]) =>
+        h('div', { class: 'asc-metric-row' },
+          h('span', { class: 'asc-metric-row-label' }, label),
+          h('span', { class: 'asc-metric-row-value' }, String(value))))));
+  }
+
+  async function renderMetricQuestions(mount, s) {
+    mount.appendChild(h('div', { class: 'asc-dim' }, 'Loading the four questions…'));
+    let q;
+    try { q = await api('/admin/metrics/questions'); }
+    catch (e) {
+      clear(mount);
+      mount.appendChild(h('div', { class: 'asc-inline-error' }, e.message));
+      return;
+    }
+    clear(mount);
+    const supply = q.supply || {}, quality = q.quality || {},
+          pipeline = q.pipeline || {}, demand = q.demand || {};
+    const kappa = (s && s.kappa) || {};
+    const grounded = (s && s.grounded) || {};
+    // Operator diagnostics that the four-question restructure dropped on the
+    // floor (C-5.1). They belong INSIDE the questions they answer, not in a
+    // separate wall of tiles — but they do have to be on the page.
+    const qpr = (s && s.qa_pass_rate) || {};
+    const flaw = (s && s.flaw_catch_rate) || {};
+    const omc = (s && s.open_modality_counts) || {};
+    const sc = (s && s.status_counts) || {};
+    // Tri-state acceptance: null means "no reviews yet", which must never be
+    // shown as a 0% acceptance rate.
+    const acc = quality.expert_acceptance;
+    const accHeadline = acc == null ? '—' : Math.round(acc * 100) + '%';
+    const accSub = acc == null
+      ? 'expert acceptance — no reviews yet'
+      : 'expert acceptance (' + (quality.reviews_scored || 0) + ' reviews)';
+    mount.appendChild(h('div', { class: 'asc-metric-questions' },
+      metricQuestionCard('Supply', supply.physicians_active_week || 0,
+        'physicians active this week', supply.spark, [
+          ['Cases labeled', supply.cases_labeled || 0],
+          ['Cases reviewed', supply.cases_reviewed || 0]]),
+      // Expert acceptance and Cohen's κ are DIFFERENT statistics, presented
+      // separately and labeled — merging them would misreport the number a
+      // buyer audits most closely. "Not rejected" is the combined figure
+      // (accept + accept_with_edits) and carries its own name for the same
+      // reason: a different number needs a different word.
+      metricQuestionCard('Quality', accHeadline, accSub, quality.spark, [
+        ["Cohen's κ (independent slice)",
+         fmtNum(kappa.overall) + ' · n=' + (kappa.n != null ? kappa.n : 0)],
+        ['Not rejected', quality.not_rejected == null
+          ? '—' : Math.round(quality.not_rejected * 100) + '%'],
+        ['Citation rate', (grounded.grounded_pct != null ? grounded.grounded_pct : 0) + '%'],
+        // Restored (C-5.1): the restructure was right, deleting these was not.
+        ['QA pass rate', (qpr.pass_rate != null ? Math.round(qpr.pass_rate * 100) : 0) + '%'
+          + ' (' + (qpr.passed || 0) + '/' + (qpr.reviewed || 0) + ')'],
+        ['Flaw catch rate', flaw.rate != null
+          ? Math.round(flaw.rate * 100) + '% (' + (flaw.caught || 0) + '/' + (flaw.scored || 0) + ')'
+          : '—'],
+        ['Avg agreement', fmtNum(s.average_agreement)]]),
+      metricQuestionCard('Pipeline', pipeline.uploads_received || 0,
+        'uploads received', pipeline.spark, [
+          ['Awaiting review', pipeline.awaiting_review || 0],
+          ['Promoted to task', pipeline.promoted_to_task || 0],
+          // Multimodal Debug PRD §P3.11: "0" here is the tell that generation
+          // stalled, before anyone wonders why no case panel appears.
+          ['Multimodal in queue', (omc.multimodal != null ? omc.multimodal : 0)
+            + ' (' + (omc.text != null ? omc.text : 0) + ' text)'],
+          ['Submissions', sumValues(sc)]]),
+      metricQuestionCard('Demand', demand.buyer_requests || 0,
+        'buyer requests', demand.spark, [
+          ['Exports', demand.exports || 0],
+          ['Records shipped', demand.records_shipped || 0]])));
+  }
+
   async function renderAdminMetrics(body) {
     clear(body);
     state.browse.metrics = { level: 'orgs', org: null, idHashed: null, contributor: null };
@@ -6961,25 +8384,17 @@
     const grounded = s.grounded || {};
     const flaw = s.flaw_catch_rate || {};
 
-    // Top stat tiles
-    const omc = s.open_modality_counts || {};
-    const tiles = h('div', { class: 'asc-stat-grid' },
-      stat(s.task_count != null ? s.task_count : 0, 'Tasks', null, true),
-      // Multimodal Debug PRD P3.11: always-visible count of structured cases in
-      // the OPEN queue — "0" here is the tell that generation hasn't produced
-      // (or the queue drained), before anyone wonders why no case panel appears.
-      stat(omc.multimodal != null ? omc.multimodal : 0, 'Multimodal in queue',
-        (omc.text != null ? omc.text : 0) + ' text open'),
-      stat(sumValues(sc), 'Submissions'),
-      stat((qpr.pass_rate != null ? Math.round(qpr.pass_rate * 100) : 0) + '%', 'QA pass rate', (qpr.passed || 0) + ' / ' + (qpr.reviewed || 0) + ' reviewed'),
-      stat(fmtNum(s.average_agreement), 'Avg agreement'),
-      stat(fmtNum(kappa.overall), "Cohen's κ", 'n=' + (kappa.n != null ? kappa.n : 0)),
-      stat((grounded.grounded_pct != null ? grounded.grounded_pct : 0) + '%', 'Grounded', (grounded.submissions_grounded || 0) + ' / ' + (grounded.submissions_total || 0)),
-      stat(flaw.rate != null ? Math.round(flaw.rate * 100) + '%' : '—', 'Flaw catch rate', (flaw.caught || 0) + ' / ' + (flaw.scored || 0) + ' generated'),
-      stat(s.export_count != null ? s.export_count : 0, 'Exports'));
-
+    // PRD-C Phase 6: the wall of undifferentiated numbers becomes FOUR
+    // QUESTIONS — Supply, Quality, Pipeline, Demand — one headline figure and a
+    // sparkline each. Cohen's κ (from /stats, the independent slice) and expert
+    // acceptance (from PRD-A's reviews) render SEPARATELY and labeled: expert
+    // acceptance is not κ, and merging them would misreport the number a buyer
+    // audits most closely. The deeper diagnostics keep their cards below.
+    const questionsMount = h('div', {});
     body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
-      h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Overview'), tiles));
+      h('div', { class: 'asc-card-title', style: 'margin-bottom:14px' }, 'Is any of this working?'),
+      questionsMount));
+    renderMetricQuestions(questionsMount, s);
 
     // Model-Failure view (FEAT-1): "cases where model X failed, with the expert
     // correction" — the artifact you put in front of a lab.
@@ -8009,6 +9424,18 @@
           'Replay practice case')));
     document.body.appendChild(drawer);
   }
+  // Expand every manual disclosure for printing, then restore — so a printed /
+  // PDF'd guide carries its full depth, not just the three-line summaries.
+  window.addEventListener('beforeprint', () => {
+    document.querySelectorAll('.asc-guide-detail').forEach((d) => {
+      if (!d.open) { d.open = true; d.dataset.printAutoOpened = '1'; }
+    });
+  });
+  window.addEventListener('afterprint', () => {
+    document.querySelectorAll('.asc-guide-detail[data-print-auto-opened]').forEach((d) => {
+      d.open = false; delete d.dataset.printAutoOpened;
+    });
+  });
 
   // ─── Go ────────────────────────────────────────────────────────────────────
   boot();

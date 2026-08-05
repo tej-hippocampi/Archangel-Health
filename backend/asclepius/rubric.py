@@ -70,6 +70,40 @@ def _axis(a: Optional[str], default: str = "accuracy") -> str:
     return a if a in RUBRIC_AXES else default
 
 
+def _axes(
+    value: Any, fallback: Optional[str] = None, default: str = "accuracy"
+) -> List[str]:
+    """Normalize a criterion's axes to a list of valid, deduped axis names (§11).
+
+    Accepts the authoritative list ``axes``, and falls back to the legacy single
+    ``axis`` string so stored records and the V2 path keep working. A criterion
+    always has at least one axis, so this never returns an empty list. Order is
+    preserved — ``axes[0]`` is what the deprecated ``axis`` field mirrors."""
+    raw = value if isinstance(value, list) else ([value] if value else [])
+    out: List[str] = []
+    for x in raw:
+        if not isinstance(x, str):
+            continue
+        a = x if x in RUBRIC_AXES else None
+        if a and a not in out:
+            out.append(a)
+    if not out and fallback:
+        out = [_axis(fallback)]
+    return out or [default]
+
+
+def _axes_of(c: Dict[str, Any]) -> List[str]:
+    """The axes actually recorded on a criterion, with NO defaulting (§11).
+
+    Used by the coverage count, where an absent axis must not silently count as
+    "accuracy" — that would inflate `n_axes` on a rubric that never named one.
+    Mirrors the frontend's coverage reducer in ``rubricCompleteness``."""
+    raw = c.get("axes")
+    if not isinstance(raw, list) or not raw:
+        raw = [c.get("axis")] if c.get("axis") else []
+    return [a for a in raw if isinstance(a, str) and a]
+
+
 # ─── FIX-1: machine-checkable (specific) vs vague criteria ────────────────────
 # A criterion that says "manages electrolytes appropriately" is ungradeable. We flag
 # vague language and require a concrete, checkable claim (a fact / drug / dose /
@@ -126,8 +160,8 @@ def _clip_sentence(text: str, cap: int = 400) -> str:
 
 def propose_rubric(task: Dict[str, Any], payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Auto-seed proposed rubric criteria from the doctor's already-captured tags
-    (FEAT-2). Returns a list of ``{text, points, axis, source}`` suggestions —
-    NEVER applied without confirmation. Deterministic + deduped by text."""
+    (FEAT-2). Returns a list of ``{text, points, axes, axis, source}`` suggestions
+    — NEVER applied without confirmation. Deterministic + deduped by text."""
     payload = payload or {}
     verdict = payload.get("verdict")
     out: List[Dict[str, Any]] = []
@@ -232,6 +266,12 @@ def propose_rubric(task: Dict[str, Any], payload: Dict[str, Any]) -> List[Dict[s
         c["tier"] = tier_for_points(c["points"])
         c["critical"] = c["tier"] == "critical"
         c["specific"] = is_specific_text(c["text"])   # FIX-1 concreteness flag
+        # §11: every seeded criterion carries the authoritative `axes` list too.
+        # A seed gets exactly ONE axis on purpose — auto-assigning a second would
+        # inflate the axis-coverage count toward `premium` on coverage the
+        # physician never actually named.
+        c["axes"] = _axes(c.get("axes"), c.get("axis"))
+        c["axis"] = c["axes"][0]
         deduped.append(c)
     return deduped
 
@@ -262,10 +302,15 @@ def normalize_rubric(criteria: Optional[List[Dict[str, Any]]]) -> List[Dict[str,
         derived = tier_for_points(pts)
         claimed = c.get("tier")
         tier = claimed if (claimed in RUBRIC_TIERS and claimed == derived) else derived
+        # §11: ``axes`` is authoritative; ``axis`` is emitted alongside it as
+        # ``axes[0]`` (deprecated) so a reader written against the old single-value
+        # shape keeps working unchanged.
+        axes = _axes(c.get("axes"), c.get("axis"))
         entry = {
             "text": text,
             "points": round(pts, 2),
-            "axis": _axis(c.get("axis")),
+            "axes": axes,
+            "axis": axes[0],
             "source": c.get("source") or "manual",
             "tier": tier,
             "critical": tier == "critical",
@@ -348,7 +393,10 @@ def rubric_completeness(criteria: Optional[List[Dict[str, Any]]]) -> Dict[str, A
     n = len(crit)
     n_pos = sum(1 for c in crit if (c.get("points") or 0) > 0)
     n_neg = sum(1 for c in crit if (c.get("points") or 0) < 0)
-    axes = {c.get("axis") for c in crit if c.get("axis")}
+    # §11: coverage counts EVERY axis on a criterion, not just the first —
+    # reading `axis` alone under-counts the moment multi-select ships. Mirrors
+    # the frontend's `rubricCompleteness` exactly.
+    axes = {a for c in crit for a in _axes_of(c)}
     has_crit_neg = has_critical_negative(crit)
     # A non-specific critical/important criterion does not count toward premium (FIX-1).
     # Recompute tier (from |points|) and specificity (from text) rather than trusting the

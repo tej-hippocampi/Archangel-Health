@@ -97,6 +97,7 @@
 }
 .asc-nav-btn:hover { background: var(--card-in); color: var(--asc-text); }
 .asc-nav-btn.active { background: var(--ink); color: var(--card); }
+/* Community unread badge lives on the side-panel rail (.asc-rail-badge). */
 .asc-header-right {
   margin-left: auto;
   display: flex;
@@ -197,6 +198,9 @@
 .asc-badge-green::before { background: var(--green); }
 .asc-badge-red::before { background: var(--pink); }
 .asc-badge-gray::before { background: rgba(26, 27, 26, 0.18); }
+/* Lime = "new / notable" (Advisor PRD §6.2). Used for the advisor tier badge:
+   three people among fifty, findable in one glance. Dot only — zero fills. */
+.asc-badge-lime::before { background: var(--lime); }
 
 /* ─── Buttons ─────────────────────────────────────────────── */
 .asc-btn {
@@ -428,6 +432,10 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+  /* §3: tops aligned, columns sized independently. This grid must contain
+     exactly the answer cards — an extra child lands in cell 2 and pushes the
+     rest onto row 2. */
+  align-items: start;
 }
 .asc-answer {
   background: var(--card);
@@ -437,6 +445,9 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* A long unbroken token (a URL, a lab string) would otherwise blow the
+     column out past its 1fr share and desymmetrize the pair. */
+  min-width: 0;
   transition: border-color .16s cubic-bezier(.4,0,.2,1);
 }
 .asc-answer.is-chosen { border-color: var(--green-line); border-left-color: var(--green); }
@@ -693,7 +704,50 @@
   padding: 6px 10px;
 }
 .asc-step-original summary { cursor: pointer; font-weight: 500; }
+/* §8: the bar fills its width and truncates where the bar actually ends, not
+   at a magic character count. `min-width: 0` on the preview is the part that is
+   easy to miss — without it a flex child refuses to shrink below its content
+   and the ellipsis never engages. */
+.asc-step-original-sum {
+  display: flex; align-items: baseline; gap: 8px;
+  width: 100%; cursor: pointer; list-style: none;
+}
+.asc-step-original-sum::-webkit-details-marker { display: none; }
+.asc-step-original-sum::marker { content: ''; }
+.asc-step-original-tag {
+  flex: none;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--ink-soft);
+}
+.asc-step-original-preview {
+  flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--ink-soft);
+}
+/* Open: the full text below is the whole point — a truncated echo above it is noise. */
+.asc-step-original[open] .asc-step-original-preview { display: none; }
 .asc-step-original-full { margin-top: 6px; white-space: pre-wrap; color: var(--asc-muted); }
+
+/* §5: split-in-flight placeholder. Three rows sized like real collapsed steps,
+   so the card does not resize when the real steps land. */
+.asc-steps-skeleton { display: flex; flex-direction: column; gap: 8px; }
+.asc-steps-skeleton > div {
+  height: 58px;
+  border: 1px solid var(--asc-line);
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, var(--card-in) 0%, var(--card) 50%, var(--card-in) 100%);
+  background-size: 200% 100%;
+  animation: ascSkeletonSweep 1.4s ease-in-out infinite;
+}
+.asc-steps-skeleton > div:nth-child(2) { animation-delay: .12s; }
+.asc-steps-skeleton > div:nth-child(3) { animation-delay: .24s; }
+@keyframes ascSkeletonSweep {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asc-steps-skeleton > div { animation: none; background: var(--card-in); }
+}
 
 /* Confidence + submit bar */
 .asc-submit-bar {
@@ -1102,24 +1156,10 @@
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
-/* WS5 (V3): brighter, unmissable divergence marking + a legend. Shared text is
-   dimmed further so the eye goes straight to the deltas. Accessible contrast:
-   a solid left accent + orange wash, not colour alone. */
-.asc-answers-v3diff .asc-answer-diff .asc-diff-shared { opacity: .38; }
-.asc-answers-v3diff .asc-answer-diff .asc-diff-changed {
-  background: var(--orange-wash);
-  box-shadow: inset 2px 0 0 var(--orange);
-  padding: 1px 2px;
-  font-weight: 500;
-}
-.asc-diff-legend {
-  font-size: 12.5px; color: var(--asc-muted);
-  margin: 0 0 10px; display: flex; align-items: center; gap: 6px;
-}
-.asc-diff-legend-mark {
-  color: var(--orange-deep); font-weight: 500;
-  background: var(--orange-wash); border-radius: 3px; padding: 0 4px;
-}
+/* §3: the V3 divergence highlight (`.asc-answers-v3diff`) and its legend are
+   gone — the legend was a third child of the two-column `.asc-answers` grid,
+   which is what staggered A and B onto separate rows. `.asc-answer-diff` above
+   stays: V2 still renders the diff. */
 /* WS4 (V3): the roomy gold-answer editor + its "what you changed" diff view. */
 .asc-v3-editor { min-height: 46vh; font-size: 15px; line-height: 1.6; }
 .asc-editdiff-wrap { margin-top: 8px; }
@@ -1296,11 +1336,71 @@
 .asc-ver-card-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .asc-ver-card-list li { font-size: 13.5px; color: var(--asc-text); }
 
-/* Small in-workspace experience indicator + change link. */
+/* §2: the specialty picker — a popover, not a page. Law 3: the scrim is
+   teal-shifted ink at low alpha, never #000. */
+.asc-sheet {
+  position: fixed; inset: 0;
+  /* Above EVERY piece of chrome: the sticky header is 100, the desktop rail 90,
+     the mobile bottom rail 120. At a lower value the header renders over the
+     scrim and its nav stays clickable — which would let a physician navigate
+     away from a picker that §2 makes deliberately non-dismissable on first
+     entry. Still below the toast region (1000), so a submit error is never
+     hidden behind the sheet. */
+  z-index: 150;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(26, 27, 26, .28);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  padding: 24px;
+  animation: ascSheetIn .16s cubic-bezier(.4,0,.2,1);
+}
+@keyframes ascSheetIn { from { opacity: 0; } to { opacity: 1; } }
+.asc-sheet-card {
+  background: var(--card); border-radius: var(--r-lg);
+  box-shadow: 0 3px 8px rgba(26,27,26,.07), 0 34px 70px -22px rgba(26,27,26,.24);
+  padding: 28px; width: min(640px, 100%);
+  max-height: 100%; overflow-y: auto;
+}
+.asc-sheet-title {
+  font-size: 20px; font-weight: 400; letter-spacing: -0.012em;
+  margin: 0 0 16px; text-align: center; color: var(--asc-text);
+}
+.asc-spec-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 620px) { .asc-spec-grid { grid-template-columns: 1fr; } }
+/* The card IS the button — no nested "Grade X →" restating the same tap. */
+.asc-spec-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 20px 12px; cursor: pointer; font-family: inherit;
+  background: var(--card); border: 1px solid var(--asc-line);
+  border-radius: var(--r-md);
+  transition: border-color .16s cubic-bezier(.4,0,.2,1), background .16s cubic-bezier(.4,0,.2,1);
+}
+.asc-spec-card:hover { border-color: var(--asc-line-strong); background: var(--card-in); }
+.asc-spec-card.last-used { border-color: var(--asc-line-strong); }
+/* The palette dot is the only decoration on the card — nephrology green,
+   cardiology orange, oncology pink (SPECIALTY_DOT), same hue everywhere. */
+.asc-spec-card-dot { width: 9px; height: 9px; border-radius: 50%; font-size: 0; background: var(--ink-faint); }
+.asc-spec-card-dot.asc-dot-green { background: var(--green); }
+.asc-spec-card-dot.asc-dot-orange { background: var(--orange); }
+.asc-spec-card-dot.asc-dot-pink { background: var(--pink); }
+.asc-spec-card-dot.asc-dot-lime { background: var(--lime); }
+.asc-spec-card-dot.asc-dot-faint { background: rgba(26, 27, 26, 0.18); }
+.asc-spec-card-name { font-size: 15px; color: var(--asc-text); }
+/* The page behind a modal must not scroll under it. */
+body.asc-sheet-open { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .asc-sheet { animation: none; } }
+
+/* Small in-workspace experience indicator + change links. */
 .asc-exp-badge {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-bottom: 12px; padding: 6px 4px;
 }
+/* §13: two children, not three — `space-between` then reads as "label left,
+   controls right" instead of marooning two related links at opposite edges. */
+.asc-exp-links { display: flex; align-items: center; gap: 0; }
+.asc-exp-links .asc-btn-link { padding: 2px 10px; }
+/* A hairline divider, not a typed bullet: it is chrome, so it is drawn. */
+.asc-exp-links .asc-btn-link + .asc-btn-link { border-left: 1px solid var(--asc-line); }
 .asc-exp-badge-label {
   font-family: var(--mono);
   font-size: 11px;
@@ -1618,6 +1718,13 @@
   font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--ink-faint); margin-bottom: 4px;
 }
+/* An OPTIONAL capture (not a numbered required gate) — a subtle pill, visually
+   distinct from the "STEP N" chrome so it never reads as a mandatory step. */
+.asc-substage-step--optional {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  background: var(--card-in); border: 1px solid var(--asc-line);
+  color: var(--asc-muted); letter-spacing: 0.09em;
+}
 .asc-substage-title {
   font-size: 16.5px; font-weight: 500; color: var(--asc-text);
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -1750,6 +1857,61 @@
   text-transform: uppercase; color: var(--ink-faint); margin-bottom: 12px;
 }
 .asc-rubric-ta { resize: none; overflow: hidden; min-height: 52px; }
+
+/* §9: the polarity lives in the sentence stem, not in a labelled "Type" field.
+   It reads as language — "A correct answer must never …" — so there is one less
+   form control between the physician and the thing they are writing. */
+/* `.asc-field` is a 6px-gap flex column, so the stem needs no bottom margin of
+   its own — the gap already sets the distance to the textarea. */
+.asc-rubric-stem { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* The specific/vague chip is a verdict ON the sentence, not part of it. Sitting
+   mid-line after the toggle it read as a third word; pushed to the field's right
+   edge it reads as the annotation it is, and the stem stays one clean phrase.
+   Only where there is room to push it: once the stem wraps, `margin-left: auto`
+   strands the chip alone on the far right of its own line, and sitting next to
+   the toggle in normal flow reads better than that. */
+@media (min-width: 560px) {
+  .asc-rubric-stem .asc-rubric-spec { margin-left: auto; }
+}
+.asc-rubric-stem-lead { font-size: 14px; color: var(--ink); }
+.asc-rubric-stem-toggle {
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--ink);
+  background: var(--lime-wash); border: 1px solid var(--asc-line);
+  border-radius: var(--r-chip); padding: 2px 10px; cursor: pointer;
+  transition: border-color .16s cubic-bezier(.4,0,.2,1), background .16s cubic-bezier(.4,0,.2,1);
+}
+.asc-rubric-stem-toggle:hover { border-color: var(--asc-line-strong); }
+/* Accent semantics: lime = the ordinary "must"; pink = flag/critical, which is
+   exactly what a "must never" is. */
+.asc-rubric-stem-toggle.pos { background: var(--lime-wash); }
+.asc-rubric-stem-toggle.neg { background: var(--pink-wash); color: var(--pink-deep); border-color: var(--pink-line); }
+
+/* §10: the weight readout sits beside the question it answers — the tier
+   buttons and the slider are two ways to set ONE value. */
+.asc-rubric-matter-head {
+  display: flex; align-items: center; justify-content: space-between;
+  /* +2px on top of `.asc-field`'s 6px gap keeps the original 8px rhythm
+     between the question and the tier buttons. */
+  gap: 16px; margin-bottom: 2px; flex-wrap: wrap;
+}
+/* §10 put three controls on one line — slider, readout, auto-fail badge. That
+   fits a desktop card and does NOT fit a phone: below ~400px the row ran past
+   the card and clipped the auto-fail badge, which is the one piece of state
+   here a physician must not miss. So the row wraps, and the slider gives up
+   width first (it is the only element that can shrink without losing meaning). */
+.asc-rubric-scale {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; justify-content: flex-end; min-width: 0;
+}
+.asc-rubric-scale input[type=range] {
+  flex: 0 1 160px; min-width: 88px; max-width: 100%;
+  /* A range input paints in the browser's default blue, and there is no blue in
+     this palette. It was always blue; §10 moved it beside the question, which is
+     what made it loud. Mono chrome, per the wayfinding law — the polarity is
+     already carried by the +/- readout sitting next to it. */
+  accent-color: var(--ink);
+}
+
 .asc-rubric-tier-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .asc-rubric-tier-btn {
   flex: 1 1 140px; display: flex; flex-direction: column; gap: 2px;
@@ -1770,6 +1932,11 @@
 }
 .asc-rubric-recap-text { flex: 1 1 auto; min-width: 0; color: var(--asc-text); }
 .asc-axis-row { flex-wrap: wrap; }
+/* §11: `.asc-sev-pill` capitalizes, which was right when these pills rendered
+   raw enum values (`accuracy` -> `Accuracy`). The options are sentences now, and
+   `capitalize` turns "Got the facts right" into "Got The Facts Right" — which
+   reads as a form label again, the exact thing §11 removes. */
+.asc-axis-row .asc-sev-pill { text-transform: none; }
 
 /* Collapsed accordion steps (§13) reuse .asc-step-collapsed / -text styles. */
 
@@ -1918,3 +2085,604 @@
 @media (max-width: 640px) {
   .asc-tour-pop { width: calc(100vw - 24px) !important; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDE PANEL (left rail) + INSTRUCTION MANUAL (Guide)
+   Doctor-Dashboard PRD. Console tokens only, product scale. The rail is a
+   persistent fixed chrome element beneath the sticky header; the manual is a
+   two-column scroll-spy document. Fully responsive + print-friendly.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root { --asc-rail-w: 220px; }
+
+/* ─── The rail ─────────────────────────────────────────────────────────── */
+.asc-rail {
+  position: fixed;
+  top: var(--asc-header-h, 57px);
+  left: 0;
+  bottom: 0;
+  width: var(--asc-rail-w);
+  z-index: 90;                 /* below the sticky header (100) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-3);
+  background: var(--canvas);
+  border-right: 1px solid var(--hairline);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.asc-rail-nav { display: flex; flex-direction: column; gap: 2px; }
+
+.asc-rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  transition: background .16s cubic-bezier(.4,0,.2,1), color .16s cubic-bezier(.4,0,.2,1);
+}
+.asc-rail-item:hover { background: var(--card-in); color: var(--ink); }
+.asc-rail-item.active {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow-card);
+  border-color: var(--hairline);
+}
+.asc-rail-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 22%; bottom: 22%;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--ink);
+}
+.asc-rail-ico {
+  flex: none;
+  width: 20px; height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+.asc-rail-ico svg { width: 20px; height: 20px; display: block; }
+.asc-rail-label { flex: 1 1 auto; min-width: 0; }
+
+/* Community unread badge — lime dot + mono count; hidden at 0 (JS sets hidden). */
+.asc-rail-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 1px 7px 1px 6px;
+  border-radius: var(--r-chip);
+  background: var(--lime-wash);
+  border: 1px solid var(--lime-line);
+}
+.asc-rail-badge[hidden] { display: none; }
+.asc-rail-badge-n {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+/* Rail footer — physician identity + sign out (full-width rail only). */
+.asc-rail-foot {
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.asc-rail-user { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.asc-rail-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.asc-rail-spec {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.asc-rail-spec > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asc-rail-signout {
+  align-self: flex-start;
+  padding: 5px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-chip);
+  background: transparent;
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background .16s cubic-bezier(.4,0,.2,1), color .16s cubic-bezier(.4,0,.2,1);
+}
+.asc-rail-signout:hover { background: var(--card-in); color: var(--ink); }
+
+/* Shift the main content clear of the rail. */
+body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
+
+/* ─── Rail: icon-collapsed (700–1100px) ────────────────────────────────── */
+@media (max-width: 1100px) and (min-width: 701px) {
+  :root { --asc-rail-w: 68px; }
+  .asc-rail { padding: var(--sp-4) 10px; align-items: center; }
+  .asc-rail-item { justify-content: center; gap: 0; padding: 10px; }
+  .asc-rail-label { display: none; }
+  .asc-rail-item.active::before { top: 18%; bottom: 18%; }
+  .asc-rail-foot { display: none; }   /* sign out remains in the header */
+  /* Collapse the badge to a corner dot (no count) over the icon. */
+  .asc-rail-badge { position: absolute; top: 4px; right: 4px; margin: 0; padding: 0; gap: 0; background: none; border: none; }
+  .asc-rail-badge-n { display: none; }
+}
+
+/* ─── Rail: mobile bottom tab bar (≤700px) ─────────────────────────────── */
+@media (max-width: 700px) {
+  .asc-rail {
+    top: auto; left: 0; right: 0; bottom: 0;
+    width: 100%; height: 60px;
+    flex-direction: row;
+    gap: 0;
+    padding: 0;
+    border-right: none;
+    border-top: 1px solid var(--hairline);
+    background: rgba(251, 252, 250, 0.92);
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    z-index: 120;
+    overflow: visible;
+  }
+  .asc-rail-nav { flex-direction: row; flex: 1; gap: 0; }
+  .asc-rail-item {
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 8px 4px;
+    border-radius: 0;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+  .asc-rail-item.active { background: transparent; box-shadow: none; border-color: transparent; color: var(--ink); }
+  .asc-rail-item.active::before { left: 22%; right: 22%; top: 0; bottom: auto; width: auto; height: 2px; border-radius: 0 0 2px 2px; }
+  .asc-rail-label { display: block; flex: none; }
+  .asc-rail-foot { display: none; }   /* sign out remains in the header */
+  .asc-rail-badge { position: absolute; top: 6px; right: calc(50% - 20px); margin: 0; padding: 0 5px; }
+  body.asc-has-rail .asc-main { padding-left: 16px; padding-bottom: 84px; }
+  /* Lift toasts clear of the bottom tab bar so they never sit under it. */
+  body.asc-has-rail .asc-toast-region { bottom: 76px; }
+}
+
+/* ═══ Instruction Manual (Guide) ═══════════════════════════════════════ */
+.asc-guide {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 34rem);
+  gap: 44px;
+  max-width: 1000px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+/* Sticky, scroll-spy table of contents. */
+.asc-guide-toc {
+  position: sticky;
+  top: calc(var(--asc-header-h, 57px) + 20px);
+  align-self: start;
+  max-height: calc(100vh - var(--asc-header-h, 57px) - 40px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.asc-guide-toc-head { margin-bottom: 10px; padding-left: 12px; }
+.asc-guide-toc-list { list-style: none; display: flex; flex-direction: column; gap: 1px; }
+.asc-guide-toc-link {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 5px 12px;
+  border-left: 2px solid transparent;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 1.35;
+  transition: background .14s ease, color .14s ease, border-color .14s ease;
+}
+.asc-guide-toc-link:hover { background: var(--card-in); color: var(--ink); }
+.asc-guide-toc-link.active {
+  color: var(--ink);
+  border-left-color: var(--ink);
+  background: var(--card);
+  font-weight: 500;
+}
+.asc-guide-toc-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+  flex: none;
+}
+.asc-guide-toc-link.active .asc-guide-toc-num { color: var(--ink-soft); }
+.asc-guide-toc-txt { min-width: 0; }
+
+/* Mobile TOC dropdown (hidden on desktop). */
+.asc-guide-toc-select {
+  display: none;
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+/* Content column. */
+.asc-guide-content { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.asc-guide-intro { padding: 4px 0 6px; }
+.asc-guide-h1 { font-size: var(--t-display); margin: 8px 0 6px; }
+.asc-guide-sub { color: var(--ink-soft); font-size: var(--t-body); max-width: 34rem; }
+.asc-guide-meta { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+.asc-guide-meta-hint { color: var(--ink-faint); }
+
+/* Section card. */
+.asc-guide-section { padding: 22px 24px; scroll-margin-top: calc(var(--asc-header-h, 57px) + 18px); outline: none; }
+.asc-guide-section:focus-visible { box-shadow: var(--shadow-card), 0 0 0 2px var(--ink); }
+.asc-guide-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.asc-guide-sec-chrome { color: var(--ink-faint); }
+.asc-guide-anchor {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--ink-faint);
+  text-decoration: none;
+  opacity: 0;
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: opacity .14s ease, color .14s ease;
+}
+.asc-guide-section:hover .asc-guide-anchor,
+.asc-guide-anchor:focus-visible { opacity: 1; }
+.asc-guide-anchor:hover { color: var(--ink); }
+.asc-guide-sec-title { font-size: var(--t-h3); font-weight: 500; margin: 6px 0 14px; letter-spacing: 0; }
+
+/* The three lines. */
+.asc-guide-lines { display: flex; flex-direction: column; gap: 9px; }
+.asc-guide-line { display: grid; grid-template-columns: 42px 1fr; gap: 12px; align-items: baseline; }
+.asc-guide-line-tag { color: var(--ink-soft); padding-top: 1px; }
+.asc-guide-line-txt { color: var(--ink); font-size: var(--t-body); line-height: 1.5; }
+.asc-guide-line.is-how {
+  padding: 9px 12px;
+  margin-top: 2px;
+  border-left: 2px solid var(--green);
+  background: var(--green-wash);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.asc-guide-line.is-how .asc-guide-line-tag { color: var(--green-deep); }
+.asc-guide-line.is-how .asc-guide-line-txt { font-weight: 500; }
+
+/* Good / weak example, two-up. */
+.asc-guide-eg { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.asc-guide-eg-col { padding: 12px 14px; border-radius: var(--r-sm); border: 1px solid var(--hairline); background: var(--card-in); }
+.asc-guide-eg-good { border-left: 2px solid var(--green); }
+.asc-guide-eg-weak { border-left: 2px solid var(--pink); }
+.asc-guide-eg-head { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+.asc-guide-eg-good .chrome { color: var(--green-deep); }
+.asc-guide-eg-weak .chrome { color: var(--pink-deep); }
+.asc-guide-eg-txt { font-size: var(--t-sm); line-height: 1.5; color: var(--ink); }
+
+/* Callouts. */
+.asc-guide-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hairline);
+}
+.asc-guide-callout.is-why { background: var(--lime-wash); border-color: var(--lime-line); }
+.asc-guide-callout.is-mistake { background: var(--pink-wash); border-color: var(--pink-line); }
+.asc-guide-callout-tag { color: var(--ink-soft); }
+.asc-guide-callout.is-mistake .asc-guide-callout-tag { color: var(--pink-deep); }
+.asc-guide-callout-txt { font-size: var(--t-sm); line-height: 1.5; color: var(--ink); }
+
+/* Progressive-disclosure detail. */
+.asc-guide-detail { margin-top: 14px; border-top: 1px solid var(--hairline); padding-top: 10px; }
+.asc-guide-detail-sum {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.asc-guide-detail-sum::-webkit-details-marker { display: none; }
+.asc-guide-detail-sum::before {
+  content: '＋';
+  font-family: var(--mono);
+  color: var(--ink-faint);
+}
+.asc-guide-detail[open] .asc-guide-detail-sum::before { content: '－'; }
+.asc-guide-detail-sum:hover { color: var(--ink); }
+.asc-guide-detail-p { font-size: var(--t-sm); line-height: 1.6; color: var(--ink-soft); margin-top: 10px; }
+
+/* Checklist (section 15). */
+.asc-guide-checklist { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.asc-guide-checklist li { display: flex; align-items: flex-start; gap: 10px; font-size: var(--t-body); color: var(--ink); }
+.asc-guide-check {
+  flex: none;
+  width: 18px; height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: var(--green-wash);
+  color: var(--green-deep);
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 1px;
+}
+
+/* Note / contact (section 16). */
+.asc-guide-note {
+  padding: 14px 16px;
+  border-left: 2px solid var(--ink);
+  background: var(--card-in);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: var(--t-body);
+  line-height: 1.55;
+  color: var(--ink);
+}
+.asc-guide-channel { font-weight: 600; }
+.asc-guide-link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--hairline-strong); text-underline-offset: 2px; }
+.asc-guide-link:hover { text-decoration-color: var(--ink); }
+
+/* Wireframe figures — monochrome ink, accent classes only where semantic. */
+.asc-guide-fig { margin-top: 16px; }
+.asc-guide-fig-inner {
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: var(--card-in);
+}
+.asc-guide-fig svg { width: 100%; height: auto; display: block; }
+.asc-guide-fig rect { fill: rgba(26, 27, 26, 0.10); }
+.asc-guide-fig .wf { fill: var(--ink); }
+.asc-guide-fig .wbox { fill: none; stroke: var(--hairline-strong); stroke-width: 1; }
+.asc-guide-fig .wln { fill: rgba(26, 27, 26, 0.15); }
+.asc-guide-fig .wpill { fill: rgba(26, 27, 26, 0.12); }
+.asc-guide-fig .wtrend { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.asc-guide-fig .wdot { fill: var(--green); }
+.asc-guide-fig .wnum { fill: var(--ink); }
+.asc-guide-fig .wmark { fill: var(--green); }
+.asc-guide-fig .wmark2 { fill: var(--pink); }
+.asc-guide-fig .wgreenfill { fill: var(--green); }
+.asc-guide-fig .wpinkfill { fill: var(--pink); }
+.asc-guide-fig .wpinkfill2 { fill: var(--pink); }
+.asc-guide-fig .wgreenline { stroke: var(--green); stroke-width: 1.5; }
+.asc-guide-fig .wpinkline { stroke: var(--pink); stroke-width: 1.5; }
+.asc-guide-fig text { font-family: var(--mono); font-size: 9px; fill: var(--ink-soft); }
+.asc-guide-fig .wtx { fill: var(--ink-soft); font-size: 10px; }
+.asc-guide-fig .wtc { fill: var(--ink); font-size: 8px; text-anchor: middle; }
+.asc-guide-fig .wtn { fill: var(--card); font-size: 9px; text-anchor: middle; }
+.asc-guide-fig .wflag { fill: var(--pink); font-size: 9px; text-anchor: end; }
+
+/* ─── Guide responsive ─────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .asc-guide { grid-template-columns: 1fr; gap: 0; }
+  .asc-guide-toc { display: none; }
+  .asc-guide-toc-select { display: block; }
+  .asc-guide-eg { grid-template-columns: 1fr; }
+}
+
+/* ─── Reduced motion ───────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .asc-rail-item, .asc-guide-toc-link, .asc-guide-anchor, .asc-rail-signout { transition: none; }
+}
+
+/* ─── Print — a clean, single-column manual (scoped to the Guide only, so
+       printing an eval/admin view keeps its normal chrome) ────────────────── */
+@media print {
+  .asc-rail, .asc-toast-region { display: none !important; }
+  body.asc-view-guide .asc-header,
+  body.asc-view-guide .asc-guide-toc,
+  body.asc-view-guide .asc-guide-toc-select { display: none !important; }
+  body.asc-view-guide.asc-has-rail .asc-main { padding: 0 !important; }
+  body.asc-view-guide::before { display: none; }
+  body.asc-view-guide .asc-guide { display: block; max-width: none; }
+  body.asc-view-guide .asc-guide-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border: 1px solid var(--hairline-strong);
+    box-shadow: none;
+    margin-bottom: 12px;
+  }
+  /* Disclosures are force-opened via the beforeprint handler; hide their toggles. */
+  body.asc-view-guide .asc-guide-detail-sum,
+  body.asc-view-guide .asc-guide-anchor { display: none; }
+}
+
+/* ═══ PRD-B — physician verification queue (owned by Agent 2) ═══ */
+.vq { max-width: 880px; margin: 0 auto; }
+.vq-header { display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.vq-title { margin: 0; font-size: 20px; color: var(--asc-text); }
+.vq-count { color: var(--asc-muted); font-family: var(--mono); font-size: 12px; margin-left: 8px; }
+.vq-controls { display: flex; gap: 6px; align-items: center; }
+.vq-tab { border: 1px solid var(--asc-line); background: var(--card); color: var(--asc-muted);
+  border-radius: var(--r-chip); padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.vq-tab-on { color: var(--asc-text); border-color: var(--asc-line-strong); font-weight: 600; }
+.vq-error { border: 1px solid var(--pink); color: var(--pink); border-radius: var(--r-sm);
+  padding: 8px 12px; margin-bottom: 10px; font-size: 13px; }
+.vq-notice { border: 1px solid var(--green); color: var(--green); border-radius: var(--r-sm);
+  padding: 8px 12px; margin-bottom: 10px; font-size: 13px; }
+.vq-empty { color: var(--asc-muted); padding: 28px 0; text-align: center; }
+.vq-row { border: 1px solid var(--asc-line); border-radius: var(--r-sm); background: var(--card);
+  margin-bottom: 8px; overflow: hidden; }
+.vq-row-open { border-color: var(--asc-line-strong); }
+.vq-row-head { display: flex; width: 100%; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 10px 14px; background: none; border: 0; cursor: pointer; text-align: left;
+  color: var(--asc-text); font: inherit; }
+.vq-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vq-sub { color: var(--asc-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.vq-row-side { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.vq-score { font-family: var(--mono); font-size: 12px; border-radius: var(--r-chip);
+  padding: 2px 8px; border: 1px solid var(--asc-line-strong); }
+.vq-score-high { color: var(--green); border-color: var(--green); }
+.vq-score-mid { color: var(--asc-text); }
+.vq-score-low { color: var(--asc-muted); }
+.vq-badge { font-size: 11px; border-radius: var(--r-chip); padding: 2px 8px;
+  border: 1px solid var(--asc-line-strong); color: var(--asc-muted); white-space: nowrap; }
+.vq-badge-reviewer { color: var(--green); border-color: var(--green); }
+.vq-badge-labeler { color: var(--asc-text); }
+.vq-badge-blocked { color: var(--pink); border-color: var(--pink); }
+.vq-flag { color: var(--pink); border: 1px solid var(--pink); border-radius: var(--r-sm);
+  padding: 4px 8px; font-size: 12px; margin: 4px 0; }
+.vq-flag-mini { font-size: 11px; padding: 2px 8px; border-radius: var(--r-chip);
+  margin: 0; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vq-dossier { border-top: 1px solid var(--asc-line); padding: 12px 14px; background: var(--card-in);
+  display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.vq-npi { font-size: 13px; }
+.vq-npi-verified strong { color: var(--green); }
+.vq-npi-mismatch strong, .vq-npi-not_found strong { color: var(--pink); }
+.vq-npi-unavailable strong { color: var(--asc-muted); }
+.vq-facts, .vq-cv { color: var(--asc-muted); }
+.vq-cv-inst { margin-top: 4px; font-size: 12px; }
+.vq-section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--asc-muted); margin-bottom: 2px; }
+.vq-reason { font-family: var(--mono); font-size: 12px; color: var(--asc-text); }
+.vq-dupes { color: var(--pink); font-size: 12px; }
+.vq-actions { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap;
+  border-top: 1px dashed var(--asc-line); padding-top: 10px; margin-top: 4px; }
+.vq-tier-select { border: 1px solid var(--asc-line-strong); border-radius: var(--r-sm);
+  background: var(--card); color: var(--asc-text); padding: 6px 8px; font-size: 13px; }
+.vq-note { flex: 1 1 220px; min-height: 34px; border: 1px solid var(--asc-line);
+  border-radius: var(--r-sm); background: var(--card); color: var(--asc-text);
+  padding: 6px 8px; font: inherit; font-size: 13px; resize: vertical; }
+.vq-btn { border-radius: var(--r-sm); padding: 7px 14px; font-size: 13px; cursor: pointer;
+  border: 1px solid var(--asc-line-strong); background: var(--card); color: var(--asc-text); }
+.vq-btn[disabled] { opacity: 0.5; cursor: default; }
+.vq-btn-approve { border-color: var(--green); color: var(--green); font-weight: 600; }
+.vq-btn-reject { border-color: var(--pink); color: var(--pink); }
+.vq-btn-ghost { color: var(--asc-muted); }
+.vq-link { background: none; border: 0; padding: 0; color: var(--green);
+  text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; }
+/* ═══ END PRD-B ═══ */
+
+/* ═══ PRD-B fix round — attempt state, retry list, pager (owned by Agent 2) ═══ */
+.vq-attempt { color: var(--asc-muted); font-size: 12px; margin-top: 2px; }
+.vq-stuck { border: 1px solid var(--asc-line-strong); border-radius: var(--r-sm);
+  padding: 8px 12px; margin-bottom: 10px; font-size: 13px; color: var(--asc-muted); }
+.vq-pager { display: flex; align-items: center; justify-content: center; gap: 12px;
+  margin-top: 14px; }
+/* ═══ END PRD-B fix round ═══ */
+
+/* ═══ PRD-C — admin restructure: health systems, physicians, export, metrics.
+   Append-only block (§3.3). Locked design system: canvas #eef0ef, card #fbfcfa,
+   ink #1a1b1a, green #4ca63c, orange #ec9440, pink #e8447b, lime #d5e14e.
+   Air is the design · scale not boldness · zero black fills. ═══ */
+
+/* A load failure an operator will actually notice and report. The silent
+   placeholder this replaces hid a blocker for a whole build round. */
+.asc-error { border: 1px solid #e8447b; border-left-width: 3px; border-radius: 8px;
+  background: rgba(232, 68, 123, 0.06); color: #1a1b1a; padding: 14px 16px;
+  font-size: 14px; line-height: 1.5; }
+
+/* Health Systems — detail meta strip */
+.asc-hs-meta { display: flex; gap: 32px; flex-wrap: wrap; }
+.asc-hs-meta-cell { min-width: 110px; }
+.asc-hs-meta-value { font-size: 22px; line-height: 1.2; color: #1a1b1a; }
+.asc-hs-meta-label { font-size: 12px; color: #6b6d6b; margin-top: 2px; }
+
+/* Health Systems — pipeline buckets */
+.asc-hs-bucket { margin-top: 16px; }
+.asc-hs-bucket-attention { border: 1px solid #e8447b; }
+.asc-hs-bucket-attention .asc-card-title { color: #e8447b; }
+.asc-hs-reason { color: #ec9440; font-size: 13px; }
+.asc-hs-notes { max-width: 320px; }
+.asc-hs-actions { white-space: nowrap; text-align: right; }
+.asc-row-click { cursor: pointer; }
+/* The row an operator deep-linked to from a Health Systems bucket. */
+.asc-row-focus > td { background: rgba(213, 225, 78, 0.28); }
+.asc-row-click:hover td { background: rgba(76, 166, 60, 0.05); }
+
+/* Physicians — filter chips with live counts */
+.asc-phys-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.asc-phys-chip { border: 1px solid #d7dad6; background: #fbfcfa; color: #1a1b1a;
+  border-radius: 999px; padding: 5px 14px; font-size: 13px; cursor: pointer; }
+.asc-phys-chip:hover { border-color: #4ca63c; }
+.asc-phys-chip.active { border-color: #4ca63c; background: rgba(76, 166, 60, 0.09); }
+.asc-phys-chip .asc-chip-count { color: #6b6d6b; margin-left: 6px; font-size: 12px; }
+.asc-phys-chip.asc-chip-pending.active,
+.asc-phys-chip.asc-chip-pending { border-color: #ec9440; }
+.asc-phys-chip.asc-chip-pending .asc-chip-count { color: #ec9440; }
+
+/* Physicians — health-system grouping */
+.asc-phys-group summary { cursor: pointer; padding: 10px 14px; font-size: 14px;
+  color: #1a1b1a; list-style: none; display: flex; align-items: center; gap: 10px; }
+.asc-phys-group summary::-webkit-details-marker { display: none; }
+.asc-phys-group summary::before { content: '▸'; color: #6b6d6b; font-size: 11px;
+  transition: transform .15s ease; }
+.asc-phys-group[open] summary::before { transform: rotate(90deg); }
+.asc-phys-group { border-top: 1px solid #e3e6e2; }
+
+/* Physician profile — score/verification detail */
+.asc-phys-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px; }
+.asc-phys-kv { font-size: 13px; }
+.asc-phys-kv dt { color: #6b6d6b; margin-top: 8px; }
+.asc-phys-kv dd { margin: 2px 0 0; color: #1a1b1a; overflow-wrap: anywhere; }
+
+/* Export — preview line */
+.asc-export-preview { font-size: 15px; color: #1a1b1a; padding: 14px 0; }
+.asc-export-preview .asc-dim { font-size: 13px; }
+
+/* Metrics — four questions, one headline figure + sparkline each */
+.asc-metric-questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px; }
+.asc-metric-q { background: #fbfcfa; border: 1px solid #e3e6e2; border-radius: 10px;
+  padding: 18px; }
+.asc-metric-q-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; letter-spacing: 0.12em; color: #6b6d6b; text-transform: uppercase; }
+.asc-metric-q-headline { font-size: 30px; line-height: 1.15; color: #1a1b1a; margin: 10px 0 2px; }
+.asc-metric-q-sub { font-size: 12px; color: #6b6d6b; }
+.asc-metric-q-spark { margin-top: 12px; display: flex; align-items: flex-end; gap: 3px;
+  height: 28px; }
+.asc-metric-spark-bar { display: inline-block; width: 8px; border-radius: 2px 2px 0 0;
+  background: #4ca63c; }
+.asc-metric-spark-bar.is-zero { opacity: 0.25; }
+.asc-metric-q-rows { margin-top: 12px; font-size: 13px; }
+.asc-metric-q-rows .asc-metric-row { display: flex; justify-content: space-between;
+  padding: 3px 0; border-top: 1px dashed #e3e6e2; }
+.asc-metric-q-rows .asc-metric-row:first-child { border-top: 0; }
+.asc-metric-row-label { color: #6b6d6b; }
+.asc-metric-row-value { color: #1a1b1a; }
+/* ═══ END PRD-C ═══ */

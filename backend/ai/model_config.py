@@ -58,6 +58,12 @@ MODEL_REGISTRY: dict[str, dict[str, Any]] = {
     # relevance to the answer's claims. Deterministic; small output. Overridable via
     # MODEL_ASCLEPIUS_CITE_RANK.
     "asclepius_cite_rank": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 800},
+    # Community v2 — #medical-ai-news digest curation (select/score + compose).
+    # Cheap, high-volume, low-stakes summarization: the small model tier is the
+    # point (pennies per run). Temperature is passed explicitly by the caller;
+    # max_tokens here covers the select pass, the compose pass overrides it via
+    # COMMUNITY_DIGEST_MAX_TOKENS. Overridable via MODEL_COMMUNITY_DIGEST.
+    "community_digest": {"model": "claude-haiku-4-5-20251001", "temperature": None, "max_tokens": 2000},
     # Frontier-model failure capture (FEAT-1): answer the rendered case COLD with a
     # configured frontier model, verbatim. The specific model is chosen per call
     # (model override) from ASCLEPIUS_BASELINE_MODELS; this registry entry only

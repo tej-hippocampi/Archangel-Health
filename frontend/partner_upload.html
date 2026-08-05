@@ -81,8 +81,15 @@
     fetch('/api/asclepius/partner/uploads/' + encodeURIComponent(uploadId) + '?t=' + encodeURIComponent(token))
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d.status === 'ingested') {
-          show('ok', '✅ Accepted. Your bundle passed verification and was ingested (checksum ' + (d.sha256 || '').slice(0, 12) + '…).');
+        if (d.status === 'ingested' || d.status === 'needs_review') {
+          var s = d.summary || {};
+          var parts = [];
+          if (s.cases) parts.push(s.cases + (s.cases === 1 ? ' patient case' : ' patient cases'));
+          if (s.lab_results) parts.push(s.lab_results + ' lab results');
+          if (s.images) parts.push(s.images + (s.images === 1 ? ' image' : ' images'));
+          if (s.notes) parts.push(s.notes + (s.notes === 1 ? ' note' : ' notes'));
+          var detail = parts.length ? (' ' + parts.join(' · ') + '.') : '';
+          show('ok', '✅ Received.' + detail + ' Processing complete.');
         } else if (d.status === 'quarantined') {
           show('warn', '⚠️ Received, but held for review: ' + (d.reason || 'verification flagged findings') +
             '. Nothing was silently used — our team will follow up.');

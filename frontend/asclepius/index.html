@@ -36,6 +36,19 @@
   <!-- Toast region -->
   <div class="asc-toast-region" id="ascToasts" aria-live="assertive" aria-atomic="true"></div>
 
+  <!-- Instruction Manual content (structured data) — loaded before the app so
+       window.ASC_MANUAL is available when the Guide view renders. -->
+  <script src="/static/asclepius/manual-content.js" defer></script>
+  <!-- PRD-B verification queue. Must load BEFORE asclepius.js: it defines
+       window.AsclepiusVerification, which the Physicians section mounts. -->
+  <script src="/static/asclepius/onboarding.js" defer></script>
+  <!-- PRD-C admin sections — own files (§3.3 ownership), mounted by asclepius.js. -->
+  <script src="/static/asclepius/admin_physicians.js" defer></script>
+  <script src="/static/asclepius/admin_health.js" defer></script>
+  <script src="/static/asclepius/admin_export.js" defer></script>
+  <!-- Advisor section (Advisor PRD §6.2) — defines window.AdvisorSection,
+       mounted by asclepius.js for sessions holding the 'refer' capability. -->
+  <script src="/static/asclepius/advisor.js" defer></script>
   <script src="/static/asclepius/asclepius.js" defer></script>
 </body>
 </html>

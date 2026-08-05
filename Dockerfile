@@ -3,6 +3,15 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# System binaries pip cannot install (Audit PRD §C1). tesseract-ocr backs
+# pytesseract, the ONLY layer that inspects DICOM pixels for burned-in PHI — without
+# it every study routes to manual review instead of silently auto-clearing.
+# poppler-utils backs pdf2image (PDF page rendering). Installed BEFORE the pip layer
+# so this change does not bust the requirements.txt-keyed pip cache.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        tesseract-ocr poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Python deps first so the (slow) pip layer is cached on
 # requirements.txt content alone — application source changes won't bust it.
 COPY backend/requirements.txt /tmp/requirements.txt
