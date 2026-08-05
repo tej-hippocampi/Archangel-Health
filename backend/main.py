@@ -5973,10 +5973,11 @@ async def startup_community():
         app.state.community_store = _get_cstore()
         _cnotify.start_digest_loop(resolve_member=_resolve_member)
         # Community v2: the #medical-ai-news content loop is OPT-IN
-        # (COMMUNITY_NEWS_ENABLED=1); the internal trigger endpoint below
+        # (COMMUNITY_NEWS_ENABLED=1 and/or COMMUNITY_SPOTLIGHT_ENABLED=1 for
+        # the staff-only daily spotlight); the internal trigger endpoint below
         # fires a run on demand either way.
         from community import digest as _cdigest
-        if _cdigest.news_enabled():
+        if _cdigest.news_enabled() or _cdigest.spotlight_enabled():
             _cdigest.start_content_loop()
         # Community v2.1: the event-reminder loop (emails interested members
         # before an event starts). No-ops without email transport.
@@ -6033,12 +6034,17 @@ async def internal_run_community_digest(
     kind: str = "news", authorization: Optional[str] = Header(None)
 ):
     """Manual trigger for a Community v2 content digest run (demo/QA — works
-    whether or not the scheduled loop is enabled)."""
+    whether or not the scheduled loop is enabled). ``kind='spotlight'`` runs
+    the daily staff-only #team-ai-spotlight pick instead of the public
+    multi-item digest."""
     _check_internal_auth(authorization)
-    if kind not in ("news", "papers"):
-        raise HTTPException(status_code=400, detail="kind must be 'news' or 'papers'")
+    if kind not in ("news", "papers", "spotlight"):
+        raise HTTPException(status_code=400, detail="kind must be 'news', 'papers', or 'spotlight'")
     from community import digest as _cdigest
-    result = await _cdigest.run_digest(kind)
+    result = (
+        await _cdigest.run_spotlight_digest() if kind == "spotlight"
+        else await _cdigest.run_digest(kind)
+    )
     return {**result, "ran_at": _utcnow_iso()}
 
 

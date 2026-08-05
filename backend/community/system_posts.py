@@ -25,7 +25,6 @@ from typing import Any, Dict, List, Optional
 from audit import audit_log
 from community import phi_gate
 from community.store import get_community_store
-from community.ws import hub
 
 log = logging.getLogger("community.system_posts")
 
@@ -112,7 +111,7 @@ async def post_system_message(
         return None
 
     # Late import — the router imports SYSTEM_MEMBER from this module.
-    from community.router import _serialize_messages, member_map  # noqa: PLC0415
+    from community.router import _channel_broadcast, _serialize_messages, member_map  # noqa: PLC0415
 
     members = member_map()
     mentions = [uid for uid in (mention_user_ids or []) if uid in members]
@@ -139,5 +138,5 @@ async def post_system_message(
             cstore.enqueue_notification(user_id=uid, kind="mention", message_id=msg["id"])
 
     serialized = _serialize_messages([msg], members, channel["slug"])[0]
-    await hub.broadcast({"type": "message.created", "message": serialized})
+    await _channel_broadcast({"type": "message.created", "message": serialized}, channel)
     return serialized
