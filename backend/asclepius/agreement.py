@@ -58,17 +58,25 @@ def kappa_min_n() -> int:
         return 30
 
 
-# The ONE definition of the double-label target (FIX A A-4.3). PRD A §1.3
-# specifies 0.15; ``review.double_label_rate()`` delegates here rather than
-# carrying a second default, so the two can never drift again.
-DEFAULT_DOUBLE_LABEL_RATE = 0.15
+# The ONE definition of the double-label target (FIX A A-4.3).
+#
+# PRD R §1.1: 0.15 → 1.0. Two independent labels is no longer a sampled slice,
+# it is the NORMAL PATH — that is the whole point of the paired-review flow, and
+# it is what gives Cohen's κ a denominator that is the dataset rather than 15% of
+# it. The env var survives on purpose (a future backlog may need to shed load),
+# but the default now says what the product does.
+#
+# ``review.double_label_rate()`` and ``routing.second_label_is_default()`` both
+# delegate here rather than carrying a second default, so the queue, the sweep
+# and the κ pipeline can never disagree about the target.
+DEFAULT_DOUBLE_LABEL_RATE = 1.0
 
 
 def double_label_rate() -> float:
     """Target fraction of tasks routed to a second independent annotator (§7 F1).
 
     Single source of truth for ``ASCLEPIUS_DOUBLE_LABEL_RATE``. Two modules used
-    to define a default for the same knob (0.20 here, 0.15 in the PRD that
+    to define a default for the same knob (0.20 in one, 0.15 in the PRD that
     ``review.py`` implements) and silently disagreed about the target."""
     try:
         return float(os.getenv("ASCLEPIUS_DOUBLE_LABEL_RATE", str(DEFAULT_DOUBLE_LABEL_RATE)))

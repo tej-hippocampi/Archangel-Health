@@ -2572,3 +2572,76 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
 .asc-metric-row-label { color: #6b6d6b; }
 .asc-metric-row-value { color: #1a1b1a; }
 /* ═══ END PRD-C ═══ */
+
+/* ═══ PRD-R — the paired review surface ═══════════════════════════════════════
+   The TR page mirrors the TL page's structure, because a physician who has
+   labelled already knows how to read it. The ACCENT is what changes, and the
+   change is the point: on the TL page the two side-by-side cards are FRONTIER
+   MODEL answers and are orange; here they are TWO PHYSICIANS' work and are
+   green. In this product the accent carries meaning (design system §5).
+
+   A and B are NOT given different hues. They are told apart by the mono eyebrow
+   and by position. A reviewer who reads hue as "which doctor" starts reading hue
+   as "which is better", and that biases the adjudication the company is paying
+   $100 for. This is the one place a designer's instinct — differentiate the
+   columns! — is actively wrong.
+
+   The grid is `.asc-answers` (1fr 1fr), reused verbatim, and it must contain
+   EXACTLY the two cards. A legend or toolbar dropped inside it lands in cell 2
+   and pushes B to row 2 — this has already shipped as a bug once. Chrome goes
+   outside the grid. The existing @media (max-width: 880px) rule collapses it to
+   one column, so mobile follows the established breakpoint rather than a new one.
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+/* PHYSICIAN-AUTHORED = GREEN. Deliberately NOT built on `.asc-answer`, whose
+   orange left rule is baked in: inheriting model-output styling and overriding
+   the accent back is exactly the kind of thing that regresses in six months. */
+.asc-answer-physician {
+  background: var(--card);
+  border: 1px solid var(--asc-line);
+  border-left: 2px solid var(--green-line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  /* A long unbroken token (a URL, a lab string) would otherwise blow the column
+     out past its 1fr share and desymmetrize the pair. */
+  min-width: 0;
+}
+.asc-answer-physician > .asc-answer-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 10px 14px;
+  background: var(--green-wash);
+  border-bottom: 1px solid var(--asc-line);
+}
+/* Mono eyebrow — wayfinding, and the ONLY thing that distinguishes A from B. */
+.asc-answer-physician .asc-answer-eyebrow {
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--green-deep);
+}
+.asc-answer-physician .asc-answer-body { padding: 14px; }
+.asc-answer-physician .asc-answer-section { margin-top: var(--sp-3); }
+.asc-answer-physician .asc-answer-section:first-child { margin-top: 0; }
+
+/* The session countdown. LIME because lime means "new / needs attention".
+   Never pink: pink means critical and blocking, and a running clock is not an
+   emergency. Under two minutes the COPY changes, not the colour. */
+.asc-session-clock {
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--lime-wash);
+  border: 1px solid var(--lime-line);
+  border-radius: var(--r-chip);
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+.asc-session-note { font-size: var(--t-sm); color: var(--ink-soft); }

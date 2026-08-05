@@ -25,7 +25,8 @@ from __future__ import annotations
 
 import hashlib
 import os
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
 from asclepius import agreement as asc_agreement
 from asclepius import capabilities as asc_caps
@@ -198,6 +199,59 @@ _SUBMISSION_PAYLOAD_VIEW_KEYS = (
 )
 
 
+def _blinded_task_view(task: Dict[str, Any]) -> Dict[str, Any]:
+    """The case, whitelisted. Candidates ship as ``{id, text}`` only, which
+    preserves the existing model-identity blinding."""
+    t = task or {}
+    view: Dict[str, Any] = {k: t.get(k) for k in _TASK_VIEW_KEYS}
+    view["candidate_answers"] = [
+        {"id": c.get("id"), "text": c.get("text")}
+        for c in (t.get("candidate_answers") or [])
+        if isinstance(c, dict)
+    ]
+    return view
+
+
+# Metadata keys pruned from ANYWHERE inside a served answer (PRD R §2.2).
+#
+# The top level is a whitelist and stays one. This is a denylist for what the
+# whitelisted values CONTAIN: ``independent_answer`` and ``from_scratch`` are
+# nested objects the labeler's client built, and they carry their own
+# bookkeeping. ``captured_at`` is the sharpest example — it is the pre-reveal
+# commit timestamp, i.e. a direct "who went first" tell, sitting two levels
+# under a field the reviewer genuinely needs.
+_ORDERING_METADATA_KEYS = frozenset({
+    "captured_at", "created_at", "updated_at", "submitted_at",
+    "submission_id", "evaluator_id", "portal_version",
+})
+
+
+def _scrub_metadata(obj: Any) -> Any:
+    """Recursively drop ordering/identity bookkeeping from a served structure."""
+    if isinstance(obj, dict):
+        return {k: _scrub_metadata(v) for k, v in obj.items()
+                if not (isinstance(k, str) and k.lower() in _ORDERING_METADATA_KEYS)}
+    if isinstance(obj, list):
+        return [_scrub_metadata(v) for v in obj]
+    return obj
+
+
+def _answer_view(submission: Dict[str, Any], *, scrub: bool = False) -> Dict[str, Any]:
+    """One labeler's answer, whitelisted. Shared by the single and paired views so
+    a field added to one can never be missing from the other.
+
+    ``scrub`` additionally prunes nested ordering metadata. It is off for the
+    single-submission view, which serves ``submitted_at`` at the top level
+    anyway and has no second answer to compare against; it is on for the pair,
+    where any per-submission timestamp is a first/second tell."""
+    s = submission or {}
+    payload = s.get("payload") or {}
+    view: Dict[str, Any] = {k: payload.get(k) for k in _SUBMISSION_PAYLOAD_VIEW_KEYS
+                            if payload.get(k) is not None}
+    view["verdict"] = s.get("verdict") or payload.get("verdict")
+    return _scrub_metadata(view) if scrub else view
+
+
 def blinded_review_view(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, Any]:
     """The exact payload a reviewer is served: the case, and the labeler's answer
     as submitted — verdict, corrected answer, step annotations, rubric, citations
@@ -206,15 +260,8 @@ def blinded_review_view(task: Dict[str, Any], submission: Dict[str, Any]) -> Dic
     t = task or {}
     s = submission or {}
     payload = s.get("payload") or {}
-    task_view: Dict[str, Any] = {k: t.get(k) for k in _TASK_VIEW_KEYS}
-    task_view["candidate_answers"] = [
-        {"id": c.get("id"), "text": c.get("text")}
-        for c in (t.get("candidate_answers") or [])
-        if isinstance(c, dict)
-    ]
-    answer_view: Dict[str, Any] = {k: payload.get(k) for k in _SUBMISSION_PAYLOAD_VIEW_KEYS
-                                   if payload.get(k) is not None}
-    answer_view["verdict"] = s.get("verdict") or payload.get("verdict")
+    task_view: Dict[str, Any] = _blinded_task_view(t)
+    answer_view = _answer_view(s)
     return {
         "submission_id": s.get("submission_id"),
         "task_id": s.get("task_id"),
@@ -274,23 +321,57 @@ def _walk_for_values(obj: Any, needles: List[str]) -> bool:
     return False
 
 
-def labeler_identity_needles(labeler: Optional[Dict[str, Any]]) -> List[str]:
-    """The specific strings that would identify THIS labeler, for the value scan.
+def _separator_variants(raw: str) -> List[str]:
+    """The same MULTI-TOKEN name written the other conventional ways.
 
-    Precise, not heuristic: the actual account's email, local-part, name and
-    hashed id. A generic name-detector would false-positive on clinical prose
-    ('per Osler's sign') and silently shrink κ's n."""
-    out: List[str] = []
+    ``marguerite.okonkwo`` (an email local-part) and ``Marguerite Okonkwo`` (how
+    a physician signs a note) are the same identity, and the value scan used to
+    match only the first. This closes that gap without loosening precision: only
+    multi-token names produce variants, so no BARE surname ever becomes a needle.
+    That restraint is deliberate — a single-token rule would redact 'Cushing'
+    from a labeler named Cushing writing about Cushing's syndrome, corrupting
+    the clinical record it was meant to protect.
+    """
+    parts = [p for p in re.split(r"[.\-_+\s]+", raw) if len(p) >= 2]
+    if len(parts) < 2:
+        return []
+    return [" ".join(parts), ".".join(parts), "".join(parts),
+            " ".join(reversed(parts))]
+
+
+def labeler_identity_needles(labeler: Optional[Dict[str, Any]]) -> List[str]:
+    """The specific strings that would identify THIS labeler, for the value scan
+    and for redaction.
+
+    Precise, not heuristic: the actual account's email, local-part, name, org and
+    hashed id — plus the conventional re-spellings of any multi-token one. A
+    generic name-detector would false-positive on clinical prose ('per Osler's
+    sign') and silently shrink κ's n.
+
+    What this deliberately does NOT catch, so it is stated rather than implied:
+    a bare surname, an initials-only signature, and writing style. Style in
+    particular is unfixable by any scanner and is the residual blinding risk two
+    answers side by side create (PRD R §2.2).
+    """
+    raw: List[str] = []
     for key in ("email", "full_name", "id_hashed", "organization", "org_name"):
         val = (labeler or {}).get(key)
         if isinstance(val, str) and len(val.strip()) >= 4:
-            out.append(val.strip().lower())
+            raw.append(val.strip().lower())
     email = (labeler or {}).get("email")
     if isinstance(email, str) and "@" in email:
         local = email.split("@", 1)[0].strip().lower()
         if len(local) >= 4:
-            out.append(local)
-    return out
+            raw.append(local)
+
+    out: List[str] = list(raw)
+    for value in raw:
+        if "@" in value:
+            continue           # a full address has one spelling; do not fragment it
+        out.extend(v for v in _separator_variants(value) if len(v) >= 6)
+    # Longest first so a redaction pass consumes the full name before a shorter
+    # variant of it can carve the string up.
+    return sorted(set(out), key=len, reverse=True)
 
 
 def payload_is_blinded(view: Dict[str, Any], *, reviewer_role: str,
@@ -383,6 +464,200 @@ def validate_review_payload(body: Dict[str, Any]) -> List[str]:
     if verdict == "accept_with_edits" and not _has_correction_content(b.get("corrections")):
         errors.append(
             "accept_with_edits requires corrections (notes and/or edited_answer)")
+
+    tss = b.get("time_spent_sec")
+    if tss is not None:
+        try:
+            if int(tss) < 0:
+                errors.append("time_spent_sec must be >= 0")
+        except (TypeError, ValueError):
+            errors.append("time_spent_sec must be an integer")
+
+    return errors
+
+
+# ═══ PRD R Phase 2 — the paired review ════════════════════════════════════════
+# Review stops being about a SUBMISSION and becomes about a CASE WITH TWO
+# INDEPENDENT LABELS. That shape is the only one from which Cohen's κ (the two
+# labels against each other) and an expert acceptance rate (the reviewer's
+# verdict) can both be computed honestly.
+
+# 'A' and 'B' are POSITIONS in what this reviewer was shown, not submission ids.
+# The server owns the position→submission map (``routing.ab_pair``), so a client
+# can never assert which physician's work it is grading.
+PAIR_STRENGTH = ("A", "B", "equivalent")
+
+# The stored verdict vocabulary is UNCHANGED on purpose (PRD R §2.4 / §7).
+# ``agreement.review_acceptance`` is the single definition of expert acceptance
+# and counts exactly these three tokens; a fourth ('accept_a') would fall into
+# ``n_unclassified`` and silently deflate the headline rate to zero while
+# appearing nowhere. "Accept A" / "Accept B" are therefore ONE verdict
+# (``accept``) plus a side, and "Reject both" is ``reject`` with no side.
+PAIR_VERDICTS = REVIEW_VERDICTS
+
+
+def blinded_pair_view(
+    task: Dict[str, Any], shown_a: Dict[str, Any], shown_b: Dict[str, Any]
+) -> Dict[str, Any]:
+    """The exact payload a reviewer is served for a PAIR (PRD R §2.2).
+
+    Built by whitelist, like the single view, and then deliberately narrower:
+
+      * no ``submission_id`` — the client submits against the TASK and names a
+        position, so it never needs one, and an id ordering is a first/second
+        tell;
+      * no ``submitted_at`` — the most direct "who went first" leak there is;
+      * no ``portal_version`` — structural metadata with no clinical value to the
+        reviewer, and one of the few fields that can differ between two labelers.
+
+    ``confidence`` survives because it is the labeler's own read on their answer
+    and a reviewer adjudicating a disagreement needs it.
+
+    What this CANNOT fix, and does not pretend to: prose style. Two answers side
+    by side make writing style a far stronger signal than one answer alone. The
+    structural leaks are closed here; the value scan below closes the explicit
+    ones; style is a residual risk that is stated rather than hidden.
+    """
+    return {
+        "task_id": (task or {}).get("task_id"),
+        "task": _blinded_task_view(task),
+        "answers": [
+            {"label": "A", "confidence": (shown_a or {}).get("confidence"),
+             "answer": _answer_view(shown_a, scrub=True)},
+            {"label": "B", "confidence": (shown_b or {}).get("confidence"),
+             "answer": _answer_view(shown_b, scrub=True)},
+        ],
+    }
+
+
+# The marker left where a labeler signed their own prose. Visible on purpose: a
+# reviewer seeing it knows something was removed and can weigh the gap, which is
+# more honest than a seamless deletion that reads as the physician's own words.
+REDACTION_MARKER = "[identifying detail removed]"
+
+
+def redact_identity(
+    view: Dict[str, Any], labelers: Optional[List[Optional[Dict[str, Any]]]] = None
+) -> Tuple[Dict[str, Any], List[str]]:
+    """Strip each labeler's own identifying strings out of the served payload.
+
+    Returns ``(redacted_view, needles_that_were_hit)``.
+
+    PRD R §2.2 asks for a test that seeds a labeler's name into their free text
+    and asserts it is NOT SERVED. Measuring the leak and recording
+    ``blinded = 0`` — which is what the single-submission flow does — satisfies
+    the statistics but not the sentence: the reviewer still read the name, and
+    the adjudication is already biased by the time κ excludes the observation.
+
+    So the pair view redacts and then measures the result. Redaction is
+    preferred over dropping the case because the clinical content is the work
+    two physicians were paid for; losing a case to a signature would be an
+    expensive way to enforce a formatting rule.
+
+    Needles are precise (this account's email, local-part, name, org, hashed id
+    — see ``labeler_identity_needles``), never a general name detector, so
+    clinical prose is not shredded on a false positive.
+    """
+    needles = []
+    for labeler in (labelers or []):
+        needles.extend(labeler_identity_needles(labeler))
+    needles = sorted(set(n for n in needles if n), key=len, reverse=True)
+    if not needles:
+        return view, []
+
+    hit: List[str] = []
+
+    def _walk(obj: Any) -> Any:
+        if isinstance(obj, str):
+            out = obj
+            low = out.lower()
+            for needle in needles:
+                idx = low.find(needle)
+                while idx != -1:
+                    hit.append(needle)
+                    out = out[:idx] + REDACTION_MARKER + out[idx + len(needle):]
+                    low = out.lower()
+                    idx = low.find(needle)
+            return out
+        if isinstance(obj, dict):
+            return {k: _walk(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_walk(v) for v in obj]
+        return obj
+
+    return _walk(view), sorted(set(hit))
+
+
+def pair_is_blinded(
+    view: Dict[str, Any], *, reviewer_role: str,
+    labelers: Optional[List[Optional[Dict[str, Any]]]] = None,
+) -> bool:
+    """True only when the served PAIR provably carries no labeler identity.
+
+    Same derivation as ``payload_is_blinded`` — keys anywhere in the structure,
+    then values against each labeler's own identifying strings — but over BOTH
+    payloads at once and against BOTH labelers' needles. A name that identifies
+    physician A is just as much a leak when it appears in physician B's critique.
+    """
+    if reviewer_role == "admin":
+        return False
+    if _walk_for_keys(view, _IDENTITY_MARKERS):
+        return False
+    needles: List[str] = []
+    for labeler in (labelers or []):
+        needles.extend(labeler_identity_needles(labeler))
+    return not _walk_for_values(view, needles)
+
+
+def validate_pair_review_payload(body: Dict[str, Any]) -> List[str]:
+    """All the ways a PAIRED adjudication can be unusable (empty = valid).
+
+    Pure, so the rules are unit-testable without HTTP, and reused verbatim by the
+    route — the reason an unexplained rejection cannot reach the database is that
+    there is one rule, not a client-side one and a server-side one."""
+    errors: List[str] = []
+    b = body or {}
+
+    verdict = b.get("verdict")
+    if verdict not in PAIR_VERDICTS:
+        errors.append(f"verdict must be one of {list(PAIR_VERDICTS)}, got {verdict!r}")
+
+    # "Which is stronger?" is REQUIRED — it is the comparison the old flow could
+    # not ask, and the reason the pair exists. 'equivalent' is a real answer.
+    stronger = b.get("stronger")
+    if stronger not in PAIR_STRENGTH:
+        errors.append(f"stronger must be one of {list(PAIR_STRENGTH)}, got {stronger!r}")
+
+    # An acceptance has to name whose work is accepted, or the row cannot be
+    # attributed to a physician and 'expert acceptance' means nothing per-labeler.
+    side = b.get("accepted_side")
+    if verdict == "accept" and side not in ("A", "B"):
+        errors.append("accept must name the accepted side ('A' or 'B')")
+    if verdict == "reject" and side is not None:
+        errors.append("reject both accepts no side")
+    if verdict == "accept_with_edits" and side is not None and side not in ("A", "B"):
+        errors.append("accepted_side must be 'A', 'B', or absent")
+
+    dims = b.get("dimensions")
+    if not isinstance(dims, dict):
+        errors.append("dimensions must be an object with one state per dimension")
+        dims = {}
+    for key in DIMENSION_KEYS:
+        if dims.get(key) not in DIMENSION_STATES:
+            errors.append(
+                f"dimension {key!r} requires one of {list(DIMENSION_STATES)}, "
+                f"got {dims.get(key)!r}")
+    for key in dims:
+        if key not in DIMENSION_KEYS:
+            errors.append(f"unknown review dimension {key!r}")
+
+    # PRD R §2.3, same rule and same reason as the single flow: an unexplained
+    # rejection — or an "accept with edits" carrying no edits — is unusable to
+    # the labeler, to the buyer, and to us.
+    if verdict in ("accept_with_edits", "reject") and not _has_correction_content(
+            b.get("corrections")):
+        errors.append(
+            f"{verdict} requires corrections (notes and/or edited_answer)")
 
     tss = b.get("time_spent_sec")
     if tss is not None:

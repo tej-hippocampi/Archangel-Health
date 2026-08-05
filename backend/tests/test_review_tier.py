@@ -165,15 +165,28 @@ def test_reviewer_cannot_draw_own_submission():
     task = _mk_task(store)
     _mk_submission(store, task, reviewer)  # the reviewer's OWN labeling work
 
+    # A different reviewer draws it fine...
+    other = _reviewer(store)
+    drawn = store.next_review_for(other["id"], specialty="nephrology")
+    assert drawn is not None and drawn["evaluator_id"] == reviewer["id"]
+
+    # ...and its author never does, in SQL and through the route.
     assert store.next_review_for(reviewer["id"], specialty="nephrology") is None
     r = client.get("/api/asclepius/review/next", headers=A.headers_for(reviewer))
     assert r.status_code == 200
     assert r.json()["submission"] is None
 
-    # A different reviewer draws it fine.
-    other = _reviewer(store)
-    drawn = store.next_review_for(other["id"], specialty="nephrology")
-    assert drawn is not None and drawn["evaluator_id"] == reviewer["id"]
+    # PRD R §1: the other-reviewer draw is asserted BEFORE the route call on
+    # purpose. A draw triggers the double-label routing sweep, which under the
+    # new flow flags this task for a second label — at which point the case has
+    # correctly left the single-submission queue for the paired one
+    # (test_paired_review.py). The self-review wall is what this test is about,
+    # and it holds either way. The sweep is invoked EXPLICITLY below rather than
+    # asserted on the route's background task, whose throttle makes it a coin
+    # flip and would put a race straight back into this suite.
+    asc_review.sweep_double_label_routing(store)
+    assert store.get_task(task["task_id"])["max_labels"] == 2
+    assert store.next_review_for(other["id"], specialty="nephrology") is None
 
 
 def test_own_submission_post_is_403_even_by_hand():
@@ -1087,12 +1100,18 @@ def test_only_one_definition_of_expert_acceptance_exists():
 
 def test_double_label_rate_has_one_source_of_truth():
     """A-4.3: review.py delegated to agreement.double_label_rate(), which
-    defaulted to 0.20 while the PRD review.py implements specified 0.15."""
-    from asclepius import agreement as asc_agreement
+    defaulted to 0.20 while the PRD review.py implements specified 0.15.
 
-    assert asc_agreement.DEFAULT_DOUBLE_LABEL_RATE == 0.15
-    assert asc_agreement.double_label_rate() == 0.15
+    PRD R §1.1 moved the default to 1.0 — two labels is the normal path, not a
+    sample. The property under test is unchanged and is the point of the test:
+    ONE constant, and every caller reads it rather than carrying its own copy."""
+    from asclepius import agreement as asc_agreement
+    from asclepius import routing as asc_routing
+
+    assert asc_agreement.DEFAULT_DOUBLE_LABEL_RATE == 1.0
+    assert asc_agreement.double_label_rate() == asc_agreement.DEFAULT_DOUBLE_LABEL_RATE
     assert asc_review.double_label_rate() == asc_agreement.double_label_rate()
+    assert asc_routing.second_label_is_default() is True
 
 
 def test_double_label_rate_env_override_still_wins(monkeypatch):
@@ -1102,4 +1121,5 @@ def test_double_label_rate_env_override_still_wins(monkeypatch):
     assert asc_agreement.double_label_rate() == 0.42
     assert asc_review.double_label_rate() == 0.42
     monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_RATE", "not-a-number")
-    assert asc_agreement.double_label_rate() == 0.15      # falls back, never crashes
+    # Falls back to the ONE constant, never crashes.
+    assert asc_agreement.double_label_rate() == asc_agreement.DEFAULT_DOUBLE_LABEL_RATE
