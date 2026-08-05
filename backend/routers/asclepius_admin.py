@@ -19,6 +19,7 @@ import secrets
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr
 
 from asclepius import auth as asc_auth
@@ -332,8 +333,19 @@ async def export_case_bundle(
 
 
 # ─── Storage durability + reconciliation (PRD I-0 §F2/§F4) ───────────────────
+# Reconciliation walks every case and task row and stats the whole blob tree, so
+# it is far too heavy to run on each page load — and the answer changes only when
+# blobs do. The boot run populates this; the page reads it; ``?refresh=1`` forces
+# a fresh pass when an operator is actively investigating.
+_RECONCILE_CACHE: Dict[str, Any] = {}
+_RECONCILE_TTL_SEC = 900
+
+
 @router.get("/storage/reconcile")
-async def storage_reconcile(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+async def storage_reconcile(
+    refresh: bool = False,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
     """What the storage layer actually holds versus what the database believes.
 
     Read-only. ``missing_blobs`` is an INCIDENT, not a metric: each entry is a case
@@ -344,12 +356,25 @@ async def storage_reconcile(_admin: Dict[str, Any] = Depends(asc_auth.require_ad
 
     Also returns the live durability verdict for all three stores, so the operator
     can see *why* blobs went missing rather than only that they did."""
+    import time as _time
+
     from asclepius import assets as asc_assets
-    from asclepius import ingestion as asc_ingestion
     from asclepius.store import _db_storage_durable
 
     store = _store()
-    report = asc_assets.reconcile_assets(store)
+    cached = _RECONCILE_CACHE.get("report")
+    fresh_enough = (cached is not None
+                    and (_time.monotonic() - _RECONCILE_CACHE.get("at", 0))
+                    < _RECONCILE_TTL_SEC)
+    if refresh or not fresh_enough:
+        # Off the event loop: this is two full table walks plus a stat of the
+        # entire blob tree, and doing it inline stalls every other admin request.
+        report = await run_in_threadpool(asc_assets.reconcile_assets, store)
+        _RECONCILE_CACHE.update({"report": report, "at": _time.monotonic()})
+    else:
+        report = cached
+    # Durability, by contrast, is three cheap syscalls and must always be LIVE —
+    # a cached "durable" verdict is exactly the reassurance nobody should get.
     stores = []
     for name, fn in (("database", _db_storage_durable),
                      ("raw ingest", asc_ingestion.ingest_storage_durable),
@@ -365,6 +390,7 @@ async def storage_reconcile(_admin: Dict[str, Any] = Depends(asc_auth.require_ad
         "orphan_count": len(report["orphan_blobs"]),
         "storage": stores,
         "all_durable": all(s["durable"] for s in stores),
+        "cached": not (refresh or not fresh_enough),
     }
 
 
@@ -472,9 +498,24 @@ async def set_portal_account_purpose(
     if not store.get_health_system(hs_id):
         raise HTTPException(status_code=404, detail="Health system not found")
     accounts = store.list_hs_portal_users(hs_id)
-    if username.lower() not in [u["username"].lower() for u in accounts]:
+    matching = [u for u in accounts if u["username"].lower() == username.lower()]
+    if not matching:
         raise HTTPException(status_code=404,
                             detail="That portal account does not belong to this health system.")
+    # Purpose resolves LIVE at completion, which is what makes the upload doors
+    # agree — and it also means this change reaches bytes already in flight. So
+    # brokering → task creation is allowed only while the account has sent
+    # nothing: that is correcting a mis-click, not converting a partner's data
+    # into something promotable after the fact.
+    if (matching[0].get("purpose") == asc_ingestion.PURPOSE_BROKERING
+            and purpose == asc_ingestion.PURPOSE_TASK_CREATION
+            and store.hs_portal_account_has_activity(username)):
+        raise HTTPException(
+            status_code=409,
+            detail="This account has already sent data on a brokering mint, so its "
+                   "purpose cannot be changed to task creation — that would convert "
+                   "data the partner sent us to broker. Send this organization a "
+                   "separate task-creation link instead.")
     store.set_hs_portal_purpose(username, purpose)
     store.log_event(entity_type="health_system", entity_id=hs_id,
                     event_type="portal_purpose_set", actor=admin["id"],
@@ -505,6 +546,22 @@ async def set_upload_purpose(
     upload = store.get_ingest_upload(upload_id)
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
+    # The invariant is "brokering never becomes a task". A one-call relabel from
+    # brokering to task_creation IS that transition, just spelled differently —
+    # and it would apply to cases a physician may already have been shown. This
+    # endpoint exists to RESOLVE an unset purpose, not to overturn a decided one.
+    #
+    # The other direction stays open: task_creation → brokering removes a
+    # promotion path and never adds one.
+    current = upload.get("purpose")
+    if current == asc_ingestion.PURPOSE_BROKERING \
+            and purpose == asc_ingestion.PURPOSE_TASK_CREATION:
+        raise HTTPException(
+            status_code=409,
+            detail="This upload came in on a brokering link. Its purpose cannot be "
+                   "changed to task creation — brokering data never enters the task "
+                   "pipeline. If the link itself was minted wrongly, mint a new one "
+                   "and ask the partner to re-send.")
     store.set_upload_purpose(upload_id, purpose)
     cases = store.propagate_purpose_to_cases(upload_id)
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,

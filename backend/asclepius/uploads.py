@@ -56,11 +56,13 @@ import os
 import re
 import shutil
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from asclepius import ingestion as asc_ingestion
+from asclepius.store import _utcnow_iso
 
 log = logging.getLogger("asclepius.uploads")
 
@@ -137,6 +139,38 @@ def sessions_root() -> Path:
     return root
 
 
+def disk_amplification_factor() -> float:
+    """How many times the declared size the volume must be able to absorb.
+
+    One upload is not one copy. The parts land encrypted, assembly writes the raw
+    blob beside them, the unpacker materializes a plaintext copy, a bare file gets
+    a wrapped zip, and entry bytes spill — all on the SAME volume as the database.
+    Accepting a bundle we cannot finish means running the volume out from under
+    SQLite, which is a far worse outcome than declining the upload."""
+    try:
+        return max(1.0, float(os.getenv("ASCLEPIUS_UPLOAD_DISK_FACTOR", "4")))
+    except ValueError:
+        return 4.0
+
+
+def disk_headroom_for(size: int) -> Tuple[bool, str]:
+    """(ok, detail) — can this volume absorb this bundle and its working copies?
+
+    Checked at DECLARE, before a single byte is accepted, because the alternative
+    is discovering it after the partner has spent hours uploading."""
+    need = int(size * disk_amplification_factor())
+    try:
+        usage = shutil.disk_usage(str(sessions_root()))
+    except OSError as exc:  # pragma: no cover - cannot stat: do not block on it
+        log.warning("disk headroom check skipped: %s", exc)
+        return True, "headroom check unavailable"
+    if usage.free < need:
+        return False, ("There is not enough storage available to accept an upload "
+                       "this size right now. Please contact your Archangel Health "
+                       "point of contact and we will arrange a secure transfer.")
+    return True, f"{usage.free} bytes free for a {need} byte working set"
+
+
 # ─── Plan ────────────────────────────────────────────────────────────────────
 def plan_for(size: int) -> Tuple[int, int]:
     """(chunk_size, part_count) for a declared size. Server-decided: the client
@@ -199,6 +233,10 @@ def declare(
             "too_large",
             "This upload is larger than we can accept in one bundle. Please split "
             "it into smaller batches and send them one at a time.", status=413)
+
+    ok, why = disk_headroom_for(size)
+    if not ok:
+        raise UploadSessionError("insufficient_storage", why, status=507)
 
     existing = store.find_open_upload_session(
         owner_kind=owner_kind, owner_id=owner_id, actor=actor,
@@ -288,7 +326,14 @@ def store_part(session: Dict[str, Any], n: int, data: bytes,
     from field_crypto import encrypt_bytes
     data_path, meta_path = _part_paths(session, n)
     data_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    tmp = data_path.with_name(data_path.name + ".tmp")
+    # Per-write temp name. A shared ``<part>.tmp`` meant two in-flight PUTs for
+    # the same part raced: one renamed the file out from under the other, which
+    # surfaced as a FileNotFoundError (a 500), and the interleaved writes left a
+    # window where the renamed file held a mixture of both — bytes that pass the
+    # per-part digest check and fail the whole-file digest after the partner has
+    # already sent gigabytes. Retrying a part is normal client behaviour on a
+    # flaky hospital link, so this is not an exotic case.
+    tmp = data_path.with_name(f"{data_path.name}.{uuid.uuid4().hex}.tmp")
     with open(tmp, "wb") as fh:
         fh.write(encrypt_bytes(data))
         fh.flush()
@@ -365,8 +410,14 @@ def complete(store: Any, session: Dict[str, Any]) -> Dict[str, Any]:
         raw_path = asc_ingestion.store_raw_stream(upload_id, _counted())
     except BaseException:
         # A failed assembly must hand the session back, or our own crash locks the
-        # partner out of an upload they can still finish.
-        store.release_upload_session_claim(session["session_id"])
+        # partner out of an upload they can still finish. Suppressed on purpose:
+        # anything raised here would replace the REAL failure with a bookkeeping
+        # error, and the original is the one the operator can act on.
+        with contextlib.suppress(Exception):
+            if store.release_upload_session_claim(session["session_id"]) == "aborted":
+                # Retired in favour of a live replacement the partner already
+                # opened — its parts are dead weight on the durable volume.
+                _purge_parts(session)
         raise
     actual = digest.hexdigest()
     if actual != session["declared_sha256"] or total != int(session["declared_size"]):
@@ -381,7 +432,12 @@ def complete(store: Any, session: Dict[str, Any]) -> Dict[str, Any]:
             "The assembled upload did not match the checksum you declared. "
             "Nothing was stored — please start the upload again.", status=409)
 
-    verified_at = datetime.now(timezone.utc).isoformat()
+    # Naive UTC to whole seconds, matching every other timestamp in this schema.
+    # A tz-aware value sorts and compares differently from its naive neighbours
+    # ("2026-08-05T12:00:00+00:00" > "2026-08-05T12:00:01"), so the one column
+    # that proves an upload was verified would be the one column that misbehaves
+    # in a range query over it.
+    verified_at = _utcnow_iso()
     return {"upload_id": upload_id, "raw_path": raw_path, "sha256": actual,
             "byte_size": total, "verified_at": verified_at, "already": False}
 
@@ -449,14 +505,27 @@ def reap_stale_sessions(store: Any) -> int:
         return 0
     for session in stale:
         try:
+            status = session.get("status")
+            if status in ("aborted", "failed"):
+                # Already retired; only its disk is outstanding. Convergent
+                # cleanup — a session retired by any path eventually gives its
+                # parts back, without every caller having to remember to purge.
+                if _session_dir(session).exists():
+                    _purge_parts(session)
+                    reaped += 1
+                continue
             activity = last_activity_epoch(session)
             if activity is not None and activity > idle_before:
                 continue  # parts arrived recently — this upload is in flight
-            if session.get("status") == "completing":
+            if status == "completing":
                 # A claim that outlived the process that took it. Hand it back
                 # rather than deleting: the parts are all present by definition
-                # (assembly had started), so the partner can simply retry.
-                store.release_upload_session_claim(session["session_id"])
+                # (assembly had started), so the partner can simply retry. If a
+                # replacement session already exists the release retires this one
+                # instead, and only THEN are its parts dead weight.
+                if store.release_upload_session_claim(session["session_id"]) == "aborted":
+                    _purge_parts(session)
+                    reaped += 1
                 continue
             _purge_parts(session)
             store.update_upload_session(session["session_id"], status="aborted")

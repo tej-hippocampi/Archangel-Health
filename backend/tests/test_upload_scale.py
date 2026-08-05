@@ -12,6 +12,7 @@ import hashlib
 import io
 import json
 import os
+import shlex
 import sys
 import zipfile
 from pathlib import Path
@@ -32,8 +33,15 @@ API = "/api/asclepius"
 
 @pytest.fixture(autouse=True)
 def _small_chunks(monkeypatch, tmp_path):
-    """A 1 MB chunk keeps the fixtures small while exercising the real multi-part
-    path — the code cannot tell that 3 parts of 1 MB is not 300 parts of 16 MB."""
+    """A 1 MB chunk keeps the fixtures small while exercising the multi-part path.
+
+    This fixture once carried the comment *"the code cannot tell that 3 parts of
+    1 MB is not 300 parts of 16 MB"*, and that assumption was itself a bug: a
+    read-side frame ceiling was added while the writer emitted one frame per
+    caller chunk, so the shipped 16 MB default produced frames the reader
+    rejected — and every test passed, because every test ran at 1 MB. Pinning the
+    chunk size hides anything that depends on it, so the tests that care about the
+    DEFAULT unpin it explicitly and say so."""
     monkeypatch.setenv("ASCLEPIUS_UPLOAD_CHUNK_BYTES", str(1024 * 1024))
     monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
     monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", str(tmp_path / "assets"))
@@ -686,3 +694,386 @@ def test_an_unexpected_error_still_gets_the_provider_response_discipline(client,
     assert r.headers["content-type"].startswith("application/json")
     assert len(r.content) % 4096 == 0, "the 500 body was not padded"
     assert "synthetic failure" not in r.text, "the internal reason reached the partner"
+
+
+# ── C1: the container must be self-consistent at the DEFAULT chunk size ──────
+# These tests deliberately do NOT use the 1 MB autouse chunk fixture for the
+# thing under test. That fixture's comment claimed "the code cannot tell that 3
+# parts of 1 MB is not 300 parts of 16 MB" — and that assumption was itself the
+# bug: a read-side frame ceiling of 8 MB + 4 KB was added while the writer emitted
+# one frame per caller chunk, so every part at the 16 MB default was ~8.4 MB over
+# the ceiling. Every large bundle uploaded for hours, passed the whole-file
+# digest, was written to durable storage, and was then rejected as unreadable
+# with copy that blamed the hospital's file.
+def test_raw_container_round_trips_at_the_default_chunk_size(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    monkeypatch.delenv("ASCLEPIUS_UPLOAD_CHUNK_BYTES", raising=False)
+    chunk = asc_uploads.chunk_size_bytes()
+    assert chunk == 16 * 1024 * 1024, "this test is about the SHIPPED default"
+
+    payload = os.urandom(chunk + 7)                     # one full part plus change
+    path = asc_ingestion.store_raw_stream(
+        "upl-default", [payload[:chunk], payload[chunk:]])
+    assert asc_ingestion.load_raw(path) == payload
+
+
+@pytest.mark.parametrize("caller_chunk", [
+    1024,                       # absurdly small
+    1024 * 1024,                # the test fixture's size
+    8 * 1024 * 1024,            # exactly the frame size
+    8 * 1024 * 1024 + 1,        # one byte over
+    16 * 1024 * 1024,           # the shipped default
+    33 * 1024 * 1024,           # larger than any configured chunk
+])
+def test_the_writer_is_independent_of_the_callers_chunk_size(tmp_path, monkeypatch,
+                                                             caller_chunk):
+    """The container's frame size is the CONTAINER's business. Coupling it to
+    whatever the caller happened to hand in is what let a read ceiling and a write
+    size drift apart in the first place."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    payload = os.urandom(min(caller_chunk * 2 + 13, 40 * 1024 * 1024))
+    path = asc_ingestion.store_raw_stream(
+        f"upl-{caller_chunk}",
+        (payload[i:i + caller_chunk] for i in range(0, len(payload), caller_chunk)))
+    assert asc_ingestion.load_raw(path) == payload
+    # And no frame on disk exceeds what the reader will accept.
+    for piece in asc_ingestion.iter_raw(path):
+        assert len(piece) <= asc_ingestion._RAW_FRAME_BYTES
+
+
+def test_a_large_bundle_survives_upload_at_the_default_chunk_size(monkeypatch, tmp_path):
+    """End to end through the real routes at the SHIPPED chunk size: the bundle
+    must still be readable after it is stored, and the pipeline must accept it."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest2"))
+    monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", str(tmp_path / "assets2"))
+    monkeypatch.setenv("ASCLEPIUS_PORTAL_BUDGET_MS", "0")
+    monkeypatch.delenv("ASCLEPIUS_UPLOAD_CHUNK_BYTES", raising=False)
+    store = A.fresh_store()
+    with TestClient(A.app, base_url="https://testserver") as client:
+        _portal(client, store)
+        data = _many_entry_bundle(20 * 1024 * 1024)     # > 16 MB → 2 parts
+        session = _declare(client, data)
+        assert session["chunk_size"] == 16 * 1024 * 1024
+        assert session["part_count"] == 2
+        r = _upload_all(client, data, session)
+        assert r.status_code == 200, r.text
+        upload = store.get_ingest_upload(r.json()["upload_id"])
+
+    # The stored blob is readable — this is what C1 broke.
+    assert asc_ingestion.load_raw(upload["raw_path"]) == data
+    assert upload["status"] != "rejected", (
+        f"a verified bundle was rejected downstream: {upload.get('reason')}")
+    assert store.list_ingest_cases(upload_id=upload["upload_id"])
+
+
+# ── H2: releasing a claim must not collide with the live retry ───────────────
+def test_releasing_a_stuck_claim_does_not_collide_with_a_fresh_session(client):
+    """The exact sequence a partner produces after a crash.
+
+    ``idx_ingest_sessions_idem_v2`` is partial over ``status IS NULL``, and
+    releasing a claim sets status back to NULL — so a ``completing`` session plus
+    the fresh session the partner opened for the same bytes collide. Two effects,
+    both bad: the IntegrityError is raised from inside ``except BaseException`` in
+    ``complete``, MASKING the original assembly failure behind a 500 and locking
+    the session forever; and the reaper then aborts the LIVE retry while leaving
+    the stuck one untouched."""
+    store = A.fresh_store()
+    _portal(client, store)
+    data = _bundle(2 * 1024 * 1024)
+
+    stuck = _declare(client, data)
+    for n, blob in enumerate(_parts_of(data, stuck["chunk_size"]), start=1):
+        _put_part(client, stuck["session_id"], n, blob)
+    assert store.claim_upload_session_for_completion(stuck["session_id"]) is True
+
+    # The partner gives up and re-declares — a NEW open session for the same bytes.
+    fresh = _declare(client, data)
+    assert fresh["session_id"] != stuck["session_id"]
+
+    # Releasing the stuck claim must not raise, and must not disturb the live one.
+    store.release_upload_session_claim(stuck["session_id"])
+    assert store.get_upload_session(fresh["session_id"])["status"] is None
+
+    # And the reaper must take the STUCK one, never the live retry. Only the stuck
+    # session is aged — ageing the live one too would be testing that the reaper
+    # spares an abandoned session, which is not what it should do.
+    import os as _os
+    with store._conn() as conn:
+        conn.execute("UPDATE ingest_upload_sessions SET updated_at = "
+                     "'2000-01-01T00:00:00' WHERE session_id = ?",
+                     (stuck["session_id"],))
+    stuck_dir = Path(store.get_upload_session(stuck["session_id"])["storage_dir"])
+    if stuck_dir.exists():
+        for p in stuck_dir.iterdir():
+            _os.utime(p, (0, 0))
+    asc_uploads.reap_stale_sessions(store)
+    assert store.get_upload_session(fresh["session_id"])["status"] is None, (
+        "the reaper aborted the partner's live retry")
+    assert store.get_upload_session(stuck["session_id"])["status"] == "aborted", (
+        "the stuck session was left behind, holding its parts on the volume")
+    assert not stuck_dir.exists(), "the retired session's parts were not released"
+
+
+def test_an_assembly_failure_surfaces_its_own_reason(client, monkeypatch):
+    """The release happens inside ``except BaseException``. If it can raise, it
+    replaces the real failure with a database error the operator cannot act on."""
+    store = A.fresh_store()
+    _portal(client, store)
+    data = _bundle(2 * 1024 * 1024)
+    session = _declare(client, data)
+    for n, blob in enumerate(_parts_of(data, session["chunk_size"]), start=1):
+        _put_part(client, session["session_id"], n, blob)
+    _declare(client, data)   # a competing open session, so a naive release collides
+
+    def boom(*_a, **_k):
+        raise RuntimeError("assembly exploded")
+
+    monkeypatch.setattr(asc_ingestion, "store_raw_stream", boom)
+    row = store.get_upload_session(session["session_id"])
+    with pytest.raises(RuntimeError, match="assembly exploded"):
+        asc_uploads.complete(store, row)
+    # …and the session is usable again rather than locked in 'completing'.
+    assert store.get_upload_session(session["session_id"])["status"] in (None, "aborted")
+
+
+# ── H4: antivirus must not be inline on a multi-GB bundle ────────────────────
+# Ignores the extra path argument and blocks, which is what a real scanner that
+# is too slow for its timeout looks like.
+_SLOW_SCANNER = shlex.join([sys.executable, "-c", "import time; time.sleep(30)"])
+def test_a_scanner_timeout_is_not_reported_as_malware(monkeypatch, tmp_path):
+    """PRD §1.3 is explicit that AV does not belong inline, and the reason is
+    exactly this: a scanner that cannot finish a 3 GB file inside its timeout
+    would reject a clean hospital bundle AS MALWARE. A timeout is 'we do not
+    know', which is a different answer from 'this is dangerous', and conflating
+    them destroys good data and tells the partner something false about it."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    # A command that really blocks. `sleep 5` would be handed the scan path as a
+    # second argument and exit non-zero immediately — which is a DETECTION, the
+    # very outcome this test needs to distinguish from a timeout.
+    monkeypatch.setenv("ASCLEPIUS_MALWARE_SCAN_CMD", _SLOW_SCANNER)
+    monkeypatch.setenv("ASCLEPIUS_MALWARE_SCAN_TIMEOUT_SEC", "1")
+    target = tmp_path / "probe.bin"
+    target.write_bytes(b"x" * 1024)
+
+    ok, detail = asc_ingestion.malware_scan(str(target))
+    assert ok is False
+    assert asc_ingestion.scan_was_inconclusive(detail) is True, (
+        f"a timeout must be distinguishable from a detection: {detail!r}")
+
+
+def test_a_flagged_scan_is_still_a_hard_rejection(monkeypatch, tmp_path):
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    monkeypatch.setenv("ASCLEPIUS_MALWARE_SCAN_CMD", "false")
+    target = tmp_path / "probe.bin"
+    target.write_bytes(b"x" * 1024)
+    ok, detail = asc_ingestion.malware_scan(str(target))
+    assert ok is False
+    assert asc_ingestion.scan_was_inconclusive(detail) is False
+
+
+def test_inline_scanning_is_skipped_above_the_size_ceiling(monkeypatch, tmp_path):
+    """Above the ceiling the bundle is deferred to the post-verified worker rather
+    than blocking ingest — which is what the PRD asked for."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    monkeypatch.setenv("ASCLEPIUS_MALWARE_SCAN_CMD", "false")   # would reject
+    monkeypatch.setenv("ASCLEPIUS_MALWARE_SCAN_MAX_BYTES", "1024")
+    target = tmp_path / "big.bin"
+    target.write_bytes(b"x" * 4096)
+    ok, detail = asc_ingestion.malware_scan(str(target))
+    assert ok is True and "deferred" in detail
+
+
+def test_a_timeout_holds_the_upload_for_review_instead_of_rejecting_it(client, monkeypatch):
+    """End to end: a scanner that times out must not produce a rejection whose
+    partner-facing copy blames the hospital's file."""
+    store = A.fresh_store()
+    _portal(client, store)
+    data = _bundle(1024 * 1024)
+    session = _declare(client, data)
+    monkeypatch.setenv("ASCLEPIUS_MALWARE_SCAN_CMD", _SLOW_SCANNER)
+    monkeypatch.setenv("ASCLEPIUS_MALWARE_SCAN_TIMEOUT_SEC", "1")
+    r = _upload_all(client, data, session)
+    assert r.status_code == 200, r.text
+    upload = store.get_ingest_upload(r.json()["upload_id"])
+    assert upload["status"] == "needs_review", upload
+    assert asc_ingestion.UNREADABLE_UPLOAD_MESSAGE not in (upload.get("reason") or "")
+
+
+# ── M1: an unreferenced PHI blob must not live forever ──────────────────────
+def test_a_blob_with_no_upload_row_is_eventually_released(client, monkeypatch, tmp_path):
+    """A crash between ``complete()`` and the upload row leaves an encrypted
+    bundle on the durable volume that no row points at. ``purge_expired_raw``
+    iterates DB ROWS, so it never sees it, and the scratch sweeper's prefixes do
+    not match ``upl-*.zip.enc`` — so it stayed forever. Unaccounted PHI on disk is
+    a HIPAA accounting problem, not just wasted space."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    store = A.fresh_store()
+    orphan = asc_ingestion.store_raw_stream("upl-orphaned", [b"PK\x03\x04orphan bytes"])
+    assert Path(orphan).exists()
+
+    # Inside the retention window it is left alone: a blob written seconds ago is
+    # far more likely to be an upload mid-insert than an orphan.
+    assert asc_ingestion.purge_orphan_raw(store) == 0
+    assert Path(orphan).exists()
+
+    os.utime(orphan, (0, 0))
+    assert asc_ingestion.purge_orphan_raw(store) == 1
+    assert not Path(orphan).exists()
+
+
+def test_a_referenced_blob_is_never_treated_as_an_orphan(client, monkeypatch, tmp_path):
+    """The dangerous direction. Deleting a blob a row points at destroys a case
+    whose partner bundle cannot be recovered."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    store = A.fresh_store()
+    _portal(client, store)
+    data = _bundle(1024 * 1024)
+    session = _declare(client, data)
+    r = _upload_all(client, data, session)
+    raw_path = store.get_ingest_upload(r.json()["upload_id"])["raw_path"]
+    os.utime(raw_path, (0, 0))          # old enough to be swept, but it IS referenced
+
+    assert asc_ingestion.purge_orphan_raw(store) == 0
+    assert Path(raw_path).exists()
+
+
+# ── M2: concurrent PUTs of the same part must not share a temp name ─────────
+def test_concurrent_writes_of_the_same_part_do_not_collide(client):
+    """Two in-flight PUTs for one part shared a single ``.tmp`` path: one renames
+    it out from under the other, giving a FileNotFoundError (a 500), and the
+    partial-write window can leave bytes that pass the part digest check and fail
+    the whole-file digest after gigabytes of transfer."""
+    import threading
+
+    store = A.fresh_store()
+    _portal(client, store)
+    data = _bundle(2 * 1024 * 1024)
+    session = _declare(client, data)
+    row = store.get_upload_session(session["session_id"])
+    blob = data[:session["chunk_size"]]
+    digest = hashlib.sha256(blob).hexdigest()
+
+    errors = []
+
+    def push():
+        try:
+            asc_uploads.store_part(row, 1, blob, digest)
+        except Exception as exc:      # noqa: BLE001 - the failure IS the finding
+            errors.append(exc)
+
+    threads = [threading.Thread(target=push) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, f"concurrent part writes raised: {errors[:3]}"
+    state = asc_uploads.session_state(row)
+    assert state["received_parts"] == [1]
+    assert state["parts"][0]["sha256"] == digest
+
+
+# ── LOW: a gzipped FHIR bulk export is the standard shape, not an attack ────
+def test_a_gzipped_ndjson_member_is_still_readable(monkeypatch, tmp_path):
+    """``.gz`` was swept into the nested-archive rejection, which is a real
+    defense against recursive bombs — but a FHIR bulk export ships
+    ``*.ndjson.gz``, so the rule refused the single most standard way a hospital
+    exports at scale. A single-member gzip is a COMPRESSED FILE, not an archive:
+    it cannot nest, so decompressing it once adds no recursion depth."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    import gzip as _gzip
+
+    bundle_json = json.dumps({"resourceType": "Bundle", "type": "collection",
+                              "entry": []}).encode()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("export.json.gz", _gzip.compress(bundle_json))
+        z.writestr("nested.zip", b"PK\x03\x04still refused")
+    out = asc_ingestion.unpack_bundle(buf.getvalue())
+    by_name = {e["name"]: e for e in out["entries"]}
+    assert by_name["export.json.gz"]["kind"] != "rejected", by_name["export.json.gz"]
+    assert by_name["export.json.gz"]["data"] == bundle_json
+    # A real nested ARCHIVE is still refused — the depth rule is intact.
+    assert "nested archive" in by_name["nested.zip"]["reason"]
+
+
+def test_a_gzip_bomb_member_is_still_stopped(monkeypatch, tmp_path):
+    """Decompressing gzip must obey the same produced-byte accounting as any
+    other entry, or the exemption above becomes the hole."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    monkeypatch.setenv("ASCLEPIUS_INGEST_MAX_ENTRY_BYTES", str(1024 * 1024))
+    import gzip as _gzip
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("bomb.json.gz", _gzip.compress(b"\0" * (8 * 1024 * 1024)))
+    out = asc_ingestion.unpack_bundle(buf.getvalue())
+    entry = out["entries"][0]
+    assert entry["kind"] == "rejected"
+    assert "too large" in entry["reason"] or "ratio" in entry["reason"]
+
+
+def test_spilled_entry_data_raises_rather_than_returning_none_after_cleanup(
+        monkeypatch, tmp_path):
+    """``.get("data")`` swallowing an OSError meant a PHI pipeline would read a
+    missing entry as an empty one and carry on. Silent data loss is the worst
+    possible failure mode here; a raise is recoverable."""
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", str(tmp_path / "ingest"))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("note.txt", "clinical note")
+    root = Path(asc_ingestion.quarantine_root())
+    fd, tmp = __import__("tempfile").mkstemp(suffix=".zip", dir=str(root))
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(buf.getvalue())
+    bundle = asc_ingestion.unpack_bundle_from_path(tmp)
+    entry = [e for e in bundle["entries"] if e["name"] == "note.txt"][0]
+    assert entry["data"] == b"clinical note"
+    bundle["cleanup"]()
+    with pytest.raises(OSError):
+        entry.get("data")
+
+
+# ── M4: one upload is not one copy ──────────────────────────────────────────
+def test_a_bundle_larger_than_the_volume_is_declined_at_declare(client, monkeypatch):
+    """Parts, the assembled blob, a plaintext copy for unpacking and spilled entry
+    bytes all land on the SAME volume as the database. Accepting a bundle we
+    cannot finish runs the volume out from under SQLite — worse than declining —
+    and finding out at completion means the partner already spent the hours."""
+    store = A.fresh_store()
+    _portal(client, store)
+    data = _bundle(1024 * 1024)
+
+    import collections
+    import shutil as _shutil
+    tiny = collections.namedtuple("usage", "total used free")(1 << 30, 1 << 30, 1024)
+    monkeypatch.setattr(_shutil, "disk_usage", lambda _p: tiny)
+
+    r = client.post(f"{API}/hs/uploads/sessions", json={
+        "filename": "b.zip", "size": len(data),
+        "sha256": hashlib.sha256(data).hexdigest()})
+    assert r.status_code == 507, r.text
+    assert "storage" in r.json()["detail"].lower()
+    assert store.get_upload_session("nope") is None
+    # Nothing was created for it.
+    with store._conn() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ingest_upload_sessions"
+                            ).fetchone()[0] == 0
+
+
+def test_the_headroom_check_accounts_for_working_copies(monkeypatch):
+    """Not just the bundle — the amplification factor is the point."""
+    import collections
+    import shutil as _shutil
+
+    size = 100 * 1024 * 1024
+    just_the_bundle = collections.namedtuple("usage", "total used free")(
+        1 << 40, 0, size + 1024)
+    monkeypatch.setattr(_shutil, "disk_usage", lambda _p: just_the_bundle)
+    ok, _why = asc_uploads.disk_headroom_for(size)
+    assert ok is False, "free space equal to the bundle alone is not enough"
+
+    plenty = collections.namedtuple("usage", "total used free")(
+        1 << 40, 0, size * 10)
+    monkeypatch.setattr(_shutil, "disk_usage", lambda _p: plenty)
+    assert asc_uploads.disk_headroom_for(size)[0] is True

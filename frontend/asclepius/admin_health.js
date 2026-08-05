@@ -97,7 +97,7 @@
         // of each and collapsing them to a single value would have to pick a winner.
         const chips = (r.purposes || []).map((p) => purposeChip(h, p));
         const tr = h('tr', { class: 'asc-row-click' },
-          h('td', {}, h('strong', {}, r.name), r.active ? '' : h('span', { class: 'asc-badge asc-badge-gray', style: 'margin-left:8px' }, 'Inactive')),
+          h('td', {}, h('strong', {}, r.name), r.active ? '' : h('span', { class: 'asc-badge asc-badge-gray', style: 'margin-left: var(--sp-2)' }, 'Inactive')),
           h('td', {}, h('code', { class: 'asc-mono asc-dim' }, r.hs_id)),
           h('td', {}, chips.length ? chips : '—'),
           h('td', {}, String(r.physicians_linked || 0)),
@@ -124,7 +124,7 @@
   // shown" reads as "nothing wrong" whether or not the check even ran.
   async function renderStoragePanel(container, ctx) {
     const { h, api, fmtDate } = ctx;
-    const card = h('div', { class: 'asc-card', style: 'margin-top:16px' });
+    const card = h('div', { class: 'asc-card', style: 'margin-top: var(--sp-4)' });
     container.appendChild(card);
     let rep;
     try {
@@ -141,9 +141,9 @@
       h('div', { class: 'asc-card-title' }, 'Storage integrity',
         missing
           // Pink: this one IS critical — it is data that is gone.
-          ? h('span', { class: 'asc-badge asc-badge-red', style: 'margin-left:8px' },
+          ? h('span', { class: 'asc-badge asc-badge-red', style: 'margin-left: var(--sp-2)' },
               missing + ' missing')
-          : h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:8px' }, 'OK')),
+          : h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left: var(--sp-2)' }, 'OK')),
       h('div', { class: 'asc-card-sub' },
         missing
           ? missing + ' asset reference' + (missing === 1 ? '' : 's') +
@@ -269,7 +269,7 @@
       const card = h('div', { class: 'asc-card asc-hs-bucket ' + spec.cls },
         h('div', { class: 'asc-card-head' }, h('div', {},
           h('div', { class: 'asc-card-title' }, spec.title,
-            h('span', { class: 'asc-badge asc-badge-count', style: 'margin-left:8px' }, String(items.length))),
+            h('span', { class: 'asc-badge asc-badge-count', style: 'margin-left: var(--sp-2)' }, String(items.length))),
           h('div', { class: 'asc-card-sub' }, spec.sub))));
       if (!items.length) {
         card.appendChild(h('div', { class: 'asc-card-pad' },
@@ -296,10 +296,10 @@
   // so leaving it is a decision, just not one anybody made deliberately.
   function purposeResolver(ctx, hsId, username, container) {
     const { h, api, toast } = ctx;
-    const wrap = h('span', { style: 'margin-left:8px;white-space:nowrap' });
+    const wrap = h('span', { style: 'margin-left: var(--sp-2); white-space: nowrap' });
     [['task_creation', 'Task creation'], ['brokering', 'Brokering']].forEach((pair) => {
       const b = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm',
-                              style: 'margin-left:4px' }, 'Set: ' + pair[1]);
+                              style: 'margin-left: var(--sp-1)' }, 'Set: ' + pair[1]);
       b.addEventListener('click', async () => {
         b.disabled = true;
         try {
@@ -322,10 +322,10 @@
 
   function uploadPurposeResolver(ctx, uploadId, hsId, container) {
     const { h, api, toast } = ctx;
-    const wrap = h('span', { style: 'margin-left:8px;white-space:nowrap' });
+    const wrap = h('span', { style: 'margin-left: var(--sp-2); white-space: nowrap' });
     [['task_creation', 'Task creation'], ['brokering', 'Brokering']].forEach((pair) => {
       const b = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm',
-                              style: 'margin-left:4px' }, 'Set: ' + pair[1]);
+                              style: 'margin-left: var(--sp-1)' }, 'Set: ' + pair[1]);
       b.addEventListener('click', async () => {
         b.disabled = true;
         try {
@@ -397,7 +397,7 @@
   }
 
   function btn(h, label, cls, onClick) {
-    const b = h('button', { class: 'asc-btn asc-btn-sm ' + cls, style: 'margin-right:6px' }, label);
+    const b = h('button', { class: 'asc-btn asc-btn-sm ' + cls, style: 'margin-right: var(--sp-1)' }, label);
     b.addEventListener('click', onClick);
     return b;
   }

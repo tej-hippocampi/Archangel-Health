@@ -173,6 +173,22 @@ def is_brokering(value: Optional[str]) -> bool:
     return effective_purpose(value) == PURPOSE_BROKERING
 
 
+# What ingest writes when nothing declared a specialty. It is a real value in the
+# column, so a guard testing for an EMPTY string can never fire — which is how the
+# promotion specialty check came to be unreachable.
+UNDETERMINED_SPECIALTY = "general"
+
+
+def specialty_is_undetermined(value: Optional[str]) -> bool:
+    """True when nothing has actually decided this case's specialty.
+
+    ``general`` is not a specialty, it is the absence of one. Promoting on it
+    routes the case to a generic physician pool and labels the export with a
+    value nobody chose — and a WRONG specialty is worse than a missing one,
+    because it is invisible once the bundle ships."""
+    return (value or "").strip().lower() in ("", UNDETERMINED_SPECIALTY)
+
+
 class BundleRejected(ValueError):
     """The whole upload is unusable (not a zip, zip bomb, malware-scan fail,
     imaging-only). Recorded on the upload row with the reason."""
@@ -237,9 +253,22 @@ def store_raw_stream(upload_id: str, chunks: Iterable[bytes]) -> str:
             for chunk in chunks:
                 if not chunk:
                     continue
-                frame = encrypt_bytes(bytes(chunk))
-                fh.write(struct.pack(">I", len(frame)))
-                fh.write(frame)
+                # RE-CHUNK to the container's own frame size. The caller's chunk
+                # size is the caller's business — an upload part is 16 MB by
+                # default, and emitting one frame per part coupled the container's
+                # frame size to it. That coupling is what let the read ceiling
+                # (_RAW_FRAME_MAX) and the write size drift apart: every part at
+                # the shipped default was ~8.4 MB over what the reader would
+                # accept, so every large bundle uploaded for hours, passed the
+                # whole-file digest, was written to durable storage, and was then
+                # rejected as unreadable — with copy that blamed the hospital's
+                # file. The container decides its own framing; nothing a caller
+                # does can make it self-inconsistent.
+                view = memoryview(bytes(chunk))
+                for i in range(0, len(view), _RAW_FRAME_BYTES):
+                    frame = encrypt_bytes(bytes(view[i:i + _RAW_FRAME_BYTES]))
+                    fh.write(struct.pack(">I", len(frame)))
+                    fh.write(frame)
             fh.write(struct.pack(">I", 0))
             fh.flush()
             os.fsync(fh.fileno())
@@ -434,6 +463,59 @@ def purge_expired_raw(store: Any) -> int:
         store.log_event(entity_type="ingest", event_type="raw_purged",
                         payload={"deleted": deleted, "retention_days": raw_retention_days()})
     purge_stale_scratch()
+    purge_orphan_raw(store)
+    return deleted
+
+
+def orphan_raw_grace_hours() -> int:
+    """How long a blob may exist with no row before it counts as orphaned.
+
+    Generous on purpose. The window between writing the bytes and inserting the
+    row is milliseconds, so anything recent is overwhelmingly likely to be an
+    upload mid-insert rather than an orphan — and deleting one of those destroys a
+    verified bundle at the exact moment it becomes real."""
+    try:
+        return max(1, int(os.getenv("ASCLEPIUS_ORPHAN_RAW_GRACE_HOURS", "24")))
+    except ValueError:
+        return 24
+
+
+def purge_orphan_raw(store: Any) -> int:
+    """Delete raw blobs that NO upload row references (Audit M1).
+
+    ``purge_expired_raw`` walks database rows, so a blob whose row was never
+    written is invisible to it — and a crash between ``complete()`` (which writes
+    the bytes) and ``insert_ingest_upload`` leaves exactly that. The result was
+    encrypted PHI sitting on the durable volume forever, referenced by nothing and
+    counted by nothing, which is an accounting problem before it is a disk one.
+
+    Deliberately conservative in the dangerous direction: a blob is removed only
+    when it is older than the grace window AND no row of any status names it. A
+    wrongly-deleted blob is a bundle the partner has to re-send; an orphan kept one
+    day too long costs disk."""
+    try:
+        referenced = {os.path.basename(u.get("raw_path") or "")
+                      for u in store.list_ingest_uploads(limit=1000000)}
+    except Exception as exc:  # pragma: no cover - never delete on a failed read
+        log.warning("orphan raw sweep skipped: could not list uploads: %s", exc)
+        return 0
+    referenced.discard("")
+    cutoff = time.time() - orphan_raw_grace_hours() * 3600
+    deleted = 0
+    for p in quarantine_root().glob("*.zip.enc"):
+        try:
+            if p.name in referenced or p.stat().st_mtime >= cutoff:
+                continue
+            p.unlink()
+            deleted += 1
+        except OSError:
+            continue
+    if deleted:
+        with contextlib.suppress(Exception):
+            store.log_event(entity_type="ingest", event_type="orphan_raw_purged",
+                            payload={"deleted": deleted})
+        log.warning("released %d raw blob(s) that no upload row referenced — a crash "
+                    "between assembly and row insert leaves these behind", deleted)
     return deleted
 
 
@@ -561,23 +643,86 @@ def reconcile_ingested_cases(store: Any) -> Dict[str, Any]:
 
 
 # ─── Malware scan hook ────────────────────────────────────────────────────────
+# A scan that could not reach a verdict. NOT the same answer as "this is
+# dangerous", and the pipeline must not collapse the two: a detection is a hard
+# rejection with copy telling the partner their file was refused, while an
+# inconclusive scan is our problem and holds the bundle for a human.
+_SCAN_INCONCLUSIVE = "scan-inconclusive: "
+
+
+def scan_was_inconclusive(detail: Optional[str]) -> bool:
+    return bool(detail and detail.startswith(_SCAN_INCONCLUSIVE))
+
+
+def malware_scan_max_bytes() -> int:
+    """Above this, inline scanning is SKIPPED and the object is left to the
+    post-``verified`` worker (PRD-I §1.3).
+
+    The PRD is explicit that AV does not belong inline, and the reason is
+    arithmetic: ClamAV's own scan-size limits fight multi-GB files, its
+    "unlimited" configuration OOMs a small container, and any scanner that cannot
+    finish inside its timeout turns a clean hospital bundle into a rejection. 512 MB
+    is comfortably scannable inline; past it the answer is 'later', not 'no'."""
+    try:
+        return max(0, int(os.getenv("ASCLEPIUS_MALWARE_SCAN_MAX_BYTES",
+                                    str(512 * 1024 * 1024))))
+    except ValueError:
+        return 512 * 1024 * 1024
+
+
+def malware_scan_timeout_sec(size_bytes: int = 0) -> int:
+    """Timeout scaled to the bytes actually being scanned.
+
+    A flat 120 s was a rejection generator: it is generous for a 4 MB CSV and
+    impossible for a 500 MB bundle, so the same configuration meant 'scan' for
+    one partner and 'refuse' for another. Roughly 20 MB/s with a 60 s floor."""
+    try:
+        base = max(1, int(os.getenv("ASCLEPIUS_MALWARE_SCAN_TIMEOUT_SEC", "0")))
+        if os.getenv("ASCLEPIUS_MALWARE_SCAN_TIMEOUT_SEC"):
+            return base
+    except ValueError:
+        pass
+    return max(60, int(size_bytes / (20 * 1024 * 1024)) + 60)
+
+
 def malware_scan(path: str) -> Tuple[bool, str]:
     """(ok, detail). With ASCLEPIUS_MALWARE_SCAN_CMD set (e.g. ``clamscan
     --no-summary``), the command runs against the file and non-zero rejects.
     Without it, the baseline is structural zip validation only — honest floor,
-    not an AV engine."""
+    not an AV engine.
+
+    Three outcomes, not two. Clean, FLAGGED (a detection — hard rejection), and
+    INCONCLUSIVE (timeout, missing binary, crash). Inconclusive still fails
+    closed, but it is marked so the caller can hold the bundle for a human rather
+    than telling a hospital their file was malware when it was our scanner that
+    could not finish."""
     cmd = (os.getenv("ASCLEPIUS_MALWARE_SCAN_CMD") or "").strip()
     if not cmd:
         return True, "baseline (structural checks only; set ASCLEPIUS_MALWARE_SCAN_CMD for AV)"
     try:
-        res = subprocess.run(shlex.split(cmd) + [path], capture_output=True, timeout=120)
+        size = os.path.getsize(path)
+    except OSError:
+        size = 0
+    ceiling = malware_scan_max_bytes()
+    if ceiling and size > ceiling:
+        # PRD-I §1.3: AV belongs in a separate worker against stored objects after
+        # `verified`. Skipping here is that policy, not a gap.
+        return True, (f"deferred to the post-verified scan worker "
+                      f"({size} bytes over the {ceiling} inline ceiling)")
+    timeout = malware_scan_timeout_sec(size)
+    try:
+        res = subprocess.run(shlex.split(cmd) + [path], capture_output=True,
+                             timeout=timeout)
         if res.returncode != 0:
             return False, f"malware scan flagged the upload (exit {res.returncode})"
         return True, "scanned clean"
+    except subprocess.TimeoutExpired:
+        return False, (f"{_SCAN_INCONCLUSIVE}the scanner did not finish within "
+                       f"{timeout}s on {size} bytes")
     except Exception as exc:
         # Fail CLOSED: a configured scanner that cannot run means we cannot claim
-        # the file is safe.
-        return False, f"malware scanner unavailable ({exc}); upload rejected (fail-closed)"
+        # the file is safe — but it is OUR failure, not a finding about their file.
+        return False, f"{_SCAN_INCONCLUSIVE}malware scanner unavailable ({exc})"
 
 
 # ─── Loose-file wrapping — single source of truth for BOTH upload doors ───────
@@ -651,8 +796,18 @@ def _classify(name: str, head: bytes, text_head: str) -> str:
 # format (the bundle itself), which is the nesting-depth cap in PRD-I §1.3 stated
 # as a rule rather than a counter: nothing inside a bundle is ever extracted as an
 # archive, so recursive-bomb depth cannot exceed one by construction.
-_ARCHIVE_EXTS = (".zip", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".rar", ".zst")
-_ARCHIVE_MAGICS = (b"PK\x03\x04", b"PK\x05\x06", b"\x1f\x8b", b"7z\xbc\xaf", b"Rar!", b"\xfd7zXZ")
+_ARCHIVE_EXTS = (".zip", ".tar", ".tgz", ".bz2", ".xz", ".7z", ".rar", ".zst")
+_ARCHIVE_MAGICS = (b"PK\x03\x04", b"PK\x05\x06", b"7z\xbc\xaf", b"Rar!", b"\xfd7zXZ")
+
+# A single-member gzip is a COMPRESSED FILE, not an archive: it has no directory
+# and cannot contain another entry, so decompressing it once adds no recursion
+# depth and the nesting rule above still holds at one level. It is carved out
+# because a FHIR bulk export ships ``*.ndjson.gz`` — sweeping it into the
+# nested-archive rejection refused the single most standard way a hospital
+# exports at scale. The bytes it produces are counted against exactly the same
+# per-entry cap, ratio cap and archive budget as any other entry.
+_GZIP_MAGIC = b"\x1f\x8b"
+_GZIP_EXTS = (".gz",)
 
 
 class _OutputBudgetExceeded(Exception):
@@ -687,10 +842,13 @@ class _SpilledEntry(dict):
 
     def get(self, key: str, default: Any = None) -> Any:  # type: ignore[override]
         if key == "data":
-            try:
-                return self["data"]
-            except OSError:
-                return default
+            # NOT swallowed. A missing spill file means the staging directory was
+            # released while an entry was still live, and returning ``default``
+            # would make a PHI pipeline read that entry as EMPTY and carry on —
+            # silent data loss, which is the worst failure mode available here. A
+            # raise is loud and recoverable; ``process_upload`` already turns a
+            # per-entry failure into a readable quarantine.
+            return self["data"]
         return super().get(key, default)
 
     def __contains__(self, key: object) -> bool:
@@ -742,6 +900,43 @@ def _read_entry_streamed(zf: zipfile.ZipFile, info: zipfile.ZipInfo,
         # Memory stayed bounded; CPU and wall-clock did not.
         if spend is not None:
             spend[0] = written
+    return out.getvalue(), None
+
+
+def _gunzip_bounded(data: bytes, *, remaining_budget: int,
+                    ) -> Tuple[Optional[bytes], Optional[str]]:
+    """Decompress a gzip member with the SAME produced-byte accounting as the zip
+    reader. Without this the ``.gz`` carve-out would be the hole that the archive
+    rejection was closing."""
+    import gzip
+    import zlib
+
+    entry_cap = max_entry_bytes()
+    ratio_allowance = max(1, int(entry_compression_ratio_cap() * max(1, len(data))))
+    out = io.BytesIO()
+    written = 0
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(data)) as gz:
+            while True:
+                chunk = gz.read(262144)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > entry_cap:
+                    return None, f"entry too large (over {entry_cap} bytes decompressed)"
+                if written > ratio_allowance:
+                    return None, (f"compression ratio over "
+                                  f"{int(entry_compression_ratio_cap())}:1 "
+                                  "(zip-bomb defense)")
+                if written > remaining_budget:
+                    raise _OutputBudgetExceeded(
+                        "decompressed output exceeded the bundle budget "
+                        "mid-extraction (zip-bomb defense)")
+                out.write(chunk)
+    except _OutputBudgetExceeded:
+        raise
+    except (OSError, EOFError, zlib.error) as exc:
+        return None, f"unreadable gzip member ({exc})"
     return out.getvalue(), None
 
 
@@ -821,13 +1016,25 @@ def unpack_bundle_from_path(zip_path: str, *, spill: bool = True) -> Dict[str, A
                             "(zip-bomb defense)")
                     continue
                 assert data is not None
-                if data[:4] in _ARCHIVE_MAGICS or data[:2] == b"\x1f\x8b":
+                if data[:4] in _ARCHIVE_MAGICS:
                     entries.append({"name": name, "kind": "rejected",
                                     "reason": "nested archive (not extracted)"})
                     continue
+                if data[:2] == _GZIP_MAGIC or lower.endswith(_GZIP_EXTS):
+                    data, reject = _gunzip_bounded(data, remaining_budget=budget)
+                    if reject is not None:
+                        entries.append({"name": name, "kind": "rejected",
+                                        "reason": reject})
+                        continue
+                    budget -= len(data)
+                    # Classify on the INNER name: export.ndjson.gz is ndjson.
+                    name_for_kind, lower = name[:-3], lower[:-3]
+                else:
+                    name_for_kind = name
                 head = data[:512]
                 text_head = head.decode("utf-8", errors="replace").lstrip()[:200]
-                kind = _classify(name, data[:256] if len(data) < 512 else data[:512],
+                kind = _classify(name_for_kind,
+                                 data[:256] if len(data) < 512 else data[:512],
                                  text_head)
                 if kind == "manifest":
                     try:
@@ -1354,6 +1561,21 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
             store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                             event_type="malware_scan", payload={"ok": ok, "detail": detail})
             if not ok:
+                if scan_was_inconclusive(detail):
+                    # OUR scanner could not reach a verdict. Rejecting here would
+                    # tell a hospital their clean bundle was refused as malware,
+                    # and the auto-notifier would email them saying so. Hold it
+                    # for a human instead: the bytes are verified and durable, and
+                    # nothing downstream sees the case until someone decides.
+                    _discard_staged()
+                    store.update_ingest_upload(
+                        upload_id, status="needs_review",
+                        reason="malware scan could not complete — held for review "
+                               f"({detail})")
+                    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                                    event_type="upload_held_scan_inconclusive",
+                                    payload={"detail": detail})
+                    return {"status": "needs_review", "reason": detail}
                 return _fail(detail)
             store.update_ingest_upload(upload_id, status="parsing")
             # A bare clinical file gets the same server-side packing the single-

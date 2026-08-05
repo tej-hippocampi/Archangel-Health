@@ -101,9 +101,15 @@ per-entry compression-ratio cap, and a whole-archive output budget that scales w
 the bytes the partner really uploaded. Entry bytes are spilled to disk rather than
 all retained, so bundle memory is one entry rather than the sum of them. Nested
 archives are rejected rather than opened, which is the nesting-depth cap stated as
-a rule. There is **no inline antivirus**: ClamAV's own scan-size limits fight
-multi-GB files and its "unlimited" config OOMs a small container, so AV belongs in
-a separate worker against stored objects after `verified`.
+a rule. **Antivirus is bounded, and 'we could not tell' is not 'this is malware'.**
+ClamAV's own scan-size limits fight multi-GB files and its "unlimited" config OOMs a
+small container, so above `ASCLEPIUS_MALWARE_SCAN_MAX_BYTES` (512 MB) inline scanning
+is skipped and the object is left to a post-`verified` worker — the answer is
+*later*, not *no*. Below it the timeout scales with the bytes being scanned rather
+than sitting at a flat 120 s that is generous for a 4 MB CSV and impossible for a
+500 MB bundle. A **detection** is a hard rejection. A **timeout or a broken scanner**
+is inconclusive: the upload is held for review instead of being rejected with copy
+that tells a hospital their clean bundle was malware.
 
 ## Purpose — task creation vs brokering (PRD-I §2-§4)
 
@@ -142,10 +148,24 @@ provider-reachable code may not name the distinction), `test_link_indistinguisha
 compared, including an error-differential fuzz over every failure mode), and
 `test_promotion_gate.py`.
 
-**Known gap, deliberately not closed here:** the legacy magic-link mint form
-(`POST /admin/upload-links`) does not yet carry the two buttons, so links minted
-from it arrive with `purpose = NULL` and the admin resolves them per-upload from
-the row. The admin UI says so.
+**Both doors carry it.** `POST /admin/upload-links` requires `purpose` exactly as
+the health-system form does, and a link-door upload joins its purpose from the link
+row through the same `attach_upload_provenance` call the other two doors use. All
+three doors resolve through that one function, which is what makes "the same bytes
+are recorded the same way whichever door they came in" true by construction rather
+than by three implementations agreeing.
+
+**Purpose is resolved LIVE, never snapshotted.** A chunked session stores only
+`actor` and joins through it at completion. A session lives 24 h and resumes across
+that window, so a copy taken at declare is stale for every byte that arrives after
+an admin corrects the mint — and the single-request door, which resolves live, would
+record the same bytes differently.
+
+**Corrections have a direction.** `brokering → task_creation` is refused on an
+upload, and on an account that has already sent anything: that transition *is* "a
+brokering case becomes promotable", spelled differently. `task_creation → brokering`
+stays open — it removes a promotion path and never adds one. Resolving an unset
+purpose is allowed either way.
 
 ## Ops
 

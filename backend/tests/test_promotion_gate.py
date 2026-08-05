@@ -610,3 +610,338 @@ def test_the_promotion_preview_refuses_brokering_data(monkeypatch):
                     json={"question": "q"}, headers=admin_h)
     assert r.status_code == 409
     assert not called, "brokering clinical data was sent to the inference provider"
+
+
+# ── H1: the two doors must resolve purpose at the same instant ───────────────
+def test_a_purpose_change_mid_session_lands_on_the_completed_upload():
+    """A chunked session snapshotting purpose at DECLARE makes the two upload
+    doors disagree about the same bytes.
+
+    Sessions live 24 h and resume across that window, so an admin who mis-clicks
+    the mint button — or a partnership that converts to brokering — leaves every
+    in-flight session stamped with the old value. The bytes arrive AFTER the
+    change, and there is no upload row yet, so the "not retroactive for uploads
+    already received" rule does not cover this: it is not a received upload."""
+    import hashlib
+
+    A.fresh_store()
+    store = _store()
+    hs = store.ensure_health_system("Converting Health", contact_email="it@example.org")
+    username = "hs" + A.uniq(8)
+    store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
+                                password="portal-pass-123456", email="it@example.org")
+    store.set_hs_portal_password(username, "portal-pass-123456", must_reset=False)
+    store.set_hs_portal_purpose(username, "task_creation")
+
+    c = TestClient(A.app, base_url="https://testserver")
+    assert c.post(f"{API}/hs/login", json={"username": username,
+                                           "password": "portal-pass-123456"}).status_code == 200
+    data = _bundle()
+    decl = c.post(f"{API}/hs/uploads/sessions", json={
+        "filename": "b.zip", "size": len(data),
+        "sha256": hashlib.sha256(data).hexdigest()})
+    assert decl.status_code == 200
+    sid, chunk = decl.json()["session_id"], decl.json()["chunk_size"]
+
+    # The admin corrects the mint mid-session, before any byte has been stored.
+    admin_h = _admin_h(store)
+    assert client.post(
+        f"{API}/admin/health-systems/{hs['hs_id']}/accounts/{username}/purpose",
+        json={"purpose": "brokering"}, headers=admin_h).status_code == 200
+
+    for n, blob in enumerate([data[i:i + chunk] for i in range(0, len(data), chunk)], 1):
+        assert c.put(f"{API}/hs/uploads/sessions/{sid}/parts/{n}", content=blob,
+                     headers={"X-Chunk-SHA256": hashlib.sha256(blob).hexdigest()}
+                     ).status_code == 200
+    done = c.post(f"{API}/hs/uploads/sessions/{sid}/complete")
+    assert done.status_code == 200, done.text
+
+    upload = store.get_ingest_upload(done.json()["upload_id"])
+    assert upload["purpose"] == "brokering", (
+        "the chunked door stamped a stale purpose. The multipart door resolves "
+        "live from the account, so the same bytes through the two doors would be "
+        "recorded differently — and the stale one lands in Ready to promote.")
+
+
+def test_both_doors_resolve_the_same_purpose_for_the_same_account():
+    """Stated as the invariant rather than as one door's behaviour: whichever door
+    a partner happens to use, the answer is the account's purpose right now."""
+    import hashlib
+
+    A.fresh_store()
+    store = _store()
+    hs = store.ensure_health_system("Two Door Health", contact_email="it@example.org")
+    username = "hs" + A.uniq(8)
+    store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
+                                password="portal-pass-123456", email="it@example.org")
+    store.set_hs_portal_password(username, "portal-pass-123456", must_reset=False)
+    store.set_hs_portal_purpose(username, "brokering")
+    c = TestClient(A.app, base_url="https://testserver")
+    c.post(f"{API}/hs/login", json={"username": username, "password": "portal-pass-123456"})
+
+    multipart = c.post(f"{API}/hs/uploads",
+                       files=[("files", ("a.zip", _bundle("ptA"), "application/zip"))])
+    assert multipart.status_code == 200
+
+    data = _bundle("ptB")
+    decl = c.post(f"{API}/hs/uploads/sessions", json={
+        "filename": "b.zip", "size": len(data),
+        "sha256": hashlib.sha256(data).hexdigest()}).json()
+    for n, blob in enumerate(
+            [data[i:i + decl["chunk_size"]]
+             for i in range(0, len(data), decl["chunk_size"])], 1):
+        c.put(f"{API}/hs/uploads/sessions/{decl['session_id']}/parts/{n}", content=blob,
+              headers={"X-Chunk-SHA256": hashlib.sha256(blob).hexdigest()})
+    chunked = c.post(f"{API}/hs/uploads/sessions/{decl['session_id']}/complete")
+    assert chunked.status_code == 200
+
+    got = {store.get_ingest_upload(multipart.json()["upload_id"])["purpose"],
+           store.get_ingest_upload(chunked.json()["upload_id"])["purpose"]}
+    assert got == {"brokering"}, f"the two doors disagreed: {got}"
+
+
+# ── H3: the magic-link door, which is the ONLY table the PRD names ───────────
+def _mint_link(admin_h, purpose, *, label="Link Partner"):
+    body = {"partner_id": "p" + A.uniq(6), "partner_label": label,
+            "specialty": "nephrology", "expires_hours": 24, "one_time": False}
+    if purpose is not None:
+        body["purpose"] = purpose
+    return client.post(f"{API}/admin/upload-links", json=body, headers=admin_h)
+
+
+def _upload_via_link(token, patient="ptL"):
+    return client.post(f"{API}/partner/uploads?t={token}",
+                       files=[("file", ("bundle.zip", _bundle(patient), "application/zip"))])
+
+
+def test_a_brokering_link_stamps_its_uploads_brokering():
+    """PRD §2.1 names exactly one table — ``ingest_upload_links`` — and the column
+    existed with no writer and no reader: ``set_upload_link_purpose`` had zero
+    callers and ``attach_upload_provenance`` had no link branch. So every
+    link-door upload landed NULL, resolved to task_creation, and promoted. The
+    requirement written first was met for neither door it names."""
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    r = _mint_link(admin_h, "brokering")
+    assert r.status_code == 200, r.text
+    assert r.json()["purpose"] == "brokering"
+
+    up = _upload_via_link(r.json()["token"])
+    assert up.status_code == 200, up.text
+    upload = store.get_ingest_upload(up.json()["upload_id"])
+    assert upload["purpose"] == "brokering"
+    cases = store.list_ingest_cases(upload_id=upload["upload_id"])
+    assert cases and {c["purpose"] for c in cases} == {"brokering"}
+
+
+def test_a_brokering_link_case_cannot_be_promoted(monkeypatch):
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    admin_h = _admin_h(store)
+    token = _mint_link(admin_h, "brokering").json()["token"]
+    upload_id = _upload_via_link(token).json()["upload_id"]
+    cases = _cases(upload_id)
+    assert cases
+    r = client.post(f"{API}/ingestion/cases/{cases[0]['ingest_case_id']}/promote",
+                    json={"question": "q"}, headers=admin_h)
+    assert r.status_code == 409 and "brokering" in r.json()["detail"]
+
+
+def test_a_task_creation_link_still_promotes(monkeypatch):
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    admin_h = _admin_h(store)
+    token = _mint_link(admin_h, "task_creation").json()["token"]
+    upload_id = _upload_via_link(token).json()["upload_id"]
+    cases = _cases(upload_id)
+    assert cases
+    r = client.post(f"{API}/ingestion/cases/{cases[0]['ingest_case_id']}/promote",
+                    json={"question": "Classify the AKI."}, headers=admin_h)
+    assert r.status_code == 200, r.text
+
+
+def test_minting_a_link_requires_a_purpose():
+    """Same rule as the portal door: a link with no purpose is a decision nobody
+    made, and the gate reads NULL as task creation."""
+    A.fresh_store()
+    admin_h = _admin_h(_store())
+    assert _mint_link(admin_h, None).status_code == 422
+    assert _mint_link(admin_h, "whatever").status_code == 400
+
+
+def test_the_link_token_gives_the_partner_no_hint_of_its_purpose():
+    """Both variants minted for the same partner must be byte-indistinguishable to
+    the recipient — the token, the URL and the upload response."""
+    A.fresh_store()
+    admin_h = _admin_h(_store())
+    a = _mint_link(admin_h, "task_creation", label="Alpha Regional").json()
+    b = _mint_link(admin_h, "brokering", label="Bravo Regional").json()
+    assert len(a["token"]) == len(b["token"])
+    assert a["upload_url"].split("?")[0] == b["upload_url"].split("?")[0]
+
+    ra, rb = _upload_via_link(a["token"], "ptA"), _upload_via_link(b["token"], "ptB")
+    assert ra.status_code == rb.status_code == 200
+    ka, kb = sorted(ra.json()), sorted(rb.json())
+    assert ka == kb
+    for word in ("purpose", "brokering", "task_creation"):
+        assert word not in ra.text.lower() and word not in rb.text.lower()
+
+
+# ── M5: purpose corrections must not create a promotion path ────────────────
+def test_brokering_cannot_be_relabelled_as_task_creation():
+    """The invariant is 'brokering never becomes a task'. A one-call relabel from
+    brokering to task_creation IS that transition, just spelled differently — and
+    it would apply to cases a physician may already have seen. Resolving an UNSET
+    purpose is the legitimate use; overturning a decided one is not."""
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, upload_id = _upload_as("brokering", org="Relabel Health")
+
+    r = client.post(f"{API}/admin/uploads/{upload_id}/purpose",
+                    json={"purpose": "task_creation"}, headers=admin_h)
+    assert r.status_code == 409
+    assert store.get_ingest_upload(upload_id)["purpose"] == "brokering"
+    assert {c["purpose"] for c in store.list_ingest_cases(upload_id=upload_id)} == {"brokering"}
+
+
+def test_an_unset_purpose_can_still_be_resolved_either_way():
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    for purpose in ("task_creation", "brokering"):
+        _hs, upload_id = _upload_as(None, org=f"Unset {purpose}")
+        r = client.post(f"{API}/admin/uploads/{upload_id}/purpose",
+                        json={"purpose": purpose}, headers=admin_h)
+        assert r.status_code == 200, r.text
+        assert store.get_ingest_upload(upload_id)["purpose"] == purpose
+
+
+def test_task_creation_can_be_downgraded_to_brokering():
+    """The safe direction stays open: it removes a promotion path, never adds one."""
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, upload_id = _upload_as("task_creation", org="Downgrade Health")
+    r = client.post(f"{API}/admin/uploads/{upload_id}/purpose",
+                    json={"purpose": "brokering"}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    assert store.get_ingest_upload(upload_id)["purpose"] == "brokering"
+
+
+def test_an_account_that_has_sent_brokering_data_cannot_be_flipped_to_task_creation():
+    """Resolving purpose LIVE at completion is what makes the two doors agree, but
+    it also means flipping an account from brokering to task creation converts
+    data that is already in flight or already received. Correcting a fresh
+    mis-click is legitimate; converting a partner's brokering history is the
+    invariant failing by another route."""
+    import hashlib
+
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    hs = store.ensure_health_system("Flip Health", contact_email="it@example.org")
+    username = "hs" + A.uniq(8)
+    store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
+                                password="portal-pass-123456", email="it@example.org")
+    store.set_hs_portal_password(username, "portal-pass-123456", must_reset=False)
+    store.set_hs_portal_purpose(username, "brokering")
+
+    path = (f"{API}/admin/health-systems/{hs['hs_id']}/accounts/{username}/purpose")
+    # Nothing has arrived yet — a genuine mis-click, and correctable.
+    assert client.post(path, json={"purpose": "task_creation"},
+                       headers=admin_h).status_code == 200
+    assert client.post(path, json={"purpose": "brokering"},
+                       headers=admin_h).status_code == 200
+
+    # Now the partner sends something under the brokering mint.
+    c = TestClient(A.app, base_url="https://testserver")
+    c.post(f"{API}/hs/login", json={"username": username, "password": "portal-pass-123456"})
+    assert c.post(f"{API}/hs/uploads",
+                  files=[("files", ("b.zip", _bundle(), "application/zip"))]
+                  ).status_code == 200
+
+    r = client.post(path, json={"purpose": "task_creation"}, headers=admin_h)
+    assert r.status_code == 409, r.text
+    assert store.get_hs_portal_user(username)["purpose"] == "brokering"
+
+
+def test_an_in_flight_brokering_session_also_blocks_the_flip():
+    """The bytes have not landed yet, which is exactly why it matters: they arrive
+    AFTER the change and would be resolved with the new value."""
+    import hashlib
+
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    hs = store.ensure_health_system("In Flight Health", contact_email="it@example.org")
+    username = "hs" + A.uniq(8)
+    store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
+                                password="portal-pass-123456", email="it@example.org")
+    store.set_hs_portal_password(username, "portal-pass-123456", must_reset=False)
+    store.set_hs_portal_purpose(username, "brokering")
+    c = TestClient(A.app, base_url="https://testserver")
+    c.post(f"{API}/hs/login", json={"username": username, "password": "portal-pass-123456"})
+    data = _bundle()
+    assert c.post(f"{API}/hs/uploads/sessions", json={
+        "filename": "b.zip", "size": len(data),
+        "sha256": hashlib.sha256(data).hexdigest()}).status_code == 200
+
+    r = client.post(
+        f"{API}/admin/health-systems/{hs['hs_id']}/accounts/{username}/purpose",
+        json={"purpose": "task_creation"}, headers=admin_h)
+    assert r.status_code == 409
+
+
+# ── LOW: the specialty guard was unreachable ────────────────────────────────
+def test_an_undetermined_specialty_blocks_promotion(monkeypatch):
+    """Ingest never leaves specialty empty — it writes ``general``, which means
+    "nothing declared one". So a guard testing for an EMPTY string could never
+    fire, and the case it was written to stop went through: a case routed to a
+    generic physician pool and exported under a label nobody chose."""
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    admin_h = _admin_h(store)
+    hs = store.ensure_health_system("Unlabelled Health", contact_email="it@example.org")
+    username = "hs" + A.uniq(8)
+    store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
+                                password="portal-pass-123456", email="it@example.org")
+    store.set_hs_portal_password(username, "portal-pass-123456", must_reset=False)
+    store.set_hs_portal_purpose(username, "task_creation")
+    c = TestClient(A.app, base_url="https://testserver")
+    c.post(f"{API}/hs/login", json={"username": username, "password": "portal-pass-123456"})
+    # A real bundle that simply declares no specialty — the common case, since
+    # specialty is a property of the data and is not asked of hospital IT.
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("manifest.json", json.dumps({"patient_key": "ptU"}))
+        z.writestr("labs.csv",
+                   "patient_key,panel,analyte,value,unit,collected_at\n"
+                   "ptU,BMP,Creatinine,2.4,mg/dL,2025-03-08\n"
+                   "ptU,BMP,Creatinine,1.1,mg/dL,2025-03-01\n")
+        z.writestr("note.txt", "Progress note: AKI, creatinine rising since "
+                               "3/1/2025, improving by 2025-03-09.")
+    r = c.post(f"{API}/hs/uploads",
+               files=[("files", ("b.zip", buf.getvalue(), "application/zip"))])
+    assert r.status_code == 200
+    upload_id = r.json()["upload_id"]
+    ic = _cases(upload_id)
+    assert ic and ic[0]["specialty"] == "general"
+
+    blocked = client.post(f"{API}/ingestion/cases/{ic[0]['ingest_case_id']}/promote",
+                          json={"question": "q"}, headers=admin_h)
+    assert blocked.status_code == 409
+    assert "Specialty not determined" in blocked.json()["detail"]
+
+    # The admin resolves it through the existing endpoint, and promotion proceeds.
+    assert client.post(f"{API}/admin/uploads/{upload_id}/specialty",
+                       json={"specialty": "cardiology"}, headers=admin_h
+                       ).status_code == 200
+    ok = client.post(f"{API}/ingestion/cases/{ic[0]['ingest_case_id']}/promote",
+                     json={"question": "Classify the chest pain."}, headers=admin_h)
+    assert ok.status_code == 200, ok.text
+    assert store.get_task(ok.json()["task_id"])["specialty"] == "cardiology"

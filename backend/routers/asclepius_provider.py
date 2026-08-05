@@ -41,6 +41,7 @@ from asclepius.schemas import (
     DataProviderInviteRequest,
     ProviderPasswordRequest,
 )
+from asclepius.store import _utcnow_iso as asc_store_utcnow
 from asclepius.store import get_store, verify_password
 from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import build_data_provider_invite_email
@@ -132,7 +133,13 @@ def _pad_json_response(response: StarletteResponse) -> StarletteResponse:
     except (ValueError, TypeError):
         return response
     if not isinstance(payload, dict):
-        payload = {"data": payload}
+        # A list or scalar body cannot carry a filler key without CHANGING ITS
+        # SHAPE, and silently wrapping it in {"data": …} would break any client
+        # reading it. No provider route returns one today; if one ever does, the
+        # right answer is to give it an envelope deliberately, not to have this
+        # function rewrite it behind the author's back. Left unpadded, and the
+        # golden header/shape tests will show it.
+        return response
     payload.pop(_PORTAL_PAD_KEY, None)
     base = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     # Cost of adding the filler key itself: ,"_":"" → 7 bytes.
@@ -915,7 +922,7 @@ async def hs_upload(
     # bytes just written — so it is verified at the moment it is stored, and its
     # provenance is joined from the account that sent it.
     store.mark_upload_verified(upload["upload_id"],
-                               verified_at=datetime.now(timezone.utc).isoformat())
+                               verified_at=asc_store_utcnow())
     store.attach_upload_provenance(upload["upload_id"],
                                    portal_username=portal_user["username"])
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],

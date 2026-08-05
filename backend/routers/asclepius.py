@@ -3210,6 +3210,19 @@ async def mint_upload_link(
     """Mint a single-purpose, expiring partner upload link (PRD §4). The raw
     token is returned ONCE here and never stored (SHA-256 at rest)."""
     store = _store()
+    # PRD-I §2.1/§2.2 — the SAME two buttons the health-system form has. Without
+    # this the column existed with no writer and no reader, so every link-door
+    # upload landed NULL, resolved to task_creation in the gate, and promoted:
+    # the requirement the PRD wrote first was met for neither door it names.
+    #
+    # Nothing below branches on the value. Same token alphabet and length, same
+    # URL template, same expiry, same response shape — the recipient cannot tell
+    # which button was pressed.
+    purpose = (body.purpose or "").strip().lower()
+    if purpose not in asc_ingestion.PURPOSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"purpose must be one of {', '.join(asc_ingestion.PURPOSES)}.")
     token = secrets.token_urlsafe(32)
     expires_at = (datetime.utcnow() + timedelta(hours=max(1, min(720, body.expires_hours)))).isoformat()
     contact_email = (body.contact_email or "").strip() or None
@@ -3225,11 +3238,12 @@ async def mint_upload_link(
         max_bytes=min(body.max_bytes or asc_ingestion.max_zip_bytes(), asc_ingestion.max_zip_bytes()),
         created_by=admin["id"],
         contact_email=contact_email,
+        purpose=purpose,
     )
     store.log_event(entity_type="ingest_link", entity_id=link["link_id"],
                     event_type="upload_link_minted", actor=admin["id"],
                     payload={"partner_id": body.partner_id, "expires_at": expires_at,
-                             "one_time": body.one_time})
+                             "one_time": body.one_time, "purpose": purpose})
     base = (os.getenv("BASE_URL") or "").rstrip("/")
     return {**{k: v for k, v in link.items() if k != "token_hash"},
             "token": token,
@@ -3350,6 +3364,9 @@ async def partner_upload(
         size_bytes=len(data), raw_path=raw_path,
         source_ip=(request.client.host if request.client else None),
     )
+    # Provenance from the authorizing LINK row, joined server-side (PRD-I §2.1).
+    # This door had no such call at all, which is why its purpose column was dead.
+    store.attach_upload_provenance(upload["upload_id"], link_id=link["link_id"])
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
                     event_type="upload_received",
                     payload={"partner_id": link["partner_id"], "sha256": digest,
@@ -3952,7 +3969,10 @@ async def promote_ingest_case(
     # back to a hardcoded literal for a case with no specialty at all, so refuse
     # here rather than let that literal be applied — the admin sets it on the
     # upload (POST /admin/uploads/{id}/specialty) and promotes again.
-    if not (ic.get("specialty") or "").strip():
+    # ``general`` is what ingest writes when nothing declared a specialty — a real
+    # value in the column, so the earlier emptiness test could never fire and this
+    # guard was unreachable. It is the absence of a specialty, not a specialty.
+    if asc_ingestion.specialty_is_undetermined(ic.get("specialty")):
         raise HTTPException(
             status_code=409,
             detail="Specialty not determined for this case. Set the specialty on the "
@@ -4025,7 +4045,7 @@ async def prepare_upload_promotion(
         raise HTTPException(status_code=409,
                             detail="No ingested cases awaiting promotion in this upload.")
     ic = ingested[0]
-    if not (ic.get("specialty") or "").strip():
+    if asc_ingestion.specialty_is_undetermined(ic.get("specialty")):
         raise HTTPException(
             status_code=409,
             detail="Specialty not determined for this case. Set the specialty on the "
@@ -4093,7 +4113,7 @@ async def promote_upload_all(
         # Same guard as the single-case endpoint: never let the hardcoded
         # specialty fallback label a case (PRD-I §4.2). One unlabelled case does
         # not fail the batch — it is reported alongside the gated ones.
-        if not (ic.get("specialty") or "").strip():
+        if asc_ingestion.specialty_is_undetermined(ic.get("specialty")):
             gated.append({"ingest_case_id": ic.get("ingest_case_id"),
                           "failures": ["specialty not determined — set it on the "
                                        "upload before promoting"]})
