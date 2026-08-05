@@ -7,9 +7,9 @@ community router. Reuses that router's gate (``require_member`` /
 never re-implements auth or PHI handling, it composes them.
 
 Every write that produces human-visible text (event bodies, poll questions and
-options) is posted through the same PHI-gated paths as chat; pins and bookmarks
-reference already-scanned content. Realtime updates fan out over the shared WS
-hub (all channel-public → broadcast).
+options, bookmark titles) is posted through the same PHI-gated paths as chat;
+pins reference already-scanned content. Realtime updates fan out over the shared
+WS hub (all channel-public → broadcast).
 """
 
 from __future__ import annotations
@@ -58,8 +58,12 @@ def _norm_iso_z(value: Optional[str]) -> Optional[str]:
     if v.endswith("Z"):
         return v
     if re.search(r"[+-]\d{2}:\d{2}$", v):
-        from datetime import datetime
-        return datetime.fromisoformat(v).astimezone().strftime("%Y-%m-%dT%H:%M:%SZ")
+        from datetime import datetime, timezone  # noqa: PLC0415
+        # astimezone(utc) EXPLICITLY — the argless form converts to the host's
+        # local zone, which we would then mislabel 'Z' and store hours off on
+        # any non-UTC deploy (bad start time, bad .ics, bad reminder window).
+        return (datetime.fromisoformat(v).astimezone(timezone.utc)
+                .strftime("%Y-%m-%dT%H:%M:%SZ"))
     # No zone marker → treat as already-UTC wall time.
     if len(v) == 16:  # YYYY-MM-DDTHH:MM
         v += ":00"
@@ -267,8 +271,11 @@ async def close_poll(poll_id: int, request: Request,
     cstore.close_poll(poll_id)
     _audit(request, user, "community.poll_close", "ok", {"poll_id": poll_id})
     results = cstore.poll_results(poll_id, viewer_id=user["id"])
+    # your_vote is VIEWER-SPECIFIC — never fan it out (same guard as /vote).
+    # Broadcasting the closer's choice both leaks it and makes every other
+    # client render that option as its own selection.
     await hub.broadcast({"type": "poll.updated", "message_id": poll.get("message_id"),
-                         "poll": results})
+                         "poll": {**results, "your_vote": None}})
     return results
 
 
@@ -336,6 +343,16 @@ async def add_bookmark(slug: str, body: BookmarkIn, request: Request,
                        user: Dict[str, Any] = Depends(require_member)):
     if not _URL_OK.match(body.url.strip()):
         raise HTTPException(status_code=400, detail="Bookmark URL must start with http(s)://")
+    # A bookmark TITLE is new human-visible free text, not already-scanned
+    # content — it goes through the §7 gate like every other member write.
+    # The URL itself is structural and deliberately not scanned (article links
+    # carry digit runs that false-trip MRN rules — same call as system_posts).
+    if phi_gate.scan_text(body.title):
+        raise HTTPException(status_code=422, detail={
+            "code": "phi_detected",
+            "message": "Bookmark title looks like it contains patient-identifiable "
+                       "information. Links are colleague-facing only.",
+        })
     cstore = _cstore()
     members = member_map()
     channel = _visible_channel_or_404(slug, members)

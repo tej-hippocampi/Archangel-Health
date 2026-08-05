@@ -277,3 +277,76 @@ def test_here_is_open_to_members_and_not_durable():
     # nor does it light a persistent mention badge for an offline member
     badge = client.get(f"{BASE}/badge", headers=headers_for(doc2)).json()
     assert badge["mentions"] == 0
+
+
+# ─── Regressions found in review of the v2.1 pass ─────────────────────────────
+def test_event_offset_datetime_normalizes_to_true_utc(monkeypatch):
+    """An explicit UTC offset must be converted to UTC, not to the HOST's local
+    zone and then mislabeled 'Z' (that stored the event hours off — wrong card
+    time, wrong .ics, wrong reminder window — on any non-UTC deploy)."""
+    import time
+
+    astore, cstore, admin, doc = setup_world()
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    try:
+        r = client.post(f"{BASE}/events", headers=headers_for(admin), json={
+            "title": "Offset journal club", "starts_at": "2099-09-10T17:00:00+02:00"})
+        assert r.status_code == 200, r.text
+        # 17:00+02:00 is 15:00Z regardless of where the server happens to sit.
+        assert r.json()["starts_at"] == "2099-09-10T15:00:00Z"
+    finally:
+        monkeypatch.delenv("TZ", raising=False)
+        time.tzset()
+
+
+def test_poll_close_does_not_broadcast_the_closers_vote():
+    """``your_vote`` is viewer-specific; fanning the closer's choice out both
+    leaks it and makes every other client render it as its own selection."""
+    astore, cstore, admin, doc = setup_world()
+    sent = []
+    from community import social as csocial
+
+    r = client.post(f"{BASE}/polls", headers=headers_for(doc), json={
+        "channel_slug": "general", "question": "Ready?", "options": ["Yes", "No"]})
+    assert r.status_code == 200, r.text
+    poll = r.json()["poll"]
+    pid, opt = poll["id"], poll["options"][0]["id"]
+    assert client.post(f"{BASE}/polls/{pid}/vote", headers=headers_for(doc),
+                       json={"option_id": opt}).status_code == 200
+
+    async def _capture(payload):
+        sent.append(payload)
+
+    orig = csocial.hub.broadcast
+    csocial.hub.broadcast = _capture
+    try:
+        rc = client.post(f"{BASE}/polls/{pid}/close", headers=headers_for(doc))
+    finally:
+        csocial.hub.broadcast = orig
+    assert rc.status_code == 200
+    # The closer still learns their own vote from the RESPONSE...
+    assert rc.json()["your_vote"] == opt
+    # ...but the fan-out carries no viewer-specific selection.
+    updates = [p for p in sent if p.get("type") == "poll.updated"]
+    assert updates and all(u["poll"]["your_vote"] is None for u in updates)
+    assert updates[-1]["poll"]["closed"] is True
+
+
+def test_bookmark_title_is_phi_gated():
+    """A bookmark title is new human-visible free text — it goes through the §7
+    gate like every other member write, not straight to the link bar."""
+    astore, cstore, admin, doc = setup_world()
+    r = client.post(f"{BASE}/channels/general/bookmarks", headers=headers_for(doc),
+                    json={"title": "MRN 123456789 follow-up", "url": "https://example.org/x"})
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"]["code"] == "phi_detected"
+    # nothing persisted
+    assert client.get(f"{BASE}/channels/general/bookmarks",
+                      headers=headers_for(doc)).json()["bookmarks"] == []
+    # a normal title still lands, and a URL with a long digit run is NOT a PHI
+    # false-positive (article ids are structural, deliberately unscanned).
+    ok = client.post(f"{BASE}/channels/general/bookmarks", headers=headers_for(doc),
+                     json={"title": "KDIGO AKI guideline",
+                           "url": "https://pubmed.ncbi.nlm.nih.gov/123456789/"})
+    assert ok.status_code == 200, ok.text
