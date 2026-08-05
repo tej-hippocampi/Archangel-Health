@@ -129,6 +129,13 @@ from asclepius.schemas import (
     SsoRequest,
     SubmissionIn,
     TaskUploadRequest,
+    TutorialStateUpdate,
+)
+from asclepius.tutorial_case import (
+    TUTORIAL_TASK_ID,
+    TUTORIAL_VERSION,
+    grade_tutorial_submission,
+    tutorial_raw_task,
 )
 from asclepius.store import get_store
 from ratelimit import rate_limiter
@@ -315,6 +322,143 @@ async def sso(body: SsoRequest):
 @router.get("/auth/me")
 async def me(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     return asc_auth.public_user(user)
+
+
+@router.patch("/me/tutorial")
+async def update_my_tutorial(
+    body: TutorialStateUpdate, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """One transition on the caller's own first-run tutorial state.
+
+    Server-authoritative: the "the tutorial never re-triggers once finished"
+    invariant lives in THESE rules, not in client flags. ``start`` after
+    completed/skipped is a deliberate no-op (replay is a client-side affair and
+    must never clear completion); ``reset`` is allowed self-service because the
+    tutorial writes no real data.
+    """
+    store = _store()
+    current = store.get_tutorial_state(user["id"])
+    status = current.get("status") or "not_started"
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    action = body.action
+
+    if action == "start":
+        if status in ("completed", "skipped"):
+            return asc_auth.public_user(store.get_user_by_id(user["id"]))
+        if status == "not_started":
+            current = {
+                "status": "in_progress",
+                "step": body.step,
+                "version": body.version or TUTORIAL_VERSION,
+                "started_at": now,
+                "completed_at": None,
+                "skipped_at": None,
+            }
+        # already in_progress: keep position, refresh nothing
+    elif action == "advance":
+        if status in ("completed", "skipped"):
+            return asc_auth.public_user(store.get_user_by_id(user["id"]))
+        if status == "not_started":
+            current = {"status": "in_progress", "version": body.version or TUTORIAL_VERSION,
+                       "started_at": now, "completed_at": None, "skipped_at": None}
+        current["step"] = body.step
+    elif action == "skip":
+        if status != "completed" and not current.get("skipped_at"):
+            current["status"] = "skipped"
+            current["skipped_at"] = now
+            if not current.get("version"):
+                current["version"] = body.version or TUTORIAL_VERSION
+    elif action == "complete":
+        if not current.get("completed_at"):
+            current["status"] = "completed"
+            current["completed_at"] = now
+            current["skipped_at"] = None
+            if not current.get("version"):
+                current["version"] = body.version or TUTORIAL_VERSION
+            current.pop("step", None)
+    elif action == "reset":
+        current = {"status": "not_started", "version": None}
+
+    store.set_tutorial_state(user["id"], current)
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="tutorial_" + action, actor=user["id"],
+        payload={"step": body.step} if body.step else None,
+    )
+    return asc_auth.public_user(store.get_user_by_id(user["id"]))
+
+
+# ─── Tutorial — Calibration Case 1 ───────────────────────────────────────────
+# The practice case is a fully VIRTUAL task: assembled in memory from
+# ``tutorial_case.py``, never inserted into ``tasks``, its submission never
+# entering the pipeline. Isolation from the queue, records, exports, stats,
+# agreement, and value metrics is therefore structural (those all read the DB),
+# not a filter that someone can forget. Only ``events`` rows are written.
+@router.get("/tutorial/task")
+async def get_tutorial_task(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+    """The practice case, blinded EXACTLY like a real task (same
+    ``_blind_task`` path: ground_truth stripped, answer texts withheld)."""
+    return {"task": _blind_task(tutorial_raw_task())}
+
+
+@router.post("/tutorial/reveal")
+async def tutorial_reveal(
+    body: IndependentAnswer, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Mirror of ``POST /tasks/{id}/reveal`` minus persistence: the same
+    non-empty-instinct gate (the tutorial teaches the real rule), but no
+    ``independent_commits`` row — the practice case leaves no data behind."""
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "independent_answer_required",
+                "message": "Write your independent answer before revealing the AI answers.",
+            },
+        )
+    store = _store()
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="tutorial_reveal", actor=user["id"],
+    )
+    return {"answers": _task_answers(tutorial_raw_task()), "committed": True}
+
+
+@router.post("/tutorial/submit")
+async def tutorial_submit(
+    body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Grade the practice submission against the answer key and stamp the
+    caller's tutorial state completed. Never touches the real submit pipeline —
+    no ``submissions`` row, no ``records``, no QA routing."""
+    if body.task_id != TUTORIAL_TASK_ID:
+        raise HTTPException(status_code=400, detail="Not the tutorial task.")
+    payload = body.model_dump()
+    result = grade_tutorial_submission(payload)
+    store = _store()
+    current = store.get_tutorial_state(user["id"])
+    already_done = bool(current.get("completed_at"))
+    if not already_done:
+        now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+        current.update({
+            "status": "completed",
+            "completed_at": now,
+            "skipped_at": None,
+            "score": {"matched": result["matched"], "total": result["total"]},
+        })
+        if not current.get("version"):
+            current["version"] = TUTORIAL_VERSION
+        current.pop("step", None)
+        store.set_tutorial_state(user["id"], current)
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="tutorial_submitted", actor=user["id"],
+        payload={"matched": result["matched"], "total": result["total"],
+                 "replay": already_done},
+    )
+    return {"result": result,
+            "user": asc_auth.public_user(store.get_user_by_id(user["id"]))}
 
 
 # ─── Users (admin) ────────────────────────────────────────────────────────────
