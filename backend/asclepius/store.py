@@ -27,6 +27,7 @@ import secrets
 import sqlite3
 import uuid
 from datetime import datetime
+from datetime import timedelta as _timedelta
 from typing import Any, Dict, List, Optional
 
 from passlib.context import CryptContext
@@ -2532,6 +2533,31 @@ class AsclepiusStore:
             rec["credential"] = credential
             out.append(rec)
         return out
+
+    def evaluator_self_stats(self, evaluator_id: str) -> Dict[str, Any]:
+        """Real, personal counts for the dashboard's own tracking widget: total
+        cases this evaluator has completed, how many in the last 7 days, and
+        when they last submitted one. No earnings/streak data exists anywhere
+        in this schema, so this stays limited to what's actually true."""
+        week_cutoff = (datetime.utcnow().replace(microsecond=0) - _timedelta(days=7)).isoformat()
+        with self._conn() as conn:
+            total = conn.execute(
+                "SELECT COUNT(*) AS n FROM submissions WHERE evaluator_id = ?",
+                (evaluator_id,),
+            ).fetchone()["n"]
+            this_week = conn.execute(
+                "SELECT COUNT(*) AS n FROM submissions WHERE evaluator_id = ? AND created_at >= ?",
+                (evaluator_id, week_cutoff),
+            ).fetchone()["n"]
+            last_at = conn.execute(
+                "SELECT MAX(created_at) AS t FROM submissions WHERE evaluator_id = ?",
+                (evaluator_id,),
+            ).fetchone()["t"]
+        return {
+            "submissions_total": total,
+            "submissions_this_week": this_week,
+            "last_submission_at": last_at,
+        }
 
     # ─── Buyers & buyer requests (opt §2.5) ──────────────────────────────────
     def create_buyer(

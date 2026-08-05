@@ -85,6 +85,21 @@ export function asclepiusPortalUrl(): string {
   return base ? `${base}/asclepius` : "/asclepius";
 }
 
+/**
+ * Store an Asclepius console session so the portal boots already signed in and
+ * lands on the dashboard (no re-login after sign-up). The console reads this
+ * exact localStorage key (`asclepius_token`) in its boot() path, and the wizard
+ * shares the same origin as /asclepius so the value carries over.
+ */
+export function storeAsclepiusSession(token: string): void {
+  if (!token) return;
+  try {
+    window.localStorage.setItem("asclepius_token", token);
+  } catch {
+    /* storage unavailable — the doctor can still sign in with the emailed credentials */
+  }
+}
+
 export type User = { email: string; name?: string | null; role?: string | null };
 
 export type AuthResponse = {

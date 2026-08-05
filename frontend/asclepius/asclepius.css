@@ -1,9 +1,9 @@
 /* ═══════════════════════════════════════════════════════════
-   Asclepius — Expert Evaluation Portal
+   Asclepius: Expert Evaluation Portal
    Console design system. Tokens from _tokens.css, base from
    _base.css. No raw hex in this file.
 
-   Accent semantics (the spine — §1 of the migration PRD):
+   Accent semantics (the spine: §1 of the migration PRD):
      orange = model / AI output      green = physician-authored
      pink   = flags / PHI / critical lime  = new / active selection
    ═══════════════════════════════════════════════════════════ */
@@ -129,6 +129,55 @@
   gap: 18px;
 }
 .asc-wrap-narrow { max-width: 880px; }
+
+/* ─── Split-screen (V3/V4): case rail pinned beside the staged workflow ─────
+   The case never scrolls away: a persistent left rail scrolls on its own next
+   to the step-by-step workflow. Collapses to a wide single column for heavy
+   editing, and stacks (rail hidden, sticky bar shown) on narrow screens. */
+.asc-case-cols {
+  max-width: 1320px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(320px, 38%) 1fr;
+  gap: 22px;
+  align-items: start;
+}
+.asc-case-rail {
+  position: sticky;
+  top: 76px;
+  align-self: start;
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-right: 4px;
+}
+.asc-work-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.asc-rail-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.asc-rail-title {
+  font-family: var(--mono); font-size: var(--t-chrome); letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+/* Collapsed: hide the rail, reveal the "Show case" button, widen the workflow.
+   Scoped under .asc-case-cols so the hide beats the equal-specificity .asc-btn
+   display rule that the button also carries. */
+.asc-case-cols .asc-rail-show { display: none; align-self: flex-start; }
+.asc-case-cols.is-collapsed { grid-template-columns: 1fr; max-width: 1180px; }
+.asc-case-cols.is-collapsed .asc-case-rail { display: none; }
+.asc-case-cols.is-collapsed .asc-rail-show { display: inline-flex; }
+/* The sticky one-line case bar is the NARROW-screen fallback only; on wide
+   screens the always-visible rail replaces it. */
+.asc-case-cols .asc-case-sticky { display: none; }
+@media (max-width: 900px) {
+  .asc-case-cols { grid-template-columns: 1fr; max-width: 880px; }
+  .asc-case-cols .asc-case-rail { display: none; }
+  .asc-case-cols .asc-rail-show,
+  .asc-case-cols.is-collapsed .asc-rail-show { display: none; }
+  .asc-case-cols .asc-case-sticky { display: flex; }
+}
 .asc-loading-screen {
   display: flex;
   flex-direction: column;
@@ -166,7 +215,7 @@
 }
 .asc-card-sub { font-size: 13px; color: var(--asc-muted); margin-top: 2px; }
 
-/* ─── Badges — hairline chips with a semantic dot ─────────── */
+/* ─── Badges: hairline chips with a semantic dot ─────────── */
 .asc-badge {
   display: inline-flex;
   align-items: center;
@@ -181,7 +230,7 @@
   text-transform: capitalize;
   white-space: nowrap;
 }
-/* Leading semantic dot on status badges — but NOT the numeric count pill
+/* Leading semantic dot on status badges: but NOT the numeric count pill
    (.asc-badge-count), which is a different shape and carries a number. */
 .asc-badge:not(.asc-badge-count)::before {
   content: '';
@@ -267,7 +316,7 @@
 .asc-instinct-input { font-size: 16px; padding: 13px 14px; }
 .asc-instinct-count { display: block; margin-top: 6px; font-size: 12px; color: var(--asc-warn); min-height: 14px; }
 
-/* V3 auto-suggested citation chip (Seamless PRD WS3) — model output = orange. */
+/* V3 auto-suggested citation chip (Seamless PRD WS3): model output = orange. */
 .asc-cite-suggest { margin: 8px 0 4px; }
 .asc-cite-suggest:empty { display: none; }
 .asc-cite-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
@@ -374,6 +423,91 @@
 .asc-empty-icon { font-size: 28px; margin-bottom: 10px; color: var(--green); }
 .asc-empty h3 { font-size: 16px; font-weight: 500; color: var(--asc-text); margin-bottom: 6px; }
 
+/* ═══════════ Dashboard (home) ═══════════ */
+.asc-dash-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 2px;
+}
+.asc-dash-hello { font-size: var(--t-h2); }
+.asc-dash-sub { color: var(--ink-soft); font-size: var(--t-sm); margin-top: 2px; text-transform: capitalize; }
+.asc-dash-count { display: flex; align-items: baseline; gap: 8px; }
+.asc-dash-count-n { font-family: var(--doto); font-size: 2rem; line-height: 1; color: var(--ink); }
+.asc-dash-count-l {
+  font-family: var(--mono); font-size: var(--t-chrome); text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--ink-faint);
+}
+.asc-dash-cta { margin: 2px 0 6px; }
+.asc-dash-list { display: flex; flex-direction: column; gap: 10px; }
+.asc-dash-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  width: 100%; text-align: left; padding: 14px 18px;
+  background: var(--card); border: 1px solid var(--asc-line); border-radius: var(--r-md);
+  cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.asc-dash-card:hover { border-color: var(--hairline-strong); box-shadow: var(--shadow-card); }
+.asc-dash-card-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; min-width: 0; }
+.asc-dash-card-meta { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t-sm); color: var(--ink-soft); }
+.asc-dash-card-meta .asc-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: none; background: var(--ink-faint); }
+.asc-dash-card-meta .asc-dot.asc-dot-pink { background: var(--pink); }
+.asc-dash-card-meta .asc-dot.asc-dot-orange { background: var(--orange); }
+.asc-dash-card-meta .asc-dot.asc-dot-green { background: var(--green); }
+.asc-dash-card-go { font-family: var(--mono); font-size: var(--t-sm); color: var(--ink-soft); flex: none; }
+
+/* Two-column home layout: queue + hero on the left, a compact "activity"
+   widget pinned on the right (CarPlay-style at-a-glance status, not a full
+   stats page). Stacks to one column on narrow screens. */
+.asc-dash-cols {
+  display: grid;
+  grid-template-columns: 1fr minmax(240px, 300px);
+  gap: 22px;
+  align-items: start;
+}
+.asc-dash-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+@media (max-width: 860px) {
+  .asc-dash-cols { grid-template-columns: 1fr; }
+}
+
+.asc-dash-hero {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  flex-wrap: wrap; padding: 20px 22px;
+  background: var(--green-wash); border: 1px solid var(--green-line); border-radius: var(--r-lg);
+}
+.asc-dash-hero-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.asc-dash-hero-icon {
+  display: flex; align-items: center; justify-content: center; flex: none;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--card); color: var(--green-deep); font-size: 18px;
+}
+.asc-dash-hero-title { font-size: var(--t-h3); font-weight: 600; color: var(--ink); }
+.asc-dash-hero-sub { font-size: var(--t-sm); color: var(--ink-soft); margin-top: 2px; }
+.asc-dash-more {
+  display: block; width: 100%; margin: 2px 0 0; padding: 10px;
+  font-family: var(--sans); font-size: var(--t-sm); color: var(--ink-soft); text-align: center;
+  background: transparent; border: 1px dashed var(--asc-line); border-radius: var(--r-md);
+  cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease;
+}
+.asc-dash-more:hover { border-color: var(--hairline-strong); color: var(--ink); }
+
+.asc-dash-widget {
+  position: sticky; top: 76px;
+  padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;
+  background: var(--card); border: 1px solid var(--asc-line); border-radius: var(--r-lg);
+}
+.asc-dash-widget-title {
+  font-family: var(--mono); font-size: var(--t-chrome); text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--ink-faint);
+}
+.asc-dash-widget-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding-top: 12px; border-top: 1px solid var(--asc-line);
+}
+.asc-dash-widget-row:first-of-type { padding-top: 0; border-top: none; }
+.asc-dash-widget-label { font-size: var(--t-sm); color: var(--ink-soft); }
+.asc-dash-widget-n { font-family: var(--doto); font-size: 1.75rem; line-height: 1; color: var(--ink); }
+.asc-dash-widget-n-sm { font-size: 1.25rem; }
+.asc-dash-widget-row-last { align-items: center; }
+.asc-dash-widget-meta { font-size: var(--t-sm); color: var(--ink-soft); text-align: right; }
+
 /* ═══════════ Evaluator workspace ═══════════ */
 .asc-eval-grid { display: flex; flex-direction: column; gap: 18px; }
 
@@ -401,7 +535,7 @@
   white-space: pre-wrap;
 }
 
-/* Grounding required banner — orange (model boundary), text stays ink. */
+/* Grounding required banner: orange (model boundary), text stays ink. */
 .asc-grounding-banner {
   display: flex;
   gap: 12px;
@@ -423,7 +557,7 @@
 .asc-grounding-banner .asc-gb-title { font-weight: 500; color: var(--asc-text); font-size: 14px; }
 .asc-grounding-banner .asc-gb-text { color: var(--ink-soft); font-size: 13px; line-height: 1.5; margin-top: 2px; }
 
-/* Answers side by side — MODEL OUTPUT: orange affordances (§1). */
+/* Answers side by side: MODEL OUTPUT: orange affordances (§1). */
 .asc-answers {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -485,7 +619,7 @@
   flex: 1;
 }
 
-/* Verdict buttons — the physician's call: green when committed. */
+/* Verdict buttons: the physician's call: green when committed. */
 .asc-verdicts {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -554,7 +688,7 @@
 .asc-subcard-head.rejected { background: var(--pink-wash); color: var(--pink-deep); border-bottom-color: var(--pink-line); }
 .asc-subcard-body { padding: 16px; }
 
-/* Tag multiselect chips — lime = active selection; pink = error tags. */
+/* Tag multiselect chips: lime = active selection; pink = error tags. */
 .asc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .asc-chip {
   border: 1px solid var(--asc-line-strong);
@@ -658,7 +792,7 @@
   letter-spacing: 0.08em;
 }
 
-/* Edit-to-Correct per-step UI (Reasoning Capture v2) —
+/* Edit-to-Correct per-step UI (Reasoning Capture v2) -
    confirmed = physician green · corrected = pink · added = ink. */
 .asc-step-status {
   font-family: var(--mono);
@@ -756,7 +890,7 @@
 .asc-subnav-btn:hover { background: var(--card-in); color: var(--asc-text); }
 .asc-subnav-btn.active { background: var(--ink); color: var(--card); }
 
-/* Tables — hairline row separators only; mono tabular numerals. */
+/* Tables: hairline row separators only; mono tabular numerals. */
 .asc-table-wrap { overflow-x: auto; }
 .asc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .asc-table th {
@@ -818,7 +952,7 @@
 /* Two-column admin layouts */
 .asc-cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
 
-/* Manifest / preformatted output — card-in, never a dark fill. */
+/* Manifest / preformatted output: card-in, never a dark fill. */
 .asc-pre {
   background: var(--card-in);
   color: var(--asc-text);
@@ -880,7 +1014,7 @@
 .asc-kv dt { font-weight: 500; color: var(--asc-muted); }
 .asc-kv dd { color: var(--asc-text); white-space: pre-wrap; }
 
-/* ─── Toasts — card on canvas, never a dark fill ──────────── */
+/* ─── Toasts: card on canvas, never a dark fill ──────────── */
 .asc-toast-region {
   position: fixed;
   bottom: 24px;
@@ -994,7 +1128,7 @@
 .asc-chip-row .asc-chip { cursor: default; }
 .asc-profile-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
 
-/* "Further Credential Summary" — a distinct, weightier action. */
+/* "Further Credential Summary": a distinct, weightier action. */
 .asc-btn-secondary { background: transparent; color: var(--asc-text); border-color: rgba(26, 27, 26, 0.4); }
 .asc-btn-secondary:hover:not(:disabled) { background: var(--card-in); }
 
@@ -1027,12 +1161,12 @@
 .asc-stage-dot.done { background: var(--green); }
 .asc-stage-dot.active { background: var(--ink); }
 
-/* The gate marks the model-content boundary — orange. */
+/* The gate marks the model-content boundary: orange. */
 .asc-gate { border-top: 2px solid var(--orange-line); }
 .asc-gate-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .asc-gate-reveal { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 16px; }
 
-/* Anti-peeking placeholder — the real answer text is never in the DOM here. */
+/* Anti-peeking placeholder: the real answer text is never in the DOM here. */
 .asc-blur-wrap { position: relative; }
 .asc-blur-stack { position: relative; }
 .asc-blur-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; filter: blur(7px); opacity: .55; user-select: none; pointer-events: none; }
@@ -1069,7 +1203,7 @@
   transition: border-color .16s cubic-bezier(.4,0,.2,1), background .16s cubic-bezier(.4,0,.2,1);
 }
 /* Idle only: JS swaps textContent to a stop/transcribing glyph while
-   recording (.recording) or transcribing (:disabled) — so the mic mask
+   recording (.recording) or transcribing (:disabled): so the mic mask
    must hide in those states or it would double up with the glyph. */
 .asc-mic-btn:not(.recording):not(:disabled)::before {
   content: '';
@@ -1130,7 +1264,7 @@
 }
 .asc-editdiff .asc-diff-shared { opacity: .5; }
 .asc-editdiff .asc-diff-changed {
-  /* The physician's own edits — green. */
+  /* The physician's own edits: green. */
   background: var(--green-wash); border-radius: 3px; padding: 1px 2px; font-weight: 500;
 }
 .asc-err-span {
@@ -1140,7 +1274,7 @@
   padding: 0 1px;
 }
 
-/* ─── Model-assist hints & suggestions (Feature 2) — orange = model. */
+/* ─── Model-assist hints & suggestions (Feature 2): orange = model. */
 .asc-assist-hint {
   display: flex; align-items: center; gap: 7px;
   margin-top: 10px;
@@ -1310,7 +1444,7 @@
   color: var(--ink-soft);
 }
 
-/* ─── Multimodal case panel — the highest-density region ──── */
+/* ─── Multimodal case panel: the highest-density region ──── */
 .asc-case-card { margin-bottom: 18px; overflow: hidden; }
 .asc-case-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -1362,7 +1496,7 @@
 .asc-vital-k { color: var(--asc-muted); font-weight: 500; }
 .asc-vital-v { color: var(--asc-text); font-weight: 500; font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 
-/* Labs trend table — hairline rows, mono tabular numerals,
+/* Labs trend table: hairline rows, mono tabular numerals,
    H/L flags as colored TEXT, never filled badges. */
 .asc-lab-scroll { overflow-x: auto; }
 .asc-lab-table { border-collapse: collapse; width: 100%; font-size: 13px; }
@@ -1388,7 +1522,7 @@
 .asc-lab-crit { background: transparent; color: var(--pink-deep); font-weight: 500; }
 
 /* ─── Structured studies (Specialty Hyper-Personalization PRD §3/§6) ───────── */
-/* Deterministic specialty + modality chips — the same dot+label pattern; console
+/* Deterministic specialty + modality chips: the same dot+label pattern; console
    palette only (green/orange/pink), never blue. */
 .asc-chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -1413,7 +1547,7 @@
 .asc-study-label { font-size: 13px; font-weight: 500; color: var(--asc-text); }
 .asc-study-findings { font-size: 13.5px; line-height: 1.55; color: var(--asc-text); white-space: pre-wrap; }
 .asc-study-impression { font-size: 13px; color: var(--asc-muted); border-top: 1px solid var(--hairline); padding-top: 8px; }
-/* ECG "rhythm strip" — a scannable findings block (text, never a raw waveform). */
+/* ECG "rhythm strip": a scannable findings block (text, never a raw waveform). */
 .asc-ecg-strip {
   background:
     repeating-linear-gradient(0deg, var(--hairline) 0 1px, transparent 1px 16px),
@@ -1422,14 +1556,14 @@
   border: 1px solid var(--hairline-strong); border-radius: var(--r-sm); padding: 12px 14px;
 }
 .asc-ecg-strip-text { font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: var(--asc-text); white-space: pre-wrap; }
-/* Imaging timeline (baseline → on-treatment) — the temporal judgment. */
+/* Imaging timeline (baseline → on-treatment): the temporal judgment. */
 .asc-timeline { display: flex; flex-direction: column; gap: 0; position: relative; }
 .asc-timeline-step { position: relative; padding-left: 22px; padding-bottom: 14px; border-left: 2px solid var(--hairline-strong); margin-left: 5px; }
 .asc-timeline-step:last-child { border-left-color: transparent; padding-bottom: 0; }
 .asc-timeline-marker { position: absolute; left: -7px; top: 4px; width: 12px; height: 12px; border-radius: 999px;
   background: var(--card); border: 2px solid var(--pink); }
 
-/* ─── V4 image viewer (V4 Image Embedding PRD §6) — tokens only, no bespoke lib ── */
+/* ─── V4 image viewer (V4 Image Embedding PRD §6): tokens only, no bespoke lib ── */
 .asc-img-viewer { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
 .asc-img-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .asc-img-btn {
@@ -1492,7 +1626,7 @@
   border-radius: var(--r-sm); padding: 12px 14px; font-size: 14px; color: var(--asc-text);
   line-height: 1.55;
 }
-/* Real submit progress (BUG-5) — green fill on a hairline track. */
+/* Real submit progress (BUG-5): green fill on a hairline track. */
 .asc-progress-wrap { margin-top: 14px; }
 .asc-progress-track {
   height: 8px; border-radius: var(--r-chip); background: var(--card-in);
@@ -1524,7 +1658,7 @@
 .asc-rubric-pts.pos { color: var(--green-deep); background: var(--green-wash); }
 .asc-rubric-pts.neg { color: var(--pink-deep); background: var(--pink-wash); }
 /* Tiered rubric (Two-Model PRD WS-B): critical=pink · important=orange ·
-   helpful=faint. Three tiers, three treatments — no fourth color. */
+   helpful=faint. Three tiers, three treatments: no fourth color. */
 .asc-rubric-tier {
   font-family: var(--mono);
   font-size: 10px; font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase;
@@ -1585,7 +1719,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Evaluation UX Overhaul (V3/V4) — staged flow, progress rail, info-dots,
+   Evaluation UX Overhaul (V3/V4): staged flow, progress rail, info-dots,
    sticky case strip, tag popover, rubric wizard. Tokens only; zero heavy fills.
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1712,9 +1846,17 @@
   padding: 12px 14px;
 }
 .asc-tag-pop-title {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
   font-weight: 600; font-size: 13.5px; color: var(--asc-text);
   margin-bottom: 8px; text-transform: capitalize;
 }
+.asc-tag-pop-x {
+  flex: none; border: 0; background: transparent; cursor: pointer;
+  width: 24px; height: 24px; border-radius: var(--r-sm);
+  font-size: 18px; line-height: 1; color: var(--ink-faint);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.asc-tag-pop-x:hover { background: var(--card-in); color: var(--asc-text); }
 .asc-tag-pop-field { margin-bottom: 10px; }
 .asc-tag-pop-field .asc-label { margin-bottom: 5px; }
 .asc-tag-pop-foot {

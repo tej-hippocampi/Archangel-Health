@@ -1231,6 +1231,63 @@ async def next_task(
     return {"task": _blind_task(task) if task else None}
 
 
+@router.get("/tasks/available")
+async def available_tasks(
+    portal_version: Optional[str] = Query(None, description="Active flow (v1/v2/v3/v4), same as /tasks/next."),
+    specialty: Optional[str] = Query(None, description="Specialty picker choice; falls back to the evaluator's own."),
+    limit: int = Query(50, ge=1, le=200),
+    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+):
+    """The tasks THIS evaluator can pick right now — the dashboard list.
+
+    Reuses the exact eligibility the router uses to serve the next case
+    (``store.eligible_tasks_for_evaluator`` already drops tasks the evaluator has
+    labeled or that are at capacity), with the same hard/real filters, so the
+    dashboard count matches what /tasks/next would hand out. Multimodal is only a
+    serving PREFERENCE (V3 falls back to text), so it is NOT a hard filter here:
+    the list shows everything the evaluator may work on. Cards are lightweight
+    metadata only — the case content still loads through the existing task flow."""
+    store = _store()
+    sel = specialty.strip().lower() if specialty else None
+    if sel and not asc_specialties.is_enabled(sel):
+        sel = None
+    serve_specialty = sel or (user.get("specialty") or None)
+    hard_only = portal_version == "v3" and hard_only_generation()
+    real_only = portal_version == REAL_CASE_PORTAL_VERSION
+    if real_only and not user.get("real_data_approved"):
+        return {"tasks": [], "count": 0}
+    rows = store.eligible_tasks_for_evaluator(
+        evaluator_id=user["id"], specialty=serve_specialty, hard_only=hard_only,
+        real_only=real_only, multimodal_only=False,
+        require_measured_difficulty=require_measured_difficulty(),
+        min_empirical_difficulty=min_empirical_difficulty(),
+        limit=limit,
+    )
+    tasks = [
+        {
+            "task_id": t.get("task_id"),
+            "specialty": t.get("specialty"),
+            "difficulty": t.get("difficulty"),
+            "modality": t.get("modality"),
+            "case_source": t.get("case_source"),
+            "created_at": t.get("created_at"),
+        }
+        for t in rows
+    ]
+    return {"tasks": tasks, "count": len(tasks)}
+
+
+@router.get("/me/stats")
+async def my_stats(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+    """This evaluator's own real numbers for the dashboard tracking widget:
+    total cases completed, how many in the last 7 days, and their last
+    submission timestamp. Every ``submissions`` row is already a completed
+    case (drafts live client-side, never written here), so no status filter
+    is needed."""
+    store = _store()
+    return store.evaluator_self_stats(user["id"])
+
+
 def _require_real_data_access(task: Dict[str, Any], user: Dict[str, Any]) -> None:
     """The V4 wall on DIRECT task access (EHR PRD §9.5): a real (case_source=
     'real_deid') task is visible to admins/QA and to real_data_approved
@@ -1418,7 +1475,7 @@ async def submit(
         # validate_submission, but the PRD's "PHI scan on every submission"
         # (§0/§13) still applies. Redact rather than persist a raw identifier.
         note_phi = residual_identifiers(review.note) if review.note else []
-        safe_note = "[redacted — possible identifier detected]" if note_phi else review.note
+        safe_note = "[redacted: possible identifier detected]" if note_phi else review.note
         flag_pv = _derive_portal_version(task, body.portal_version)
         flagged_payload = body.model_dump()
         flagged_payload["portal_version"] = flag_pv
@@ -1482,7 +1539,7 @@ async def submit(
         # PHI scan on the reason (this path skips validate_submission, but the
         # "PHI scan on every submission" rule still applies) — redact, don't persist.
         nh_note_phi = residual_identifiers(review.note) if review.note else []
-        nh_safe_note = "[redacted — possible identifier detected]" if nh_note_phi else review.note
+        nh_safe_note = "[redacted: possible identifier detected]" if nh_note_phi else review.note
         nh_pv = _derive_portal_version(task, body.portal_version)
         nh_payload = body.model_dump()
         nh_payload["portal_version"] = nh_pv
@@ -1513,7 +1570,7 @@ async def submit(
     # signal back to recalibrate case generation. No records; the doctor advances.
     if review and review.verdict == "case_incoherent":
         ci_note_phi = residual_identifiers(review.note) if review.note else []
-        ci_safe_note = "[redacted — possible identifier detected]" if ci_note_phi else review.note
+        ci_safe_note = "[redacted: possible identifier detected]" if ci_note_phi else review.note
         ci_pv = _derive_portal_version(task, body.portal_version)
         ci_payload = body.model_dump()
         ci_payload["portal_version"] = ci_pv
@@ -1617,7 +1674,7 @@ async def submit(
                 detail={
                     "error": "critical_negative_required",
                     "message": "Your scoring rubric must include at least one CRITICAL negative "
-                               "criterion (points −8 to −10) — the single thing a correct answer "
+                               "criterion (points −8 to −10): the single thing a correct answer "
                                "must never do. Mark your most serious 'never' criterion as critical.",
                 },
             )
@@ -1637,7 +1694,7 @@ async def submit(
                 detail={
                     "error": "failure_tag_required",
                     "message": "Tag at least one failure mode on the rejected answer (how it failed) "
-                               "so the model-failure taxonomy is physician-verified — e.g. anchoring, "
+                               "so the model-failure taxonomy is physician-verified, for example anchoring, "
                                "premature closure, unsafe recommendation.",
                 },
             )
@@ -1882,8 +1939,8 @@ async def grade_real_models(
                         actor=admin["id"], payload={k: meta.get(k) for k in
                                                     ("fallback_reason", "alert", "fallback_rate")})
         if meta.get("alert"):
-            detail = (f"Two-frontier fallback rate {meta.get('fallback_rate')} exceeds the ceiling — "
-                      "a provider looks down. New pairs are held (needs_baseline) so mostly-legacy "
+            detail = (f"Two-frontier fallback rate {meta.get('fallback_rate')} exceeds the ceiling. "
+                      "A provider looks down. New pairs are held (needs_baseline) so mostly-legacy "
                       "data is not shipped. Fix OPENAI_API_KEY / the provider, then retry.")
         else:
             detail = (f"Could not assemble an A/B pair ({meta.get('fallback_reason')}). Task marked "
@@ -2114,7 +2171,7 @@ async def transcribe_audio(
             status_code=503,
             detail={
                 "error": "stt_unavailable",
-                "message": "Dictation is not available — type your note instead "
+                "message": "Dictation is not available, so type your note instead "
                            "(or use the Wispr Flow desktop app).",
                 "reason": res.get("error"),
             },
@@ -3027,7 +3084,7 @@ async def debug_mm_generate(
                 "medications": len(c.get("medications") or []),
             }
     except asc_generation.GenerationDisabled as exc:
-        out["error"] = f"generation_disabled: {exc} — is ANTHROPIC_API_KEY set?"
+        out["error"] = f"generation_disabled: {exc} (is ANTHROPIC_API_KEY set?)"
     except Exception as exc:  # surface the failure instead of a 500 the operator can't read
         out["error"] = f"{type(exc).__name__}: {exc}"
     return out
@@ -3251,7 +3308,7 @@ async def partner_upload(
                         event_type="upload_store_failed", payload={"error": str(exc)})
         raise HTTPException(
             status_code=503,
-            detail="Could not store the upload securely — your link is still valid, "
+            detail="Could not store the upload securely. Your link is still valid, "
                    "please retry in a moment.",
         )
     # 2. ATOMIC one-time claim, AFTER the bytes are safe (closes the TOCTOU race
@@ -3396,11 +3453,11 @@ async def download_ingestion_upload(
         # not the retention policy. Give the admin the honest reason either way.
         purged_by_retention = _upload_past_raw_retention(upload)
         detail = (
-            "The raw upload has been purged (retention window elapsed) — "
-            "only the derived cases remain."
+            "The raw upload has been purged (retention window elapsed). "
+            "Only the derived cases remain."
             if purged_by_retention else
             "The original upload is no longer available on disk even though it is "
-            "still within the retention window — the raw blob was lost (its storage "
+            "still within the retention window. The raw blob was lost (its storage "
             "did not persist). Only the derived cases remain; ask the partner to "
             "re-upload if the original bundle is needed."
         )
@@ -3521,7 +3578,7 @@ async def quarantine_scrub(
         store.update_ingest_case(ingest_case_id, report_json=report0)
         return {"status": "quarantined",
                 "reason": "unresolved date-like tokens remain (" + ", ".join(leftovers[:3]) +
-                          "); scrub cannot fix an ambiguous timeline — re-upload with a "
+                          "); scrub cannot fix an ambiguous timeline. Re-upload with a "
                           "manifest index_event, or reject."}
     verification = asc_deid_verify.verify_deid(scrubbed)
     report = dict(ic.get("report") or {})
@@ -3648,7 +3705,7 @@ async def _convert_and_gate(store: Any, ic: Dict[str, Any], question: str) -> Di
     cj = await run_case_judge(case, case_source="real_deid")
     if cj.get("skipped"):
         # FAIL CLOSED for real data: a V4 task must never enter the queue ungated.
-        out["error"] = "Case judge unavailable — the real-case gate requires it; try again."
+        out["error"] = "Case judge unavailable. The real-case gate requires it; try again."
         out["http_status"] = 503
         return out
     generation["case_judge"] = {k: cj.get(k) for k in (
