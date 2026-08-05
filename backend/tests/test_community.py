@@ -161,13 +161,19 @@ def test_gate_enforced_on_every_endpoint():
 
 # ─── §3 Channels ──────────────────────────────────────────────────────────────
 def test_three_fixed_channels():
+    # Community v2 expanded the fixed set to seven core channels (specialty
+    # channels exist too but are threshold-gated, so a 1-member world shows
+    # core only — that gating has its own suite in test_community_v2.py).
     _, _, doc, _ = setup_world()
     r = client.get(f"{BASE}/channels", headers=headers_for(doc))
     assert r.status_code == 200
     slugs = [c["slug"] for c in r.json()["channels"]]
-    assert slugs == ["general", "task-announcements", "questions-help"]
+    assert slugs == ["general", "introductions", "task-announcements",
+                     "medical-ai-news", "research-and-opportunities",
+                     "future-of-medical-ai", "questions-help"]
     policies = {c["slug"]: c["post_policy"] for c in r.json()["channels"]}
     assert policies["task-announcements"] == "admin"
+    assert policies["medical-ai-news"] == "admin"
 
 
 def test_announcements_admin_only_but_thread_replies_open():
@@ -1151,7 +1157,9 @@ def test_app_lifespan_boots_and_stops_community():
     with TC(app) as booted:
         assert getattr(app.state, "community_store", None) is not None
         slugs = [c["slug"] for c in app.state.community_store.list_channels()]
-        assert slugs == ["general", "task-announcements", "questions-help"]
+        assert slugs[:4] == ["general", "introductions", "task-announcements",
+                             "medical-ai-news"]
+        assert "nephrology" in slugs  # specialty channels seed too (gated at read)
         assert n._loop_task is not None and not n._loop_task.done()
         # the app is actually serving while the loop runs
         assert booted.get("/community").status_code == 200

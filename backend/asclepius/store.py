@@ -4196,6 +4196,22 @@ class AsclepiusStore:
                     (status, note, decided_by, now, user_id),
                 )
         return self.get_user_by_id(user_id)
+
+    def mark_community_welcomed(self, user_id: str) -> bool:
+        """Community v2: idempotency flag for the one-time community welcome
+        (repurposes the reserved ``slack_joined`` column — the community IS
+        our Slack). Set BEFORE posting: the safe failure is a missed welcome,
+        never a double-post. The guarded UPDATE is the arbiter — under
+        multi-worker deploys a concurrent queue-approval + credential-PUT for
+        the same user must not both win. Returns True when THIS call claimed
+        the welcome."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE users SET slack_joined = 1, slack_checked_at = ? "
+                "WHERE id = ? AND COALESCE(slack_joined, 0) = 0",
+                (_utcnow_iso(), user_id),
+            )
+            return bool(cur.rowcount)
     # ═══ END PRD-B ═══
     # ═══ PRD-A REVIEW STORE METHODS — owned by Agent 1, do not edit from other PRDs ═══
     # Two-tier review product (PRD A): reviewer queue, case_reviews CRUD, and

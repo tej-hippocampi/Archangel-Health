@@ -5971,6 +5971,12 @@ async def startup_community():
 
         app.state.community_store = _get_cstore()
         _cnotify.start_digest_loop(resolve_member=_resolve_member)
+        # Community v2: the #medical-ai-news content loop is OPT-IN
+        # (COMMUNITY_NEWS_ENABLED=1); the internal trigger endpoint below
+        # fires a run on demand either way.
+        from community import digest as _cdigest
+        if _cdigest.news_enabled():
+            _cdigest.start_content_loop()
     except Exception:
         _auth_logger.warning("[community] startup init failed; community disabled", exc_info=True)
 
@@ -5981,6 +5987,12 @@ async def shutdown_community():
         from community import notify as _cnotify
 
         _cnotify.stop_digest_loop()
+    except Exception:
+        pass
+    try:
+        from community import digest as _cdigest
+
+        _cdigest.stop_content_loop()
     except Exception:
         pass
 
@@ -6003,6 +6015,20 @@ async def internal_run_team_daily_jobs(authorization: Optional[str] = Header(Non
     _check_internal_auth(authorization)
     await _run_team_daily_jobs()
     return {"ok": True, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/community/run-digest", include_in_schema=False)
+async def internal_run_community_digest(
+    kind: str = "news", authorization: Optional[str] = Header(None)
+):
+    """Manual trigger for a Community v2 content digest run (demo/QA — works
+    whether or not the scheduled loop is enabled)."""
+    _check_internal_auth(authorization)
+    if kind not in ("news", "papers"):
+        raise HTTPException(status_code=400, detail="kind must be 'news' or 'papers'")
+    from community import digest as _cdigest
+    result = await _cdigest.run_digest(kind)
+    return {**result, "ran_at": _utcnow_iso()}
 
 
 async def _send_sms(

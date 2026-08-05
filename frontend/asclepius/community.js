@@ -366,13 +366,12 @@
 
     const scrollBox = h('div', { class: 'cm-rail-scroll' });
 
-    // channels
-    const chSection = h('div', { class: 'cm-rail-section' },
-      h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Channels')));
-    for (const ch of state.channels) {
+    // channels — core, then threshold-activated specialty channels (the
+    // member's own specialty sorts first in its group)
+    const chanBtn = (ch) => {
       const unread = ch.unread || 0;
       const isActive = ch.slug === state.active;
-      chSection.appendChild(h('button', {
+      return h('button', {
         class: 'cm-chan' + (isActive ? ' active' : ''),
         'aria-current': isActive ? 'page' : null,
         onClick: () => openChannel(ch.slug),
@@ -382,9 +381,23 @@
         ch.post_policy === 'admin' ? h('span', { class: 'cm-chan-lock', title: 'Announcements — Archangel team posts, replies open in threads' }, 'ro') : null,
         unread > 0 && !isActive
           ? h('span', { class: 'cm-chan-unread' }, unread > 99 ? '99+' : String(unread))
-          : (unread > 0 ? h('span', { class: 'dot dot-lime', 'aria-label': 'unread' }) : null)));
-    }
+          : (unread > 0 ? h('span', { class: 'dot dot-lime', 'aria-label': 'unread' }) : null));
+    };
+    const coreChans = state.channels.filter((c) => (c.group || 'core') !== 'specialty');
+    const mySpec = ((state.me && state.me.specialty) || '').toLowerCase();
+    const specChans = state.channels.filter((c) => c.group === 'specialty')
+      .sort((a, b) => ((b.specialty || '').toLowerCase() === mySpec ? 1 : 0)
+                    - ((a.specialty || '').toLowerCase() === mySpec ? 1 : 0));
+    const chSection = h('div', { class: 'cm-rail-section' },
+      h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Channels')));
+    for (const ch of coreChans) chSection.appendChild(chanBtn(ch));
     scrollBox.appendChild(chSection);
+    if (specChans.length) {
+      const spSection = h('div', { class: 'cm-rail-section' },
+        h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Specialty')));
+      for (const ch of specChans) spSection.appendChild(chanBtn(ch));
+      scrollBox.appendChild(spSection);
+    }
 
     // direct messages (user-requested extension)
     const dmSection = h('div', { class: 'cm-rail-section' },
@@ -610,6 +623,9 @@
   }
 
   function specChipEl(author) {
+    if (author.is_bot) {
+      return h('span', { class: 'cm-bot-badge', title: 'Automated post from the Archangel platform' }, 'APP');
+    }
     if (author.is_staff) {
       return h('span', { class: 'cm-spec-chip' },
         h('span', { class: 'dot dot-orange', 'aria-hidden': 'true' }), 'Archangel');
@@ -650,7 +666,10 @@
         'aria-label': 'Delete message',
         onClick: () => deleteMessage(m) }, '🗑') : null);
 
-    const wrap = h('div', { class: 'cm-msg', 'data-mid': m.id, tabindex: '-1' },
+    const kindClass = (m.kind === 'digest_news' || m.kind === 'digest_papers')
+      ? ' cm-msg-digest'
+      : (m.kind === 'system_welcome' ? ' cm-msg-welcome' : '');
+    const wrap = h('div', { class: 'cm-msg' + kindClass, 'data-mid': m.id, tabindex: '-1' },
       avatarEl(a),
       h('div', { class: 'cm-msg-col' },
         h('div', { class: 'cm-msg-head' },

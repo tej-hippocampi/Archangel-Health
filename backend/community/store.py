@@ -23,30 +23,86 @@ import os
 import sqlite3
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-# Fixed v1 channel set (PRD §3). No user-created channels.
+# Fixed channel set (PRD §3 + Community v2). Still no user-created channels —
+# the channel list is code, seeded idempotently on boot. ``grp`` drives the
+# rail grouping ('core' | 'specialty'); a 'specialty' channel carries the
+# specialty it belongs to and is threshold-gated at read time (router
+# ``visible_channels``) so a young community never shows a dead channel.
 DEFAULT_CHANNELS = [
     {
         "slug": "general",
         "name": "general",
         "description": "Open discussion between contributor physicians.",
         "post_policy": "all",
+        "grp": "core",
+    },
+    {
+        "slug": "introductions",
+        "name": "introductions",
+        "description": "New here? Say hello — specialty, where you practice, what you're curious about.",
+        "post_policy": "all",
+        "grp": "core",
     },
     {
         "slug": "task-announcements",
         "name": "task-announcements",
         "description": "New task batches, specialty calls, deadlines. Posts from the Archangel team; replies open in threads.",
         "post_policy": "admin",
+        "grp": "core",
+    },
+    {
+        "slug": "medical-ai-news",
+        "name": "medical-ai-news",
+        "description": "Curated medical-AI news and research digests, posted by the Archangel bot. Discuss in threads.",
+        "post_policy": "admin",
+        "grp": "core",
+    },
+    {
+        "slug": "research-and-opportunities",
+        "name": "research-and-opportunities",
+        "description": "Studies, benchmarks, collaborations, and paid opportunities beyond the task queue. Posts from the Archangel team; replies open in threads.",
+        "post_policy": "admin",
+        "grp": "core",
+    },
+    {
+        "slug": "future-of-medical-ai",
+        "name": "future-of-medical-ai",
+        "description": "Where is AI in medicine actually going? Open debate — takes, papers, predictions.",
+        "post_policy": "all",
+        "grp": "core",
     },
     {
         "slug": "questions-help",
         "name": "questions-help",
         "description": "Ask anything about a case, a rubric, or a payout.",
         "post_policy": "all",
+        "grp": "core",
     },
 ]
+
+
+def specialty_channel_defs() -> List[Dict[str, Any]]:
+    """One channel per ENABLED specialty, derived from the asclepius specialty
+    registry (config-only module — no DB touch, so plane isolation holds).
+    Adding a specialty to the registry auto-creates its channel on next boot."""
+    from asclepius.specialties import SPECIALTY_REGISTRY  # noqa: PLC0415 — config only
+
+    out: List[Dict[str, Any]] = []
+    for cfg in SPECIALTY_REGISTRY.values():
+        if not cfg.enabled:
+            continue
+        out.append({
+            "slug": cfg.name,
+            "name": cfg.name,
+            "description": f"For {cfg.name} colleagues — cases (de-identified), literature, and specialty task talk.",
+            "post_policy": "all",
+            "grp": "specialty",
+            "specialty": cfg.name,
+        })
+    return out
 
 
 def _utcnow_iso() -> str:
@@ -156,23 +212,83 @@ class CommunityStore:
                     created_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_cblock_user ON community_block_events(user_id, id);
+                CREATE TABLE IF NOT EXISTS community_content_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source TEXT NOT NULL,
+                    external_id TEXT,
+                    url TEXT NOT NULL,
+                    url_norm TEXT NOT NULL UNIQUE,
+                    title TEXT NOT NULL,
+                    title_norm TEXT NOT NULL,
+                    published_at TEXT,
+                    abstract TEXT,
+                    summary TEXT,
+                    relevance REAL,
+                    status TEXT NOT NULL DEFAULT 'new',
+                    fetched_at TEXT NOT NULL,
+                    posted_message_id INTEGER
+                );
+                CREATE INDEX IF NOT EXISTS idx_ccontent_status
+                    ON community_content_items(status, fetched_at);
+                CREATE INDEX IF NOT EXISTS idx_ccontent_title
+                    ON community_content_items(title_norm, fetched_at);
+                CREATE TABLE IF NOT EXISTS community_digest_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kind TEXT NOT NULL,
+                    started_at TEXT NOT NULL,
+                    finished_at TEXT,
+                    ok INTEGER,
+                    items_fetched INTEGER,
+                    items_posted INTEGER,
+                    error TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_cdigest_kind
+                    ON community_digest_runs(kind, id);
                 """
             )
+            # Column migrations for tables that predate Community v2 —
+            # CREATE IF NOT EXISTS never adds columns to an existing table
+            # (mirrors the AsclepiusStore ``cols()`` migration pattern).
+            def cols(table: str) -> set:
+                return {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+            ch_cols = cols("community_channels")
+            if "specialty" not in ch_cols:
+                conn.execute("ALTER TABLE community_channels ADD COLUMN specialty TEXT")
+            if "grp" not in ch_cols:
+                conn.execute(
+                    "ALTER TABLE community_channels ADD COLUMN grp TEXT NOT NULL DEFAULT 'core'"
+                )
+            if "is_active" not in ch_cols:
+                conn.execute(
+                    "ALTER TABLE community_channels ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"
+                )
+            if "kind" not in cols("community_messages"):
+                conn.execute("ALTER TABLE community_messages ADD COLUMN kind TEXT")
 
     # ─── Channels ─────────────────────────────────────────────────────────────
     def ensure_default_channels(self) -> None:
-        """Idempotently seed the fixed v1 channels (PRD §3)."""
+        """Idempotently seed the fixed channels (PRD §3 + Community v2): the
+        core set plus one channel per enabled specialty. A slug removed from
+        the config is DEACTIVATED, never deleted — its history stays in the DB
+        and moderation/audit paths can still resolve it."""
+        seeded = DEFAULT_CHANNELS + specialty_channel_defs()
         with self._conn() as conn:
-            for pos, ch in enumerate(DEFAULT_CHANNELS):
+            for pos, ch in enumerate(seeded):
                 conn.execute(
                     """
-                    INSERT INTO community_channels (id, slug, name, description, post_policy, position, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO community_channels
+                        (id, slug, name, description, post_policy, position,
+                         specialty, grp, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                     ON CONFLICT(slug) DO UPDATE SET
                         name = excluded.name,
                         description = excluded.description,
                         post_policy = excluded.post_policy,
-                        position = excluded.position
+                        position = excluded.position,
+                        specialty = excluded.specialty,
+                        grp = excluded.grp,
+                        is_active = 1
                     """,
                     (
                         "ch-" + uuid.uuid4().hex[:12],
@@ -181,16 +297,34 @@ class CommunityStore:
                         ch["description"],
                         ch["post_policy"],
                         pos,
+                        ch.get("specialty"),
+                        ch.get("grp") or "core",
                         _utcnow_iso(),
                     ),
                 )
+            qmarks = ",".join("?" * len(seeded))
+            conn.execute(
+                f"UPDATE community_channels SET is_active = 0 WHERE slug NOT IN ({qmarks})",
+                [ch["slug"] for ch in seeded],
+            )
 
-    def list_channels(self) -> List[Dict[str, Any]]:
+    def list_channels(self, *, include_inactive: bool = False) -> List[Dict[str, Any]]:
+        where = "" if include_inactive else "WHERE is_active = 1"
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM community_channels ORDER BY position ASC"
+                f"SELECT * FROM community_channels {where} ORDER BY position ASC"
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def channel_has_messages(self, channel_id: str) -> bool:
+        """Cheap EXISTS probe — powers sticky activation (a specialty channel
+        with history never disappears when membership dips below threshold)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM community_messages WHERE channel_id = ? AND deleted_at IS NULL LIMIT 1",
+                (channel_id,),
+            ).fetchone()
+        return bool(row)
 
     def get_channel_by_slug(self, slug: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
@@ -209,6 +343,7 @@ class CommunityStore:
         parent_message_id: Optional[int] = None,
         mentions: Optional[List[str]] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
+        kind: Optional[str] = None,
     ) -> Dict[str, Any]:
         now = _utcnow_iso()
         with self._conn() as conn:
@@ -216,8 +351,8 @@ class CommunityStore:
                 """
                 INSERT INTO community_messages
                     (channel_id, author_user_id, parent_message_id, body,
-                     mentions_json, attachments_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                     mentions_json, attachments_json, kind, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     channel_id,
@@ -226,6 +361,7 @@ class CommunityStore:
                     body,
                     json.dumps(mentions or []),
                     "[]",
+                    kind,
                     now,
                 ),
             )
@@ -452,9 +588,15 @@ class CommunityStore:
             ).fetchall()
         return {r["channel_id"]: int(r["last_read_message_id"]) for r in rows}
 
-    def unread_counts(self, user_id: str) -> Dict[str, Dict[str, int]]:
+    def unread_counts(
+        self, user_id: str, *, channels: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Dict[str, int]]:
         """Per-channel ``{unread, mentions}`` — TOP-LEVEL messages past the
         read cursor, authored by someone else, not deleted.
+
+        ``channels`` lets the caller pass an already-visibility-filtered list
+        (Community v2 threshold gating) so a hidden channel never contributes
+        to a badge; default remains every active channel.
 
         Top-level only, deliberately: the read cursor advances via top-level
         message ids, so counting thread replies would strand a badge no read
@@ -468,7 +610,7 @@ class CommunityStore:
                 .replace("_", "\\_") + '"%')
         out: Dict[str, Dict[str, int]] = {}
         with self._conn() as conn:
-            for ch in self.list_channels():
+            for ch in (channels if channels is not None else self.list_channels()):
                 last = cursors.get(ch["id"], 0)
                 row = conn.execute(
                     """
@@ -676,19 +818,153 @@ class CommunityStore:
             ).fetchone()
         return int(row["n"] or 0)
 
-    def flagged_users(self, *, threshold: int) -> List[Dict[str, Any]]:
+    def flagged_users(self, *, threshold: int,
+                      exclude_user_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """Users whose lifetime block count meets the admin-flag threshold
-        (PRD §7.5). Counts only — never content."""
+        (PRD §7.5). Counts only — never content. ``exclude_user_ids`` keeps
+        non-member authors (the system bot) off the moderation surface — its
+        blocks are surfaced through the digest-run ledger instead."""
+        excl = list(exclude_user_ids or [])
+        qmarks = ",".join("?" * len(excl)) or "''"
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last_at "
-                "FROM community_block_events GROUP BY user_id HAVING n >= ? ORDER BY n DESC",
-                (max(1, int(threshold)),),
+                f"SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last_at "
+                f"FROM community_block_events WHERE user_id NOT IN ({qmarks}) "
+                f"GROUP BY user_id HAVING n >= ? ORDER BY n DESC",
+                (*excl, max(1, int(threshold))),
             ).fetchall()
         return [
             {"user_id": r["user_id"], "block_count": int(r["n"]), "last_block_at": r["last_at"]}
             for r in rows
         ]
+
+    # ─── Content items (Community v2 — #medical-ai-news digest pipeline) ──────
+    def upsert_content_items(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Insert fetched items, deduplicating persistently: an item whose
+        ``url_norm`` already exists is skipped (UNIQUE), and so is one whose
+        ``title_norm`` matches any row fetched in the last 14 days (the same
+        story syndicated under a different URL). Returns the FRESH rows only."""
+        fresh: List[Dict[str, Any]] = []
+        now = _utcnow_iso()
+        # Cutoff computed in Python so the comparison is same-format ISO-Z
+        # against ``fetched_at`` (sqlite datetime('now') renders without the
+        # 'T'/'Z' and breaks lexicographic comparison at the boundary).
+        title_cutoff = (datetime.utcnow() - timedelta(days=14)) \
+            .replace(microsecond=0).isoformat() + "Z"
+        with self._conn() as conn:
+            for it in items:
+                dup = conn.execute(
+                    "SELECT 1 FROM community_content_items "
+                    "WHERE title_norm = ? AND fetched_at >= ? LIMIT 1",
+                    (it["title_norm"], title_cutoff),
+                ).fetchone()
+                if dup:
+                    continue
+                cur = conn.execute(
+                    """
+                    INSERT INTO community_content_items
+                        (source, external_id, url, url_norm, title, title_norm,
+                         published_at, abstract, status, fetched_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)
+                    ON CONFLICT(url_norm) DO NOTHING
+                    """,
+                    (
+                        it["source"], it.get("external_id"), it["url"], it["url_norm"],
+                        it["title"], it["title_norm"], it.get("published_at"),
+                        it.get("abstract"), now,
+                    ),
+                )
+                if cur.rowcount:
+                    fresh.append({**it, "id": cur.lastrowid})
+        return fresh
+
+    def new_content_items(self, *, max_age_days: int = 3) -> List[Dict[str, Any]]:
+        """All ``status='new'`` items fetched within the window — a failed run
+        leaves its items 'new', and the next run MUST pick them up (otherwise
+        that day's stories are silently dropped forever and the retry records
+        a hollow ok run)."""
+        cutoff = (datetime.utcnow() - timedelta(days=max(1, int(max_age_days)))) \
+            .replace(microsecond=0).isoformat() + "Z"
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM community_content_items WHERE status = 'new' "
+                "AND fetched_at >= ? ORDER BY id ASC",
+                (cutoff,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def mark_content_items(
+        self, ids: List[int], *, status: str, posted_message_id: Optional[int] = None,
+        summaries: Optional[Dict[int, Dict[str, Any]]] = None,
+    ) -> None:
+        if not ids:
+            return
+        with self._conn() as conn:
+            for iid in ids:
+                s = (summaries or {}).get(iid) or {}
+                conn.execute(
+                    "UPDATE community_content_items SET status = ?, posted_message_id = ?, "
+                    "summary = COALESCE(?, summary), relevance = COALESCE(?, relevance) "
+                    "WHERE id = ?",
+                    (status, posted_message_id, s.get("summary"), s.get("relevance"), iid),
+                )
+
+    # ─── Digest runs (three-outcome: ok NULL=running / 1 / 0) ─────────────────
+    def start_digest_run(self, kind: str) -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO community_digest_runs (kind, started_at) VALUES (?, ?)",
+                (kind, _utcnow_iso()),
+            )
+            return int(cur.lastrowid)
+
+    def finish_digest_run(
+        self, run_id: int, *, ok: bool, items_fetched: int = 0,
+        items_posted: int = 0, error: Optional[str] = None,
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE community_digest_runs SET finished_at = ?, ok = ?, "
+                "items_fetched = ?, items_posted = ?, error = ? WHERE id = ?",
+                (_utcnow_iso(), 1 if ok else 0, items_fetched, items_posted,
+                 (error or None), run_id),
+            )
+
+    def last_successful_run_at(self, kind: str) -> Optional[str]:
+        """Started-at of the newest ok run — the restart-safe schedule marker."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT started_at FROM community_digest_runs "
+                "WHERE kind = ? AND ok = 1 ORDER BY id DESC LIMIT 1",
+                (kind,),
+            ).fetchone()
+        return row["started_at"] if row else None
+
+    def last_run_attempt_at(self, kind: str) -> Optional[str]:
+        """Started-at of the newest run of ANY outcome — drives the scheduler's
+        failure backoff (a failing digest must not retry every tick all day)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT started_at FROM community_digest_runs "
+                "WHERE kind = ? ORDER BY id DESC LIMIT 1",
+                (kind,),
+            ).fetchone()
+        return row["started_at"] if row else None
+
+    def consecutive_digest_failures(self, kind: str) -> int:
+        """Failed runs since the last success (running rows ignored)."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT ok FROM community_digest_runs WHERE kind = ? AND ok IS NOT NULL "
+                "ORDER BY id DESC LIMIT 10",
+                (kind,),
+            ).fetchall()
+        n = 0
+        for r in rows:
+            if int(r["ok"] or 0) == 1:
+                break
+            n += 1
+        return n
 
 
 # ─── Process-wide singleton ───────────────────────────────────────────────────

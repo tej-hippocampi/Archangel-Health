@@ -1,0 +1,341 @@
+"""#medical-ai-news digest pipeline (Community v2).
+
+fetch → keyword filter → persistent dedup → two-pass LLM curation → one
+system post. Digest, never firehose: at most ``COMMUNITY_DIGEST_MAX_ITEMS``
+stories per post, one post per run, and a run that finds nothing fresh posts
+NOTHING (an empty digest is worse than no digest).
+
+Two kinds share the machinery:
+  * ``news``   — reporter RSS sources; scheduled daily.
+  * ``papers`` — PubMed + arXiv + medRxiv; scheduled weekly.
+
+Failure policy: every run is recorded in ``community_digest_runs``
+(three-outcome ``ok``: NULL running / 1 / 0); a failed source is skipped
+(feeds.py), a failed LLM parse posts nothing and fails the run, and the
+scheduler loop can never crash. Three consecutive failures of a kind logs a
+grep-able ``ADMIN ATTENTION`` line.
+
+The scheduled loop ships OFF (``COMMUNITY_NEWS_ENABLED=1`` opts in); the
+internal trigger endpoint fires a run on demand either way.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
+from community import feeds
+from community.store import get_community_store
+from community.system_posts import post_system_message
+
+log = logging.getLogger("community.digest")
+
+DIGEST_CHANNEL = "medical-ai-news"
+
+_DEFAULT_KEYWORDS = [
+    "ai", "artificial intelligence", "machine learning", "deep learning",
+    "llm", "large language model", "foundation model", "neural network",
+    "clinical decision support", "medical imaging", "algorithm",
+    "chatgpt", "gpt", "claude", "gemini", "openai", "anthropic",
+]
+
+
+def _int_env(name: str, default: int, floor: int = 1) -> int:
+    try:
+        return max(floor, int(os.getenv(name, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+def max_items() -> int:
+    return _int_env("COMMUNITY_DIGEST_MAX_ITEMS", 15)
+
+
+def max_tokens() -> int:
+    return _int_env("COMMUNITY_DIGEST_MAX_TOKENS", 1200, floor=200)
+
+
+def keywords() -> List[str]:
+    raw = (os.getenv("COMMUNITY_NEWS_KEYWORDS") or "").strip()
+    if not raw:
+        return list(_DEFAULT_KEYWORDS)
+    return [k.strip().lower() for k in raw.split(",") if k.strip()] or list(_DEFAULT_KEYWORDS)
+
+
+def _keyword_filter(items: List[Dict[str, Any]], *, require: bool) -> List[Dict[str, Any]]:
+    """Keep items whose title/abstract hits a keyword. Paper sources are
+    already query-constrained to medical-AI, so they skip the filter
+    (``require=False``); the general reporter feeds must hit."""
+    if not require:
+        return items
+    kws = keywords()
+    out = []
+    for it in items:
+        hay = ((it.get("title") or "") + " " + (it.get("abstract") or "")).lower()
+        if any(k in hay for k in kws):
+            out.append(it)
+    return out
+
+
+# ─── LLM curation (two passes, both size-capped) ──────────────────────────────
+_SELECT_SYSTEM = (
+    "You curate a news digest for a private community of verified physicians who do "
+    "paid AI-evaluation work. Judge each candidate item strictly on relevance to AI in "
+    "medicine (models, evals, regulation, deployments, research). Return ONLY a JSON "
+    "object: {\"items\": [{\"id\": <int>, \"keep\": <bool>, \"relevance\": <0..1>, "
+    "\"one_liner\": \"<=25 words, factual, no hype — say what happened, never invent\"}]}. "
+    "Every input id must appear exactly once. Do not add fields or prose."
+)
+
+_COMPOSE_SYSTEM = (
+    "You write the digest post for #medical-ai-news in a physicians' community. "
+    "Input: a JSON list of kept items (title, url, one_liner, source). Output: the post "
+    "body ONLY, markdown-lite (no HTML): start with one bold header line naming the "
+    "digest (e.g. **Medical AI Digest** or **Papers of the Week**) — NO calendar date "
+    "in the header or anywhere else (the platform timestamps the post; full dates "
+    "false-trip the clinical PHI filter), rephrase any full date in a one_liner to "
+    "month-year or 'this week'. Then group items under 2-4 bold section lines (e.g. "
+    "**Research**, **Industry & deployment**, **Regulation**), each item exactly one "
+    "bullet: \"- [title](url) — one_liner\". If two items cover the same story, keep "
+    "one bullet and fold the second link in as \"(also: [source](url))\". No intro "
+    "paragraph, no sign-off, no invented facts, no items beyond the input."
+)
+
+
+async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str], Dict[int, Dict[str, Any]]]:
+    """Two LLM passes. Returns ``(post_body | None, {item_id: {summary, relevance}})``.
+    ``None`` body = nothing worth posting (a valid quiet day). A parse failure
+    RAISES — the caller records the run as failed and posts nothing."""
+    from ai.llm_client import call_llm, first_text  # noqa: PLC0415
+    from asclepius.model_sampling import extract_json  # noqa: PLC0415
+
+    capped = items[: max_items() * 2]  # give the selector some slack to cut
+    lines = [
+        {"id": it["id"], "title": it["title"], "source": it["source"],
+         "snippet": (it.get("abstract") or "")[:400]}
+        for it in capped
+    ]
+    import json as _json  # noqa: PLC0415
+
+    resp, _meta = await call_llm(
+        role="community_digest",
+        system=_SELECT_SYSTEM,
+        messages=[{"role": "user", "content": _json.dumps({"items": lines})}],
+        prompt_id=f"community_digest_select_{kind}",
+        purpose="community news digest — select/score items",
+        temperature=0.2,
+    )
+    parsed = extract_json(first_text(resp))
+    rows = (parsed or {}).get("items")
+    if not isinstance(rows, list):
+        raise ValueError("digest select pass returned unparseable JSON")
+
+    by_id = {it["id"]: it for it in capped}
+    kept: List[Dict[str, Any]] = []
+    summaries: Dict[int, Dict[str, Any]] = {}
+    for r in rows:
+        try:
+            iid = int(r.get("id"))
+        except (TypeError, ValueError):
+            continue
+        if iid not in by_id or iid in summaries:
+            continue  # unknown or repeated id — never a duplicate bullet
+        summaries[iid] = {
+            "summary": (r.get("one_liner") or "").strip()[:300] or None,
+            "relevance": float(r.get("relevance") or 0.0),
+        }
+        if r.get("keep"):
+            kept.append({**by_id[iid], **summaries[iid]})
+    kept.sort(key=lambda x: -(x.get("relevance") or 0.0))
+    kept = kept[: max_items()]
+    if not kept:
+        return None, summaries
+
+    compose_input = [
+        {"title": k["title"], "url": k["url"],
+         "one_liner": k.get("summary") or "", "source": k["source"]}
+        for k in kept
+    ]
+    resp2, _meta2 = await call_llm(
+        role="community_digest",
+        system=_COMPOSE_SYSTEM,
+        messages=[{"role": "user", "content": _json.dumps(
+            {"digest_kind": kind, "items": compose_input})}],
+        prompt_id=f"community_digest_compose_{kind}",
+        purpose="community news digest — compose post",
+        temperature=0.2,
+        max_tokens=max_tokens(),
+    )
+    body = (first_text(resp2) or "").strip()
+    if not body:
+        raise ValueError("digest compose pass returned empty text")
+    # mark kept for the caller
+    for k in kept:
+        summaries[k["id"]]["kept"] = True
+    return body, summaries
+
+
+async def _fetch(kind: str) -> List[Dict[str, Any]]:
+    if kind == "papers":
+        # Fetchers already skip-and-log internally; return_exceptions is the
+        # second belt — one source raising unexpectedly never kills the run.
+        batches = await asyncio.gather(
+            feeds.fetch_pubmed(days=7), feeds.fetch_arxiv(days=7), feeds.fetch_medrxiv(days=7),
+            return_exceptions=True,
+        )
+        items = []
+        for b in batches:
+            if isinstance(b, list):
+                items.extend(b)
+            elif isinstance(b, BaseException):
+                log.warning("[digest] paper source raised — skipped: %s", b)
+        return _keyword_filter(items, require=False)
+    items = await feeds.fetch_rss()
+    return _keyword_filter(items, require=True)
+
+
+async def run_digest(kind: str) -> Dict[str, Any]:
+    """One full digest run. Never raises — the outcome lands in
+    ``community_digest_runs`` and the returned summary dict."""
+    if kind not in ("news", "papers"):
+        return {"ok": False, "error": f"unknown digest kind {kind!r}"}
+    cstore = get_community_store()
+    run_id = cstore.start_digest_run(kind)
+    fetched = 0
+    try:
+        items = await _fetch(kind)
+        fetched = len(items)
+        cstore.upsert_content_items(items)
+        # Candidates = every recent still-'new' row for this kind — including
+        # items STRANDED by a previously failed run. Without this, a failed
+        # day's stories are deduped into oblivion and the retry records a
+        # hollow ok run (review finding).
+        prefixes = ("pubmed", "arxiv", "medrxiv") if kind == "papers" else ("rss:",)
+        fresh = [it for it in cstore.new_content_items(max_age_days=3)
+                 if str(it.get("source") or "").startswith(prefixes)]
+        if not fresh:
+            cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched, items_posted=0)
+            log.info("[digest] %s run: nothing fresh (%d fetched) — no post", kind, fetched)
+            return {"ok": True, "kind": kind, "fetched": fetched, "fresh": 0, "posted": 0}
+
+        body, summaries = await _curate(kind, fresh)
+        if body is None:
+            # Fresh items, none worth keeping — a valid quiet day.
+            cstore.mark_content_items(
+                [it["id"] for it in fresh], status="skipped", summaries=summaries)
+            cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched, items_posted=0)
+            log.info("[digest] %s run: %d fresh, none kept — no post", kind, len(fresh))
+            return {"ok": True, "kind": kind, "fetched": fetched,
+                    "fresh": len(fresh), "posted": 0}
+
+        posted = await post_system_message(
+            channel_slug=DIGEST_CHANNEL, body=body,
+            kind=("digest_papers" if kind == "papers" else "digest_news"),
+        )
+        if posted is None:
+            raise RuntimeError("system post was skipped (channel or PHI gate)")
+
+        kept_ids = [iid for iid, s in summaries.items() if s.get("kept")]
+        other_ids = [it["id"] for it in fresh if it["id"] not in set(kept_ids)]
+        cstore.mark_content_items(kept_ids, status="posted",
+                                  posted_message_id=posted["id"], summaries=summaries)
+        cstore.mark_content_items(other_ids, status="skipped", summaries=summaries)
+        cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched,
+                                 items_posted=len(kept_ids))
+        log.info("[digest] %s run: posted %d of %d fresh (message %s)",
+                 kind, len(kept_ids), len(fresh), posted["id"])
+        return {"ok": True, "kind": kind, "fetched": fetched, "fresh": len(fresh),
+                "posted": len(kept_ids), "message_id": posted["id"]}
+    except Exception as exc:
+        cstore.finish_digest_run(run_id, ok=False, items_fetched=fetched,
+                                 error=str(exc)[:500])
+        log.warning("[digest] %s run failed: %s", kind, exc, exc_info=True)
+        fails = cstore.consecutive_digest_failures(kind)
+        if fails >= 3:
+            log.error("[digest] ADMIN ATTENTION: %s digest has failed %d consecutive runs",
+                      kind, fails)
+        return {"ok": False, "kind": kind, "error": str(exc)[:500]}
+
+
+# ─── Scheduler (in-process, restart-safe, OFF by default) ─────────────────────
+def news_enabled() -> bool:
+    return (os.getenv("COMMUNITY_NEWS_ENABLED") or "0").strip() == "1"
+
+
+def _news_hour_utc() -> int:
+    return min(23, _int_env("COMMUNITY_DIGEST_NEWS_HOUR_UTC", 13, floor=0))
+
+
+def _papers_dow() -> int:  # 0 = Monday (Python weekday)
+    return min(6, _int_env("COMMUNITY_DIGEST_PAPERS_DOW", 0, floor=0))
+
+
+def _due(kind: str, now: datetime, last_ok_started: Optional[str]) -> bool:
+    """Due when past today's fire time and the newest successful run started
+    before it. Derived from ``community_digest_runs`` — restarts cannot
+    double-post."""
+    if now.hour < _news_hour_utc():
+        return False
+    if kind == "papers" and now.weekday() != _papers_dow():
+        return False
+    fire_at = now.replace(hour=_news_hour_utc(), minute=0, second=0, microsecond=0)
+    if not last_ok_started:
+        return True
+    try:
+        last = datetime.fromisoformat(last_ok_started.rstrip("Z"))
+    except ValueError:
+        return True
+    return last < fire_at
+
+
+_loop_task: Optional[asyncio.Task] = None
+_TICK_SEC = 900  # 15 min
+
+
+def start_content_loop() -> None:
+    """Start (once) the digest scheduler. Called from app startup ONLY when
+    ``COMMUNITY_NEWS_ENABLED=1``."""
+    global _loop_task
+    if _loop_task is not None and not _loop_task.done():
+        return
+
+    async def _run() -> None:
+        while True:
+            await asyncio.sleep(_TICK_SEC)
+            try:
+                cstore = get_community_store()
+                now = datetime.utcnow()
+                for kind in ("news", "papers"):
+                    if not _due(kind, now, cstore.last_successful_run_at(kind)):
+                        continue
+                    # Failure backoff: after a failed attempt, wait 2h before
+                    # retrying (not every tick) — an all-day-broken source or a
+                    # missing API key must not hammer the LLM 40× a day. The
+                    # manual trigger bypasses this deliberately.
+                    last_try = cstore.last_run_attempt_at(kind)
+                    if last_try:
+                        try:
+                            since = (now - datetime.fromisoformat(
+                                last_try.rstrip("Z"))).total_seconds()
+                        except ValueError:
+                            since = None
+                        if since is not None and since < 7200 and \
+                                cstore.consecutive_digest_failures(kind) > 0:
+                            continue
+                    await run_digest(kind)
+            except Exception:  # pragma: no cover — the loop must survive
+                log.warning("[digest] scheduler tick failed", exc_info=True)
+
+    _loop_task = asyncio.get_running_loop().create_task(_run())
+    log.info("[digest] content loop started (news daily %02d:00 UTC, papers weekly dow=%d)",
+             _news_hour_utc(), _papers_dow())
+
+
+def stop_content_loop() -> None:
+    global _loop_task
+    if _loop_task is not None:
+        _loop_task.cancel()
+        _loop_task = None

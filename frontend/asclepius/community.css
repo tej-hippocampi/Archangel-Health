@@ -724,6 +724,35 @@
   .cm-search { width: 150px; }
 }
 
+/* ─── Community v2: bot author + system message kinds ───────────────────── */
+.cm-bot-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 0.575rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--green-deep);
+  background: var(--green-wash);
+  padding: 1px 6px;
+  border-radius: var(--r-chip);
+  border: 1px solid var(--hairline);
+}
+/* Digest posts read as a card: the bot's roundup is content, not chatter. */
+.cm-msg-digest .cm-msg-body {
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--green-wash) 24%, transparent);
+}
+.cm-msg-digest .cm-msg-body ul { margin: 0.35em 0; padding-left: 1.1em; }
+.cm-msg-digest .cm-msg-body li { margin: 0.3em 0; }
+/* Welcomes get a soft accent spine — a human moment, lightly marked. */
+.cm-msg-welcome .cm-msg-body {
+  border-left: 2px solid var(--green);
+  padding-left: 10px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cm-side { transition: none; }
 }
