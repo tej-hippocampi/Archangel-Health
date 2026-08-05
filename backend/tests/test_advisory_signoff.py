@@ -253,6 +253,73 @@ def test_a_quarantined_case_body_never_reaches_an_advisor():
     assert "CKD stage 3" in raw, "the de-identified case body should still be served"
 
 
+def test_a_body_with_identifiers_is_withheld_even_when_its_status_says_clean():
+    """Defence in depth behind the status whitelist.
+
+    The whitelist is only as true as an invariant held by convention across four
+    call sites in two files — "nothing sets 'ingested' without also writing a
+    de-identified body". That holds today. C1 was precisely a false assumption
+    about de-identification, so the bytes about to be served are re-scanned with
+    the same verifier the ingest pipeline uses, and a flagged body is withheld
+    no matter what its status claims.
+    """
+    store = asc_store.get_store()
+    advisor = _advisor()
+    upload = store.insert_ingest_upload(
+        link_id="lnk-d", partner_id="hospital-a", filename="b.zip",
+        sha256=None, size_bytes=None, raw_path="/tmp/r.zip", source_ip=None)
+    uid = upload["upload_id"]
+    ic = store.insert_ingest_case(
+        upload_id=uid, patient_key="pk", specialty="nephrology",
+        case={"patient_name": "ZZTOP SENTINEL", "mrn": "99887766",
+              "dob": "1961-03-14"},
+        status="quarantined", report={})
+
+    def _case_row():
+        r = client.get(f"/api/asclepius/advisor/artifacts/inbound_upload/{uid}",
+                       headers=A.headers_for(advisor))
+        assert r.status_code == 200
+        return json.dumps(r.json()), r.json()["cases"][0]
+
+    # Every status, including the ones the whitelist trusts.
+    for status in ("quarantined", "rejected", "needs_review", "promoted", "ingested"):
+        store.update_ingest_case(ic["ingest_case_id"], status=status)
+        raw, row = _case_row()
+        assert "ZZTOP SENTINEL" not in raw, f"PHI leaked at status={status}"
+        assert row["body_withheld"] is True
+
+    # And a genuinely de-identified body is still SHOWN — withholding
+    # everything would be safe and useless.
+    store.update_ingest_case(ic["ingest_case_id"], status="ingested",
+                             case_json={"presentation": "CKD stage 3, creatinine rising"})
+    raw, row = _case_row()
+    assert row["body_withheld"] is False
+    assert "CKD stage 3" in raw
+
+
+def test_the_hospital_supplied_filename_never_reaches_an_advisor():
+    """A bundle's filename is chosen by the sending institution and is
+    uncontrolled free text — "SMITH_JOHN_2024.zip" and "MRN88213347.zip" are
+    both realistic. Same leak class as the quarantined body, through a smaller
+    door, and unsanitizable because it may simply BE a patient name."""
+    store = asc_store.get_store()
+    advisor = _advisor()
+    upload = store.insert_ingest_upload(
+        link_id="lnk-fn", partner_id="hospital-a",
+        filename="SMITH_JOHN_MRN88213347_2024.zip",
+        sha256=None, size_bytes=None, raw_path="/tmp/r.zip", source_ip=None)
+    uid = upload["upload_id"]
+    store.insert_ingest_case(
+        upload_id=uid, patient_key="pk", specialty="nephrology",
+        case={"presentation": "CKD"}, status="ingested", report={})
+
+    for path in (f"/api/asclepius/advisor/artifacts/inbound_upload/{uid}",
+                 "/api/asclepius/advisor/queue"):
+        raw = json.dumps(client.get(path, headers=A.headers_for(advisor)).json())
+        assert "SMITH_JOHN" not in raw, f"{path} leaked the uploaded filename"
+        assert "88213347" not in raw
+
+
 def test_the_quarantine_reason_is_scrubbed_before_an_advisor_sees_it():
     """``report['quarantine_reason']`` is ``str(exc)`` and the exception text
     quotes the tokens that caused the failure — which for a de-id flag are the
@@ -371,24 +438,40 @@ def test_an_advisor_reviewing_a_submission_still_sees_no_labeler_identity():
 
 
 # ═══ Nothing blocks ══════════════════════════════════════════════════════════
-def test_an_export_ships_with_no_signoff_and_there_is_no_gate_to_turn_on():
-    """§4.4 as amended: sign-off is recorded and surfaced, never blocking. One
-    advisor with a day job must not sit on the revenue path."""
-    import asclepius.export as asc_export
-    import routers.asclepius_advisor as advisor_router
-    import asclepius.store as store_mod
+def test_an_outstanding_changes_requested_never_blocks_an_export():
+    """§4.4 as amended by an explicit founder decision: sign-off is recorded and
+    surfaced, never blocking. One advisor with a day job must not sit on the
+    revenue path.
 
-    # There is no env flag, in any of the three places one could hide.
-    for module in (asc_export, advisor_router, store_mod):
-        src = Path(module.__file__).read_text(encoding="utf-8")
-        assert "REQUIRE_ADVISOR_SIGNOFF" not in src, (
-            f"{module.__name__} carries a blocking flag — sign-off never blocks")
-
+    This asserts the BEHAVIOUR — an export with an open ``changes_requested``
+    against it still builds and still downloads. It deliberately does NOT assert
+    that some flag name is absent from the source, which is what this test used
+    to do (audit M8): forbidding an identifier stops a future, deliberate
+    opt-in gate from ever being written, and a guard should pin the decision
+    that was made, not outlaw the one that wasn't.
+    """
+    store = asc_store.get_store()
     admin_h = A.headers_for(_admin())
+    advisor = _advisor()
+
+    export_id = f"exp-{uuid.uuid4().hex[:8]}"
+    store.insert_export(export_id=export_id, created_by="admin@x", record_count=3,
+                        filters={}, dir_path="", manifest={"profile": "default"})
+    r = _signoff(advisor, "export_bundle", export_id, "changes_requested",
+                 "The data dictionary omits renal dosing units.")
+    assert r.status_code == 200
+    assert r.json()["blocking"] is False
+    assert store.get_export(export_id)["signoff_status"] == "changes_requested"
+
+    # The objection is recorded and visible — and the export is untouched by it.
+    assert store.get_export(export_id) is not None
+    listed = client.get("/api/asclepius/exports", headers=admin_h)
+    assert listed.status_code == 200
+    assert export_id in listed.text
+
+    # And building a NEW export is not gated by any outstanding verdict either.
     r = client.post("/api/asclepius/exports", json={"profile": "default"},
                     headers=admin_h)
-    # A build with no eligible records is a legitimate outcome; a 4xx that
-    # mentions sign-off is not.
     assert "signoff" not in r.text.lower()
     assert "sign-off" not in r.text.lower()
 
@@ -423,6 +506,129 @@ def test_a_verdict_is_mirrored_onto_the_artifact_for_the_admin_list():
     assert body["count"] == 1
     assert body["signoffs"][0]["relationship"] == "advisor_equity"
     assert body["signoffs"][0]["advisor_name"]
+
+
+def test_an_approval_cannot_erase_an_outstanding_changes_requested():
+    """Audit M2: the mirrored status was last-write-wins.
+
+    With two advisors, one approving after another requested changes flipped the
+    field an operator reads before shipping from 'changes_requested' to
+    'approved'. Both rows always survived in ``advisory_signoffs``, so the
+    evidence was never lost — but the summary said the opposite of the evidence,
+    which is worse than saying nothing. ``created_at`` is second-granularity, so
+    "most recent" is not even well-defined for same-second writes.
+    """
+    store = asc_store.get_store()
+    a, b = _advisor(), _advisor()
+    upload = store.insert_ingest_upload(
+        link_id="lnk-m2", partner_id="hospital-a", filename="b.zip",
+        sha256=None, size_bytes=None, raw_path="/tmp/b.zip", source_ip=None)
+    uid = upload["upload_id"]
+
+    assert _signoff(a, "inbound_upload", uid, "changes_requested",
+                    "Two cases still carry a date of service.").status_code == 200
+    assert store.get_ingest_upload(uid)["signoff_status"] == "changes_requested"
+
+    # A second advisor approves. The objection must NOT disappear.
+    assert _signoff(b, "inbound_upload", uid, "approved").status_code == 200
+    assert store.get_ingest_upload(uid)["signoff_status"] == "changes_requested", (
+        "an approval erased an outstanding changes_requested from the field an "
+        "operator reads before shipping")
+
+    summary = store.signoff_summary("inbound_upload", [uid])[uid]
+    assert summary["n"] == 2
+    assert summary["verdict"] == "changes_requested"
+    assert sorted(summary["verdicts"]) == ["approved", "changes_requested"]
+
+
+def test_a_task_batch_signoff_records_what_was_actually_signed():
+    """Audit M3: a task_batch id is DERIVED (``specialty:YYYY-MM-DD`` over open
+    tasks), so its membership changes after the attestation — tasks generated
+    later the same day joined the batch and inherited an approval nobody gave
+    them. An attestation whose subject cannot be reconstructed is not one."""
+    store = asc_store.get_store()
+    advisor = _advisor()
+    for _ in range(3):
+        store.insert_task(prompt="case", specialty="nephrology",
+                          candidate_answers=[{"id": "A", "text": "a"},
+                                             {"id": "B", "text": "b"}])
+    queue = client.get("/api/asclepius/advisor/queue",
+                       headers=A.headers_for(advisor)).json()
+    batch = queue["queue"]["task_batch"][0]
+    key = batch["batch_key"]
+    assert batch["n_tasks"] == 3
+
+    r = _signoff(advisor, "task_batch", key, "approved")
+    assert r.status_code == 200, r.text
+    signoff = r.json()["signoff"]
+    assert signoff["subject_n"] == 3
+    assert len(signoff["subject_ids"]) == 3
+    signed_ids = set(signoff["subject_ids"])
+
+    # A task generated afterwards joins the derived key but must NOT be inside
+    # the attestation that already happened.
+    later = store.insert_task(prompt="later case", specialty="nephrology",
+                              candidate_answers=[{"id": "A", "text": "a"},
+                                                 {"id": "B", "text": "b"}])
+    stored = store.list_advisory_signoffs(artifact_type="task_batch", artifact_id=key)[0]
+    assert set(stored["subject_ids"]) == signed_ids
+    assert later["task_id"] not in stored["subject_ids"], (
+        "a task created after the sign-off inherited the approval")
+
+
+def test_the_batch_count_and_the_batch_view_agree():
+    """Audit M3: the queue counted with one cap and the artifact view showed
+    another, so the same batch was two different sizes depending on the screen —
+    a way to make a reviewer confident about something they did not see."""
+    store = asc_store.get_store()
+    advisor = _advisor()
+    for _ in range(7):
+        store.insert_task(prompt="case", specialty="cardiology",
+                          candidate_answers=[{"id": "A", "text": "a"},
+                                             {"id": "B", "text": "b"}])
+    queue = client.get("/api/asclepius/advisor/queue",
+                       headers=A.headers_for(advisor)).json()
+    batch = next(b for b in queue["queue"]["task_batch"]
+                 if b["specialty"] == "cardiology")
+    view = client.get(
+        f"/api/asclepius/advisor/artifacts/task_batch/{batch['batch_key']}",
+        headers=A.headers_for(advisor)).json()
+    assert batch["n_tasks"] == view["n_tasks"] == 7
+    assert view["truncated"] is False
+
+
+def test_the_same_advisor_resubmitting_an_identical_verdict_is_idempotent():
+    """Audit L2: a double-click produced five identical rows, making the history
+    unreadable and every count wrong. A CHANGED verdict still records — people
+    revise their opinion and the trail should show it."""
+    admin_h = A.headers_for(_admin())
+    advisor = _advisor()
+    spec = _spec(admin_h)
+    for _ in range(4):
+        r = _signoff(advisor, "product_spec", spec["spec_id"], "approved")
+        assert r.status_code == 200
+    rows = asc_store.get_store().list_advisory_signoffs(
+        artifact_type="product_spec", artifact_id=spec["spec_id"])
+    assert len(rows) == 1
+
+    r = _signoff(advisor, "product_spec", spec["spec_id"], "changes_requested",
+                 "On reflection the rubric is too lenient.")
+    assert r.status_code == 200
+    assert r.json().get("duplicate") is not True
+    rows = asc_store.get_store().list_advisory_signoffs(
+        artifact_type="product_spec", artifact_id=spec["spec_id"])
+    assert len(rows) == 2, "a genuine change of opinion was swallowed"
+
+
+def test_worst_verdict_treats_an_unknown_value_as_worst():
+    """An unrecognized verdict is not evidence of approval."""
+    store = asc_store.get_store()
+    assert store.worst_verdict([]) is None
+    assert store.worst_verdict(["approved"]) == "approved"
+    assert store.worst_verdict(["approved", "approved_with_comments"]) == \
+        "approved_with_comments"
+    assert store.worst_verdict(["changes_requested", "approved"]) == "changes_requested"
+    assert store.worst_verdict(["approved", "something_new"]) == "something_new"
 
 
 def test_an_advisor_sees_only_their_own_signoff_history():

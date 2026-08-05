@@ -370,7 +370,10 @@
               h('td', {}, c.specialty || '—'),
               h('td', {}, c.status || '—'),
               h('td', {}, c.body_withheld
-                ? h('span', { class: 'asc-badge asc-badge-amber' }, 'Withheld')
+                ? h('span', { class: 'asc-badge asc-badge-amber' },
+                    c.body_withheld_reason === 'residual_identifiers'
+                      ? 'Withheld · identifiers found'
+                      : 'Withheld')
                 : h('span', { class: 'asc-badge asc-badge-green' }, 'Shown')),
               h('td', {}, findingsText(c.report)));
           })))));

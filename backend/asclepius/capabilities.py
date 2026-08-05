@@ -62,6 +62,15 @@ _BY_TIER: Dict[str, FrozenSet[str]] = {
 }
 
 
+# Roles a TIER can grant capabilities to. A tier is a physician-supply concept;
+# a ``data_partner`` or ``buyer`` row carrying one is meaningless at best and a
+# privilege escalation at worst. ``auth.get_current_user`` already denies both
+# roles the entire evaluator surface, so this is defence in depth (audit L4) —
+# but a capability check that ignores role is one refactor away from being the
+# only check, and it costs nothing to be correct here.
+_CAPABLE_ROLES = frozenset({"evaluator", "admin", "qa_reviewer"})
+
+
 def capabilities(user: Optional[Dict[str, Any]]) -> FrozenSet[str]:
     """What this user's TIER alone permits. NULL tier -> empty set.
 
@@ -70,7 +79,13 @@ def capabilities(user: Optional[Dict[str, Any]]) -> FrozenSet[str]:
     in the tier column, not here. Reads the tier off the user dict only — never
     via SQL — so this is safe to call before any migration has run.
     """
-    return _BY_TIER.get((user or {}).get("tier") or "", frozenset())
+    u = user or {}
+    # A role is only checked when one is present: many call sites pass a bare
+    # ``{"tier": ...}`` and must keep working.
+    role = u.get("role")
+    if role is not None and role not in _CAPABLE_ROLES:
+        return frozenset()
+    return _BY_TIER.get(u.get("tier") or "", frozenset())
 
 
 def can(user: Optional[Dict[str, Any]], capability: str) -> bool:

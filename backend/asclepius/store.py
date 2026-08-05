@@ -1196,6 +1196,17 @@ class AsclepiusStore:
                 )
                 """
             )
+            # What the advisor actually signed off ON (audit M3). A task_batch
+            # id is a DERIVED key (specialty:YYYY-MM-DD over status='open'), so
+            # its membership changes after the fact: tasks generated later the
+            # same day join the batch and silently inherit an approval nobody
+            # gave them. Resolving the member ids at write time makes the
+            # subject of an attestation reconstructible, which is the whole
+            # point of recording one.
+            if "subject_ids" not in cols("advisory_signoffs"):
+                conn.execute("ALTER TABLE advisory_signoffs ADD COLUMN subject_ids TEXT")
+            if "subject_n" not in cols("advisory_signoffs"):
+                conn.execute("ALTER TABLE advisory_signoffs ADD COLUMN subject_n INTEGER")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_signoff_artifact "
                 "ON advisory_signoffs(artifact_type, artifact_id)")
@@ -5362,7 +5373,15 @@ class AsclepiusStore:
     # ─── Appointment ─────────────────────────────────────────────────────────
     def _mint_referral_code(self, conn: sqlite3.Connection) -> str:
         """A short, speakable, collision-checked code. Advisors read these to
-        people over the phone, so no ambiguous glyphs (0/O, 1/I/l)."""
+        people over the phone, so no ambiguous glyphs (0/O, 1/I/l).
+
+        The SELECT is an optimisation, not the guarantee — the partial unique
+        index on ``users(referral_code)`` is (audit L7). Two concurrent
+        appointments could both see a free code and race; the loser used to
+        surface as a 500. Retried here instead, so a race is invisible to the
+        caller rather than an error page on the one action that mints an
+        advisor.
+        """
         alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
         for _ in range(12):
             code = "".join(secrets.choice(alphabet) for _ in range(8))
@@ -5411,6 +5430,28 @@ class AsclepiusStore:
         agreement_ref = (agreement_ref or "").strip()
         if not agreement_ref:
             raise ValueError("appoint_advisor requires a signed agreement reference")
+        # A lost code race is retried rather than surfaced (audit L7): the
+        # unique index is the guarantee, and two admins appointing at the same
+        # moment should not produce a 500 on the action that mints an advisor.
+        for attempt in range(3):
+            try:
+                return self._appoint_advisor_once(
+                    user_id, agreement_ref=agreement_ref, appointed_by=appointed_by,
+                    approve=approve, note=note)
+            except sqlite3.IntegrityError:
+                if attempt == 2:
+                    raise
+        return None  # pragma: no cover - unreachable; the loop returns or raises
+
+    def _appoint_advisor_once(
+        self,
+        user_id: str,
+        *,
+        agreement_ref: str,
+        appointed_by: str,
+        approve: bool = False,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         now = _utcnow_iso()
         with self._conn() as conn:
             row = conn.execute(
@@ -5511,14 +5552,55 @@ class AsclepiusStore:
                 "SELECT * FROM referrals WHERE referral_id = ?", (referral_id,)).fetchone()
         return dict(row) if row else None
 
-    def list_referrals_by_referrer(self, referrer_id: str) -> List[Dict[str, Any]]:
+    def list_referrals_by_referrer(self, referrer_id: str,
+                                   *, limit: int = 500) -> List[Dict[str, Any]]:
         """Every referral THIS advisor made. Scoped by the caller's session id —
-        never by a query parameter (the IDOR rule from the portal work)."""
+        never by a query parameter (the IDOR rule from the portal work).
+
+        Bounded (audit L6): every other list method in this file takes a limit,
+        and an unbounded SELECT on a table that only grows is a slow leak rather
+        than a bug you notice.
+        """
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM referrals WHERE referrer_id = ? ORDER BY invited_at DESC",
-                (referrer_id,)).fetchall()
+                "SELECT * FROM referrals WHERE referrer_id = ? "
+                "ORDER BY invited_at DESC LIMIT ?",
+                (referrer_id, max(1, limit))).fetchall()
         return [dict(r) for r in rows]
+
+    def referral_counts_by_referrer(self, referrer_ids: List[str]) -> Dict[str, Dict[str, int]]:
+        """{referrer_id: {total, active}} for a page of advisors in ONE query.
+
+        The admin roster previously ran two queries per advisor inside a loop
+        over a full user scan (audit L6), each on a fresh SQLite connection.
+        """
+        ids = [i for i in (referrer_ids or []) if i]
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT referrer_id, "
+                f"       COUNT(*) AS total, "
+                f"       SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS active "
+                f"FROM referrals WHERE referrer_id IN ({placeholders}) "
+                f"GROUP BY referrer_id",
+                tuple(ids)).fetchall()
+        return {r["referrer_id"]: {"total": int(r["total"] or 0),
+                                   "active": int(r["active"] or 0)} for r in rows}
+
+    def signoff_counts_by_advisor(self, advisor_ids: List[str]) -> Dict[str, int]:
+        """{advisor_id: n} in one query — same reason as above."""
+        ids = [i for i in (advisor_ids or []) if i]
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT advisor_id, COUNT(*) AS n FROM advisory_signoffs "
+                f"WHERE advisor_id IN ({placeholders}) GROUP BY advisor_id",
+                tuple(ids)).fetchall()
+        return {r["advisor_id"]: int(r["n"] or 0) for r in rows}
 
     def find_open_referral_for_email(self, email: str) -> Optional[Dict[str, Any]]:
         """The newest referral for this email that has not yet been claimed by a
@@ -5590,33 +5672,52 @@ class AsclepiusStore:
         return self.get_referral(referral_id)
 
     def claim_referral_for_signup(self, *, email: str, user_id: str) -> Optional[Dict[str, Any]]:
-        """Attach a fresh signup to the referral that invited them. Called from
-        the provisioning path; a no-op (returns None) when nobody referred them,
-        which is the common case and never an error."""
-        ref = self.find_open_referral_for_email(email)
-        if ref is None:
+        """Attach a fresh signup to the referral(s) that invited them.
+
+        ALL open referrals for the address resolve, not just the first (audit
+        M5). Two advisors can both invite the same physician — the interesting
+        case, since a well-connected candidate is exactly who gets referred
+        twice — and claiming only one left the other sitting at ``invited``
+        forever, rendering in that advisor's funnel as still pending long after
+        the person joined. Attribution is not exclusive: both advisors did in
+        fact refer them, and the funnel should say so.
+        """
+        email = (email or "").lower().strip()
+        if not email:
             return None
         with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT referral_id FROM referrals WHERE invitee_email = ? "
+                "AND user_id IS NULL ORDER BY invited_at ASC", (email,)).fetchall()
+            if not rows:
+                return None
             conn.execute(
                 "UPDATE referrals SET user_id = ?, status = 'signed_up' "
-                "WHERE referral_id = ? AND user_id IS NULL",
-                (user_id, ref["referral_id"]),
+                "WHERE invitee_email = ? AND user_id IS NULL",
+                (user_id, email),
             )
-        return self.get_referral(ref["referral_id"])
+        # The earliest invite is returned as "the" referral for logging; every
+        # one of them is now resolved.
+        return self.get_referral(rows[0]["referral_id"])
 
     def advance_referral_for_user(self, user_id: str, status: str) -> Optional[Dict[str, Any]]:
-        """Move whichever referral claimed this user along the funnel. Used by
-        the verification decision points, which know a user id and not a
-        referral id."""
+        """Move EVERY referral that claimed this user along the funnel.
+
+        Used by the verification decision points, which know a user id and not a
+        referral id. Plural for the same reason ``claim_referral_for_signup`` is
+        (audit M5): two advisors may have referred the same physician, and
+        advancing only one leaves the other's funnel permanently wrong.
+        """
         if not user_id:
             return None
         with self._conn() as conn:
-            row = conn.execute(
+            rows = conn.execute(
                 "SELECT referral_id FROM referrals WHERE user_id = ? "
-                "ORDER BY invited_at DESC LIMIT 1", (user_id,)).fetchone()
-        if row is None:
-            return None
-        return self.advance_referral(row["referral_id"], status)
+                "ORDER BY invited_at ASC", (user_id,)).fetchall()
+        out = None
+        for row in rows:
+            out = self.advance_referral(row["referral_id"], status) or out
+        return out
 
     # ─── Advisory sign-off (PRD §4) ──────────────────────────────────────────
     def insert_advisory_signoff(
@@ -5628,31 +5729,49 @@ class AsclepiusStore:
         verdict: str,
         comments: Optional[str],
         relationship: str,
+        subject_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Record one advisory verdict. ``relationship`` is supplied by the
         ROUTER from the advisor's own user row and is never accepted from the
         client — the disclosure is only worth something if the subject of it
-        cannot write it."""
+        cannot write it.
+
+        ``subject_ids`` pins WHAT was signed off (audit M3), which matters for
+        artifact ids that are derived rather than stored: a task batch is
+        ``specialty:YYYY-MM-DD`` over open tasks, so without this the membership
+        keeps changing after the attestation and later work inherits an approval
+        nobody gave it.
+        """
         sid = _new_id("sgn")
+        ids = [str(i) for i in (subject_ids or []) if i]
         with self._conn() as conn:
             conn.execute(
                 """
                 INSERT INTO advisory_signoffs (signoff_id, artifact_type, artifact_id,
                                                advisor_id, verdict, comments,
-                                               relationship, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                               relationship, created_at,
+                                               subject_ids, subject_n)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (sid, artifact_type, artifact_id, advisor_id, verdict,
-                 (comments or "").strip() or None, relationship, _utcnow_iso()),
+                 (comments or "").strip() or None, relationship, _utcnow_iso(),
+                 json.dumps(ids) if ids else None, len(ids) if ids else None),
             )
         return self.get_advisory_signoff(sid)  # type: ignore[return-value]
+
+    @staticmethod
+    def _signoff_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        raw = rec.pop("subject_ids", None)
+        rec["subject_ids"] = json.loads(raw) if raw else []
+        return rec
 
     def get_advisory_signoff(self, signoff_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT * FROM advisory_signoffs WHERE signoff_id = ?",
                 (signoff_id,)).fetchone()
-        return dict(row) if row else None
+        return self._signoff_row(row) if row else None
 
     def list_advisory_signoffs(
         self,
@@ -5678,12 +5797,35 @@ class AsclepiusStore:
             rows = conn.execute(
                 f"SELECT * FROM advisory_signoffs {where} ORDER BY created_at DESC LIMIT ?",
                 tuple(params)).fetchall()
-        return [dict(r) for r in rows]
+        return [self._signoff_row(r) for r in rows]
+
+    # Verdict severity, worst first. The operator-facing status must reflect the
+    # WORST outstanding verdict, not the most recent one (audit M2): with two
+    # advisors, one approving after another requested changes would otherwise
+    # erase the objection from the field an operator reads before shipping.
+    # ``created_at`` is second-granularity, so "most recent" is not even
+    # well-defined for same-second writes.
+    _VERDICT_SEVERITY = {"changes_requested": 2, "approved_with_comments": 1, "approved": 0}
+
+    @classmethod
+    def worst_verdict(cls, verdicts: List[str]) -> Optional[str]:
+        """The verdict an operator needs to see. Unknown values sort worst —
+        an unrecognized verdict is not evidence of approval."""
+        known = [v for v in verdicts if v]
+        if not known:
+            return None
+        return max(known, key=lambda v: cls._VERDICT_SEVERITY.get(v, 99))
 
     def signoff_summary(self, artifact_type: str, artifact_ids: List[str]) -> Dict[str, Dict[str, Any]]:
-        """{artifact_id: {n, latest_verdict, latest_at}} for a page of artifacts —
-        one query, not one per row, so the admin list does not degrade with the
-        number of exports."""
+        """{artifact_id: {n, verdict, latest_verdict, latest_at, verdicts}} for a
+        page of artifacts — one query, not one per row, so the admin list does
+        not degrade with the number of exports.
+
+        ``verdict`` is the WORST outstanding verdict and is the one to display;
+        ``latest_verdict`` is kept for anyone who genuinely wants recency, and
+        the full list rides along so a caller can render "2 approved · 1 change
+        requested" without a second query.
+        """
         ids = [i for i in (artifact_ids or []) if i]
         if not ids:
             return {}
@@ -5696,11 +5838,15 @@ class AsclepiusStore:
                 f"ORDER BY created_at ASC",
                 tuple([artifact_type] + ids)).fetchall()
         for r in rows:
-            cur = out.setdefault(r["artifact_id"], {"n": 0, "latest_verdict": None,
-                                                    "latest_at": None})
+            cur = out.setdefault(r["artifact_id"], {"n": 0, "verdict": None,
+                                                    "latest_verdict": None,
+                                                    "latest_at": None, "verdicts": []})
             cur["n"] += 1
+            cur["verdicts"].append(r["verdict"])
             cur["latest_verdict"] = r["verdict"]   # ASC order -> last write wins
             cur["latest_at"] = r["created_at"]
+        for cur in out.values():
+            cur["verdict"] = self.worst_verdict(cur["verdicts"])
         return out
 
     def set_signoff_status(self, table: str, id_column: str, artifact_id: str,
@@ -5735,31 +5881,42 @@ class AsclepiusStore:
         created = str(task.get("created_at") or "")[:10] or "unknown"
         return f"{task.get('specialty') or 'general'}:{created}"
 
-    def list_open_task_batches(self, *, limit: int = 500) -> List[Dict[str, Any]]:
-        """Open (not yet labeled out) tasks grouped into previewable batches."""
+    def list_open_task_batches(self, *, limit: int = 200) -> List[Dict[str, Any]]:
+        """Open (not yet labeled out) tasks grouped into previewable batches.
+
+        Counted with GROUP BY rather than by scanning a capped list of tasks and
+        tallying in Python (audit M3). The old form applied a global 500-task
+        cap and then grouped, so with enough open work a batch's ``n_tasks``
+        silently under-reported — and the artifact view applied a *different*
+        cap, so the same batch was two different sizes depending on which screen
+        you were looking at. ``limit`` here bounds the number of BATCHES
+        returned, not the count within one.
+
+        Deliberately NO ``signoff_status``: a batch spans many task rows and the
+        sign-off is not mirrored onto any of them, so reporting one row's column
+        as the batch's status would be a field that looks authoritative and is
+        whichever task happened to sort first. Callers read ``signoff_summary``.
+        """
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT task_id, specialty, difficulty, modality, created_at "
-                "FROM tasks WHERE status = 'open' ORDER BY created_at DESC LIMIT ?",
+                """
+                SELECT specialty,
+                       substr(created_at, 1, 10) AS created_on,
+                       COUNT(*)                  AS n_tasks
+                FROM tasks
+                WHERE status = 'open'
+                GROUP BY specialty, substr(created_at, 1, 10)
+                ORDER BY created_on DESC, specialty ASC
+                LIMIT ?
+                """,
                 (limit,)).fetchall()
-        batches: Dict[str, Dict[str, Any]] = {}
-        for r in rows:
-            t = dict(r)
-            key = self.task_batch_key(t)
-            # Deliberately NO ``signoff_status`` here. A batch spans many task
-            # rows and the sign-off is not mirrored onto any of them (see
-            # ``_mirror_signoff_status``), so reporting one row's column as the
-            # batch's status would be a field that looks authoritative and is
-            # whichever task happened to sort first. The caller reads the real
-            # answer from ``signoff_summary``.
-            b = batches.setdefault(key, {
-                "batch_key": key, "specialty": t.get("specialty"),
-                "created_on": str(t.get("created_at") or "")[:10],
-                "n_tasks": 0, "task_ids": [],
-            })
-            b["n_tasks"] += 1
-            b["task_ids"].append(t["task_id"])
-        return sorted(batches.values(), key=lambda b: b["created_on"], reverse=True)
+        return [
+            {"batch_key": f"{r['specialty'] or 'general'}:{r['created_on'] or 'unknown'}",
+             "specialty": r["specialty"],
+             "created_on": r["created_on"],
+             "n_tasks": r["n_tasks"]}
+            for r in rows
+        ]
 
     def list_tasks_in_batch(self, batch_key: str, *, limit: int = 50) -> List[Dict[str, Any]]:
         """Open tasks belonging to a derived batch key.

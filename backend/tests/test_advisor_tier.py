@@ -133,6 +133,27 @@ def test_no_hard_tier_equality_survives_in_backend_gates():
         # The advisor router stamps the relationship from the tier — same thing.
         "routers/asclepius_advisor.py",
     }
+    # A tier comparison written INSIDE SQL is invisible to the scan above,
+    # because _code_lines blanks string literals (audit L3). It is the same
+    # two-state check with a different syntax, and it fails just as silently —
+    # so it gets its own pattern, applied to the strings the other one discards.
+    #
+    # It must match a FILTER and not an assignment: ``SET tier = 'advisor'`` in
+    # ``appoint_advisor`` is how an advisor is created, and a guard that flags
+    # the write it is protecting gets muted within a week. Requiring WHERE/AND/
+    # OR immediately before the column is what separates the two.
+    sql_pattern = re.compile(
+        r"""\b(?:WHERE|AND|OR)\s+[\w.]*\btier\s*(?:=|!=|<>)\s*['"](?:labeler|reviewer|advisor)['"]""",
+        re.IGNORECASE)
+    for bad_sql in ("WHERE tier = 'reviewer'", "AND u.tier != 'advisor'",
+                    "... WHERE   u.tier='labeler'"):
+        assert sql_pattern.search(bad_sql), f"the SQL guard would miss: {bad_sql}"
+    for ok_sql in ("UPDATE users SET tier = 'advisor', x = ?",
+                   "SET tier='advisor'",
+                   "``tier='advisor'`` in a docstring"):
+        assert not sql_pattern.search(ok_sql), (
+            f"the SQL guard false-positives on a write: {ok_sql}")
+
     offenders = []
     for path in sorted(BACKEND.glob("**/*.py")):
         rel = path.relative_to(BACKEND).as_posix()
@@ -141,6 +162,11 @@ def test_no_hard_tier_equality_survives_in_backend_gates():
         for lineno, line in _code_lines(path):
             if pattern.search(line):
                 offenders.append(f"{rel}:{lineno}: {line.strip()}")
+        # Now the strings the tokenizer removed, scanned for SQL-shaped gates.
+        text = path.read_text(encoding="utf-8")
+        for m in sql_pattern.finditer(text):
+            lineno = text.count("\n", 0, m.start()) + 1
+            offenders.append(f"{rel}:{lineno}: (in SQL) {m.group(0)}")
     assert not offenders, (
         "Hard tier equality found — route it through asclepius.capabilities.can() "
         "instead; a missed literal denies SILENTLY:\n" + "\n".join(offenders))
@@ -180,6 +206,23 @@ def test_capabilities_deny_by_default():
     assert not caps.can({"tier": "reviewer"}, caps.REFER)
     # An admin operates every surface, as today.
     assert caps.can({"role": "admin"}, caps.SIGNOFF_EXPORT)
+
+
+def test_a_non_physician_role_gains_nothing_from_a_tier():
+    """Audit L4: ``can()`` was role-blind below admin, so a ``data_partner`` row
+    carrying ``tier='advisor'`` would have passed every capability check.
+    ``get_current_user`` denies those roles the whole surface first, so this is
+    defence in depth — but a capability check that ignores role is one refactor
+    away from being the only check."""
+    for role in ("data_partner", "buyer"):
+        rogue = {"role": role, "tier": "advisor"}
+        assert caps.capabilities(rogue) == frozenset()
+        assert not caps.can(rogue, caps.REVIEW)
+        assert not caps.can(rogue, caps.SIGNOFF_INTAKE)
+    # Physician roles are unaffected, and a bare dict with no role still works
+    # — many call sites pass only a tier.
+    assert caps.can({"role": "evaluator", "tier": "advisor"}, caps.REFER)
+    assert caps.can({"tier": "reviewer"}, caps.REVIEW)
 
 
 def test_advisor_holds_every_capability_a_reviewer_holds():

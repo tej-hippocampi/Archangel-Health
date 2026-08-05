@@ -72,6 +72,14 @@ _CAP_FOR_ARTIFACT = {
 # to re-serve the whole export through a second door.
 _EXPORT_SAMPLE_N = 20
 
+# ONE cap for task-batch membership, used by the queue count, the artifact view
+# and the sign-off's recorded subject (audit M3). These were previously three
+# different numbers — the queue counted with limit=500 while the view showed
+# limit=50 — so a 60-task batch was reported as 60 in one place and 50 in
+# another, both silently. Two different truncations of the same set is a way to
+# make a reviewer confident about something they did not see.
+_BATCH_MEMBER_CAP = 500
+
 
 def _store():
     return get_store()
@@ -263,21 +271,53 @@ def _advisor_public(u: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _holds_advisory_relationship(u: Dict[str, Any]) -> bool:
+    """Anyone with an advisory RELATIONSHIP on file, current tier aside.
+
+    Filtering the roster on ``tier == 'advisor'`` made a demoted advisor and
+    their entire sign-off history vanish from the only admin surface that lists
+    them (audit M7) — while their equity, their signed agreement and their
+    related-party disclosures all remained live. The people you most need to see
+    are the ones whose relationship outlived their tier.
+    """
+    return bool(u.get("tier") == asc_caps.ADVISOR
+                or u.get("advisor_since")
+                or u.get("advisor_agreement_ref")
+                or u.get("compensation_model") == "equity_only")
+
+
 @router.get("/api/asclepius/admin/advisors")
 async def list_advisors(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
     """The advisor roster — three people among fifty, so they get their own
-    list rather than a filter an operator has to remember to apply."""
+    list rather than a filter an operator has to remember to apply.
+
+    Includes FORMER advisors, flagged as such: an equity relationship that
+    outlives a tier change is exactly the thing an operator must not lose track
+    of, and it is still generating disclosures on shipped records.
+    """
     store = _store()
-    rows = [u for u in store.list_users() if u.get("tier") == asc_caps.ADVISOR]
+    rows = [u for u in store.list_users() if _holds_advisory_relationship(u)]
+    # Two grouped queries for the whole page rather than two per advisor inside
+    # the loop, each on a fresh SQLite connection (audit L6).
+    ids = [u["id"] for u in rows]
+    ref_counts = store.referral_counts_by_referrer(ids)
+    signoff_counts = store.signoff_counts_by_advisor(ids)
     out = []
     for u in rows:
         block = _advisor_public(u)
-        refs = store.list_referrals_by_referrer(u["id"])
-        block["referrals_invited"] = len(refs)
-        block["referrals_active"] = sum(1 for r in refs if r.get("status") == "approved")
-        block["signoffs"] = len(store.list_advisory_signoffs(advisor_id=u["id"], limit=500))
+        current = u.get("tier") == asc_caps.ADVISOR
+        block["current"] = current
+        # Named plainly rather than implied by an absent tier: "held equity,
+        # no longer holds the tier" is a state an admin has to be able to read.
+        block["relationship_status"] = "active" if current else "former_tier_changed"
+        counts = ref_counts.get(u["id"]) or {"total": 0, "active": 0}
+        block["referrals_invited"] = counts["total"]
+        block["referrals_active"] = counts["active"]
+        block["signoffs"] = signoff_counts.get(u["id"], 0)
         out.append(block)
-    return {"advisors": out, "count": len(out)}
+    out.sort(key=lambda b: (not b["current"], b.get("email") or ""))
+    return {"advisors": out, "count": len(out),
+            "active": sum(1 for b in out if b["current"])}
 
 
 # ═══ Referrals (§3) ══════════════════════════════════════════════════════════
@@ -407,10 +447,18 @@ async def create_referral(
                    "appointment so a code is minted.")
 
     existing_user = store.get_user_by_email(email)
+    # Only a PHYSICIAN account counts as "already a member" (audit M4).
+    # ``get_user_by_email`` spans every role, so an unfiltered check turned this
+    # endpoint into a clean account-existence oracle for admin, buyer and
+    # hospital-contact addresses — a probe any advisor could run, one address at
+    # a time, against a company inbox. A non-physician address gets the ordinary
+    # invited response and no account is created either way.
+    is_member = bool(existing_user and existing_user.get("role") == "evaluator"
+                     and not existing_user.get("is_mock"))
     if store.has_referral_for_email(advisor["id"], email):
         return {"ok": True, "already": "invited",
                 "message": "You already invited this physician."}
-    if existing_user is not None:
+    if is_member:
         # Not a failure — a fact. Record the referral so the advisor sees an
         # honest row instead of an error, and never create a duplicate account.
         ref = store.insert_referral(
@@ -517,7 +565,7 @@ async def advisory_queue(user: Dict[str, Any] = Depends(asc_auth.get_current_use
         summary = store.signoff_summary("task_batch", [b["batch_key"] for b in batches])
         out["task_batch"] = [
             {**b, "signoffs": summary.get(b["batch_key"], {}).get("n", 0),
-             "latest_verdict": summary.get(b["batch_key"], {}).get("latest_verdict")}
+             "latest_verdict": summary.get(b["batch_key"], {}).get("verdict")}
             for b in batches
         ]
     if asc_caps.can(user, asc_caps.SIGNOFF_EXPORT):
@@ -529,7 +577,7 @@ async def advisory_queue(user: Dict[str, Any] = Depends(asc_auth.get_current_use
              "profile": (e.get("manifest") or {}).get("profile"),
              "signoff_status": e.get("signoff_status"),
              "signoffs": summary.get(e["export_id"], {}).get("n", 0),
-             "latest_verdict": summary.get(e["export_id"], {}).get("latest_verdict")}
+             "latest_verdict": summary.get(e["export_id"], {}).get("verdict")}
             for e in exports
         ]
     if asc_caps.can(user, asc_caps.SIGNOFF_INTAKE):
@@ -542,7 +590,7 @@ async def advisory_queue(user: Dict[str, Any] = Depends(asc_auth.get_current_use
              "health_system_id": u.get("health_system_id"),
              "signoff_status": u.get("signoff_status"),
              "signoffs": summary.get(u["upload_id"], {}).get("n", 0),
-             "latest_verdict": summary.get(u["upload_id"], {}).get("latest_verdict")}
+             "latest_verdict": summary.get(u["upload_id"], {}).get("verdict")}
             for u in uploads
         ]
     if asc_caps.can(user, asc_caps.SIGNOFF_SPEC):
@@ -552,7 +600,7 @@ async def advisory_queue(user: Dict[str, Any] = Depends(asc_auth.get_current_use
             {"spec_id": s["spec_id"], "title": s.get("title"),
              "created_at": s.get("created_at"),
              "signoffs": summary.get(s["spec_id"], {}).get("n", 0),
-             "latest_verdict": summary.get(s["spec_id"], {}).get("latest_verdict")}
+             "latest_verdict": summary.get(s["spec_id"], {}).get("verdict")}
             for s in specs
         ]
     return {"queue": out, "counts": {k: len(v) for k, v in out.items()}}
@@ -605,13 +653,17 @@ def _task_batch_view(store: Any, batch_key: str) -> Dict[str, Any]:
     key is never included — an advisor who previews a batch may later be routed
     to label one of these cases, and a previewed answer key would contaminate
     their own submission and every κ that submission touches."""
-    tasks = store.list_tasks_in_batch(batch_key)
+    # The SAME cap the queue counts with and the sign-off records — see
+    # _BATCH_MEMBER_CAP. An advisor must not approve "the batch" having been
+    # shown a differently-truncated slice of it than the count they were given.
+    tasks = store.list_tasks_in_batch(batch_key, limit=_BATCH_MEMBER_CAP)
     if not tasks:
         raise HTTPException(status_code=404, detail="No open tasks in that batch")
     return {
         "artifact_type": "task_batch",
         "artifact_id": batch_key,
         "n_tasks": len(tasks),
+        "truncated": len(tasks) >= _BATCH_MEMBER_CAP,
         "tasks": [
             {
                 "task_id": t.get("task_id"),
@@ -807,16 +859,49 @@ def _intake_case_view(case: Dict[str, Any]) -> Dict[str, Any]:
         "specialty": case.get("specialty"),
         "status": status,
         "report": report,
-        "body_withheld": status not in _DEIDENTIFIED_CASE_STATUSES,
     }
-    if status in _DEIDENTIFIED_CASE_STATUSES:
+    body = None
+    withheld_reason = None
+    if status not in _DEIDENTIFIED_CASE_STATUSES:
+        withheld_reason = "status"
+    else:
         # De-identified at ingest; public_case additionally guarantees a
         # promoted case's answer key cannot ride along.
-        out["case"] = public_case(case.get("case"))
-        out["override_reason"] = case.get("override_reason")
+        body = public_case(case.get("case"))
+        # SECOND LINE, independent of the status whitelist. The whitelist is
+        # only as true as an invariant held by convention across four call sites
+        # in two files: "nothing sets 'ingested' without also writing a
+        # de-identified body". That happens to hold today. C1 was precisely a
+        # false assumption about de-identification, so the bytes about to be
+        # served are re-scanned with the same verifier the ingest pipeline uses,
+        # and a flagged body is withheld regardless of what its status says.
+        if body and _residual_identifier_kinds(body):
+            body, withheld_reason = None, "residual_identifiers"
+    out["case"] = body
+    out["body_withheld"] = withheld_reason is not None
+    if withheld_reason:
+        out["body_withheld_reason"] = withheld_reason
     else:
-        out["case"] = None
+        out["override_reason"] = case.get("override_reason")
     return out
+
+
+def _residual_identifier_kinds(body: Dict[str, Any]) -> List[str]:
+    """Masked finding kinds from re-scanning a body we are about to serve.
+
+    Never raises: a verifier that is unavailable must not take down the intake
+    review — but it also must not silently vouch for the body, so a failure is
+    treated as "flagged" by the caller returning a non-empty list.
+    """
+    try:
+        from asclepius import deid_verify
+
+        result = deid_verify.verify_deid(body or {})
+        return sorted({f.get("kind") for f in (result.get("findings") or [])
+                       if f.get("kind")})
+    except Exception:
+        log.exception("[advisor] de-id re-scan failed; withholding the body")
+        return ["scan_unavailable"]
 
 
 def _inbound_upload_view(store: Any, upload_id: str) -> Dict[str, Any]:
@@ -845,7 +930,13 @@ def _inbound_upload_view(store: Any, upload_id: str) -> Dict[str, Any]:
             "created_at": upload.get("created_at"),
             "partner_id": upload.get("partner_id"),
             "health_system_id": upload.get("health_system_id"),
-            "filename": upload.get("filename"),
+            # NOT ``filename``. It is chosen by the sending institution and is
+            # entirely uncontrolled free text — "SMITH_JOHN_2024.zip" and
+            # "MRN88213347.zip" are both realistic, and there is no way to
+            # sanitize an arbitrary string that might be a patient name. Same
+            # leak class as the quarantined body, through a smaller door.
+            # ``partner_id`` and ``health_system_id`` are identifiers WE mint,
+            # which is what makes them safe to show.
             "signoff_status": upload.get("signoff_status"),
         },
         "n_cases": len(cases),
@@ -883,7 +974,10 @@ class SignoffBody(BaseModel):
     relationship: Optional[str] = None
 
 
-@router.post("/api/asclepius/advisor/signoffs")
+@router.post(
+    "/api/asclepius/advisor/signoffs",
+    dependencies=[Depends(rate_limiter("asclepius_advisor_signoff", 60, 600))],
+)
 async def record_signoff(
     body: SignoffBody,
     user: Dict[str, Any] = Depends(asc_auth.get_current_user),
@@ -925,6 +1019,31 @@ async def record_signoff(
     if not _artifact_exists(store, artifact_type, artifact_id):
         raise HTTPException(status_code=404, detail="No such artifact")
 
+    # Idempotency (audit L2). Two advisors signing the same artifact is the
+    # point and both rows must persist — but the SAME advisor re-submitting an
+    # identical verdict is a double-click or a retried request, and five
+    # identical rows make the history unreadable and the counts wrong. A CHANGED
+    # verdict from the same advisor is a real event and still records: people
+    # revise their opinion, and the trail should show that they did.
+    for prior in store.list_advisory_signoffs(
+            artifact_type=artifact_type, artifact_id=artifact_id,
+            advisor_id=user["id"], limit=20):
+        if prior.get("verdict") == verdict and (prior.get("comments") or "") == (
+                comments or ""):
+            return {"ok": True, "signoff": prior, "blocking": False,
+                    "duplicate": True}
+
+    # Pin WHAT was signed off (audit M3). A task_batch id is derived —
+    # ``specialty:YYYY-MM-DD`` over tasks still ``status='open'`` — so its
+    # membership keeps changing after the attestation: tasks generated later the
+    # same day join the batch and inherit an approval nobody gave them, and a
+    # task labeled out of the queue leaves it. Resolving the ids at write time
+    # is what makes the subject of the attestation reconstructible later.
+    subject_ids: Optional[List[str]] = None
+    if artifact_type == "task_batch":
+        subject_ids = [t["task_id"] for t in
+                       store.list_tasks_in_batch(artifact_id, limit=_BATCH_MEMBER_CAP)]
+
     signoff = store.insert_advisory_signoff(
         artifact_type=artifact_type,
         artifact_id=artifact_id,
@@ -933,6 +1052,7 @@ async def record_signoff(
         comments=comments or None,
         # Server-written, always. The client's value never reaches the database.
         relationship=_relationship_for(user),
+        subject_ids=subject_ids,
     )
     _mirror_signoff_status(store, artifact_type, artifact_id, verdict)
     store.log_event(
@@ -958,9 +1078,17 @@ def _artifact_exists(store: Any, artifact_type: str, artifact_id: str) -> bool:
 
 def _mirror_signoff_status(store: Any, artifact_type: str, artifact_id: str,
                            verdict: str) -> None:
-    """Copy the latest verdict onto the artifact's own row so admin lists show
-    it without a join. Advisory only — nothing reads it to decide whether work
-    may proceed."""
+    """Copy the WORST outstanding verdict onto the artifact's own row so admin
+    lists show it without a join. Advisory only — nothing reads it to decide
+    whether work may proceed.
+
+    Worst, not latest (audit M2). Last-write-wins meant a second advisor
+    approving after a first requested changes silently flipped the field an
+    operator reads before shipping from 'changes_requested' to 'approved'. Both
+    rows always survived in ``advisory_signoffs``, so the evidence was never
+    lost — but the summary said the opposite of the evidence, which is worse
+    than saying nothing.
+    """
     target = {
         "export_bundle": ("exports", "export_id"),
         "inbound_upload": ("ingest_uploads", "upload_id"),
@@ -971,7 +1099,9 @@ def _mirror_signoff_status(store: Any, artifact_type: str, artifact_id: str,
         # the record.
         return
     try:
-        store.set_signoff_status(target[0], target[1], artifact_id, verdict)
+        summary = store.signoff_summary(artifact_type, [artifact_id]).get(artifact_id) or {}
+        store.set_signoff_status(target[0], target[1], artifact_id,
+                                 summary.get("verdict") or verdict)
     except Exception:
         log.exception("[advisor] could not mirror signoff_status (the signoff row stands)")
 

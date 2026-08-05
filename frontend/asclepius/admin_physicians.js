@@ -207,8 +207,16 @@
       h('td', {}, p.specialty || '—'),
       h('td', {}, tierBadge(h, p.tier)),
       h('td', {}, verificationBadge(h, p.verification_status)),
+      // A former advisor's Slack role still reads "Medical Advisor" while their
+      // tier reads "Reviewer" — because the equity and the agreement survive a
+      // tier change by design. Say so, rather than showing two fields that look
+      // like a bug.
       h('td', {}, p.slack_role ? slackText(p.slack_joined) + ' · ' + p.slack_role
-        : slackText(p.slack_joined)),
+        : slackText(p.slack_joined),
+        p.former_advisor
+          ? h('span', { class: 'asc-badge asc-badge-amber', style: 'margin-left:6px' },
+              'Former advisor · equity on file')
+          : null),
       h('td', {}, p.health_system_name || 'Independent'));
     tr.addEventListener('click', () => { selectedId = p.id; rerender(); });
     return tr;

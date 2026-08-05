@@ -281,6 +281,57 @@ def test_every_advisor_gets_a_unique_referral_code():
     assert not any(set(c) & set("O0I1l") for c in codes)
 
 
+def test_two_advisors_referring_the_same_physician_both_resolve():
+    """Audit M5: only one referral was claimed; the other sat at 'invited'
+    forever and rendered in that advisor's funnel as still pending long after
+    the person joined. A well-connected candidate is exactly who gets referred
+    twice, so this is the normal case, not the edge one."""
+    store = asc_store.get_store()
+    a, b = _advisor(), _advisor()
+    email = f"popular-{A.uniq(10)}@example.com"
+    assert _invite(a, email, name="Dr Popular").status_code == 200
+    assert _invite(b, email, name="Dr Popular").status_code == 200
+
+    invitee = store.provision_user(email=email, password="pw-12345678",
+                                   role="evaluator", full_name="Dr Popular")
+    store.claim_referral_for_signup(email=email, user_id=invitee["id"])
+
+    for advisor in (a, b):
+        funnel = client.get("/api/asclepius/advisor/referrals",
+                            headers=A.headers_for(advisor)).json()
+        assert funnel["total"] == 1
+        assert funnel["referrals"][0]["status"] == "signed_up", (
+            "one referrer's funnel was stranded at 'invited' forever")
+
+    # And the funnel keeps following for BOTH of them.
+    r = client.post(f"/api/asclepius/verify/queue/{invitee['id']}/approve",
+                    json={"tier": "labeler"}, headers=A.headers_for(_admin()))
+    assert r.status_code == 200
+    for advisor in (a, b):
+        funnel = client.get("/api/asclepius/advisor/referrals",
+                            headers=A.headers_for(advisor)).json()
+        assert funnel["active"] == 1
+
+
+def test_the_referral_endpoint_is_not_an_account_existence_oracle():
+    """Audit M4: ``get_user_by_email`` spans every role, so 'already a member'
+    was a clean boolean on an admin, buyer or hospital-contact address — a probe
+    an advisor could run one address at a time against a company inbox."""
+    store = asc_store.get_store()
+    advisor = _advisor()
+    admin_account = A.make_user(store, role="admin")
+
+    r = _invite(advisor, admin_account["email"], name="Probe")
+    assert r.status_code == 200
+    assert r.json().get("already") != "member", (
+        "the endpoint confirmed the existence of a non-physician account")
+
+    # A real physician still reports honestly.
+    member = A.make_user(store, role="evaluator", specialty="nephrology")
+    r = _invite(advisor, member["email"], name="Real")
+    assert r.json().get("already") == "member"
+
+
 def test_the_shareable_invite_link_points_at_a_route_that_exists():
     """A link an advisor pastes into a text message must not 404. It points at
     the existing physician signup page, not an invented referral route."""
