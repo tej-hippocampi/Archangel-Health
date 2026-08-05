@@ -18,7 +18,7 @@ import os
 import random
 from typing import Any, Dict, List, Optional
 
-from asclepius.agreement import cohens_kappa, jaccard
+from asclepius.agreement import blinding_of_pair, cohens_kappa, jaccard
 from asclepius.critic import run_critic, run_grounding_check
 from asclepius.packaging import package_submission
 from asclepius.store import AsclepiusStore
@@ -113,6 +113,20 @@ def compute_and_store_agreement(store: AsclepiusStore, task: Dict[str, Any]) -> 
     agree = verdict_a == verdict_b
     flagged = not agree  # disagreement -> route for re-review, never silent export
 
+    # ── The blinding flag is a MEASUREMENT (Audit R C2) ──────────────────────
+    # κ's entire claim is that the two labels are independent. That flag used to
+    # be an unpassed ``blinded=True`` default, so every observation asserted a
+    # property nobody checked — and ``agreement._blinded_only``, the gate that
+    # exists to enforce it, could never exclude anything. The POLICY lives in
+    # agreement.py, next to the statistic it protects; this supplies the facts.
+    _labelers = [store.get_user_by_id(s.get("evaluator_id") or "") or
+                 {"id": s.get("evaluator_id")} for s in (a, b)]
+    blinded = blinding_of_pair(
+        _labelers,
+        blind_commits=[store.get_independent_commit(task_id, s.get("evaluator_id"))
+                       for s in (a, b)],
+    )
+
     store.upsert_agreement(
         task_id=task_id,
         specialty=task.get("specialty"),
@@ -126,6 +140,7 @@ def compute_and_store_agreement(store: AsclepiusStore, task: Dict[str, Any]) -> 
         verdict_agree=agree,
         n_labels=len(subs),
         flagged=flagged,
+        blinded=blinded,
     )
 
     # Observed agreement (majority share) stamped on each submission + preference

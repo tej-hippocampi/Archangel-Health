@@ -159,7 +159,7 @@ than one answer alone, and no scanner fixes it.
 
 ---
 
-## 4. Findings for other lanes — reported, not fixed
+## 4. Findings for other lanes — as first reported (items 1 and 3 are now FIXED, see §4b)
 
 1. **`pipeline.compute_and_store_agreement` writes `blinded=True` unconditionally.**
    (`upsert_agreement(..., blinded: bool = True)` — the argument is never
@@ -202,6 +202,45 @@ than one answer alone, and no scanner fixes it.
    `value.routing_score` or `routers/asclepius.py`, both outside this lane.
    `test_routing_priority.py::test_value_aware_routing_sees_the_same_priority`
    pins the behaviour that does hold.
+
+---
+
+## 4b. Audit round — every finding, and what it cost
+
+An external audit ran against the merged tree and returned **do not merge**. All
+findings are fixed, in the order it specified. Each fix landed test-first.
+
+| # | Finding | Fix |
+|---|---|---|
+| **C1** | `redact_identity` never terminates. The marker contains ordinary English fragments (`dent`, `tail`, `move`, `remo`) and the scan restarted from zero after each substitution, so it re-found the needle **inside the marker it had just written**. A physician registering as `remo@mercy.org` pinned a worker at 100% CPU inside a synchronous authenticated GET, allocating until OOM. | Single pass by construction: one compiled alternation, one `re.sub`. Replacement text is never rescanned, so the failure is structurally impossible rather than guarded against. Termination is asserted over **every 4-, 5- and 6-gram of the marker**, under a SIGALRM deadline so a hang fails instead of taking the suite with it. |
+| **C2** | `upsert_agreement(blinded=True)` with no caller ever passing it — so `_blinded_only` was a permanent no-op, `quality_report.md` printed "unblinded observations excluded: 0" unconditionally, and every packaged record claimed `independent_second_label` on the strength of an observation merely existing. The 0.15 → 1.0 rate change took that from ~15% of the dataset to **100%**. | The flag is now a measurement. `agreement.blinding_of_pair` is tri-state: **False** on measured de-blinding risk (a labeler holding a role that can read the other's submission, or one person authoring both), **True** only when both labelers passed the pre-reveal blind-commit gate, **None** otherwise — reported as `excluded_unverified`, excluded from κ either way. `upsert_agreement` defaults to `None`. |
+| **U1** | The countdown was a lie. `earnings.js` builds a complete server-authoritative heartbeat client and documents that the review surface calls it; `review.html` never loaded it. The page read `credited_seconds` once and added wall-clock drift, rendering "this session has met its minimum" at 20:00 while the server had counted **zero**. | The page computes no time. It loads `earnings.js` first, hands P's client the server's session, and renders `state().continuous_seconds`. `test_the_clock_does_not_advance_on_its_own` fires every registered interval sixty times and asserts not one digit moves. |
+| **U2** | An absent clock and a working-but-unpaid clock were indistinguishable. | With a session open but no heartbeat client, the clock says **"Session · not being timed"** in lime, with a note that the review is not accruing paid time. |
+| **H1** | `stronger` stored in the reviewer's **shuffled** positions, in the column beside the **canonical** `pair_sub_a`/`pair_sub_b`. Half the rows named the wrong physician to the only sane reading of two adjacent columns. | Resolved through the seeded map and re-expressed canonically, plus a `stronger_submission_id` no reader can misinterpret. Tested over both permutations. |
+| **H2** | The single-review predicates were checked at draw time and never again, while the labeler queue kept the same task servable to a second labeler — two `case_reviews` rows for one case, an acceptance rate counting it twice, and the first reviewer's work destroyed by a 409 saying "your claim expired", which was false. | One adjudication per case from either queue, in SQL and on both POSTs. The single-review POST now 409s with `became_a_pair` and **hands the reviewer's judgment back** in the response. |
+| **H3** | The pair queue gated on `>= 2`; `ab_pair` truncated to two in Python. A third physician's label was invisible to the reviewer and then marked `reviewed` by them anyway — paid work retired unseen, adjudicated never. | Exactly two, in SQL. A case with more is not review-ready; it is **counted** as `over_labelled` so a human sees it. Adjudication retires exactly the two labels it showed. |
+| **H4** | Five correlated scalar subqueries per row on an unbounded fetch, on the single writer labeler submissions need: 0.167 s and 98.5 MB per draw at 20,000 tasks. No index can serve a sort over a computed expression. | One `labeler_queue_sql` builder shared by both queues. Counts materialize once via a grouped join over a covering index; `not mine` resolves in SQL, which is what makes the scan window safe; lean projection with the full row fetched only for candidates actually considered. **Measured after: 0.09 MB, 7 ms.** |
+| **M1** | Capacity counted every submission while eligibility and priority counted only verdict-bearing ones — one verdict-less write from a case stuck at "awaiting second" with nobody able to take it. | One number, `n_labels`, for all three. |
+| **M2** | An adjudication spanned five independent transactions. A crash mid-way left a `case_reviews` row counting in `review_acceptance` with NULL pair columns beside a task still `in_review` — reproducing H2 on lease expiry. | One transaction. Costs a second INSERT site for `case_reviews`; `test_both_review_writers_produce_the_same_row_shape` is the guard. |
+| **M3** | `accept_with_edits` hardcoded a null side, so an edited accept anchored to the canonical oldest rather than the physician actually corrected. | The edited accept follows the reviewer's own "which is stronger" answer, and tracks it if they change it. |
+| **M4** | The header stats ran a correlated subquery per task over the whole table, on every draw. | Same grouped-join shape as the queue. |
+| **M5** | A case parked as not-independent stranded two physicians' labels behind an ERROR log nothing reads. | Counted as `parked`, distinct from `adjudicated`. |
+| **U3** | **No route from the portal to the review console.** A promoted reviewer signed in and never found the surface — it linked back, nothing linked forward. It fell in the gap between two ownership lists. | A rail entry gated on the server's `review` capability, re-checked in the destination router. |
+| **U4** | `corrections_withheld` exists so a reviewer can rewrite a note that will not ship; the page discarded it and advanced. | The reviewer is shown what was flagged and why, before moving on. |
+| **U5** | Four raw `#fff`, and `var(--orange)` on a physician judgment control — orange means model output. The design guard scanned `asclepius.css` only, so `review.html` was a stylesheet outside it. | Tokens throughout; *Accept with edits* is **lime** ("needs attention"), accept stays green, reject stays pink. The guard now covers `review.html`. |
+
+**Cross-lane edits, made deliberately and flagged here:** `pipeline.py` (C2 — the
+policy lives in `agreement.py`; the neighbour's file only supplies facts) and
+`asclepius.js` (U3 — one rail entry, one icon, one router branch, in the same
+shape Agent P's entry will take; a merge conflict there is "keep both sides").
+
+**On the load-shedding knob** (previously open question #3, and understated):
+lowering `ASCLEPIUS_DOUBLE_LABEL_RATE` produces an **oscillation, not a
+reduction** — the queue passes `specialty_n=None` and sheds, while the sweep
+passes it and re-flags what the queue just declined, because `specialty_n < 30`
+routes unconditionally. There is now one incident switch,
+`ASCLEPIUS_DOUBLE_LABEL_HALT`, checked ahead of all three predicates. It is a
+flag, not a rate: an operator reaching for it at 3am wants "stop".
 
 ---
 

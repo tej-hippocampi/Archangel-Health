@@ -565,20 +565,31 @@ def redact_identity(
     if not needles:
         return view, []
 
+    # SINGLE PASS, BY CONSTRUCTION. This must never re-scan its own output.
+    #
+    # ``REDACTION_MARKER`` contains ordinary English fragments — 'dent', 'tail',
+    # 'move', 'remo', 'entif' — and a needle is any email local-part, org name,
+    # full name or hashed id of length >= 4. A find/replace loop that restarts
+    # the scan after each substitution therefore re-finds the needle INSIDE THE
+    # MARKER IT JUST WROTE and appends forever: one physician registering as
+    # ``remo@mercy.org`` was enough to pin a worker at 100% CPU, allocating
+    # without bound, inside a synchronous authenticated GET. ``re.sub`` walks the
+    # input once and never revisits replacement text, so the failure is
+    # structurally impossible rather than guarded against.
+    #
+    # Longest needle first: ``re`` alternation is leftmost-FIRST (not
+    # leftmost-longest), so ordering is what makes a full name win over a
+    # shorter variant of itself and stops the string being carved up.
+    pattern = re.compile("|".join(re.escape(n) for n in needles), re.IGNORECASE)
     hit: List[str] = []
+
+    def _sub(match: "re.Match") -> str:
+        hit.append(match.group(0).lower())
+        return REDACTION_MARKER
 
     def _walk(obj: Any) -> Any:
         if isinstance(obj, str):
-            out = obj
-            low = out.lower()
-            for needle in needles:
-                idx = low.find(needle)
-                while idx != -1:
-                    hit.append(needle)
-                    out = out[:idx] + REDACTION_MARKER + out[idx + len(needle):]
-                    low = out.lower()
-                    idx = low.find(needle)
-            return out
+            return pattern.sub(_sub, obj)
         if isinstance(obj, dict):
             return {k: _walk(v) for k, v in obj.items()}
         if isinstance(obj, list):

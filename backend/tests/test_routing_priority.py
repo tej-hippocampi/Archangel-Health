@@ -273,6 +273,134 @@ def test_terminal_prompt_flags_are_never_dragged_back_for_a_second_opinion():
         assert drawn is None or drawn["task_id"] != tid
 
 
+# ═══ H4 — the draw must not scan the fleet five times per row ════════════════
+def _plan(store, sql, params):
+    with store._conn() as conn:
+        return [dict(r)["detail"] for r in
+                conn.execute("EXPLAIN QUERY PLAN " + sql, params).fetchall()]
+
+
+def test_the_labeler_draw_computes_its_counts_once_not_per_row():
+    """H4. The label count was textually inlined three times per query and joined
+    by two more correlated subqueries — five correlated scalar scans per row, on
+    an unbounded fetch, on the single writer that labeler SUBMISSIONS also need.
+
+    The property: counts are materialized once (a grouped join), and the plan
+    carries no correlated scalar subquery for them."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    for _ in range(3):
+        _create_task(admin_h)
+    who = _labeler()
+
+    sql, params = store.labeler_queue_sql(
+        evaluator_id=who["id"], specialty="nephrology", hard_only=True)
+    steps = _plan(store, sql, params)
+    plan = " | ".join(steps).upper()
+
+    # The counts are computed once, over an index, not per candidate row.
+    assert "MATERIALIZE" in plan, plan
+    assert "COVERING INDEX IDX_SUB_TASK_VERDICT" in plan, plan
+
+    # Correlated probes that REMAIN are the two independence/PHI guards, and a
+    # NOT EXISTS is exactly what should compile to an indexed point lookup. What
+    # must not survive is a correlated subquery that SCANS — that was the H4
+    # shape, five of them per row.
+    correlated = False
+    for step in steps:
+        up = step.upper()
+        if "CORRELATED" in up:
+            correlated = True
+            continue
+        if correlated:
+            assert "USING INDEX" in up or "USING COVERING INDEX" in up, \
+                f"a correlated subquery falls back to a scan: {step}"
+            correlated = False
+
+    # And the scan is windowed, so one draw cannot materialize the whole table.
+    assert "LIMIT" in sql.upper()
+
+
+def test_the_draw_stays_bounded_as_the_queue_grows():
+    """A behavioural ceiling rather than a timing assertion: the draw must not
+    build a Python dict for every open task in the fleet."""
+    import tracemalloc
+
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    who = _labeler()
+    # Enough rows that an unbounded fetch is visibly different from a windowed one.
+    with store._conn() as conn:
+        now = "2026-01-01T00:00:00"
+        conn.executemany(
+            "INSERT INTO tasks (task_id, prompt, specialty, difficulty, "
+            "candidate_answers_json, max_labels, status, created_at) "
+            "VALUES (?, ?, 'nephrology', 'hard', '[]', 1, 'open', ?)",
+            [(f"t-bulk-{i:06d}", f"case {i}", now) for i in range(4000)])
+
+    tracemalloc.start()
+    got = store.next_task_for_evaluator(
+        evaluator_id=who["id"], specialty="nephrology", hard_only=True)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    assert got is not None
+    # Measured after the fix: ~0.09 MB and ~7 ms for this queue. The ceiling is
+    # ~30× that, which is generous for a lean windowed fetch and nowhere near
+    # what a full `SELECT t.*` of every open task costs (the audit measured
+    # 98.5 MB at 20,000 tasks — this fixture is a fifth of that).
+    assert peak < 3_000_000, f"one draw peaked at {peak / 1e6:.1f} MB"
+
+
+def test_the_priority_sort_survives_the_scan_window():
+    """The window must never cost the throughput rule. An awaiting-second case
+    created LAST still comes first, because the sort is in SQL and the window is
+    applied after it."""
+    admin_h = _admin_h()
+    for _ in range(40):
+        _create_task(admin_h)
+    partial = _create_task(admin_h)
+    _submit(partial, _labeler())
+
+    assert _draw(_labeler())["task_id"] == partial
+
+
+def test_the_starvation_guard_survives_the_scan_window():
+    """And the window must never hand a labeler an empty queue: the exclusions
+    that make a task ineligible for THIS labeler are applied in SQL, so the
+    window counts only work they could actually take."""
+    admin_h = _admin_h()
+    mine = _labeler()
+    for _ in range(40):
+        _submit(_create_task(admin_h), mine)
+    escape = _create_task(admin_h)
+
+    assert _draw(mine)["task_id"] == escape
+
+
+# ═══ M1 — one definition of "a label" ════════════════════════════════════════
+def test_a_verdictless_row_cannot_wedge_a_case_at_awaiting_second():
+    """M1. Eligibility and priority counted verdict-bearing submissions; capacity
+    counted ALL of them — three lines after a comment saying a verdict-less row
+    'must not count toward the pair'. One new non-terminal verdict-less write and
+    a case sits at Awaiting 2nd forever, servable to nobody."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _create_task(admin_h)
+    _submit(tid, _labeler())
+
+    # A verdict-less row lands on the task (a draft, a flag — not a label).
+    store.insert_submission(
+        submission_id="s-noverdict", task_id=tid, evaluator_id=_labeler()["id"],
+        verdict=None, chosen_id=None, rejected_id=None, confidence=None,
+        time_spent_sec=0, payload={}, annotator={}, dedupe_hash=None)
+
+    assert _phase(tid) == asc_routing.AWAITING_SECOND
+    drawn = _draw(_labeler())
+    assert drawn is not None and drawn["task_id"] == tid, \
+        "the case is stuck: it wants a second label and no labeler can take it"
+
+
 def test_capacity_catch_up_is_idempotent_and_writes_once():
     """The lift carries ``AND max_labels < 2``: drawing the same case repeatedly
     must not re-write the row or re-log the flag event."""

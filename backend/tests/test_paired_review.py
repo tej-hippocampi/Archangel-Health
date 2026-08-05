@@ -10,6 +10,7 @@ facing honesty claim) and **the statistics' names** (the commercial argument).
 """
 from __future__ import annotations
 
+import signal
 import sys
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -100,11 +101,29 @@ def _submit(task_id, labeler, *, verdict="A_better", scratch=None, critique=None
     return sid
 
 
-def _paired_task(admin_h, *, tl1=None, tl2=None, verdicts=("A_better", "A_better"), **kw):
-    """A case with two independent labels, built entirely through HTTP."""
+def _reveal(task_id, labeler, text=None):
+    """POST /tasks/{id}/reveal — the blind-commit gate a labeler passes through
+    BEFORE the candidate answers are shown to them."""
+    r = client.post(f"/api/asclepius/tasks/{task_id}/reveal",
+                    json={"text": text or f"Calcium first, then dialysis ({A.uniq(6)})."},
+                    headers=A.headers_for(labeler))
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def _paired_task(admin_h, *, tl1=None, tl2=None, verdicts=("A_better", "A_better"),
+                 attested=True, **kw):
+    """A case with two independent labels, built entirely through HTTP.
+
+    ``attested`` walks each labeler through the reveal gate first, which is what
+    a real labeler does and what licenses κ's blinding flag (Audit R C2). Pass
+    ``attested=False`` to build the unverified case deliberately."""
     tid = _create_task(admin_h, **kw)
-    _submit(tid, tl1 or _labeler(), verdict=verdicts[0])
-    _submit(tid, tl2 or _labeler(), verdict=verdicts[1])
+    for labeler, verdict in ((tl1 or _labeler(), verdicts[0]),
+                             (tl2 or _labeler(), verdicts[1])):
+        if attested:
+            _reveal(tid, labeler)
+        _submit(tid, labeler, verdict=verdict)
     return tid
 
 
@@ -148,7 +167,14 @@ def test_a_singly_labelled_case_is_never_served_as_a_pair():
 def test_a_case_still_wanting_a_third_label_is_not_review_ready():
     """The SQL and ``routing.phase`` have to agree. An admin-set max_labels of 3
     with two labels in is awaiting_second, not review_ready — and if only the
-    state machine knew that, the two would be a second pair of truths."""
+    state machine knew that, the two would be a second pair of truths.
+
+    This test used to end by asserting that the case IS served once its third
+    label lands, which merely PROVED the truncation Audit R H3 names and said
+    nothing about its consequence. What happens at three labels is now asserted
+    where it belongs, in
+    ``test_a_third_label_is_never_marked_reviewed_by_someone_who_did_not_see_it``:
+    the case is not served at all, and it is counted so a human sees it."""
     store = asc_store.get_store()
     admin_h = _admin_h()
     tid = _create_task(admin_h, max_labels=3)
@@ -158,10 +184,9 @@ def test_a_case_still_wanting_a_third_label_is_not_review_ready():
     task = store.get_task(tid)
     assert asc_routing.phase(task, 2, 0) == asc_routing.AWAITING_SECOND
     assert _draw_pair(_reviewer())["pair"] is None
-
-    _submit(tid, _labeler())
-    assert asc_routing.phase(store.get_task(tid), 3, 0) == asc_routing.REVIEW_READY
-    assert _draw_pair(_reviewer())["pair"]["task_id"] == tid
+    # ...and it is still labeler work, so the labeler queue keeps offering it.
+    r = client.get("/api/asclepius/tasks/next", headers=A.headers_for(_labeler()))
+    assert (r.json().get("task") or {}).get("task_id") == tid
 
 
 def test_a_reviewer_who_authored_one_of_them_never_draws_that_case():
@@ -260,6 +285,353 @@ def test_the_position_the_client_names_is_resolved_server_side():
     assert r.json()["review"]["pair_sub_b"] == subs[1]["submission_id"]
 
 
+# ═══ H1 — 'stronger' must not be stored in the reviewer's shuffled positions ══
+def test_stronger_is_stored_canonically_next_to_the_canonical_pair():
+    """H1. ``pair_sub_a``/``pair_sub_b`` are canonical (oldest-first);
+    ``accepted_side`` is resolved through the seeded map. ``stronger`` was
+    written RAW, in the reviewer's positions, in the column next door.
+
+    Nothing reads it yet, which is exactly why it would break later: the first
+    person to write the pairwise-quality report joins ``stronger`` to
+    ``pair_sub_a`` — the only sane reading of two adjacent columns — and gets a
+    coin flip. 'Which is stronger?' is the entire reason the pair exists."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+
+    # Cover both permutations, so a reviewer who happens to see the canonical
+    # order cannot make this pass by accident.
+    seen_swapped = set()
+    for _ in range(12):
+        tid = _paired_task(admin_h)
+        rv = _reviewer()
+        _draw_pair(rv)
+        swapped = asc_routing.ab_swapped(tid, rv["id"])
+        seen_swapped.add(swapped)
+
+        subs = [s for s in store.submissions_for_task(tid) if s.get("verdict")]
+        shown_a, shown_b = asc_routing.ab_pair(subs, task_id=tid, reviewer_id=rv["id"])
+
+        r = client.post(f"/api/asclepius/review/pair/{tid}",
+                        json=_adjudication(stronger="A", accepted_side="A"),
+                        headers=A.headers_for(rv))
+        assert r.status_code == 200, r.text
+        row = r.json()["review"]
+
+        # The naive read — the one a downstream report will write.
+        by_position = {"A": row["pair_sub_a"], "B": row["pair_sub_b"]}[row["stronger"]]
+        assert by_position == shown_a["submission_id"], (
+            "stronger points at the wrong physician when read against the "
+            "canonical pair columns")
+        # And the unambiguous form agrees with it.
+        assert row["stronger_submission_id"] == shown_a["submission_id"]
+        assert row["accepted_submission_id"] == shown_a["submission_id"]
+    assert seen_swapped == {True, False}, "only one A/B permutation was exercised"
+
+
+def test_equivalent_names_no_stronger_submission():
+    admin_h = _admin_h()
+    tid = _paired_task(admin_h)
+    rv = _reviewer()
+    _draw_pair(rv)
+    r = client.post(f"/api/asclepius/review/pair/{tid}",
+                    json=_adjudication(stronger="equivalent", accepted_side="B"),
+                    headers=A.headers_for(rv))
+    assert r.status_code == 200, r.text
+    assert r.json()["review"]["stronger"] == "equivalent"
+    assert r.json()["review"]["stronger_submission_id"] is None
+
+
+# ═══ H2 — one case, one adjudication, one row in the denominator ═════════════
+def test_a_case_that_became_a_pair_stops_accepting_a_single_submission_review():
+    """H2. The single-review predicates were checked at DRAW time and never
+    again, while the labeler queue deliberately kept the same task servable to a
+    second labeler. A reviewer holding a single claim, and a second labeler,
+    could both proceed — producing two ``case_reviews`` rows for one case and an
+    acceptance rate that counts it twice."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _create_task(admin_h)
+    tl1 = _labeler()
+    _reveal(tid, tl1); _submit(tid, tl1)
+
+    rv = _reviewer()
+    drawn = client.get("/api/asclepius/review/next", headers=A.headers_for(rv)).json()
+    sub_id = (drawn.get("submission") or {}).get("submission_id")
+    if sub_id is None:                     # already routed to the pair queue
+        pytest.skip("the single queue declined it, which is the other correct outcome")
+
+    # ...and while they read it, the case gets its second label.
+    tl2 = _labeler()
+    _reveal(tid, tl2); _submit(tid, tl2)
+
+    r = client.post(f"/api/asclepius/review/{sub_id}", json={
+        "verdict": "accept",
+        "dimensions": {k: "agree" for k in asc_review.DIMENSION_KEYS},
+        "time_spent_sec": 45,
+    }, headers=A.headers_for(rv))
+    assert r.status_code == 409, r.text
+    detail = r.json()["detail"]
+    # The copy has to say what actually happened. "Your claim expired" is false
+    # and offers no way forward.
+    assert "pair" in str(detail).lower()
+    assert "expired" not in str(detail).lower()
+    # Their work is handed back, not thrown away.
+    assert detail.get("your_review", {}).get("dimensions")
+    assert detail.get("task_id") == tid
+
+    assert store.reviews_for_task(tid) == []
+
+
+def test_a_case_is_adjudicated_once_from_either_flow():
+    """The denominator invariant, stated directly: one case, at most one review
+    row, whichever queue produced it."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _paired_task(admin_h)
+    rv1 = _reviewer()
+    _draw_pair(rv1)
+    assert client.post(f"/api/asclepius/review/pair/{tid}", json=_adjudication(),
+                       headers=A.headers_for(rv1)).status_code == 200
+
+    # A second reviewer cannot draw it, and cannot force it by hand either.
+    rv2 = _reviewer()
+    assert _draw_pair(rv2)["pair"] is None
+    assert client.post(f"/api/asclepius/review/pair/{tid}", json=_adjudication(),
+                       headers=A.headers_for(rv2)).status_code == 409
+    assert len(store.reviews_for_task(tid)) == 1
+
+
+# ═══ H3 — a third label is neither shown nor silently retired ════════════════
+def test_a_third_label_is_never_marked_reviewed_by_someone_who_did_not_see_it():
+    """H3. The pair queue gated on ``>= 2`` and ``ab_pair`` truncated to two in
+    Python, so a third physician's label was invisible to the reviewer — and
+    then marked ``reviewed`` by that reviewer anyway. That is paid work retired
+    by someone who never read it, excluded from both queues, adjudicated never."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _create_task(admin_h, max_labels=3)
+    for _ in range(3):
+        tl = _labeler()
+        _reveal(tid, tl); _submit(tid, tl)
+
+    subs = [s for s in store.submissions_for_task(tid) if s.get("verdict")]
+    assert len(subs) == 3
+
+    # The paired review is defined over exactly two labels. It must not serve a
+    # three-label case at all rather than serving two thirds of one.
+    assert _draw_pair(_reviewer())["pair"] is None
+    assert all(s.get("review_status") is None for s in
+               store.submissions_for_task(tid)), "a label was retired unseen"
+
+    # And the case is COUNTABLE rather than invisible — someone has to look at it.
+    stats = client.get("/api/asclepius/review/stats", headers=A.headers_for(_reviewer()))
+    assert stats.status_code == 200, stats.text
+    assert stats.json()["over_labelled"] == 1
+
+
+def test_adjudicating_a_pair_retires_exactly_the_two_labels_it_showed():
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _paired_task(admin_h)
+    rv = _reviewer()
+    _draw_pair(rv)
+    assert client.post(f"/api/asclepius/review/pair/{tid}", json=_adjudication(),
+                       headers=A.headers_for(rv)).status_code == 200
+
+    reviewed = [s for s in store.submissions_for_task(tid)
+                if s.get("review_status") == "reviewed"]
+    assert len(reviewed) == 2
+
+
+# ═══ M4 / M5 / the incident switch ═══════════════════════════════════════════
+_STATS_SQL = """
+                SELECT
+                  SUM(CASE WHEN lc = 1 THEN 1 ELSE 0 END) AS awaiting_second,
+                  SUM(CASE WHEN lc = 2 AND rc = 0 THEN 1 ELSE 0 END) AS review_ready,
+                  SUM(CASE WHEN rc > 0 THEN 1 ELSE 0 END) AS adjudicated,
+                  -- Audit R H3: a case carrying more than two labels cannot be
+                  -- adjudicated by a PAIRED review. Counted, not dropped — the
+                  -- whole failure was that this work was invisible.
+                  SUM(CASE WHEN lc > 2 AND rc = 0 THEN 1 ELSE 0 END) AS over_labelled,
+                  -- Audit R M5: terminal, never adjudicated, nobody notified.
+                  SUM(CASE WHEN rs = 'reviewed' AND rc = 0 THEN 1 ELSE 0 END) AS parked
+                FROM (
+                  SELECT COALESCE(c.n_labels, 0) AS lc,
+                         COALESCE(r.n_reviews, 0) AS rc,
+                         t.review_status AS rs
+                  FROM tasks t
+                  LEFT JOIN (SELECT task_id, COUNT(*) AS n_all, SUM(CASE WHEN verdict IS NOT NULL THEN 1 ELSE 0 END) AS n_labels FROM submissions GROUP BY task_id) c ON c.task_id = t.task_id
+                  LEFT JOIN (SELECT task_id, COUNT(*) AS n_reviews
+                               FROM case_reviews GROUP BY task_id) r
+                         ON r.task_id = t.task_id
+                  WHERE t.status IN ('open', 'done')
+                )
+                """
+
+
+def test_the_header_stats_do_not_scan_the_task_table_per_row():
+    """M4. A correlated subquery per task, over the whole table, with no limit,
+    backing a header refreshed on every draw."""
+    store = asc_store.get_store()
+    with store._conn() as conn:
+        plan = " | ".join(
+            dict(r)["detail"] for r in conn.execute(
+                "EXPLAIN QUERY PLAN " + _STATS_SQL).fetchall()).upper()
+    assert "CORRELATED SCALAR SUBQUERY" not in plan, plan
+    assert "MATERIALIZE" in plan, plan
+
+
+def test_a_parked_case_is_countable_rather_than_only_logged():
+    """M5. A case refused as not-independent is set terminal and logged at ERROR.
+    Two physicians' paid labels are stranded in it and no surface read that log."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _paired_task(admin_h)
+    store.mark_task_reviewed(tid)          # what the draw does on a refusal
+
+    stats = client.get("/api/asclepius/review/stats",
+                       headers=A.headers_for(_reviewer())).json()
+    assert stats["parked"] == 1
+    assert stats["adjudicated"] == 0, "a parked case must not read as adjudicated"
+
+
+def test_one_flag_halts_double_labeling_whatever_else_is_set(monkeypatch):
+    """The audit's note on open question #3: lowering the rate produces an
+    OSCILLATION, not a reduction — the queue passes ``specialty_n=None`` and
+    sheds, while the sweep passes it and re-flags what the queue declined, since
+    ``specialty_n < 30`` routes unconditionally. The incident switch is one flag
+    checked ahead of all three predicates."""
+    from asclepius import agreement as AG
+
+    monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_RATE", "0")
+    # Without the halt, the per-specialty rule still routes everything.
+    assert AG.should_double_label({"specialty": "new"}, current_rate=0.9, specialty_n=5) is True
+    assert AG.should_double_label({"case_source": "real_deid"}, current_rate=0.9) is True
+
+    monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_HALT", "1")
+    assert AG.double_label_halted() is True
+    assert AG.double_label_rate() == 0.0
+    assert AG.should_double_label({"specialty": "new"}, current_rate=0.0, specialty_n=5) is False
+    assert AG.should_double_label({"case_source": "real_deid"}, current_rate=0.0) is False
+    assert asc_routing.second_label_is_default() is False
+    # And a singly-labelled case stops asking for a partner.
+    assert asc_routing.phase({"max_labels": 1, "difficulty": "medium"}, 1, 0) == \
+        asc_routing.REVIEW_READY
+
+
+# ═══ M2 — an adjudication commits, or it does not ════════════════════════════
+def test_an_adjudication_that_fails_partway_leaves_no_half_review():
+    """M2. This spanned five independent transactions: insert the review, stamp
+    the pair columns, mark the task reviewed, retire each submission. A crash in
+    the middle left a ``case_reviews`` row that COUNTS in ``review_acceptance``
+    with NULL pair columns, beside a task still ``in_review`` — which, after the
+    lease expires, reproduces H2 deterministically.
+
+    Fails the write at the last step and asserts nothing survived."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _paired_task(admin_h)
+    rv = _reviewer()
+    _draw_pair(rv)
+    subs = [s for s in store.submissions_for_task(tid) if s.get("verdict")]
+
+    class _Boom(Exception):
+        pass
+
+    # A connection that dies on the LAST write of the adjudication — the retire
+    # step. `sqlite3.Connection` is immutable, so the failure is injected by
+    # wrapping the store's connection factory rather than patching the driver.
+    class _FlakyConn:
+        def __init__(self, real):
+            self._real = real
+
+        def execute(self, sql, *a, **kw):
+            if "review_status" in str(sql) and "UPDATE submissions" in str(sql):
+                raise _Boom("disk gave out mid-adjudication")
+            return self._real.execute(sql, *a, **kw)
+
+        def __getattr__(self, name):
+            return getattr(self._real, name)
+
+        def __enter__(self):
+            self._real.__enter__()
+            return self
+
+        def __exit__(self, *exc):
+            return self._real.__exit__(*exc)
+
+    orig_conn = store._conn
+    store._conn = lambda: _FlakyConn(orig_conn())
+    try:
+        with pytest.raises(_Boom):
+            store.insert_pair_review(
+                task_id=tid, reviewer_user_id=rv["id"], reviewer_id_hashed="h",
+                verdict="accept", stronger="A",
+                stronger_submission_id=subs[0]["submission_id"],
+                pair_sub_a=subs[0]["submission_id"], pair_sub_b=subs[1]["submission_id"],
+                accepted_submission_id=subs[0]["submission_id"],
+                dimensions={k: "agree" for k in asc_review.DIMENSION_KEYS},
+                blinded=True,
+            )
+    finally:
+        store._conn = orig_conn
+
+    # Nothing half-applied: no review row that would count in the denominator...
+    assert store.reviews_for_task(tid) == []
+    # ...and no submission retired by an adjudication that never landed.
+    assert all(s.get("review_status") is None
+               for s in store.submissions_for_task(tid))
+
+
+def test_a_committed_adjudication_lands_whole():
+    """The other half of M2: one call, and every consequence of it is present."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _paired_task(admin_h)
+    rv = _reviewer()
+    _draw_pair(rv)
+    assert client.post(f"/api/asclepius/review/pair/{tid}", json=_adjudication(),
+                       headers=A.headers_for(rv)).status_code == 200
+
+    row = store.reviews_for_task(tid)[0]
+    assert row["pair_sub_a"] and row["pair_sub_b"] and row["stronger"]
+    assert store.task_review_claim(tid)["status"] == "reviewed"
+    assert all(s.get("review_status") == "reviewed"
+               for s in store.submissions_for_task(tid) if s.get("verdict"))
+
+
+def test_both_review_writers_produce_the_same_row_shape():
+    """``insert_pair_review`` writes the case_reviews row itself so the whole
+    adjudication is one transaction. That means two writers for one table, so
+    the shapes are asserted equal here rather than assumed."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+
+    single_tid = _create_task(admin_h)
+    tl = _labeler()
+    _submit(single_tid, tl)
+    single = store.insert_case_review(
+        task_id=single_tid, submission_id="s-x", reviewer_user_id="u-x",
+        reviewer_id_hashed="h", verdict="accept",
+        dimensions={k: "agree" for k in asc_review.DIMENSION_KEYS})
+
+    paired_tid = _paired_task(admin_h)
+    rv = _reviewer()
+    _draw_pair(rv)
+    subs = [s for s in store.submissions_for_task(paired_tid) if s.get("verdict")]
+    paired = store.insert_pair_review(
+        task_id=paired_tid, reviewer_user_id=rv["id"], reviewer_id_hashed="h",
+        verdict="accept", stronger="A",
+        stronger_submission_id=subs[0]["submission_id"],
+        pair_sub_a=subs[0]["submission_id"], pair_sub_b=subs[1]["submission_id"],
+        accepted_submission_id=subs[0]["submission_id"],
+        dimensions={k: "agree" for k in asc_review.DIMENSION_KEYS}, blinded=True)
+
+    assert set(single) == set(paired)
+    # And the paired row is countable by the ONE acceptance definition.
+    assert asc_agreement.review_acceptance([single, paired])["n"] == 2
+
+
 # ═══ blinding ════════════════════════════════════════════════════════════════
 def test_a_labelers_name_seeded_in_their_free_text_is_not_served():
     """The vector PRD R §2.2 names: the whitelist serves labeler-authored prose,
@@ -296,6 +668,87 @@ def test_a_labelers_name_seeded_in_their_free_text_is_not_served():
               if e.get("event_type") == "review_pair_redacted"]
     assert len(events) == 1
     assert "okonkwo" not in repr(events).lower()
+
+
+def _with_deadline(seconds, fn, *args, **kw):
+    """Run ``fn`` under a hard wall-clock deadline, raising if it overruns.
+
+    A plain ``assert`` cannot catch a non-terminating loop — the test never gets
+    to run it. SIGALRM interrupts the interpreter inside the loop itself, so a
+    hang FAILS instead of taking the suite (and, in production, the worker) with
+    it. That is exactly the failure mode under test."""
+    if not hasattr(signal, "SIGALRM"):        # pragma: no cover - Unix in CI
+        pytest.skip("SIGALRM is required to bound a non-terminating call")
+
+    def _boom(signum, frame):
+        raise TimeoutError(f"did not return within {seconds}s")
+
+    old = signal.signal(signal.SIGALRM, _boom)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        return fn(*args, **kw)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, old)
+
+
+# Every 4-, 5- and 6-gram of the marker the redaction writes. If the scan
+# restarts from zero after a substitution it re-finds the needle *inside the
+# marker it just wrote*, and appends forever.
+_MARKER_NGRAMS = sorted({
+    asc_review.REDACTION_MARKER[i:i + n]
+    for n in (4, 5, 6)
+    for i in range(len(asc_review.REDACTION_MARKER) - n + 1)
+    if asc_review.REDACTION_MARKER[i:i + n].isalpha()
+})
+
+
+@pytest.mark.parametrize("needle", _MARKER_NGRAMS)
+def test_redaction_terminates_on_every_substring_of_its_own_marker(needle):
+    """C1. The marker contains ordinary English fragments — 'dent', 'tail',
+    'move', 'remo'. A physician signing up as ``remo@mercy.org``, or with a
+    surname containing 'dent', is enough to make the substitution re-find itself.
+
+    This runs on the reviewer draw path, synchronously, BEFORE the claim: a hang
+    here pins a worker at 100% CPU and allocates without bound until the
+    container OOMs, and every later draw on that worker dies with it."""
+    text = f"Signed, {needle} of Mercy. Start calcium gluconate."
+    # 2s is enormous for a single-pass substitution over one short string, and
+    # keeps a regression from costing the suite three minutes to report.
+    out, hit = _with_deadline(
+        2.0, asc_review.redact_identity,
+        {"answers": [{"answer": {"from_scratch": {"ideal_answer": text}}}]},
+        [{"organization": needle}],
+    )
+    served = repr(out)
+    assert asc_review.REDACTION_MARKER in served
+    assert "calcium gluconate" in served, "the clinical content did not survive"
+    # Bounded output: one marker per hit, never a marker per marker.
+    assert len(served) < len(text) + 4 * len(asc_review.REDACTION_MARKER)
+
+
+def test_redaction_output_length_is_bounded_by_the_hits():
+    """The growth half of C1: even when it terminated, an output that grows with
+    each pass is the same defect with a smaller exponent."""
+    needle = "okonkwo"
+    text = " ".join([needle] * 20)
+    out, hit = _with_deadline(
+        5.0, asc_review.redact_identity, {"t": text}, [{"organization": needle}])
+    assert out["t"] == " ".join([asc_review.REDACTION_MARKER] * 20)
+    assert hit == [needle]
+
+
+def test_a_labeler_whose_name_collides_with_the_marker_can_still_be_reviewed():
+    """The production path, end to end. Before the fix this GET never returns."""
+    admin_h = _admin_h()
+    tl1 = _labeler(email="remo@mercy.example.com")
+    tid = _create_task(admin_h)
+    _submit(tid, tl1, scratch="Per remo's usual approach, calcium first.")
+    _submit(tid, _labeler())
+
+    got = _with_deadline(10.0, _draw_pair, _reviewer())["pair"]
+    assert got is not None and got["task_id"] == tid
+    assert "calcium first" in repr(got)
 
 
 def test_redaction_never_fires_on_clinical_prose_that_merely_looks_like_a_name():
@@ -429,6 +882,91 @@ def test_kappa_is_computable_over_the_two_labels_and_acceptance_is_separate():
     assert acceptance["n"] == 1 and acceptance["accept_rate"] == 1.0
     assert "kappa" not in acceptance and "overall" not in acceptance
     assert "accept_rate" not in kappa
+
+
+# ═══ C2 — κ's blinding flag must be a MEASUREMENT ════════════════════════════
+# ``upsert_agreement`` defaulted ``blinded=True`` and its only caller never
+# passed it, so every observation was stamped blind and ``_blinded_only`` was a
+# permanent no-op. Two buyer-facing artifacts inherited that: quality_report.md
+# printed "unblinded observations excluded: 0" unconditionally, and every
+# packaged record shipped ``independent_second_label`` on the strength of an
+# observation merely EXISTING. Moving the double-label rate 0.15 → 1.0 took that
+# from ~15% of the dataset to 100% of it.
+def test_blinding_on_a_kappa_observation_is_measured_not_asserted():
+    """Both labelers committed a blind independent answer before either saw
+    anything else. That is evidence, and it is what licenses ``blinded = 1``."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _create_task(admin_h)
+    tl1, tl2 = _labeler(), _labeler()
+    _reveal(tid, tl1); _submit(tid, tl1)
+    _reveal(tid, tl2); _submit(tid, tl2)
+
+    obs = store.get_agreement_observation(tid)
+    assert obs is not None
+    assert obs["blinded"] == 1
+
+    kappa = asc_agreement.independent_kappa(store.list_agreement_observations(), min_n=1)
+    assert kappa["n"] == 1 and kappa["excluded_unverified"] == 0
+
+
+def test_an_unattested_pair_is_excluded_from_kappa_rather_than_asserted_blind():
+    """No blind commit on record for either labeler, so nothing attests that the
+    second read was independent. NULL — 'not verified' — never 1.
+
+    This is the whole point: below, ``excluded_unverified`` is non-zero, which
+    it could not be while the flag was a constant."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _create_task(admin_h)
+    _submit(tid, _labeler())          # submitted without passing the reveal gate
+    _submit(tid, _labeler())
+
+    obs = store.get_agreement_observation(tid)
+    assert obs is not None
+    assert obs["blinded"] is None, "an unverified observation was asserted blind"
+
+    kappa = asc_agreement.independent_kappa(store.list_agreement_observations(), min_n=1)
+    assert kappa["n"] == 0
+    assert kappa["excluded_unverified"] == 1
+    assert kappa["overall"] is None
+
+
+def test_one_attested_labeler_is_not_enough():
+    """κ is a statement about the PAIR. One physician's blind commit says nothing
+    about whether the other read independently."""
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    tid = _create_task(admin_h)
+    tl1, tl2 = _labeler(), _labeler()
+    _reveal(tid, tl1); _submit(tid, tl1)
+    _submit(tid, tl2)                 # no commit for the second read
+
+    assert store.get_agreement_observation(tid)["blinded"] is None
+
+
+def test_the_packaged_record_does_not_claim_an_independence_it_cannot_show():
+    """``packaging.supervision_block`` and the export case bundle already gate on
+    ``blinded in (True, 1)`` — correctly. They were dishonest only because the
+    value they gate on was a constant. Fixing the source fixes both."""
+    from asclepius import packaging as asc_packaging
+
+    store = asc_store.get_store()
+    admin_h = _admin_h()
+    attested = _create_task(admin_h)
+    a1, a2 = _labeler(), _labeler()
+    _reveal(attested, a1); _submit(attested, a1)
+    _reveal(attested, a2); _submit(attested, a2)
+
+    bare = _create_task(admin_h)
+    _submit(bare, _labeler()); _submit(bare, _labeler())
+
+    good = asc_packaging.supervision_block(
+        labeler_id_hashed="h", observation=store.get_agreement_observation(attested))
+    unattested = asc_packaging.supervision_block(
+        labeler_id_hashed="h", observation=store.get_agreement_observation(bare))
+    assert good["independent_second_label"] is True
+    assert unattested["independent_second_label"] is False
 
 
 def test_the_paired_verdict_never_falls_out_of_the_acceptance_denominator():

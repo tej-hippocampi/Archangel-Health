@@ -78,10 +78,31 @@ def double_label_rate() -> float:
     Single source of truth for ``ASCLEPIUS_DOUBLE_LABEL_RATE``. Two modules used
     to define a default for the same knob (0.20 in one, 0.15 in the PRD that
     ``review.py`` implements) and silently disagreed about the target."""
+    if double_label_halted():
+        return 0.0
     try:
         return float(os.getenv("ASCLEPIUS_DOUBLE_LABEL_RATE", str(DEFAULT_DOUBLE_LABEL_RATE)))
     except ValueError:
         return DEFAULT_DOUBLE_LABEL_RATE
+
+
+def double_label_halted() -> bool:
+    """THE incident switch: stop routing second labels, whatever else is set.
+
+    ``ASCLEPIUS_DOUBLE_LABEL_RATE`` alone does not shed load, and the way it
+    fails is worse than not working. ``should_double_label`` routes every case in
+    a specialty with fewer than 30 observations UNCONDITIONALLY; the sweep passes
+    ``specialty_n`` and so re-flags what the queue, which passes None, just
+    declined. Lowering the rate under load therefore produces an OSCILLATION
+    rather than a reduction — the two predicates disagree and keep overwriting
+    each other.
+
+    So the incident switch is one flag, checked before every other predicate,
+    rather than an interaction between three. It is deliberately not a rate:
+    an operator reaching for this at 3am wants "stop", not a number to tune.
+    """
+    return os.getenv("ASCLEPIUS_DOUBLE_LABEL_HALT", "").strip().lower() in (
+        "1", "true", "yes", "on")
 
 
 def should_double_label(task: Dict[str, Any], *, current_rate: float,
@@ -101,6 +122,11 @@ def should_double_label(task: Dict[str, Any], *, current_rate: float,
     """
     t = task or {}
     case = t.get("case") or {}
+    # The incident switch, ahead of every unconditional rule — including the
+    # per-specialty one, which is what made lowering the rate oscillate instead
+    # of shedding load. See ``double_label_halted``.
+    if double_label_halted():
+        return False
     if (t.get("declared_difficulty") or case.get("declared_difficulty")) == "frontier-hard":
         return True
     if t.get("case_source") == "real_deid" or case.get("case_source") == "real_deid":
@@ -111,6 +137,57 @@ def should_double_label(task: Dict[str, Any], *, current_rate: float,
         return True
     # Top up with random selection to reach the target rate.
     return current_rate < double_label_rate()
+
+
+# Roles that can read another labeler's submission directly (``GET
+# /submissions/{id}`` serves the full row, evaluator_id and annotator included).
+# A label authored by one of these is not blind in the sense κ needs, whatever
+# else is on record.
+_CAN_DEBLIND_ROLES = frozenset({"admin", "qa_reviewer"})
+
+
+def blinding_of_pair(
+    labels: Sequence[Dict[str, Any]], *, blind_commits: Sequence[Any],
+) -> Optional[bool]:
+    """Was this pair of labels authored independently? Tri-state (Audit R C2).
+
+    ``labels`` is the two labeler dicts (needs ``id``/``role``); ``blind_commits``
+    is the pre-reveal independent commit for each, in the same order — ``None``
+    where none is on record.
+
+    THE POINT OF THIS FUNCTION IS THAT IT CAN RETURN SOMETHING OTHER THAN TRUE.
+    ``upsert_agreement`` used to default ``blinded=True`` with no caller ever
+    passing it, so ``_blinded_only`` — the gate that exists to keep anchored
+    observations out of κ — could never exclude anything, and every packaged
+    record claimed independence on the strength of an observation merely
+    existing.
+
+    * ``False`` — measured anchoring RISK: a labeler holds a role that can read
+      the other's submission, or the same person authored both. Excluded from κ
+      and reported as ``excluded_unblinded``.
+    * ``True``  — both labelers committed a blind independent answer BEFORE
+      being shown anything else (the reveal gate, on by default via
+      ``ASCLEPIUS_WITHHOLD_ANSWERS``). That commit is the evidence.
+    * ``None``  — not verified. No commit on record, which happens when
+      withholding is switched off or the label came from a direct API client.
+      NOT the same as measured anchoring, so it is reported separately as
+      ``excluded_unverified`` — and excluded from κ either way.
+
+    A smaller honest n is worth more than a larger unverifiable one. If κ's n
+    collapses after this lands, the fix is operational (leave withholding on),
+    never statistical.
+    """
+    rows = list(labels or [])
+    if len(rows) < 2:
+        return None
+    ids = [r.get("id") for r in rows]
+    if len(set(ids)) != len(ids):
+        return False                      # one person, two labels: not a pair
+    if any((r.get("role") or "") in _CAN_DEBLIND_ROLES for r in rows):
+        return False
+    if all(blind_commits) and len(list(blind_commits)) == len(rows):
+        return True
+    return None
 
 
 def _blinded_only(observations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

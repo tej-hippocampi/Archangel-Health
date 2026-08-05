@@ -59,6 +59,19 @@ const timers = [];
 globalThis.setInterval = (fn) => { timers.push(fn); return timers.length; };
 globalThis.clearInterval = () => {};
 globalThis.__timers = timers;
+globalThis.__tick = function () { timers.slice().forEach((fn) => fn()); };
+
+// Agent P's heartbeat client, when the page has one. `state()` is the ONLY
+// contract the review surface consumes: server-attested seconds, never a local
+// clock. `__sessionCalls` records what the review page asked of it.
+globalThis.__sessionCalls = [];
+const SESSION_STATE = %(session_state)s;
+if (SESSION_STATE !== null) {
+  globalThis.window.AsclepiusSession = {
+    start: function (s) { globalThis.__sessionCalls.push(['start', s && s.session_id]); },
+    state: function () { globalThis.__sessionCalls.push(['state']); return SESSION_STATE; },
+  };
+}
 
 const ROUTES = %(routes)s;
 const calls = [];
@@ -151,6 +164,7 @@ globalThis.__report = function () {
     note: findByClass(root, 'asc-session-note').map((e) => e.textContent),
     errors: findByClass(root, 'rv-error').map((e) => e.textContent),
     calls: globalThis.__calls.map((c) => c.url),
+    sessionCalls: globalThis.__sessionCalls,
   };
 };
 // The module's boot chain is promise-based; drain the microtask queue first.
@@ -218,12 +232,16 @@ def _routes(**over):
     return routes
 
 
-def _render(routes, drive: str = "") -> dict:
+def _render(routes, drive: str = "", session_state=None) -> dict:
+    """``session_state`` is what Agent P's ``AsclepiusSession.state()`` returns.
+    ``None`` means the page has no heartbeat client at all — which is what a
+    reviewer sees today, before P's script is on the page."""
     return _run_node(_HARNESS % {
         "shim": json.dumps(str(_DOM_SHIM)),
         "module": json.dumps(str(_REVIEW_JS)),
         "routes": json.dumps(routes),
         "drive": json.dumps(drive) if drive else "null",
+        "session_state": json.dumps(session_state) if session_state is not None else "null",
     })
 
 
@@ -267,21 +285,69 @@ def test_the_answers_grid_contains_exactly_the_two_cards():
     assert out["grids"][0]["childCount"] == 2
 
 
-# ═══ the countdown ═══════════════════════════════════════════════════════════
-def test_the_countdown_renders_from_the_api_response():
-    session = {"session_id": "ws-1", "min_seconds": 1200, "credited_seconds": 751,
-               "nonce": "n", "qualified": False}
-    out = _render(_routes(**{"/review/pair/next":
-                             {"status": 200, "body": _pair_body(session=session)}}))
+# ═══ the countdown — U1: it must never invent a second ═══════════════════════
+# The failure this replaces: the page read `credited_seconds` once at draw and
+# then ADDED WALL-CLOCK DRIFT, with no heartbeat ever reaching the server. At
+# 20:00 it rendered "This session has met its minimum" while the server had
+# credited zero seconds. Under a "20 continuous minutes or $0" structure that is
+# not a cosmetic bug — it is the page telling a physician they have been paid.
+_SESSION = {"session_id": "ws-1"}
+
+
+def test_the_countdown_renders_only_server_attested_seconds():
+    out = _render(
+        _routes(**{"/review/pair/next":
+                   {"status": 200, "body": _pair_body(session=_SESSION)}}),
+        session_state={"continuous_seconds": 751, "min_seconds": 1200,
+                       "qualified": False},
+    )
     assert out["clock"] == ["Session · 12:31 of 20:00"]
+    # The page hands P's client the server's session and then only READS it.
+    assert ["start", "ws-1"] in out["sessionCalls"]
+    assert ["state"] in out["sessionCalls"]
+
+
+def test_the_clock_does_not_advance_on_its_own():
+    """The heart of U1. Firing every interval the page registered must not move
+    a single digit, because the only thing that moves the clock is the server's
+    own count coming back through the heartbeat client."""
+    drive = """
+globalThis.__before = globalThis.__report().clock[0];
+for (var i = 0; i < 60; i++) globalThis.__tick();
+globalThis.__after = globalThis.__report().clock[0];
+globalThis.__report = (function (o) { return function () {
+  var r = o(); r.before = globalThis.__before; r.after = globalThis.__after; return r; };
+})(globalThis.__report);
+"""
+    out = _render(
+        _routes(**{"/review/pair/next":
+                   {"status": 200, "body": _pair_body(session=_SESSION)}}),
+        drive,
+        session_state={"continuous_seconds": 300, "min_seconds": 1200,
+                       "qualified": False},
+    )
+    assert out["before"] == "Session · 5:00 of 20:00"
+    assert out["after"] == out["before"], "the page advanced its own clock"
+
+
+def test_the_page_computes_no_session_time_of_its_own():
+    """Source guard behind the behavioural one: no local session arithmetic
+    survives. A clock derived from Date.now() is the defect, not its symptom."""
+    src = _REVIEW_JS.read_text(encoding="utf-8")
+    assert "sessionSeconds" not in src
+    assert "_seenAt" not in src
+    assert "credited_seconds" not in src, "R must not name P's fields (PRD R §4)"
 
 
 def test_under_two_minutes_the_copy_changes_and_the_colour_does_not():
     """Lime means 'needs attention'. Pink means critical and blocking, and a
     running clock is not an emergency."""
-    session = {"session_id": "ws-1", "min_seconds": 1200, "credited_seconds": 1120}
-    out = _render(_routes(**{"/review/pair/next":
-                             {"status": 200, "body": _pair_body(session=session)}}))
+    out = _render(
+        _routes(**{"/review/pair/next":
+                   {"status": 200, "body": _pair_body(session=_SESSION)}}),
+        session_state={"continuous_seconds": 1120, "min_seconds": 1200,
+                       "qualified": False},
+    )
     assert out["clock"] == ["Session · 18:40 of 20:00"]
     assert out["note"] and "before this session qualifies" in out["note"][0]
     # The clock element's class is the same one in both states.
@@ -292,12 +358,54 @@ def test_under_two_minutes_the_copy_changes_and_the_colour_does_not():
     assert "--lime" in clock_rule and "--pink" not in clock_rule
 
 
-def test_no_countdown_is_rendered_when_the_server_sends_no_session():
-    """Before Agent P merges, ``session`` is null. Missing is honest; a
-    client-invented clock would tell a physician they had earned time they
-    had not."""
+def test_only_the_server_may_say_a_session_has_qualified():
+    out = _render(
+        _routes(**{"/review/pair/next":
+                   {"status": 200, "body": _pair_body(session=_SESSION)}}),
+        session_state={"continuous_seconds": 1500, "min_seconds": 1200,
+                       "qualified": True},
+    )
+    assert out["note"] and "met its minimum" in out["note"][0]
+
+    # ...and it does NOT say so on elapsed time alone.
+    not_yet = _render(
+        _routes(**{"/review/pair/next":
+                   {"status": 200, "body": _pair_body(session=_SESSION)}}),
+        session_state={"continuous_seconds": 1500, "min_seconds": 1200,
+                       "qualified": False},
+    )
+    assert not any("met its minimum" in n for n in not_yet["note"])
+
+
+def test_a_reviewer_with_no_heartbeat_client_is_told_so_explicitly():
+    """U2. An absent clock and a working-but-unpaid clock are indistinguishable,
+    and under the $0 cliff that difference is the reviewer's whole fee. Say it."""
+    out = _render(_routes(**{"/review/pair/next":
+                             {"status": 200, "body": _pair_body(session=_SESSION)}}))
+    assert out["clock"], "a reviewer whose time is not being counted saw nothing"
+    assert "not being timed" in out["clock"][0].lower()
+    assert out["note"] and "not accruing" in out["note"][0].lower()
+
+
+def test_no_clock_at_all_when_the_server_opened_no_session():
+    """Distinct from the case above: the server did not open a session, so there
+    is nothing to time and nothing to warn about."""
     out = _render(_routes())
     assert out["clock"] == []
+
+
+def test_the_page_loads_agent_ps_heartbeat_client_before_its_own_module():
+    """The seam U1 lived in: earnings.js builds `window.AsclepiusSession` and
+    documents that the review surface calls it, but it was script-tagged into
+    index.html — a different page. Nothing loaded it here."""
+    import re
+    html = _REVIEW_HTML.read_text(encoding="utf-8")
+    # Compare the actual <script src> tags, in document order — prose mentioning
+    # a filename is not a load.
+    srcs = re.findall(r'<script[^>]+src="[^"]*/(\w[\w.-]*\.js)"', html)
+    assert "earnings.js" in srcs, "the heartbeat client is never loaded"
+    assert srcs.index("earnings.js") < srcs.index("review.js"), \
+        "review.js must not boot before the session client it consumes"
 
 
 # ═══ failure is visible ══════════════════════════════════════════════════════
@@ -372,12 +480,97 @@ globalThis.__report = (function (orig) { return function () {
     assert out["disabledAfter"] is False, "a reason was given and submit stayed blocked"
 
 
+def test_accept_with_edits_names_the_physician_it_edits():
+    """M3. The side was hardcoded null, so an edited accept anchored to
+    ``pair_sub_a`` — the canonical oldest — instead of the physician whose answer
+    the reviewer actually corrected. Per-labeler signal lost on every one."""
+    drive = _answer_all_dimensions() + """
+globalThis.__click('state', 'B');
+globalThis.__click('verdict', 'accept_with_edits');
+globalThis.__type(0, 'Right call, but the dose is wrong.');
+globalThis.__submit();
+"""
+    out = _render(_routes(), drive)
+    assert out["posts"], "no adjudication was posted"
+    body = out["posts"][0]["body"]
+    assert body["verdict"] == "accept_with_edits"
+    assert body["stronger"] == "B"
+    assert body["accepted_side"] == "B", "the edited accept named no physician"
+
+
+def test_a_withheld_correction_is_reported_rather_than_silently_advanced():
+    """U4. The server returns ``corrections_withheld`` specifically so a reviewer
+    can rewrite a note that will not ship. The page discarded the response and
+    drew the next case — the reviewer finds out months later, or never."""
+    drive = _answer_all_dimensions() + """
+globalThis.__click('state', 'equivalent');
+globalThis.__click('verdict', 'reject');
+globalThis.__type(0, 'Per Dr Chen the K+ was 6.2 on 3/14.');
+globalThis.__submit();
+"""
+    out = _render(_routes(**{"/review/pair/t-1": {
+        "status": 200,
+        "body": {"review": {"review_id": "rev-1"}, "review_status": "reviewed",
+                 "identifier_flags": ["name", "date"], "corrections_withheld": True},
+    }}), drive)
+    text = out["text"]
+    assert "withheld" in text.lower() or "not be shipped" in text.lower(), text
+    assert "name" in text and "date" in text, "the reviewer is not told what was flagged"
+    # And it does NOT silently move on to the next case.
+    assert out["calls"].count("/api/asclepius/review/pair/next") == 1
+
+
+def test_the_review_page_stylesheet_is_inside_the_design_guard():
+    """U5. The guard scanned asclepius.css only, so review.html became a
+    stylesheet location outside it — four raw #fff, and `var(--orange)` on a
+    physician judgment control. Orange means MODEL OUTPUT in this product."""
+    import re
+    html = _REVIEW_HTML.read_text(encoding="utf-8")
+    style = html.split("<style>")[1].split("</style>")[0]
+    assert re.search(r"#[0-9a-fA-F]{3,8}\b", style) is None, \
+        "raw hex in the review page's stylesheet"
+    assert "--orange" not in style, \
+        "orange is model output; no physician judgment control may carry it"
+
+
 def test_corrections_are_revealed_not_always_present():
     """An empty textarea under every review invites the reviewer to feel they owe
     prose on an accept. They don't."""
     src = _REVIEW_JS.read_text(encoding="utf-8")
     assert "display:none" in src
     assert "correctionsBox.style.display" in src
+
+
+# ═══ U3 — the surface has to be reachable ════════════════════════════════════
+_PORTAL_JS = _FRONTEND / "asclepius.js"
+
+
+def test_the_portal_has_a_route_to_the_review_console():
+    """U3. Nothing in the portal linked to /asclepius/review. A promoted
+    reviewer signed in and saw Tasks · Community · Advisor · Guide — the review
+    console linked BACK to the portal, and nothing linked forward. It fell in the
+    gap between two ownership lists, which is why a surface can be complete,
+    correct and unreachable."""
+    src = _PORTAL_JS.read_text(encoding="utf-8")
+    assert "/asclepius/review" in src, "the review console has no route from the portal"
+    # It is in the rail, with an icon, like every other destination.
+    assert "dest: 'review'" in src
+    assert "review:" in src.split("RAIL_ICONS")[1][:2000]
+
+
+def test_the_review_entry_is_gated_on_the_servers_capability_never_a_tier():
+    """The same rule the Advisor entry follows: the client reads the capability
+    list the server put on the session. Re-deriving 'is this a reviewer?' in the
+    frontend is the two-state check this codebase removed on purpose."""
+    import re
+    src = _PORTAL_JS.read_text(encoding="utf-8")
+    entry = re.search(r"\{[^{}]*dest:\s*'review'[^{}]*\}", src)
+    assert entry, "no rail entry for the review console"
+    assert "capability: 'review'" in entry.group(0)
+    # And the destination re-checks it, so a hand-typed state change cannot open
+    # a section the session was never granted.
+    router = src.split("function setPanel(")[1][:1200]
+    assert "sessionCan('review')" in router
 
 
 # ═══ the rules (§4.3) ════════════════════════════════════════════════════════

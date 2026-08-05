@@ -607,6 +607,20 @@ def _create_task_via_route(admin_h, *, specialty="nephrology", max_labels=1, **k
     return r.json()["created"][0]
 
 
+def _reveal_via_route(task_id, labeler, text=None):
+    """POST /tasks/{id}/reveal — the blind-commit gate.
+
+    In production ``ASCLEPIUS_WITHHOLD_ANSWERS`` is on, so a labeler CANNOT see
+    the candidate answers without passing through here first. That commit is the
+    evidence κ's blinding flag is derived from (Audit R C2), so a route test that
+    skips it is not walking the labeler's real path."""
+    r = client.post(f"/api/asclepius/tasks/{task_id}/reveal",
+                    json={"text": text or f"Blind read {A.uniq(8)}: calcium, then dialyze."},
+                    headers=A.headers_for(labeler))
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
 def _submit_via_route(task_id, labeler, *, verdict="A_better", extra=None):
     """POST /submissions — the REAL path, including refresh_task_status."""
     sid = "s-" + uuid.uuid4().hex[:12]
@@ -749,16 +763,25 @@ def test_full_kappa_loop_through_the_route_produces_a_real_number():
 
     for i in range(n_cases):
         tid = _create_task_via_route(admin_h)
-        _submit_via_route(tid, _labeler(), verdict="A_better")
+        first = _labeler()
+        _reveal_via_route(tid, first)
+        _submit_via_route(tid, first, verdict="A_better")
         # The PRODUCT decides to double-label, not the test.
         assert asc_review.sweep_double_label_routing(store) >= 1
         # Two of the thirty disagree, so κ is a real chance-corrected number
         # rather than the degenerate single-category 1.0.
         second_verdict = "B_better" if i < 2 else "A_better"
-        _submit_via_route(tid, _labeler(), verdict=second_verdict)
+        second = _labeler()
+        _reveal_via_route(tid, second)
+        _submit_via_route(tid, second, verdict=second_verdict)
 
     observations = store.list_agreement_observations()
     assert len(observations) == n_cases
+    # Audit R C2: `blinded` is now a MEASUREMENT, so it is only 1 because each
+    # labeler passed the reveal gate — committing a blind independent answer
+    # before being shown anything else. That gate is on by default in production
+    # (ASCLEPIUS_WITHHOLD_ANSWERS), which is why walking it here is the faithful
+    # route test rather than a concession.
     assert all(o["blinded"] in (1, True) for o in observations)
 
     from asclepius.agreement import independent_kappa

@@ -77,6 +77,16 @@ def _create_task(admin_h, **task_kw):
 def _submit(task_id, evaluator, verdict="A_better"):
     sid = "s-" + uuid.uuid4().hex[:12]
     salt = A.uniq(6)  # distinct free text per labeler so the dedupe gate never fires
+    # Audit R C2: κ's `blinded` flag — and therefore every packaged record's
+    # `independent_second_label` — is DERIVED from the pre-reveal blind commit.
+    # ASCLEPIUS_WITHHOLD_ANSWERS is on in production, so a labeler cannot see the
+    # candidate answers without passing through here first; an export test that
+    # skips it is not exporting what the product produces.
+    reveal = client.post(f"/api/asclepius/tasks/{task_id}/reveal", json={
+        "text": f"Stabilize with IV calcium, shift potassium with insulin and "
+                f"dextrose, then dialyze ({salt}).",
+    }, headers=A.headers_for(evaluator))
+    assert reveal.status_code == 200, reveal.text
     r = client.post("/api/asclepius/submissions", json={
         "submission_id": sid, "task_id": task_id, "verdict": verdict,
         "chosen_id": "A" if verdict == "A_better" else "B",
@@ -379,10 +389,15 @@ def test_export_by_case_signature_is_frozen_for_seam_2():
     assert sig.parameters["include_exported"].default is True
 
 
-def test_reviewer_free_text_with_an_identifier_is_withheld_from_buyers():
+def test_reviewer_free_text_with_an_identifier_is_withheld_from_buyers(monkeypatch):
     """A-5.3: review_block shipped `corrections` verbatim. find_tier_b_leak
     scans KEYS, not values, so a reviewer writing a name or a date into their
     correction shipped that string to a lab."""
+    # PRD R / Audit R H2: with double-labeling as the default, a singly-labelled
+    # case is awaiting its pair and the SINGLE-submission review flow correctly
+    # refuses it. This test exercises that single flow, so it pins the incident
+    # switch — the one supported way to run without second labels.
+    monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_HALT", "1")
     admin_h = _admin_h()
     store = _store()
     tid = _create_task(admin_h)

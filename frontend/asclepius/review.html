@@ -67,9 +67,9 @@
     .rv-seg button { border: 0; background: transparent; color: var(--ink-soft);
       font: inherit; font-size: var(--t-sm); padding: 6px 12px; cursor: pointer; }
     .rv-seg button + button { border-left: 1px solid var(--hairline); }
-    .rv-seg button.is-on[data-state="agree"] { background: var(--green); color: #fff; }
-    .rv-seg button.is-on[data-state="disagree"] { background: var(--pink); color: #fff; }
-    .rv-seg button.is-on[data-state="cannot_assess"] { background: var(--ink-faint); color: #fff; }
+    .rv-seg button.is-on[data-state="agree"] { background: var(--green); color: var(--card); }
+    .rv-seg button.is-on[data-state="disagree"] { background: var(--pink); color: var(--card); }
+    .rv-seg button.is-on[data-state="cannot_assess"] { background: var(--ink-faint); color: var(--card); }
     /* PRD-R — "Which is stronger?" shares the segmented control but not its
        agree/disagree semantics: A, B and Equivalent are three neutral choices,
        so the selected one is filled with ink rather than an accent. Giving A or
@@ -83,7 +83,13 @@
       background: var(--card-in); color: var(--ink); font: inherit; font-size: var(--t-sm);
       border-radius: var(--r-sm); padding: var(--sp-3); cursor: pointer; }
     .rv-verdicts button.is-on[data-verdict="accept"] { border-color: var(--green); box-shadow: 0 0 0 2px var(--green); }
-    .rv-verdicts button.is-on[data-verdict="accept_with_edits"] { border-color: var(--orange); box-shadow: 0 0 0 2px var(--orange); }
+    /* PRD-R / Audit R U5: NOT orange. Orange means MODEL OUTPUT in this
+       product, and this is a physician's judgment control — the same
+       mistake as giving one of the two doctors a different hue. Lime is
+       the honest accent: an accept that needs corrections is exactly
+       "needs attention". Accept stays green (physician-authored) and
+       reject stays pink (blocking). */
+    .rv-verdicts button.is-on[data-verdict="accept_with_edits"] { border-color: var(--lime-line); box-shadow: 0 0 0 2px var(--lime); }
     .rv-verdicts button.is-on[data-verdict="reject"] { border-color: var(--pink); box-shadow: 0 0 0 2px var(--pink); }
     .rv-field { margin-top: var(--sp-3); }
     .rv-field label { display: block; font-size: var(--t-sm); font-weight: 600;
@@ -92,7 +98,7 @@
       color: var(--ink); background: var(--card-in); border: 1px solid var(--hairline);
       border-radius: var(--r-sm); padding: var(--sp-2); resize: vertical; }
     .rv-actions { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-3); }
-    .rv-submit { border: 0; border-radius: var(--r-sm); background: var(--green); color: #fff;
+    .rv-submit { border: 0; border-radius: var(--r-sm); background: var(--green); color: var(--card);
       font: inherit; font-weight: 600; padding: var(--sp-3) var(--sp-5); cursor: pointer; }
     .rv-submit[disabled] { opacity: 0.45; cursor: not-allowed; }
     .rv-error { color: var(--pink); font-size: var(--t-sm); }
@@ -120,6 +126,14 @@
       </div>
     </div>
   </div>
+  <!-- Agent P's session heartbeat client, FIRST. It owns `window.AsclepiusSession`
+       and is the only thing on this page that talks to the server about paid
+       time; review.js reads its state and computes none of its own. Loading it
+       here is what closes the seam where R assumed P had wired the review page
+       and P assumed R would. `defer` preserves document order, so it is present
+       before review.js boots. If it is absent the review still works and the
+       clock says, in words, that time is not being counted. -->
+  <script src="/static/asclepius/earnings.js" defer></script>
   <script src="/static/asclepius/review.js" defer></script>
 </body>
 </html>

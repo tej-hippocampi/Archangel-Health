@@ -27,9 +27,13 @@
  * — every server string reaches the page as a text node. (test_review_dom.py
  * greps this file for those APIs, so this note has to paraphrase them.)
  *
- * The session block is Agent P's, forwarded verbatim by the draw response. This
- * file reads it and never computes it: a client-side clock that disagreed with
- * the server's would be telling a physician they had earned time they had not.
+ * The session is Agent P's from end to end. The draw response carries P's
+ * session block, this page hands it to P's heartbeat client
+ * (`window.AsclepiusSession`), and every second it renders is read back from
+ * that client's server-attested state. It computes no time of its own: a
+ * client-side clock that disagreed with the server's would be telling a
+ * physician they had earned money they had not. When no heartbeat client is on
+ * the page, the clock says so in words rather than showing a number.
  */
 (function () {
   'use strict';
@@ -118,51 +122,81 @@
   }
 
   // ── the session countdown ───────────────────────────────────────────────────
-  // Seeded from the server's numbers and ticked locally only so the digits move.
-  // The server's value always wins on the next draw; this never decides whether
-  // a session counts.
-  function sessionSeconds() {
-    if (!SESSION) return null;
-    var credited = Number(SESSION.credited_seconds);
-    if (!isFinite(credited)) return null;
-    var drift = Math.floor((Date.now() - (SESSION._seenAt || Date.now())) / 1000);
-    return credited + Math.max(0, drift);
+  //
+  // THIS PAGE COMPUTES NO TIME. Every number below comes from Agent P's
+  // heartbeat client (`window.AsclepiusSession`), which is the only thing that
+  // talks to the server about a session and the only thing entitled to say how
+  // many seconds have been counted.
+  //
+  // It used to seed from the draw response and then add wall-clock drift, with
+  // no heartbeat ever sent. At 20:00 it rendered "this session has met its
+  // minimum" while the server had counted ZERO seconds. Under a "20 continuous
+  // minutes or $0" structure that is not a display bug — it is the page telling
+  // a physician they have been paid for work that will not be paid for. A clock
+  // this page can advance on its own IS that bug, whatever it is seeded with.
+  function sessionClient() {
+    var S = (typeof window !== 'undefined') && window.AsclepiusSession;
+    return (S && typeof S.state === 'function') ? S : null;
+  }
+  function sessionState() {
+    var S = sessionClient();
+    if (!S) return null;
+    try { return S.state() || null; } catch (e) { return null; }
   }
   function mmss(total) {
     var s = Math.max(0, Math.floor(total));
     var m = Math.floor(s / 60);
     return String(m) + ':' + (s % 60 < 10 ? '0' : '') + String(s % 60);
   }
+
+  // The state a reviewer must never be left to guess at: a session is open
+  // server-side, and nothing on this page is reporting time to it.
+  var UNTIMED_CLOCK = 'Session · not being timed';
+  var UNTIMED_NOTE =
+    'This review is not accruing paid time. Reload the page; if it persists, ' +
+    'tell us before you carry on.';
+
   function clockText() {
-    var elapsed = sessionSeconds();
-    var target = SESSION ? Number(SESSION.min_seconds) : NaN;
-    if (elapsed === null || !isFinite(target)) return null;
+    if (!SESSION) return null;            // no session opened: nothing to show
+    var st = sessionState();
+    if (!st) return UNTIMED_CLOCK;
+    var elapsed = Number(st.continuous_seconds);
+    var target = Number(st.min_seconds);
+    if (!isFinite(elapsed) || !isFinite(target)) return UNTIMED_CLOCK;
     return 'Session · ' + mmss(elapsed) + ' of ' + mmss(target);
   }
   function clockNote() {
-    var elapsed = sessionSeconds();
-    var target = SESSION ? Number(SESSION.min_seconds) : NaN;
-    if (elapsed === null || !isFinite(target)) return null;
+    if (!SESSION) return null;
+    var st = sessionState();
+    if (!st) return UNTIMED_NOTE;
+    var elapsed = Number(st.continuous_seconds);
+    var target = Number(st.min_seconds);
+    if (!isFinite(elapsed) || !isFinite(target)) return UNTIMED_NOTE;
+    // Only the SERVER says a session has met its minimum. Elapsed time reaching
+    // the target is a different claim — a session can run past its minimum and
+    // still not count — and guessing here is the original defect in miniature.
+    if (st.qualified) return 'This session has met its minimum.';
     var left = target - elapsed;
-    if (left <= 0) return 'This session has met its minimum.';
     // Under two minutes the COPY changes. The colour does not — pink means
     // critical and blocking, and a running clock is neither.
-    if (left <= 120) return mmss(left) + ' left before this session qualifies for payment.';
+    if (left > 0 && left <= 120) return mmss(left) + ' left before this session qualifies for payment.';
     return null;
   }
 
   var clockEl = null;
   var clockNoteEl = null;
-  function tickClock() {
-    if (!clockEl) return;
-    var text = clockText();
-    if (text === null) return;
-    clear(clockEl); appendChild(clockEl, text);
+  function paintClock() {
+    if (clockEl) {
+      var text = clockText();
+      if (text !== null) { clear(clockEl); appendChild(clockEl, text); }
+    }
     if (clockNoteEl) { clear(clockNoteEl); appendChild(clockNoteEl, clockNote() || ''); }
   }
   function startClock() {
     if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
-    if (SESSION) clockTimer = setInterval(tickClock, 1000);
+    // A REPAINT, not a clock: it re-reads the heartbeat client's state. If that
+    // state stops moving because the server stopped counting, so do the digits.
+    if (SESSION) clockTimer = setInterval(paintClock, 1000);
   }
 
   // ── boot ────────────────────────────────────────────────────────────────────
@@ -185,7 +219,14 @@
     ]).then(function (results) {
       PAIR = results[0].pair;
       SESSION = results[0].session || null;
-      if (SESSION) SESSION._seenAt = Date.now();
+      // Hand the server's session to Agent P's client and then leave it alone.
+      // R decides what a reviewer sees; P decides whether the time is paid for.
+      if (SESSION) {
+        var S = sessionClient();
+        if (S && typeof S.start === 'function') {
+          try { S.start(SESSION); } catch (e) { /* never block the review */ }
+        }
+      }
       STATS = results[1];
       resetReview();
       if (!PAIR) { renderEmpty(results[0].message); return; }
@@ -454,7 +495,15 @@
     return h('div', { class: 'rv-dim' },
       h('div', { class: 'rv-dim-label' }, 'Which is stronger?',
         h('small', null, 'the comparison a single-label review could not ask')),
-      segmented(choices, labels, function (v) { R.stronger = v; }, 'state'));
+      segmented(choices, labels, function (v) {
+        R.stronger = v;
+        // An edited accept follows the comparison. Changing the answer above
+        // after choosing 'Accept with edits' must move it too, or the row
+        // records an edit against a physician the reviewer did not name.
+        if (R.verdict === 'accept_with_edits') {
+          R.acceptedSide = (v === 'A' || v === 'B') ? v : null;
+        }
+      }, 'state'));
   }
 
   function dimensionRows() {
@@ -473,20 +522,33 @@
   /* Four buttons, three stored verdicts. "Accept A" and "Accept B" are ONE
      verdict plus a side — the server's acceptance statistic counts three tokens
      and a fourth would silently fall out of its denominator. */
+  //
+  // The third entry's side is 'stronger', not null: an edited accept still has
+  // to name WHOSE answer was edited, or the row anchors to the canonical first
+  // submission and the per-labeler signal is lost on every corrected accept.
+  // The reviewer already answered that question one control up.
   var OVERALL = [
     ['accept', 'A', 'Accept A', "Physician A's answer is right as submitted"],
     ['accept', 'B', 'Accept B', "Physician B's answer is right as submitted"],
-    ['accept_with_edits', null, 'Accept with edits', 'Right call, needs corrections'],
+    ['accept_with_edits', 'stronger', 'Accept with edits', 'Right call, needs corrections'],
     ['reject', null, 'Reject both', 'Neither is usable — reason required'],
   ];
 
   function overallButtons(prefill) {
     var wrap = h('div', { class: 'rv-verdicts' }, OVERALL.map(function (d) {
       return h('button', {
-        type: 'button', dataset: { verdict: d[0] + (d[1] ? ':' + d[1] : '') },
+        // The button's identity is the verdict plus the side it FIXES. A side of
+        // 'stronger' is deferred to the control above, so it names no column
+        // here and the key stays the bare verdict.
+        type: 'button',
+        dataset: { verdict: d[0] + ((d[1] === 'A' || d[1] === 'B') ? ':' + d[1] : '') },
         onclick: function (ev) {
           R.verdict = d[0];
-          R.acceptedSide = d[1];
+          // 'stronger' defers to the comparison the reviewer already made;
+          // 'equivalent' names no side, which the server accepts for an edit.
+          R.acceptedSide = d[1] === 'stronger'
+            ? ((R.stronger === 'A' || R.stronger === 'B') ? R.stronger : null)
+            : d[1];
           Array.prototype.forEach.call(wrap.children, function (b) { b.classList.remove('is-on'); });
           ev.currentTarget.classList.add('is-on');
           var needs = R.verdict === 'accept_with_edits' || R.verdict === 'reject';
@@ -534,11 +596,35 @@
       body.corrections = corrections;
     }
     api('/review/pair/' + encodeURIComponent(PAIR.task_id), { method: 'POST', body: body })
-      .then(function () { loadNext(); })
+      .then(function (res) {
+        // The server withholds free text that carries a Safe-Harbor identifier
+        // from the buyer-facing block, and says so in the response SPECIFICALLY
+        // so the reviewer can rewrite it. Advancing here — which this used to do
+        // — means they find out months later, or never.
+        if (res && res.corrections_withheld) {
+          renderWithheld(res.identifier_flags || []);
+          return;
+        }
+        loadNext();
+      })
       .catch(function (err) {
         clear(errLine); appendChild(errLine, err.message);
         refreshSubmit();
       });
+  }
+
+  function renderWithheld(flags) {
+    mount(header(), h('div', { class: 'rv-main' },
+      h('div', { class: 'rv-card' },
+        h('h3', null, 'Your correction was withheld from the buyer bundle'),
+        h('p', { class: 'rv-kv' },
+          'Your adjudication is recorded. The free text is not being shipped, '
+          + 'because it looks like it contains patient identifiers: ',
+          h('b', null, (flags || []).join(', ') || 'unspecified'),
+          '. Rewrite it without them on the next case, or tell us if this is '
+          + 'a false positive.'),
+        h('div', { class: 'rv-actions' },
+          h('button', { class: 'rv-submit', onclick: loadNext }, 'Next case')))));
   }
 
   function renderReview() {

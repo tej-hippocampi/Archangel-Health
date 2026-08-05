@@ -365,6 +365,32 @@ async def submit_review(
     if store.has_review_by(submission_id, reviewer["id"]):
         raise HTTPException(status_code=409, detail="You already reviewed this submission")
 
+    # Audit R H2. The single-review queue's predicates — one label, never lifted
+    # to a pair — were checked at DRAW time and never again, while the labeler
+    # queue deliberately kept the same task servable to a second labeler. So a
+    # reviewer could be reading a submission at the moment its case became a
+    # pair, and their POST would land: two case_reviews rows for one case, and an
+    # expert-acceptance rate counting it twice.
+    #
+    # The claim check below would already 409 this once the pair review retires
+    # the submission — but with "your claim is missing or has expired", which is
+    # FALSE and offers no way forward. Say what actually happened, and hand their
+    # judgment back so the pair review can be finished rather than retyped.
+    _task = store.get_task(sub["task_id"]) or {}
+    _labels = [s for s in store.submissions_for_task(sub["task_id"]) if s.get("verdict")]
+    if len(_labels) >= asc_routing.PAIR_LABELS or asc_routing.target_labels(_task) >= asc_routing.PAIR_LABELS:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "became_a_pair",
+                "message": "This case became a pair while you were reading it. It is "
+                           "reviewed against both labels together — your judgment is "
+                           "below, ready to carry over.",
+                "task_id": sub["task_id"],
+                "your_review": body.model_dump(),
+            },
+        )
+
     errors = asc_review.validate_review_payload(body.model_dump())
     if errors:
         raise HTTPException(status_code=422, detail={"errors": errors})
@@ -467,6 +493,18 @@ async def submit_pair_review(
     if len(subs) < asc_routing.PAIR_LABELS:
         raise HTTPException(
             status_code=409, detail="This case does not yet carry two independent labels")
+    if len(subs) > asc_routing.PAIR_LABELS:
+        # Audit R H3: a paired review is defined over exactly two labels. Serving
+        # two of three silently drops a physician's work and then retires it.
+        raise HTTPException(
+            status_code=409,
+            detail=f"This case carries {len(subs)} labels; a paired review "
+                   f"adjudicates exactly two.")
+    # One adjudication per case, from either queue (Audit R H2). The draw already
+    # excludes it; a hand-crafted POST must hit the same wall, or the acceptance
+    # rate counts one case twice.
+    if store.reviews_for_task(task_id):
+        raise HTTPException(status_code=409, detail="This case has already been adjudicated")
     # Belt and braces: both queues exclude own work in SQL, but a hand-crafted
     # POST must hit the same wall.
     if any(s.get("evaluator_id") == reviewer["id"] for s in subs):
@@ -501,13 +539,21 @@ async def submit_pair_review(
     pair_a, pair_b = asc_routing.canonical_pair_ids(subs)
     accepted = asc_routing.resolve_side(
         body.accepted_side, subs, task_id=task_id, reviewer_id=reviewer["id"])
+    # Audit R H1: ``stronger`` arrives as a position in what THIS reviewer was
+    # shown. Resolve it to a submission, then re-express it in the canonical
+    # frame so it means the same thing as the pair columns it is stored beside.
+    # 'equivalent' names no side and stays as-is.
+    stronger_sub = asc_routing.resolve_side(
+        body.stronger, subs, task_id=task_id, reviewer_id=reviewer["id"])
+    stronger = asc_routing.canonical_side(stronger_sub, subs) or body.stronger
 
     review = store.insert_pair_review(
         task_id=task_id,
         reviewer_user_id=reviewer["id"],
         reviewer_id_hashed=reviewer.get("id_hashed") or "",
         verdict=body.verdict,
-        stronger=body.stronger,
+        stronger=stronger,
+        stronger_submission_id=stronger_sub,
         pair_sub_a=pair_a,
         pair_sub_b=pair_b,
         accepted_submission_id=accepted,
@@ -521,12 +567,10 @@ async def submit_pair_review(
         blinded=claim["blinded"],
         identifier_flags=identifier_flags,
     )
-    store.mark_task_reviewed(task_id)
-    # Both submissions are marked reviewed: the adjudication covers the case, so
-    # leaving either at review_status NULL would re-offer half a pair to the
-    # single-submission queue.
-    for s in subs:
-        store.update_submission(s["submission_id"], review_status="reviewed")
+    # The task status and the retirement of the two labels commit INSIDE
+    # ``insert_pair_review`` (Audit R M2) — they used to be three more writes
+    # here, on three more connections, so a crash between them left a review row
+    # counting in the acceptance rate beside a task still `in_review`.
     store.log_event(
         entity_type="task", entity_id=task_id, event_type="review_pair_submitted",
         actor=reviewer["id"],

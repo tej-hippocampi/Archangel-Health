@@ -201,6 +201,28 @@ def resolve_side(
     return (shown_a if key == "A" else shown_b).get("submission_id")
 
 
+def canonical_side(
+    submission_id: Optional[str], submissions: Sequence[Dict[str, Any]]
+) -> Optional[str]:
+    """``'A'``/``'B'`` in CANONICAL (oldest-first) terms, or None.
+
+    The inverse of :func:`resolve_side`, and the reason it exists: a position is
+    only meaningful next to the frame it was measured in. ``stronger`` used to be
+    stored raw — in the REVIEWER's shuffled positions — in the column beside
+    ``pair_sub_a``/``pair_sub_b``, which are canonical. Half of those rows named
+    the wrong physician to anyone reading the two columns together, which is the
+    only sane way to read them.
+    """
+    if not submission_id:
+        return None
+    ids = canonical_pair_ids(submissions)
+    if submission_id == ids[0]:
+        return "A"
+    if len(ids) > 1 and submission_id == ids[1]:
+        return "B"
+    return None
+
+
 def canonical_pair_ids(submissions: Sequence[Dict[str, Any]]) -> List[Optional[str]]:
     """``[sub_a, sub_b]`` in CANONICAL (oldest-first) order — what gets stored.
 
