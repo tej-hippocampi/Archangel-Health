@@ -296,6 +296,7 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `annotator_credential` | e.g. board_certified_nephrology — the premium signal |
 | `annotator_specialty` / `annotator_years_experience` | annotator credential metadata |
 | `annotator_id_hashed` | stable hashed annotator id (no PII) |
+| `related_party` | true when the annotating physician holds an advisory relationship with Archangel Health, including equity. Their clinical credentials are unchanged and stated above; this flag exists so provenance is complete. Recorded as of authorship — a contributor appointed after writing a record carries `false` on that record, because they held no interest when they wrote it |
 | `submission_id` / `task_id` | lineage |
 | `source` | `lab_supplied` vs `internal_prompt_bank` |
 | `buyer_request_id` | the buyer request the record answers (opt §2.5) |
@@ -656,6 +657,23 @@ is reported separately below.
         review_section = """## Expert review (reviewer-adjudicated — NOT κ)
 - No expert reviews attached to this batch yet.
 """
+    # Annotator pool, with the related-party count named (Advisor PRD §5.2).
+    # Advisory physicians are NOT excluded from acceptance or from κ — their
+    # labels are legitimate physician judgment and removing them would be a
+    # different kind of dishonesty. They are counted, and the count is stated.
+    #
+    # Deliberately NOT a per-advisor acceptance rate: with n=1 advisor a
+    # per-person quality score identifies him, and scoring an unpaid advisor
+    # individually is a good way to stop having one.
+    pool_ids = {(r.get("payload") or {}).get("annotator_id_hashed")
+                for r in records} - {None, ""}
+    advisory_ids = {(r.get("payload") or {}).get("annotator_id_hashed")
+                    for r in records
+                    if (r.get("payload") or {}).get("related_party")} - {None, ""}
+    pool_line = f"Annotator pool     {len(pool_ids)} physician" \
+                f"{'' if len(pool_ids) == 1 else 's'}"
+    if advisory_ids:
+        pool_line += f" · {len(advisory_ids)} advisory (related party)"
     flags = stats.get("flag_counts") or {}
     contributors = stats.get("contributors") or []
     contrib_lines = "\n".join(
@@ -671,6 +689,16 @@ Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
 ## Totals by record type
 - Total records: **{counts['total']}**
 {type_lines}
+
+## Annotator pool
+```
+{pool_line}
+```
+Advisory physicians hold an advisory relationship with Archangel Health,
+including equity, and every record they authored carries `related_party: true`.
+Their labels and reviews are counted in expert acceptance and in κ exactly like
+any other physician's — their clinical judgment is not compromised by equity any
+more than by an hourly rate. The count is stated so the pool is fully described.
 
 ## By product version (V1 classic / V2 assisted)
 {portal_lines}
@@ -1298,10 +1326,24 @@ def build_export(
     # with many records per submission does one lookup each.
     _reviews_by_sid: Dict[Any, List[Dict[str, Any]]] = {}
     _obs_by_tid: Dict[Any, Optional[Dict[str, Any]]] = {}
+    # Related-party disclosure on records packaged before the field existed
+    # (audit H3). Packaging runs once, at submit, so the entire back catalogue
+    # has no key — and the data dictionary now documents one. Filled HERE, at
+    # emit, so no line in a shipped file is missing it; resolved from the
+    # annotating physician's relationship rather than defaulted to False, which
+    # would strip the qualifier off every historical record at once. Cached per
+    # submission so a batch with many records per submission does one lookup.
+    _rp_by_sid: Dict[Any, bool] = {}
     for rec in records:
         payload = dict(rec.get("payload") or {})
         payload.pop("record_id", None)
         payload["exported_at"] = exported_at
+        if "related_party" not in payload:
+            _sid = rec.get("submission_id") or payload.get("submission_id")
+            if _sid not in _rp_by_sid:
+                _rp_by_sid[_sid] = asc_packaging.backfill_related_party(
+                    payload, rec, store)
+            payload["related_party"] = _rp_by_sid[_sid]
         rtype = payload.get("type") or rec.get("type")
         mapped = profiles.map_record(prof, payload)
         if mapped is None:

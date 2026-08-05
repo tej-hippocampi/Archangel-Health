@@ -281,12 +281,19 @@ def build_asclepius_invite_email(
     specialty: str,
     onboarding_url: str,
     invitee_email: str = "",
+    referrer_name: str = "",
 ) -> str:
     """Asclepius member invite — links the clinician to *start* onboarding.
 
     Unlike the clinical invite, no password is issued here: the member sets up
     their own credentials + attestations first, and receives their standing
     access key in the completion email once they finish.
+
+    ``referrer_name`` adds ONE sentence naming the physician who suggested them
+    (Advisor PRD §3.2). That sentence is the entire referral mechanism — a named
+    referral converts several times better than a cold invite — and it is added
+    here rather than in a second invite email, because two invite emails is how
+    they drift apart.
     """
     safe_org = html.escape(org_name or "your organization")
     safe_spec = html.escape(specialty or "")
@@ -300,9 +307,17 @@ def build_asclepius_invite_email(
     if specialty:
         rows.append(("Specialty", specialty, False))
 
+    referral_line = ""
+    if (referrer_name or "").strip():
+        referral_line = _p(
+            _strong(html.escape(referrer_name.strip()))
+            + " suggested you&rsquo;d be a good fit."
+        )
+
     body = (
         _eyebrow("Invitation · Asclepius")
         + _h1(f"You&rsquo;re invited to contribute to {org_spec_label}.")
+        + referral_line
         + _p(
             f"Hello {html.escape(invitee_first_name or 'there')}, "
             + _strong(director_full_name or "your director")

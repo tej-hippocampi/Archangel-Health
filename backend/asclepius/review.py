@@ -1,10 +1,12 @@
 """Two-tier review product (PRD A) — routing policy, blinding, and validation.
 
-Senior physicians (``users.tier == 'reviewer'``, assigned by the verification
-flow) grade a labeler's completed submission instead of doing the case from
-scratch. This module owns the POLICY layer:
+Senior physicians (any tier carrying the REVIEW capability — ``reviewer`` or
+``advisor``; see ``asclepius.capabilities``) grade a labeler's completed
+submission instead of doing the case from scratch. This module owns the POLICY
+layer:
 
-  * ``can_review``            — the reviewer access gate (explicit tier only).
+  * ``can_review``            — the review access gate; delegates to
+    ``capabilities.can(user, REVIEW)`` so there is exactly one tier table.
   * ``needs_review``          — which submissions enter the review queue.
   * ``needs_second_label``    — which tasks get a second INDEPENDENT labeler so
     the export can report a real Cohen's κ (review ≠ κ — see agreement.py).
@@ -26,6 +28,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 from asclepius import agreement as asc_agreement
+from asclepius import capabilities as asc_caps
 
 # ─── Review vocabulary (PRD A Phase 2) ────────────────────────────────────────
 REVIEW_VERDICTS = ("accept", "accept_with_edits", "reject")
@@ -75,14 +78,21 @@ def review_lease_minutes() -> int:
 
 
 def can_review(user: Optional[Dict[str, Any]]) -> bool:
-    """Reviewer access requires an EXPLICIT reviewer tier.
+    """Reviewer OR advisor — an EXPLICIT tier carrying the review capability.
+
+    Kept as a named function so the existing call sites do not change; the tier
+    set now lives in ``capabilities.py`` (Advisor PRD §2.2). It used to be
+    ``tier == "reviewer"`` written right here, and that literal is exactly what
+    made adding a third tier dangerous: a hard equality returns False for an
+    advisor, which is a legitimate answer for a labeler, so nothing logs and
+    nothing 500s — the advisor simply cannot click the button.
 
     NULL tier means 'not yet assigned', which is not the same as 'no' — but for
     access control both deny. The distinction is preserved so the admin queue can
     tell an unassigned physician from a rejected one (START_HERE §5 rule 4).
     Reads the tier off the user dict only — never via SQL — so this is safe to
     call before the PRD-B users-table migration has ever run."""
-    return (user or {}).get("tier") == "reviewer"
+    return asc_caps.can(user, asc_caps.REVIEW)
 
 
 def _stable_fraction(key: str) -> float:

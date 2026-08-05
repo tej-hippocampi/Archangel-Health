@@ -225,7 +225,12 @@
   // in-portal Instruction Manual. Community never routes here — it opens a tab.
   function setPanel(dest) {
     if (dest === 'community') { openCommunity(); return; }
-    if (dest !== 'tasks' && dest !== 'guide') return;
+    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'advisor') return;
+    // Server-gated destinations are re-checked here, not only hidden in the
+    // rail: a stale deep link or a hand-typed state change must not open a
+    // section the session was never granted. (The API 403s regardless — this
+    // just avoids rendering an empty shell over it.)
+    if (dest === 'advisor' && !sessionCan('refer')) return;
     if (dest === state.panel) return; // already here — no needless re-render/refetch
     saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
     // Leaving the Guide: stop the scroll-spy observer so it never watches the
@@ -233,7 +238,9 @@
     if (dest !== 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
     state.panel = dest;
     renderSidePanel();
-    if (dest === 'guide') {
+    if (dest === 'advisor') {
+      renderAdvisorView();
+    } else if (dest === 'guide') {
       renderGuide();
     } else if (state.view === 'admin') {
       renderAdminView();
@@ -253,6 +260,7 @@
   // Inline, token-palette icons (stroke = currentColor, no fills). 20×20 grid.
   const RAIL_ICONS = {
     tasks: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 4h9M7 10h9M7 16h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M3.2 4.2l1 1 1.4-1.7M3.2 10.2l1 1 1.4-1.7M3.2 16.2l1 1 1.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    advisor: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.8l5.4 2.1v4.4c0 3.2-2.2 6-5.4 7-3.2-1-5.4-3.8-5.4-7V4.9L10 2.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.7 9.9l1.6 1.7 3-3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     community: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 15V6a1.5 1.5 0 011.5-1.5h9A1.5 1.5 0 0116 6v5.5A1.5 1.5 0 0114.5 13H7l-3 2.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.5 8.5h5M7.5 10.5h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
     guide: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 4.5A1.5 1.5 0 015.5 3H10v14H5.5A1.5 1.5 0 014 15.5v-11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 3h4.5A1.5 1.5 0 0116 4.5v11a1.5 1.5 0 01-1.5 1.5H10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 7h1.5M6.5 9.5h1.5M12 7h1.5M12 9.5h1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
   };
@@ -260,8 +268,24 @@
   const RAIL_ITEMS = [
     { dest: 'tasks',     label: 'Tasks' },
     { dest: 'community', label: 'Community', external: true },
+    // Advisor PRD §6.2: shown only to a session whose SERVER-supplied
+    // capabilities include 'refer'. The gate is `capability`, never a tier
+    // string — re-deriving "is this an advisor?" in the client would push the
+    // exact two-state check this build removed back into the frontend.
+    { dest: 'advisor',   label: 'Advisor', capability: 'refer' },
     { dest: 'guide',     label: 'Guide' },
   ];
+
+  // The capability list the server put on the session. Absent (an older token,
+  // a cached payload) means no extra sections — deny, never assume.
+  function sessionCan(capability) {
+    const caps = (state.user && state.user.capabilities) || [];
+    return caps.indexOf(capability) !== -1;
+  }
+
+  function visibleRailItems() {
+    return RAIL_ITEMS.filter((it) => !it.capability || sessionCan(it.capability));
+  }
 
   let chromeMetricsBound = false;
   let communityGen = 0; // session generation — see resetCommunityState()
@@ -288,7 +312,11 @@
     return pretty ? ('Dr. ' + pretty) : 'Clinician';
   }
 
-  function railItemActive(dest) { return dest === 'guide' ? state.panel === 'guide' : state.panel === 'tasks' && dest === 'tasks'; }
+  function railItemActive(dest) {
+    if (dest === 'guide') return state.panel === 'guide';
+    if (dest === 'advisor') return state.panel === 'advisor';
+    return state.panel === 'tasks' && dest === 'tasks';
+  }
 
   function renderSidePanel() {
     if (!state.user) { teardownSidePanel(); return; }
@@ -319,7 +347,7 @@
     clear(rail);
 
     const nav = h('nav', { class: 'asc-rail-nav', 'aria-label': 'Sections' });
-    RAIL_ITEMS.forEach((item) => {
+    visibleRailItems().forEach((item) => {
       const active = railItemActive(item.dest);
       const children = [
         h('span', { class: 'asc-rail-ico', 'aria-hidden': 'true', html: RAIL_ICONS[item.dest] }),
@@ -5873,6 +5901,31 @@
       };
     }
     return payload;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  ADVISOR SECTION (Advisor PRD §6.2)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Lives in its own file (frontend/asclepius/advisor.js) and is mounted here
+  // the same way AdminPhysiciansSection is — this file is already 8,000 lines
+  // and does not need 400 more.
+  function renderAdvisorView() {
+    stopTimer();
+    updateHeaderProgress();
+    const body = h('div', { id: 'ascAdvisorBody' });
+    setRoot(h('div', { class: 'asc-wrap' }, body));
+    if (window.AdvisorSection && typeof window.AdvisorSection.render === 'function') {
+      window.AdvisorSection.render(body, adminSectionCtx());
+      return;
+    }
+    // A VISIBLE error, never a quiet placeholder. A silent fallback is how a
+    // shipped feature stayed invisible for an entire build round — the advisor
+    // must be able to see that something is broken and say so.
+    body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-error' },
+        'The Advisor section failed to load. Reload the page; if it persists, '
+        + 'this is a deploy problem — check that advisor.js is included in '
+        + 'index.html. Your referrals and sign-offs are unaffected.'))));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
