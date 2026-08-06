@@ -1812,6 +1812,13 @@ def zip_export(export: Dict[str, Any]) -> bytes:
                 if p and (dir_path / p).exists():
                     zf.write(dir_path / p, arcname=p)
         else:
-            zf.writestr(MANIFEST_NAME, json.dumps(manifest, indent=2))
+            # The fallback branch: the export directory is gone (purged, or lost
+            # to a redeploy on ephemeral storage) so the manifest is rebuilt from
+            # the STORED row — which is the internal one, carrying created_by and
+            # an absolute server path. This is the copy a buyer downloads, so it
+            # gets the same strip as the on-disk file. Sanitizing only the
+            # directory copy left the leak on the path that actually delivers.
+            zf.writestr(MANIFEST_NAME,
+                        json.dumps(_shippable_manifest(manifest), indent=2))
     buf.seek(0)
     return buf.read()

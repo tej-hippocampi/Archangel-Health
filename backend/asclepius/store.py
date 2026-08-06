@@ -1074,12 +1074,33 @@ class AsclepiusStore:
             # They are granted LABELER: exactly the capability they already
             # exercise, and nothing more. Scoped to roles a tier can mean
             # anything for; a data_partner or buyer row carrying one is
-            # meaningless (see capabilities._CAPABLE_ROLES). Idempotent — it can
-            # only ever move NULL to 'labeler'.
+            # meaningless (see capabilities._CAPABLE_ROLES).
+            #
+            # ``tier_assigned_at IS NULL`` is the load-bearing clause, because
+            # THIS RUNS ON EVERY BOOT. Both real assignment paths
+            # (record_verification_decision, appoint_advisor) stamp that column
+            # in the same statement that writes the tier, so a NULL there means
+            # no tier has ever been assigned to this account by anyone. Without
+            # it, a tier deliberately cleared to revoke someone's ability to
+            # label would be handed straight back on the next redeploy — a
+            # migration that silently re-grants a revoked capability is worse
+            # than the gap it was written to close.
+            #
+            # It also makes the rule safe for an ``approved`` account: approval
+            # cannot happen without a tier (both doors 400 without one), so an
+            # approved row with no tier and no assignment stamp predates tiering
+            # and is exactly who this is for.
             conn.execute(
-                "UPDATE users SET tier = 'labeler' "
-                "WHERE tier IS NULL AND role IN ('evaluator', 'qa_reviewer') "
-                "AND (verification_status IS NULL OR verification_status = 'approved')"
+                "UPDATE users SET tier = 'labeler', tier_assigned_at = ?, "
+                "tier_assigned_by = 'migration:tier_backfill' "
+                "WHERE tier IS NULL AND tier_assigned_at IS NULL "
+                "AND role IN ('evaluator', 'qa_reviewer') "
+                # Pending and rejected are excluded. Neither can label anyway —
+                # the verification gate denies them — so a tier would change no
+                # access, and it would make the admin roster's "unassigned" chip
+                # report a decision nobody has made.
+                "AND (verification_status IS NULL OR verification_status = 'approved')",
+                (_utcnow_iso(),),
             )
             # ═══ END PRD-B ═══
             # ═══ PRD-A REVIEW SCHEMA — owned by Agent 1, do not edit from other PRDs ═══

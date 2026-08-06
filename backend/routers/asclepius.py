@@ -1470,7 +1470,12 @@ async def available_tasks(
     portal_version: Optional[str] = Query(None, description="Active flow (v1/v2/v3/v4), same as /tasks/next."),
     specialty: Optional[str] = Query(None, description="Specialty picker choice; falls back to the evaluator's own."),
     limit: int = Query(50, ge=1, le=200),
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    # Same gate as /tasks/next, deliberately. This endpoint's whole contract is
+    # "the tasks this evaluator can pick RIGHT NOW", so gating the draw but not
+    # the list would have the dashboard advertise cases the very next click
+    # refuses — the product knowing something and not saying it, which is the
+    # class of defect this round exists to remove.
+    user: Dict[str, Any] = Depends(require_label),
 ):
     """The tasks THIS evaluator can pick right now — the dashboard list.
 
@@ -3756,24 +3761,27 @@ def _promote_block(
     instead of a clickable button that 409s. Same order as the promote endpoints,
     so the reason shown is the reason that would fire.
     """
-    if asc_ingestion.is_brokering(upload.get("purpose")):
-        return {
-            "reason": "brokering",
-            "message": "This upload came in on a brokering link. Brokering data is "
-                       "never promoted to tasks — the server refuses it.",
-        }
+    brokering = {
+        "reason": "brokering",
+        "message": "This upload is held for brokering. Brokering data is never "
+                   "promoted to tasks — the server refuses it.",
+    }
+    # When cases exist, the EFFECTIVE per-case purpose decides, exactly as the
+    # promote endpoints decide it (COALESCE(case.purpose, upload.purpose) — see
+    # `promotable` at the call site). Testing the upload row first would have
+    # reported "brokering" for an upload whose cases were individually resolved
+    # to task creation, disabling a button the server would happily have honored.
+    # The upload row is consulted only when there are no cases to speak for it.
     if not ingested:
+        if asc_ingestion.is_brokering(upload.get("purpose")):
+            return brokering
         return {
             "reason": "no_cases",
             "message": "No cases in this upload have finished ingesting. Clear any "
                        "review holds in Partner uploads above.",
         }
     if not promotable:
-        return {
-            "reason": "brokering",
-            "message": "Every ingested case in this upload is held for brokering, "
-                       "and brokering data is never promoted to tasks.",
-        }
+        return brokering
     if undetermined:
         return {
             "reason": "specialty",

@@ -1243,9 +1243,18 @@
     again.addEventListener('click', async () => {
       again.setAttribute('disabled', '');
       again.textContent = 'Checking…';
-      // boot() re-walks resume → SSO → login and lands back here if the answer
-      // has not changed. Nothing is cached, so this is a real re-check.
-      await boot();
+      try {
+        // boot() re-walks resume → SSO → login and lands back here if the answer
+        // has not changed. Nothing is cached, so this is a real re-check.
+        await boot();
+      } catch (e) {
+        // boot() normally renders the next screen itself. If it throws, this
+        // screen is still on-page and the button must not be left reading
+        // "Checking…" forever — a dead control is how a waiting physician
+        // concludes the product is broken, which is the whole failure here.
+        again.removeAttribute('disabled');
+        again.textContent = 'Check again';
+      }
     });
     body.appendChild(again);
 
@@ -6633,8 +6642,17 @@
                               { method: 'POST', body: { specialty: chosen } });
         toast(res.message || ('Specialty set to ' + chosen + '.'), 'success');
         if (onDone) onDone(chosen);
+        // The caller re-renders and discards this node, so this is normally
+        // invisible. It matters when the re-render fails: without it the row is
+        // left with a permanently disabled control under a success toast.
+        sel.removeAttribute('disabled');
+        setBtn.textContent = 'Set specialty';
       } catch (e) {
-        err.textContent = e.detail || e.message || 'Could not set the specialty.';
+        // `detail` is a string for our 400s but a LIST of objects for a FastAPI
+        // 422, and assigning that to textContent prints "[object Object]" at the
+        // operator. `message` is already normalized by detailToMessage.
+        err.textContent = (typeof e.detail === 'string' && e.detail)
+          || e.message || 'Could not set the specialty.';
         err.removeAttribute('hidden');
         sel.removeAttribute('disabled');
         setBtn.removeAttribute('disabled');

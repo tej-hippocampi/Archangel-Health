@@ -272,3 +272,50 @@ def test_the_promote_surfaces_gate_on_the_servers_verdict():
     # The promote list reads the server's block rather than re-deriving it.
     assert "promote_block" in portal
     assert "specialty_undetermined_cases" in health
+
+
+def test_a_case_resolved_to_task_creation_is_not_reported_as_brokering(monkeypatch):
+    """Precedence, and the reason the block is computed per-case.
+
+    Purpose is COALESCE(case.purpose, upload.purpose) — an admin can resolve an
+    individual case away from what its upload says, and the promote endpoints
+    honour that. A block that tested the upload row FIRST would report
+    "brokering" for cases the server would happily promote, greying out a button
+    that works. The upload row is consulted only when there are no cases to
+    speak for it.
+    """
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    upload_id = _portal_upload(store, purpose="brokering")
+
+    cases = store.list_ingest_cases(upload_id=upload_id)
+    assert cases, "the upload really did produce cases"
+    for c in cases:
+        store.set_ingest_case_purpose(c["ingest_case_id"], "task_creation")
+
+    block = _row(admin_h, upload_id)["promote_block"]
+    assert block is None or block["reason"] != "brokering", (
+        f"per-case resolution was ignored: {block}"
+    )
+    # It is still blocked — on the specialty, which is the real remaining reason.
+    assert block and block["reason"] == "specialty"
+
+
+def test_an_upload_with_no_cases_still_reports_brokering_from_its_own_row():
+    """The fallback: with no cases, the upload row is the only thing that can
+    speak. Reporting "no cases have finished ingesting" for a brokering upload
+    would send an operator looking for a review hold that does not exist."""
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    upload_id = store.new_upload_id()
+    store.insert_ingest_upload(
+        upload_id=upload_id, link_id="hs-portal", partner_id="p1",
+        filename="empty.zip", sha256="beef", size_bytes=4, raw_path="/tmp/x",
+        source_ip=None)
+    store.set_upload_purpose(upload_id, "brokering")
+
+    r = client.get(f"{API}/ingestion/uploads?limit=200&offset=0", headers=admin_h)
+    row = next(u for u in r.json()["uploads"] if u["upload_id"] == upload_id)
+    assert row["promote_block"]["reason"] == "brokering"

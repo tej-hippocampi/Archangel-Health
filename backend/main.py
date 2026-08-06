@@ -192,6 +192,18 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Patient-Session", "X-Admin-Token"],
+    # A custom RESPONSE header is invisible to cross-origin JS unless it is
+    # exposed. The Asclepius portal is same-origin with this app today, so the
+    # gate header reads fine either way — but if the portal is ever served from
+    # its own host, the credential-verification screen would silently fall back
+    # to a bare login form and the failure would look exactly like the bug it
+    # replaced. One line now costs nothing and removes that trap.
+    # Literal, not an import: this middleware is configured at module import
+    # time, before asclepius.auth is first pulled in below, and reordering that
+    # for one string is not worth the risk. The value is asclepius.auth
+    # .AUTH_GATE_HEADER; test_pending_verification_surface.py asserts the two
+    # stay identical.
+    expose_headers=["X-Asclepius-Auth-Gate"],
     max_age=600,
 )
 

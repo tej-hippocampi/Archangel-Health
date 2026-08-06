@@ -19,6 +19,7 @@ product had the right answer and reported a different one.
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
@@ -96,6 +97,48 @@ def test_accounts_that_predate_tiering_are_backfilled_not_locked_out():
     after = store.get_user_by_id(legacy["id"])
     assert after["tier"] == asc_caps.LABELER
     assert asc_caps.can(after, asc_caps.LABEL)
+
+
+def test_the_backfill_never_re_grants_a_deliberately_revoked_tier():
+    """THE BACKFILL RUNS ON EVERY BOOT, so "grant once" has to be a property of
+    the query, not of how often it happens to run. Clearing an account's tier is
+    how an admin takes away its ability to label; a migration that hands the
+    capability back on the next redeploy is worse than the gap it closed."""
+    store = A.fresh_store()
+    user = A.make_user(store, role="evaluator", tier=None)
+    store._migrate()  # noqa: SLF001
+    assert store.get_user_by_id(user["id"])["tier"] == asc_caps.LABELER
+
+    with store._conn() as conn:  # noqa: SLF001
+        conn.execute("UPDATE users SET tier = NULL WHERE id = ?", (user["id"],))
+
+    store._migrate()  # noqa: SLF001
+    assert store.get_user_by_id(user["id"])["tier"] is None, (
+        "tier_assigned_at is already stamped, so this account has had a tier "
+        "decided for it and the backfill must not touch it again"
+    )
+
+
+def test_an_approved_account_that_predates_tiering_is_still_covered():
+    """Approval cannot happen without a tier today (both doors 400 without one),
+    so an approved row with no tier AND no assignment stamp predates tiering.
+    Those accounts pass the verification gate and are labeling right now."""
+    store = A.fresh_store()
+    user = A.make_user(store, role="evaluator", tier=None)
+    store.set_verification_status(user["id"], "approved")
+    store._migrate()  # noqa: SLF001
+    assert store.get_user_by_id(user["id"])["tier"] == asc_caps.LABELER
+
+
+def test_the_backfill_is_recorded_on_the_row_it_touched():
+    """An unexplained tier is indistinguishable from an admin's decision. The
+    stamp says which it was."""
+    store = A.fresh_store()
+    user = A.make_user(store, role="evaluator", tier=None)
+    store._migrate()  # noqa: SLF001
+    row = store.get_user_by_id(user["id"])
+    assert row["tier_assigned_by"] == "migration:tier_backfill"
+    assert row["tier_assigned_at"]
 
 
 def test_the_backfill_never_grants_a_tier_to_a_pending_signup():
@@ -370,3 +413,40 @@ def test_a_contributor_cannot_approve_themselves():
     r = client.post(f"{API}/verify/queue/{contributor['id']}/approve",
                     json={"tier": "labeler"}, headers=A.headers_for(contributor))
     assert r.status_code == 403, r.text
+
+
+def test_the_downloaded_zip_never_carries_internal_identity_either():
+    """The leak had TWO copies and the first fix only covered one.
+
+    ``build_export`` writes batch.json to the export directory, and ``zip_export``
+    normally zips that (sanitized) file. But when the directory is gone — purged,
+    or lost to a redeploy on ephemeral storage — it falls back to rebuilding
+    batch.json from the STORED manifest, which is the internal one. That fallback
+    is the copy a buyer downloads, so sanitizing only the on-disk file left the
+    leak on the path that actually delivers.
+    """
+    import zipfile
+    from asclepius.export import MANIFEST_NAME, zip_export
+
+    blob = zip_export({
+        "dir_path": "/nonexistent/export/dir",   # force the fallback branch
+        "manifest": {"export_id": "e-1", "record_count": 2,
+                     "created_by": "u-admin-7",
+                     "dir_path": "/srv/asclepius/exports/e-1",
+                     "destination": "local_disk"},
+    })
+    with zipfile.ZipFile(io.BytesIO(blob)) as zf:
+        shipped = json.loads(zf.read(MANIFEST_NAME))
+    assert "created_by" not in shipped, "an internal admin id in the buyer's zip"
+    assert "dir_path" not in shipped, "an absolute server path in the buyer's zip"
+    assert shipped["export_id"] == "e-1" and shipped["record_count"] == 2
+
+
+def test_the_two_manifest_strip_lists_are_one_list():
+    """The advisor view and the shipped bundle stripped the same three keys from
+    two places. Two copies of one rule is how the fourth key gets added to one."""
+    from asclepius.export import _shippable_manifest
+    from routers.asclepius_advisor import _public_manifest
+
+    full = {"keep": 1, "created_by": "u", "dir_path": "/p", "destination": "d"}
+    assert _public_manifest(full) == _shippable_manifest(full) == {"keep": 1}

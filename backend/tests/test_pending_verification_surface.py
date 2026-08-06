@@ -191,3 +191,25 @@ def test_the_waiting_section_still_exists_in_the_manual():
     src = _MANUAL_JS.read_text(encoding="utf-8")
     assert re.search(r"id:\s*'awaiting-verification'", src)
     assert re.search(r"showWhen:\s*'pending'", src)
+
+
+def test_the_gate_header_is_exposed_to_cross_origin_readers():
+    """A custom response header is invisible to cross-origin JS unless CORS
+    exposes it. The portal is same-origin today, so this changes nothing now —
+    but if it is ever served from its own host, an unexposed header would make
+    the waiting screen silently degrade to the bare login form it replaced, and
+    the regression would look exactly like the original bug.
+
+    The middleware carries the name as a literal (it is configured before
+    asclepius.auth is imported), so the two are pinned to each other here.
+    """
+    import main
+    from fastapi.middleware.cors import CORSMiddleware
+
+    exposed = []
+    for mw in main.app.user_middleware:
+        if mw.cls is CORSMiddleware:
+            exposed = list(mw.kwargs.get("expose_headers") or [])
+    assert asc_auth.AUTH_GATE_HEADER in exposed, (
+        f"CORS must expose {asc_auth.AUTH_GATE_HEADER!r}; exposed={exposed}"
+    )

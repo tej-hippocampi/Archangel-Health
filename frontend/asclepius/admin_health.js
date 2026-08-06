@@ -352,8 +352,14 @@
     return wrap;
   }
 
+  const SPECIALTY_BLOCK_FALLBACK =
+    'Specialty not set — choose one to promote.';
+
   function bucketRow(ctx, spec, it, hsId, container) {
     const { h, toast, downloadBlob, fmtDate, openPipeline, specialtyResolver } = ctx;
+    // asclepius.js owns the wording so both admin surfaces say it identically;
+    // the fallback only covers a stale cached copy of that file.
+    const blockReason = ctx.specialtyBlockReason || SPECIALTY_BLOCK_FALLBACK;
     const actions = [];
     actions.push(btn(h, 'Download', 'asc-btn-subtle', () =>
       downloadBlob('/ingestion/uploads/' + it.upload_id + '/download',
@@ -374,7 +380,7 @@
           class: 'asc-btn asc-btn-sm asc-btn-primary',
           style: 'margin-right: var(--sp-1)',
           disabled: true,
-          title: ctx.specialtyBlockReason,
+          title: blockReason,
         }, 'Promote to task'));
       } else {
         actions.push(btn(h, 'Promote to task', 'asc-btn-primary', () => openPipeline(it)));
@@ -387,7 +393,7 @@
       // Stated, not implied: "Nothing here right now" and "there is one thing
       // left to decide" must never look the same to an operator.
       notes.push(h('div', { class: 'asc-promote-block' },
-        h('div', { class: 'asc-promote-block-why' }, ctx.specialtyBlockReason),
+        h('div', { class: 'asc-promote-block-why' }, blockReason),
         specialtyResolver(it.upload_id, () => renderDetail(container, ctx, hsId))));
     }
     // Chain of custody, on every row: what we hold, how much of it, and when we
