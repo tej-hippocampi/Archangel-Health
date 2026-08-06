@@ -11,27 +11,27 @@
 import type { ShellActions } from "../ArchShell";
 
 const RANKS = [
-  { rank: "01", name: "Grok 4.5", ci: "95% CI 59.6–98.2", score: 90, meta: ["Reproduced trap in 1 of 10", "1 lucky guess"] },
-  { rank: "02", name: "GPT-5.5", ci: "95% CI 49.0–94.3", score: 80, meta: ["Reproduced trap in 2 of 10", "2 lucky guesses"] },
-  { rank: "03", name: "Gemini 3.1 Pro", ci: "95% CI 49.0–94.3", score: 80, meta: ["Reproduced trap in 2 of 10", "1 lucky guess"] },
-  { rank: "04", name: "Claude Opus 4.8", ci: "95% CI 39.7–89.2", score: 70, meta: ["Reproduced trap in 3 of 10", "Judge caveat: see below"], flagged: true },
+  { rank: "01", name: "Claude Opus 4.8", ci: "95% CI 49.0–94.3", score: 80, meta: ["Reproduced trap in 2 of 10", "2 lucky guesses"] },
+  { rank: "02", name: "Grok 4.5", ci: "95% CI 49.0–94.3", score: 80, meta: ["Reproduced trap in 2 of 10", "1 lucky guess"] },
+  { rank: "03", name: "Gemini 3.1 Pro", ci: "95% CI 39.7–89.2", score: 70, meta: ["Reproduced trap in 3 of 10", "2 lucky guesses"] },
+  { rank: "04", name: "GPT-5.5", ci: "95% CI 31.3–83.2", score: 60, meta: ["Reproduced trap in 4 of 10", "4 lucky guesses"] },
 ];
 
 const FINDINGS = [
   {
     tag: "Convergent failure",
-    title: "Three labs, the same wrong diagnosis.",
-    line: "On a hyponatremia case built to be under-worked-up, Claude, Gemini, and GPT-5.5 (three models from three separate labs) all jumped to SIADH and fluid restriction before the case gave enough data to justify it. Grok was the only model that held back and asked for the missing workup.",
+    title: "Four labs, the same wrong diagnosis.",
+    line: "On a hyponatremia case built to be under-worked-up, all four models — Claude, Grok, Gemini, and GPT-5.5 — jumped to SIADH and fluid restriction before the case gave enough data to justify it. No model held back and asked for the missing workup.",
   },
   {
-    tag: "Lab-artifact trap",
-    title: "A false emergency, treated as real.",
-    line: "The potassium of 6.8 came from a hemolyzed sample. Claude and GPT-5.5 reached for emergency treatment (IV calcium) instead of recognizing the artifact and repeating the draw first.",
+    tag: "Overcorrection trap",
+    title: "Same anchor, a real injury risk.",
+    line: "On a separate, severe hyponatremia case actually caused by beer potomania and a thiazide diuretic, three of four models anchored on SIADH again and reached for aggressive hypertonic saline — risking osmotic demyelination syndrome instead of the slower, safer correction the case called for.",
   },
   {
-    tag: "Judge caveat",
-    title: "One failure looks like our mistake, not the model's.",
-    line: "On the HRS-AKI case, Claude's answer stated exactly what the criterion asked for. The judge flagged it failed anyway. Left uncorrected pending physician confirmation; if confirmed, Claude's score moves 70 → 80.",
+    tag: "Reasoning trap",
+    title: "The right number, read the wrong way.",
+    line: "On an acute kidney injury case, three of four models trusted a lab value (FeNa) that becomes unreliable on diuretics, and used it to call the injury pre-renal — missing the drug-induced kidney inflammation the case was built to test for.",
   },
 ];
 
@@ -51,7 +51,7 @@ export function ResearchPage({ actions }: { actions: ShellActions }) {
         </div>
 
         <div className="aura aura-expert stat-card reveal">
-          <span className="doto">5<span className="of">/10</span></span>
+          <span className="doto">4<span className="of">/10</span></span>
           <p>gold cases exposed a failure in at least one model, after all four models scored a
           perfect 100 on generic textbook traps.</p>
         </div>
@@ -77,8 +77,8 @@ export function ResearchPage({ actions }: { actions: ShellActions }) {
               </div>
               <span className="rank-score doto">{r.score}</span>
               <div className="rank-meta">
-                {r.meta.map((m, i) => (
-                  <span className={`chip${r.flagged && i === r.meta.length - 1 ? " chip-lime" : ""}`} key={m}>{m}</span>
+                {r.meta.map((m) => (
+                  <span className="chip" key={m}>{m}</span>
                 ))}
               </div>
             </div>
@@ -108,14 +108,16 @@ export function ResearchPage({ actions }: { actions: ShellActions }) {
         <p className="crumb chrome reveal sub-crumb" id="methodology"><span className="root">01.3</span><span className="sep">/</span><span className="here">Methodology</span></p>
         <div className="split">
           <div className="reveal">
-            <h3 style={{ fontSize: "1.4rem" }}>Graded by a calibrated judge, <span className="quiet">not a gut check.</span></h3>
-            <p style={{ marginTop: "1.1rem" }}>Claude Opus 4.8 grades each answer against
-            physician-written criteria. Before it grades anything real, it's checked against a
-            physician-labeled reference set, and blocked from grading if it doesn't clear the bar.</p>
+            <h3 style={{ fontSize: "1.4rem" }}>Graded by a four-judge panel, <span className="quiet">not a single vote.</span></h3>
+            <p style={{ marginTop: "1.1rem" }}>Each answer is graded against physician-written
+            criteria by four independent judges, one per model family and recused from grading
+            its own family's answers, with majority vote deciding the verdict and every grade
+            tied to a verbatim quote from the model's own answer.</p>
             <div className="aura aura-model stat-card">
-              <span className="doto">100<span className="of">%</span></span>
-              <p>judge agreement with physician ground truth on 26 reference pairs (95% CI
-              87.1–100%), above our 85% calibration threshold.</p>
+              <span className="doto">37<span className="of"> criteria</span></span>
+              <p>physician-authored grading criteria across the 10 gold cases, each verdict
+              checked against a verbatim quote from the model's answer before it counts as a
+              match.</p>
             </div>
           </div>
           <div className="qc reveal">
@@ -125,7 +127,7 @@ export function ResearchPage({ actions }: { actions: ShellActions }) {
               <li><span className="dot dot-green" />All 10 gold cases are nephrology, physician-vetted, high-severity by design</li>
               <li><span className="dot dot-pink" />Case prompts, criteria text, and model responses stay private</li>
               <li><span className="dot dot-green" />Held private specifically to prevent contaminating the models under test</li>
-              <li><span className="dot dot-orange" />Physician ratification of the calibration labels: in progress</li>
+              <li><span className="dot dot-orange" />Physician ratification of the grading criteria: in progress</li>
             </ul>
           </div>
         </div>
