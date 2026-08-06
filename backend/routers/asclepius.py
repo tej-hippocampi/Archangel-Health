@@ -655,12 +655,21 @@ async def upload_tasks_file(
 async def drain_task_notifications(
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
-    """Manual re-drain safety net (also handy for local QA): sends every
-    still-``pending`` outbox row. A crashed BackgroundTasks drain leaves rows
-    ``pending`` rather than losing them, so this recovers the tail."""
+    """Manual re-drain safety net (also handy for local QA): claims and sends
+    every deliverable outbox row (pending + retryable failures + leased-out
+    stragglers), then reports the queue's status breakdown so an operator can
+    see anything stuck in dead-letter."""
     store = _store()
     sent, failed = asc_task_notify.drain_outbox(store)
-    return {"sent": sent, "failed": failed}
+    return {"sent": sent, "failed": failed, "queue": store.count_task_notifications_by_status()}
+
+
+@router.get("/admin/task-notifications/status")
+async def task_notifications_status(
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Outbox health at a glance: counts by status + dead-letter total."""
+    return _store().count_task_notifications_by_status()
 
 
 def _parse_csv_tasks(raw: str) -> List[Dict[str, Any]]:

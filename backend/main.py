@@ -6334,6 +6334,45 @@ async def shutdown_team_scheduler():
             task.cancel()
 
 
+async def _asclepius_task_notify_drain_loop() -> None:
+    """Periodic safety-net drain for the specialty-task-notification outbox.
+
+    The admin upload already kicks a BackgroundTasks drain; this loop only
+    matters when that drain died mid-send or the process restarted with rows
+    still queued — it reclaims leased-out/failed rows and delivers the tail with
+    no human poke. Isolated from the team scheduler (and its demo-mode disable)
+    on purpose: the Asclepius plane runs even when CareGuide's scheduler is off.
+    Claims are atomic, so overlapping with an inline drain never double-sends."""
+    interval = int(os.getenv("ASCLEPIUS_TASK_DRAIN_INTERVAL_SECONDS", "120"))
+    while True:
+        try:
+            store = getattr(app.state, "asclepius_store", None)
+            if store is not None:
+                from asclepius import task_notify as _asc_task_notify
+
+                await asyncio.to_thread(_asc_task_notify.drain_outbox, store)
+        except Exception as e:
+            print(f"[asclepius-task-notify] drain loop error: {e}")
+        await asyncio.sleep(max(15, interval))
+
+
+@app.on_event("startup")
+async def startup_asclepius_task_notify():
+    if getattr(app.state, "asclepius_store", None) is None:
+        app.state.asclepius_task_notify_task = None
+        return
+    app.state.asclepius_task_notify_task = asyncio.create_task(
+        _asclepius_task_notify_drain_loop()
+    )
+
+
+@app.on_event("shutdown")
+async def shutdown_asclepius_task_notify():
+    task = getattr(app.state, "asclepius_task_notify_task", None)
+    if task:
+        task.cancel()
+
+
 @app.post("/internal/team/run-daily-jobs", include_in_schema=False)
 async def internal_run_team_daily_jobs(authorization: Optional[str] = Header(None)):
     """Manual trigger for TEAM scheduler jobs (local QA/testing)."""

@@ -1662,12 +1662,18 @@ class AsclepiusStore:
                     send_attempts     INTEGER NOT NULL DEFAULT 0,
                     last_error        TEXT,
                     sent_at           TEXT,
+                    claimed_at        TEXT,
                     created_at        TEXT NOT NULL
                 )
                 """
             )
+            # Older DBs created before the claim/lease model gain claimed_at here.
+            if "claimed_at" not in cols("task_notify_outbox"):
+                conn.execute("ALTER TABLE task_notify_outbox ADD COLUMN claimed_at TEXT")
+            # A drain claims rows by (status, claimed_at); index it so the claim
+            # scan stays cheap once the table has a long 'sent' tail.
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_task_notify_status ON task_notify_outbox(status)"
+                "CREATE INDEX IF NOT EXISTS idx_task_notify_status ON task_notify_outbox(status, claimed_at)"
             )
 
     # ─── Users ────────────────────────────────────────────────────────────────
@@ -2076,13 +2082,21 @@ class AsclepiusStore:
             return [dict(r) for r in rows]
 
     # ─── Task-notify outbox (specialty-tagged task notifications) ───────────
+    #
+    # Lifecycle: pending → (claim) sending → sent | failed. A drain CLAIMS rows
+    # atomically (pending → sending, stamping claimed_at + bumping send_attempts)
+    # so two concurrent drains can never send the same row; the claim also
+    # re-picks (a) 'failed' rows under the attempt cap for retry, and (b) stale
+    # 'sending' rows whose lease expired (a drain crashed after claiming but
+    # before marking) — so nothing is lost and nothing is stuck. Rows that
+    # exhaust the attempt cap stay 'failed' as a visible dead-letter.
     def enqueue_task_notification(
         self, *, idempotency_key: str, batch_id: str, specialty: str, task_count: int,
         recipient_user_id: str, recipient_email: str,
     ) -> Optional[int]:
-        """Insert a pending outbox row, deduped on ``idempotency_key`` (one email
-        per clinician per specialty per upload batch). Returns the new row id, or
-        None if this (recipient, specialty, batch) was already enqueued."""
+        """Insert one pending outbox row, deduped on ``idempotency_key`` (one
+        email per clinician per specialty per upload batch). Returns the new row
+        id, or None if this (recipient, specialty, batch) was already enqueued."""
         with self._conn() as conn:
             cur = conn.execute(
                 """
@@ -2098,7 +2112,72 @@ class AsclepiusStore:
             )
             return int(cur.lastrowid) if cur.rowcount else None
 
+    def enqueue_task_notifications_bulk(self, rows: List[Dict[str, Any]]) -> int:
+        """Insert many pending outbox rows in ONE transaction (fan-out to ~1000
+        recipients must not be ~1000 separate commits). Deduped on
+        ``idempotency_key`` via INSERT OR IGNORE. Returns the count inserted."""
+        if not rows:
+            return 0
+        now = _utcnow_iso()
+        params = [
+            (
+                r["idempotency_key"], r["batch_id"], r["specialty"], int(r["task_count"]),
+                r["recipient_user_id"], r["recipient_email"], now,
+            )
+            for r in rows
+        ]
+        with self._conn() as conn:
+            before = conn.total_changes
+            conn.executemany(
+                """
+                INSERT OR IGNORE INTO task_notify_outbox
+                  (idempotency_key, batch_id, specialty, task_count,
+                   recipient_user_id, recipient_email, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+                """,
+                params,
+            )
+            return conn.total_changes - before
+
+    def claim_task_notifications(
+        self, *, limit: int = 200, max_attempts: int = 5, lease_seconds: int = 300,
+    ) -> List[Dict[str, Any]]:
+        """Atomically claim up to ``limit`` deliverable rows for THIS drain:
+        marks them 'sending', stamps ``claimed_at``, bumps ``send_attempts``, and
+        returns them. Claims pending rows, failed rows still under the attempt
+        cap (retry), and stale 'sending' rows whose lease expired (crash
+        recovery). Atomic UPDATE ... RETURNING serializes against other drains
+        (SQLite write lock), so no row is ever claimed by two drains at once."""
+        now_dt = datetime.utcnow().replace(microsecond=0)
+        now = now_dt.isoformat()
+        lease_cutoff = (now_dt - timedelta(seconds=max(1, lease_seconds))).isoformat()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE task_notify_outbox
+                   SET status = 'sending', claimed_at = ?, send_attempts = send_attempts + 1
+                 WHERE id IN (
+                     SELECT id FROM task_notify_outbox
+                      WHERE status = 'pending'
+                         -- failed rows retry only AFTER the lease elapses, so a
+                         -- transient failure isn't burned through all attempts
+                         -- inside one drain — retries are spaced by ~lease.
+                         OR (status = 'failed'  AND send_attempts < ?
+                             AND (claimed_at IS NULL OR claimed_at < ?))
+                         -- 'sending' rows whose claiming drain crashed (lease expired).
+                         OR (status = 'sending' AND (claimed_at IS NULL OR claimed_at < ?))
+                      ORDER BY created_at ASC
+                      LIMIT ?
+                 )
+                RETURNING *
+                """,
+                (now, max_attempts, lease_cutoff, lease_cutoff, limit),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
     def list_pending_task_notifications(self, limit: int = 500) -> List[Dict[str, Any]]:
+        """Read-only view of still-queued rows (observability / admin). The drain
+        uses :meth:`claim_task_notifications`, not this."""
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT * FROM task_notify_outbox WHERE status = 'pending' "
@@ -2107,20 +2186,40 @@ class AsclepiusStore:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def count_task_notifications_by_status(self) -> Dict[str, int]:
+        """{'pending': n, 'sending': n, 'sent': n, 'failed': n} for observability.
+        Includes a synthetic 'dead_letter' = failed rows past the default cap."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS n FROM task_notify_outbox GROUP BY status"
+            ).fetchall()
+            out: Dict[str, int] = {r["status"]: int(r["n"]) for r in rows}
+            dead = conn.execute(
+                "SELECT COUNT(*) AS n FROM task_notify_outbox "
+                "WHERE status = 'failed' AND send_attempts >= 5"
+            ).fetchone()
+            out["dead_letter"] = int(dead["n"] if dead else 0)
+            return out
+
     def mark_task_notification_sent(self, notification_id: int) -> None:
+        # send_attempts was bumped at claim time; don't double-count here.
         with self._conn() as conn:
             conn.execute(
                 "UPDATE task_notify_outbox SET status = 'sent', sent_at = ?, "
-                "send_attempts = send_attempts + 1 WHERE id = ?",
+                "claimed_at = NULL WHERE id = ?",
                 (_utcnow_iso(), notification_id),
             )
 
     def mark_task_notification_failed(self, notification_id: int, error: str) -> None:
+        # Keep claimed_at as the retry-backoff anchor: the claim re-offers a
+        # failed row only once its lease has elapsed, so a transient failure
+        # isn't burned through all attempts inside a single drain. Past the
+        # attempt cap the row stays 'failed' as a terminal dead-letter.
         with self._conn() as conn:
             conn.execute(
                 "UPDATE task_notify_outbox SET status = 'failed', last_error = ?, "
-                "send_attempts = send_attempts + 1 WHERE id = ?",
-                (error, notification_id),
+                "claimed_at = ? WHERE id = ?",
+                ((error or "")[:2000], _utcnow_iso(), notification_id),
             )
 
     # ─── Real EHR ingestion (EHR PRD §4, §5, §8) ─────────────────────────────
