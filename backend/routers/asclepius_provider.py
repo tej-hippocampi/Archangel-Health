@@ -16,14 +16,22 @@ The ingestion inbox + quarantine + promote endpoints already live in
 
 from __future__ import annotations
 
+import asyncio
 import io
+import json
 import logging
 import os
+import time
 import zipfile
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
+from starlette.concurrency import run_in_threadpool
+from starlette.responses import Response as StarletteResponse
 
 from ratelimit import client_ip, rate_limiter
 
@@ -33,6 +41,7 @@ from asclepius.schemas import (
     DataProviderInviteRequest,
     ProviderPasswordRequest,
 )
+from asclepius.store import _utcnow_iso as asc_store_utcnow
 from asclepius.store import get_store, verify_password
 from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import build_data_provider_invite_email
@@ -41,6 +50,170 @@ from tenant_utils import generate_secure_password
 log = logging.getLogger("asclepius.provider")
 
 router = APIRouter(prefix="/api/asclepius", tags=["asclepius-provider"])
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  Provider-facing response discipline (PRD-I §3)
+#
+#  THE REQUIREMENT: a health system must not be able to tell whether the data
+#  they upload is destined for task creation or for brokering. Not from the URL,
+#  the page, an API response, an email, an error message, a header, a timing
+#  difference, or a response size.
+#
+#  THE ACTUAL CONTROL is that ``purpose`` never enters provider-reachable code at
+#  all — it is a column read only by admin surfaces, enforced by a static test
+#  that greps this file and the provider frontend and requires zero hits. Nothing
+#  below can save a design that branches on purpose; a branch that returns the
+#  same body still differs in the time it took to decide.
+#
+#  What this route class does is remove the AMBIENT differentials that survive
+#  even correct code, and freeze them so a future edit that reintroduces one
+#  fails CI rather than shipping:
+#
+#    * ETag is content-derived and therefore fingerprints the response — deleted.
+#    * Cache-Control: no-store on everything. A private/public differential is a
+#      direct leak, and these responses have no business in a cache regardless.
+#    * Content-Encoding removed. Compression makes size a function of content and
+#      hands back the size channel padding is here to close.
+#    * Bodies padded to a fixed 4 KB bucket. FIXED buckets, not random padding —
+#      random padding is averaged away by an observer who can repeat the request.
+#    * One response shape for every failure, so the error paths (written last,
+#      reviewed least, and where this always actually breaks) cannot differ.
+#    * A fixed time budget, so the response time carries no information about how
+#      much work the answer took. The precedent is username-enumeration defence
+#      and the lesson transfers exactly: do the same work regardless of the
+#      answer.
+# ════════════════════════════════════════════════════════════════════════════
+
+# Padding granularity. Every provider-facing JSON body is grown to the next
+# multiple of this, so byte length reveals only a coarse bucket.
+_PORTAL_PAD_BUCKET = 4096
+_PORTAL_PAD_KEY = "_"
+
+# Response-time budget. Every provider-facing response takes at least this long,
+# regardless of how much work produced it.
+def _portal_time_budget_sec() -> float:
+    try:
+        return max(0.0, float(os.getenv("ASCLEPIUS_PORTAL_BUDGET_MS", "120")) / 1000.0)
+    except ValueError:
+        return 0.120
+
+
+# Chunk uploads are EXEMPT from the time budget, deliberately. Their duration is
+# dominated by the number of bytes the client itself chose to send, is identical
+# across purposes because the code path is byte-identical, and a fixed budget per
+# part would add minutes of pure latency to a 3 GB upload for no gain. Buying
+# nothing at a real cost to the partner is not a security control.
+_BUDGET_EXEMPT_SUFFIX = "/parts/{part}"
+
+# The ONE failure body. Every provider-facing failure — bad session, expired,
+# revoked, wrong purpose, no such upload — is this shape. Only ``detail`` varies,
+# and only ever as a function of what the CLIENT sent.
+_PORTAL_GENERIC_DETAIL = "That request could not be completed."
+
+
+def _portal_error(status: int, detail: Optional[str] = None,
+                  code: Optional[str] = None) -> JSONResponse:
+    return JSONResponse(status_code=status,
+                        content={"detail": detail or _PORTAL_GENERIC_DETAIL,
+                                 "code": code or "request_failed"})
+
+
+def _pad_json_response(response: StarletteResponse) -> StarletteResponse:
+    """Grow a JSON body to the next fixed bucket with an ignored filler field.
+
+    Only JSON is padded; a streamed or binary response has a length that is
+    already a function of content the partner supplied, not of anything we chose."""
+    body = getattr(response, "body", None)
+    ctype = (response.headers.get("content-type") or "").split(";")[0].strip()
+    if body is None or ctype != "application/json":
+        return response
+    try:
+        payload = json.loads(body)
+    except (ValueError, TypeError):
+        return response
+    if not isinstance(payload, dict):
+        # A list or scalar body cannot carry a filler key without CHANGING ITS
+        # SHAPE, and silently wrapping it in {"data": …} would break any client
+        # reading it. No provider route returns one today; if one ever does, the
+        # right answer is to give it an envelope deliberately, not to have this
+        # function rewrite it behind the author's back. Left unpadded, and the
+        # golden header/shape tests will show it.
+        return response
+    payload.pop(_PORTAL_PAD_KEY, None)
+    base = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    # Cost of adding the filler key itself: ,"_":"" → 7 bytes.
+    overhead = len(f',"{_PORTAL_PAD_KEY}":""')
+    target = ((len(base) + overhead) // _PORTAL_PAD_BUCKET + 1) * _PORTAL_PAD_BUCKET
+    payload[_PORTAL_PAD_KEY] = "." * max(0, target - len(base) - overhead)
+    out = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    response.body = out
+    response.headers["content-length"] = str(len(out))
+    return response
+
+
+def _normalize_portal_headers(response: StarletteResponse) -> None:
+    response.headers["cache-control"] = "no-store"
+    response.headers["referrer-policy"] = "no-referrer"
+    for name in ("etag",              # content-derived → fingerprints the variant
+                 "content-encoding"):  # size as a function of content
+        if name in response.headers:
+            del response.headers[name]
+
+
+class PortalRoute(APIRoute):
+    """Applies the §3.2 checklist to every provider-facing route uniformly.
+
+    Uniformly is the point. Each item below is one line where it is applied, and
+    would be N lines and one forgotten endpoint if applied per handler — and the
+    forgotten one is always an error path."""
+
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, StarletteResponse]]:
+        original = super().get_route_handler()
+        exempt = self.path.endswith(_BUDGET_EXEMPT_SUFFIX)
+
+        async def portal_handler(request: Request) -> StarletteResponse:
+            started = time.perf_counter()
+            try:
+                response = await original(request)
+            except HTTPException as exc:
+                # Caught HERE rather than by the app's handler so the failure path
+                # gets the same header set, padding and budget as the success path.
+                # Error paths diverging from success paths is the single most
+                # common way this class of control is defeated.
+                detail = exc.detail if isinstance(exc.detail, str) else _PORTAL_GENERIC_DETAIL
+                response = _portal_error(exc.status_code, detail)
+                for k, v in (exc.headers or {}).items():
+                    response.headers[k] = v
+            except RequestValidationError:
+                response = _portal_error(422, "That request could not be understood.",
+                                         code="invalid_request")
+            except Exception:
+                # An UNEXPECTED failure must not escape into Starlette's default
+                # 500 — that response is plain text with a different header set,
+                # no no-store, no padding and no time budget, so the one shape
+                # that skips the whole discipline would be the one nobody wrote
+                # deliberately. Logged with the traceback; the partner is told
+                # nothing beyond the generic body.
+                log.exception("unhandled error on provider route %s", self.path)
+                response = _portal_error(500, "Something went wrong on our side. "
+                                              "Please try again in a moment.",
+                                         code="request_failed")
+            _normalize_portal_headers(response)
+            response = _pad_json_response(response)
+            if not exempt:
+                await asyncio.sleep(
+                    max(0.0, _portal_time_budget_sec() - (time.perf_counter() - started)))
+            return response
+
+        return portal_handler
+
+
+# Every provider-reachable route lives on this sub-router, so the discipline is a
+# property of the router rather than something each handler has to remember.
+# ``include_router`` preserves the route class, and the admin endpoints stay on
+# ``router`` — they are allowed (and required) to say the word "brokering".
+portal_router = APIRouter(route_class=PortalRoute)
 
 # link_id sentinel for account-door uploads (the shared ingest_uploads row needs a
 # non-null link_id; there is no upload link in the account flow).
@@ -184,7 +357,7 @@ async def revoke_data_provider(
 # ════════════════════════════════════════════════════════════════════════════
 #  Provider portal — the locked-down data_partner surface
 # ════════════════════════════════════════════════════════════════════════════
-@router.get("/provider/me")
+@portal_router.get("/provider/me")
 async def provider_me(provider_user: Dict[str, Any] = Depends(asc_auth.require_data_partner)):
     store = _store()
     p = store.get_data_provider(provider_user["id"]) or {}
@@ -198,7 +371,7 @@ async def provider_me(provider_user: Dict[str, Any] = Depends(asc_auth.require_d
     }
 
 
-@router.post("/provider/password",
+@portal_router.post("/provider/password",
              dependencies=[Depends(rate_limiter("provider_password", 10, 60))])
 async def provider_password(
     body: ProviderPasswordRequest,
@@ -231,7 +404,7 @@ def _bundle_zip(files: List[Dict[str, Any]], *, specialty: Optional[str]) -> byt
     return asc_ingestion.wrap_loose_files(files, specialty=specialty)
 
 
-@router.post("/provider/uploads",
+@portal_router.post("/provider/uploads",
              dependencies=[Depends(rate_limiter("provider_upload", 30, 60))])
 async def provider_upload(
     request: Request,
@@ -331,7 +504,7 @@ def _provider_file_view(e: Dict[str, Any]) -> Dict[str, Any]:
             "status": status, "outcome": shown}
 
 
-@router.get("/provider/uploads")
+@portal_router.get("/provider/uploads")
 async def provider_uploads(provider_user: Dict[str, Any] = Depends(asc_auth.require_data_partner)):
     """The provider's OWN uploads + status (mapped to plain-English states). Scoped
     to this provider by partner_id — never another provider's data."""
@@ -513,7 +686,7 @@ def require_hs_portal(request: Request) -> Dict[str, Any]:
     return user
 
 
-@router.post("/hs/login", dependencies=[Depends(rate_limiter("hs_login", 10, 60))])
+@portal_router.post("/hs/login", dependencies=[Depends(rate_limiter("hs_login", 10, 60))])
 async def hs_login(body: HsLoginRequest, request: Request, response: Response):
     """Sign in with the emailed username + password.
 
@@ -583,7 +756,7 @@ async def hs_login(body: HsLoginRequest, request: Request, response: Response):
             "must_reset": bool(user.get("must_reset"))}
 
 
-@router.post("/hs/logout")
+@portal_router.post("/hs/logout")
 async def hs_logout(request: Request, response: Response):
     """Sign out for real. The cookie is cleared AND the token's jti is denylisted
     until it would have expired — on a shared hospital workstation a cookie the
@@ -606,7 +779,7 @@ async def hs_logout(request: Request, response: Response):
     return {"ok": True}
 
 
-@router.get("/hs/me")
+@portal_router.get("/hs/me")
 async def hs_me(portal_user: Dict[str, Any] = Depends(require_hs_portal)):
     return {
         "username": portal_user["username"],
@@ -616,7 +789,7 @@ async def hs_me(portal_user: Dict[str, Any] = Depends(require_hs_portal)):
     }
 
 
-@router.post("/hs/password", dependencies=[Depends(rate_limiter("hs_password", 10, 60))])
+@portal_router.post("/hs/password", dependencies=[Depends(rate_limiter("hs_password", 10, 60))])
 async def hs_password(
     body: HsPasswordRequest,
     response: Response,
@@ -645,7 +818,7 @@ async def hs_password(
     return {"ok": True}
 
 
-@router.post("/hs/uploads", dependencies=[Depends(rate_limiter("hs_upload", 30, 60))])
+@portal_router.post("/hs/uploads", dependencies=[Depends(rate_limiter("hs_upload", 30, 60))])
 async def hs_upload(
     request: Request,
     background: BackgroundTasks,
@@ -744,6 +917,14 @@ async def hs_upload(
         source_ip=(request.client.host if request.client else None),
     )
     store.set_upload_health_system(upload["upload_id"], hs_id)
+    # Same two server-side stamps as the chunked door (PRD-I §1.1). The single-
+    # request path verifies by construction — the digest is computed over the exact
+    # bytes just written — so it is verified at the moment it is stored, and its
+    # provenance is joined from the account that sent it.
+    store.mark_upload_verified(upload["upload_id"],
+                               verified_at=asc_store_utcnow())
+    store.attach_upload_provenance(upload["upload_id"],
+                                   portal_username=portal_user["username"])
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
                     event_type="upload_received", actor=portal_user["username"],
                     payload={"health_system_id": hs_id, "sha256": digest,
@@ -808,10 +989,297 @@ def _hs_upload_view(up: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-@router.get("/hs/uploads")
+@portal_router.get("/hs/uploads")
 async def hs_uploads(portal_user: Dict[str, Any] = Depends(require_hs_portal)):
     """This health system's uploads — date, filename, size, and one of four
     plain-language states: received · processing · accepted · needs_attention."""
     store = _store()
     ups = store.list_uploads_for_health_system(portal_user["hs_id"])
     return {"uploads": [_hs_upload_view(u) for u in ups]}
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  Chunked, resumable upload (PRD-I §1)
+#
+#  The multipart POST above still serves small bundles, and stays: it is one
+#  request, it works, and nothing is gained by making a hospital send a 4 MB CSV
+#  in three phases. It is bounded by the platform's five-minute body timeout,
+#  which is why everything larger comes through here instead.
+#
+#  Note on paths: PRD-I §1.1 writes the declare step as ``POST /hs/uploads``,
+#  which is the multipart endpoint's own path and method. Sessions live one
+#  segment deeper so both doors can coexist.
+# ════════════════════════════════════════════════════════════════════════════
+from pydantic import Field as _Field  # noqa: E402
+
+_UPLOAD_OWNER_KIND = "health_system"
+
+
+class HsUploadDeclareRequest(BaseModel):
+    """What the client declares up front — an EXPLICIT list, so a field the client
+    invents is dropped by the model rather than reaching anything."""
+
+    filename: str
+    size: int = _Field(gt=0)
+    sha256: str
+    content_type: Optional[str] = None
+
+
+def _upload_session_or_404(store: Any, session_id: str,
+                           portal_user: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve a session, scoped to the caller's ACCOUNT.
+
+    Per account, not per organization. An organization may hold more than one
+    portal account, and what an upload is recorded as is a property of the account
+    that sent it — so an account adopting a session another account opened would
+    silently change what that upload counts as. Same-organization is not close
+    enough when the accounts are the thing being distinguished.
+
+    A session belonging to anyone else is reported as a plain 404 — the same answer
+    as one that never existed, so the endpoint cannot be used to probe which
+    session ids are real."""
+    session = store.get_upload_session(session_id)
+    if (not session or session.get("owner_kind") != _UPLOAD_OWNER_KIND
+            or session.get("owner_id") != portal_user["hs_id"]
+            or (session.get("actor") or "") != portal_user["username"]):
+        raise HTTPException(status_code=404, detail="No such upload.")
+    return session
+
+
+def _hs_upload_preconditions(store: Any, portal_user: Dict[str, Any]) -> None:
+    """The gates the multipart door already applies, applied identically here.
+
+    Same checks, same order, same messages — a partner who is blocked must be
+    blocked the same way whichever door they used, or the two doors become a way
+    to tell them apart."""
+    if portal_user.get("must_reset"):
+        raise HTTPException(status_code=403, detail="Reset your password before uploading.")
+    if _is_production():
+        import field_crypto
+        if not field_crypto.is_configured():
+            raise HTTPException(status_code=503,
+                                detail="Uploads are temporarily disabled. Please try again later.")
+        ok, _why = asc_ingestion.ingest_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503,
+                                detail="Uploads are temporarily disabled. Please try again later.")
+        from asclepius import assets as asc_assets
+        ok, _why = asc_assets.asset_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503,
+                                detail="Uploads are temporarily disabled. Please try again later.")
+
+
+def _hs_quota_remaining(store: Any, hs_id: str) -> int:
+    """Bytes this health system may still send in the current window, counting
+    bytes already committed to OPEN sessions. Counting only completed uploads
+    would let a partner declare unlimited concurrent multi-GB sessions and hit the
+    quota at complete — after the disk had already been spent."""
+    quota = _hs_upload_quota_bytes()
+    window_start = (datetime.now(timezone.utc)
+                    - timedelta(hours=_hs_quota_window_hours())).isoformat()
+    used = store.hs_upload_bytes_since(hs_id, window_start)
+    used += store.hs_uploads_bytes_in_open_sessions(hs_id)
+    return max(0, quota - used)
+
+
+@portal_router.post("/hs/uploads/sessions",
+                    dependencies=[Depends(rate_limiter("hs_upload", 30, 60))])
+async def hs_upload_declare(
+    body: HsUploadDeclareRequest,
+    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+):
+    """Declare a bundle and receive its chunk plan.
+
+    Idempotent on the declared bytes: re-declaring the same ``{sha256, size}``
+    returns the EXISTING session, so a refresh at 3.2 GB resumes instead of
+    restarting. The session id IS the idempotency key."""
+    from asclepius import uploads as asc_uploads
+
+    store = _store()
+    hs_id = portal_user["hs_id"]
+    _hs_upload_preconditions(store, portal_user)
+
+    remaining = _hs_quota_remaining(store, hs_id)
+    if remaining <= 0 or body.size > remaining:
+        raise HTTPException(
+            status_code=429,
+            detail="You have reached the upload limit for today. Please continue "
+                   "tomorrow, or reply to your welcome email and we will arrange "
+                   "a secure bulk transfer.",
+            headers={"Retry-After": str(_hs_quota_window_hours() * 3600)})
+
+    # Opportunistic reap of abandoned sessions — no cron needed at pod scale, and
+    # it runs on the one event that proves someone is using the feature.
+    asc_uploads.reap_stale_sessions(store)
+    try:
+        session, created = asc_uploads.declare(
+            store, owner_kind=_UPLOAD_OWNER_KIND, owner_id=hs_id,
+            actor=portal_user["username"], filename=body.filename, size=body.size,
+            sha256=body.sha256, content_type=body.content_type,
+            # The authorizing ACCOUNT, not anything derived from it. What the
+            # admin side reads off that account is resolved by the store, server-
+            # side; this door is given no way to name it and therefore no way to
+            # leak it (PRD-I §3.1).
+            portal_username=portal_user["username"])
+    except asc_uploads.UploadSessionError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+    if created:
+        store.log_event(entity_type="ingest_upload_session",
+                        entity_id=session["session_id"],
+                        event_type="upload_session_opened", actor=portal_user["username"],
+                        payload={"health_system_id": hs_id, "bytes": body.size,
+                                 "parts": session["part_count"]})
+    return asc_uploads.public_session(session)
+
+
+@portal_router.get("/hs/uploads/sessions/{session_id}")
+async def hs_upload_session_state(
+    session_id: str,
+    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+):
+    """Which parts are already stored — the resume endpoint. An interrupted 4 GB
+    upload continues from here rather than starting over."""
+    from asclepius import uploads as asc_uploads
+
+    store = _store()
+    session = _upload_session_or_404(store, session_id, portal_user)
+    return asc_uploads.public_session(session)
+
+
+@portal_router.put("/hs/uploads/sessions/{session_id}/parts/{part}",
+                   # Every other upload entry point is limited; this one carries
+                   # the bytes, so leaving it open let one authenticated partner
+                   # hold unbounded concurrent parts in memory. Generous enough
+                   # that a legitimate sequential upload never touches it.
+                   dependencies=[Depends(rate_limiter("hs_upload_part", 240, 60))])
+async def hs_upload_part(
+    session_id: str, part: int, request: Request,
+    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+):
+    """One chunk, verified against its own sha256.
+
+    Its own request, so the platform's five-minute body limit applies per chunk
+    and is irrelevant at this size. The body is read whole because a part is
+    bounded by the server-chosen chunk size — the ceiling is a configuration
+    constant, not something the client can grow."""
+    from asclepius import uploads as asc_uploads
+
+    store = _store()
+    session = _upload_session_or_404(store, session_id, portal_user)
+    _hs_upload_preconditions(store, portal_user)
+    limit = int(session["chunk_size"])
+    # Read the body as a STREAM with a running cap, not via request.body().
+    # request.body() buffers the entire body before returning, so the obvious
+    # `if len(body) > limit` check happens only after the memory has already been
+    # spent — an authenticated partner could push a 10 GB "part" and take the
+    # container down before the check it would eventually have failed. Aborting
+    # mid-stream costs us the bytes in flight instead.
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > limit:
+        raise HTTPException(status_code=413,
+                            detail=f"A part may not exceed {limit} bytes.")
+    buf = bytearray()
+    async for piece in request.stream():
+        buf.extend(piece)
+        if len(buf) > limit:
+            raise HTTPException(status_code=413,
+                                detail=f"A part may not exceed {limit} bytes.")
+    body = bytes(buf)
+    try:
+        # Off the event loop: hashing, encrypting and fsync-ing 16 MB is tens of
+        # milliseconds of CPU and a synchronous disk write, and doing it inline
+        # stalls every other request this worker is serving — including the
+        # platform health check.
+        stored = await run_in_threadpool(
+            asc_uploads.store_part, session, part, body,
+            request.headers.get("x-chunk-sha256"))
+    except asc_uploads.UploadSessionError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+    state = await run_in_threadpool(asc_uploads.session_state, session)
+    return {"part": stored["part"], "size": stored["size"],
+            "received_parts": state["received_parts"],
+            "missing_parts": state["missing_parts"],
+            "bytes_received": state["bytes_received"]}
+
+
+@portal_router.post("/hs/uploads/sessions/{session_id}/complete")
+async def hs_upload_complete(
+    session_id: str, request: Request, background: BackgroundTasks,
+    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+):
+    """Assemble, verify the whole-file digest, and only then create the upload.
+
+    Order matters and is the invariant: the blob is written and verified BEFORE
+    the ``ingest_uploads`` row exists, so there is never a row pointing at bytes
+    we have not proven. A digest mismatch creates nothing at all."""
+    from asclepius import uploads as asc_uploads
+
+    store = _store()
+    session = _upload_session_or_404(store, session_id, portal_user)
+    _hs_upload_preconditions(store, portal_user)
+    hs_id = portal_user["hs_id"]
+    try:
+        # THE expensive call: decrypt every part, hash the whole file, re-encrypt
+        # frame by frame, fsync. Minutes of AES-GCM and disk I/O on a multi-GB
+        # bundle. Inline on the event loop it blocks every other request in this
+        # worker for the duration — including the platform health check, which
+        # would restart the container mid-assembly.
+        result = await run_in_threadpool(asc_uploads.complete, store, session)
+    except asc_uploads.UploadIntegrityError as exc:
+        store.log_event(entity_type="ingest_upload_session", entity_id=session_id,
+                        event_type="upload_session_integrity_failed",
+                        actor=portal_user["username"],
+                        payload={"health_system_id": hs_id, "code": exc.code})
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+    except asc_uploads.UploadSessionError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+    if result.get("already"):
+        return {"upload_id": result["upload_id"], "status": "received",
+                "sha256": result["sha256"], "total_bytes": result["byte_size"]}
+
+    upload = store.insert_ingest_upload(
+        upload_id=result["upload_id"], link_id=_HS_LINK_ID, partner_id=hs_id,
+        filename=session.get("filename") or "bundle.zip",
+        sha256=result["sha256"], size_bytes=result["byte_size"],
+        raw_path=result["raw_path"],
+        source_ip=(request.client.host if request.client else None))
+    store.set_upload_health_system(upload["upload_id"], hs_id)
+    # (sha256, byte_size, verified_at) — the chain-of-custody triple. Stamped only
+    # after the digest was recomputed over the assembled bytes and matched.
+    store.mark_upload_verified(upload["upload_id"], verified_at=result["verified_at"])
+    # Provenance carried forward from the session the server itself stamped at
+    # declare — a server-side join, not a value that passed through this door.
+    store.attach_upload_provenance(upload["upload_id"], session_id=session_id)
+    asc_uploads.finalize(store, session, result)
+    store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
+                    event_type="upload_received", actor=portal_user["username"],
+                    payload={"health_system_id": hs_id, "sha256": result["sha256"],
+                             "bytes": result["byte_size"], "via": "hs_portal_chunked",
+                             "parts": session["part_count"]})
+    background.add_task(asc_ingestion.process_upload, store, upload["upload_id"])
+    return {"upload_id": upload["upload_id"], "status": "received",
+            "sha256": result["sha256"], "total_bytes": result["byte_size"]}
+
+
+@portal_router.delete("/hs/uploads/sessions/{session_id}")
+async def hs_upload_abort(
+    session_id: str,
+    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+):
+    """Give up on an unfinished upload and release its parts immediately, rather
+    than waiting for the reaper."""
+    from asclepius import uploads as asc_uploads
+
+    store = _store()
+    session = _upload_session_or_404(store, session_id, portal_user)
+    if session.get("status") == "verified":
+        raise HTTPException(status_code=409, detail="This upload has already completed.")
+    asc_uploads.abort(store, session)
+    return {"ok": True}
+
+
+# Mount the provider-facing surface. Everything above this line that a health
+# system can reach carries the §3 response discipline; the admin endpoints on
+# ``router`` deliberately do not.
+router.include_router(portal_router)

@@ -93,6 +93,11 @@ class UploadLinkRequest(BaseModel):
     partner_id: str
     partner_label: Optional[str] = None
     specialty: str = "nephrology"
+    # What uploads through this link are FOR (PRD-I §2.1: 'task_creation' |
+    # 'brokering'). REQUIRED and with no default — a link minted with no purpose
+    # is a decision nobody made, and the promotion gate resolves NULL as task
+    # creation, so a defaulted link is silently promotable.
+    purpose: str
     expires_hours: int = 72          # capped 1..720 server-side
     one_time: bool = True
     max_bytes: Optional[int] = None  # capped to the global ingest limit
