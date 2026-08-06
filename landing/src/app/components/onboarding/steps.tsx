@@ -1633,24 +1633,89 @@ export function Step5Credentials({
         }
       />
 
+      {/* Fellowship */}
+      <SectionHeading title="Fellowship" sub="Institution + specialty + year." />
+      {c.fellowship.map((f, i) => (
+        <RepeatableCard
+          key={i}
+          removable={c.fellowship.length > 1}
+          onRemove={() => set({ fellowship: c.fellowship.filter((_, j) => j !== i) })}
+        >
+          <div style={THREE_COL}>
+            <TextField
+              label="Institution"
+              placeholder="Cedars-Sinai"
+              value={f.institution}
+              onChange={(v) => {
+                const next = [...c.fellowship];
+                next[i] = { ...f, institution: v };
+                set({ fellowship: next });
+              }}
+            />
+            <TextField
+              label="Specialty"
+              placeholder="Nephrology"
+              value={f.specialty}
+              onChange={(v) => {
+                const next = [...c.fellowship];
+                next[i] = { ...f, specialty: v };
+                set({ fellowship: next });
+              }}
+            />
+            <TextField
+              label="Year"
+              placeholder="2013"
+              value={f.year}
+              onChange={(v) => {
+                const next = [...c.fellowship];
+                next[i] = { ...f, year: v.replace(/\D/g, "").slice(0, 4) };
+                set({ fellowship: next });
+              }}
+            />
+          </div>
+        </RepeatableCard>
+      ))}
+      <AddRowButton
+        label="Add fellowship"
+        onClick={() => set({ fellowship: [...c.fellowship, { institution: "", specialty: "", year: "" }] })}
+      />
 
-      {/* Fellowship rows, residency institution rows, focus areas and languages are
-          DEFERRED to the dashboard (main's signup-friction decision, kept). What stays
-          is only what a HARD GATE or a scored feature reads:
-
-            licence number + state          -> gate A2
-            residency complete + year       -> gate A4, and post_residency_ge_3yr
-            practice status + half-days     -> currently_practicing
-            continuing certification        -> continuing_cert
-            structured review experience    -> structured_review_exp
-
-          These are not "more credential fields". Without A2 and A4 every physician
-          resolves to gates=UNKNOWN, which routes the whole pool to the admin band
-          permanently and silently — the tiering system would look merely indecisive
-          rather than starved. `fellowship` and `subspecialties` DO feed domain_match,
-          but it degrades gracefully: board subspecialty (1.0) and primary specialty
-          (0.5) remain, so deferring those two costs one evidence route, not the
-          feature. */}
+      {/* Residency */}
+      <SectionHeading title="Residency" sub="Institution + year." />
+      {c.residency.map((r, i) => (
+        <RepeatableCard
+          key={i}
+          removable={c.residency.length > 1}
+          onRemove={() => set({ residency: c.residency.filter((_, j) => j !== i) })}
+        >
+          <div style={TWO_COL}>
+            <TextField
+              label="Institution"
+              placeholder="Johns Hopkins"
+              value={r.institution}
+              onChange={(v) => {
+                const next = [...c.residency];
+                next[i] = { ...r, institution: v };
+                set({ residency: next });
+              }}
+            />
+            <TextField
+              label="Year"
+              placeholder="2010"
+              value={r.year}
+              onChange={(v) => {
+                const next = [...c.residency];
+                next[i] = { ...r, year: v.replace(/\D/g, "").slice(0, 4) };
+                set({ residency: next });
+              }}
+            />
+          </div>
+        </RepeatableCard>
+      ))}
+      <AddRowButton
+        label="Add residency"
+        onClick={() => set({ residency: [...c.residency, { institution: "", year: "" }] })}
+      />
 
       {/* Medical school is DELIBERATELY NOT COLLECTED — see the `medicalSchool`
           removal note on the Credentials type. It satisfies no gate, and both the
@@ -1734,10 +1799,29 @@ export function Step5Credentials({
       />
 
       {/* Focus areas */}
-
-      <p style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5, margin: "4px 0 20px" }}>
-        You can add training history, focus areas, and languages later from your dashboard.
-      </p>
+      <SectionHeading title="Clinical focus" />
+      <ChipMultiSelect
+        label="Subspecialty & focus areas"
+        value={c.subspecialties}
+        onChange={(v) => set({ subspecialties: v })}
+        placeholder="e.g. dialysis, transplant, CKD"
+        suggestions={["Dialysis", "Transplant", "Glomerular disease", "CKD", "Hypertension"]}
+        hint="Type and press Enter, or tap a suggestion. Select as many as apply."
+      />
+      <ChipMultiSelect
+        label="Practice setting"
+        value={c.practiceSettings}
+        onChange={(v) => set({ practiceSettings: v })}
+        placeholder="e.g. academic, private practice"
+        suggestions={PRACTICE_SETTING_SUGGESTIONS}
+      />
+      <ChipMultiSelect
+        label="Languages spoken"
+        value={c.languages}
+        onChange={(v) => set({ languages: v })}
+        placeholder="List all languages"
+        suggestions={LANGUAGE_SUGGESTIONS}
+      />
 
       <div style={{ height: 1, background: "var(--hairline)", margin: "8px 0 22px" }} />
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
