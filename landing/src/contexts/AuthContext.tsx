@@ -11,11 +11,20 @@ type AuthState = {
   token: string | null;
   loading: boolean;
   error: string | null;
+  pendingVerificationEmail: string | null;
 };
 
 type AuthContextValue = AuthState & {
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    name?: string,
+    phone?: string,
+    smsConsentOptIn?: boolean
+  ) => Promise<User>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
 };
@@ -29,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
 
   const applyToken = useCallback((newToken: string | null) => {
     if (typeof window === "undefined") return;
@@ -64,23 +74,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     setError(null);
+    setPendingVerificationEmail(null);
     try {
       const data = await authApi.login(email, password);
+      if (authApi.isVerificationRequired(data)) {
+        const message = "Please verify your email before signing in.";
+        setPendingVerificationEmail(data.email);
+        setError(message);
+        throw new Error(message);
+      }
       applyToken(data.access_token);
       setUser(data.user);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Sign in failed");
+      if (!(e instanceof Error) || e.message !== "Please verify your email before signing in.") {
+        setError(e instanceof Error ? e.message : "Sign in failed");
+      }
       throw e;
     }
   }, [applyToken]);
 
   const register = useCallback(
-    async (email: string, password: string, name?: string) => {
+    async (
+      email: string,
+      password: string,
+      name?: string,
+      phone?: string,
+      smsConsentOptIn?: boolean
+    ) => {
       setError(null);
       try {
-        const data = await authApi.register(email, password, name);
+        const data = await authApi.register(email, password, name, phone, smsConsentOptIn);
         applyToken(data.access_token);
         setUser(data.user);
+        if (!data.user.email_verified) {
+          setPendingVerificationEmail(data.user.email);
+        }
+        return data.user;
       } catch (e) {
         setError(e instanceof Error ? e.message : "Registration failed");
         throw e;
@@ -89,10 +118,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [applyToken]
   );
 
+  const verifyEmail = useCallback(async (email: string, code: string) => {
+    setError(null);
+    try {
+      await authApi.verifyEmailOtp(email, code);
+      setPendingVerificationEmail(null);
+      setUser((prev) => (prev && prev.email.toLowerCase() === email.toLowerCase()
+        ? { ...prev, email_verified: true }
+        : prev));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Verification failed");
+      throw e;
+    }
+  }, []);
+
+  const resendVerification = useCallback(async (email: string) => {
+    setError(null);
+    try {
+      await authApi.resendVerification(email);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not resend the verification email");
+      throw e;
+    }
+  }, []);
+
   const logout = useCallback(() => {
     applyToken(null);
     setUser(null);
     setError(null);
+    setPendingVerificationEmail(null);
   }, [applyToken]);
 
   const clearError = useCallback(() => setError(null), []);
@@ -102,8 +156,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     token,
     loading,
     error,
+    pendingVerificationEmail,
     login,
     register,
+    verifyEmail,
+    resendVerification,
     logout,
     clearError,
   };

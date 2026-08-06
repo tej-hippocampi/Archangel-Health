@@ -43,6 +43,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     name: Optional[str] = None
+    phone: Optional[str] = None
+    sms_consent_opt_in: bool = False
 
 
 class UserLogin(BaseModel):
@@ -54,6 +56,7 @@ class UserOut(BaseModel):
     email: str
     name: Optional[str] = None
     role: Optional[str] = None
+    email_verified: bool = False
 
 
 class DoctorOnboard(BaseModel):
@@ -143,6 +146,11 @@ def _load_users() -> dict:
             u.setdefault("mfa_secret", None)
             u.setdefault("mfa_pending_secret", None)
             u.setdefault("mfa_enabled", False)
+            u.setdefault("email_verified", False)
+            u.setdefault("verified_at", None)
+            u.setdefault("phone", None)
+            u.setdefault("sms_consent_opt_in", False)
+            u.setdefault("sms_consent_at", None)
     return data
 
 
@@ -168,12 +176,34 @@ def _persist_users() -> None:
     _save_users(_get_users())
 
 
-def register_user(email: str, password: str, name: Optional[str] = None, role: str = "surgeon") -> dict:
-    """Create user. Raises ValueError if email exists. Default role is `surgeon` (pass-4 taxonomy)."""
+def register_user(
+    email: str,
+    password: str,
+    name: Optional[str] = None,
+    role: str = "surgeon",
+    *,
+    phone: Optional[str] = None,
+    sms_consent_opt_in: bool = False,
+) -> dict:
+    """Create user. Raises ValueError if a *verified* account already exists at
+    this email. Default role is `surgeon` (pass-4 taxonomy).
+
+    Re-registering an existing but unverified account does NOT raise or
+    duplicate — it returns the existing record so the caller re-issues a
+    verification challenge. The stored password is left untouched (it is not
+    silently overwritten by a second registration attempt)."""
     users = _get_users()
     key = email.lower().strip()
     if key in users:
-        raise ValueError("An account with this email already exists.")
+        if users[key].get("email_verified"):
+            raise ValueError("An account with this email already exists.")
+        return {
+            "email": users[key]["email"],
+            "name": users[key]["name"],
+            "role": users[key]["role"],
+            "email_verified": False,
+        }
+    now_phone = (phone or "").strip() or None
     users[key] = {
         "email": key,
         "password_hash": _hash_password(password),
@@ -186,9 +216,39 @@ def register_user(email: str, password: str, name: Optional[str] = None, role: s
         "mfa_secret": None,
         "mfa_pending_secret": None,
         "mfa_enabled": False,
+        "email_verified": False,
+        "verified_at": None,
+        "phone": now_phone,
+        "sms_consent_opt_in": bool(sms_consent_opt_in and now_phone),
+        "sms_consent_at": _now_iso() if (sms_consent_opt_in and now_phone) else None,
     }
     _persist_users()
-    return {"email": users[key]["email"], "name": users[key]["name"], "role": users[key]["role"]}
+    return {
+        "email": users[key]["email"],
+        "name": users[key]["name"],
+        "role": users[key]["role"],
+        "email_verified": False,
+    }
+
+
+def _now_iso() -> str:
+    return datetime.utcnow().replace(microsecond=0).isoformat()
+
+
+def is_email_verified(email: str) -> bool:
+    u = _get_users().get(email.lower().strip())
+    return bool(u and u.get("email_verified"))
+
+
+def mark_email_verified(email: str) -> bool:
+    users = _get_users()
+    key = email.lower().strip()
+    if key not in users:
+        return False
+    users[key]["email_verified"] = True
+    users[key]["verified_at"] = _now_iso()
+    _persist_users()
+    return True
 
 
 # ─── MFA (TOTP) — opt-in second factor for landing/staff accounts (PRD-3) ─────
@@ -272,7 +332,12 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
     u = users[key]
     if not _verify_password(password, u["password_hash"]):
         return None
-    return {"email": u["email"], "name": u.get("name"), "role": u.get("role")}
+    return {
+        "email": u["email"],
+        "name": u.get("name"),
+        "role": u.get("role"),
+        "email_verified": bool(u.get("email_verified")),
+    }
 
 
 def get_current_user_optional(
@@ -288,7 +353,12 @@ def get_current_user_optional(
     if sub not in users:
         return None
     u = users[sub]
-    return UserOut(email=u["email"], name=u.get("name"), role=u.get("role"))
+    return UserOut(
+        email=u["email"],
+        name=u.get("name"),
+        role=u.get("role"),
+        email_verified=bool(u.get("email_verified")),
+    )
 
 
 def get_current_user(

@@ -48,7 +48,12 @@ def _isolated(monkeypatch):
     yield
 
 
-def test_the_whole_advisor_journey():
+def test_the_whole_advisor_journey(monkeypatch):
+    # PRD R / Audit R H2: with double-labeling as the default, a singly-labelled
+    # case is awaiting its pair and the SINGLE-submission review flow correctly
+    # refuses it. This test exercises that single flow, so it pins the incident
+    # switch — the one supported way to run without second labels.
+    monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_HALT", "1")
     store = asc_store.get_store()
     admin = A.make_user(store, role="admin")
     admin_h = A.headers_for(admin)

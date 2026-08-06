@@ -165,6 +165,74 @@ def open_vault(blob: Optional[str], encrypted: int) -> Dict[str, Any]:
         return {}
 
 
+# ═══ PRD-R ROUTING SQL — owned by Agent R, do not edit from other PRDs ═══════
+# The labeler queue's eligibility and sort, as SQL fragments, defined ONCE so the
+# classic queue (``next_task_for_evaluator``) and the value-aware candidate set
+# (``eligible_tasks_for_evaluator``) cannot drift apart. Two copies of this rule
+# is the same defect shape PRD R §7 names: two representations of one fact, one
+# of which goes stale.
+
+# Per-task submission counts, MATERIALIZED ONCE (Audit R H4).
+#
+# This used to be a correlated scalar subquery, textually inlined three times per
+# query and joined by two more — five correlated scans per candidate row, on an
+# unbounded fetch, on the single SQLite writer that labeler SUBMISSIONS also
+# need. Measured at 20,000 open tasks: 0.167 s and 98.5 MB per labeler draw. No
+# index can serve a sort over a computed expression, so PRD R §1.2's "add the
+# index the sort needs" was not satisfiable as written; a grouped join is.
+#
+# ``n_labels`` counts VERDICT-BEARING rows only. A row without a verdict is a
+# prompt flag or a draft, not a label, and must not count toward the pair —
+# capacity, eligibility and the priority sort now all read this one number
+# (Audit R M1: capacity used to count every row, so a single verdict-less write
+# could wedge a case at "awaiting second" with nobody able to take it).
+_PRD_R_COUNTS_JOIN = (
+    "LEFT JOIN (SELECT task_id, COUNT(*) AS n_all, "
+    "                  SUM(CASE WHEN verdict IS NOT NULL THEN 1 ELSE 0 END) AS n_labels "
+    "             FROM submissions GROUP BY task_id) c ON c.task_id = t.task_id"
+)
+_PRD_R_LABEL_COUNT = "COALESCE(c.n_labels, 0)"
+
+# The same count, as a correlated subquery, for the two queries that do not (and
+# should not) carry the join: ``next_review_pair_for`` returns ONE task and is
+# already windowed, and ``review_pair_queue_stats`` aggregates over its own
+# derived table. Named separately so nobody reintroduces the H4 shape by reaching
+# for the wrong constant in the hot path.
+_PRD_R_LABEL_COUNT_CORRELATED = (
+    "(SELECT COUNT(*) FROM submissions sv "
+    " WHERE sv.task_id = t.task_id AND sv.verdict IS NOT NULL)"
+)
+
+# How many eligible candidates a single draw will consider. Applied AFTER every
+# per-labeler exclusion is resolved in SQL, which is what makes it safe: the
+# window counts only work this labeler could actually take, so it can never
+# produce the empty queue the unbounded scan existed to avoid.
+_PRD_R_SCAN_WINDOW = 300
+
+# A task is servable to a labeler when it is open, OR when it is 'done' but
+# carries exactly one label and has never been lifted to a pair. That second
+# branch is the load-bearing one: ``refresh_task_status`` closes a max_labels=1
+# task on its first submission (it is on the hot submit path and PRD R §7 forbids
+# editing it), so between "TL#1 submits" and "something lifts max_labels" the
+# case is 'done' and invisible. Deriving eligibility means the queue is correct
+# on the very next draw instead of waiting on a sweep. The Python-side capacity
+# check (``routing.effective_capacity``) is what decides whether the policy
+# actually wants that second label — this clause only widens the candidate set.
+_PRD_R_SERVABLE = (
+    "(t.status = 'open' OR (t.status = 'done' AND COALESCE(t.max_labels, 1) < 2 "
+    f"AND {_PRD_R_LABEL_COUNT} = 1))"
+)
+
+# PRD R §1.2 — a singly-labelled task outranks a fresh one, so cases finish
+# instead of accumulating half-done and κ never filling. A DESC SORT, NOT A
+# FILTER: an awaiting-second task this labeler cannot take (they wrote the first
+# label) simply loses its place at the head, and the scan falls through to fresh
+# work. The moment this becomes a WHERE clause, a labeler with no eligible
+# second-label work sees an empty queue and stops working (PRD R §7).
+_PRD_R_PRIORITY_ORDER = f"ORDER BY {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
+# ═══ END PRD-R ═══════════════════════════════════════════════════════════════
+
+
 class AsclepiusStore:
     def __init__(self, db_path: Optional[str] = None):
         base_dir = os.path.dirname(__file__)
@@ -1035,6 +1103,73 @@ class AsclepiusStore:
             if "identifier_flags" not in cols("case_reviews"):
                 conn.execute("ALTER TABLE case_reviews ADD COLUMN identifier_flags TEXT")
             # ═══ END PRD-A ═══
+            # ═══ PRD-R ROUTING / PAIRED REVIEW SCHEMA — owned by Agent R ═══════
+            # The review unit moves from a SUBMISSION to a TASK (PRD R §2.1): a
+            # reviewer draws the PAIR and adjudicates the case, so the claim,
+            # the lease and the blinding assertion all belong on the task row.
+            # All nullable, none defaulted — NULL means "no draw has asserted
+            # this yet", which must stay distinguishable from a decided value
+            # (context pack §6). The submission-level columns above are left
+            # exactly as they are: single-submission review still exists for a
+            # task that will only ever carry one label.
+            for _col, _ddl in (
+                ("review_status",     "TEXT"),     # NULL | in_review | reviewed
+                ("review_claimed_by", "TEXT"),
+                ("review_claimed_at", "TEXT"),     # the lease clock, never updated_at
+                ("review_blinded",    "INTEGER"),  # 1 | 0 | NULL(never asserted)
+            ):
+                if _col not in cols("tasks"):
+                    conn.execute(f"ALTER TABLE tasks ADD COLUMN {_col} {_ddl}")
+            # The paired verdict, alongside the existing single-submission one.
+            #   pair_sub_a / pair_sub_b — the pair in CANONICAL (oldest-first)
+            #     order, so two reviewers' rows on the same case are comparable.
+            #     NEVER the per-reviewer A/B order, which is a presentation fact.
+            #   stronger        — 'A' | 'B' | 'equivalent', in the REVIEWER's
+            #     positions, resolved to a submission id in accepted_submission_id.
+            #   accepted_submission_id — which physician's work the verdict
+            #     accepts; NULL for 'reject both'.
+            # ``verdict`` deliberately keeps the existing three-value vocabulary
+            # so ``agreement.review_acceptance`` — the ONE definition of expert
+            # acceptance — keeps counting it. A fourth verdict token would land
+            # in n_unclassified and silently zero the headline rate (PRD R §2.4:
+            # extend the inputs, never the names).
+            for _col, _ddl in (
+                ("pair_sub_a",             "TEXT"),
+                ("pair_sub_b",             "TEXT"),
+                ("stronger",               "TEXT"),
+                # Audit R H1. ``stronger`` is a POSITION, and a position only
+                # means something next to the frame it was measured in. It is
+                # now written in CANONICAL terms (the same frame as pair_sub_a /
+                # pair_sub_b, which sit beside it) and this column carries the
+                # unambiguous form so no reader has to know that. NULL when the
+                # reviewer answered 'equivalent' — there is no stronger side.
+                ("stronger_submission_id", "TEXT"),
+                ("accepted_submission_id", "TEXT"),
+            ):
+                if _col not in cols("case_reviews"):
+                    conn.execute(f"ALTER TABLE case_reviews ADD COLUMN {_col} {_ddl}")
+            # The priority sort (PRD R §1.2) counts verdict-bearing submissions
+            # per task on every labeler draw, and the pair query joins the same
+            # two columns. Unindexed that is a full scan of ``submissions`` per
+            # draw, per labeler.
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sub_task_verdict "
+                "ON submissions(task_id, verdict)")
+            # The independence check — "has THIS labeler already submitted here?"
+            # — runs as a NOT EXISTS on every labeler draw and on every reviewer
+            # pair draw. Without this it resolves through idx_sub_task_verdict
+            # and then filters, which is a scan of the task's submissions rather
+            # than a point lookup (Audit R H4).
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sub_task_evaluator "
+                "ON submissions(task_id, evaluator_id)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_task_review_status "
+                "ON tasks(review_status)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_review_task_reviewer "
+                "ON case_reviews(task_id, reviewer_user_id)")
+            # ═══ END PRD-R ═══
             # ═══ PRD-C HEALTH SYSTEM SCHEMA — owned by Agent 3, do not edit from other PRDs ═══
             conn.execute(
                 """
@@ -2879,25 +3014,41 @@ class AsclepiusStore:
                 ).fetchone()[0]
             )
 
-    def next_task_for_evaluator(
+    # ─── PRD-R: ONE labeler-queue builder (Audit R H4) ────────────────────────
+    def labeler_queue_sql(
         self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
         real_only: bool = False, multimodal_only: bool = False,
         require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
-    ) -> Optional[Dict[str, Any]]:
-        """Oldest open task in the evaluator's specialty that (a) they have not
-        already submitted and (b) still has label capacity (max_labels).
-        ``hard_only`` (Seamless PRD WS2, the V3 hard-case queue) restricts to
-        ``difficulty='hard'`` tasks.
+        window: int = _PRD_R_SCAN_WINDOW,
+    ) -> tuple:
+        """``(sql, params)`` for the labeler queue — the ONE definition, shared by
+        the classic draw and the value-aware candidate set so they cannot drift.
 
-        ``real_only`` is the V4 wall (EHR PRD §9.5), enforced in SQL: True serves
-        ONLY ``case_source='real_deid'`` tasks (the V4 queue); False EXCLUDES
-        them entirely (v1/v2/v3 can never be served a real patient case).
+        Three things make this cheap enough to sit on the submit-path writer:
 
-        TODO(scale): this scans candidate open tasks in Python; fine at pod scale.
-        Push the not-mine + capacity filter fully into SQL when volume grows."""
-        clauses = ["t.status = 'open'"]
-        # NOTE: the ``mine`` correlated subquery placeholder appears BEFORE the
-        # WHERE clause in the SQL text, so ``evaluator_id`` must bind first.
+        * the per-task counts are materialized ONCE by a grouped join, not by a
+          correlated scalar subquery inlined five times per row (H4);
+        * ``not mine`` is resolved IN SQL, so the window below counts only work
+          this labeler could actually take;
+        * a lean projection — the full task row is fetched only for candidates
+          actually considered, which under the priority sort is normally one.
+
+        The window is therefore safe in the way the unbounded scan was protecting
+        against: it cannot hide eligible work behind ineligible work, because
+        ineligible work is already gone.
+        """
+        clauses = [
+            _PRD_R_SERVABLE,
+            # Independence, in SQL rather than by caller discipline.
+            "NOT EXISTS (SELECT 1 FROM submissions sm WHERE sm.task_id = t.task_id"
+            " AND sm.evaluator_id = ?)",
+            # An exact NECESSARY condition for remaining capacity: no policy can
+            # raise a task's effective capacity above max(max_labels, 2). The
+            # exact test still runs in Python, against ``routing`` — one policy,
+            # one place — but this keeps the fleet's finished cases out of the
+            # window entirely.
+            f"{_PRD_R_LABEL_COUNT} < MAX(COALESCE(t.max_labels, 1), 2)",
+        ]
         params: List[Any] = [evaluator_id]
         if specialty:
             clauses.append("t.specialty = ?")
@@ -2913,6 +3064,9 @@ class AsclepiusStore:
         if require_measured_difficulty:
             clauses.append("(t.difficulty_measured = 1 AND t.empirical_difficulty >= ?)")
             params.append(float(min_empirical_difficulty))
+        # The V4 wall (EHR PRD §9.5), enforced in SQL: real_only serves ONLY
+        # case_source='real_deid'; otherwise they are excluded entirely, so a real
+        # patient case can never reach a v1/v2/v3 session.
         clauses.append(
             "t.case_source = 'real_deid'" if real_only
             else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
@@ -2926,101 +3080,149 @@ class AsclepiusStore:
             "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id "
             "AND ic.status = 'needs_review')"
         )
-        where = " AND ".join(clauses)
+        sql = f"""
+            SELECT t.task_id, {_PRD_R_LABEL_COUNT} AS label_count,
+                   COALESCE(c.n_all, 0) AS sub_count
+            FROM tasks t
+            {_PRD_R_COUNTS_JOIN}
+            WHERE {' AND '.join(clauses)}
+            {_PRD_R_PRIORITY_ORDER}
+            LIMIT ?
+            """
+        params.append(int(window))
+        return sql, tuple(params)
+
+    def _labeler_candidates(self, **kw) -> List[Dict[str, Any]]:
+        sql, params = self.labeler_queue_sql(**kw)
         with self._conn() as conn:
-            row = conn.execute(
-                f"""
-                SELECT t.*,
-                       (SELECT COUNT(*) FROM submissions s WHERE s.task_id = t.task_id) AS sub_count,
-                       (SELECT COUNT(*) FROM submissions s2
-                         WHERE s2.task_id = t.task_id AND s2.evaluator_id = ?) AS mine
-                FROM tasks t
-                WHERE {where}
-                ORDER BY t.created_at ASC
-                """,
-                tuple(params),
-            ).fetchall()
-        for r in row:
-            rec = self._task_row(r)
-            if rec.get("mine"):
+            return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+    def next_task_for_evaluator(
+        self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
+        real_only: bool = False, multimodal_only: bool = False,
+        require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
+    ) -> Optional[Dict[str, Any]]:
+        """Oldest servable task in the evaluator's specialty that they have not
+        already submitted and that still has label capacity.
+
+        PRD R §1.2: the candidate set also admits a 'done' task carrying a single
+        label (see ``_PRD_R_SERVABLE``) and is sorted so a task awaiting its
+        second label is offered before a fresh one.
+        """
+        from asclepius import routing as asc_routing   # pure module; no cycle
+        rows = self._labeler_candidates(
+            evaluator_id=evaluator_id, specialty=specialty, hard_only=hard_only,
+            real_only=real_only, multimodal_only=multimodal_only,
+            require_measured_difficulty=require_measured_difficulty,
+            min_empirical_difficulty=min_empirical_difficulty,
+        )
+        for r in rows:
+            task = self.get_task(r["task_id"])
+            if task is None:
                 continue
-            if int(r["sub_count"]) >= int(rec.get("max_labels") or 1):
+            label_count = int(r["label_count"] or 0)
+            # PRD R §1.2: capacity is DERIVED, so a case not yet flagged for its
+            # second label is still servable. Counted in LABELS (Audit R M1) —
+            # the same number eligibility and the priority sort use.
+            if label_count >= asc_routing.effective_capacity(task):
                 continue
-            rec.pop("sub_count", None)
-            rec.pop("mine", None)
-            return rec
+            # Catch the stored capacity up to the derived one, on the same
+            # request, for the ONE task we are about to serve.
+            if self._prd_r_lift_capacity([(task, label_count)]):
+                return self.get_task(task["task_id"]) or task
+            return task
         return None
+
+    # ─── PRD-R capacity catch-up ──────────────────────────────────────────────
+    def _prd_r_lift_capacity(self, pairs: List[tuple]) -> List[str]:
+        """Persist ``max_labels = 2`` (+ reopen) for singly-labelled candidates
+        the policy wants double-labelled, in one batched UPDATE. Returns the
+        task_ids actually changed.
+
+        ``pairs`` is ``[(task_dict, verdict_bearing_label_count), ...]``.
+
+        PRD R §1.1 asks for this on the submit path. The submit route lives in
+        ``routers/asclepius.py``, which Agent R does not own (context pack §2),
+        and ``refresh_task_status`` — the one hook Agent R can reach on that path
+        — is explicitly read-only. So the write happens at the next moment it can
+        possibly matter: the draw that is about to serve the case. The queue
+        itself never depends on it having happened (eligibility and capacity are
+        derived), which makes this bookkeeping rather than a race — and leaves
+        the existing background sweep as a second, independent path to the same
+        state.
+
+        Only tasks that ALREADY carry a label are lifted. Pre-flagging an
+        unlabelled task would be defensible under a 1.0 rate, but ``max_labels``
+        means "capacity we have committed to", and committing before a first
+        label exists would silently re-price every task in the queue.
+        """
+        from asclepius import routing as asc_routing
+        want = [t["task_id"] for (t, n) in pairs
+                if int(n or 0) >= 1
+                and asc_routing.target_labels(t) < asc_routing.PAIR_LABELS
+                and asc_routing.wants_second_label(t)]
+        if not want:
+            return []
+        return self.flag_tasks_for_double_label(
+            [{"task_id": tid, "specialty": None, "current_rate": None} for tid in want])
 
     def eligible_tasks_for_evaluator(
         self, *, evaluator_id: str, specialty: Optional[str], limit: Optional[int] = None,
         hard_only: bool = False, real_only: bool = False, multimodal_only: bool = False,
         require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
     ) -> List[Dict[str, Any]]:
-        """All open tasks this evaluator may take (not already theirs + still has
-        label capacity), oldest first — the candidate set value-aware routing
-        (Value-per-Minute PRD B3) ranks by expected value-per-minute.
-        ``hard_only`` (Seamless PRD WS2) restricts to ``difficulty='hard'`` (the
-        V3 hard-case queue).
+        """Tasks this evaluator may take, priority-ordered — the candidate set
+        value-aware routing (Value-per-Minute PRD B3) ranks by value-per-minute.
 
-        The scan is UNBOUNDED, exactly like the classic ``next_task_for_evaluator``
-        (both filter ``mine``/capacity in Python at pod scale). A SQL ``LIMIT``
-        applied before that filter would starve value-aware routing: if the N
-        oldest open tasks are all already-labeled or at capacity, a capped fetch
-        returns nothing even though eligible tasks exist further down — and a
-        newer high-value task could never enter the ranked set. ``limit`` (if
-        given) caps only the returned candidate count AFTER filtering."""
-        clauses = ["t.status = 'open'"]
-        params: List[Any] = [evaluator_id]
-        if specialty:
-            clauses.append("t.specialty = ?")
-            params.append(specialty)
-        if hard_only:
-            clauses.append("t.difficulty = 'hard'")
-        # V3 multimodal-only queue (default): structured cases only.
-        if multimodal_only:
-            clauses.append("t.modality = 'multimodal'")
-        # Empirical-difficulty gate (PRD §9) — same rule as next_task_for_evaluator.
-        if require_measured_difficulty:
-            clauses.append("(t.difficulty_measured = 1 AND t.empirical_difficulty >= ?)")
-            params.append(float(min_empirical_difficulty))
-        # The V4 wall (EHR PRD §9.5) — same rule as next_task_for_evaluator.
-        clauses.append(
-            "t.case_source = 'real_deid'" if real_only
-            else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
+        Shares ``labeler_queue_sql`` with the classic draw, so the two cannot
+        disagree about who may take what.
+
+        On the window (Audit R H4): this scan used to be deliberately UNBOUNDED,
+        because a ``LIMIT`` applied BEFORE the not-mine/capacity filter starves
+        the ranker — if the N oldest candidates are all ineligible, a capped
+        fetch returns nothing while eligible work sits further down. Those
+        filters now run IN SQL, so the window contains only work this evaluator
+        can actually take and that objection no longer holds. What the window
+        does cost is reach: with more eligible cases than the window, the ranker
+        sees the highest-PRIORITY ones rather than every one. That is the right
+        trade — the priority sort is the throughput rule — and it is stated here
+        rather than discovered later.
+
+        ``limit`` caps the returned candidates after the exact capacity check.
+
+        PRD R §1.2: lifting an awaiting-second task to ``max_labels = 2`` also
+        turns on ``value._tier_mult``'s double-labeled-credentialed multiplier,
+        so the case the queue wants finished scores higher on its own merits and
+        the priority survives the re-rank rather than only breaking ties."""
+        from asclepius import routing as asc_routing   # pure module; no cycle
+        rows = self._labeler_candidates(
+            evaluator_id=evaluator_id, specialty=specialty, hard_only=hard_only,
+            real_only=real_only, multimodal_only=multimodal_only,
+            require_measured_difficulty=require_measured_difficulty,
+            min_empirical_difficulty=min_empirical_difficulty,
         )
-        # Hold blocking-review cases out of the candidate set too (Audit PRD §21.6) —
-        # same rule as next_task_for_evaluator, so value-aware routing never ranks a
-        # case a human has not yet cleared.
-        clauses.append(
-            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id "
-            "AND ic.status = 'needs_review')"
-        )
-        where = " AND ".join(clauses)
-        with self._conn() as conn:
-            rows = conn.execute(
-                f"""
-                SELECT t.*,
-                       (SELECT COUNT(*) FROM submissions s WHERE s.task_id = t.task_id) AS sub_count,
-                       (SELECT COUNT(*) FROM submissions s2
-                         WHERE s2.task_id = t.task_id AND s2.evaluator_id = ?) AS mine
-                FROM tasks t
-                WHERE {where}
-                ORDER BY t.created_at ASC
-                """,
-                tuple(params),
-            ).fetchall()
         out: List[Dict[str, Any]] = []
+        lift: List[tuple] = []
         for r in rows:
-            rec = self._task_row(r)
-            if rec.get("mine"):
+            task = self.get_task(r["task_id"])
+            if task is None:
                 continue
-            if int(r["sub_count"]) >= int(rec.get("max_labels") or 1):
+            label_count = int(r["label_count"] or 0)
+            if label_count >= asc_routing.effective_capacity(task):
                 continue
-            rec.pop("sub_count", None)
-            rec.pop("mine", None)
-            out.append(rec)
+            lift.append((task, label_count))
+            out.append(task)
             if limit is not None and len(out) >= limit:
                 break
+        # One batched catch-up over the candidate window (see
+        # ``_prd_r_lift_capacity``). Bounded by the window, idempotent, and empty
+        # in steady state — the UPDATE carries ``AND max_labels < 2``, so a task
+        # is only ever written once. Re-read the lifted rows so the caller ranks
+        # on the capacity it will actually be served with.
+        lifted = set(self._prd_r_lift_capacity(lift))
+        if lifted:
+            out = [(self.get_task(t["task_id"]) or t) if t["task_id"] in lifted else t
+                   for t in out]
         return out
 
     def evaluator_median_seconds(self, evaluator_id: str) -> Optional[float]:
@@ -4220,10 +4422,23 @@ class AsclepiusStore:
         self, *, task_id: str, specialty: Optional[str], sub_a: str, sub_b: str,
         verdict_a: Optional[str], verdict_b: Optional[str],
         tags_a: List[str], tags_b: List[str], jaccard_tags: float,
-        verdict_agree: bool, n_labels: int, flagged: bool, blinded: bool = True,
+        verdict_agree: bool, n_labels: int, flagged: bool,
+        blinded: Optional[bool] = None,
     ) -> None:
         # ``blinded`` (Buyer Response PRD §7 F1): whether the second annotator was
         # blind to the first's verdict. Only blinded observations enter κ.
+        #
+        # TRI-STATE, and the default is None (Audit R C2). This used to default
+        # to ``True`` while its only caller never passed it, so every observation
+        # was stamped blind, ``agreement._blinded_only`` was a permanent no-op,
+        # and two buyer-facing artifacts asserted a property nobody measured:
+        # quality_report.md's "unblinded observations excluded" was always 0, and
+        # every packaged record claimed ``independent_second_label`` on the
+        # strength of an observation merely existing. A default of True on a
+        # column whose whole purpose is to record a MEASUREMENT is the same
+        # defect ``payload_is_blinded`` was built to remove — one layer down.
+        # None means "not verified", which ``aggregate_kappa`` reports separately
+        # from a measured False and excludes from κ either way.
         with self._conn() as conn:
             conn.execute(
                 """
@@ -4236,7 +4451,9 @@ class AsclepiusStore:
                     task_id, specialty, sub_a, sub_b, verdict_a, verdict_b,
                     json.dumps(tags_a or []), json.dumps(tags_b or []),
                     jaccard_tags, 1 if verdict_agree else 0, int(n_labels),
-                    1 if flagged else 0, 1 if blinded else 0, _utcnow_iso(),
+                    1 if flagged else 0,
+                    None if blinded is None else (1 if blinded else 0),
+                    _utcnow_iso(),
                 ),
             )
 
@@ -5037,6 +5254,14 @@ class AsclepiusStore:
             " AND cr.reviewer_user_id = ?)",
             "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = s.task_id"
             " AND ic.status = 'needs_review')",
+            # PRD R §1, defect 1: this queue gated on a SINGLE submission, so a
+            # reviewer drew one labeler's work and never saw the second — which
+            # both double-serves the case and destroys the comparison. A task
+            # that is or will be a PAIR belongs to next_review_pair_for; only a
+            # task that will never carry a second label is served here.
+            "(SELECT COUNT(*) FROM submissions sc WHERE sc.task_id = s.task_id"
+            " AND sc.verdict IS NOT NULL) = 1",
+            "COALESCE(t.max_labels, 1) < 2",
         ]
         params: List[Any] = [user_id, cutoff, user_id]
         if specialty:
@@ -5382,6 +5607,312 @@ class AsclepiusStore:
         rec["tags_b"] = json.loads(rec.pop("tags_b_json", "[]") or "[]")
         return rec
     # ═══ END PRD-A ═══
+    # ═══ PRD-R PAIRED REVIEW STORE METHODS — owned by Agent R ════════════════
+    # The review unit is the TASK (PRD R §2.1). The lease mechanics and the
+    # compare-and-swap are the PRD-A ones verbatim — they work — moved from the
+    # submission row to the task row.
+
+    def next_review_pair_for(
+        self,
+        user_id: str,
+        *,
+        specialty: Optional[str] = None,
+        lease_minutes: int = 45,
+        scan_limit: int = 200,
+    ) -> Optional[Dict[str, Any]]:
+        """Oldest ``review_ready`` task this reviewer may adjudicate, or None.
+
+        Every requirement is enforced IN SQL, never by caller discipline:
+
+          * ``review_ready`` — at least two verdict-bearing submissions;
+          * the reviewer authored neither submission (``NOT EXISTS`` on their
+            own submissions for the task) — a physician grading their own work
+            is not a review, and κ's blinding claim collapses with it;
+          * the reviewer has not already reviewed this task;
+          * unclaimed, or holding a claim whose lease has expired, so an
+            abandoned draw re-queues instead of vanishing forever;
+          * the specialty matches;
+          * the task is not held for blocking ingest review (Audit §21.6) — a
+            reviewer must not see a case whose image may carry burned-in PHI.
+
+        Returns the task row; the caller pairs it with
+        ``submissions_for_task`` and claims it with ``claim_task_for_review``.
+        """
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        clauses = [
+            # ``review_ready`` in the SQL exactly as ``routing.phase`` derives it:
+            # EXACTLY two labels, and the task has reached the capacity it was
+            # provisioned for.
+            #
+            # ``= 2``, not ``>= 2`` (Audit R H3). A paired review is defined over
+            # two labels; ``routing.ab_pair`` truncates to two in Python, so a
+            # three-label case used to be served with one physician's work simply
+            # absent — and then retired as 'reviewed' by a reviewer who never saw
+            # it. Paid work, adjudicated never, invisible to both queues. A case
+            # that carries more than two labels is not review_ready; it is a data
+            # condition, and ``review_pair_queue_stats`` counts it so a human can
+            # see it rather than it vanishing.
+            #
+            # The capacity clause is the other half: an admin-set max_labels of 3
+            # with two labels in is awaiting_second, and if only the state machine
+            # knew that, the SQL and ``routing.phase`` would be two truths.
+            f"{_PRD_R_LABEL_COUNT_CORRELATED} = 2",
+            f"{_PRD_R_LABEL_COUNT_CORRELATED} >= COALESCE(t.max_labels, 1)",
+            "NOT EXISTS (SELECT 1 FROM submissions sm WHERE sm.task_id = t.task_id"
+            " AND sm.evaluator_id = ?)",
+            # ONE ADJUDICATION PER CASE, from EITHER queue (Audit R H2). This was
+            # scoped to ``cr.reviewer_user_id = ?``, which let a case that had
+            # already been reviewed through the single-submission flow be drawn
+            # again as a pair — two ``case_reviews`` rows for one case, and an
+            # expert-acceptance rate that counts it twice. The per-reviewer
+            # exclusion PRD R §2.1 asks for is subsumed by this stricter one.
+            "NOT EXISTS (SELECT 1 FROM case_reviews cr WHERE cr.task_id = t.task_id)",
+            # NULL = never drawn; an 'in_review' claim past its lease re-queues;
+            # and a reviewer is always re-served the case THEY are holding, so a
+            # page reload resumes their work instead of telling them the queue is
+            # empty while their own claim blocks it. 'reviewed' is terminal: one
+            # adjudication per case is the product, and the per-reviewer
+            # exclusion above is the belt to that brace.
+            "(t.review_status IS NULL OR (t.review_status = 'in_review'"
+            " AND (t.review_claimed_at IS NULL OR t.review_claimed_at < ?"
+            "      OR t.review_claimed_by = ?)))",
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id"
+            " AND ic.status = 'needs_review')",
+        ]
+        params: List[Any] = [user_id, cutoff, user_id]
+        if specialty:
+            clauses.append("t.specialty = ?")
+            params.append(specialty)
+        params.append(int(scan_limit))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT t.* FROM tasks t
+                WHERE {' AND '.join(clauses)}
+                ORDER BY t.created_at ASC LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        return self._task_row(rows[0]) if rows else None
+
+    def claim_task_for_review(
+        self, task_id: str, *, reviewer_id: str, blinded: Optional[bool] = None,
+        lease_minutes: int = 45,
+    ) -> bool:
+        """Atomically claim a TASK for paired review. True when this caller won.
+
+        Compare-and-set: the UPDATE only matches while the row is unclaimed or
+        its prior claim's lease has expired, so two reviewers drawing
+        concurrently can never both hold the same case.
+
+        ``review_claimed_at`` is the lease clock rather than ``updated_at`` —
+        any unrelated write bumps ``updated_at`` and would silently extend a
+        reviewer's claim (the defect FIX A A-3.7 named on the submission row).
+        ``review_blinded`` records the blinding DERIVED from the payload we are
+        actually about to serve; an asserted constant is the defect F2 named.
+        """
+        now = _utcnow_iso()
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE tasks
+                   SET review_status = 'in_review', review_claimed_by = ?,
+                       review_claimed_at = ?, review_blinded = ?
+                WHERE task_id = ?
+                  AND (review_status IS NULL
+                       OR (review_status = 'in_review'
+                           AND (review_claimed_at IS NULL OR review_claimed_at < ?
+                                OR review_claimed_by = ?)))
+                """,
+                (reviewer_id, now, None if blinded is None else (1 if blinded else 0),
+                 task_id, cutoff, reviewer_id),
+            )
+            return cur.rowcount > 0
+
+    def task_review_claim(self, task_id: str, *, lease_minutes: int = 45) -> Dict[str, Any]:
+        """The current review claim on a task: ``{holder, claimed_at, blinded,
+        expired, status}``. ``blinded`` is tri-state — None means no draw ever
+        asserted it, which is NOT the same as unblinded."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT review_status, review_claimed_by, review_claimed_at, "
+                "review_blinded FROM tasks WHERE task_id = ?", (task_id,)
+            ).fetchone()
+        if row is None:
+            return {"holder": None, "claimed_at": None, "blinded": None,
+                    "expired": True, "status": None}
+        rec = dict(row)
+        claimed_at = rec.get("review_claimed_at")
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        blinded = rec.get("review_blinded")
+        return {
+            "holder": rec.get("review_claimed_by"),
+            "claimed_at": claimed_at,
+            "blinded": None if blinded is None else bool(blinded),
+            "expired": (claimed_at is None) or (claimed_at < cutoff),
+            "status": rec.get("review_status"),
+        }
+
+    def has_task_review_by(self, task_id: str, reviewer_user_id: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM case_reviews WHERE task_id = ? AND reviewer_user_id = ? LIMIT 1",
+                (task_id, reviewer_user_id),
+            ).fetchone()
+        return row is not None
+
+    def mark_task_reviewed(self, task_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE tasks SET review_status = 'reviewed' WHERE task_id = ?", (task_id,))
+
+    def insert_pair_review(
+        self,
+        *,
+        task_id: str,
+        reviewer_user_id: str,
+        reviewer_id_hashed: str,
+        verdict: str,
+        stronger: str,
+        stronger_submission_id: Optional[str],
+        pair_sub_a: Optional[str],
+        pair_sub_b: Optional[str],
+        accepted_submission_id: Optional[str],
+        dimensions: Optional[Dict[str, str]] = None,
+        corrections: Optional[Dict[str, Any]] = None,
+        reviewer_notes: Optional[str] = None,
+        time_spent_sec: Optional[int] = None,
+        blinded: Optional[bool] = None,
+        identifier_flags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """One senior-reviewer adjudication of a PAIR (PRD R §2.3).
+
+        Writes through :meth:`insert_case_review` rather than issuing a second
+        INSERT against the same table: one row shape, one place that knows how a
+        review is written, and every existing reader (``reviews_for_task``,
+        ``agreement.review_acceptance``, the export block) keeps working
+        unchanged. The pair columns are then stamped on.
+
+        ``submission_id`` — a NOT NULL column, and the anchor
+        ``reviews_for_submission`` reads — is set to the ACCEPTED submission when
+        there is one, and to the canonical first otherwise, so a review always
+        resolves to a real row. ``accepted_submission_id`` is the field that
+        carries the meaning: NULL there means "no side was accepted", which
+        ``submission_id`` cannot express.
+
+        ``pair_sub_a``/``pair_sub_b`` are CANONICAL (oldest-first), never this
+        reviewer's shuffled positions — two reviewers' rows on the same case have
+        to be comparable to each other. ``stronger`` is canonical for the same
+        reason and is stored alongside ``stronger_submission_id``, which is the
+        form no reader can misinterpret (Audit R H1).
+
+        ONE TRANSACTION (Audit R M2). An adjudication is four writes — the review
+        row, its pair columns, the task's review status, and retiring the two
+        labels — and they used to happen across FIVE independent connections,
+        two here and three in the router. A crash in the middle left a
+        ``case_reviews`` row that COUNTS in ``review_acceptance`` with NULL pair
+        columns, beside a task still ``in_review`` that reproduces H2 the moment
+        its lease expires. They now commit together or not at all.
+
+        The cost of that is a second writer for ``case_reviews``: this issues the
+        INSERT itself rather than routing through :meth:`insert_case_review`,
+        because that method opens its own connection and there is no way to join
+        it to this transaction. Atomicity on a row that feeds a buyer-facing
+        statistic is worth more than a single INSERT site, and
+        ``test_both_review_writers_produce_the_same_row_shape`` is the guard that
+        keeps the two honest.
+        """
+        anchor = accepted_submission_id or pair_sub_a or pair_sub_b or ""
+        review_id = _new_id("rev")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO case_reviews
+                  (review_id, task_id, submission_id, reviewer_user_id, reviewer_id_hashed,
+                   verdict, dimension_json, corrections_json, reviewer_notes,
+                   time_spent_sec, blinded, identifier_flags, created_at,
+                   pair_sub_a, pair_sub_b, stronger, stronger_submission_id,
+                   accepted_submission_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    review_id, task_id, anchor, reviewer_user_id, reviewer_id_hashed,
+                    verdict,
+                    json.dumps(dimensions or {}),
+                    json.dumps(corrections) if corrections is not None else None,
+                    reviewer_notes,
+                    int(time_spent_sec) if time_spent_sec is not None else None,
+                    None if blinded is None else (1 if blinded else 0),
+                    None if identifier_flags is None else json.dumps(sorted(identifier_flags)),
+                    now,
+                    pair_sub_a, pair_sub_b, stronger, stronger_submission_id,
+                    accepted_submission_id,
+                ),
+            )
+            conn.execute(
+                "UPDATE tasks SET review_status = 'reviewed' WHERE task_id = ?", (task_id,))
+            # Retire EXACTLY the two labels this adjudication covers (Audit R H3).
+            for sid in (pair_sub_a, pair_sub_b):
+                if sid:
+                    conn.execute(
+                        "UPDATE submissions SET review_status = 'reviewed', updated_at = ? "
+                        "WHERE submission_id = ?", (now, sid))
+        return self.get_case_review(review_id)  # type: ignore[return-value]
+
+    def review_pair_queue_stats(self) -> Dict[str, Any]:
+        """Counts for the TR page header, in one pass per phase.
+
+        Reported as the lifecycle phases the reviewer actually cares about —
+        how many cases are waiting for a second label, how many pairs are ready,
+        how many are adjudicated — rather than the submission-level review states,
+        which under the paired flow no longer describe anything a TR can act on.
+
+        Audit R M4: this ran a correlated subquery per task over the whole task
+        table, unbounded, on a header refreshed by every draw. It now shares the
+        SAME grouped-join shape as the labeler queue — one pass over an index —
+        so a header can no longer cost more than the work it describes.
+
+        ``parked`` (Audit R M5) counts cases a draw refused as not-independent
+        and set terminal. Two physicians' paid labels are stranded in each one,
+        and until this they existed only in an ERROR log nothing reads.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                f"""
+                SELECT
+                  SUM(CASE WHEN lc = 1 THEN 1 ELSE 0 END) AS awaiting_second,
+                  SUM(CASE WHEN lc = 2 AND rc = 0 THEN 1 ELSE 0 END) AS review_ready,
+                  SUM(CASE WHEN rc > 0 THEN 1 ELSE 0 END) AS adjudicated,
+                  -- Audit R H3: a case carrying more than two labels cannot be
+                  -- adjudicated by a PAIRED review. Counted, not dropped — the
+                  -- whole failure was that this work was invisible.
+                  SUM(CASE WHEN lc > 2 AND rc = 0 THEN 1 ELSE 0 END) AS over_labelled,
+                  -- Audit R M5: terminal, never adjudicated, nobody notified.
+                  SUM(CASE WHEN rs = 'reviewed' AND rc = 0 THEN 1 ELSE 0 END) AS parked
+                FROM (
+                  SELECT COALESCE(c.n_labels, 0) AS lc,
+                         COALESCE(r.n_reviews, 0) AS rc,
+                         t.review_status AS rs
+                  FROM tasks t
+                  {_PRD_R_COUNTS_JOIN}
+                  LEFT JOIN (SELECT task_id, COUNT(*) AS n_reviews
+                               FROM case_reviews GROUP BY task_id) r
+                         ON r.task_id = t.task_id
+                  WHERE t.status IN ('open', 'done')
+                )
+                """
+            ).fetchone()
+        rec = dict(row) if row else {}
+        return {
+            "awaiting_second": int(rec.get("awaiting_second") or 0),
+            "review_ready": int(rec.get("review_ready") or 0),
+            "adjudicated": int(rec.get("adjudicated") or 0),
+            "over_labelled": int(rec.get("over_labelled") or 0),
+            "parked": int(rec.get("parked") or 0),
+        }
+    # ═══ END PRD-R ═══
     # ═══ PRD-C HEALTH SYSTEM STORE METHODS — owned by Agent 3, do not edit from other PRDs ═══
     @staticmethod
     def hs_id_for_name(name: str) -> str:
@@ -7941,6 +8472,18 @@ class AsclepiusStore:
     # into the review module; reading ``case_reviews`` is a contract-free
     # dependency where a callback is not.
     #
+    # A PAIRED adjudication (PRD-R) writes ONE case_reviews row for the whole
+    # case, anchored on the accepted submission, with the two labels recorded in
+    # ``pair_sub_a``/``pair_sub_b``. Matching on ``submission_id`` alone therefore
+    # resolves only ONE of the two physicians and leaves the other's $75 sitting
+    # accrued until the fourteen-day sweep — money a reviewer already approved,
+    # paid a fortnight late, for no reason the physician could discover.
+    #
+    # So a verdict is matched against all three columns. This reads two more
+    # column NAMES off a table payments already reads; it does not call into the
+    # review module and does not teach payments what a pair means beyond "these
+    # two submissions were adjudicated together".
+    #
     # ``review_verdicts`` is the raw comma-joined verdict list, classified by
     # ``payments._verdict_status``. Deliberately raw: filtering the accepting
     # verdicts here would put a second definition of "the work was accepted" into
@@ -7982,9 +8525,14 @@ class AsclepiusStore:
                        s.status,
                        s.created_at,
                        (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
-                         WHERE cr.submission_id = s.submission_id) AS review_verdicts,
+                         WHERE cr.submission_id = s.submission_id
+                            OR cr.pair_sub_a   = s.submission_id
+                            OR cr.pair_sub_b   = s.submission_id) AS review_verdicts,
                        (SELECT cr.reviewer_notes FROM case_reviews cr
-                         WHERE cr.submission_id = s.submission_id AND cr.verdict = 'reject'
+                         WHERE (cr.submission_id = s.submission_id
+                                OR cr.pair_sub_a = s.submission_id
+                                OR cr.pair_sub_b = s.submission_id)
+                           AND cr.verdict = 'reject'
                          ORDER BY cr.created_at DESC LIMIT 1) AS reject_note
                 FROM submissions s
                 LEFT JOIN users u ON u.id = s.evaluator_id
@@ -8014,9 +8562,14 @@ class AsclepiusStore:
                 SELECT e.ref_id AS submission_id,
                        e.status,
                        (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
-                         WHERE cr.submission_id = e.ref_id) AS review_verdicts,
+                         WHERE cr.submission_id = e.ref_id
+                            OR cr.pair_sub_a   = e.ref_id
+                            OR cr.pair_sub_b   = e.ref_id) AS review_verdicts,
                        (SELECT cr.reviewer_notes FROM case_reviews cr
-                         WHERE cr.submission_id = e.ref_id AND cr.verdict = 'reject'
+                         WHERE (cr.submission_id = e.ref_id
+                                OR cr.pair_sub_a = e.ref_id
+                                OR cr.pair_sub_b = e.ref_id)
+                           AND cr.verdict = 'reject'
                          ORDER BY cr.created_at DESC LIMIT 1) AS reject_note
                 FROM earnings e
                 WHERE e.kind = 'task' AND e.status IN ('accrued', 'void')

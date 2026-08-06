@@ -84,9 +84,14 @@ def _labeled_submission(admin_h, labeler):
     return tid, sid
 
 
-def test_b_approval_as_reviewer_unlocks_the_a_review_portal():
+def test_b_approval_as_reviewer_unlocks_the_a_review_portal(monkeypatch):
     """THE SEAM. B writes users.tier; A's gate reads it. If the two ever disagree
     about the word 'reviewer', no physician can review and nothing errors."""
+    # PRD R / Audit R H2: with double-labeling as the default, a singly-labelled
+    # case is awaiting its pair and the SINGLE-submission review flow correctly
+    # refuses it. This test exercises that single flow, so it pins the incident
+    # switch — the one supported way to run without second labels.
+    monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_HALT", "1")
     store = asc_store.get_store()
     admin_h = A.headers_for(_admin())
     labeler = _physician()

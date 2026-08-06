@@ -124,9 +124,15 @@ def test_double_label_quota():
     assert AG.should_double_label({"case_source": "real_deid"}, current_rate=0.9)
     assert AG.should_double_label({"first_annotator_confidence": "low"}, current_rate=0.9)
     assert AG.should_double_label({"specialty": "new"}, current_rate=0.9, specialty_n=5)
-    # A routine task below the target rate is routed; above it is not.
-    assert AG.should_double_label({"specialty": "neph"}, current_rate=0.05) is True
-    assert AG.should_double_label({"specialty": "neph"}, current_rate=0.5) is False
+    # A routine task below the target rate is routed; at or above it is not.
+    # Expressed RELATIVE to the target rather than against a pinned 0.15: PRD R
+    # §1.1 moved the default to 1.0 (two labels is the normal path, not a
+    # sample), and the property this test exists to protect — the top-up stops at
+    # the target — is the same at any target.
+    target = AG.double_label_rate()
+    assert AG.should_double_label({"specialty": "neph"}, current_rate=target / 3) is True
+    assert AG.should_double_label({"specialty": "neph"}, current_rate=target) is False
+    assert AG.should_double_label({"specialty": "neph"}, current_rate=target + 0.1) is False
 
 
 def test_unblinded_observation_excluded():

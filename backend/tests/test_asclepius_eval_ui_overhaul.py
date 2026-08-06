@@ -1086,16 +1086,21 @@ def test_no_new_component_vocabulary_beyond_the_prd():
     # Nothing beyond the declared set: every asc- class in the stylesheet must
     # be reachable from the app, so a typo'd or abandoned rule is caught.
     #
-    # Sections that own their own file (§3.3 ownership — PRD-C's admin views,
-    # PRD-D's advisor surface, PRD-P's earnings, PRD-R's review console) emit
-    # classes from THERE, so those count as reachable too.
+    # Sections that own their own file (§3.3 ownership) emit classes from THERE,
+    # so those count as reachable too: PRD-C's admin views, PRD-D's advisor
+    # surface, PRD-P's earnings, and PRD-R's review console, which is a separate
+    # page (review.html) loading the same stylesheet to reuse `.asc-answers`.
     #
     # The module list is DERIVED from the script tags of every page the app
-    # serves, not hardcoded: "reachable from the app" is precisely "loaded by one
-    # of the app's pages". An enumeration would have to be edited by every future
-    # PRD that adds a section, which is how a correct guard turns into a tax — and
-    # it is why this scans review.html as well as index.html, so the review
-    # console counts without anybody having to come back and say so.
+    # serves, rather than enumerated: "reachable from the app" is precisely
+    # "loaded by one of the app's pages". PRD-P and PRD-R each arrived at this
+    # test needing one more module counted, from opposite directions; deriving it
+    # covers both and means the next surface does not have to come back here at
+    # all. An enumeration is how a correct guard turns into a tax.
+    #
+    # The RULE is unchanged and no weaker: every styled class must still be
+    # emitted by a module the app actually loads. Only the way the module list is
+    # obtained has changed.
     pages = sorted(_FRONTEND.glob("*.html"))
     module_names = {
         name

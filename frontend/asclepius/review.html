@@ -8,6 +8,11 @@
        no new fonts, no new colors — only the shared tokens. -->
   <link rel="stylesheet" href="/static/asclepius/clinical-fonts.css" />
   <link rel="stylesheet" href="/static/asclepius/_tokens.css" />
+  <!-- PRD-R: the paired review page reuses `.asc-answers` — the SAME 1fr 1fr
+       grid and the SAME 880px breakpoint as the TL page — so the two surfaces
+       cannot drift. Every rule in that file is class-scoped (`.asc-*`), so
+       loading it here styles nothing this page did not ask for. -->
+  <link rel="stylesheet" href="/static/asclepius/asclepius.css" />
   <style>
     /* Review portal (PRD A Phase 2). Design center: a senior reviewer accepts a
        good submission in under 60 seconds — one column, verdict controls always
@@ -24,20 +29,15 @@
       border-bottom: 1px solid var(--hairline); padding: var(--sp-3) var(--sp-5);
       display: flex; align-items: center; gap: var(--sp-4); }
     .rv-header h1 { font-size: var(--t-h3); margin: 0; font-weight: 600; flex: none; }
-    /* PRD-P: the billable-session clock. Every value in it comes from a
-       heartbeat response — there is no timer in review.js. Lime while running
-       (new, needs attention), green once the session is worth paying, and never
-       pink: falling short of twenty minutes is not a safety event. */
-    .rv-session { flex: none; text-transform: none; letter-spacing: 0;
-      font-size: var(--t-sm); color: var(--ink-soft);
-      border: 1px solid var(--lime-line); border-radius: var(--r-chip);
-      padding: 4px 12px; background: var(--lime-wash); }
-    .rv-session.is-qualified { border-color: var(--green-line);
-      background: var(--green-wash); color: var(--green-deep); }
-    .rv-session.is-warn { border-color: var(--orange-line);
-      background: var(--orange-wash); color: var(--orange-deep); }
     .rv-headstats { flex: 1; display: flex; gap: var(--sp-3); align-items: baseline; }
     .rv-main { max-width: 880px; margin: 0 auto; padding: var(--sp-5); }
+    /* PRD-R: the pair needs two full columns; the single-submission flow keeps
+       the narrow measure above. */
+    .rv-main.rv-pair { max-width: 1180px; }
+    /* Chrome that must live OUTSIDE .asc-answers — see the PRD-R block in
+       asclepius.css for why an extra grid child breaks the pair. */
+    .rv-pairbar { display: flex; align-items: baseline; justify-content: space-between;
+      gap: var(--sp-3); flex-wrap: wrap; margin: var(--sp-4) 0 var(--sp-2); }
     .rv-card { background: var(--card); border: 1px solid var(--hairline);
       border-radius: var(--r-md); box-shadow: var(--shadow-card);
       padding: var(--sp-4); margin-bottom: var(--sp-3); }
@@ -67,15 +67,29 @@
     .rv-seg button { border: 0; background: transparent; color: var(--ink-soft);
       font: inherit; font-size: var(--t-sm); padding: 6px 12px; cursor: pointer; }
     .rv-seg button + button { border-left: 1px solid var(--hairline); }
-    .rv-seg button.is-on[data-state="agree"] { background: var(--green); color: #fff; }
-    .rv-seg button.is-on[data-state="disagree"] { background: var(--pink); color: #fff; }
-    .rv-seg button.is-on[data-state="cannot_assess"] { background: var(--ink-faint); color: #fff; }
+    .rv-seg button.is-on[data-state="agree"] { background: var(--green); color: var(--card); }
+    .rv-seg button.is-on[data-state="disagree"] { background: var(--pink); color: var(--card); }
+    .rv-seg button.is-on[data-state="cannot_assess"] { background: var(--ink-faint); color: var(--card); }
+    /* PRD-R — "Which is stronger?" shares the segmented control but not its
+       agree/disagree semantics: A, B and Equivalent are three neutral choices,
+       so the selected one is filled with ink rather than an accent. Giving A or
+       B a hue here is the exact bias the PRD forbids — a reviewer who reads
+       colour as "which doctor" starts reading it as "which is better". */
+    .rv-seg button.is-on[data-state="A"],
+    .rv-seg button.is-on[data-state="B"],
+    .rv-seg button.is-on[data-state="equivalent"] { background: var(--ink); color: var(--card); }
     .rv-verdicts { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
     .rv-verdicts button { flex: 1 1 160px; border: 1px solid var(--hairline);
       background: var(--card-in); color: var(--ink); font: inherit; font-size: var(--t-sm);
       border-radius: var(--r-sm); padding: var(--sp-3); cursor: pointer; }
     .rv-verdicts button.is-on[data-verdict="accept"] { border-color: var(--green); box-shadow: 0 0 0 2px var(--green); }
-    .rv-verdicts button.is-on[data-verdict="accept_with_edits"] { border-color: var(--orange); box-shadow: 0 0 0 2px var(--orange); }
+    /* PRD-R / Audit R U5: NOT orange. Orange means MODEL OUTPUT in this
+       product, and this is a physician's judgment control — the same
+       mistake as giving one of the two doctors a different hue. Lime is
+       the honest accent: an accept that needs corrections is exactly
+       "needs attention". Accept stays green (physician-authored) and
+       reject stays pink (blocking). */
+    .rv-verdicts button.is-on[data-verdict="accept_with_edits"] { border-color: var(--lime-line); box-shadow: 0 0 0 2px var(--lime); }
     .rv-verdicts button.is-on[data-verdict="reject"] { border-color: var(--pink); box-shadow: 0 0 0 2px var(--pink); }
     .rv-field { margin-top: var(--sp-3); }
     .rv-field label { display: block; font-size: var(--t-sm); font-weight: 600;
@@ -84,7 +98,7 @@
       color: var(--ink); background: var(--card-in); border: 1px solid var(--hairline);
       border-radius: var(--r-sm); padding: var(--sp-2); resize: vertical; }
     .rv-actions { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-3); }
-    .rv-submit { border: 0; border-radius: var(--r-sm); background: var(--green); color: #fff;
+    .rv-submit { border: 0; border-radius: var(--r-sm); background: var(--green); color: var(--card);
       font: inherit; font-weight: 600; padding: var(--sp-3) var(--sp-5); cursor: pointer; }
     .rv-submit[disabled] { opacity: 0.45; cursor: not-allowed; }
     .rv-error { color: var(--pink); font-size: var(--t-sm); }
@@ -98,11 +112,27 @@
   </style>
 </head>
 <body class="rv-body">
-  <div id="reviewRoot"></div>
-  <!-- PRD-P: the billable-session heartbeat client (window.AsclepiusSession).
-       MUST load before review.js, which calls it when a pair is drawn. Without
-       this tag a reviewer works and is credited nothing, silently — which is
-       exactly what audit U2 found. Both are `defer`, so document order holds. -->
+  <!-- The load-failure state is IN THE SHELL, not in the module: a module that
+       fails to parse cannot render its own error. review.js removes this the
+       moment it boots, so a visible error is the default and success is what
+       clears it — never a silent placeholder (design system §5). -->
+  <div id="reviewRoot">
+    <div class="rv-main">
+      <div class="rv-card">
+        <div class="rv-error" id="reviewBootError">
+          The review console did not load. Reload the page; if it happens again,
+          tell us — do not review from a half-loaded page.
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Agent P's session heartbeat client, FIRST. It owns `window.AsclepiusSession`
+       and is the only thing on this page that talks to the server about paid
+       time; review.js reads its state and computes none of its own. Loading it
+       here is what closes the seam where R assumed P had wired the review page
+       and P assumed R would. `defer` preserves document order, so it is present
+       before review.js boots. If it is absent the review still works and the
+       clock says, in words, that time is not being counted. -->
   <script src="/static/asclepius/earnings.js" defer></script>
   <script src="/static/asclepius/review.js" defer></script>
 </body>

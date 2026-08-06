@@ -154,6 +154,14 @@ def test_double_label_disagreement_routes_to_qa_then_approve():
     ev2 = _evaluator_h()
     tid = client.post("/api/asclepius/tasks", json={"tasks": [_task_body(max_labels=2)]}, headers=admin_h).json()["created"][0]
 
+    # Audit R C2: κ's `blinded` flag is derived from the pre-reveal blind commit,
+    # so a route test that wants a κ observation has to walk the gate the real
+    # portal enforces (ASCLEPIUS_WITHHOLD_ANSWERS is on by default).
+    for _h in (ev1, ev2):
+        assert client.post(f"/api/asclepius/tasks/{tid}/reveal",
+                           json={"text": "IV calcium, insulin/dextrose, then dialysis."},
+                           headers=_h).status_code == 200
+
     s1 = "s-" + uuid.uuid4().hex[:12]
     r1 = client.post("/api/asclepius/submissions", json={
         "submission_id": s1, "task_id": tid, "verdict": "A_better",

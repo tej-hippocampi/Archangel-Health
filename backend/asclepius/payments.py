@@ -1113,7 +1113,17 @@ def _verdict_status(verdicts: Optional[str]) -> Optional[str]:
     verdict has landed yet". ``verdicts`` is the raw comma-joined list.
 
     A submission may carry several reviews. Any payable verdict approves it; a
-    reject voids it only when NO payable verdict exists. That asymmetry is
+    reject voids it only when NO payable verdict exists.
+
+    PRODUCT RULE, stated here because it is a decision and not a mechanism: a
+    paired adjudication's verdict applies to BOTH labels, not just the accepted
+    one. "Accept A" says A's answer is right as submitted; it does not say B did
+    not do the work. B labelled the same case independently and blind, and that
+    second label is the thing that makes an agreement statistic possible at all —
+    it is the product, not a runner-up. Paying only the accepted side would pay
+    half the labelers on a case, and the second-label queue is the throughput
+    rule the whole release depends on. Only "reject both" voids, and it voids
+    both, because that is the verdict that says the work is unusable. That asymmetry is
     deliberate and follows §1.2's rule that a doctor must never see a number go
     down without an explanation: a later accept may restore money, a later reject
     never takes back money already approved."""

@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from tests import _asclepius as A  # noqa: E402
 from asclepius import payments as asc_payments  # noqa: E402
 from asclepius import pipeline as asc_pipeline  # noqa: E402
+from asclepius import review as asc_review  # noqa: E402
 from asclepius import profiles as asc_profiles  # noqa: E402
 
 client = TestClient(A.app)
@@ -56,6 +57,14 @@ def _isolated(monkeypatch):
 
     monkeypatch.setattr(asc_pipeline, "run_critic", _ok_critic)
     monkeypatch.setattr(asc_pipeline, "run_grounding_check", _ok_grounding)
+    # PRD-R made double-labeling the default, so a singly-labelled case now
+    # routes to the PAIR queue and the single-submission POST correctly 409s with
+    # ``became_a_pair``. These tests are about ACCRUAL reacting to a verdict, not
+    # about how a case reaches a reviewer, so they pin the halt flag — the one
+    # supported way to run without second labels, and what PRD-R's own legacy
+    # tests use. ``test_accrual_through_the_paired_review_flow`` below covers the
+    # default path, which is the one production actually runs.
+    monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_HALT", "1")
     yield
 
 
@@ -268,6 +277,59 @@ def test_a_later_accept_can_restore_money_but_a_later_reject_never_takes_it_back
     payload = _earnings(doctor)
     assert payload["approved_cents"] == 7500      # money already approved stays
     assert payload["void_cents"] == 0
+
+
+# ─── The path production actually runs ────────────────────────────────────────
+def test_accrual_through_the_paired_review_flow(monkeypatch):
+    """PRD-R made two independent labels then one paired adjudication the DEFAULT.
+
+    Everything above pins the halt flag to isolate accrual from routing. This one
+    does not: it drives the real thing end to end — two labelers submit blind, a
+    reviewer draws the pair and adjudicates once — and asserts that BOTH
+    labelers' earnings resolve off that single verdict.
+
+    It matters because accrual reads ``case_reviews``, and the paired flow writes
+    those rows through a different writer (``insert_pair_review``) than the
+    single flow. Two writers for one table is exactly the shape that drifts, and
+    if it ever does, the money stops moving and nothing else would notice.
+    """
+    monkeypatch.delenv("ASCLEPIUS_DOUBLE_LABEL_HALT", raising=False)
+    admin_h = A.headers_for(_admin())
+    task_id = _create_task(admin_h)
+
+    first, second = _labeler(), _labeler()
+    sid_1 = _submit(task_id, first)
+    _store().lift_task_capacity(task_id) if hasattr(_store(), "lift_task_capacity") else None
+    asc_review.sweep_double_label_routing(_store(), limit=50)
+    sid_2 = _submit(task_id, second)
+
+    # Both are pending until somebody adjudicates.
+    assert _earnings(first)["pending_cents"] == 7500
+    assert _earnings(second)["pending_cents"] == 7500
+
+    reviewer = _reviewer()
+    drawn = client.get("/api/asclepius/review/pair/next",
+                       headers=A.headers_for(reviewer)).json()
+    assert drawn.get("pair"), f"the pair queue served nothing: {drawn}"
+    assert drawn["pair"]["task_id"] == task_id
+
+    r = client.post(f"/api/asclepius/review/pair/{task_id}", json={
+        "verdict": "accept", "stronger": "A", "accepted_side": "A",
+        "dimensions": {k: "agree" for k in
+                       ("clinical_accuracy", "reasoning_quality",
+                        "completeness", "rubric_quality")},
+        "time_spent_sec": 300,
+    }, headers=A.headers_for(reviewer))
+    assert r.status_code == 200, r.text
+
+    # One adjudication, two physicians paid. The verdict covers the case, and
+    # both labels are part of the case.
+    assert _earnings(first)["approved_cents"] == 7500
+    assert _earnings(second)["approved_cents"] == 7500
+    assert _earnings(first)["pending_cents"] == 0
+    assert _earnings(second)["pending_cents"] == 0
+    assert {r["ref_id"] for r in _task_rows(_earnings(first))} == {sid_1}
+    assert {r["ref_id"] for r in _task_rows(_earnings(second))} == {sid_2}
 
 
 # ─── The double-payment guard ─────────────────────────────────────────────────
