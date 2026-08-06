@@ -410,6 +410,27 @@ def build_asclepius_complete_email(
     return _shell(subject="Your Asclepius workspace is ready", body_html=body)
 
 
+def build_asclepius_task_notification_email(
+    *, specialty_label: str, task_count: int, workspace_url: str,
+) -> str:
+    """New-work ping for evaluators when an admin uploads a specialty-tagged
+    task batch. Deliberately content-free — specialty name, count, and a login
+    URL only, no case text or PHI."""
+    plural = "task" if task_count == 1 else "tasks"
+    is_are = "is" if task_count == 1 else "are"
+    body = (
+        _eyebrow("New work · Asclepius")
+        + _h1(f"{task_count} new {html.escape(specialty_label)} {plural} ready.")
+        + _p(
+            f"{task_count} new {html.escape(specialty_label)} {plural} "
+            f"{is_are} ready to review in your Asclepius workspace."
+        )
+        + _cta(workspace_url, "Open my workspace →")
+    )
+    subject = f"{task_count} new {specialty_label} {plural} ready in your Asclepius workspace"
+    return _shell(subject=subject, body_html=body)
+
+
 def build_data_provider_invite_email(
     *,
     portal_url: str,

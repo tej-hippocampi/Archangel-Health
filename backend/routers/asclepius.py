@@ -41,6 +41,7 @@ from asclepius import generation as asc_generation
 from asclepius import pipeline as asc_pipeline
 from asclepius import profiles as asc_profiles
 from asclepius import specialties as asc_specialties
+from asclepius import task_notify as asc_task_notify
 from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
     ASCLEPIUS_TAXONOMY_VERSION,
@@ -132,6 +133,7 @@ from asclepius.schemas import (
     ScopedExportRequest,
     SsoRequest,
     SubmissionIn,
+    TaskIn,
     TaskUploadRequest,
     TutorialStateUpdate,
 )
@@ -522,13 +524,13 @@ async def set_real_data_approval(
 
 
 # ─── Tasks ────────────────────────────────────────────────────────────────────
-@router.post("/tasks")
-async def upload_tasks(
-    body: TaskUploadRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
-):
-    store = _store()
-    created = []
-    for t in body.tasks:
+def _insert_tasks_from_upload_requests(
+    store: Any, tasks: List[TaskIn], *, created_by: str,
+) -> List[Dict[str, Any]]:
+    """Shared insert loop for the structured (Pydantic) upload path. Returns the
+    created task dicts (with ``task_id``/``specialty``) for notify + response."""
+    created: List[Dict[str, Any]] = []
+    for t in tasks:
         if not (t.prompt or "").strip():
             continue
         # Multimodal (Synthetic Multimodal Cases PRD §5): when a structured case is
@@ -552,18 +554,72 @@ async def upload_tasks(
             value_tier=t.value_tier,
             modality=t.modality,
             case=case_dict,
-            created_by=admin["id"],
+            created_by=created_by,
         )
-        created.append(task["task_id"])
+        created.append(task)
+    return created
+
+
+def _insert_tasks_from_dicts(
+    store: Any, tasks: List[Dict[str, Any]], *, created_by: str,
+) -> List[Dict[str, Any]]:
+    """Shared insert loop for the file-upload (dict) path. Returns the created
+    task dicts (with ``task_id``/``specialty``) for notify + response."""
+    created: List[Dict[str, Any]] = []
+    for t in tasks:
+        prompt = (t.get("prompt") or "").strip()
+        if not prompt:
+            continue
+        task = store.insert_task(
+            task_id=t.get("task_id"),
+            prompt=prompt,
+            specialty=t.get("specialty") or "general",
+            difficulty=t.get("difficulty") or "medium",
+            capture_reasoning=bool(t.get("capture_reasoning")),
+            source=t.get("source") or "lab_supplied",
+            candidate_answers=t.get("candidate_answers") or [],
+            max_labels=int(t.get("max_labels") or 1),
+            grounding_mode=t.get("grounding_mode") or "optional",
+            independent_mode=t.get("independent_mode") or DEFAULT_INDEPENDENT_MODE,
+            created_by=created_by,
+        )
+        created.append(task)
+    return created
+
+
+def _notify_new_tasks(
+    store: Any, background_tasks: BackgroundTasks, created: List[Dict[str, Any]], *, admin_id: str,
+) -> None:
+    """Enqueue the outbox rows synchronously (fast), then drain in the
+    background so the admin's request never blocks on ~1000 emails. Also
+    posts a one-line announcement to #task-announcements (in-app, plus the
+    channel's existing digest-email fan-out) — cheap enough to do inline."""
+    if not created:
+        return
+    batch_id = uuid.uuid4().hex
+    asc_task_notify.enqueue_for_batch(store, batch_id=batch_id, created_tasks=created)
+    background_tasks.add_task(asc_task_notify.drain_outbox, store)
+    asc_task_notify.post_community_announcement(store, admin_user_id=admin_id, created_tasks=created)
+
+
+@router.post("/tasks")
+async def upload_tasks(
+    body: TaskUploadRequest, background_tasks: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    store = _store()
+    created = _insert_tasks_from_upload_requests(store, body.tasks, created_by=admin["id"])
     store.log_event(
         entity_type="task", event_type="tasks_uploaded", actor=admin["id"], payload={"count": len(created)}
     )
-    return {"created": created, "count": len(created)}
+    _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
+    return {"created": [t["task_id"] for t in created], "count": len(created)}
 
 
 @router.post("/tasks/upload-file")
 async def upload_tasks_file(
-    file: UploadFile = File(...), admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...), admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Accept a JSON (list or {tasks:[...]}) or CSV task batch (PRD §4.3, §6.1)."""
     raw = (await file.read()).decode("utf-8", errors="replace")
@@ -586,30 +642,25 @@ async def upload_tasks_file(
                 raise HTTPException(status_code=400, detail="JSON must be a list of tasks or {tasks:[...]}")
 
     store = _store()
-    created = []
-    for t in tasks:
-        prompt = (t.get("prompt") or "").strip()
-        if not prompt:
-            continue
-        task = store.insert_task(
-            task_id=t.get("task_id"),
-            prompt=prompt,
-            specialty=t.get("specialty") or "general",
-            difficulty=t.get("difficulty") or "medium",
-            capture_reasoning=bool(t.get("capture_reasoning")),
-            source=t.get("source") or "lab_supplied",
-            candidate_answers=t.get("candidate_answers") or [],
-            max_labels=int(t.get("max_labels") or 1),
-            grounding_mode=t.get("grounding_mode") or "optional",
-            independent_mode=t.get("independent_mode") or DEFAULT_INDEPENDENT_MODE,
-            created_by=admin["id"],
-        )
-        created.append(task["task_id"])
+    created = _insert_tasks_from_dicts(store, tasks, created_by=admin["id"])
     store.log_event(
         entity_type="task", event_type="tasks_uploaded_file", actor=admin["id"],
         payload={"count": len(created), "filename": file.filename},
     )
-    return {"created": created, "count": len(created)}
+    _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
+    return {"created": [t["task_id"] for t in created], "count": len(created)}
+
+
+@router.post("/admin/task-notifications/drain")
+async def drain_task_notifications(
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Manual re-drain safety net (also handy for local QA): sends every
+    still-``pending`` outbox row. A crashed BackgroundTasks drain leaves rows
+    ``pending`` rather than losing them, so this recovers the tail."""
+    store = _store()
+    sent, failed = asc_task_notify.drain_outbox(store)
+    return {"sent": sent, "failed": failed}
 
 
 def _parse_csv_tasks(raw: str) -> List[Dict[str, Any]]:

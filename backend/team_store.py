@@ -678,6 +678,9 @@ class TeamStore:
                 conn, "telehealth_encounters", "connected_seconds", "INTEGER NOT NULL DEFAULT 0"
             )
             self._add_column_if_missing(conn, "telehealth_encounters", "last_heartbeat_at", "TEXT")
+            # Invited-clinician email verification (parity with the director's
+            # OTP gate): set once the member proves inbox control via OTP.
+            self._add_column_if_missing(conn, "asclepius_people", "email_verified_at", "TEXT")
 
     @staticmethod
     def _migrate_team_member_roles_v4(conn: sqlite3.Connection) -> None:
@@ -1395,6 +1398,18 @@ class TeamStore:
                 WHERE health_system_id = ? AND email = ?
                 """,
                 (json.dumps(attestations or {}), _utcnow_iso(), hs_id, email.lower().strip()),
+            )
+
+    def mark_asclepius_member_verified(self, hs_id: str, email: str) -> None:
+        """Stamp ``email_verified_at`` once the invited clinician proves inbox
+        control via OTP (Feature B hard gate, ``member_finish``)."""
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE asclepius_people SET email_verified_at = ?, updated_at = ?
+                WHERE health_system_id = ? AND email = ?
+                """,
+                (_utcnow_iso(), _utcnow_iso(), hs_id, email.lower().strip()),
             )
 
     def finalize_asclepius_person(

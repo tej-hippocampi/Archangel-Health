@@ -19,8 +19,10 @@
  *     Compliance/HIPAA gates do not apply to this plane — no PHI is collected.
  *
  * Invited clinicians (mode="member") open /onboard/m/<token> and run a short
- * flow: credentials → attestations → workspace, inheriting org + specialty
- * from their director (backend: /member/{session,credentials,attestations,finish}).
+ * flow: credentials → attestations → verify → workspace, inheriting org +
+ * specialty from their director. Verify is a hard gate (parity with the
+ * director's OTP step): /member/finish 403s until it is complete.
+ * (backend: /member/{session,credentials,attestations,request-otp,verify-otp,finish}).
  *
  * Each PrimaryButton handler returns Promise<boolean>; resolving `false` keeps
  * the button Idle so server errors don't fake-flash success.
@@ -89,7 +91,7 @@ const STEP_LABELS: Partial<Record<StepKey, string>> = {
  * pre-locked to "asclepius"; admin-generated health-system links default to
  * "archangel") — the wizard never asks the signer to choose. */
 function orderFor(mode: Mode, product: Product | ""): StepKey[] {
-  if (mode === "member") return ["credentials", "attestations", "ascSuccess"];
+  if (mode === "member") return ["credentials", "attestations", "verify", "ascSuccess"];
   const head: StepKey[] = ["identity", "verify"];
   if (product === "asclepius") {
     // Team invites moved to the dashboard, so sign-up ends at attestations.
@@ -636,20 +638,54 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       setStepError(formatApiError(body) || `HTTP ${r.status}`);
       return false;
     }
-    const fr = await api("/api/onboarding/member/finish", {
+    setStep("verify");
+    return true;
+  }, [token, data.attestations]);
+
+  // Hard-gate email verification before the standing account is provisioned
+  // (parity with the director's OTP step, mirrored against /member/*).
+  const sendMemberOtp = useCallback(async () => {
+    setStepError("");
+    const r = await api("/api/onboarding/member/request-otp", {
       method: "POST",
       body: JSON.stringify({ token }),
     });
-    const fbody = await readResponseJson(fr);
-    if (!fr.ok) {
-      setStepError(formatApiError(fbody) || `HTTP ${fr.status}`);
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setStepError(formatApiError(body) || `HTTP ${r.status}`);
       return false;
     }
-    const d = fbody as { workspace_url?: string };
-    setData({ workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl() });
-    setStep("ascSuccess");
     return true;
-  }, [token, data.attestations, setData]);
+  }, [token]);
+
+  const verifyMemberOtp = useCallback(
+    async (code: string) => {
+      setStepError("");
+      const r = await api("/api/onboarding/member/verify-otp", {
+        method: "POST",
+        body: JSON.stringify({ token, code }),
+      });
+      const body = await readResponseJson(r);
+      if (!r.ok) {
+        setStepError(formatApiError(body) || "Invalid code");
+        return false;
+      }
+      const fr = await api("/api/onboarding/member/finish", {
+        method: "POST",
+        body: JSON.stringify({ token }),
+      });
+      const fbody = await readResponseJson(fr);
+      if (!fr.ok) {
+        setStepError(formatApiError(fbody) || `HTTP ${fr.status}`);
+        return false;
+      }
+      const d = fbody as { workspace_url?: string };
+      setData({ workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl() });
+      setStep("ascSuccess");
+      return true;
+    },
+    [token, setData],
+  );
 
   const openAsclepiusWorkspace = useCallback(() => {
     window.location.href = data.workspaceUrl || authApi.asclepiusPortalUrl();
@@ -689,7 +725,16 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       case "identity":
         return <Step1NameEmail data={data} setData={setData} onNext={submitStep1} error={stepError} />;
       case "verify":
-        return <Step2Verify data={data} onSendCode={sendOtp} onVerify={verifyOtp} onBack={goBack} error={stepError} />;
+        return (
+          <Step2Verify
+            data={data}
+            onSendCode={mode === "member" ? sendMemberOtp : sendOtp}
+            onVerify={mode === "member" ? verifyMemberOtp : verifyOtp}
+            onBack={goBack}
+            error={stepError}
+            eyebrow={mode === "member" ? "Step 3 of 3" : "Step 2"}
+          />
+        );
       // Archangel
       case "org":
         return <Step3Org data={data} setData={setData} onNext={submitOrg} onBack={goBack} error={stepError} />;
@@ -719,7 +764,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             onNext={mode === "member" ? submitMemberCredentials : submitCredentials}
             onBack={goBack}
             error={stepError}
-            eyebrow={mode === "member" ? "Step 1 of 2" : "Step 4 of 5"}
+            eyebrow={mode === "member" ? "Step 1 of 3" : "Step 4 of 5"}
             memberMode={mode === "member"}
           />
         );
@@ -731,8 +776,8 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             onNext={mode === "member" ? submitMemberAttestations : submitAttestations}
             onBack={goBack}
             error={stepError}
-            eyebrow={mode === "member" ? "Step 2 of 2" : "Step 5 of 5"}
-            finishLabel={mode === "member" ? "Sign & open my workspace" : "Sign & open my workspace"}
+            eyebrow={mode === "member" ? "Step 2 of 3" : "Step 5 of 5"}
+            finishLabel={mode === "member" ? "Sign & continue" : "Sign & open my workspace"}
           />
         );
       case "ascTeam":
@@ -771,6 +816,8 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     submitMemberCredentials,
     submitAttestations,
     submitMemberAttestations,
+    sendMemberOtp,
+    verifyMemberOtp,
     addAscMember,
     removeAscMember,
     finishAsclepius,
