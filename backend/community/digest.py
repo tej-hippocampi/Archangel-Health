@@ -5,9 +5,17 @@ system post. Digest, never firehose: at most ``COMMUNITY_DIGEST_MAX_ITEMS``
 stories per post, one post per run, and a run that finds nothing fresh posts
 NOTHING (an empty digest is worse than no digest).
 
-Two kinds share the machinery:
-  * ``news``   — reporter RSS sources; scheduled daily.
-  * ``papers`` — PubMed + arXiv + medRxiv; scheduled weekly.
+Three kinds share the fetch/select machinery:
+  * ``news``      — reporter RSS sources; scheduled daily; posts a multi-item
+                    digest to the public #medical-ai-news channel.
+  * ``papers``    — PubMed + arXiv + medRxiv; scheduled weekly; same channel.
+  * ``spotlight`` — reporter RSS sources; scheduled daily; posts exactly ONE
+                    story to the staff-only #team-ai-spotlight channel for
+                    internal discussion before anyone manually decides
+                    whether to also send it to #medical-ai-news. Deliberately
+                    reads (and leaves untouched) 'skipped' content items too,
+                    not just 'new' ones, so it never starves — or is starved
+                    by — the ordinary news digest's run on the same day.
 
 Failure policy: every run is recorded in ``community_digest_runs``
 (three-outcome ``ok``: NULL running / 1 / 0); a failed source is skipped
@@ -15,8 +23,9 @@ Failure policy: every run is recorded in ``community_digest_runs``
 scheduler loop can never crash. Three consecutive failures of a kind logs a
 grep-able ``ADMIN ATTENTION`` line.
 
-The scheduled loop ships OFF (``COMMUNITY_NEWS_ENABLED=1`` opts in); the
-internal trigger endpoint fires a run on demand either way.
+The scheduled loop ships OFF (``COMMUNITY_NEWS_ENABLED=1`` /
+``COMMUNITY_SPOTLIGHT_ENABLED=1`` opt in independently); the internal trigger
+endpoint fires a run on demand either way.
 """
 
 from __future__ import annotations
@@ -34,6 +43,7 @@ from community.system_posts import post_system_message
 log = logging.getLogger("community.digest")
 
 DIGEST_CHANNEL = "medical-ai-news"
+SPOTLIGHT_CHANNEL = "team-ai-spotlight"
 
 _DEFAULT_KEYWORDS = [
     "ai", "artificial intelligence", "machine learning", "deep learning",
@@ -104,13 +114,31 @@ _COMPOSE_SYSTEM = (
     "paragraph, no sign-off, no invented facts, no items beyond the input."
 )
 
+_SPOTLIGHT_COMPOSE_SYSTEM = (
+    "You write a single-story spotlight post for #team-ai-spotlight, an internal, "
+    "staff-only room where the Archangel Health team discusses one AI-in-medicine story "
+    "a day before deciding what (if anything) goes out to the public #medical-ai-news "
+    "channel. Input: a JSON object for ONE item (title, url, one_liner, source). Output: "
+    "the post body ONLY, markdown-lite (no HTML), 3-5 sentences: one bold header line "
+    "(e.g. **Today's AI-in-medicine story**), then \"[title](url) — one_liner\", then one "
+    "short sentence on why it's worth the team's attention, ending with a genuine "
+    "open question inviting people to react in-thread. NO calendar date anywhere (the "
+    "platform timestamps the post; full dates false-trip the clinical PHI filter), "
+    "rephrase any full date in the one_liner to month-year or 'this week'. No invented "
+    "facts, no items beyond the input."
+)
 
-async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str], Dict[int, Dict[str, Any]]]:
-    """Two LLM passes. Returns ``(post_body | None, {item_id: {summary, relevance}})``.
-    ``None`` body = nothing worth posting (a valid quiet day). A parse failure
-    RAISES — the caller records the run as failed and posts nothing."""
+
+async def _select_pass(
+    kind: str, items: List[Dict[str, Any]]
+) -> Tuple[List[Dict[str, Any]], Dict[int, Dict[str, Any]]]:
+    """The shared select/score LLM pass used by every digest kind (news,
+    papers, spotlight). Returns ``(kept_items_sorted_desc_by_relevance,
+    {item_id: {summary, relevance}})``. Raises on unparseable JSON — the
+    caller records the run as failed and posts nothing."""
     from ai.llm_client import call_llm, first_text  # noqa: PLC0415
     from asclepius.model_sampling import extract_json  # noqa: PLC0415
+    import json as _json  # noqa: PLC0415
 
     capped = items[: max_items() * 2]  # give the selector some slack to cut
     lines = [
@@ -118,8 +146,6 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str]
          "snippet": (it.get("abstract") or "")[:400]}
         for it in capped
     ]
-    import json as _json  # noqa: PLC0415
-
     resp, _meta = await call_llm(
         role="community_digest",
         system=_SELECT_SYSTEM,
@@ -150,6 +176,17 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str]
         if r.get("keep"):
             kept.append({**by_id[iid], **summaries[iid]})
     kept.sort(key=lambda x: -(x.get("relevance") or 0.0))
+    return kept, summaries
+
+
+async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str], Dict[int, Dict[str, Any]]]:
+    """Two LLM passes. Returns ``(post_body | None, {item_id: {summary, relevance}})``.
+    ``None`` body = nothing worth posting (a valid quiet day). A parse failure
+    RAISES — the caller records the run as failed and posts nothing."""
+    from ai.llm_client import call_llm, first_text  # noqa: PLC0415
+    import json as _json  # noqa: PLC0415
+
+    kept, summaries = await _select_pass(kind, items)
     kept = kept[: max_items()]
     if not kept:
         return None, summaries
@@ -176,6 +213,41 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str]
     for k in kept:
         summaries[k["id"]]["kept"] = True
     return body, summaries
+
+
+async def _curate_spotlight(
+    items: List[Dict[str, Any]]
+) -> Tuple[Optional[str], Dict[int, Dict[str, Any]], Optional[int]]:
+    """Single-item curation for the daily spotlight: reuses the shared
+    select/score pass, then composes a short discussion-prompt post for
+    exactly the single highest-scoring item. Returns ``(post_body | None,
+    {item_id: {summary, relevance}}, chosen_item_id | None)``. ``None`` body
+    = nothing worth spotlighting today (a valid quiet day)."""
+    from ai.llm_client import call_llm, first_text  # noqa: PLC0415
+    import json as _json  # noqa: PLC0415
+
+    kept, summaries = await _select_pass("spotlight", items)
+    if not kept:
+        return None, summaries, None
+    chosen = kept[0]
+
+    resp2, _meta2 = await call_llm(
+        role="community_digest",
+        system=_SPOTLIGHT_COMPOSE_SYSTEM,
+        messages=[{"role": "user", "content": _json.dumps({
+            "title": chosen["title"], "url": chosen["url"],
+            "one_liner": chosen.get("summary") or "", "source": chosen["source"],
+        })}],
+        prompt_id="community_digest_compose_spotlight",
+        purpose="community news spotlight — compose post",
+        temperature=0.3,
+        max_tokens=max_tokens(),
+    )
+    body = (first_text(resp2) or "").strip()
+    if not body:
+        raise ValueError("spotlight compose pass returned empty text")
+    summaries[chosen["id"]]["kept"] = True
+    return body, summaries, chosen["id"]
 
 
 async def _fetch(kind: str) -> List[Dict[str, Any]]:
@@ -260,28 +332,95 @@ async def run_digest(kind: str) -> Dict[str, Any]:
         return {"ok": False, "kind": kind, "error": str(exc)[:500]}
 
 
+async def run_spotlight_digest() -> Dict[str, Any]:
+    """One spotlight run: pick exactly one story and post it to
+    ``SPOTLIGHT_CHANNEL``. Marks ONLY the chosen item ``posted`` — every other
+    candidate is left untouched (not ``skipped``), so the ordinary news
+    digest still sees its full pool later the same day regardless of run
+    order. Never raises — the outcome lands in ``community_digest_runs``
+    (kind='spotlight') and the returned summary dict."""
+    cstore = get_community_store()
+    run_id = cstore.start_digest_run("spotlight")
+    fetched = 0
+    try:
+        items = _keyword_filter(await feeds.fetch_rss(), require=True)
+        fetched = len(items)
+        cstore.upsert_content_items(items)
+        candidates = cstore.candidate_items_for_spotlight()
+        if not candidates:
+            cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched, items_posted=0)
+            log.info("[digest] spotlight run: nothing fresh (%d fetched) — no post", fetched)
+            return {"ok": True, "kind": "spotlight", "fetched": fetched, "fresh": 0, "posted": 0}
+
+        body, summaries, chosen_id = await _curate_spotlight(candidates)
+        if body is None or chosen_id is None:
+            # A quiet day — nothing worth spotlighting. Candidates are left
+            # untouched (not marked skipped) so tomorrow's run reconsiders them.
+            cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched, items_posted=0)
+            log.info("[digest] spotlight run: %d candidates, none kept — no post",
+                     len(candidates))
+            return {"ok": True, "kind": "spotlight", "fetched": fetched,
+                    "fresh": len(candidates), "posted": 0}
+
+        posted = await post_system_message(
+            channel_slug=SPOTLIGHT_CHANNEL, body=body, kind="spotlight",
+        )
+        if posted is None:
+            raise RuntimeError("system post was skipped (channel or PHI gate)")
+
+        cstore.mark_content_items([chosen_id], status="posted",
+                                  posted_message_id=posted["id"], summaries=summaries)
+        cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched, items_posted=1)
+        log.info("[digest] spotlight run: posted 1 of %d candidates (message %s)",
+                 len(candidates), posted["id"])
+        return {"ok": True, "kind": "spotlight", "fetched": fetched,
+                "fresh": len(candidates), "posted": 1, "message_id": posted["id"]}
+    except Exception as exc:
+        cstore.finish_digest_run(run_id, ok=False, items_fetched=fetched,
+                                 error=str(exc)[:500])
+        log.warning("[digest] spotlight run failed: %s", exc, exc_info=True)
+        fails = cstore.consecutive_digest_failures("spotlight")
+        if fails >= 3:
+            log.error("[digest] ADMIN ATTENTION: spotlight digest has failed %d consecutive runs",
+                      fails)
+        return {"ok": False, "kind": "spotlight", "error": str(exc)[:500]}
+
+
 # ─── Scheduler (in-process, restart-safe, OFF by default) ─────────────────────
 def news_enabled() -> bool:
     return (os.getenv("COMMUNITY_NEWS_ENABLED") or "0").strip() == "1"
+
+
+def spotlight_enabled() -> bool:
+    return (os.getenv("COMMUNITY_SPOTLIGHT_ENABLED") or "0").strip() == "1"
 
 
 def _news_hour_utc() -> int:
     return min(23, _int_env("COMMUNITY_DIGEST_NEWS_HOUR_UTC", 13, floor=0))
 
 
+def _spotlight_hour_utc() -> int:
+    return min(23, _int_env("COMMUNITY_DIGEST_SPOTLIGHT_HOUR_UTC", 12, floor=0))
+
+
 def _papers_dow() -> int:  # 0 = Monday (Python weekday)
     return min(6, _int_env("COMMUNITY_DIGEST_PAPERS_DOW", 0, floor=0))
+
+
+def _hour_utc_for(kind: str) -> int:
+    return _spotlight_hour_utc() if kind == "spotlight" else _news_hour_utc()
 
 
 def _due(kind: str, now: datetime, last_ok_started: Optional[str]) -> bool:
     """Due when past today's fire time and the newest successful run started
     before it. Derived from ``community_digest_runs`` — restarts cannot
     double-post."""
-    if now.hour < _news_hour_utc():
+    hour = _hour_utc_for(kind)
+    if now.hour < hour:
         return False
     if kind == "papers" and now.weekday() != _papers_dow():
         return False
-    fire_at = now.replace(hour=_news_hour_utc(), minute=0, second=0, microsecond=0)
+    fire_at = now.replace(hour=hour, minute=0, second=0, microsecond=0)
     if not last_ok_started:
         return True
     try:
@@ -296,8 +435,10 @@ _TICK_SEC = 900  # 15 min
 
 
 def start_content_loop() -> None:
-    """Start (once) the digest scheduler. Called from app startup ONLY when
-    ``COMMUNITY_NEWS_ENABLED=1``."""
+    """Start (once) the digest scheduler. Called from app startup when either
+    ``COMMUNITY_NEWS_ENABLED=1`` or ``COMMUNITY_SPOTLIGHT_ENABLED=1`` — each
+    kind is independently gated inside the tick, so one can run without the
+    other."""
     global _loop_task
     if _loop_task is not None and not _loop_task.done():
         return
@@ -308,7 +449,9 @@ def start_content_loop() -> None:
             try:
                 cstore = get_community_store()
                 now = datetime.utcnow()
-                for kind in ("news", "papers"):
+                for kind in ("news", "papers", "spotlight"):
+                    if kind == "spotlight" and not spotlight_enabled():
+                        continue
                     if not _due(kind, now, cstore.last_successful_run_at(kind)):
                         continue
                     # Failure backoff: after a failed attempt, wait 2h before
@@ -325,13 +468,17 @@ def start_content_loop() -> None:
                         if since is not None and since < 7200 and \
                                 cstore.consecutive_digest_failures(kind) > 0:
                             continue
-                    await run_digest(kind)
+                    await (run_spotlight_digest() if kind == "spotlight" else run_digest(kind))
             except Exception:  # pragma: no cover — the loop must survive
                 log.warning("[digest] scheduler tick failed", exc_info=True)
 
     _loop_task = asyncio.get_running_loop().create_task(_run())
-    log.info("[digest] content loop started (news daily %02d:00 UTC, papers weekly dow=%d)",
-             _news_hour_utc(), _papers_dow())
+    log.info(
+        "[digest] content loop started (news daily %02d:00 UTC, papers weekly dow=%d, "
+        "spotlight %s daily %02d:00 UTC)",
+        _news_hour_utc(), _papers_dow(),
+        "ON" if spotlight_enabled() else "off", _spotlight_hour_utc(),
+    )
 
 
 def stop_content_loop() -> None:

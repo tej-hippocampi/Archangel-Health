@@ -68,6 +68,14 @@ DEFAULT_CHANNELS = [
         "grp": "core",
     },
     {
+        "slug": "team-ai-spotlight",
+        "name": "team-ai-spotlight",
+        "description": "Archangel team only. One AI-in-medicine story a day, posted by the bot, for us to discuss before deciding what (if anything) goes to #medical-ai-news.",
+        "post_policy": "all",
+        "grp": "core",
+        "staff_only": True,
+    },
+    {
         "slug": "research-and-opportunities",
         "name": "research-and-opportunities",
         "description": "Studies, benchmarks, collaborations, and paid opportunities beyond the task queue. Posts from the Archangel team; replies open in threads.",
@@ -339,6 +347,10 @@ class CommunityStore:
                 conn.execute(
                     "ALTER TABLE community_channels ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"
                 )
+            if "staff_only" not in ch_cols:
+                conn.execute(
+                    "ALTER TABLE community_channels ADD COLUMN staff_only INTEGER NOT NULL DEFAULT 0"
+                )
             if "kind" not in cols("community_messages"):
                 conn.execute("ALTER TABLE community_messages ADD COLUMN kind TEXT")
 
@@ -355,8 +367,8 @@ class CommunityStore:
                     """
                     INSERT INTO community_channels
                         (id, slug, name, description, post_policy, position,
-                         specialty, grp, is_active, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                         specialty, grp, is_active, staff_only, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                     ON CONFLICT(slug) DO UPDATE SET
                         name = excluded.name,
                         description = excluded.description,
@@ -364,7 +376,8 @@ class CommunityStore:
                         position = excluded.position,
                         specialty = excluded.specialty,
                         grp = excluded.grp,
-                        is_active = 1
+                        is_active = 1,
+                        staff_only = excluded.staff_only
                     """,
                     (
                         "ch-" + uuid.uuid4().hex[:12],
@@ -375,6 +388,7 @@ class CommunityStore:
                         pos,
                         ch.get("specialty"),
                         ch.get("grp") or "core",
+                        1 if ch.get("staff_only") else 0,
                         _utcnow_iso(),
                     ),
                 )
@@ -969,6 +983,27 @@ class CommunityStore:
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT * FROM community_content_items WHERE status = 'new' "
+                "AND fetched_at >= ? ORDER BY id ASC",
+                (cutoff,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def candidate_items_for_spotlight(self, *, max_age_days: int = 2) -> List[Dict[str, Any]]:
+        """RSS-sourced items still eligible for the daily spotlight pick.
+
+        Deliberately includes ``status='skipped'`` alongside ``'new'``: the
+        news digest (``run_digest``) marks EVERY fetched item ``posted`` or
+        ``skipped`` on each run, so if the spotlight job only looked at
+        ``'new'`` rows, whichever of the two jobs ran second on a given day
+        would almost always find an empty pool. Reading ``skipped`` too
+        decouples the jobs from run order. Never reads ``'posted'`` rows —
+        a story already pushed to #medical-ai-news isn't a fresh pick."""
+        cutoff = (datetime.utcnow() - timedelta(days=max(1, int(max_age_days)))) \
+            .replace(microsecond=0).isoformat() + "Z"
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM community_content_items "
+                "WHERE status IN ('new', 'skipped') AND source LIKE 'rss:%' "
                 "AND fetched_at >= ? ORDER BY id ASC",
                 (cutoff,),
             ).fetchall()

@@ -139,6 +139,10 @@ def _is_admin(user: Dict[str, Any]) -> bool:
     return user.get("role") == "admin"
 
 
+def _is_staff(user: Dict[str, Any]) -> bool:
+    return (user or {}).get("role") in ("admin", "qa_reviewer")
+
+
 # ─── Member profiles (PRD §2 — auto-populated, Tier A only) ───────────────────
 def _display_name(user: Dict[str, Any]) -> str:
     full = (user.get("full_name") or "").strip()
@@ -190,7 +194,7 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
         # Same bridge as the gate — an approval-path member (no vault row)
         # must serialize as a member, not a ghost, and appear in the directory.
         verified = _verified_colleague(user, cred)
-        if role in ("admin", "qa_reviewer"):
+        if _is_staff(user):
             is_staff = True
         elif role == "evaluator" and verified:
             is_staff = False
@@ -293,18 +297,24 @@ def _specialty_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
     return out
 
 
-def visible_channels(members: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """The channel list every member sees (visibility is deliberately GLOBAL —
-    identical for all members, so unread badges, search scope, and the WS
-    broadcast never diverge per user). Core channels always show; a specialty
-    channel shows once its specialty has >= threshold members, and STICKS once
-    it has history (a channel with messages never vanishes because someone
-    was deactivated)."""
+def visible_channels(
+    members: Dict[str, Dict[str, Any]], *, viewer_is_staff: bool = False
+) -> List[Dict[str, Any]]:
+    """The channel list this viewer sees. Non-``staff_only`` channels are
+    GLOBAL — identical for every member, so unread badges, search scope, and
+    the WS broadcast never diverge per user. A ``staff_only`` channel (the
+    daily AI-news spotlight room) is the one deliberate exception: it's
+    dropped entirely for a non-staff viewer. Core channels always show; a
+    specialty channel shows once its specialty has >= threshold members, and
+    STICKS once it has history (a channel with messages never vanishes
+    because someone was deactivated)."""
     cstore = _cstore()
     counts = _specialty_counts(members)
     threshold = specialty_threshold()
     out: List[Dict[str, Any]] = []
     for ch in cstore.list_channels():
+        if ch.get("staff_only") and not viewer_is_staff:
+            continue
         if (ch.get("grp") or "core") != "specialty":
             out.append(ch)
             continue
@@ -314,12 +324,18 @@ def visible_channels(members: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]
     return out
 
 
-def _visible_channel_or_404(slug: str, members: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    """Resolve a slug against the VISIBLE set — a hidden (below-threshold or
-    deactivated) channel answers with the same 404 as an unknown one, so the
-    API is no oracle for what exists (mirrors ``_require_message_access``)."""
+def _visible_channel_or_404(
+    slug: str, members: Dict[str, Dict[str, Any]], *, viewer_is_staff: bool = False
+) -> Dict[str, Any]:
+    """Resolve a slug against the VISIBLE set — a hidden (below-threshold,
+    staff_only-to-this-viewer, or deactivated) channel answers with the same
+    404 as an unknown one, so the API is no oracle for what exists (mirrors
+    ``_require_message_access``)."""
     want = (slug or "").strip().lower()
-    channel = next((c for c in visible_channels(members) if c["slug"] == want), None)
+    channel = next(
+        (c for c in visible_channels(members, viewer_is_staff=viewer_is_staff) if c["slug"] == want),
+        None,
+    )
     if not channel:
         raise HTTPException(status_code=404, detail="Unknown channel")
     return channel
@@ -344,14 +360,19 @@ def _container_of(msg: Dict[str, Any]) -> tuple:
 
 def _require_message_access(user: Dict[str, Any], msg: Dict[str, Any]) -> tuple:
     """THE visibility rule for anything reached by message id (edit, delete,
-    react, thread, attachment download): channel messages are visible to every
-    member; a DM message is visible ONLY to its two participants — including
-    to admins, who have no read access to others' private conversations. A
-    non-participant gets the same 404 as a nonexistent message (no oracle)."""
+    react, thread, attachment download): a channel message is visible to
+    every member UNLESS its channel is ``staff_only`` (the daily AI-news
+    spotlight room), in which case only staff can reach it — a non-staff user
+    who knows/guesses the message id gets the same 404 a nonexistent id
+    would, not a 403 (no oracle). A DM message is visible ONLY to its two
+    participants — including to admins, who have no read access to others'
+    private conversations."""
     kind, container = _container_of(msg)
     if kind is None:
         raise HTTPException(status_code=404, detail="Message not found")
     if kind == "dm" and user["id"] not in (container["user_a"], container["user_b"]):
+        raise HTTPException(status_code=404, detail="Message not found")
+    if kind == "channel" and container.get("staff_only") and not _is_staff(user):
         raise HTTPException(status_code=404, detail="Message not found")
     return kind, container
 
@@ -420,13 +441,32 @@ def _serialize_one_resolved(msg: Dict[str, Any], *, viewer_id: Optional[str] = N
     return _serialize_messages([msg], member_map(), slug, dm_id=dm_id, viewer_id=viewer_id)[0]
 
 
+def _staff_user_ids(members: Dict[str, Dict[str, Any]]) -> List[str]:
+    return [uid for uid, m in members.items() if m.get("is_staff")]
+
+
+async def _channel_broadcast(event: Dict[str, Any], channel: Dict[str, Any]) -> None:
+    """Fan a channel event out to every member — UNLESS the channel is
+    ``staff_only`` (the daily AI-news spotlight room), in which case only
+    staff sockets receive it. ``hub.broadcast`` has no per-channel filtering
+    of its own, so this check must happen at every channel-event call site."""
+    if channel.get("staff_only"):
+        await hub.send_to_users(_staff_user_ids(member_map()), event)
+    else:
+        await hub.broadcast(event)
+
+
 async def _emit_message_event(event_type: str, serialized: Dict[str, Any],
-                              dm: Optional[Dict[str, Any]]) -> None:
-    """Channel events broadcast to every member; DM events go ONLY to the two
-    participants (never the broadcast — PRD-level privacy invariant)."""
+                              dm: Optional[Dict[str, Any]] = None,
+                              channel: Optional[Dict[str, Any]] = None) -> None:
+    """Channel events broadcast to every member (or just staff, for a
+    ``staff_only`` channel); DM events go ONLY to the two participants (never
+    the broadcast — PRD-level privacy invariant)."""
     event = {"type": event_type, "message": serialized}
     if dm:
         await hub.send_to_users([dm["user_a"], dm["user_b"]], event)
+    elif channel:
+        await _channel_broadcast(event, channel)
     else:
         await hub.broadcast(event)
 
@@ -483,7 +523,7 @@ async def me(user: Dict[str, Any] = Depends(require_member)):
 async def channels(user: Dict[str, Any] = Depends(require_member)):
     cstore = _cstore()
     members = member_map()
-    visible = visible_channels(members)
+    visible = visible_channels(members, viewer_is_staff=_is_staff(user))
     unread = cstore.unread_counts(user["id"], channels=visible)
     return {
         "channels": [
@@ -512,7 +552,7 @@ async def channel_messages(
 ):
     cstore = _cstore()
     members = member_map()
-    channel = _visible_channel_or_404(slug, members)
+    channel = _visible_channel_or_404(slug, members, viewer_is_staff=_is_staff(user))
     msgs, has_more = cstore.list_messages(
         channel["id"], before_id=before, after_id=after, limit=limit
     )
@@ -638,11 +678,12 @@ async def post_message(
         cstore.set_read(user["id"], channel["id"], msg["id"])
 
     cnotify.queue_for_message(
-        cstore, message=msg, channel=channel, member_ids=list(members.keys())
+        cstore, message=msg, channel=channel,
+        member_ids=_staff_user_ids(members) if channel.get("staff_only") else list(members.keys()),
     )
 
     serialized = _serialize_messages([msg], members, channel["slug"])[0]
-    await hub.broadcast({"type": "message.created", "message": serialized})
+    await _channel_broadcast({"type": "message.created", "message": serialized}, channel)
     return serialized
 
 
@@ -685,7 +726,8 @@ async def edit_message(
            {"channel": slug, "message_id": message_id})
     serialized = _serialize_one_resolved(updated)
     await _emit_message_event("message.updated", serialized,
-                              container if kind == "dm" else None)
+                              container if kind == "dm" else None,
+                              channel=container if kind == "channel" else None)
     return serialized
 
 
@@ -722,7 +764,7 @@ async def delete_message(
     if kind == "dm":
         await hub.send_to_users([container["user_a"], container["user_b"]], event)
     else:
-        await hub.broadcast(event)
+        await _channel_broadcast(event, container)
     return {"ok": True, "id": message_id}
 
 
@@ -760,7 +802,7 @@ async def toggle_reaction(
     if kind == "dm":
         await hub.send_to_users([container["user_a"], container["user_b"]], event)
     else:
-        await hub.broadcast(event)
+        await _channel_broadcast(event, container)
     return {"ok": True, "added": added, "reactions": reactions}
 
 
@@ -793,11 +835,14 @@ async def mark_read(
 ):
     cstore = _cstore()
     members = member_map()
-    channel = _visible_channel_or_404(slug, members)
+    staff = _is_staff(user)
+    channel = _visible_channel_or_404(slug, members, viewer_is_staff=staff)
     cstore.set_read(user["id"], channel["id"], body.last_read_message_id)
     return {
         "ok": True,
-        "unread": cstore.unread_counts(user["id"], channels=visible_channels(members)),
+        "unread": cstore.unread_counts(
+            user["id"], channels=visible_channels(members, viewer_is_staff=staff)
+        ),
     }
 
 
@@ -809,7 +854,9 @@ async def badge(user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_us
     if not user or not _passes_gate(user):
         return {"eligible": False, "unread": 0, "mentions": 0}
     cstore = _cstore()
-    counts = cstore.unread_counts(user["id"], channels=visible_channels(member_map()))
+    counts = cstore.unread_counts(
+        user["id"], channels=visible_channels(member_map(), viewer_is_staff=_is_staff(user))
+    )
     dm_unread = cstore.dm_unread_total(user["id"])
     return {
         "eligible": True,
@@ -981,9 +1028,11 @@ async def search(
 ):
     cstore = _cstore()
     members = member_map()
-    # Visibility-scoped: hidden/deactivated channels are excluded from the
-    # search SQL exactly like someone else's DMs.
-    channels_by_id = {c["id"]: c for c in visible_channels(members)}
+    # Visibility-scoped: hidden/deactivated/staff_only-to-this-viewer channels
+    # are excluded from the search SQL exactly like someone else's DMs.
+    channels_by_id = {
+        c["id"]: c for c in visible_channels(members, viewer_is_staff=_is_staff(user))
+    }
     my_dms = {d["id"]: d for d in cstore.list_dms_for(user["id"])}
     # §4: "search across messages the user can see" — the public channels plus
     # THEIR OWN direct messages, enforced in SQL (someone else's DM content can
@@ -1178,7 +1227,9 @@ async def portal_unread(
     if not user or not _passes_gate(user):
         return {"total": 0}
     cstore = _cstore()
-    counts = cstore.unread_counts(user["id"], channels=visible_channels(member_map()))
+    counts = cstore.unread_counts(
+        user["id"], channels=visible_channels(member_map(), viewer_is_staff=_is_staff(user))
+    )
     return {
         "total": sum(c["unread"] for c in counts.values())
                  + cstore.dm_unread_total(user["id"]),
