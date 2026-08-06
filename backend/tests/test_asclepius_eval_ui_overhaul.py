@@ -1086,12 +1086,18 @@ def test_no_new_component_vocabulary_beyond_the_prd():
     # Nothing beyond the declared set: every asc- class in the stylesheet must
     # be reachable from the app, so a typo'd or abandoned rule is caught.
     # PRD-C's admin sections live in their own module files (§3.3 ownership),
-    # so classes they emit count as reachable too.
-    admin_modules = "".join(
-        p.read_text(encoding="utf-8") for p in sorted(_FRONTEND.glob("admin_*.js"))
+    # so classes they emit count as reachable too — and so does PRD-R's review
+    # console, which is a separate page (review.html) that loads the same
+    # stylesheet to reuse `.asc-answers`. The RULE is unchanged: every styled
+    # class must be emitted by some module the app actually loads. Only the list
+    # of modules that count grows, as surfaces are added.
+    sibling_modules = "".join(
+        p.read_text(encoding="utf-8")
+        for p in sorted(list(_FRONTEND.glob("admin_*.js")) + [_FRONTEND / "review.js"])
+        if p.exists()
     )
     styled = set(re.findall(r"\.(asc-[\w-]+)", CSS_CODE))
-    emitted = {c for c in styled if c in JS or c in html or c in admin_modules}
+    emitted = {c for c in styled if c in JS or c in html or c in sibling_modules}
     orphans = sorted(styled - emitted - _KNOWN_PREEXISTING_ORPHANS)
     assert not orphans, f"styled but never emitted: {orphans}"
 
