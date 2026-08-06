@@ -148,7 +148,7 @@ def test_asclepius_endpoint_rejects_archangel_product(client: TestClient):
     assert r.status_code == 409
 
 
-def test_invited_member_flow_provisions_evaluator(client: TestClient):
+def test_invited_member_flow_provisions_evaluator(client: TestClient, monkeypatch):
     token, hs_id, _email = _seed_verified(client)
     ts = client.app.state.team_store
     client.post("/api/onboarding/select-product", json={"token": token, "product": "asclepius"})
@@ -174,6 +174,14 @@ def test_invited_member_flow_provisions_evaluator(client: TestClient):
     member_creds = {**CREDS, "fullLegalName": "Nina Lee", "npi": "9876543210"}
     assert client.post("/api/onboarding/member/credentials", json={"token": mtoken, "credentials": member_creds}).status_code == 200
     assert client.post("/api/onboarding/member/attestations", json={"token": mtoken, "attestations": ATTS}).status_code == 200
+
+    # Hard email-verification gate: finish is refused until the OTP is verified.
+    assert client.post("/api/onboarding/member/finish", json={"token": mtoken}).status_code == 403
+
+    monkeypatch.setattr(onboarding_module.secrets, "choice", lambda seq: seq[0])
+    assert client.post("/api/onboarding/member/request-otp", json={"token": mtoken}).status_code == 200
+    assert client.post("/api/onboarding/member/verify-otp", json={"token": mtoken, "code": "0" * 6}).status_code == 200
+
     r = client.post("/api/onboarding/member/finish", json={"token": mtoken})
     assert r.status_code == 200, r.text
 

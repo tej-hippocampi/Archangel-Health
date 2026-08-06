@@ -53,8 +53,11 @@ _ASCLEPIUS_DIRECTOR_ROLE_LABEL = "Director of Data Training"
 _ASCLEPIUS_TEAM_CAP = 10  # director + up to 10 invited clinicians
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
-
 log = logging.getLogger("onboarding")
+
+
+def _is_production() -> bool:
+    return (os.getenv("ENV") or "").strip().lower() == "production"
 
 
 def _asc_credentialing():
@@ -346,6 +349,7 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
         invite_base_url=_landing_base(),
         expires_days=_SELF_SERVE_EXPIRES_DAYS,
         director_email=email,
+        product="asclepius",
     )
 
     # Best-effort provenance + founder visibility. Never fail the request on
@@ -418,7 +422,8 @@ async def step1_identity(body: Step1Body, request: Request):
 
 @router.post("/request-otp", dependencies=[Depends(rate_limiter("onboarding_otp", 5, 60))])
 async def request_otp(body: OnboardTokenBody, request: Request):
-    if not _email_configured():
+    dev_bypass = not _email_configured() and not _is_production()
+    if not _email_configured() and not dev_bypass:
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
     ts = _ts(request)
     row = _load_hs(request, body.token)
@@ -431,6 +436,9 @@ async def request_otp(body: OnboardTokenBody, request: Request):
         raise HTTPException(status_code=400, detail="Complete step 1 first.")
     code = "".join(secrets.choice(string.digits) for _ in range(6))
     ts.create_otp_challenge(row["id"], email, code)
+    if dev_bypass:
+        log.warning("DEV ONBOARDING OTP (no email transport configured) for %s: %s", email, code)
+        return {"ok": True}
     subj = "Your Archangel Health verification code"
     html_body = build_verification_email(code=code)
     ok = await send_html_email(email, subj, html_body)
@@ -1163,6 +1171,18 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     )
     ts.complete_asclepius_onboarding(row["id"])
 
+    # Mint an Asclepius session token so the wizard drops the doctor straight into
+    # their workspace with no re-login (mirrors the doctor-portal auto-auth). The
+    # credentials are still emailed for future sign-ins.
+    session_token = None
+    try:
+        from asclepius import auth as asc_auth
+        asc_user = asc_auth.authenticate(_asclepius_store(request), director_email, director_pwd)
+        if asc_user:
+            session_token = asc_auth.create_token(asc_user)
+    except Exception:
+        session_token = None
+
     invited = [p for p in ts.list_asclepius_people(row["id"]) if not p.get("is_director")]
     workspace_url = _asclepius_workspace_url()
     html_body = build_asclepius_complete_email(
@@ -1180,7 +1200,7 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     await send_html_email(
         director_email, "Your Asclepius workspace is ready", html_body, importance_headers=True
     )
-    return {"ok": True, "workspace_url": workspace_url}
+    return {"ok": True, "workspace_url": workspace_url, "token": session_token}
 
 
 # ─── Invited-member flow (link → credentials → attestations → workspace) ──────
@@ -1240,6 +1260,42 @@ async def member_attestations(body: MemberAttestationsBody, request: Request):
 
 
 @router.post(
+    "/member/request-otp",
+    dependencies=[Depends(rate_limiter("onboarding_otp", 5, 60))],
+)
+async def member_request_otp(body: OnboardTokenBody, request: Request):
+    """Hard-gate email verification for invited clinicians (Feature B): mails a
+    6-digit OTP to the same inbox that received the invite, via the existing
+    ``otp_challenges`` machinery the director already uses."""
+    if not _email_configured():
+        raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
+    ts, person, hs = _load_asclepius_member(request, body.token)
+    code = "".join(secrets.choice(string.digits) for _ in range(6))
+    ts.create_otp_challenge(hs["id"], person["email"], code)
+    html_body = build_verification_email(code=code)
+    ok = await send_html_email(person["email"], "Your Archangel Health verification code", html_body)
+    if not ok:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Failed to send verification email. Check the backend log for [email_utils]. "
+                "SendGrid 401 means this server's SENDGRID_API_KEY is wrong or not loaded (copy the same key as production into backend/.env). "
+                "SendGrid 403 often means SENDGRID_FROM_EMAIL is not verified for that SendGrid account."
+            ),
+        )
+    return {"ok": True}
+
+
+@router.post("/member/verify-otp")
+async def member_verify_otp(body: VerifyOtpBody, request: Request):
+    ts, person, hs = _load_asclepius_member(request, body.token)
+    if not ts.verify_otp_challenge(hs["id"], person["email"], body.code):
+        raise HTTPException(status_code=400, detail="Invalid or expired code.")
+    ts.mark_asclepius_member_verified(hs["id"], person["email"])
+    return {"ok": True}
+
+
+@router.post(
     "/member/finish",
     dependencies=[
         Depends(_signup_rate_guard),
@@ -1256,6 +1312,8 @@ async def member_finish(body: OnboardTokenBody, request: Request):
         raise HTTPException(status_code=400, detail="Add your credentials before finishing.")
     if not person.get("attestations"):
         raise HTTPException(status_code=400, detail="Sign the attestations before finishing.")
+    if not person.get("email_verified_at"):
+        raise HTTPException(status_code=403, detail="Please verify your email before finishing onboarding.")
     member_pwd = generate_secure_password()
     org_name = (hs.get("name") or "").strip()
     specialty = (hs.get("specialty") or "").strip()

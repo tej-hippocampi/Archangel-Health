@@ -176,16 +176,18 @@ def test_specialty_sheet_scrim_is_never_pure_black():
 
 def test_specialty_sheet_is_dismissable_only_once_a_specialty_exists():
     """§2: on FIRST entry the choice is required — Esc/backdrop would strand the
-    physician on a view with no case. On 'Change specialty' there is a case
-    behind the sheet, so both escape hatches are live."""
+    physician on a view with no case, so the picker is non-dismissable there.
+
+    The badge's own "Change specialty" re-entry point (which would have used
+    ``{ dismissable: true }``) was removed in a later product decision: case
+    type and specialty assignment are ours to control, not the doctor's, so
+    there is no doctor-facing re-entry to the picker at all anymore."""
     picker = _body_of("renderSpecialtyPicker")
     assert "dismissable" in picker
     assert "e.key === 'Escape' && dismissable" in picker
     assert "if (dismissable && e.target === sheet) close(null)" in picker
     eval_view = _body_of("renderEvalView")
     assert "renderSpecialtyPicker({ dismissable: false })" in eval_view
-    badge = _body_of("renderExperienceBadge")
-    assert "renderSpecialtyPicker({ dismissable: true })" in badge
 
 
 # ─── Test 3 — THE STAGGER REGRESSION TEST ────────────────────────────────────
@@ -310,7 +312,7 @@ def test_no_dangling_resplit_copy():
     longer exists on that surface."""
     listv3 = _code(_body_of("renderStepsListV3"))
     assert "use “Re-split from answer”" not in listv3
-    assert "No steps yet — add steps manually." in listv3
+    assert "No steps yet: add steps manually." in listv3
 
 
 # ─── Test 8 ───────────────────────────────────────────────────────────────────
@@ -653,7 +655,7 @@ def test_tier_labels():
     # which is an opinion.
     assert "the answer is wrong or unsafe without this" in block
     assert "the answer is clearly worse without this" in block
-    assert "a refinement — good, not decisive" in block
+    assert "a refinement: good, not decisive" in block
 
 
 def test_old_tier_vocabulary_is_gone_from_all_copy():
@@ -967,34 +969,30 @@ def test_rubric_help_text_matches_the_control():
 # ═════════════════════════════════════════════════════════════════════════════
 
 # ─── Test 20 ──────────────────────────────────────────────────────────────────
-def test_exp_badge_two_children():
-    """§13: ``space-between`` across three children marooned two related links at
-    opposite edges of the full width. Grouping them gives it two children —
-    'label left, controls right'."""
+def test_exp_badge_is_informational_only():
+    """Case type and specialty are assigned by us (queue routing + qualification),
+    not chosen by the doctor: a later product decision removed the badge's
+    "Change experience"/"Change specialty" controls entirely, so the badge is
+    now just a static label with no interactive children."""
     fn = _body_of("renderExperienceBadge")
     ret = re.search(
         r"return h\('div', \{ class: 'asc-exp-badge' \},(.*?)\);\s*\}\s*$", fn, re.S
     )
     assert ret, "the badge's return shape changed unexpectedly"
     children = [c.strip() for c in ret.group(1).split("),") if c.strip()]
-    assert len(children) == 2, f"expected exactly two children, got {children}"
+    assert len(children) == 1, f"expected exactly one (label-only) child, got {children}"
     assert "asc-exp-badge-label" in children[0]
-    assert children[1] == "links"
-    assert "class: 'asc-exp-links'" in fn
-    assert fn.count("asc-btn-link") == 2, "both links must live inside the group"
-
-    # A drawn divider, not a typed bullet — it is chrome.
-    assert ".asc-exp-links .asc-btn-link + .asc-btn-link { border-left:" in CSS
-    assert "'·'" not in fn and "' | '" not in fn
+    assert "asc-btn-link" not in fn, "the badge must carry no controls"
+    assert "class: 'asc-exp-links'" not in fn
 
 
-def test_no_duplicate_change_experience_link():
-    """§13's note: with a specialty chosen, the picker's own header used to emit
-    a second 'Change experience' link on the same screen. The popover has no
-    header, so it cannot."""
+def test_no_change_experience_link_anywhere():
+    """The picker's own header never re-introduces a "Change experience" link,
+    and neither does anything else: the control was removed entirely, not just
+    deduplicated."""
     picker = _code(_body_of("renderSpecialtyPicker"))
     assert "Change experience" not in picker
-    assert JS_CODE.count("'Change experience'") == 1
+    assert JS_CODE.count("'Change experience'") == 0
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1022,10 +1020,12 @@ def test_v4_parity():
             f"{fn_name} gates on the raw version string, which excludes V4"
         )
 
-    # The specialty picker (§2) and the badge (§13) cover v3 AND v4 explicitly.
+    # The specialty picker (§2) covers v3 AND v4 explicitly. The badge (§13) is
+    # informational-only (its "Change specialty" control was removed in a later
+    # product decision), so it no longer needs its own v3/v4 branch: it just
+    # looks up a label per version, v4 included.
     badge = _body_of("renderExperienceBadge")
-    assert "(v === 'v3' || v === 'v4')" in badge
-    assert "v4: 'Real De-Identified Multimodal Cases'" in badge
+    assert "v4: ['', 'Real · De-identified Cases']" in badge
     eval_view = _body_of("renderEvalView")
     assert "(ver === 'v3' || ver === 'v4')" in eval_view
 
@@ -1077,7 +1077,6 @@ def test_no_new_component_vocabulary_beyond_the_prd():
         "asc-step-original-sum", "asc-step-original-tag", "asc-step-original-preview",
         "asc-rubric-stem", "asc-rubric-stem-lead", "asc-rubric-stem-toggle",
         "asc-rubric-matter-head", "asc-rubric-scale",
-        "asc-exp-links",
     }
     html = (_FRONTEND / "index.html").read_text(encoding="utf-8")
     for cls in specified:
@@ -1530,27 +1529,33 @@ def test_scroll_correction_suspends_smooth_scrolling():
     assert "behavior: reduce ? 'auto' : 'smooth'" in JS
 
 
-def test_every_specialty_switch_goes_through_the_popover():
-    """§2: there were TWO 'Change specialty' controls — the workspace badge and
-    the empty-queue screen. The second one still routed via
-    ``specialtyChosen = false``, which re-enters ``renderEvalView``'s
-    first-entry branch and mounts the picker NON-dismissable, stranding anyone
-    who opened it just to look.
-    """
-    assert "state.specialtyChosen = false" not in JS_CODE, (
-        "a specialty switch still routes through renderEvalView's required-"
-        "choice branch instead of opening the popover"
+def test_no_doctor_facing_specialty_switch():
+    """A later product decision removed every doctor-facing 'Change specialty'
+    control (workspace badge and empty-queue screen alike): case type and
+    specialty assignment are ours to control, not the doctor's. The only
+    remaining ``specialtyChosen = false`` sites are the tutorial's own exit
+    paths (fallback, skip, completion), which fall through to the dashboard's
+    own defaults, never to a doctor-facing picker."""
+    assert JS_CODE.count("'Change specialty'") == 0, (
+        "a Change-specialty control was re-introduced"
     )
-    assert JS_CODE.count("'Change specialty'") == 2, (
-        "the number of Change-specialty controls changed — re-check each one "
-        "opens the popover"
+    assert JS_CODE.count("renderSpecialtyPicker({ dismissable: true })") == 0, (
+        "a dismissable specialty-picker re-entry point was re-introduced"
     )
-    # Both call sites: dismissable, and they reload only on an actual change.
-    assert JS_CODE.count("renderSpecialtyPicker({ dismissable: true })") == 2
-    assert JS_CODE.count("if (picked && picked !== before) renderEvalView();") == 2
     # The one required (non-dismissable) mount is first entry, and only that.
     assert JS_CODE.count("renderSpecialtyPicker({ dismissable: false })") == 1
     assert "renderSpecialtyPicker({ dismissable: false })" in _body_of("renderEvalView")
+    # Every remaining `specialtyChosen = false` site lives in tutorial exit
+    # paths, not a doctor-facing switch control.
+    tutorial_fns = ("startTutorial", "skipTutorial", "renderTutorialReveal")
+    for fn_name in tutorial_fns:
+        assert "state.specialtyChosen = false" in _body_of(fn_name), (
+            f"{fn_name} no longer resets specialtyChosen on exit"
+        )
+    other_sites = JS_CODE.count("state.specialtyChosen = false") - sum(
+        _body_of(fn).count("state.specialtyChosen = false") for fn in tutorial_fns
+    )
+    assert other_sites == 0, "specialtyChosen = false appears outside the tutorial exit paths"
 
 
 def test_legacy_single_axis_records_are_unchanged_apart_from_the_new_field():

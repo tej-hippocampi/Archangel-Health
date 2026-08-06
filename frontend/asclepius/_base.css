@@ -1,5 +1,5 @@
 /* ============================================================
-   Archangel Health — console design system · product base
+   Archangel Health: console design system · product base
    Reset, typography base, form normalization, and the shared
    component vocabulary (chrome labels, dots, chips, spinner,
    generic modal). Consumes _tokens.css; no raw hex here.
@@ -21,7 +21,7 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* page atmosphere — felt, not seen (same auras as the landing) */
+/* page atmosphere: felt, not seen (same auras as the landing) */
 body::before {
   content: '';
   position: fixed;
@@ -57,7 +57,7 @@ h3 { font-size: var(--t-h3); font-weight: 500; letter-spacing: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { background: none; border: none; cursor: pointer; }
 
-/* ---------- mono instrument chrome — the wayfinding primitive ---------- */
+/* ---------- mono instrument chrome: the wayfinding primitive ---------- */
 .chrome {
   font-family: var(--mono);
   font-size: var(--t-chrome);
@@ -79,7 +79,7 @@ button { background: none; border: none; cursor: pointer; }
   transition: background 0.16s cubic-bezier(.4,0,.2,1), border-color 0.16s cubic-bezier(.4,0,.2,1);
 }
 
-/* ---------- dotted data values — one hero numeral per view ---------- */
+/* ---------- dotted data values: one hero numeral per view ---------- */
 .doto {
   font-family: var(--doto);
   font-weight: 400;
@@ -143,7 +143,7 @@ button { background: none; border: none; cursor: pointer; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------- generic modal (legacy .call-team-* hooks) ----------
-   Scrim is canvas at 92% with a light blur — never black. */
+   Scrim is canvas at 92% with a light blur: never black. */
 .call-team-overlay {
   display: none;
   position: fixed;

@@ -59,7 +59,7 @@ def _admin_h():
 
 
 def _mint(admin_h, **over):
-    body = {"partner_id": "mercy-health", "partner_label": "Mercy Health",
+    body = {"partner_id": "mercy-health", "purpose": "task_creation", "partner_label": "Mercy Health",
             "specialty": "nephrology", "expires_hours": 24, "one_time": True}
     body.update(over)
     r = client.post("/api/asclepius/admin/upload-links", json=body, headers=admin_h)
@@ -334,7 +334,7 @@ def test_uploads_list_paginates_over_full_history():
 # ─── Contact email on the link + failure notification to the sender ───────────
 def test_mint_rejects_an_invalid_contact_email():
     r = client.post("/api/asclepius/admin/upload-links", headers=_admin_h(),
-                    json={"partner_id": "mercy", "contact_email": "not-an-email"})
+                    json={"partner_id": "mercy", "purpose": "task_creation", "contact_email": "not-an-email"})
     assert r.status_code == 400
 
 

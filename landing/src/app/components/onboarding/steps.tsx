@@ -20,7 +20,6 @@ import {
   InlineError,
   OnboardingCard,
   PrimaryButton,
-  ProductOption,
   RolePill,
   SelectField,
   StatusPill,
@@ -246,14 +245,16 @@ export function Step2Verify({
   onVerify,
   onBack,
   error,
+  eyebrow = "Step 2",
 }: {
   data: OnboardingData;
-  /** POST /api/onboarding/request-otp; resolve `false` on error to stay Idle. */
+  /** POST /api/onboarding/request-otp (or /member/request-otp); resolve `false` on error to stay Idle. */
   onSendCode: () => Promise<boolean>;
-  /** POST /api/onboarding/verify-otp with the 6-digit code; resolve `false` to stay Idle. */
+  /** POST /api/onboarding/verify-otp (or /member/verify-otp) with the 6-digit code; resolve `false` to stay Idle. */
   onVerify: (code: string) => Promise<boolean>;
   onBack: () => void;
   error?: string;
+  eyebrow?: string;
 }) {
   const [sent, setSent] = useState(false);
   const [resendIn, setResendIn] = useState(0);
@@ -285,7 +286,7 @@ export function Step2Verify({
 
   return (
     <OnboardingCard
-      eyebrow="Step 2"
+      eyebrow={eyebrow}
       title="Verify your email."
       lede={
         sent ? (
@@ -392,7 +393,7 @@ export function Step3Org({
 
   return (
     <OnboardingCard
-      eyebrow="Step 4 of 6"
+      eyebrow="Step 3 of 5"
       title="Tell us about your health system."
       lede="This is the workspace your team will sign in to."
     >
@@ -539,7 +540,7 @@ export function Step4YourTeam({
   return (
     <OnboardingCard
       maxWidth={720}
-      eyebrow="Step 5 of 6"
+      eyebrow="Step 4 of 5"
       title="Your TEAM."
       lede="Your surgical pod is exactly 4 people: you (director / surgeon), 1 RN care coordinator, and 2 NP / PAs."
     >
@@ -858,7 +859,7 @@ export function Step5SignIn({
 
   return (
     <OnboardingCard
-      eyebrow="Step 6 of 6"
+      eyebrow="Step 5 of 5"
       title="Sign in to your workspace."
       lede={
         <>
@@ -1142,74 +1143,7 @@ function AddRowButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 
-/* ── Step 3 — Product selection ─────────────────────────────────── */
-
-export function Step3Product({
-  data,
-  onSelect,
-  onBack,
-  error,
-}: {
-  data: OnboardingData;
-  onSelect: (product: Product) => Promise<boolean>;
-  onBack: () => void;
-  error?: string;
-}) {
-  const [choice, setChoice] = useState<Product | "">(data.product || "");
-  return (
-    <OnboardingCard
-      maxWidth={760}
-      eyebrow="Step 3"
-      title="Choose your product."
-      lede="Two products, one account. Pick the one you're signing up for — you can always set up the other later."
-    >
-      <InlineError>{error}</InlineError>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-        <ProductOption
-          title="Archangel"
-          tagline="TEAM clinical platform"
-          description="The HIPAA-compliant surgical care platform — patient roster, discharge education, escalations, and TEAM episode tracking for your pod."
-          badges={["HIPAA-compliant", "Doctor portal", "Care team pods"]}
-          selected={choice === "archangel"}
-          onSelect={() => setChoice("archangel")}
-          icon={
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          }
-        />
-        <ProductOption
-          title="Asclepius"
-          tagline="Expert data training"
-          description="The data-training product — board-certified clinicians review and label AI answers in their specialty to build expert-graded datasets."
-          badges={["Label data", "Earn per task", "No PHI"]}
-          selected={choice === "asclepius"}
-          onSelect={() => setChoice("asclepius")}
-          icon={
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2v4M12 2a4 4 0 0 0-4 4c0 2 1 3 1 5a3 3 0 0 0 6 0c0-2 1-3 1-5a4 4 0 0 0-4-4z" />
-              <path d="M9 17h6M10 21h4" />
-            </svg>
-          }
-        />
-      </div>
-      <PrimaryButton
-        fullWidth
-        disabled={choice === ""}
-        onClick={() => onSelect(choice as Product)}
-        loadingLabel="Setting up…"
-        successLabel="Continue ✓"
-      >
-        Continue
-      </PrimaryButton>
-      <div style={CARD_FOOTER_BACK}>
-        <BackLink onClick={onBack} />
-      </div>
-    </OnboardingCard>
-  );
-}
-
-/* ── Step 4 — Health institution (Asclepius) ────────────────────── */
+/* ── Step 3 — Health institution (Asclepius) ────────────────────── */
 
 export function Step4Institution({
   data,
@@ -1224,39 +1158,26 @@ export function Step4Institution({
   onBack: () => void;
   error?: string;
 }) {
-  const valid =
-    data.orgName.trim().length > 0 &&
-    data.specialty.trim().length > 0 &&
-    data.phone.trim().length > 0;
+  // Everything here is optional now: specialty is captured with your credentials,
+  // and a blank organization name defaults to your own name. You're signing up
+  // as an individual clinician; a practice/workspace name only matters if you
+  // plan to invite colleagues later.
+  const valid = true;
   return (
     <OnboardingCard
-      eyebrow="Step 4 of 7"
-      title="Tell us about your institution."
-      lede="This is the organization your data-training workspace belongs to."
+      eyebrow="Step 3 of 5"
+      title="Name your workspace."
+      lede="You're signing up on your own today. If you'd like colleagues from your practice to join later, give your workspace a name so they land in the same place. If not, skip this."
     >
       <InlineError>{error}</InlineError>
       <TextField
-        label="Organization name"
+        label="Practice or workspace name (optional)"
         placeholder="Northridge Nephrology"
         value={data.orgName}
         onChange={(v) => setData({ orgName: v })}
         autoFocus
         autoComplete="organization"
-      />
-      <TextField
-        label="Specialty"
-        placeholder="Nephrology"
-        value={data.specialty}
-        onChange={(v) => setData({ specialty: v })}
-        hint="The clinical specialty your team will label data in."
-      />
-      <TextField
-        label="Organization / front-office phone"
-        placeholder="(555) 123‑4567"
-        type="tel"
-        value={data.phone}
-        onChange={(v) => setData({ phone: v })}
-        autoComplete="tel"
+        hint="Skip this if you're just signing up for yourself. We'll use your name instead."
       />
       <div
         style={{
@@ -1287,7 +1208,7 @@ export function Step4Institution({
           </svg>
         </div>
         <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5 }}>
-          Your role: <strong style={{ color: "var(--ink)" }}>Director of Data Training</strong> — you can label data and invite your clinical team.
+          You can start reviewing and labeling cases right away. If you want to bring people from your practice on board later, you'll be able to invite them from your dashboard.
         </div>
       </div>
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
@@ -1507,20 +1428,12 @@ export function Step5Credentials({
         />
       </div>
 
-      <div style={TWO_COL}>
-        <TextField
-          label="Primary specialty"
-          placeholder="Nephrology"
-          value={c.primarySpecialty}
-          onChange={(v) => set({ primarySpecialty: v })}
-        />
-        <TextField
-          label="Years in active practice"
-          placeholder="12"
-          value={c.yearsInActivePractice}
-          onChange={(v) => set({ yearsInActivePractice: v.replace(/\D/g, "").slice(0, 2) })}
-        />
-      </div>
+      <TextField
+        label="Primary specialty"
+        placeholder="Nephrology"
+        value={c.primarySpecialty}
+        onChange={(v) => set({ primarySpecialty: v })}
+      />
 
       {/* ── Contact & corroboration (PRD-B Seam 4) ──────────────────────────
           These are the physician's OWN details. `data.phone` elsewhere in this
@@ -1637,133 +1550,9 @@ export function Step5Credentials({
         }
       />
 
-      {/* Fellowship */}
-      <SectionHeading title="Fellowship" sub="Institution + specialty + year." />
-      {c.fellowship.map((f, i) => (
-        <RepeatableCard
-          key={i}
-          removable={c.fellowship.length > 1}
-          onRemove={() => set({ fellowship: c.fellowship.filter((_, j) => j !== i) })}
-        >
-          <div style={THREE_COL}>
-            <TextField
-              label="Institution"
-              placeholder="Cedars-Sinai"
-              value={f.institution}
-              onChange={(v) => {
-                const next = [...c.fellowship];
-                next[i] = { ...f, institution: v };
-                set({ fellowship: next });
-              }}
-            />
-            <TextField
-              label="Specialty"
-              placeholder="Nephrology"
-              value={f.specialty}
-              onChange={(v) => {
-                const next = [...c.fellowship];
-                next[i] = { ...f, specialty: v };
-                set({ fellowship: next });
-              }}
-            />
-            <TextField
-              label="Year"
-              placeholder="2013"
-              value={f.year}
-              onChange={(v) => {
-                const next = [...c.fellowship];
-                next[i] = { ...f, year: v.replace(/\D/g, "").slice(0, 4) };
-                set({ fellowship: next });
-              }}
-            />
-          </div>
-        </RepeatableCard>
-      ))}
-      <AddRowButton
-        label="Add fellowship"
-        onClick={() => set({ fellowship: [...c.fellowship, { institution: "", specialty: "", year: "" }] })}
-      />
-
-      {/* Residency */}
-      <SectionHeading title="Residency" sub="Institution + year." />
-      {c.residency.map((r, i) => (
-        <RepeatableCard
-          key={i}
-          removable={c.residency.length > 1}
-          onRemove={() => set({ residency: c.residency.filter((_, j) => j !== i) })}
-        >
-          <div style={TWO_COL}>
-            <TextField
-              label="Institution"
-              placeholder="Johns Hopkins"
-              value={r.institution}
-              onChange={(v) => {
-                const next = [...c.residency];
-                next[i] = { ...r, institution: v };
-                set({ residency: next });
-              }}
-            />
-            <TextField
-              label="Year"
-              placeholder="2010"
-              value={r.year}
-              onChange={(v) => {
-                const next = [...c.residency];
-                next[i] = { ...r, year: v.replace(/\D/g, "").slice(0, 4) };
-                set({ residency: next });
-              }}
-            />
-          </div>
-        </RepeatableCard>
-      ))}
-      <AddRowButton
-        label="Add residency"
-        onClick={() => set({ residency: [...c.residency, { institution: "", year: "" }] })}
-      />
-
-      {/* Medical school */}
-      <SectionHeading title="Medical school" sub="Institution + year." />
-      <div style={TWO_COL}>
-        <TextField
-          label="Institution"
-          placeholder="UCLA David Geffen School of Medicine"
-          value={c.medicalSchool.institution}
-          onChange={(v) => set({ medicalSchool: { ...c.medicalSchool, institution: v } })}
-        />
-        <TextField
-          label="Year"
-          placeholder="2007"
-          value={c.medicalSchool.year}
-          onChange={(v) =>
-            set({ medicalSchool: { ...c.medicalSchool, year: v.replace(/\D/g, "").slice(0, 4) } })
-          }
-        />
-      </div>
-
-      {/* Focus areas */}
-      <SectionHeading title="Clinical focus" />
-      <ChipMultiSelect
-        label="Subspecialty & focus areas"
-        value={c.subspecialties}
-        onChange={(v) => set({ subspecialties: v })}
-        placeholder="e.g. dialysis, transplant, CKD"
-        suggestions={["Dialysis", "Transplant", "Glomerular disease", "CKD", "Hypertension"]}
-        hint="Type and press Enter, or tap a suggestion. Select as many as apply."
-      />
-      <ChipMultiSelect
-        label="Practice setting"
-        value={c.practiceSettings}
-        onChange={(v) => set({ practiceSettings: v })}
-        placeholder="e.g. academic, private practice"
-        suggestions={PRACTICE_SETTING_SUGGESTIONS}
-      />
-      <ChipMultiSelect
-        label="Languages spoken"
-        value={c.languages}
-        onChange={(v) => set({ languages: v })}
-        placeholder="List all languages"
-        suggestions={LANGUAGE_SUGGESTIONS}
-      />
+      <p style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5, margin: "4px 0 20px" }}>
+        You can add training history, focus areas, and languages later from your dashboard.
+      </p>
 
       <div style={{ height: 1, background: "var(--hairline)", margin: "8px 0 22px" }} />
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
@@ -1894,7 +1683,7 @@ export function Step6Attestations({
         checked={a.noPhi}
         onToggle={() => set({ noPhi: !a.noPhi })}
         title="No PHI"
-        body="I confirm I will not enter any patient health information (PHI) into Asclepius."
+        body="I confirm I will not enter any patient health information (PHI) into Archangel."
       />
 
       <div style={{ marginTop: 18 }}>
@@ -2336,9 +2125,8 @@ export function Step8AsclepiusSuccess({
           aria-hidden="true"
         />
         <div style={{ fontSize: 13.5, lineHeight: 1.55, color: "var(--ink-soft)" }}>
-          We just emailed <strong style={{ color: "var(--ink)" }}>{data.email}</strong> your workspace
-          credentials. <strong style={{ color: "var(--ink)" }}>Please star that email</strong> — your
-          email and password live there, and everything you need to contribute data lives in it.
+          You're signed in and ready to go. We also emailed <strong style={{ color: "var(--ink)" }}>{data.email}</strong> your
+          login details so you can sign back in any time.
         </div>
       </div>
 
@@ -2373,11 +2161,11 @@ export function Step8AsclepiusSuccess({
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 28 }}>
-        <Stat label="Organization" value={data.orgName || "—"} />
-        <Stat label="Specialty" value={data.specialty || "—"} />
+        <Stat label="Workspace" value={data.orgName || `${data.firstName} ${data.lastName}`.trim() || "Your workspace"} />
+        <Stat label="Specialty" value={data.credentials.primarySpecialty || "Not set"} />
         <Stat
-          label={memberMode ? "Your role" : "Team"}
-          value={memberMode ? data.roleLabel || "Clinician" : `${data.ascMembers.length + 1}`}
+          label="Your role"
+          value={memberMode ? data.roleLabel || "Clinician" : "Director"}
         />
       </div>
 
@@ -2391,12 +2179,11 @@ export function Step8AsclepiusSuccess({
           marginBottom: 26,
         }}
       >
-        When you open your workspace, sign in with the email and password from that email. Your
-        password is permanent — use it every time.
+        You're already signed in. Your login details are in that email whenever you need them.
       </p>
 
       <PrimaryButton fullWidth onClick={onOpenWorkspace} loadingLabel="Opening…" successLabel="Opening ✓">
-        Open your workspace →
+        Open my dashboard →
       </PrimaryButton>
     </OnboardingCard>
   );
