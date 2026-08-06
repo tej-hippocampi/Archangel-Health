@@ -1,13 +1,23 @@
 """Guard: no em dash (U+2014) in user-facing Asclepius copy.
 
 Em dashes read as machine-written, which erodes trust for a portal shown to
-thousands of physicians. This test fails if one creeps back into either the
-evaluator SPA (every string in it is user-facing) or the taxonomy vocab and
-disclaimers the SPA renders as chips / banners.
+thousands of physicians. This test fails if one creeps back into the copy the
+SPA renders, or into the taxonomy vocab and disclaimers it shows as chips /
+banners.
 
-Note: this intentionally does NOT scan backend docstrings/comments — only copy
-that actually reaches a physician. If you add a new user-facing constant, add it
-to TAXONOMY_NAMES below.
+SCOPE: copy that actually reaches a physician, and nothing else. That is the
+rule the first version of this guard stated and did not implement: it scanned
+every LINE of four frontend files, so it failed on code comments no physician
+will ever see, while ignoring manual-content.js and earnings.js, which are
+almost entirely physician-facing prose. It policed the invisible and let the
+instruction manual through.
+
+So comments are stripped before scanning, and the file list covers the modules
+where physician copy actually lives. An author arguing with this guard about a
+comment was arguing with a bug; an author arguing with it about a sentence a
+doctor reads is arguing with the product decision.
+
+If you add a new user-facing constant, add it to TAXONOMY_NAMES below.
 """
 import io
 import os
@@ -26,7 +36,33 @@ FRONTEND_FILES = [
     "frontend/asclepius/asclepius.css",
     "frontend/asclepius/_tokens.css",
     "frontend/asclepius/_base.css",
+    # The two modules that are almost entirely physician-facing prose, and were
+    # the ones this guard was missing: the instruction manual every physician is
+    # pointed at, and the page where they read what they have earned.
+    "frontend/asclepius/manual-content.js",
+    "frontend/asclepius/earnings.js",
 ]
+
+
+def _strip_comments(text, css):
+    """Blank out // and /* */ comments, preserving line numbering.
+
+    A comment is not copy. Scanning them is what made this guard fire on an
+    author's reasoning and stay silent on the manual."""
+    out, i, n, line = [], 0, len(text), []
+    while i < n:
+        if text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            chunk = text[i:(n if j == -1 else j + 2)]
+            out.append("\n" * chunk.count("\n"))          # keep the line count
+            i = n if j == -1 else j + 2
+        elif not css and text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j == -1 else j
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
 
 # The user-facing vocab surfaced by GET /taxonomy + the rendered disclaimers.
 TAXONOMY_NAMES = [
@@ -40,12 +76,20 @@ TAXONOMY_NAMES = [
 
 @pytest.mark.parametrize("rel", FRONTEND_FILES)
 def test_evaluator_spa_has_no_em_dash(rel):
-    text = io.open(os.path.join(REPO, rel), encoding="utf-8").read()
+    raw = io.open(os.path.join(REPO, rel), encoding="utf-8").read()
+    text = _strip_comments(raw, css=rel.endswith(".css"))
+    # A lone em dash in quotes is a GLYPH, not prose: the empty-value placeholder
+    # in a table cell, and the `num` of a section that sits outside the numbered
+    # sequence. The rule here is about punctuation that reads as machine-written
+    # inside a sentence; a dash standing alone in a cell has no sentence to read
+    # badly in.
+    text = text.replace("'" + EM_DASH + "'", "''").replace('"' + EM_DASH + '"', '""')
     bad = [f"  line {i}: {ln.strip()}"
            for i, ln in enumerate(text.splitlines(), 1) if EM_DASH in ln]
     assert not bad, (
-        f"{rel} contains {len(bad)} em dash(es). Replace with a period, colon, "
-        f"comma, or parentheses (never a bare ' - ' in prose):\n" + "\n".join(bad[:40])
+        f"{rel} contains {len(bad)} em dash(es) in copy a physician reads. "
+        f"Replace with a period, colon, comma, or parentheses (never a bare "
+        f"' - ' in prose). Comments are not scanned:\n" + "\n".join(bad[:40])
     )
 
 

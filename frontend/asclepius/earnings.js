@@ -364,7 +364,7 @@
         // the whole session while looking like it was working.
         stopTimer();
         session.error = 'This review session cannot be tracked. Your time is not '
-          + 'being counted — reload the page.';
+          + 'being counted. Reload the page.';
       } else {
         session.error = 'Session time is not syncing. Your credited time is safe on '
           + 'the server; it will catch up when the connection returns.';
@@ -583,7 +583,7 @@
         + 'server and shown in the review page header while you work. '),
       h('div', { class: 'asc-pay-rule-body' },
         'Leaving before ' + min + ' ends the session unpaid. Time below '
-        + min + ' is still recorded — it is just not payable.'));
+        + min + ' is still recorded, it is just not payable.'));
   }
 
   function lines(h) {
@@ -661,7 +661,7 @@
     }
     if (live && live.paused) {
       card.appendChild(h('div', { class: 'asc-pay-session-warn' },
-        'Paused — this tab is in the background and is not counting.'));
+        'Paused. This tab is in the background and is not counting.'));
     }
 
     card.appendChild(h('div', { class: 'asc-pay-session-rule' }));

@@ -2816,16 +2816,16 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
 .asc-metric-row-value { color: #1a1b1a; }
 /* ═══ END PRD-C ═══ */
 
-/* ═══ PRD-P · Earnings ═══════════════════════════════════════════════════════
+/* ═══ PRD-P — Earnings ═══════════════════════════════════════════════════════
    Money is the one place Doto earns its keep, and only on the headline figure.
    Everything else is Instrument Sans with IBM Plex Mono for amounts and statuses
    so the right-hand column aligns as a column. Zero black fills: a status is a
    word in colour, not a filled chip.
 
    Accent semantics, held exactly:
-     green  approved      : physician-authored value, realised
-     lime   pending       : new, needs attention
-     grey   not approved  : muted, NOT pink
+     green  approved      — physician-authored value, realised
+     lime   pending       — new, needs attention
+     grey   not approved  — muted, NOT pink
 
    Not pink, deliberately. Pink means flag / PHI / critical / blocking. A task
    that did not pass review is not a safety event, and colouring it like one
@@ -2979,7 +2979,7 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
   .asc-pay-note { padding-left: 68px; }
 }
 
-/* ─── Audit U1 · the rule, stated before it can cost anyone anything ─────────
+/* ─── Audit U1 — the rule, stated before it can cost anyone anything ─────────
    This card renders for every physician who accrues payment, session or not.
    The sentence used to live only inside the live-session widget, which meant a
    reviewer could not read it until they were already exposed to it. Lime, not
@@ -3003,8 +3003,8 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
 .asc-pay-rule-body { font-size: 13px; line-height: 1.6; color: var(--asc-text); }
 .asc-pay-rule-body + .asc-pay-rule-body { margin-top: 8px; }
 
-/* ─── PRD M · the manual switcher ────────────────────────────────────────────
-   A mono chip row above the title, matching the existing chrome pattern,
+/* ─── PRD M — the manual switcher ────────────────────────────────────────────
+   A mono chip row above the title, matching the existing chrome pattern —
    deliberately not a <select> and not tabs, because the Guide already has a
    dropdown (jump-to-section) and a second one would read as the same control.
    Rendered only when a physician holds more than one manual; one chip is not a

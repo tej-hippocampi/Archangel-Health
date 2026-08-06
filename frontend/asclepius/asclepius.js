@@ -296,7 +296,7 @@
     // string: re-deriving "is this an advisor?" in the client would push the
     // exact two-state check this build removed back into the frontend.
     { dest: 'advisor',   label: 'Advisor', capability: 'refer' },
-    // Earnings (PRD-P §5). Visible to any signed-in physician: what you have
+    // Earnings (PRD-P §5). Visible to any signed-in physician — what you have
     // made is not a privileged surface, and every endpoint behind it scopes from
     // the session, so there is nothing here to gate on a capability.
     { dest: 'earnings',  label: 'Earnings' },
@@ -537,7 +537,7 @@
 
   let guideObserver = null;
 
-  // PRD M: three scoped manuals, picked by CAPABILITY rather than by tier. An
+  // PRD M — three scoped manuals, picked by CAPABILITY rather than by tier. An
   // advisor labels and reviews and signs off, so a tier does not map to one
   // document; what a physician can DO does. Order is least to most, so the
   // default is the most senior manual they hold.
@@ -600,7 +600,7 @@
     // Content column: intro header + every section.
     const content = h('div', { class: 'asc-guide-content' });
     // The switcher: a mono chip row above the title, matching the existing
-    // chrome pattern. Only when more than one manual is held. One chip is not a
+    // chrome pattern. Only when more than one manual is held — one chip is not a
     // choice, it is decoration. A reviewer re-reading the labeling manual is
     // reading it to grade someone against it, so nothing here is hidden from
     // anyone who holds it.
@@ -6270,7 +6270,7 @@
       window.EarningsSection.render(body, adminSectionCtx());
       return;
     }
-    // A VISIBLE error, never a quiet placeholder, and never a reassuring $0.
+    // A VISIBLE error, never a quiet placeholder — and never a reassuring $0.
     // "We could not load your ledger" and "you have earned nothing" must not
     // look the same to a physician.
     body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
