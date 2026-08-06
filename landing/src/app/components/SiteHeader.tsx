@@ -77,8 +77,8 @@ export function SiteHeader({ activeView }: SiteHeaderProps) {
               {user ? (
                 <>
                   <span className="site-header-email">{user.email}</span>
-                  {DOCTOR_APP_URL && (
-                    <a href={DOCTOR_APP_URL} className="auth-btn auth-btn-primary site-header-auth-btn">
+                  {doctorPortalUrl && (
+                    <a href={doctorPortalUrl} className="auth-btn auth-btn-primary site-header-auth-btn">
                       {user.name ? user.name.trim().split(" ").slice(0, 2).join(" ") : "Doctor Portal"}
                     </a>
                   )}
@@ -93,10 +93,7 @@ export function SiteHeader({ activeView }: SiteHeaderProps) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setSignUpInitialStep("role");
-                      setSignUpOpen(true);
-                    }}
+                    onClick={() => openSignUp("role")}
                     className="auth-btn auth-btn-primary site-header-auth-btn"
                   >
                     Sign up

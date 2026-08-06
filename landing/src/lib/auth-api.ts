@@ -100,13 +100,31 @@ export function storeAsclepiusSession(token: string): void {
   }
 }
 
-export type User = { email: string; name?: string | null; role?: string | null };
+export type User = {
+  email: string;
+  name?: string | null;
+  role?: string | null;
+  email_verified?: boolean;
+};
 
 export type AuthResponse = {
   access_token: string;
   token_type: string;
   user: User;
 };
+
+/** Returned by /api/auth/login when the account exists but hasn't verified
+ * its email yet — no token is issued. */
+export type VerificationRequiredResponse = {
+  verification_required: true;
+  email: string;
+};
+
+export type LoginResult = AuthResponse | VerificationRequiredResponse;
+
+export function isVerificationRequired(r: LoginResult): r is VerificationRequiredResponse {
+  return (r as VerificationRequiredResponse).verification_required === true;
+}
 
 export type DoctorOnboardPayload = {
   name: string;
@@ -237,7 +255,7 @@ export async function redirectToDoctorPortal(accessToken: string): Promise<void>
   window.location.href = `${signIn}?handoff=${encodeURIComponent(handoff.handoff_code)}`;
 }
 
-export async function login(email: string, password: string): Promise<AuthResponse> {
+export async function login(email: string, password: string): Promise<LoginResult> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -257,14 +275,22 @@ export async function login(email: string, password: string): Promise<AuthRespon
 export async function register(
   email: string,
   password: string,
-  name?: string
+  name?: string,
+  phone?: string,
+  smsConsentOptIn?: boolean
 ): Promise<AuthResponse> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, name: name || undefined }),
+      body: JSON.stringify({
+        email,
+        password,
+        name: name || undefined,
+        phone: phone || undefined,
+        sms_consent_opt_in: !!smsConsentOptIn,
+      }),
     });
   } catch (e) {
     throw networkError();
@@ -274,6 +300,51 @@ export async function register(
     throw new Error((err as { detail?: string }).detail ?? 'Registration failed');
   }
   return res.json();
+}
+
+export async function verifyEmailOtp(email: string, code: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/auth/verify-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code }),
+    });
+  } catch {
+    throw networkError();
+  }
+  if (!res.ok) {
+    throw new Error(await errorDetail(res, "Verification failed"));
+  }
+}
+
+export async function verifyEmailToken(token: string): Promise<{ email: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/auth/verify-email/by-token?${new URLSearchParams({ token })}`);
+  } catch {
+    throw networkError();
+  }
+  if (!res.ok) {
+    throw new Error(await errorDetail(res, "This verification link is invalid or expired"));
+  }
+  return res.json();
+}
+
+export async function resendVerification(email: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/auth/verify-email/resend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+  } catch {
+    throw networkError();
+  }
+  if (!res.ok) {
+    throw new Error(await errorDetail(res, "Could not resend the verification email"));
+  }
 }
 
 export async function getMe(token: string): Promise<User | null> {

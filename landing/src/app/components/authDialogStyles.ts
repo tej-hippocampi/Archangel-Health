@@ -219,6 +219,27 @@ export const authDialogStyles = `
   letter-spacing: 0.08em;
 }
 
+.adg-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.adg-checkbox-row input[type="checkbox"] { margin-top: 2px; }
+
+.adg-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.adg-link:hover { color: var(--ink-soft); }
+
 /* Buttons */
 .adg-actions {
   display: flex;
