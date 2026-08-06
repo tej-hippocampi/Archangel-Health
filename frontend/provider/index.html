@@ -168,7 +168,9 @@
             </button>
             <p id="prvDropHelp" class="asc-help prv-drop-help">
               Send a .zip, or individual .json / .csv / .hl7 / .txt files and we
-              will package them for you.
+              will package them for you. Large files are sent in pieces and can be
+              resumed — if the connection drops, drop the same file again and we
+              pick up where it stopped.
             </p>
             <input type="file" id="prvFileInput" multiple
                    accept=".zip,.csv,.json,.txt,.xml,.hl7,.ndjson,application/zip,application/json,text/csv,text/plain"

@@ -41,6 +41,7 @@ from asclepius import generation as asc_generation
 from asclepius import pipeline as asc_pipeline
 from asclepius import profiles as asc_profiles
 from asclepius import specialties as asc_specialties
+from asclepius import task_notify as asc_task_notify
 from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
     ASCLEPIUS_TAXONOMY_VERSION,
@@ -132,7 +133,15 @@ from asclepius.schemas import (
     ScopedExportRequest,
     SsoRequest,
     SubmissionIn,
+    TaskIn,
     TaskUploadRequest,
+    TutorialStateUpdate,
+)
+from asclepius.tutorial_case import (
+    TUTORIAL_TASK_ID,
+    TUTORIAL_VERSION,
+    grade_tutorial_submission,
+    tutorial_raw_task,
 )
 from asclepius.store import get_store, _utcnow_iso
 from ratelimit import rate_limiter
@@ -329,6 +338,143 @@ async def me(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     return asc_auth.public_user(user)
 
 
+@router.patch("/me/tutorial")
+async def update_my_tutorial(
+    body: TutorialStateUpdate, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """One transition on the caller's own first-run tutorial state.
+
+    Server-authoritative: the "the tutorial never re-triggers once finished"
+    invariant lives in THESE rules, not in client flags. ``start`` after
+    completed/skipped is a deliberate no-op (replay is a client-side affair and
+    must never clear completion); ``reset`` is allowed self-service because the
+    tutorial writes no real data.
+    """
+    store = _store()
+    current = store.get_tutorial_state(user["id"])
+    status = current.get("status") or "not_started"
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    action = body.action
+
+    if action == "start":
+        if status in ("completed", "skipped"):
+            return asc_auth.public_user(store.get_user_by_id(user["id"]))
+        if status == "not_started":
+            current = {
+                "status": "in_progress",
+                "step": body.step,
+                "version": body.version or TUTORIAL_VERSION,
+                "started_at": now,
+                "completed_at": None,
+                "skipped_at": None,
+            }
+        # already in_progress: keep position, refresh nothing
+    elif action == "advance":
+        if status in ("completed", "skipped"):
+            return asc_auth.public_user(store.get_user_by_id(user["id"]))
+        if status == "not_started":
+            current = {"status": "in_progress", "version": body.version or TUTORIAL_VERSION,
+                       "started_at": now, "completed_at": None, "skipped_at": None}
+        current["step"] = body.step
+    elif action == "skip":
+        if status != "completed" and not current.get("skipped_at"):
+            current["status"] = "skipped"
+            current["skipped_at"] = now
+            if not current.get("version"):
+                current["version"] = body.version or TUTORIAL_VERSION
+    elif action == "complete":
+        if not current.get("completed_at"):
+            current["status"] = "completed"
+            current["completed_at"] = now
+            current["skipped_at"] = None
+            if not current.get("version"):
+                current["version"] = body.version or TUTORIAL_VERSION
+            current.pop("step", None)
+    elif action == "reset":
+        current = {"status": "not_started", "version": None}
+
+    store.set_tutorial_state(user["id"], current)
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="tutorial_" + action, actor=user["id"],
+        payload={"step": body.step} if body.step else None,
+    )
+    return asc_auth.public_user(store.get_user_by_id(user["id"]))
+
+
+# ─── Tutorial — Calibration Case 1 ───────────────────────────────────────────
+# The practice case is a fully VIRTUAL task: assembled in memory from
+# ``tutorial_case.py``, never inserted into ``tasks``, its submission never
+# entering the pipeline. Isolation from the queue, records, exports, stats,
+# agreement, and value metrics is therefore structural (those all read the DB),
+# not a filter that someone can forget. Only ``events`` rows are written.
+@router.get("/tutorial/task")
+async def get_tutorial_task(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+    """The practice case, blinded EXACTLY like a real task (same
+    ``_blind_task`` path: ground_truth stripped, answer texts withheld)."""
+    return {"task": _blind_task(tutorial_raw_task())}
+
+
+@router.post("/tutorial/reveal")
+async def tutorial_reveal(
+    body: IndependentAnswer, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Mirror of ``POST /tasks/{id}/reveal`` minus persistence: the same
+    non-empty-instinct gate (the tutorial teaches the real rule), but no
+    ``independent_commits`` row — the practice case leaves no data behind."""
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "independent_answer_required",
+                "message": "Write your independent answer before revealing the AI answers.",
+            },
+        )
+    store = _store()
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="tutorial_reveal", actor=user["id"],
+    )
+    return {"answers": _task_answers(tutorial_raw_task()), "committed": True}
+
+
+@router.post("/tutorial/submit")
+async def tutorial_submit(
+    body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Grade the practice submission against the answer key and stamp the
+    caller's tutorial state completed. Never touches the real submit pipeline —
+    no ``submissions`` row, no ``records``, no QA routing."""
+    if body.task_id != TUTORIAL_TASK_ID:
+        raise HTTPException(status_code=400, detail="Not the tutorial task.")
+    payload = body.model_dump()
+    result = grade_tutorial_submission(payload)
+    store = _store()
+    current = store.get_tutorial_state(user["id"])
+    already_done = bool(current.get("completed_at"))
+    if not already_done:
+        now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+        current.update({
+            "status": "completed",
+            "completed_at": now,
+            "skipped_at": None,
+            "score": {"matched": result["matched"], "total": result["total"]},
+        })
+        if not current.get("version"):
+            current["version"] = TUTORIAL_VERSION
+        current.pop("step", None)
+        store.set_tutorial_state(user["id"], current)
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="tutorial_submitted", actor=user["id"],
+        payload={"matched": result["matched"], "total": result["total"],
+                 "replay": already_done},
+    )
+    return {"result": result,
+            "user": asc_auth.public_user(store.get_user_by_id(user["id"]))}
+
+
 # ─── Users (admin) ────────────────────────────────────────────────────────────
 @router.post("/users")
 async def create_user(
@@ -378,13 +524,13 @@ async def set_real_data_approval(
 
 
 # ─── Tasks ────────────────────────────────────────────────────────────────────
-@router.post("/tasks")
-async def upload_tasks(
-    body: TaskUploadRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
-):
-    store = _store()
-    created = []
-    for t in body.tasks:
+def _insert_tasks_from_upload_requests(
+    store: Any, tasks: List[TaskIn], *, created_by: str,
+) -> List[Dict[str, Any]]:
+    """Shared insert loop for the structured (Pydantic) upload path. Returns the
+    created task dicts (with ``task_id``/``specialty``) for notify + response."""
+    created: List[Dict[str, Any]] = []
+    for t in tasks:
         if not (t.prompt or "").strip():
             continue
         # Multimodal (Synthetic Multimodal Cases PRD §5): when a structured case is
@@ -408,18 +554,72 @@ async def upload_tasks(
             value_tier=t.value_tier,
             modality=t.modality,
             case=case_dict,
-            created_by=admin["id"],
+            created_by=created_by,
         )
-        created.append(task["task_id"])
+        created.append(task)
+    return created
+
+
+def _insert_tasks_from_dicts(
+    store: Any, tasks: List[Dict[str, Any]], *, created_by: str,
+) -> List[Dict[str, Any]]:
+    """Shared insert loop for the file-upload (dict) path. Returns the created
+    task dicts (with ``task_id``/``specialty``) for notify + response."""
+    created: List[Dict[str, Any]] = []
+    for t in tasks:
+        prompt = (t.get("prompt") or "").strip()
+        if not prompt:
+            continue
+        task = store.insert_task(
+            task_id=t.get("task_id"),
+            prompt=prompt,
+            specialty=t.get("specialty") or "general",
+            difficulty=t.get("difficulty") or "medium",
+            capture_reasoning=bool(t.get("capture_reasoning")),
+            source=t.get("source") or "lab_supplied",
+            candidate_answers=t.get("candidate_answers") or [],
+            max_labels=int(t.get("max_labels") or 1),
+            grounding_mode=t.get("grounding_mode") or "optional",
+            independent_mode=t.get("independent_mode") or DEFAULT_INDEPENDENT_MODE,
+            created_by=created_by,
+        )
+        created.append(task)
+    return created
+
+
+def _notify_new_tasks(
+    store: Any, background_tasks: BackgroundTasks, created: List[Dict[str, Any]], *, admin_id: str,
+) -> None:
+    """Enqueue the outbox rows synchronously (fast), then drain in the
+    background so the admin's request never blocks on ~1000 emails. Also
+    posts a one-line announcement to #task-announcements (in-app, plus the
+    channel's existing digest-email fan-out) — cheap enough to do inline."""
+    if not created:
+        return
+    batch_id = uuid.uuid4().hex
+    asc_task_notify.enqueue_for_batch(store, batch_id=batch_id, created_tasks=created)
+    background_tasks.add_task(asc_task_notify.drain_outbox, store)
+    asc_task_notify.post_community_announcement(store, admin_user_id=admin_id, created_tasks=created)
+
+
+@router.post("/tasks")
+async def upload_tasks(
+    body: TaskUploadRequest, background_tasks: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    store = _store()
+    created = _insert_tasks_from_upload_requests(store, body.tasks, created_by=admin["id"])
     store.log_event(
         entity_type="task", event_type="tasks_uploaded", actor=admin["id"], payload={"count": len(created)}
     )
-    return {"created": created, "count": len(created)}
+    _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
+    return {"created": [t["task_id"] for t in created], "count": len(created)}
 
 
 @router.post("/tasks/upload-file")
 async def upload_tasks_file(
-    file: UploadFile = File(...), admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...), admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Accept a JSON (list or {tasks:[...]}) or CSV task batch (PRD §4.3, §6.1)."""
     raw = (await file.read()).decode("utf-8", errors="replace")
@@ -442,30 +642,25 @@ async def upload_tasks_file(
                 raise HTTPException(status_code=400, detail="JSON must be a list of tasks or {tasks:[...]}")
 
     store = _store()
-    created = []
-    for t in tasks:
-        prompt = (t.get("prompt") or "").strip()
-        if not prompt:
-            continue
-        task = store.insert_task(
-            task_id=t.get("task_id"),
-            prompt=prompt,
-            specialty=t.get("specialty") or "general",
-            difficulty=t.get("difficulty") or "medium",
-            capture_reasoning=bool(t.get("capture_reasoning")),
-            source=t.get("source") or "lab_supplied",
-            candidate_answers=t.get("candidate_answers") or [],
-            max_labels=int(t.get("max_labels") or 1),
-            grounding_mode=t.get("grounding_mode") or "optional",
-            independent_mode=t.get("independent_mode") or DEFAULT_INDEPENDENT_MODE,
-            created_by=admin["id"],
-        )
-        created.append(task["task_id"])
+    created = _insert_tasks_from_dicts(store, tasks, created_by=admin["id"])
     store.log_event(
         entity_type="task", event_type="tasks_uploaded_file", actor=admin["id"],
         payload={"count": len(created), "filename": file.filename},
     )
-    return {"created": created, "count": len(created)}
+    _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
+    return {"created": [t["task_id"] for t in created], "count": len(created)}
+
+
+@router.post("/admin/task-notifications/drain")
+async def drain_task_notifications(
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Manual re-drain safety net (also handy for local QA): sends every
+    still-``pending`` outbox row. A crashed BackgroundTasks drain leaves rows
+    ``pending`` rather than losing them, so this recovers the tail."""
+    store = _store()
+    sent, failed = asc_task_notify.drain_outbox(store)
+    return {"sent": sent, "failed": failed}
 
 
 def _parse_csv_tasks(raw: str) -> List[Dict[str, Any]]:
@@ -2535,6 +2730,17 @@ async def upsert_contributor(
         event_type="credentials_updated", actor=admin["id"],
         payload={"organization": body.organization, "verified": body.credentials_verified},
     )
+    # Community v2: the vault flag is the OTHER path to "verified colleague" —
+    # fire the same one-time community welcome as queue approval. Guarded +
+    # idempotent inside; never fails the credential write.
+    if body.credentials_verified and (user or {}).get("user_id"):
+        try:
+            from community.onboard import welcome_new_member  # noqa: PLC0415
+            full_user = store.get_user_by_id(user["user_id"])
+            if full_user:
+                await welcome_new_member(full_user)
+        except Exception:
+            log.exception("[contributors] community welcome failed (credential write stands)")
     return {
         "id_hashed": id_hashed,
         "organization": saved.get("organization"),
@@ -3210,6 +3416,19 @@ async def mint_upload_link(
     """Mint a single-purpose, expiring partner upload link (PRD §4). The raw
     token is returned ONCE here and never stored (SHA-256 at rest)."""
     store = _store()
+    # PRD-I §2.1/§2.2 — the SAME two buttons the health-system form has. Without
+    # this the column existed with no writer and no reader, so every link-door
+    # upload landed NULL, resolved to task_creation in the gate, and promoted:
+    # the requirement the PRD wrote first was met for neither door it names.
+    #
+    # Nothing below branches on the value. Same token alphabet and length, same
+    # URL template, same expiry, same response shape — the recipient cannot tell
+    # which button was pressed.
+    purpose = (body.purpose or "").strip().lower()
+    if purpose not in asc_ingestion.PURPOSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"purpose must be one of {', '.join(asc_ingestion.PURPOSES)}.")
     token = secrets.token_urlsafe(32)
     expires_at = (datetime.utcnow() + timedelta(hours=max(1, min(720, body.expires_hours)))).isoformat()
     contact_email = (body.contact_email or "").strip() or None
@@ -3225,11 +3444,12 @@ async def mint_upload_link(
         max_bytes=min(body.max_bytes or asc_ingestion.max_zip_bytes(), asc_ingestion.max_zip_bytes()),
         created_by=admin["id"],
         contact_email=contact_email,
+        purpose=purpose,
     )
     store.log_event(entity_type="ingest_link", entity_id=link["link_id"],
                     event_type="upload_link_minted", actor=admin["id"],
                     payload={"partner_id": body.partner_id, "expires_at": expires_at,
-                             "one_time": body.one_time})
+                             "one_time": body.one_time, "purpose": purpose})
     base = (os.getenv("BASE_URL") or "").rstrip("/")
     return {**{k: v for k, v in link.items() if k != "token_hash"},
             "token": token,
@@ -3350,6 +3570,9 @@ async def partner_upload(
         size_bytes=len(data), raw_path=raw_path,
         source_ip=(request.client.host if request.client else None),
     )
+    # Provenance from the authorizing LINK row, joined server-side (PRD-I §2.1).
+    # This door had no such call at all, which is why its purpose column was dead.
+    store.attach_upload_provenance(upload["upload_id"], link_id=link["link_id"])
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
                     event_type="upload_received",
                     payload={"partner_id": link["partner_id"], "sha256": digest,
@@ -3923,8 +4146,44 @@ async def promote_ingest_case(
     ic = store.get_ingest_case(ingest_case_id)
     if not ic:
         raise HTTPException(status_code=404, detail="Ingested case not found")
+    # ═══ PRD-I §4.1 — brokering data can never become a task ═══
+    # The functional half of the confidentiality requirement, and the easy half to
+    # miss because nothing visibly breaks without it. A promoted brokering case
+    # gets labelled by a physician and ships inside a training bundle sold to a
+    # lab — data the partner sent us to broker, resold as annotation work.
+    #
+    # Checked BEFORE the status check so the reason an admin sees is the real one:
+    # "this is brokering data", not "this case is already promoted".
+    #
+    # This message is ADMIN-FACING and reaches no provider — it is raised only from
+    # endpoints behind require_admin.
+    # The case's own purpose OR its upload's — the copy onto the case is
+    # best-effort by design (it must never strand an upload), so reading only the
+    # case column would let a swallowed copy failure present as NULL and resolve
+    # to task_creation. Fail-open on the one check whose job is to fail closed.
+    if asc_ingestion.is_brokering(store.ingest_case_effective_purpose(ingest_case_id)):
+        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                        event_type="promote_refused_brokering", actor=admin["id"])
+        raise HTTPException(
+            status_code=409,
+            detail="This case came in on a brokering link and cannot be promoted.")
     if ic["status"] != "ingested":
         raise HTTPException(status_code=409, detail=f"Case is {ic['status']!r}, not 'ingested'")
+    # PRD-I §4.2: a WRONG specialty is worse than a missing one. It routes the case
+    # to the wrong physician pool and mislabels it in the export, invisibly, and
+    # neither is visible again once the bundle ships. `_convert_and_gate` falls
+    # back to a hardcoded literal for a case with no specialty at all, so refuse
+    # here rather than let that literal be applied — the admin sets it on the
+    # upload (POST /admin/uploads/{id}/specialty) and promotes again.
+    # ``general`` is what ingest writes when nothing declared a specialty — a real
+    # value in the column, so the earlier emptiness test could never fire and this
+    # guard was unreachable. It is the absence of a specialty, not a specialty.
+    if asc_ingestion.specialty_is_undetermined(ic.get("specialty")):
+        raise HTTPException(
+            status_code=409,
+            detail="Specialty not determined for this case. Set the specialty on the "
+                   "upload before promoting — promoting now would label it with a "
+                   "default that routes it to the wrong physician pool.")
     question = (body.question or "").strip()
     if not question:
         raise HTTPException(status_code=400, detail="A clinical question is required to promote")
@@ -3978,12 +4237,25 @@ async def prepare_upload_promotion(
     upload = store.get_ingest_upload(upload_id)
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
+    # PRD-I §4.1, extended to the PREVIEW step. This endpoint cannot create a task
+    # — both promote endpoints are gated, so the invariant holds without it — but
+    # it renders the clinical case and sends it to a third-party inference provider
+    # to generate candidate answers. Doing that with brokering data is the activity
+    # the rule exists to prevent, whether or not a task comes out the other end.
+    _purposes = store.ingest_case_purposes_for_upload(upload_id)
     ingested = [c for c in store.list_ingest_cases(upload_id=upload_id)
-                if c.get("status") == "ingested"]
+                if c.get("status") == "ingested"
+                and not asc_ingestion.is_brokering(
+                    _purposes.get(c.get("ingest_case_id"), c.get("purpose")))]
     if not ingested:
         raise HTTPException(status_code=409,
                             detail="No ingested cases awaiting promotion in this upload.")
     ic = ingested[0]
+    if asc_ingestion.specialty_is_undetermined(ic.get("specialty")):
+        raise HTTPException(
+            status_code=409,
+            detail="Specialty not determined for this case. Set the specialty on the "
+                   "upload before promoting.")
     question = ((body.question or "").strip()
                 or _default_clinical_question(ic.get("specialty")))
     conv = await _convert_and_gate(store, ic, question)
@@ -4015,15 +4287,43 @@ async def promote_upload_all(
     upload = store.get_ingest_upload(upload_id)
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
-    ingested = [c for c in store.list_ingest_cases(upload_id=upload_id)
-                if c.get("status") == "ingested"]
+    candidates = [c for c in store.list_ingest_cases(upload_id=upload_id)
+                  if c.get("status") == "ingested"]
+    # PRD-I §4.1: brokering cases are FILTERED OUT of the batch rather than failing
+    # it. An admin promoting a mixed upload should get their task-creation cases
+    # promoted and a count of what was skipped — failing the whole batch would push
+    # them toward promoting case-by-case, which is the workflow where a brokering
+    # case eventually slips through.
+    _purposes = store.ingest_case_purposes_for_upload(upload_id)
+
+    def _is_brokering(c: Dict[str, Any]) -> bool:
+        return asc_ingestion.is_brokering(
+            _purposes.get(c.get("ingest_case_id"), c.get("purpose")))
+
+    ingested = [c for c in candidates if not _is_brokering(c)]
+    skipped_brokering = [c for c in candidates if _is_brokering(c)]
+    if skipped_brokering:
+        store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                        event_type="promote_skipped_brokering", actor=admin["id"],
+                        payload={"skipped": len(skipped_brokering)})
     if not ingested:
-        raise HTTPException(status_code=409,
-                            detail="No ingested cases awaiting promotion in this upload.")
+        detail = ("No ingested cases awaiting promotion in this upload."
+                  if not skipped_brokering else
+                  f"All {len(skipped_brokering)} case(s) in this upload came in on a "
+                  "brokering link and cannot be promoted.")
+        raise HTTPException(status_code=409, detail=detail)
     promoted: List[Dict[str, Any]] = []
     gated: List[Dict[str, Any]] = []
     failed: List[Dict[str, Any]] = []
     for ic in ingested:
+        # Same guard as the single-case endpoint: never let the hardcoded
+        # specialty fallback label a case (PRD-I §4.2). One unlabelled case does
+        # not fail the batch — it is reported alongside the gated ones.
+        if asc_ingestion.specialty_is_undetermined(ic.get("specialty")):
+            gated.append({"ingest_case_id": ic.get("ingest_case_id"),
+                          "failures": ["specialty not determined — set it on the "
+                                       "upload before promoting"]})
+            continue
         question = ((body.question or "").strip()
                     or _default_clinical_question(ic.get("specialty")))
         try:
@@ -4047,7 +4347,13 @@ async def promote_upload_all(
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="promote_all", actor=admin["id"],
                     payload={"promoted": len(promoted), "gated": len(gated),
-                             "failed": len(failed)})
+                             "failed": len(failed),
+                             "skipped_brokering": len(skipped_brokering)})
     return {"upload_id": upload_id, "promoted": len(promoted), "gated": len(gated),
-            "failed": len(failed), "task_ids": [p["task_id"] for p in promoted],
-            "details": {"promoted": promoted, "gated": gated, "failed": failed}}
+            "failed": len(failed), "skipped_brokering": len(skipped_brokering),
+            "task_ids": [p["task_id"] for p in promoted],
+            "details": {"promoted": promoted, "gated": gated, "failed": failed,
+                        "skipped_brokering": [
+                            {"ingest_case_id": c.get("ingest_case_id"),
+                             "reason": "came in on a brokering link"}
+                            for c in skipped_brokering]}}

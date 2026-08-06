@@ -8,7 +8,7 @@ to QA rather than rejected at the HTTP boundary (PRD §5 — "no lost submission
 from __future__ import annotations
 
 import re
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 from pydantic import AfterValidator, BaseModel, Field, model_validator
 
@@ -93,6 +93,11 @@ class UploadLinkRequest(BaseModel):
     partner_id: str
     partner_label: Optional[str] = None
     specialty: str = "nephrology"
+    # What uploads through this link are FOR (PRD-I §2.1: 'task_creation' |
+    # 'brokering'). REQUIRED and with no default — a link minted with no purpose
+    # is a decision nobody made, and the promotion gate resolves NULL as task
+    # creation, so a defaulted link is silently promotable.
+    purpose: str
     expires_hours: int = 72          # capped 1..720 server-side
     one_time: bool = True
     max_bytes: Optional[int] = None  # capped to the global ingest limit
@@ -685,3 +690,11 @@ class BuyerDeliveryRequest(BaseModel):
     data_format: Optional[str] = None
     note: Optional[str] = None
     include_exported: bool = True
+
+
+class TutorialStateUpdate(BaseModel):
+    """PATCH /me/tutorial — one transition on the caller's own tutorial state."""
+
+    action: Literal["start", "advance", "skip", "complete", "reset"]
+    step: Optional[str] = None
+    version: Optional[int] = None

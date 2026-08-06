@@ -319,14 +319,16 @@ export function Step2Verify({
   onVerify,
   onBack,
   error,
+  eyebrow = "Step 2",
 }: {
   data: OnboardingData;
-  /** POST /api/onboarding/request-otp; resolve `false` on error to stay Idle. */
+  /** POST /api/onboarding/request-otp (or /member/request-otp); resolve `false` on error to stay Idle. */
   onSendCode: () => Promise<boolean>;
-  /** POST /api/onboarding/verify-otp with the 6-digit code; resolve `false` to stay Idle. */
+  /** POST /api/onboarding/verify-otp (or /member/verify-otp) with the 6-digit code; resolve `false` to stay Idle. */
   onVerify: (code: string) => Promise<boolean>;
   onBack: () => void;
   error?: string;
+  eyebrow?: string;
 }) {
   const [sent, setSent] = useState(false);
   const [resendIn, setResendIn] = useState(0);
@@ -358,7 +360,7 @@ export function Step2Verify({
 
   return (
     <OnboardingCard
-      eyebrow="Step 2"
+      eyebrow={eyebrow}
       title="Verify your email."
       lede={
         sent ? (

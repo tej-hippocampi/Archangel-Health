@@ -65,7 +65,13 @@
     portalChosen: false,    // has the evaluator picked V1/V2 on the home page yet
     specialtyChosen: false, // has the evaluator picked a specialty this session (V3/V4)
     specialties: null,      // cached GET /specialties listing (drives the picker)
+    // First-run tutorial (Calibration Case 1). Null when not running; set by
+    // startTutorial to {active, replay, idx}. Server state (user.tutorial) is
+    // the launch authority; this is only the live tour position.
+    tutorial: null,
+    instrOpen: false,       // instruction drawer visibility
   };
+  function tutorialActive() { return !!(state.tutorial && state.tutorial.active); }
 
   // ─── Tiny DOM helper ───────────────────────────────────────────────────────
   function h(tag, attrs, ...children) {
@@ -202,6 +208,10 @@
     badge.appendChild(h('span', { class: 'asc-user-email' }, state.user.email));
     badge.appendChild(h('span', { class: 'asc-user-role' },
       state.user.role.replace('_', ' ') + (state.user.specialty ? ' · ' + state.user.specialty : '')));
+
+    // The corner ? tab (below) is the single help entry point — replay the
+    // practice case or view a summary of it. No separate header control.
+    ensureInstrTab();
 
     document.getElementById('ascLogoutBtn').onclick = logout;
   }
@@ -843,6 +853,15 @@
     renderHeader();
     renderSidePanel();
     startCommunityPolling();
+    // First-run tutorial gate (Calibration Case 1): a brand-new evaluator lands
+    // in the practice case; in_progress resumes it. completed/skipped NEVER
+    // re-trigger (server-authoritative via PATCH /me/tutorial). Admin/QA skip it.
+    const tut = (state.user && state.user.tutorial) || {};
+    if (state.user.role === 'evaluator'
+        && (tut.status === 'not_started' || tut.status === 'in_progress')) {
+      startTutorial({ resume: tut.status === 'in_progress', resumeStep: tut.step });
+      return;
+    }
     renderEvalView();
   }
 
@@ -862,6 +881,13 @@
   function logout() {
     state.token = null;
     state.user = null;
+    // Tear down the logged-in-only chrome (corner ? tab, its menu, the panel).
+    const instrTab = document.getElementById('ascInstrTab');
+    if (instrTab) instrTab.remove();
+    const cornerMenu = document.getElementById('ascCornerMenu');
+    if (cornerMenu) cornerMenu.remove();
+    const instrDrawer = document.getElementById('ascInstrDrawer');
+    if (instrDrawer) instrDrawer.remove();
     localStorage.removeItem(TOKEN_KEY);
     // Suppress the silent doctor-portal SSO on the next boot so signing out
     // actually lands on the sign-in form (otherwise an active doctor session
@@ -1534,7 +1560,7 @@
     if (!tabs.some((t) => t.key === state._caseTab)) state._caseTab = tabs[0].key;
 
     const bodyHost = h('div', { class: 'asc-case-host' });
-    const tabRow = h('div', { class: 'asc-case-tabs', role: 'tablist' });
+    const tabRow = h('div', { class: 'asc-case-tabs', role: 'tablist', dataset: { tour: 'case-tabs' } });
     function paint() {
       clear(bodyHost);
       const active = tabs.find((t) => t.key === state._caseTab) || tabs[0];
@@ -2422,6 +2448,7 @@
   async function loadAssist() {
     const d = state.draft;
     if (!d || d.stage !== 'compare') return;
+    if (tutorialActive()) return; // /assist/prelabel is task-scoped; the practice case is virtual
     if (!isAssisted()) return;  // model assist is an assisted-flow (V2 + V3) feature
     // V3 anti-rubber-stamp guard (Seamless PRD WS1): AI suggestions are hidden
     // until the clinician commits their OWN verdict. We don't merely hide them —
@@ -2832,7 +2859,8 @@
         + (isCase ? 'case' : 'question') + ', continue — flagged '
         + (isCase ? 'cases' : 'prompts') + ' leave your queue and go to admin review with your reason.'),
       h('div', { class: 'asc-gate-actions' },
-        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', onClick: validatePrompt },
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', dataset: { tour: 'prompt-continue' },
+          onClick: validatePrompt },
           'Looks clinically valid — continue →'),
         flagBtn),
       reasonBox);
@@ -2847,6 +2875,12 @@
   }
 
   async function flagPrompt() {
+    // The practice case is deliberately valid; flagging it would otherwise POST
+    // a REAL submission (this path bypasses the tutorial submit branch).
+    if (tutorialActive()) {
+      toast('This is the practice case — it’s deliberately valid. Continue instead.', 'info');
+      return;
+    }
     const d = state.draft;
     d.prompt_review.reviewed = true;
     d.prompt_review.verdict = 'flagged';
@@ -2871,6 +2905,10 @@
   // flagPrompt but stamps the case_incoherent verdict; the server routes the case
   // out (0 records) and feeds the signal back to case-generation recalibration.
   async function flagCaseIncoherent() {
+    if (tutorialActive()) {
+      toast('This is the practice case — it’s deliberately valid. Continue instead.', 'info');
+      return;
+    }
     const d = state.draft;
     d.prompt_review.reviewed = true;
     d.prompt_review.verdict = 'case_incoherent';
@@ -3035,7 +3073,7 @@
           : fullMode
             ? 'This is captured uncontaminated — your own gold answer, before the A/B answers can anchor your judgment.'
             : 'A few key points, captured before the A/B answers can anchor your judgment. 30–45 seconds is plenty — your refined chosen answer later is the gold answer.'),
-      h('div', { class: 'asc-field' }, withMic(field), counter),
+      h('div', { class: 'asc-field', dataset: { tour: 'instinct-field' } }, withMic(field), counter),
       renderAnchorBlock(ia.evidence_anchor, { label: 'citation for your answer', required: false }),
       h('div', { class: 'asc-gate-reveal' }, hint, revealBtn));
     setTimeout(syncReveal, 0);
@@ -3056,6 +3094,15 @@
   // pre-reveal and treats it as authoritative at packaging.
   async function revealAnswers() {
     const ia = state.draft.independent_answer;
+    // Tutorial: same non-empty-instinct rule, but against the virtual practice
+    // case (no independent_commits row is written server-side).
+    if (tutorialActive()) {
+      const res = await api('/tutorial/reveal', {
+        method: 'POST', body: { text: (ia.text || '').trim() },
+      });
+      mergeAnswers(res.answers);
+      return;
+    }
     const res = await api('/tasks/' + state.draft.task_id + '/reveal', {
       method: 'POST',
       body: {
@@ -4505,6 +4552,9 @@
   // (additively) whenever the doctor's tags change. Never prompts, never asks.
   async function seedRubric(force) {
     const d = state.draft;
+    // Tutorial: /rubric/suggest is task-scoped (404 on the virtual case), and
+    // authoring criteria by hand IS the lesson — mark seeded, fall to manual.
+    if (tutorialActive()) { d.rubricSeeded = true; updateSubmitState(); return; }
     if (d.rubricSeeded && !force) return;
     d.rubricSeeded = true;
     state._rubricSeeding = true;
@@ -5657,6 +5707,9 @@
       if (abVerdict && (!whyBetterConditionsMet() || !critiqueConditionsMet())) { updateSubmitState(); return; }
       if (!d0.confidence_set) { updateSubmitState(); return; }
     }
+    // Tutorial: grade against the answer key and show the reveal — the real
+    // submit pipeline (and its records/QA routing) is never touched.
+    if (tutorialActive()) { await submitTutorialEvaluation(); return; }
     state.submitting = true;
     updateHeaderProgress(); // §16: the bar reads 100% while the submit runs
     const btn = document.getElementById('ascSubmit');
@@ -6262,28 +6315,43 @@
     // PRD-C: send upload access to a health system. Two fields; everything else
     // (health-system row, username, passphrase, forced reset) is derived
     // server-side. Replaces the old six-field link-minting form.
+    // ═══ PRD-I §2.2 — two buttons, one form, one code path ═══
+    // The two buttons post the SAME body to the SAME endpoint with a different
+    // purpose, and everything downstream of the mint is identical: same email,
+    // same subject, same portal, same URL shape. The recipient cannot tell which
+    // button was pressed, and that is the requirement — not a nicety. Only the
+    // admin knows.
+    //
+    // There is no default and no third "unset" option. A partner minted with no
+    // purpose is a decision nobody made, and the promotion gate would read it as
+    // task creation.
     const hsOrg = h('input', { class: 'asc-input', placeholder: 'Mass General Hospital' });
     const hsEmail = h('input', { type: 'email', class: 'asc-input', placeholder: 'data@mgh.harvard.edu' });
     const mintStatus = h('div', {});
-    const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send upload link');
-    mintBtn.addEventListener('click', async () => {
+    const mintButtons = [];
+    async function sendUploadAccess(purpose) {
       clear(mintStatus);
       const org = hsOrg.value.trim();
       const email = hsEmail.value.trim();
       if (!org) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Organization is required.')); return; }
       if (!email) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Email is required.')); return; }
-      mintBtn.setAttribute('disabled', '');
+      mintButtons.forEach((b) => b.setAttribute('disabled', ''));
       try {
         const res = await api('/admin/health-systems/provision', { method: 'POST', body: {
-          organization: org, email: email,
+          organization: org, email: email, purpose: purpose,
         } });
         mintStatus.appendChild(h('div', { class: 'asc-inline-ok' }, res.message
           || ('Upload access sent to ' + email + '.')));
         hsOrg.value = ''; hsEmail.value = '';
         loadIngestionLists();
       } catch (e) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
-      finally { mintBtn.removeAttribute('disabled'); }
-    });
+      finally { mintButtons.forEach((b) => b.removeAttribute('disabled')); }
+    }
+    const mintTaskBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send link — task creation');
+    const mintBrokerBtn = h('button', { class: 'asc-btn asc-btn-subtle', style: 'margin-left:8px' }, 'Send link — brokering');
+    mintTaskBtn.addEventListener('click', () => sendUploadAccess('task_creation'));
+    mintBrokerBtn.addEventListener('click', () => sendUploadAccess('brokering'));
+    mintButtons.push(mintTaskBtn, mintBrokerBtn);
     const mintCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
         h('div', { class: 'asc-card-title' }, 'Send a health system its upload access'),
@@ -6292,7 +6360,10 @@
         h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Organization'), hsOrg),
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Email'), hsEmail)),
-        mintBtn, mintStatus));
+        mintTaskBtn, mintBrokerBtn,
+        h('div', { class: 'asc-label-hint', style: 'margin-top:8px' },
+          'Both links are byte-identical to the recipient. Which button you press is recorded on our side only, and decides whether the data can ever become a task.'),
+        mintStatus));
 
     const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));
     const casesCard = h('div', { class: 'asc-card', id: 'ascIngestCases' }, loadingCard('Loading ingested cases…'));
@@ -8558,6 +8629,819 @@
   window.addEventListener('beforeunload', saveDraft);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveDraft(); });
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Tutorial — Calibration Case 1 (first-run guided practice case)
+  //  A custom action-gated tour over the REAL labeling flow: each step advances
+  //  only when the doctor performs the real action (read via the same
+  //  state.draft flags the app itself gates on), never on a bare "Next". The
+  //  practice case is virtual server-side; the scored reveal compares the
+  //  doctor to the reference panel. Skippable everywhere, replayable forever
+  //  from the help menu, and the instruction drawer below is generated from the
+  //  SAME step content so tour and manual can never drift.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const TUTORIAL_TASK_ID = 'tutorial-calibration-1';
+  const INSTR_SEEN_KEY = 'asc_instr_seen';
+
+  // ─── Tour targets: THE contract with the labeling UI ───────────────────────
+  // Every selector the tour points at lives HERE, in one map, so a UI redesign
+  // (case panel, substage cards, buttons) is a one-place fix. Preference order:
+  // data-tour attributes > stable ids > data-substage. If a redesign removes a
+  // target entirely, the step auto-skips after a short wait (see
+  // renderTourSpotlight) — a missing element must never strand the doctor.
+  const TOUR_TARGETS = {
+    caseTabs: '[data-tour="case-tabs"]',
+    labsTab: '[data-tour="case-tabs"] [data-tab="labs"]',
+    promptContinue: '[data-tour="prompt-continue"]',
+    instinct: '[data-tour="instinct-field"]',
+    revealBtn: '#ascRevealBtn',
+    answers: '#ascAnswers',
+    verdicts: '#ascVerdicts',
+    refine: '[data-substage="refine"], [data-substage="from_scratch"]',
+    whyBetter: '[data-substage="why_better"]',
+    citations: '[data-substage="citations"]',
+    critique: '[data-substage="critique_rejected"]',
+    reasoning: '[data-substage="reasoning"]',
+    rubric: '[data-substage="rubric"]',
+    confidence: '[data-substage="confidence"]',
+    submit: '#ascSubmit',
+  };
+
+  // ─── Content: functionality-first, both-path cues, no clinical spoilers ────
+  // copy: one plain instruction (do this with the case). Where the doctor might
+  // legitimately do nothing (no edits, no citation), the copy names BOTH paths.
+  // intro: shown as a smaller second line on the chapter's first step (chapter
+  // interstitials were cut — one welcome screen, then an uninterrupted flow).
+  // advanceOn: {state: (d) => bool} | {click: selector} | {manual: true}.
+  // "Skip this step" for a step that requires real app state to progress
+  // (everything below except the two pure-reading beats) does not just move
+  // a pointer — it performs a reasonable version of the real action through
+  // the app's own handlers/state, exactly as if the doctor had done it, so
+  // the underlying draft (and, for reveal/submit, the backend) actually
+  // advances and the tour lands on a REAL next step. Placeholder text is
+  // always visibly marked "(practice run)" and this data is never recorded
+  // (the tutorial submission is graded, never saved — see tutorial_case.py).
+  const TUTORIAL_CHAPTERS = [
+    {
+      id: 'ch1', title: 'Read the case',
+      intro: 'The tabs hold the chart: labs, notes, meds, vitals.',
+      steps: [
+        { id: 'ch1-tabs', target: TOUR_TARGETS.caseTabs,
+          copy: 'Read the case — open each tab, starting with Labs.',
+          advanceOn: { click: TOUR_TARGETS.labsTab },
+          doneWhen: (d) => d.stage !== 'prompt_review',
+          note: 'Every case starts with the chart. Open each tab (Patient, Labs, EHR, Meds, Vitals) and read it through before judging anything.' },
+        { id: 'ch1-valid', target: TOUR_TARGETS.promptContinue,
+          copy: 'If the case reads as real and answerable, continue. If not, flag it.',
+          advanceOn: { state: (d) => d.stage !== 'prompt_review' },
+          autofill: () => validatePrompt(),
+          note: 'Step 1 is a sanity gate: continue when the case is valid, or flag it with a reason — flagged cases leave your queue for admin review.' },
+      ],
+    },
+    {
+      id: 'ch2', title: 'Your take first',
+      intro: 'You commit one line before seeing any AI answers, so they can’t anchor you.',
+      steps: [
+        { id: 'ch2-instinct', target: TOUR_TARGETS.instinct,
+          copy: 'Type your first take on the case — one line.',
+          advanceOn: { state: (d) => !!((d.independent_answer || {}).text || '').trim() },
+          autofill: () => {
+            const d = state.draft;
+            if ((d.independent_answer.text || '').trim()) return;
+            d.independent_answer.text = 'Skipped (practice run).';
+            saveDraft();
+            renderTaskWorkspace();
+          },
+          note: 'The one-line gut check. It’s why the AI answers look blurred at first — deliberate, not broken.' },
+        { id: 'ch2-reveal', target: TOUR_TARGETS.revealBtn,
+          copy: 'Now reveal the two AI answers.',
+          advanceOn: { state: (d) => d.stage === 'compare' },
+          autofill: () => commitIndependentAnswerAndReveal(),
+          note: 'Reveal commits your line and unblinds the answers (Enter works too).' },
+      ],
+    },
+    {
+      id: 'ch3', title: 'Compare & pick',
+      intro: 'Two anonymized model answers to the same case. Judge the reasoning.',
+      steps: [
+        { id: 'ch3-read', target: TOUR_TARGETS.answers,
+          copy: 'Read both answers, then continue.',
+          advanceOn: { manual: true },
+          doneWhen: (d) => !!d.verdict,
+          note: 'Answers are anonymized (Model A / Model B) and order-randomized.' },
+        { id: 'ch3-verdict', target: TOUR_TARGETS.verdicts,
+          copy: 'Pick the stronger answer — or mark both inadequate.',
+          advanceOn: { state: (d) => !!d.verdict },
+          autofill: () => selectVerdict('B_better'),
+          note: 'Keys 1 / 2 / 3 work. "Both inadequate" asks you to write the ideal answer yourself instead.' },
+        { id: 'ch3-refine', target: TOUR_TARGETS.refine,
+          copy: 'Edit the answer if anything is off — or save it unchanged if it’s right.',
+          advanceOn: { state: (d) => !!d.refine_saved || !!d.from_scratch_saved },
+          autofill: () => {
+            const d = state.draft;
+            if (d.verdict === 'both_inadequate') {
+              if (!(d.from_scratch.ideal_answer || '').trim()) {
+                d.from_scratch.ideal_answer = 'Intensify decongestion given persistent volume overload (practice run).';
+              }
+              d.from_scratch_saved = true;
+            } else {
+              d.refine_saved = true;
+            }
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
+          note: 'Your saved version becomes the gold answer. Saving with no edits is a valid choice when the answer is already correct.' },
+      ],
+    },
+    {
+      id: 'ch4', title: 'Say what’s right and wrong',
+      intro: 'The structured critique is the product: tagged errors, severities, sources.',
+      steps: [
+        { id: 'ch4-why', target: TOUR_TARGETS.whyBetter,
+          copy: 'Write one line on why it won, and tag at least one reason.',
+          skipIf: (d) => d.verdict === 'both_inadequate',
+          advanceOn: { state: () => substageComplete('why_better') },
+          autofill: () => {
+            const d = state.draft;
+            const rev = d.chosen_revision;
+            if (!(rev.why_better_notes || '').trim()) {
+              rev.why_better_notes = 'Reads the persistent-congestion evidence rather than the creatinine trend alone (practice run).';
+            }
+            if (!(rev.why_better_tags || []).length) {
+              rev.why_better_tags = [(state.taxonomy.why_better_tags || ['safer'])[0]];
+            }
+            d.why_better_done = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
+          note: 'One sentence plus at least one why-better tag.' },
+        { id: 'ch4-cite', target: TOUR_TARGETS.citations,
+          copy: 'Attach a supporting citation — or continue without one.',
+          skipIf: (d) => d.verdict === 'both_inadequate',
+          advanceOn: { state: () => substageComplete('citations') },
+          autofill: () => {
+            const d = state.draft;
+            const rev = d.chosen_revision;
+            if ((state.task.grounding_mode === 'required') && !isValidAnchor(rev.evidence_anchor)) {
+              rev.evidence_anchor = { citation_text: 'KDIGO 2024 (practice placeholder)', source_type: 'guideline', identifier: '' };
+            }
+            d.citations_reviewed = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
+          note: 'Citations are optional here (required on some tasks); the search box knows the major guidelines.' },
+        { id: 'ch4-critique', target: TOUR_TARGETS.critique,
+          copy: 'Tag each error in the other answer. Tap a tag again to set severity.',
+          skipIf: (d) => d.verdict === 'both_inadequate',
+          advanceOn: { state: () => substageComplete('critique_rejected') },
+          autofill: () => {
+            const d = state.draft;
+            const crit = d.rejected_critique;
+            if (!(crit.error_tags || []).length) {
+              const tag = (state.taxonomy.error_tags || ['unsafe_recommendation'])[0];
+              crit.error_tags = [tag];
+              crit.severities[tag] = crit.severities[tag] || 'high';
+            } else {
+              crit.error_tags.forEach((t) => { crit.severities[t] = crit.severities[t] || 'high'; });
+            }
+            if (!(crit.why_worse || '').trim()) {
+              crit.why_worse = 'A fluid bolus in a still-congested patient re-congests them (practice run).';
+            }
+            closeTagPopover();
+            d.critique_done = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
+          note: 'Error tags come from a fixed taxonomy; the severity picker is behind a second tap on the tag — easy to miss.' },
+        { id: 'ch4-reasoning', target: TOUR_TARGETS.reasoning,
+          copy: 'Confirm each reasoning step that’s right; open any that aren’t.',
+          skipIf: () => !(state.task && state.task.capture_reasoning),
+          advanceOn: { state: () => substageComplete('reasoning') },
+          autofill: () => autofillReasoningSteps(),
+          note: 'The answer splits into steps; confirm the good ones, correct the bad ones.' },
+      ],
+    },
+    {
+      id: 'ch5', title: 'Score & submit',
+      intro: 'Your scoring guide becomes a reusable grader for future models.',
+      steps: [
+        { id: 'ch5-rubric', target: TOUR_TARGETS.rubric,
+          copy: 'Add scoring criteria — include at least one critical negative.',
+          advanceOn: { state: () => substageComplete('rubric') },
+          autofill: () => {
+            const d = state.draft;
+            if (!hasCriticalNegative(d.rubric)) {
+              d.rubric.push({
+                text: 'Recommends holding diuresis or giving IV fluids despite persistent congestion (practice run)',
+                points: -9, axis: 'safety', source: 'manual',
+              });
+            }
+            d.rubric_done = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
+          note: 'Criteria carry points; a −8 to −10 negative is a critical negative (auto-fail) and each case needs at least one.' },
+        { id: 'ch5-confidence', target: TOUR_TARGETS.confidence,
+          copy: 'Rate your confidence.',
+          advanceOn: { state: (d) => !!d.confidence_set },
+          autofill: () => {
+            const d = state.draft;
+            if (!d.confidence_set) { d.confidence = 'high'; d.confidence_set = true; saveDraft(); }
+            renderTaskWorkspace();
+          },
+          note: 'Low / medium / high — honest calibration beats looking sure.' },
+        { id: 'ch5-submit', target: TOUR_TARGETS.submit,
+          copy: 'Submit — and see how you compare with the reference panel.',
+          advanceOn: { state: () => false },  // the submit path ends the tour
+          autofill: () => submitEvaluation(),
+          note: 'Submit packages your work into training records. On the practice case it scores you against the reference panel instead.' },
+      ],
+    },
+  ];
+
+  // ch4-reasoning's autofill needs to wait out the async auto-split (heuristic
+  // or LLM-pregraded) before confirm buttons exist — retries briefly rather
+  // than assuming they're already on screen.
+  function autofillReasoningSteps(triesLeft) {
+    triesLeft = triesLeft == null ? 15 : triesLeft;
+    let btn;
+    let guard = 0;
+    while ((btn = document.querySelector(TOUR_TARGETS.reasoning + ' .asc-step-confirm:not(.active)')) && guard++ < 50) {
+      btn.click();
+    }
+    const cont = document.querySelector('#ascStepsCont');
+    if (cont && !cont.disabled) { cont.click(); return; }
+    if (triesLeft > 0) setTimeout(() => autofillReasoningSteps(triesLeft - 1), 200);
+  }
+
+  const TUTORIAL_STEPS = [];
+  TUTORIAL_CHAPTERS.forEach((ch) => ch.steps.forEach((s, i) => {
+    TUTORIAL_STEPS.push(Object.assign({ chapter: ch, chapterFirst: i === 0 }, s));
+  }));
+
+  // ─── Engine ────────────────────────────────────────────────────────────────
+  let _tourObserver = null;
+  let _tourTickTimer = null;
+  let _tourPatchTimer = null;
+  let _tourScrolledFor = null; // step id already auto-centered (scroll once per step)
+
+  function tutCurrentStep() {
+    const t = state.tutorial;
+    return (t && TUTORIAL_STEPS[t.idx]) || null;
+  }
+
+  function tutStepSatisfied(step) {
+    const d = state.draft;
+    if (!d) return false;
+    try {
+      if (step.skipIf && step.skipIf(d)) return true;
+      // doneWhen lets a click/manual step fast-forward on resume once its
+      // moment has passed (the draft is the truth, not the click history).
+      if (step.doneWhen && step.doneWhen(d)) return true;
+      const adv = step.advanceOn || {};
+      if (adv.state) return !!adv.state(d);
+    } catch (e) { return false; }
+    return false; // click/manual steps only advance on their explicit action
+  }
+
+  function tutPersistStep(stepId) {
+    if (!state.tutorial || state.tutorial.replay) return;
+    clearTimeout(_tourPatchTimer);
+    _tourPatchTimer = setTimeout(() => {
+      api('/me/tutorial', { method: 'PATCH', body: { action: 'advance', step: stepId } })
+        .then((u) => { state.user = u; })
+        .catch(() => { /* position sync is best-effort */ });
+    }, 600);
+  }
+
+  function tutAdvance() {
+    const t = state.tutorial;
+    if (!t) return;
+    t.idx += 1;
+    const step = tutCurrentStep();
+    if (step) tutPersistStep(step.id);
+    tutTick();
+  }
+
+  // "Skip this step" moves the pointer forward, but many steps only render
+  // once the REAL section before them is actually finished (the app shows one
+  // decision at a time). If the app hasn't gotten there, the target the tour
+  // just jumped to doesn't exist yet and skipping would strand the doctor
+  // staring at nothing. Detect that and walk back to the nearest not-yet-done
+  // step whose target IS on screen right now — that's the true blocker, and
+  // re-spotlighting it (rather than a blank corner) is what keeps guiding
+  // them. A real "Continue" click on that section resumes forward motion the
+  // moment its state predicate is satisfied.
+  function resolveTourIndex() {
+    const t = state.tutorial;
+    if (!t) return;
+    const cur = TUTORIAL_STEPS[t.idx];
+    if (!cur || document.querySelector(cur.target)) return; // nothing to resolve
+    for (let i = t.idx - 1; i >= 0; i--) {
+      const s = TUTORIAL_STEPS[i];
+      if (tutStepSatisfied(s)) continue; // already done — not the blocker
+      if (document.querySelector(s.target)) { t.idx = i; t.bounced = true; return; }
+    }
+  }
+
+  // The tick: fast-forward past satisfied/skipped steps, then render the
+  // current beat (interstitial or spotlight). Runs after every DOM mutation,
+  // scroll, and resize — cheap by design.
+  function tutTick() {
+    if (!tutorialActive()) return;
+    // A modal (the welcome screen or the skip-tutorial confirm) OWNS the
+    // screen while it's open. tutTick runs on a timer and on every DOM
+    // mutation/scroll/resize, so without this guard a stray re-tick while the
+    // confirm dialog is up would silently re-show the spotlight ring and
+    // tooltip right on top of it — exactly the "box is still there" bug.
+    if (document.getElementById('ascTourSkipConfirm')) return;
+    const t = state.tutorial;
+    resolveTourIndex();
+    let step = tutCurrentStep();
+    let moved = false;
+    while (step && tutStepSatisfied(step)) { t.idx += 1; moved = true; step = tutCurrentStep(); t.bounced = false; }
+    if (moved && step) tutPersistStep(step.id);
+    if (!step) { hideTourLayer(); return; }  // waiting on the submit path
+    // One welcome screen, then an uninterrupted flow (chapter intros ride
+    // along as a second line on each chapter's first tooltip instead).
+    if (!t.welcomed) { renderTourWelcome(); return; }
+    renderTourSpotlight(step);
+  }
+  function scheduleTutTick() {
+    clearTimeout(_tourTickTimer);
+    _tourTickTimer = setTimeout(tutTick, 80);
+  }
+
+  function mountTourEngine() {
+    if (_tourObserver) return;
+    _tourObserver = new MutationObserver((muts) => {
+      // Ignore mutations inside the tour's own layer or the drawer.
+      for (const m of muts) {
+        const n = m.target;
+        if (n && n.closest && (n.closest('#ascTourLayer') || n.closest('#ascInstrDrawer'))) continue;
+        scheduleTutTick();
+        return;
+      }
+    });
+    _tourObserver.observe(root(), { childList: true, subtree: true, attributes: true });
+    window.addEventListener('resize', scheduleTutTick);
+    window.addEventListener('scroll', scheduleTutTick, true);
+    document.addEventListener('click', tutClickAdvance, true);
+    document.addEventListener('keydown', tutKeydown, true);
+  }
+
+  function teardownTutorial() {
+    if (_tourObserver) { _tourObserver.disconnect(); _tourObserver = null; }
+    window.removeEventListener('resize', scheduleTutTick);
+    window.removeEventListener('scroll', scheduleTutTick, true);
+    document.removeEventListener('click', tutClickAdvance, true);
+    document.removeEventListener('keydown', tutKeydown, true);
+    clearTimeout(_tourTickTimer);
+    const layer = document.getElementById('ascTourLayer');
+    if (layer) layer.remove();
+    state.tutorial = null;
+  }
+
+  function tutClickAdvance(e) {
+    if (!tutorialActive()) return;
+    const step = tutCurrentStep();
+    if (!step || !step.advanceOn || !step.advanceOn.click) return;
+    const hit = e.target && e.target.closest && e.target.closest(step.advanceOn.click);
+    if (hit) setTimeout(tutAdvance, 40); // let the app's own handler run first
+  }
+
+  function tutKeydown(e) {
+    if (!tutorialActive()) return;
+    if (e.key === 'Escape') {
+      // Don't fight app overlays (case overlay closes on Esc too).
+      if (document.querySelector('.call-team-overlay.is-open:not(.asc-tour-interstitial)')) return;
+      e.stopPropagation();
+      confirmSkipTutorial();
+    }
+  }
+
+  // ─── Spotlight renderer (4-rect mask + popover, Console design system) ─────
+  function ensureTourLayer() {
+    let layer = document.getElementById('ascTourLayer');
+    if (layer) return layer;
+    layer = h('div', { id: 'ascTourLayer' },
+      h('div', { class: 'asc-tour-mask', dataset: { edge: 'top' } }),
+      h('div', { class: 'asc-tour-mask', dataset: { edge: 'left' } }),
+      h('div', { class: 'asc-tour-mask', dataset: { edge: 'right' } }),
+      h('div', { class: 'asc-tour-mask', dataset: { edge: 'bottom' } }),
+      h('div', { class: 'asc-tour-ring', 'aria-hidden': 'true' }),
+      h('div', { class: 'asc-tour-pop', role: 'dialog', 'aria-label': 'Tutorial step' }));
+    document.body.appendChild(layer);
+    return layer;
+  }
+  function hideTourLayer() {
+    const layer = document.getElementById('ascTourLayer');
+    if (layer) layer.style.display = 'none';
+  }
+
+  function tutStepNumber(step) {
+    return { n: TUTORIAL_STEPS.indexOf(TUTORIAL_STEPS.find((s) => s.id === step.id)) + 1,
+             total: TUTORIAL_STEPS.length };
+  }
+
+  function renderTourSpotlight(step) {
+    const target = document.querySelector(step.target);
+    const layer = ensureTourLayer();
+    const pop = layer.querySelector('.asc-tour-pop');
+    if (!target) {
+      // Target not rendered yet. NEVER block the app here — the section may be
+      // gated on work the doctor still has to do (e.g. after "Skip this step"),
+      // so masks stay off and the popover waits quietly in the corner.
+      // Auto-skip applies ONLY to DOM-gated steps (click / manual): if a UI
+      // redesign removed their target, the step is dead and must not brick the
+      // tutorial. State-gated steps wait indefinitely — their predicate (or the
+      // fast-forward loop) advances them the moment the doctor gets there.
+      const domGated = !!(step.advanceOn && (step.advanceOn.click || step.advanceOn.manual));
+      if (!step._waitSince) step._waitSince = Date.now();
+      if (domGated && Date.now() - step._waitSince > 8000) {
+        try { console.warn('[tutorial] target missing, skipping step:', step.id, step.target); } catch (e) { /* ok */ }
+        step._waitSince = null;
+        tutAdvance();
+        return;
+      }
+      layer.style.display = '';
+      hideMasks(layer);
+      renderTourPop(pop, step, true);
+      pop.style.transform = '';
+      pop.style.top = 'auto';
+      pop.style.left = '16px';
+      pop.style.bottom = '16px';
+      scheduleTutTick(); // keep polling for the target (or the auto-skip)
+      return;
+    }
+    step._waitSince = null;
+    pop.style.bottom = 'auto';
+    // Auto-center the target ONCE per step. Never on later ticks — repositioning
+    // runs on every scroll, and re-centering there would yank the page back and
+    // fight the user's own scrolling.
+    const r = target.getBoundingClientRect();
+    const vh = window.innerHeight;
+    if (_tourScrolledFor !== step.id && (r.top < 0 || r.bottom > vh)) {
+      _tourScrolledFor = step.id;
+      const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      try { target.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); } catch (e) { /* ok */ }
+    }
+    layer.style.display = '';
+    positionMasks(target.getBoundingClientRect(), layer);
+    const t = state.tutorial;
+    const bounced = !!(t && t.bounced);
+    if (t) t.bounced = false; // one-shot: show the note once, not on every re-tick
+    renderTourPop(pop, step, false, bounced); // content first — position needs real height
+    positionPop(target.getBoundingClientRect(), pop);
+  }
+
+  const TOUR_PAD = 6;
+  function hideMasks(layer) {
+    layer.querySelectorAll('.asc-tour-mask').forEach((m) => setRect(m, 0, 0, 0, 0));
+    layer.querySelector('.asc-tour-ring').style.display = 'none';
+  }
+  function positionMasks(r, layer) {
+    const masks = layer.querySelectorAll('.asc-tour-mask');
+    const ring = layer.querySelector('.asc-tour-ring');
+    const vw = window.innerWidth, vh = window.innerHeight;
+    if (!r) { // full dim, no hole
+      setRect(masks[0], 0, 0, vw, vh);
+      setRect(masks[1], 0, 0, 0, 0); setRect(masks[2], 0, 0, 0, 0); setRect(masks[3], 0, 0, 0, 0);
+      ring.style.display = 'none';
+      return;
+    }
+    const top = Math.max(0, r.top - TOUR_PAD), left = Math.max(0, r.left - TOUR_PAD);
+    const right = Math.min(vw, r.right + TOUR_PAD), bottom = Math.min(vh, r.bottom + TOUR_PAD);
+    setRect(masks[0], 0, 0, vw, top);                       // top strip
+    setRect(masks[1], 0, top, left, bottom - top);          // left strip
+    setRect(masks[2], right, top, vw - right, bottom - top); // right strip
+    setRect(masks[3], 0, bottom, vw, vh - bottom);          // bottom strip
+    ring.style.display = '';
+    ring.style.left = left + 'px'; ring.style.top = top + 'px';
+    ring.style.width = (right - left) + 'px'; ring.style.height = (bottom - top) + 'px';
+  }
+  function setRect(el, x, y, w, hgt) {
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+    el.style.width = Math.max(0, w) + 'px'; el.style.height = Math.max(0, hgt) + 'px';
+  }
+  function positionPop(r, pop) {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    pop.style.transform = '';
+    const popW = Math.min(340, vw - 24);
+    pop.style.width = popW + 'px';
+    const below = r.bottom + TOUR_PAD + 12;
+    const popH = pop.offsetHeight || 120;
+    let top;
+    if (below + popH < vh - 12) top = below;
+    else top = Math.max(12, r.top - TOUR_PAD - popH - 12);
+    let left = Math.min(Math.max(12, r.left), vw - popW - 12);
+    pop.style.top = top + 'px';
+    pop.style.left = left + 'px';
+  }
+
+  function renderTourPop(pop, step, waiting, bounced) {
+    const num = tutStepNumber(step);
+    clear(pop);
+    pop.appendChild(h('div', { class: 'asc-tour-chrome' },
+      'STEP ' + num.n + ' OF ' + num.total + ' · ' + step.chapter.title.toUpperCase()));
+    pop.appendChild(h('div', { class: 'asc-tour-copy', 'aria-live': 'polite' },
+      waiting ? 'Next up: ' + step.copy.replace(/\.$/, '') + '. This appears when the step before it is done.'
+        : step.copy));
+    if (bounced) {
+      pop.appendChild(h('div', { class: 'asc-tour-sub' }, 'This one has to happen here before the tour can move on.'));
+    } else if (!waiting && step.chapterFirst && step.chapter.intro) {
+      pop.appendChild(h('div', { class: 'asc-tour-sub' }, step.chapter.intro));
+    }
+    const row = h('div', { class: 'asc-tour-actions' });
+    if (step.advanceOn && step.advanceOn.manual && !waiting) {
+      row.appendChild(h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
+        onClick: tutAdvance }, 'Next →'));
+    } else if (!waiting && !bounced) {
+      // Per-step skip: for steps the app requires real data/action from
+      // (nearly all of them), this performs a reasonable version of that
+      // action through the app's own handlers — filling required fields with
+      // clearly-marked placeholder text, picking sensible defaults — so the
+      // draft (and, for reveal/submit, the backend) genuinely advances and
+      // the tour lands on the real next step, not a dead pointer. Read-only
+      // beats with no real state (ch1-tabs, ch3-read) have no autofill and
+      // just move the pointer on, since their next target already exists.
+      row.appendChild(h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+        onClick: () => {
+          if (step.autofill) {
+            try { step.autofill(); }
+            catch (e) { try { console.warn('[tutorial] autofill failed for', step.id, e); } catch (_e) { /* ok */ } }
+            tutTick(); // resync immediately; async actions catch up via their own re-render
+          } else {
+            tutAdvance();
+          }
+        } }, 'Skip this step'));
+    }
+    row.appendChild(h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button',
+      onClick: confirmSkipTutorial }, 'Skip tutorial'));
+    pop.appendChild(row);
+    const frac = h('div', { class: 'asc-tour-bar' });
+    frac.appendChild(h('div', { class: 'asc-tour-bar-fill',
+      style: 'width:' + Math.round(((num.n - 1) / num.total) * 100) + '%' }));
+    pop.appendChild(frac);
+  }
+
+  // ─── Welcome screen (the ONLY interstitial — then an uninterrupted flow) ───
+  function renderTourWelcome() {
+    hideTourLayer();
+    if (document.getElementById('ascTourInterstitial')) return;
+    const overlay = h('div', { class: 'call-team-overlay is-open asc-tour-interstitial', id: 'ascTourInterstitial' });
+    const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
+      h('div', { class: 'asc-tour-chrome' }, 'CALIBRATION CASE 1'),
+      h('div', { class: 'call-team-title' }, 'One practice case. About 4 minutes.'),
+      h('p', { class: 'asc-help', style: 'margin:6px 0 16px' },
+        'A guided walk through labeling one case: read it, give your take, compare two AI answers, '
+        + 'say what’s right and wrong, score it. Then you’ll see how your reads compare with the '
+        + 'reference panel. Nothing here is recorded or sold.'),
+      h('div', { style: 'display:flex;gap:10px;align-items:center' },
+        h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: proceed }, 'Start the case →'),
+        h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button', onClick: () => { overlay.remove(); confirmSkipTutorial(); } },
+          'Skip tutorial')));
+    function proceed() {
+      state.tutorial.welcomed = true;
+      overlay.remove();
+      tutTick();
+    }
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+  }
+
+  // ─── Start / skip / submit ─────────────────────────────────────────────────
+  async function startTutorial(opts) {
+    opts = opts || {};
+    if (opts.replay) {
+      clearDraft(TUTORIAL_TASK_ID); // a fresh replay, not a resume of old work
+    } else {
+      api('/me/tutorial', { method: 'PATCH', body: { action: 'start' } })
+        .then((u) => { state.user = u; }).catch(() => { /* best-effort */ });
+    }
+    state.tutorial = { active: true, replay: !!opts.replay, idx: 0, welcomed: false };
+    state.portalChosen = true;
+    state.specialtyChosen = true;
+    const wrap = h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Preparing your practice case…')));
+    setRoot(wrap);
+    let data;
+    try {
+      data = await api('/tutorial/task');
+    } catch (e) {
+      // Never trap the doctor: fall back to the normal app if the practice
+      // case cannot load.
+      teardownTutorial();
+      state.portalChosen = false; state.specialtyChosen = false;
+      if (e.status !== 401) {
+        toast('Could not load the practice case: ' + e.message, 'error');
+        renderEvalView();
+      }
+      return;
+    }
+    state.task = data.task;
+    initDraftForTask(state.task);
+    state.draft.portal_version = 'v3'; // the tutorial teaches the seamless flow
+    saveDraft();
+    if (state.draft.stage === 'compare') {
+      try { await loadWithheldAnswersIfNeeded(); } catch (e) { /* compare shows a reload hint */ }
+    }
+    mountTourEngine();
+    renderTaskWorkspace();
+    tutTick();
+  }
+
+  function confirmSkipTutorial() {
+    if (document.getElementById('ascTourSkipConfirm')) return;
+    // The spotlight box + tooltip sit ABOVE this confirm dialog (z 1200 vs
+    // 1000) — hide them first, or the old highlight and copy stay pasted on
+    // screen behind/around the dialog instead of clearing out of the way.
+    hideTourLayer();
+    const overlay = h('div', { class: 'call-team-overlay is-open asc-tour-interstitial', id: 'ascTourSkipConfirm' });
+    const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
+      h('div', { class: 'call-team-title' }, 'Skip the practice case?'),
+      h('p', { class: 'asc-help', style: 'margin:6px 0 16px' },
+        'You can replay it any time from the ? tab in the corner. The written instructions stay there too.'),
+      h('div', { style: 'display:flex;gap:10px' },
+        h('button', { class: 'asc-btn asc-btn-primary', type: 'button',
+          onClick: () => { overlay.remove(); tutTick(); } }, 'Keep going'),
+        h('button', { class: 'asc-btn asc-btn-ghost', type: 'button',
+          onClick: () => { overlay.remove(); skipTutorial(); } }, 'Skip')));
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+  }
+
+  function skipTutorial() {
+    const wasReplay = state.tutorial && state.tutorial.replay;
+    if (!wasReplay) {
+      api('/me/tutorial', { method: 'PATCH', body: { action: 'skip' } })
+        .then((u) => { state.user = u; }).catch(() => { /* server no-ops are fine */ });
+    }
+    teardownTutorial();
+    clearDraft(TUTORIAL_TASK_ID);
+    stopTimer();
+    state.task = null;
+    state.portalChosen = false;
+    state.specialtyChosen = false;
+    renderEvalView();
+    // First skip: pulse the corner ? tab once so they know where the written
+    // instructions live — never auto-open a panel over their screen.
+    let seen = null;
+    try { seen = localStorage.getItem(INSTR_SEEN_KEY); } catch (e) { seen = null; }
+    if (!wasReplay && !seen) {
+      try { localStorage.setItem(INSTR_SEEN_KEY, '1'); } catch (e) { /* ignore */ }
+      pulseInstrTab();
+    }
+  }
+
+  async function submitTutorialEvaluation() {
+    state.submitting = true;
+    const btn = document.getElementById('ascSubmit');
+    if (btn) { btn.disabled = true; btn.textContent = 'Scoring…'; }
+    const wasReplay = state.tutorial && state.tutorial.replay;
+    let res;
+    try {
+      res = await api('/tutorial/submit', { method: 'POST', body: buildSubmissionPayload() });
+    } catch (e) {
+      state.submitting = false;
+      if (btn) { btn.disabled = false; btn.textContent = 'Submit evaluation'; }
+      if (e.status !== 401) toast('Could not score the practice case: ' + e.message, 'error');
+      return;
+    }
+    state.submitting = false;
+    if (res.user) state.user = res.user;
+    teardownTutorial();
+    clearDraft(TUTORIAL_TASK_ID);
+    stopTimer();
+    state.task = null;
+    state.draft = null;
+    updateHeaderProgress(); // no open task — the header bar hides on the reveal
+    renderTutorialReveal(res.result, { replay: wasReplay });
+  }
+
+  // ─── The scored reveal ─────────────────────────────────────────────────────
+  function renderTutorialReveal(result, opts) {
+    opts = opts || {};
+    const rows = (result.findings || []).map((f) => h('div', { class: 'asc-tour-finding' + (f.matched ? ' matched' : '') },
+      h('span', { class: 'asc-tour-finding-glyph', 'aria-hidden': 'true' }, f.matched ? '✓' : '—'),
+      h('div', {},
+        h('div', { class: 'asc-tour-finding-label' }, f.label),
+        h('div', { class: 'asc-tour-finding-reason' }, f.reason))));
+    const planted = result.planted_finding;
+    const card = h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-tour-chrome' }, 'CALIBRATION CASE 1 · REFERENCE PANEL'),
+      h('h2', { class: 'asc-tour-headline' }, result.headline),
+      h('div', { class: 'asc-tour-findings' }, rows),
+      planted ? h('div', { class: 'asc-tour-planted' },
+        h('div', { class: 'asc-tour-planted-title' },
+          planted.matched ? 'You caught the one most physicians miss' : 'The one most physicians miss'),
+        h('div', { class: 'asc-tour-finding-reason' }, planted.reason)) : null,
+      h('p', { class: 'asc-help', style: 'margin:14px 0 0' },
+        opts.replay ? 'Practice case — nothing was recorded.'
+          : 'Nothing from this case is recorded or sold. Your real cases start now.'),
+      h('div', { style: 'display:flex;gap:10px;margin-top:18px;align-items:center' },
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
+          onClick: () => { state.portalChosen = false; state.specialtyChosen = false; renderEvalView(); } },
+          'Start real cases →'),
+        h('button', { class: 'asc-btn asc-btn-ghost', type: 'button', onClick: openInstructionDrawer },
+          'Open the instructions')));
+    setRoot(h('div', { class: 'asc-wrap asc-tour-reveal' }, card));
+  }
+
+  // ─── Help menu + instruction drawer ────────────────────────────────────────
+  // Floating corner tab — the SINGLE, always-there entry point back into the
+  // tutorial: replay the guided practice case, or open a summary of it. Sits
+  // at the corner of the labeling screen so it's always reachable but never
+  // in the way.
+  function ensureInstrTab() {
+    if (document.getElementById('ascInstrTab')) return;
+    const tab = h('button', {
+      id: 'ascInstrTab', class: 'asc-instr-tab', type: 'button',
+      title: 'Tutorial', 'aria-label': 'Tutorial menu', 'aria-haspopup': 'true',
+    }, '?');
+    tab.addEventListener('click', toggleCornerMenu);
+    document.body.appendChild(tab);
+  }
+  function toggleCornerMenu() {
+    const existing = document.getElementById('ascCornerMenu');
+    if (existing) { existing.remove(); return; }
+    const tab = document.getElementById('ascInstrTab');
+    const r = tab.getBoundingClientRect();
+    const menu = h('div', { id: 'ascCornerMenu', class: 'asc-help-menu', role: 'menu' },
+      h('button', { class: 'asc-help-menu-item', type: 'button', role: 'menuitem',
+        onClick: () => { menu.remove(); startTutorial({ replay: true }); } },
+        'Replay tutorial'),
+      h('button', { class: 'asc-help-menu-item', type: 'button', role: 'menuitem',
+        onClick: () => { menu.remove(); toggleInstructionDrawer(); } },
+        'View tutorial summary'));
+    // The tab lives at the bottom-right corner — open the menu UPWARD from it.
+    menu.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+    menu.style.right = Math.max(12, window.innerWidth - r.right) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => {
+      const onDoc = (e) => { if (!menu.contains(e.target) && e.target !== tab) { menu.remove(); document.removeEventListener('click', onDoc, true); } };
+      document.addEventListener('click', onDoc, true);
+    }, 0);
+  }
+  function pulseInstrTab() {
+    ensureInstrTab();
+    const tab = document.getElementById('ascInstrTab');
+    tab.classList.add('pulse');
+    setTimeout(() => tab.classList.remove('pulse'), 6000);
+  }
+  function toggleInstructionDrawer() {
+    if (document.getElementById('ascInstrDrawer')) closeInstructionDrawer();
+    else openInstructionDrawer();
+  }
+  function closeInstructionDrawer() {
+    const d = document.getElementById('ascInstrDrawer');
+    if (d) d.remove();
+    state.instrOpen = false;
+  }
+  function openInstructionDrawer() {
+    if (document.getElementById('ascInstrDrawer')) return;
+    state.instrOpen = true;
+    // Which section applies right now (during a real case)?
+    let activeChapter = null;
+    if (state.draft && state.task) {
+      const stg = state.draft.stage;
+      if (stg === 'prompt_review') activeChapter = 'ch1';
+      else if (stg === 'independent_answer') activeChapter = 'ch2';
+      else if (stg === 'compare') {
+        const sub = currentSubstage();
+        if (sub === 'compare' || sub === 'refine' || sub === 'from_scratch') activeChapter = 'ch3';
+        else if (sub === 'why_better' || sub === 'citations' || sub === 'critique_rejected' || sub === 'reasoning') activeChapter = 'ch4';
+        else activeChapter = 'ch5';
+      }
+    }
+    const sections = TUTORIAL_CHAPTERS.map((ch) => {
+      const det = h('details', { class: 'asc-instr-section' },
+        h('summary', { class: 'asc-instr-summary' }, ch.title),
+        h('p', { class: 'asc-help asc-instr-intro' }, ch.intro),
+        h('ol', { class: 'asc-instr-list' },
+          ch.steps.map((s) => h('li', {},
+            h('span', { class: 'asc-instr-step-copy' }, s.copy),
+            h('span', { class: 'asc-instr-step-note' }, ' ' + (s.note || ''))))));
+      if (ch.id === activeChapter) det.setAttribute('open', '');
+      return det;
+    });
+    const flowNote = h('details', { class: 'asc-instr-section' },
+      h('summary', { class: 'asc-instr-summary' }, 'Choosing your flow & specialty'),
+      h('p', { class: 'asc-help asc-instr-intro' },
+        'Real cases start at the experience chooser: Synthetic Multimodal (recommended) or Real De-identified once approved. '
+        + 'V3/V4 then ask for your specialty. "Change experience" in the badge above a case returns you to the chooser.'));
+    const drawer = h('aside', { id: 'ascInstrDrawer', class: 'asc-instr-drawer', 'aria-label': 'Instructions' },
+      h('div', { class: 'asc-instr-head' },
+        h('div', { class: 'asc-tour-chrome' }, 'HOW TO LABEL A CASE'),
+        h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+          onClick: closeInstructionDrawer, 'aria-label': 'Close instructions' }, '✕')),
+      h('div', { class: 'asc-instr-body' }, sections, flowNote),
+      h('div', { class: 'asc-instr-foot' },
+        h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+          onClick: () => { closeInstructionDrawer(); startTutorial({ replay: true }); } },
+          'Replay practice case')));
+    document.body.appendChild(drawer);
+  }
   // Expand every manual disclosure for printing, then restore — so a printed /
   // PDF'd guide carries its full depth, not just the three-line summaries.
   window.addEventListener('beforeprint', () => {

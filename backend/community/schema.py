@@ -42,3 +42,30 @@ class DmOpen(BaseModel):
 class DmMessageIn(BaseModel):
     body: str = Field(default="", max_length=MAX_BODY_LEN)
     attachment_ids: List[str] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)
+
+
+# ─── Community v2.1: events / polls / bookmarks ───────────────────────────────
+class EventIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=MAX_BODY_LEN)
+    starts_at: str = Field(min_length=1, max_length=40)   # ISO-8601, coerced to UTC-Z server-side
+    ends_at: Optional[str] = Field(default=None, max_length=40)
+    timezone: Optional[str] = Field(default=None, max_length=64)   # IANA name, display only
+    location: str = Field(default="", max_length=500)     # address or join URL
+    host: str = Field(default="", max_length=200)
+    channel_slug: str = Field(default="events", max_length=64)
+
+
+class PollIn(BaseModel):
+    channel_slug: str = Field(min_length=1, max_length=64)
+    question: str = Field(min_length=1, max_length=300)
+    options: List[str] = Field(min_length=2, max_length=6)
+
+
+class VoteIn(BaseModel):
+    option_id: int = Field(ge=1)
+
+
+class BookmarkIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    url: str = Field(min_length=1, max_length=1000)

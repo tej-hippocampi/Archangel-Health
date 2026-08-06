@@ -206,17 +206,22 @@ def asset_storage_durable() -> Tuple[bool, str]:
     caption was withheld on purpose and the case becomes unanswerable, not merely
     degraded. The raw-upload path already fails closed (503) on non-durable storage;
     this extends the same gate to the derived image blobs."""
-    from asclepius.constants import asset_store, asset_store_is_ephemeral
+    from asclepius.constants import (
+        asset_store, asset_store_is_ephemeral, path_is_ephemeral,
+    )
     root = asset_store()
     if root.startswith("s3://"):
         return True, "s3 backend configured"
+    # One shared prefix list (PRD I-0 §F1) — this used to re-implement the /tmp
+    # check that ``asset_store_is_ephemeral`` should have been doing all along.
+    if path_is_ephemeral(root):
+        return False, (f"asset store {root} is on ephemeral storage; V4 image blobs "
+                       f"will be lost on redeploy. Set ASCLEPIUS_ASSET_STORE to a "
+                       f"path on your persistent volume.")
     if asset_store_is_ephemeral():
         return False, (f"asset store {root} is under the code tree; V4 image blobs will "
                        f"be lost on redeploy. Set ASCLEPIUS_ASSET_STORE to a persistent "
                        f"volume.")
-    for pre in ("/tmp", "/var/tmp", "/dev/shm", "/run"):
-        if root == pre or root.startswith(pre + "/"):
-            return False, f"asset store {root} is on ephemeral storage ({pre})"
     db_path = os.getenv("ASCLEPIUS_DB_PATH", "").strip()
     if db_path:
         try:
@@ -319,6 +324,80 @@ def find_asset_by_id(store: Any, asset_id: str) -> Optional[Dict[str, Any]]:
                         "mime": a.get("mime") or "image/png",
                         "task_id": t.get("task_id"), "case_source": "real_deid"}
     return None
+
+
+def reconcile_assets(store: Any) -> Dict[str, Any]:
+    """Inventory: every StudyAsset reference whose blob is gone, and every blob on
+    disk with no reference (PRD I-0 §F4).
+
+    READ-ONLY, deliberately. An orphan blob costs disk; a wrongly-deleted blob costs
+    a case that can never be re-created, because the partner bundle behind it is
+    purged on a 30-day retention. Deleting an orphan on the strength of a query is
+    how a reporting bug becomes data loss, so this reports and nothing else.
+
+    Answers the question nothing could answer before: *what did the last redeploy
+    already take from us?* A row pointing at a vanished blob renders fine in the
+    admin, and only fails when a physician opens the image — or, worse, ships to a
+    buyer as a reference that resolves to nothing.
+
+    Returns ``{missing_blobs, orphan_blobs, n_rows, n_files, checked_at}``."""
+    from asclepius.store import _utcnow_iso
+
+    referenced: Dict[str, Dict[str, Any]] = {}
+    missing: List[Dict[str, Any]] = []
+
+    def _scan(rows: List[Dict[str, Any]], *, case_key: str, id_key: str) -> None:
+        for row in rows:
+            case = row.get("case") or {}
+            for study in (case.get("studies") or []):
+                a = (study or {}).get("asset")
+                if not (isinstance(a, dict) and a.get("sha256")):
+                    continue
+                sha = a["sha256"]
+                referenced.setdefault(sha, {
+                    "sha256": sha,
+                    "source": case_key,
+                    "case_id": row.get(id_key),
+                    "study_id": study.get("study_id") or study.get("label"),
+                    "ingested_at": row.get("created_at"),
+                })
+
+    for getter, case_key, id_key in (
+        (lambda: store.list_ingest_cases(limit=1000000), "ingest_case", "ingest_case_id"),
+        (lambda: store.list_tasks(limit=1000000), "task", "task_id"),
+    ):
+        try:
+            _scan(getter(), case_key=case_key, id_key=id_key)
+        except Exception as exc:  # pragma: no cover - defensive; report what we can
+            log.warning("asset reconcile: could not scan %s rows: %s", case_key, exc)
+
+    for sha, ref in referenced.items():
+        if not os.path.exists(_blob_path(sha)):
+            missing.append(dict(ref))
+
+    on_disk: List[str] = []
+    try:
+        root = _store_root()
+    except AssetError:  # s3 backend — nothing local to inventory
+        root = ""
+    if root and os.path.isdir(root):
+        for fan in sorted(os.listdir(root)):
+            sub = os.path.join(root, fan)
+            if not os.path.isdir(sub) or len(fan) != 2:
+                continue
+            for name in sorted(os.listdir(sub)):
+                if name.endswith(".tmp"):
+                    continue  # a write in flight is not an orphan
+                on_disk.append(name)
+
+    orphans = sorted(set(on_disk) - set(referenced))
+    return {
+        "missing_blobs": sorted(missing, key=lambda m: str(m.get("sha256"))),
+        "orphan_blobs": orphans,
+        "n_rows": len(referenced),
+        "n_files": len(on_disk),
+        "checked_at": _utcnow_iso(),
+    }
 
 
 def _maybe_burnin_scan(data: bytes, mime: str) -> Optional[Dict[str, Any]]:

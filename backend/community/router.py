@@ -47,6 +47,12 @@ router = APIRouter(prefix="/api/community", tags=["community"])
 
 GATE_MESSAGE = "Community access is for verified contributors."
 
+# v2.1 broadcast tokens. ``@channel`` (admin-only, durable) stores a sentinel
+# mention that ``notify``/``unread_counts`` expand to every member. ``@here``
+# (any member, ephemeral) is presentational + real-time only.
+BROADCAST_MENTION = "*channel*"
+_CHANNEL_TOKEN = re.compile(r"(?<![\w/])@channel\b", re.I)
+
 # Deterministic specialty accent (mirrors the portal's chip color map: nephrology
 # green, cardiology orange, oncology pink, others cycle — Community PRD §2).
 _SPECIALTY_ACCENTS = {"nephrology": "green", "cardiology": "orange", "oncology": "pink"}
@@ -81,6 +87,21 @@ def block_flag_threshold() -> int:
 
 
 # ─── §1 gate ──────────────────────────────────────────────────────────────────
+def _verified_colleague(user: Dict[str, Any], cred: Optional[Dict[str, Any]]) -> bool:
+    """Verified by EITHER credentialing system: the Contributors-vault flag
+    (``contributor_credentials.credentials_verified`` — demo seeds and the
+    admin credential PUT) OR the PRD-B admin approval decision
+    (``users.verification_status == 'approved'`` — the verify queue, which
+    stamps verified_by/verified_at/tier). The two pipelines are disjoint
+    writers; a physician verified by either is a colleague here. Three
+    outcomes stay three outcomes: only the exact string ``approved`` passes —
+    NULL (pre-verification era / undecided), ``pending`` and ``rejected`` all
+    fail this leg."""
+    if cred and cred.get("credentials_verified"):
+        return True
+    return (user.get("verification_status") or "").strip().lower() == "approved"
+
+
 def _passes_gate(user: Optional[Dict[str, Any]]) -> bool:
     """Contributor (verified evaluator) or Archangel staff; nobody else."""
     if not user or not user.get("active"):
@@ -93,7 +114,7 @@ def _passes_gate(user: Optional[Dict[str, Any]]) -> bool:
     if role != "evaluator":
         return False
     cred = _astore().get_contributor_credentials(user.get("id_hashed") or "")
-    return bool(cred and cred.get("credentials_verified"))
+    return _verified_colleague(user, cred)
 
 
 def require_member(
@@ -166,7 +187,9 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
         cred = None
         if user.get("id_hashed"):
             cred = astore.get_contributor_credentials(user["id_hashed"])
-        verified = bool(cred and cred.get("credentials_verified"))
+        # Same bridge as the gate — an approval-path member (no vault row)
+        # must serialize as a member, not a ghost, and appear in the directory.
+        verified = _verified_colleague(user, cred)
         if role in ("admin", "qa_reviewer"):
             is_staff = True
         elif role == "evaluator" and verified:
@@ -242,8 +265,64 @@ _GHOST_MEMBER = {
 
 def resolve_member_for_notify(user_id: str) -> Optional[Dict[str, Any]]:
     """Injected into notify.flush_pending — includes the email address (used
-    only as the send target, never serialized into an API payload)."""
+    only as the send target, never serialized into an API payload). The system
+    author has no email and is not a member — returns None, which notify's
+    drop-silently branch already handles."""
     return member_map(include_email=True).get(user_id)
+
+
+# ─── Channel visibility (Community v2 — threshold-gated specialty channels) ───
+def specialty_threshold() -> int:
+    """Members of a specialty required before its channel appears
+    (``COMMUNITY_SPECIALTY_MIN_MEMBERS``, default 3, floor 1)."""
+    try:
+        return max(1, int(os.getenv("COMMUNITY_SPECIALTY_MIN_MEMBERS", "3")))
+    except (TypeError, ValueError):
+        return 3
+
+
+def _specialty_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
+    """Verified NON-STAFF members per lowercased specialty."""
+    out: Dict[str, int] = {}
+    for m in members.values():
+        if m.get("is_staff"):
+            continue
+        s = (m.get("specialty") or "").strip().lower()
+        if s:
+            out[s] = out.get(s, 0) + 1
+    return out
+
+
+def visible_channels(members: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """The channel list every member sees (visibility is deliberately GLOBAL —
+    identical for all members, so unread badges, search scope, and the WS
+    broadcast never diverge per user). Core channels always show; a specialty
+    channel shows once its specialty has >= threshold members, and STICKS once
+    it has history (a channel with messages never vanishes because someone
+    was deactivated)."""
+    cstore = _cstore()
+    counts = _specialty_counts(members)
+    threshold = specialty_threshold()
+    out: List[Dict[str, Any]] = []
+    for ch in cstore.list_channels():
+        if (ch.get("grp") or "core") != "specialty":
+            out.append(ch)
+            continue
+        spec = (ch.get("specialty") or "").strip().lower()
+        if counts.get(spec, 0) >= threshold or cstore.channel_has_messages(ch["id"]):
+            out.append(ch)
+    return out
+
+
+def _visible_channel_or_404(slug: str, members: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """Resolve a slug against the VISIBLE set — a hidden (below-threshold or
+    deactivated) channel answers with the same 404 as an unknown one, so the
+    API is no oracle for what exists (mirrors ``_require_message_access``)."""
+    want = (slug or "").strip().lower()
+    channel = next((c for c in visible_channels(members) if c["slug"] == want), None)
+    if not channel:
+        raise HTTPException(status_code=404, detail="Unknown channel")
+    return channel
 
 
 # ─── Message container resolution / access control ────────────────────────────
@@ -254,7 +333,12 @@ def _container_of(msg: Dict[str, Any]) -> tuple:
     if cid.startswith("dm-"):
         dm = _cstore().get_dm(cid)
         return ("dm", dm) if dm else (None, None)
-    channel = next((c for c in _cstore().list_channels() if c["id"] == cid), None)
+    # include_inactive: a message inside a deactivated channel must still
+    # resolve for moderation/audit paths; the list/read routes above never
+    # serve a hidden channel in the first place.
+    channel = next(
+        (c for c in _cstore().list_channels(include_inactive=True) if c["id"] == cid), None
+    )
     return ("channel", channel) if channel else (None, None)
 
 
@@ -279,21 +363,31 @@ def _serialize_messages(
     channel_slug: Optional[str],
     *,
     dm_id: Optional[str] = None,
+    viewer_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    from community.system_posts import SYSTEM_MEMBER, SYSTEM_USER_ID  # noqa: PLC0415 — avoids import cycle
+
     cstore = _cstore()
     ids = [m["id"] for m in msgs]
     replies = cstore.reply_counts(ids)
     reactions = cstore.reactions_for(ids)
+    pinned_ids = cstore.pinned_message_ids(ids)  # v2.1 — batch pin lookup
     out = []
     for m in msgs:
         deleted = bool(m.get("deleted"))
         rc = replies.get(m["id"]) or {}
-        out.append({
+        if m["author_user_id"] == SYSTEM_USER_ID:
+            # The virtual bot author — never a users row, never in member_map.
+            author = public_member(dict(SYSTEM_MEMBER))
+        else:
+            author = public_member(members.get(m["author_user_id"])) or dict(_GHOST_MEMBER)
+        row = {
             "id": m["id"],
             "channel": channel_slug,
             "dm": dm_id,
             "parent_message_id": m.get("parent_message_id"),
-            "author": public_member(members.get(m["author_user_id"])) or dict(_GHOST_MEMBER),
+            "author": author,
+            "kind": m.get("kind"),
             "body": "" if deleted else m["body"],
             "deleted": deleted,
             "created_at": m["created_at"],
@@ -303,16 +397,27 @@ def _serialize_messages(
             "reactions": [] if deleted else (reactions.get(m["id"]) or []),
             "reply_count": int(rc.get("count") or 0),
             "last_reply_at": rc.get("last_at"),
-        })
+            "pinned": m["id"] in pinned_ids,
+        }
+        # v2.1: attach the structured card payload for special message kinds.
+        if not deleted and m.get("kind") == "poll":
+            poll = cstore.poll_for_message(m["id"])
+            if poll:
+                row["poll"] = cstore.poll_results(poll["id"], viewer_id=viewer_id)
+        elif not deleted and m.get("kind") == "event":
+            ev = cstore.event_for_message(m["id"])
+            if ev:
+                row["event"] = cstore.event_public(ev, viewer_id=viewer_id)
+        out.append(row)
     return out
 
 
-def _serialize_one_resolved(msg: Dict[str, Any]) -> Dict[str, Any]:
+def _serialize_one_resolved(msg: Dict[str, Any], *, viewer_id: Optional[str] = None) -> Dict[str, Any]:
     """Serialize a single message with its container resolved (slug or dm)."""
     kind, container = _container_of(msg)
     slug = container["slug"] if kind == "channel" else None
     dm_id = container["id"] if kind == "dm" else None
-    return _serialize_messages([msg], member_map(), slug, dm_id=dm_id)[0]
+    return _serialize_messages([msg], member_map(), slug, dm_id=dm_id, viewer_id=viewer_id)[0]
 
 
 async def _emit_message_event(event_type: str, serialized: Dict[str, Any],
@@ -377,7 +482,9 @@ async def me(user: Dict[str, Any] = Depends(require_member)):
 @router.get("/channels")
 async def channels(user: Dict[str, Any] = Depends(require_member)):
     cstore = _cstore()
-    unread = cstore.unread_counts(user["id"])
+    members = member_map()
+    visible = visible_channels(members)
+    unread = cstore.unread_counts(user["id"], channels=visible)
     return {
         "channels": [
             {
@@ -385,10 +492,12 @@ async def channels(user: Dict[str, Any] = Depends(require_member)):
                 "name": ch["name"],
                 "description": ch["description"],
                 "post_policy": ch["post_policy"],
+                "group": ch.get("grp") or "core",
+                "specialty": ch.get("specialty"),
                 "unread": (unread.get(ch["slug"]) or {}).get("unread", 0),
                 "mentions": (unread.get(ch["slug"]) or {}).get("mentions", 0),
             }
-            for ch in cstore.list_channels()
+            for ch in visible
         ]
     }
 
@@ -402,13 +511,12 @@ async def channel_messages(
     user: Dict[str, Any] = Depends(require_member),
 ):
     cstore = _cstore()
-    channel = cstore.get_channel_by_slug(slug)
-    if not channel:
-        raise HTTPException(status_code=404, detail="Unknown channel")
+    members = member_map()
+    channel = _visible_channel_or_404(slug, members)
     msgs, has_more = cstore.list_messages(
         channel["id"], before_id=before, after_id=after, limit=limit
     )
-    serialized = _serialize_messages(msgs, member_map(), channel["slug"])
+    serialized = _serialize_messages(msgs, members, channel["slug"], viewer_id=user["id"])
     return {
         "channel": channel["slug"],
         "messages": serialized,
@@ -458,9 +566,8 @@ async def post_message(
     user: Dict[str, Any] = Depends(require_member),
 ):
     cstore = _cstore()
-    channel = cstore.get_channel_by_slug(slug)
-    if not channel:
-        raise HTTPException(status_code=404, detail="Unknown channel")
+    members = member_map()
+    channel = _visible_channel_or_404(slug, members)
 
     text = (body.body or "").strip()
     if not text and not body.attachment_ids:
@@ -490,8 +597,23 @@ async def post_message(
     if findings:
         raise _phi_block(request, user, "message", findings, channel["slug"])
 
-    members = member_map()
     mentions = _validate_mentions(body.mention_user_ids, members)
+
+    # ── v2.1: @channel / @here broadcast tokens ──
+    # @channel is a DURABLE broadcast (admin-only): a sentinel is stored so the
+    # mention badge lights for every member and an email digest goes out.
+    # @here is EPHEMERAL (any member): no stored sentinel, no email — it rides
+    # the normal message.created WS to whoever is online, which is exactly its
+    # meaning. Both are highlighted in the rendered body.
+    has_channel = bool(_CHANNEL_TOKEN.search(text))
+    if has_channel and not _is_admin(user):
+        raise HTTPException(
+            status_code=403,
+            detail="@channel is limited to the Archangel team. Use @here to ping people who are online.",
+        )
+    if has_channel and BROADCAST_MENTION not in mentions:
+        mentions = mentions + [BROADCAST_MENTION]
+
     attachments = _resolve_attachments(body.attachment_ids, user)
 
     msg = cstore.insert_message(
@@ -657,8 +779,8 @@ async def thread(message_id: int, user: Dict[str, Any] = Depends(require_member)
     members = member_map()
     replies = cstore.list_thread(root["id"])
     return {
-        "root": _serialize_messages([root], members, slug, dm_id=dm_id)[0],
-        "replies": _serialize_messages(replies, members, slug, dm_id=dm_id),
+        "root": _serialize_messages([root], members, slug, dm_id=dm_id, viewer_id=user["id"])[0],
+        "replies": _serialize_messages(replies, members, slug, dm_id=dm_id, viewer_id=user["id"]),
     }
 
 
@@ -670,11 +792,13 @@ async def mark_read(
     user: Dict[str, Any] = Depends(require_member),
 ):
     cstore = _cstore()
-    channel = cstore.get_channel_by_slug(slug)
-    if not channel:
-        raise HTTPException(status_code=404, detail="Unknown channel")
+    members = member_map()
+    channel = _visible_channel_or_404(slug, members)
     cstore.set_read(user["id"], channel["id"], body.last_read_message_id)
-    return {"ok": True, "unread": cstore.unread_counts(user["id"])}
+    return {
+        "ok": True,
+        "unread": cstore.unread_counts(user["id"], channels=visible_channels(members)),
+    }
 
 
 @router.get("/badge")
@@ -685,7 +809,7 @@ async def badge(user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_us
     if not user or not _passes_gate(user):
         return {"eligible": False, "unread": 0, "mentions": 0}
     cstore = _cstore()
-    counts = cstore.unread_counts(user["id"])
+    counts = cstore.unread_counts(user["id"], channels=visible_channels(member_map()))
     dm_unread = cstore.dm_unread_total(user["id"])
     return {
         "eligible": True,
@@ -856,9 +980,11 @@ async def search(
     user: Dict[str, Any] = Depends(require_member),
 ):
     cstore = _cstore()
-    channels_by_id = {c["id"]: c for c in cstore.list_channels()}
-    my_dms = {d["id"]: d for d in cstore.list_dms_for(user["id"])}
     members = member_map()
+    # Visibility-scoped: hidden/deactivated channels are excluded from the
+    # search SQL exactly like someone else's DMs.
+    channels_by_id = {c["id"]: c for c in visible_channels(members)}
+    my_dms = {d["id"]: d for d in cstore.list_dms_for(user["id"])}
     # §4: "search across messages the user can see" — the public channels plus
     # THEIR OWN direct messages, enforced in SQL (someone else's DM content can
     # never match).
@@ -969,8 +1095,11 @@ async def download_attachment(
 @router.get("/admin/flags")
 async def admin_flags(admin: Dict[str, Any] = Depends(require_community_admin)):
     """Repeat PHI-block offenders (category counts only — never content)."""
+    from community.system_posts import SYSTEM_USER_ID  # noqa: PLC0415
+
     members = member_map()
-    flagged = _cstore().flagged_users(threshold=block_flag_threshold())
+    flagged = _cstore().flagged_users(threshold=block_flag_threshold(),
+                                      exclude_user_ids=[SYSTEM_USER_ID])
     for f in flagged:
         m = members.get(f["user_id"])
         f["display_name"] = (m or {}).get("display_name") or "Former member"
@@ -1049,7 +1178,7 @@ async def portal_unread(
     if not user or not _passes_gate(user):
         return {"total": 0}
     cstore = _cstore()
-    counts = cstore.unread_counts(user["id"])
+    counts = cstore.unread_counts(user["id"], channels=visible_channels(member_map()))
     return {
         "total": sum(c["unread"] for c in counts.values())
                  + cstore.dm_unread_total(user["id"]),
