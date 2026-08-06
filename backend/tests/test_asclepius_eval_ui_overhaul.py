@@ -1087,15 +1087,26 @@ def test_no_new_component_vocabulary_beyond_the_prd():
     # be reachable from the app, so a typo'd or abandoned rule is caught.
     #
     # Sections that own their own file (§3.3 ownership — PRD-C's admin views,
-    # PRD-D's advisor surface, PRD-P's earnings) emit classes from THERE, so those
-    # count as reachable too. The module list is read out of index.html's script
-    # tags rather than hardcoded: "reachable from the app" is precisely "loaded by
-    # the app", and an enumeration would have to be edited by every future PRD
-    # that adds a section — which is how a correct guard turns into a tax.
+    # PRD-D's advisor surface, PRD-P's earnings, PRD-R's review console) emit
+    # classes from THERE, so those count as reachable too.
+    #
+    # The module list is DERIVED from the script tags of every page the app
+    # serves, not hardcoded: "reachable from the app" is precisely "loaded by one
+    # of the app's pages". An enumeration would have to be edited by every future
+    # PRD that adds a section, which is how a correct guard turns into a tax — and
+    # it is why this scans review.html as well as index.html, so the review
+    # console counts without anybody having to come back and say so.
+    pages = sorted(_FRONTEND.glob("*.html"))
+    module_names = {
+        name
+        for page in pages
+        for name in re.findall(r'src="/static/asclepius/([\w.-]+\.js)"',
+                               page.read_text(encoding="utf-8"))
+        if name != JS_PATH.name
+    }
     section_modules = "".join(
         (_FRONTEND / name).read_text(encoding="utf-8")
-        for name in re.findall(r'src="/static/asclepius/([\w.-]+\.js)"', html)
-        if name != JS_PATH.name and (_FRONTEND / name).exists()
+        for name in sorted(module_names) if (_FRONTEND / name).exists()
     )
     styled = set(re.findall(r"\.(asc-[\w-]+)", CSS_CODE))
     emitted = {c for c in styled if c in JS or c in html or c in section_modules}

@@ -36,11 +36,13 @@ FRONTEND_FILES = [
     "frontend/asclepius/asclepius.css",
     "frontend/asclepius/_tokens.css",
     "frontend/asclepius/_base.css",
-    # The two modules that are almost entirely physician-facing prose, and were
-    # the ones this guard was missing: the instruction manual every physician is
-    # pointed at, and the page where they read what they have earned.
+    # The modules that are almost entirely physician-facing prose, and were the
+    # ones this guard was missing: the instruction manual every physician is
+    # pointed at, the page where they read what they have earned, and the review
+    # console, which is a whole second page of copy a reviewer works inside.
     "frontend/asclepius/manual-content.js",
     "frontend/asclepius/earnings.js",
+    "frontend/asclepius/review.js",
 ]
 
 
