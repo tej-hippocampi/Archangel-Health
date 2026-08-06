@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import * as authApi from "@/lib/auth-api";
 import { authDialogStyles } from "./authDialogStyles";
 
-type Step = "role" | "register" | "doctor-onboard" | "patient-codes";
+type Step = "role" | "register" | "verify-email" | "doctor-onboard" | "patient-codes";
 
 type Props = {
   open: boolean;
@@ -15,7 +15,7 @@ type Props = {
 };
 
 export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props) {
-  const { register, error, clearError, token } = useAuth();
+  const { register, verifyEmail, resendVerification, error, clearError, token } = useAuth();
   const [step, setStep] = React.useState<Step>(initialStep);
 
   // When dialog opens, show the requested step (e.g. patient-codes when coming from email link)
@@ -25,6 +25,10 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [name, setName] = React.useState("");
+  const [signupPhone, setSignupPhone] = React.useState("");
+  const [smsConsentOptIn, setSmsConsentOptIn] = React.useState(false);
+  const [verifyCode, setVerifyCode] = React.useState("");
+  const [resendStatus, setResendStatus] = React.useState<string | null>(null);
   const [officePhone, setOfficePhone] = React.useState("");
   const [doctorType, setDoctorType] = React.useState("");
   const [hospitalAffiliations, setHospitalAffiliations] = React.useState("");
@@ -38,6 +42,10 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
     setEmail("");
     setPassword("");
     setName("");
+    setSignupPhone("");
+    setSmsConsentOptIn(false);
+    setVerifyCode("");
+    setResendStatus(null);
     setOfficePhone("");
     setDoctorType("");
     setHospitalAffiliations("");
@@ -53,8 +61,8 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
     clearError();
     setSubmitting(true);
     try {
-      await register(email, password, name || undefined);
-      setStep("doctor-onboard");
+      const user = await register(email, password, name || undefined, signupPhone || undefined, smsConsentOptIn);
+      setStep(user.email_verified ? "doctor-onboard" : "verify-email");
       setOfficePhone("");
       setDoctorType("");
       setHospitalAffiliations("");
@@ -62,6 +70,32 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
       // error set in context
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleVerifyEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setApiError(null);
+    setResendStatus(null);
+    setSubmitting(true);
+    try {
+      await verifyEmail(email, verifyCode);
+      setStep("doctor-onboard");
+    } catch (e) {
+      setApiError(e instanceof Error ? e.message : "Verification failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setApiError(null);
+    setResendStatus(null);
+    try {
+      await resendVerification(email);
+      setResendStatus("A new code was sent to your email.");
+    } catch (e) {
+      setApiError(e instanceof Error ? e.message : "Could not resend the code");
     }
   };
 
@@ -125,12 +159,14 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
             <h2 id="signup-title" className="adg-title">
               {step === "role" && "Sign up"}
               {step === "register" && "Create account"}
+              {step === "verify-email" && "Verify your email"}
               {step === "doctor-onboard" && "Doctor onboarding"}
               {step === "patient-codes" && "View your recovery plan"}
             </h2>
             <p className="adg-sub">
               {step === "role" && "Are you a patient or a doctor?"}
               {step === "register" && "Create your Archangel Health account."}
+              {step === "verify-email" && `We sent a code and a link to ${email || "your email"}.`}
               {step === "doctor-onboard" && "Tell us about your practice."}
               {step === "patient-codes" && "Enter the codes from your care team email."}
             </p>
@@ -217,12 +253,69 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
                 autoComplete="new-password"
               />
             </div>
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="signup-phone">Mobile phone (optional)</label>
+              <input
+                id="signup-phone"
+                className="adg-input"
+                type="tel"
+                placeholder="+1 (555) 123-4567"
+                value={signupPhone}
+                onChange={(e) => setSignupPhone(e.target.value)}
+                autoComplete="tel"
+              />
+            </div>
+            <label className="adg-checkbox-row" htmlFor="signup-sms-consent">
+              <input
+                id="signup-sms-consent"
+                type="checkbox"
+                checked={smsConsentOptIn}
+                onChange={(e) => setSmsConsentOptIn(e.target.checked)}
+                disabled={!signupPhone}
+              />
+              <span>Text me when a task needs my attention (optional).</span>
+            </label>
             <div className="adg-actions">
               <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("role")}>
                 Back
               </button>
               <button type="submit" className="adg-btn adg-btn-primary" disabled={submitting}>
                 {submitting ? "Creating account…" : "Create account"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Step: Verify email */}
+        {step === "verify-email" && (
+          <form onSubmit={handleVerifyEmail} className="adg-form">
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="verify-code">Verification code</label>
+              <input
+                id="verify-code"
+                className="adg-input adg-input-code"
+                type="text"
+                inputMode="numeric"
+                placeholder="6-digit code"
+                value={verifyCode}
+                onChange={(e) => setVerifyCode(e.target.value)}
+                required
+                autoComplete="one-time-code"
+              />
+            </div>
+            <p className="adg-sub">
+              Or click the link we emailed you to verify instantly.{" "}
+              <button type="button" className="adg-link" onClick={handleResendVerification}>
+                Resend code
+              </button>
+            </p>
+            {resendStatus && <p className="adg-sub">{resendStatus}</p>}
+            <div className="adg-actions">
+              <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("register")}>
+                Back
+              </button>
+              <button type="submit" className="adg-btn adg-btn-primary" disabled={submitting}>
+                {submitting ? "Verifying…" : "Verify email"}
               </button>
             </div>
           </form>

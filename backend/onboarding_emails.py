@@ -211,6 +211,87 @@ def build_verification_email(*, code: str) -> str:
     return _shell(subject="Your Archangel Health verification code", body_html=body)
 
 
+def build_doctor_verification_email(*, code: str, magic_link_url: str) -> str:
+    """Doctor sign-up verification — dual format: magic link as the primary
+    action (better fit for professional/B2B users), 6-digit code as a fallback
+    for corporate email scanners that pre-click and burn single-use links."""
+    safe_code = html.escape(code)
+    body = (
+        _eyebrow("Verify your email")
+        + _h1("Confirm it&rsquo;s you.")
+        + _p(
+            "Click below to verify your email and finish setting up your "
+            "Archangel Health account."
+        )
+        + _cta(magic_link_url, "Verify my email")
+        + _p(
+            "Having trouble with the link? Enter this code instead:",
+            muted=True,
+            small=True,
+        )
+        + (
+            '<div style="background:rgba(15,23,42,0.65);border:1px solid rgba(103,232,249,0.25);'
+            'border-radius:14px;padding:22px 24px;text-align:center;margin:16px 0 24px;'
+            'box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 0 32px rgba(103,232,249,0.08);">'
+            f'<div style="font-family:{_FRAUNCES};font-size:36px;font-weight:500;'
+            'letter-spacing:0.32em;color:#67E8F9;padding-left:0.32em;'
+            f'text-shadow:0 0 24px rgba(103,232,249,0.35);">{safe_code}</div>'
+            "</div>"
+        )
+        + _p(
+            "This link and code expire in 15 minutes. If you didn&rsquo;t request "
+            "this, ignore this email.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Verify your email — Archangel Health", body_html=body)
+
+
+def build_task_notification_email(
+    *,
+    login_url: str,
+    is_reminder: bool = False,
+    is_escalation: bool = False,
+) -> str:
+    """Task-assignment nudge. Deliberately content-free by construction — this
+    function takes no patient/task-detail parameters, only a login URL, so no
+    PHI can end up in a non-BAA-covered email transport (see
+    backend/compliance/subprocessors.py)."""
+    if is_escalation:
+        eyebrow, headline, lede = (
+            "Escalation",
+            "This still needs your review.",
+            "An item assigned to you in CareGuide has been waiting for a while. "
+            "Please take a look when you can.",
+        )
+    elif is_reminder:
+        eyebrow, headline, lede = (
+            "Reminder",
+            "You have a pending item.",
+            "You have a new item to review in CareGuide that hasn&rsquo;t been "
+            "opened yet.",
+        )
+    else:
+        eyebrow, headline, lede = (
+            "New item",
+            "You have a new item to review.",
+            "You have a new item to review in CareGuide.",
+        )
+    body = (
+        _eyebrow(eyebrow)
+        + _h1(headline)
+        + _p(lede)
+        + _cta(login_url, "Sign in to review")
+        + _p(
+            "If you weren&rsquo;t expecting this, you can safely ignore this email.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject=f"CareGuide — {headline}", body_html=body)
+
+
 def build_invite_email(
     *,
     invitee_first_name: str,

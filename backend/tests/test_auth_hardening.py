@@ -37,6 +37,9 @@ def client():
 def _register_and_login(client, email=None, password="pw12345678"):
     email = email or f"u_{uuid.uuid4().hex[:8]}@example.com"
     client.post("/api/auth/register", json={"email": email, "password": password, "name": "U"})
+    # These tests exercise token/session behavior, not the email-verification
+    # gate itself — bypass it directly rather than simulating the OTP flow.
+    auth_module.mark_email_verified(email)
     r = client.post("/api/auth/login", json={"email": email, "password": password})
     assert r.status_code == 200, r.text
     return email, r.json()
