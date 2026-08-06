@@ -47,6 +47,11 @@
   --green-deep:  #3c7a31;
   --orange-deep: #9c5c1b;
   --pink-deep:   #bb2f60;
+  /* Lime had no deep variant, so a surface needing readable lime TEXT had
+     to invent one locally. #d5e14e is a marker colour and is illegible as
+     body text on the canvas; this is the same darkening the other three
+     accents already ship. */
+  --lime-deep:   #6b7412;
 
   /* ---- product scale (§2.2: tighter than landing) ---- */
   --r-chip: 999px;

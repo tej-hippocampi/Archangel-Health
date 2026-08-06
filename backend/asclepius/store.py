@@ -1642,6 +1642,164 @@ class AsclepiusStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_fairness_subject "
                          "ON fairness_observations(subject_key)")
             # ═══ END PRD-CRED ═══
+            # ═══ PRD-P PAYMENTS SCHEMA — owned by Agent P, do not edit from other PRDs ═══
+            # Three tables and one rule: money is a LEDGER, never a computed
+            # aggregate. ``earnings`` rows carry the rate they were accrued at, so
+            # changing ASCLEPIUS_TL_RATE_CENTS is a redeploy and never a restatement
+            # of what a physician already earned.
+            #
+            # No DEFAULT on any status column (``qualified``, ``status``,
+            # ``end_reason``): NULL means "not yet decided" and must stay
+            # distinguishable from a decided value. ``credited_seconds`` DOES carry
+            # a DEFAULT because zero seconds is a decided fact, not an absence.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS work_sessions (
+                    session_id       TEXT PRIMARY KEY,
+                    user_id          TEXT NOT NULL,
+                    kind             TEXT NOT NULL,          -- 'review'
+                    started_at       TEXT NOT NULL,
+                    last_beat_at     TEXT,
+                    ended_at         TEXT,
+                    end_reason       TEXT,                   -- closed | expired | abandoned
+                    credited_seconds INTEGER NOT NULL DEFAULT 0,
+                    qualified        INTEGER,                -- NULL until closed; 1|0 after
+                    nonce            TEXT NOT NULL,
+                    min_seconds      INTEGER NOT NULL,
+                    rate_cents       INTEGER NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_ws_user_open "
+                "ON work_sessions(user_id, kind, ended_at)")
+            # ``open_session`` is specified as idempotent — an open session for
+            # this user+kind is RETURNED, never duplicated. The application check
+            # is the friendly path; this partial unique index is the guarantee,
+            # for the same reason UNIQUE(kind, ref_id) is on the ledger: two
+            # concurrent opens that both read "no open session" would otherwise
+            # both insert, and the reviewer would accumulate time against a
+            # session the client is not beating.
+            #
+            # Non-fatal by design. A UNIQUE index over a table that somehow
+            # already violates it fails to create, and a payments feature must
+            # not be able to prevent the whole portal from booting. Log loudly
+            # and carry on — ``open_session`` closes stragglers either way.
+            try:
+                conn.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_ws_one_open_per_kind "
+                    "ON work_sessions(user_id, kind) WHERE ended_at IS NULL")
+            except sqlite3.DatabaseError:
+                _logging.getLogger("asclepius.payments").warning(
+                    "asclepius.store: could not create idx_ws_one_open_per_kind — "
+                    "more than one open work_session already exists for some "
+                    "(user_id, kind). Sessions still close correctly; the "
+                    "duplicate-open guarantee is degraded until this is resolved.",
+                    exc_info=True)
+            # The QUALIFYING measure, kept separate from the RECORD.
+            # ``credited_seconds`` is every paid-eligible second across the whole
+            # session (PRD §1.4.1 — never delete a sub-threshold session, and never
+            # lose the seconds it worked). ``continuous_seconds`` is the longest
+            # single unbroken run, which is what "20 CONTINUOUS minutes" actually
+            # tests. With clean beats they are identical; they diverge exactly when
+            # a reviewer walked away and came back, which is the case the cliff is
+            # about. Added as a guarded ALTER rather than folded into the CREATE so
+            # a database written by an earlier build of this block still upgrades.
+            if "continuous_seconds" not in cols("work_sessions"):
+                conn.execute(
+                    "ALTER TABLE work_sessions ADD COLUMN continuous_seconds INTEGER NOT NULL DEFAULT 0")
+            # Standard deviation of beat intervals, in ms (PRD §3). Near-zero jitter
+            # is machine-generated. NULL = never computed. This column is a SIGNAL
+            # and nothing reads it to decide a payout — a false positive here means
+            # not paying a physician $100.
+            if "jitter_ms" not in cols("work_sessions"):
+                conn.execute("ALTER TABLE work_sessions ADD COLUMN jitter_ms REAL")
+            # Count of beats whose wall-clock delta disagreed with the process
+            # monotonic clock by more than the tolerance. Recorded, logged, and
+            # deliberately NOT applied to the ledger — see payments.py §clock.
+            if "clock_skew_beats" not in cols("work_sessions"):
+                conn.execute(
+                    "ALTER TABLE work_sessions ADD COLUMN clock_skew_beats INTEGER NOT NULL DEFAULT 0")
+            # How many distinct pieces of work this session's beats named (audit
+            # C2). A count, not a gate: one hard case adjudicated for twenty
+            # honest minutes is exactly one key, and refusing to pay that is the
+            # false positive this whole feature is built to avoid. Recorded so the
+            # threshold in ASCLEPIUS_TR_MIN_PROGRESS_KEYS can eventually be set
+            # from data rather than from a guess.
+            if "distinct_progress_keys" not in cols("work_sessions"):
+                conn.execute(
+                    "ALTER TABLE work_sessions ADD COLUMN distinct_progress_keys "
+                    "INTEGER NOT NULL DEFAULT 0")
+            # How many times a client asked for a fresh nonce mid-session (audit
+            # H1). One or two is a page reload; dozens is a script that never
+            # reads a heartbeat response.
+            if "resume_count" not in cols("work_sessions"):
+                conn.execute(
+                    "ALTER TABLE work_sessions ADD COLUMN resume_count INTEGER NOT NULL DEFAULT 0")
+
+            # One durable row per accepted heartbeat. There is no server-side
+            # stopwatch and no in-memory session state anywhere in this feature:
+            # credited time is recomputed from these rows every time it is asked
+            # for, which is what makes a redeploy mid-session lose nothing.
+            #
+            # UNIQUE(session_id, seq) is the replay guard at the database level.
+            # The application also checks that seq increases; the constraint is the
+            # guarantee, the check is the friendly error.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS session_beats (
+                    beat_id      TEXT PRIMARY KEY,
+                    session_id   TEXT NOT NULL,
+                    server_ts    TEXT NOT NULL,
+                    seq          INTEGER NOT NULL,
+                    active       INTEGER NOT NULL,
+                    progress_key TEXT,
+                    client_ts    TEXT,
+                    UNIQUE(session_id, seq)
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_beat_session ON session_beats(session_id, seq)")
+
+            # The ledger. ``UNIQUE(kind, ref_id)`` is the double-payment guard —
+            # not a nicety. Every double-payment story starts with an application
+            # check that raced; this one cannot, because two concurrent finalizers
+            # cannot both win an INSERT.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS earnings (
+                    earning_id   TEXT PRIMARY KEY,
+                    user_id      TEXT NOT NULL,
+                    kind         TEXT NOT NULL,             -- 'task' | 'review_session'
+                    ref_id       TEXT NOT NULL,             -- submission_id | session_id
+                    amount_cents INTEGER NOT NULL,
+                    rate_cents   INTEGER NOT NULL,
+                    status       TEXT NOT NULL,             -- accrued | approved | void | paid
+                    accrued_at   TEXT NOT NULL,
+                    resolved_at  TEXT,
+                    note         TEXT,
+                    UNIQUE(kind, ref_id)
+                )
+                """
+            )
+            # The disbursement batch this row was paid in (audit H2). NULL until
+            # money actually leaves — which makes it, not the status alone, the
+            # thing that says a payment really happened. No DEFAULT, same rule as
+            # every other decision column in this file.
+            if "payout_batch_id" not in cols("earnings"):
+                conn.execute("ALTER TABLE earnings ADD COLUMN payout_batch_id TEXT")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_earnings_user ON earnings(user_id, status)")
+            # Reconciling a disbursement against the ledger is the first thing
+            # anyone does after running one.
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_earnings_batch ON earnings(payout_batch_id)")
+            # The auto-approve sweep scans by (status, accrued_at). Unindexed that
+            # is a full ledger scan on every Earnings page load, forever.
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_earnings_sweep ON earnings(status, accrued_at)")
+            # ═══ END PRD-P ═══
 
             # ── Specialty-tagged task notifications (outbox + drain) ─────────
             # One row per (recipient, specialty, upload batch): the admin request
@@ -7854,6 +8012,614 @@ class AsclepiusStore:
                     gold.setdefault(r["task_id"], r["chosen_id"])
         return {"observations": observations, "gold": gold}
     # ═══ END PRD-CRED STORE METHODS ═══
+    # ═══ PRD-P PAYMENT STORE METHODS — owned by Agent P, do not edit from other PRDs ═══
+    # Persistence only. Every policy number (rate, threshold, gap tolerances) and
+    # every arithmetic decision lives in ``asclepius/payments.py`` — this block
+    # owns the transaction boundary and nothing else. The two methods that mutate
+    # a session take a ``credit_fn`` so the arithmetic runs against rows read
+    # INSIDE the write transaction: computing outside it and writing after would
+    # let a beat land in between and silently pay the wrong number.
+
+    @staticmethod
+    def _immediate(conn: sqlite3.Connection) -> None:
+        """Take SQLite's single write lock at transaction START.
+
+        ``sqlite3`` defaults to a DEFERRED transaction, which acquires a SHARED
+        lock on first read and tries to UPGRADE on first write. Two finalizers
+        that both read first can then deadlock on the upgrade and one gets
+        SQLITE_BUSY — under a busy_timeout of 30 s that is a 30-second hang on a
+        payout. BEGIN IMMEDIATE takes the write lock up front, so the second
+        caller waits cleanly at the door instead."""
+        conn.isolation_level = None      # we drive BEGIN/COMMIT ourselves
+        conn.execute("BEGIN IMMEDIATE")
+
+    @staticmethod
+    def _session_row(row: Optional[sqlite3.Row]) -> Optional[Dict[str, Any]]:
+        return dict(row) if row is not None else None
+
+    def get_work_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM work_sessions WHERE session_id = ?", (session_id,)).fetchone()
+        return self._session_row(row)
+
+    def open_work_session_row(
+        self, *, user_id: str, kind: str
+    ) -> Optional[Dict[str, Any]]:
+        """The one open (never-ended) session for this user+kind, if any.
+
+        ``ended_at IS NULL`` is the open predicate — which is why ``end_reason``
+        carries no DEFAULT. Ordered newest-first so that if a historic bug ever
+        left two open, the caller sees the live one; ``open_session`` closes the
+        stragglers rather than pretending they are not there."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM work_sessions WHERE user_id = ? AND kind = ? "
+                "AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1",
+                (user_id, kind)).fetchone()
+        return self._session_row(row)
+
+    def list_open_work_sessions(self, *, user_id: str, kind: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM work_sessions WHERE user_id = ? AND kind = ? "
+                "AND ended_at IS NULL ORDER BY started_at ASC", (user_id, kind)).fetchall()
+        return [dict(r) for r in rows]
+
+    def insert_work_session(
+        self, *, session_id: str, user_id: str, kind: str, started_at: str,
+        nonce: str, min_seconds: int, rate_cents: int,
+    ) -> Dict[str, Any]:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO work_sessions
+                    (session_id, user_id, kind, started_at, last_beat_at, ended_at,
+                     end_reason, credited_seconds, qualified, nonce, min_seconds,
+                     rate_cents, continuous_seconds, jitter_ms, clock_skew_beats)
+                VALUES (?, ?, ?, ?, NULL, NULL, NULL, 0, NULL, ?, ?, ?, 0, NULL, 0)
+                """,
+                (session_id, user_id, kind, started_at, nonce, min_seconds, rate_cents),
+            )
+        return self.get_work_session(session_id)  # type: ignore[return-value]
+
+    def rotate_session_nonce(self, *, session_id: str, nonce: str) -> bool:
+        """Mint a fresh nonce onto an OPEN session and count the resume.
+
+        Separate from ``record_session_beat`` because resuming is not beating: it
+        credits no time and is rate-limited far harder. The ``ended_at IS NULL``
+        predicate lives in the UPDATE rather than in a preceding read, so a
+        session that closed underneath the caller cannot be handed a live nonce by
+        a racing resume."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE work_sessions SET nonce = ?, resume_count = resume_count + 1 "
+                "WHERE session_id = ? AND ended_at IS NULL",
+                (nonce, session_id))
+            return cur.rowcount > 0
+
+    def session_beats(self, session_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM session_beats WHERE session_id = ? ORDER BY seq ASC",
+                (session_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def record_session_beat(
+        self, *, session_id: str, nonce: str, seq: int, active: bool,
+        progress_key: Optional[str], client_ts: Optional[str], server_ts: str,
+        next_nonce: str, credit_fn, beat_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Validate → append → recompute → rotate the nonce, in ONE transaction.
+
+        Returns ``{"ok": bool, "error": str|None, ...credit fields}``. The three
+        rejections (session ended, stale nonce, replayed seq) are returned rather
+        than raised so the router decides the HTTP shape.
+
+        Splitting this across transactions is the whole vulnerability: two
+        concurrent beats presenting the same nonce would both validate against
+        the pre-rotation value and both be accepted. Under BEGIN IMMEDIATE the
+        second waits for the first to rotate, then fails the nonce check — which
+        is exactly what the rotating nonce is for."""
+        conn = self._conn()
+        try:
+            self._immediate(conn)
+            row = conn.execute(
+                "SELECT * FROM work_sessions WHERE session_id = ?", (session_id,)).fetchone()
+            if row is None:
+                conn.execute("ROLLBACK")
+                return {"ok": False, "error": "not_found"}
+            session = dict(row)
+            if session.get("ended_at"):
+                conn.execute("ROLLBACK")
+                return {"ok": False, "error": "ended", "session": session}
+            if nonce != session.get("nonce"):
+                conn.execute("ROLLBACK")
+                return {"ok": False, "error": "stale_nonce", "session": session}
+            last_seq = conn.execute(
+                "SELECT MAX(seq) AS m FROM session_beats WHERE session_id = ?",
+                (session_id,)).fetchone()["m"]
+            if last_seq is not None and seq <= int(last_seq):
+                conn.execute("ROLLBACK")
+                return {"ok": False, "error": "replayed_seq", "session": session}
+            conn.execute(
+                "INSERT INTO session_beats "
+                "(beat_id, session_id, server_ts, seq, active, progress_key, client_ts) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (beat_id or _new_id("beat"), session_id, server_ts, int(seq),
+                 1 if active else 0, progress_key, client_ts),
+            )
+            beats = [dict(r) for r in conn.execute(
+                "SELECT * FROM session_beats WHERE session_id = ? ORDER BY seq ASC",
+                (session_id,)).fetchall()]
+            credit = credit_fn(beats, session)
+            conn.execute(
+                "UPDATE work_sessions SET last_beat_at = ?, credited_seconds = ?, "
+                "continuous_seconds = ?, jitter_ms = ?, clock_skew_beats = ?, "
+                "distinct_progress_keys = ?, nonce = ? WHERE session_id = ?",
+                (server_ts, int(credit["credited_seconds"]), int(credit["continuous_seconds"]),
+                 credit.get("jitter_ms"),
+                 int(session.get("clock_skew_beats") or 0) + (1 if credit.get("clock_skew") else 0),
+                 int(credit.get("distinct_progress_keys") or 0),
+                 next_nonce, session_id),
+            )
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+        # ``next_nonce`` is returned from INSIDE the committed transaction rather
+        # than re-read afterwards: a re-read could observe a nonce a concurrent
+        # beat had already rotated past, and hand the client one that is stale
+        # before it is ever used.
+        # ``seq`` goes back to the client so a tab that RESUMED a session — and so
+        # let the server derive the first sequence number — learns where the
+        # sequence is and can number its own beats from here. Without it, such a
+        # tab would defer to the server forever and permanently give up the
+        # replay guard's depth behind the rotating nonce.
+        return {"ok": True, "error": None, "next_nonce": next_nonce,
+                "seq": int(seq), **credit}
+
+    def finalize_work_session(
+        self, *, session_id: str, end_reason: str, ended_at: str, credit_fn,
+        earning: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Close a session and, if it qualified, write its earnings row — atomically.
+
+        Idempotent by construction: an already-ended session is returned as it was
+        stored, without recomputation, so calling this five times (or twice
+        concurrently) yields one row and one answer. ``earning`` is the ledger row
+        to write WHEN the session qualifies AND the user accrues payment; pass
+        None for a contributor who does not (an advisor), and the session still
+        closes with its seconds recorded — the record survives, only the money
+        does not.
+
+        ``INSERT OR IGNORE`` leans on ``UNIQUE(kind, ref_id)``: if a concurrent
+        finalizer already wrote the row, this one is a no-op rather than an
+        IntegrityError surfacing as a 500 on a payout."""
+        conn = self._conn()
+        try:
+            self._immediate(conn)
+            row = conn.execute(
+                "SELECT * FROM work_sessions WHERE session_id = ?", (session_id,)).fetchone()
+            if row is None:
+                conn.execute("ROLLBACK")
+                return {"ok": False, "error": "not_found"}
+            session = dict(row)
+            if session.get("ended_at"):
+                existing = conn.execute(
+                    "SELECT * FROM earnings WHERE kind = ? AND ref_id = ?",
+                    ((earning or {}).get("kind") or "review_session", session_id)).fetchone()
+                conn.execute("COMMIT")
+                paid = dict(existing) if existing is not None else None
+                return {
+                    "ok": True, "error": None, "already_ended": True,
+                    "credited_seconds": int(session.get("credited_seconds") or 0),
+                    "continuous_seconds": int(session.get("continuous_seconds") or 0),
+                    "qualified": bool(session.get("qualified")),
+                    "end_reason": session.get("end_reason"),
+                    "ended_at": session.get("ended_at"),
+                    "earning": paid,
+                }
+            beats = [dict(r) for r in conn.execute(
+                "SELECT * FROM session_beats WHERE session_id = ? ORDER BY seq ASC",
+                (session_id,)).fetchall()]
+            credit = credit_fn(beats, session)
+            qualified = bool(credit["qualified"])
+            conn.execute(
+                "UPDATE work_sessions SET ended_at = ?, end_reason = ?, credited_seconds = ?, "
+                "continuous_seconds = ?, qualified = ?, jitter_ms = ?, "
+                "distinct_progress_keys = ? WHERE session_id = ?",
+                (ended_at, end_reason, int(credit["credited_seconds"]),
+                 int(credit["continuous_seconds"]), 1 if qualified else 0,
+                 credit.get("jitter_ms"), int(credit.get("distinct_progress_keys") or 0),
+                 session_id),
+            )
+            written = None
+            if qualified and earning:
+                conn.execute(
+                    "INSERT OR IGNORE INTO earnings "
+                    "(earning_id, user_id, kind, ref_id, amount_cents, rate_cents, "
+                    " status, accrued_at, resolved_at, note) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (earning["earning_id"], earning["user_id"], earning["kind"],
+                     earning["ref_id"], int(earning["amount_cents"]), int(earning["rate_cents"]),
+                     earning["status"], earning["accrued_at"], earning.get("resolved_at"),
+                     earning.get("note")),
+                )
+                got = conn.execute(
+                    "SELECT * FROM earnings WHERE kind = ? AND ref_id = ?",
+                    (earning["kind"], earning["ref_id"])).fetchone()
+                written = dict(got) if got is not None else None
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+        return {
+            "ok": True, "error": None, "already_ended": False,
+            "credited_seconds": int(credit["credited_seconds"]),
+            "continuous_seconds": int(credit["continuous_seconds"]),
+            "qualified": qualified, "end_reason": end_reason, "ended_at": ended_at,
+            "earning": written,
+            # Carried out of the transaction so the caller can decide whether this
+            # payout deserves a human look WITHOUT re-reading the session it just
+            # wrote — the values it would read back are exactly these.
+            "jitter_ms": credit.get("jitter_ms"),
+            "distinct_progress_keys": int(credit.get("distinct_progress_keys") or 0),
+            "work_named": bool(credit.get("work_named")),
+            "skipped_beats": int(credit.get("skipped_beats") or 0),
+            # Set only when the ratchet bound — the caller turns it into a
+            # payout-review event. Carried out rather than re-derived, because
+            # once the floored value is written there is nothing left to compare.
+            "regressed": credit.get("regressed"),
+        }
+
+    # ─── Ledger ───────────────────────────────────────────────────────────────
+    def insert_earning(
+        self, *, earning_id: str, user_id: str, kind: str, ref_id: str,
+        amount_cents: int, rate_cents: int, status: str, accrued_at: str,
+        resolved_at: Optional[str] = None, note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Write one ledger row. Returns None when ``UNIQUE(kind, ref_id)`` already
+        holds a row — the caller learns "already accrued" without an exception, and
+        without a check-then-insert race in between."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO earnings "
+                "(earning_id, user_id, kind, ref_id, amount_cents, rate_cents, "
+                " status, accrued_at, resolved_at, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (earning_id, user_id, kind, ref_id, int(amount_cents), int(rate_cents),
+                 status, accrued_at, resolved_at, note),
+            )
+            if cur.rowcount == 0:
+                return None
+        return self.get_earning(kind=kind, ref_id=ref_id)
+
+    def get_earning(self, *, kind: str, ref_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM earnings WHERE kind = ? AND ref_id = ?", (kind, ref_id)).fetchone()
+        return dict(row) if row is not None else None
+
+    def resolve_earning(
+        self, *, kind: str, ref_id: str, status: str, resolved_at: str,
+        note: Optional[str] = None, only_from: Optional[List[str]] = None,
+    ) -> bool:
+        """Move a ledger row to a decided state. ``only_from`` is a compare-and-set
+        on the current status, so a transition can be expressed as a fact about
+        what it is allowed to follow rather than as a read followed by a hopeful
+        write. Returns True when a row actually moved."""
+        sql = ("UPDATE earnings SET status = ?, resolved_at = ?, "
+               "note = COALESCE(?, note) WHERE kind = ? AND ref_id = ?")
+        params: List[Any] = [status, resolved_at, note, kind, ref_id]
+        if only_from:
+            sql += " AND status IN (%s)" % ",".join("?" * len(only_from))
+            params.extend(only_from)
+        with self._conn() as conn:
+            cur = conn.execute(sql, params)
+            return cur.rowcount > 0
+
+    def mark_earnings_paid(
+        self, *, payout_batch_id: str, paid_at: str,
+        earning_ids: Optional[List[str]] = None, user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Move ``approved`` rows to ``paid`` under one batch id, atomically.
+
+        The batch id is the IDEMPOTENCY KEY, and that is the whole design. A
+        disbursement job that times out and retries is the normal case, so
+        replaying a batch must be a no-op rather than a second payment — which is
+        why the UPDATE carries ``status = 'approved' AND payout_batch_id IS NULL``
+        as a compare-and-set instead of reading first and hoping.
+
+        Everything runs inside one BEGIN IMMEDIATE, for the same reason the
+        session finalizer does: two disbursement runs must not be able to
+        interleave a read and a write and pay the same physician twice.
+
+        Returns counts rather than rows: ``marked`` is what this call changed,
+        ``already_in_batch`` is what a previous identical call changed, and
+        ``skipped`` is everything that was not eligible. A retry is the case where
+        ``marked`` is 0 and ``already_in_batch`` is not."""
+        conn = self._conn()
+        try:
+            self._immediate(conn)
+            where, params = [], []
+            if earning_ids:
+                where.append("earning_id IN (%s)" % ",".join("?" * len(earning_ids)))
+                params.extend(earning_ids)
+            if user_id:
+                where.append("user_id = ?")
+                params.append(user_id)
+            scope = " AND ".join(where)
+
+            candidates = [dict(r) for r in conn.execute(
+                f"SELECT * FROM earnings WHERE {scope}", params).fetchall()]
+            already = [r for r in candidates
+                       if r["status"] == "paid" and r["payout_batch_id"] == payout_batch_id]
+            eligible = [r for r in candidates
+                        if r["status"] == "approved" and r["payout_batch_id"] is None]
+
+            marked = []
+            for row in eligible:
+                cur = conn.execute(
+                    "UPDATE earnings SET status = 'paid', payout_batch_id = ?, "
+                    "resolved_at = ? "
+                    "WHERE earning_id = ? AND status = 'approved' "
+                    "  AND payout_batch_id IS NULL",
+                    (payout_batch_id, paid_at, row["earning_id"]))
+                if cur.rowcount:
+                    marked.append(row)
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+        return {
+            "marked": marked,
+            "already_in_batch": len(already),
+            "skipped": len(candidates) - len(marked) - len(already),
+        }
+
+    def earnings_for_user(
+        self, user_id: str, *, limit: int = 200
+    ) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM earnings WHERE user_id = ? "
+                "ORDER BY accrued_at DESC, earning_id DESC LIMIT ?",
+                (user_id, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    def earnings_totals_for_user(self, user_id: str) -> Dict[str, Dict[str, int]]:
+        """``{status: {kind: {"n": int, "cents": int}}}`` — the Earnings headline
+        without pulling the whole ledger into Python to add it up."""
+        out: Dict[str, Dict[str, Any]] = {}
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT status, kind, COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents "
+                "FROM earnings WHERE user_id = ? GROUP BY status, kind", (user_id,)).fetchall()
+        for r in rows:
+            out.setdefault(r["status"], {})[r["kind"]] = {
+                "n": int(r["n"]), "cents": int(r["cents"])}
+        return out
+
+    def list_earnings(
+        self, *, user_id: Optional[str] = None, status: Optional[str] = None,
+        payout_batch_id: Optional[str] = None, limit: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """Admin ledger view, joined to the identity so the console can name the
+        physician without a second round trip per row."""
+        sql = ("SELECT e.*, u.email AS user_email, u.tier AS user_tier, "
+               "       u.compensation_model AS compensation_model "
+               "FROM earnings e LEFT JOIN users u ON u.id = e.user_id WHERE 1 = 1")
+        params: List[Any] = []
+        if user_id:
+            sql += " AND e.user_id = ?"
+            params.append(user_id)
+        if status:
+            sql += " AND e.status = ?"
+            params.append(status)
+        if payout_batch_id:
+            sql += " AND e.payout_batch_id = ?"
+            params.append(payout_batch_id)
+        sql += " ORDER BY e.accrued_at DESC, e.earning_id DESC LIMIT ?"
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def earnings_by_status(self) -> Dict[str, Dict[str, int]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents "
+                "FROM earnings GROUP BY status").fetchall()
+        return {r["status"]: {"n": int(r["n"]), "cents": int(r["cents"])} for r in rows}
+
+    def work_sessions_for_user(
+        self, user_id: str, *, limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM work_sessions WHERE user_id = ? "
+                "ORDER BY started_at DESC LIMIT ?", (user_id, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    # ─── Accrual reconciliation inputs (read-only over other PRDs' tables) ─────
+    #
+    # Two queries, and the split is deliberate. Reconciliation runs on EVERY
+    # Earnings page load, so it must not scan a table that grows forever: each
+    # query returns a set that is bounded by outstanding work rather than by
+    # total history.
+    #
+    #   unaccrued_submissions  — terminal-submitted work with no ledger row yet.
+    #                            Drains to ~empty in steady state.
+    #   unresolved_task_earnings — ledger rows still awaiting a verdict.
+    #                            Bounded by the review backlog.
+    #
+    # Both are read-only over other PRDs' tables. PRD-P §4 forbids a callback
+    # into the review module; reading ``case_reviews`` is a contract-free
+    # dependency where a callback is not.
+    #
+    # A PAIRED adjudication (PRD-R) writes ONE case_reviews row for the whole
+    # case, anchored on the accepted submission, with the two labels recorded in
+    # ``pair_sub_a``/``pair_sub_b``. Matching on ``submission_id`` alone therefore
+    # resolves only ONE of the two physicians and leaves the other's $75 sitting
+    # accrued until the fourteen-day sweep — money a reviewer already approved,
+    # paid a fortnight late, for no reason the physician could discover.
+    #
+    # So a verdict is matched against all three columns. This reads two more
+    # column NAMES off a table payments already reads; it does not call into the
+    # review module and does not teach payments what a pair means beyond "these
+    # two submissions were adjudicated together".
+    #
+    # ``review_verdicts`` is the raw comma-joined verdict list, classified by
+    # ``payments._verdict_status``. Deliberately raw: filtering the accepting
+    # verdicts here would put a second definition of "the work was accepted" into
+    # a file that does not own the concept, which is what Seam 3 forbids and what
+    # ``test_only_one_definition_of_expert_acceptance_exists`` catches. SQL counts
+    # rows; the payments module decides what they mean.
+
+    # A submission is worth money once it has reached a terminal SUBMITTED state.
+    # ``rejected`` and the Stage-1 flag states (``prompt_flagged``, ``not_hard``,
+    # ``case_incoherent``) are absent on purpose: they produce no records.
+    _ACCRUABLE_STATUSES = (
+        "submitted", "auto_validated", "qa_checked", "export_ready", "needs_qa", "exported",
+    )
+
+    def unaccrued_submissions(
+        self, *, user_id: Optional[str] = None, limit: int = 2000
+    ) -> List[Dict[str, Any]]:
+        """Payable submissions that have no ledger row yet, oldest first.
+
+        The LEFT JOIN to ``users`` mirrors the audit-M6 reasoning next to
+        ``PAYABLE_SQL`` — an INNER JOIN would silently under-pay a physician whose
+        user row went missing. Unpayable authors are excluded IN SQL rather than
+        in Python, so an equity-holding advisor's submissions never occupy the
+        scan window forever (they will never gain a ledger row, by design).
+
+        The mock/sandbox contributor is excluded too: it exists to exercise the
+        live portal and its submissions must never become a cash obligation.
+
+        Oldest first so a backlog drains deterministically rather than starving
+        its own tail against the limit."""
+        from asclepius.compensation import PAYABLE_SQL
+        placeholders = ",".join("?" * len(self._ACCRUABLE_STATUSES))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT s.submission_id,
+                       s.evaluator_id,
+                       s.task_id,
+                       s.status,
+                       s.created_at,
+                       (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
+                         WHERE cr.submission_id = s.submission_id
+                            OR cr.pair_sub_a   = s.submission_id
+                            OR cr.pair_sub_b   = s.submission_id) AS review_verdicts,
+                       (SELECT cr.reviewer_notes FROM case_reviews cr
+                         WHERE (cr.submission_id = s.submission_id
+                                OR cr.pair_sub_a = s.submission_id
+                                OR cr.pair_sub_b = s.submission_id)
+                           AND cr.verdict = 'reject'
+                         ORDER BY cr.created_at DESC LIMIT 1) AS reject_note
+                FROM submissions s
+                LEFT JOIN users u ON u.id = s.evaluator_id
+                WHERE s.status IN ({placeholders})
+                  AND COALESCE(u.is_mock, 0) = 0
+                  AND {PAYABLE_SQL}
+                  AND NOT EXISTS (SELECT 1 FROM earnings e
+                                   WHERE e.kind = 'task' AND e.ref_id = s.submission_id)
+                  AND (? IS NULL OR s.evaluator_id = ?)
+                ORDER BY s.created_at ASC
+                LIMIT ?
+                """,
+                (*self._ACCRUABLE_STATUSES, user_id, user_id, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    def unresolved_task_earnings(
+        self, *, user_id: Optional[str] = None, limit: int = 2000
+    ) -> List[Dict[str, Any]]:
+        """Task ledger rows not yet in a decided state, with their verdicts.
+
+        ``accrued`` is "awaiting a verdict"; ``void`` is included because a later
+        accepting verdict may restore money (PRD-P §1.2 — money may go up, never
+        down). ``approved`` and ``paid`` are terminal and are never re-examined."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT e.ref_id AS submission_id,
+                       e.status,
+                       (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
+                         WHERE cr.submission_id = e.ref_id
+                            OR cr.pair_sub_a   = e.ref_id
+                            OR cr.pair_sub_b   = e.ref_id) AS review_verdicts,
+                       (SELECT cr.reviewer_notes FROM case_reviews cr
+                         WHERE (cr.submission_id = e.ref_id
+                                OR cr.pair_sub_a = e.ref_id
+                                OR cr.pair_sub_b = e.ref_id)
+                           AND cr.verdict = 'reject'
+                         ORDER BY cr.created_at DESC LIMIT 1) AS reject_note
+                FROM earnings e
+                WHERE e.kind = 'task' AND e.status IN ('accrued', 'void')
+                  AND (? IS NULL OR e.user_id = ?)
+                ORDER BY e.accrued_at ASC
+                LIMIT ?
+                """,
+                (user_id, user_id, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    def submission_specialties(self, submission_ids: List[str]) -> Dict[str, str]:
+        """``{submission_id: specialty}`` in one query, so the Earnings ledger can
+        say "Task · nephrology case" without an N+1 walk over the ledger."""
+        out: Dict[str, str] = {}
+        if not submission_ids:
+            return out
+        with self._conn() as conn:
+            for i in range(0, len(submission_ids), 400):
+                chunk = submission_ids[i:i + 400]
+                rows = conn.execute(
+                    "SELECT s.submission_id AS sid, t.specialty AS specialty "
+                    "FROM submissions s LEFT JOIN tasks t ON t.task_id = s.task_id "
+                    "WHERE s.submission_id IN (%s)" % ",".join("?" * len(chunk)),
+                    chunk).fetchall()
+                for r in rows:
+                    if r["specialty"]:
+                        out[r["sid"]] = r["specialty"]
+        return out
+
+    def accrued_earnings_before(
+        self, cutoff_iso: str, *, user_id: Optional[str] = None, limit: int = 1000
+    ) -> List[Dict[str, Any]]:
+        """``accrued`` rows older than the cutoff — the auto-approve sweep's input
+        (PRD-P §1.2: a labeler is never held hostage by a review backlog).
+
+        ``user_id`` scopes it to one physician's backlog, which is what a doctor's
+        own Earnings read is entitled to touch. The unscoped form is the admin
+        sweep, and it has to keep existing: the fourteen-day promise cannot depend
+        on the physician remembering to open the page."""
+        sql = "SELECT * FROM earnings WHERE status = 'accrued' AND accrued_at < ?"
+        params: List[Any] = [cutoff_iso]
+        if user_id:
+            sql += " AND user_id = ?"
+            params.append(user_id)
+        sql += " ORDER BY accrued_at ASC LIMIT ?"
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    # ═══ END PRD-P STORE METHODS ═══
 
 
 # ─── PRD-I §F3: database durability ───────────────────────────────────────────

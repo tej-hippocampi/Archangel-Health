@@ -2816,6 +2816,227 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
 .asc-metric-row-value { color: #1a1b1a; }
 /* ═══ END PRD-C ═══ */
 
+/* ═══ PRD-P — Earnings ═══════════════════════════════════════════════════════
+   Money is the one place Doto earns its keep, and only on the headline figure.
+   Everything else is Instrument Sans with IBM Plex Mono for amounts and statuses
+   so the right-hand column aligns as a column. Zero black fills: a status is a
+   word in colour, not a filled chip.
+
+   Accent semantics, held exactly:
+     green  approved      — physician-authored value, realised
+     lime   pending       — new, needs attention
+     grey   not approved  — muted, NOT pink
+
+   Not pink, deliberately. Pink means flag / PHI / critical / blocking. A task
+   that did not pass review is not a safety event, and colouring it like one
+   would make a doctor think they did something dangerous.
+
+   Status text uses --lime-deep, not --lime: the marker colour is illegible as
+   body text on the canvas. That keeps the lime FAMILY (the meaning) while
+   staying readable, which is the same trade-off --green-deep and --pink-deep
+   already make. The token lives in _tokens.css, where every hex belongs.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.asc-pay-title {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--asc-text);
+  margin: 0 0 22px;
+  letter-spacing: -0.01em;
+}
+.asc-pay-loading { font-size: 13px; color: var(--asc-muted); padding: 24px 0; }
+
+/* ── Headline ── */
+.asc-pay-head { padding: 4px 0 26px; }
+.asc-pay-hero { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.asc-pay-hero-value {
+  font-family: var(--doto);
+  font-variation-settings: 'ROND' 100;
+  font-size: 56px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: var(--ink);
+}
+.asc-pay-hero-label { font-size: 14px; color: var(--asc-muted); }
+.asc-pay-sub {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--asc-muted);
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.asc-pay-dot { color: var(--ink-faint); }
+.asc-pay-advisor {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--asc-text);
+  background: var(--green-wash);
+  border: 1px solid var(--green-line);
+  border-radius: var(--r-sm);
+  padding: 14px 16px;
+  max-width: 62ch;
+}
+
+/* ── Line items ── */
+.asc-pay-lines { border-top: 1px solid var(--asc-line); margin-bottom: 28px; }
+.asc-pay-line {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 20px;
+  align-items: baseline;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--asc-line);
+}
+.asc-pay-line-label { font-size: 13px; color: var(--asc-text); }
+.asc-pay-line-count {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--asc-muted);
+  font-variant-numeric: tabular-nums;
+}
+.asc-pay-line-total {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  min-width: 84px;
+  text-align: right;
+}
+
+/* ── Recent ── */
+.asc-pay-recent { margin-top: 4px; }
+.asc-pay-empty { font-size: 13px; color: var(--asc-muted); padding: 14px 0; }
+.asc-pay-row {
+  display: grid;
+  grid-template-columns: 62px 1fr 84px 118px;
+  gap: 14px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--asc-line);
+}
+.asc-pay-when {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--asc-muted);
+}
+.asc-pay-what { font-size: 13px; color: var(--asc-text); }
+.asc-pay-amount {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.asc-pay-status { font-family: var(--mono); font-size: 11px; letter-spacing: 0.02em; }
+.asc-pay-approved { color: var(--green-deep); }
+.asc-pay-pending  { color: var(--lime-deep); }
+.asc-pay-void     { color: var(--ink-faint); }
+/* The explanation that must sit next to a number that went down. */
+.asc-pay-note {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--asc-muted);
+  padding: 0 0 10px 76px;
+  border-bottom: 1px solid var(--asc-line);
+  line-height: 1.5;
+}
+
+/* ── The reviewer's live session widget ── */
+.asc-pay-session {
+  background: var(--card);
+  border: 1px solid var(--lime-line);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  margin-bottom: 26px;
+  max-width: 42ch;
+}
+.asc-pay-session.is-qualified { border-color: var(--green-line); background: var(--green-wash); }
+.asc-pay-session-clock {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--asc-muted);
+  font-variant-numeric: tabular-nums;
+}
+.asc-pay-session-elapsed { color: var(--lime-deep); font-size: 16px; }
+.asc-pay-session.is-qualified .asc-pay-session-elapsed { color: var(--green-deep); }
+.asc-pay-session-rule { height: 1px; background: var(--asc-line); margin: 12px 0 10px; }
+.asc-pay-session-warning { font-size: 12px; color: var(--asc-text); line-height: 1.5; }
+.asc-pay-session-warn {
+  font-size: 12px;
+  color: var(--asc-muted);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .asc-pay-hero-value { font-size: 42px; }
+  .asc-pay-row { grid-template-columns: 54px 1fr 76px; }
+  .asc-pay-row .asc-pay-status { grid-column: 2 / -1; }
+  .asc-pay-note { padding-left: 68px; }
+}
+
+/* ─── Audit U1 — the rule, stated before it can cost anyone anything ─────────
+   This card renders for every physician who accrues payment, session or not.
+   The sentence used to live only inside the live-session widget, which meant a
+   reviewer could not read it until they were already exposed to it. Lime, not
+   pink: this is "new, needs attention", never a safety flag. */
+.asc-pay-rule {
+  border: 1px solid var(--lime-line);
+  background: var(--lime-wash);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  margin-top: 26px;
+  max-width: 62ch;
+}
+.asc-pay-rule-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--asc-muted);
+  margin-bottom: 8px;
+}
+.asc-pay-rule-body { font-size: 13px; line-height: 1.6; color: var(--asc-text); }
+.asc-pay-rule-body + .asc-pay-rule-body { margin-top: 8px; }
+
+/* ─── PRD M — the manual switcher ────────────────────────────────────────────
+   A mono chip row above the title, matching the existing chrome pattern —
+   deliberately not a <select> and not tabs, because the Guide already has a
+   dropdown (jump-to-section) and a second one would read as the same control.
+   Rendered only when a physician holds more than one manual; one chip is not a
+   choice. Zero black fills: the active chip is an ink outline, not an ink
+   block. */
+.asc-guide-switch {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.asc-guide-switch-chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--asc-muted);
+  background: transparent;
+  border: 1px solid var(--asc-line);
+  border-radius: var(--r-chip);
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.asc-guide-switch-chip:hover { color: var(--asc-text); border-color: var(--asc-line-strong); }
+.asc-guide-switch-chip.active {
+  color: var(--asc-text);
+  border-color: var(--ink);
+  background: var(--card-in);
+}
+.asc-guide-switch-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+@media print { .asc-guide-switch { display: none; } }
+/* ═══ END PRD-P ═══ */
+
 /* ═══ PRD-R: the paired review surface ═══════════════════════════════════════
    The TR page mirrors the TL page's structure, because a physician who has
    labelled already knows how to read it. The ACCENT is what changes, and the

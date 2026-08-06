@@ -34,6 +34,10 @@
     taxonomy: null,
     view: 'eval',          // 'eval' | 'admin'  (header-level: evaluate vs admin console)
     panel: 'tasks',        // side-panel destination: 'tasks' | 'guide' (Community is external nav)
+    // PRD M: which of the three manuals the Guide is showing. NULL means "not
+    // chosen yet", which resolves to the most senior manual the session holds:
+    // distinct from a physician having actively picked one.
+    manualRole: null,
     // Community integration state (Community PRD boundary: every field optional,
     // degrades silently if the community backend is unbuilt). unread drives the
     // badge; handoffToken is pre-minted so the new tab can open synchronously.
@@ -249,7 +253,7 @@
       window.open('/asclepius/review', '_blank', 'noopener');
       return;
     }
-    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'advisor') return;
+    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'advisor' && dest !== 'earnings') return;
     // Server-gated destinations are re-checked here, not only hidden in the
     // rail: a stale deep link or a hand-typed state change must not open a
     // section the session was never granted. (The API 403s regardless: this
@@ -264,6 +268,8 @@
     renderSidePanel();
     if (dest === 'advisor') {
       renderAdvisorView();
+    } else if (dest === 'earnings') {
+      renderEarningsView();
     } else if (dest === 'guide') {
       renderGuide();
     } else if (state.view === 'admin') {
@@ -289,6 +295,7 @@
     // PRD-R: two panels side by side, the shape of the paired review.
     review: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.8" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><rect x="11.2" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><path d="M4.6 8.2h2.4M4.6 11h2.4M13 8.2h2.4M13 11h2.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
     guide: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 4.5A1.5 1.5 0 015.5 3H10v14H5.5A1.5 1.5 0 014 15.5v-11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 3h4.5A1.5 1.5 0 0116 4.5v11a1.5 1.5 0 01-1.5 1.5H10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 7h1.5M6.5 9.5h1.5M12 7h1.5M12 9.5h1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+    earnings: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3.2v13.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.9 6.3a2.6 2.6 0 00-2.4-1.3h-.8a2.35 2.35 0 000 4.7h.6a2.35 2.35 0 010 4.7h-.8a2.6 2.6 0 01-2.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
 
   const RAIL_ITEMS = [
@@ -304,6 +311,10 @@
     // string: re-deriving "is this an advisor?" in the client would push the
     // exact two-state check this build removed back into the frontend.
     { dest: 'advisor',   label: 'Advisor', capability: 'refer' },
+    // Earnings (PRD-P §5). Visible to any signed-in physician — what you have
+    // made is not a privileged surface, and every endpoint behind it scopes from
+    // the session, so there is nothing here to gate on a capability.
+    { dest: 'earnings',  label: 'Earnings' },
     { dest: 'guide',     label: 'Guide' },
   ];
 
@@ -346,6 +357,7 @@
   function railItemActive(dest) {
     if (dest === 'guide') return state.panel === 'guide';
     if (dest === 'advisor') return state.panel === 'advisor';
+    if (dest === 'earnings') return state.panel === 'earnings';
     return state.panel === 'tasks' && dest === 'tasks';
   }
 
@@ -540,8 +552,31 @@
 
   let guideObserver = null;
 
+  // PRD M — three scoped manuals, picked by CAPABILITY rather than by tier. An
+  // advisor labels and reviews and signs off, so a tier does not map to one
+  // document; what a physician can DO does. Order is least to most, so the
+  // default is the most senior manual they hold.
+  const MANUAL_ROLES = [
+    { key: 'labeler', capability: 'label', label: 'Labeling' },
+    { key: 'reviewer', capability: 'review', label: 'Reviewing' },
+    { key: 'advisor', capability: 'refer', label: 'Advising' },
+  ];
+
+  function heldManuals() {
+    const manuals = window.ASC_MANUALS || {};
+    return MANUAL_ROLES.filter((r) => manuals[r.key] && sessionCan(r.capability));
+  }
+
   function renderGuide() {
-    const manual = window.ASC_MANUAL;
+    const manuals = window.ASC_MANUALS || {};
+    const held = heldManuals();
+    // Fall back to the labeler manual rather than to nothing: a session whose
+    // capability list did not load must still get a document, and every
+    // physician can label.
+    const active = (state.manualRole && manuals[state.manualRole])
+      ? state.manualRole
+      : ((held.length ? held[held.length - 1].key : 'labeler'));
+    const manual = manuals[active] || window.ASC_MANUAL;
     if (!manual || !Array.isArray(manual.sections)) {
       setRoot(h('div', { class: 'asc-wrap' },
         h('div', { class: 'asc-card asc-card-pad' },
@@ -550,7 +585,10 @@
     }
     if (guideObserver) { guideObserver.disconnect(); guideObserver = null; }
 
-    const sections = manual.sections;
+    // `showWhen` is the one conditional field, and it names a verification
+    // status. A section without one always renders.
+    const sections = manual.sections.filter(
+      (sec) => !sec.showWhen || sec.showWhen === (state.user && state.user.verification_status));
 
     // Sticky TOC (desktop): one link per section, scroll-spy highlights.
     const tocList = h('ul', { class: 'asc-guide-toc-list' });
@@ -576,15 +614,38 @@
 
     // Content column: intro header + every section.
     const content = h('div', { class: 'asc-guide-content' });
+    // The switcher: a mono chip row above the title, matching the existing
+    // chrome pattern. Only when more than one manual is held — one chip is not a
+    // choice, it is decoration. A reviewer re-reading the labeling manual is
+    // reading it to grade someone against it, so nothing here is hidden from
+    // anyone who holds it.
+    const switcher = held.length > 1
+      ? h('div', { class: 'asc-guide-switch', role: 'tablist', 'aria-label': 'Manual' },
+          held.map((r) => {
+            const btn = h('button', {
+              class: 'asc-guide-switch-chip' + (r.key === active ? ' active' : ''),
+              type: 'button', role: 'tab', 'aria-selected': r.key === active ? 'true' : 'false',
+            }, r.label);
+            btn.addEventListener('click', () => {
+              if (r.key === active) return;
+              state.manualRole = r.key;
+              setGuideHash('');
+              renderGuide();
+            });
+            return btn;
+          }))
+      : null;
+
     content.appendChild(h('header', { class: 'asc-guide-intro' },
       h('div', { class: 'chrome chrome-strong' }, 'INSTRUCTION MANUAL'),
+      switcher,
       h('h1', { class: 'asc-guide-h1' }, manual.title),
       manual.subtitle ? h('p', { class: 'asc-guide-sub' }, manual.subtitle) : null,
       h('div', { class: 'asc-guide-meta' },
         h('span', { class: 'chip' },
           h('span', { class: 'dot dot-lime', 'aria-hidden': 'true' }),
           (manual.readingTimeMin || 5) + ' min read'),
-        h('span', { class: 'asc-guide-meta-hint chrome' }, 'V3 · V4 tasks')),
+        h('span', { class: 'asc-guide-meta-hint chrome' }, manual.metaHint || 'V3 · V4 tasks')),
       mobileSelect));
 
     sections.forEach((sec) => content.appendChild(guideSection(sec)));
@@ -6208,6 +6269,31 @@
         'The Advisor section failed to load. Reload the page; if it persists, '
         + 'this is a deploy problem: check that advisor.js is included in '
         + 'index.html. Your referrals and sign-offs are unaffected.'))));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  EARNINGS SECTION (PRD-P §5)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Lives in its own file (frontend/asclepius/earnings.js) and is mounted here
+  // exactly the way AdvisorSection is. Payment logic never enters this file.
+  function renderEarningsView() {
+    stopTimer();
+    updateHeaderProgress();
+    const body = h('div', { id: 'ascEarningsBody' });
+    setRoot(h('div', { class: 'asc-wrap' }, body));
+    if (window.EarningsSection && typeof window.EarningsSection.render === 'function') {
+      window.EarningsSection.render(body, adminSectionCtx());
+      return;
+    }
+    // A VISIBLE error, never a quiet placeholder — and never a reassuring $0.
+    // "We could not load your ledger" and "you have earned nothing" must not
+    // look the same to a physician.
+    body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-error' },
+        'The Earnings section failed to load, so no figure is shown — this is '
+        + 'not a statement that you have earned nothing. Reload the page; if it '
+        + 'persists, this is a deploy problem — check that earnings.js is '
+        + 'included in index.html. Nothing you have earned is affected.'))));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

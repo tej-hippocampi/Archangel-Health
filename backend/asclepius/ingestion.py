@@ -142,6 +142,18 @@ def quarantine_root() -> Path:
     return root
 
 
+def _ingest_root_path() -> Path:
+    """The configured raw-ingest dir, made absolute WITHOUT creating or resolving it.
+
+    ``quarantine_root`` adds the ``mkdir`` (and ``.resolve()``) for real filesystem
+    use. A durability *check* must do neither: probing a root-owned ephemeral prefix
+    like ``/run`` raises PermissionError instead of returning "not durable" — the very
+    answer the check exists to give (PRD I-0 §F1) — and ``.resolve()`` rewrites e.g.
+    ``/tmp`` to its real target so the ephemeral-prefix match silently misses."""
+    return Path(os.path.abspath(
+        os.getenv("ASCLEPIUS_INGEST_DIR") or str(_default_ingest_dir())))
+
+
 _EXECUTABLE_EXTS = (".exe", ".dll", ".so", ".sh", ".bat", ".cmd", ".ps1", ".msi",
                     ".jar", ".app", ".scr", ".com", ".vbs", ".js", ".py")
 
@@ -410,7 +422,10 @@ def ingest_storage_durable() -> Tuple[bool, str]:
     (2) it should live on the same volume (device) as the DB, so a blob is
     exactly as durable as its row. (1) is fail-closed-worthy; (2) is a warning
     (a deliberately separate durable mount is legitimate)."""
-    root = quarantine_root()
+    # A durability check must never touch the filesystem: quarantine_root() would
+    # mkdir the probe path (raising on a root-owned /run) and .resolve() it (hiding
+    # an ephemeral /tmp behind its real target). _ingest_root_path() does neither.
+    root = _ingest_root_path()
     root_str = str(root)
     for pre in _EPHEMERAL_PREFIXES:
         if root_str == pre or root_str.startswith(pre + "/"):
