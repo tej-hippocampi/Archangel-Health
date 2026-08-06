@@ -53,8 +53,11 @@ _ASCLEPIUS_DIRECTOR_ROLE_LABEL = "Director of Data Training"
 _ASCLEPIUS_TEAM_CAP = 10  # director + up to 10 invited clinicians
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
-
 log = logging.getLogger("onboarding")
+
+
+def _is_production() -> bool:
+    return (os.getenv("ENV") or "").strip().lower() == "production"
 
 
 def _asc_credentialing():
@@ -346,6 +349,7 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
         invite_base_url=_landing_base(),
         expires_days=_SELF_SERVE_EXPIRES_DAYS,
         director_email=email,
+        product="asclepius",
     )
 
     # Best-effort provenance + founder visibility. Never fail the request on
@@ -418,7 +422,8 @@ async def step1_identity(body: Step1Body, request: Request):
 
 @router.post("/request-otp", dependencies=[Depends(rate_limiter("onboarding_otp", 5, 60))])
 async def request_otp(body: OnboardTokenBody, request: Request):
-    if not _email_configured():
+    dev_bypass = not _email_configured() and not _is_production()
+    if not _email_configured() and not dev_bypass:
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
     ts = _ts(request)
     row = _load_hs(request, body.token)
@@ -431,6 +436,9 @@ async def request_otp(body: OnboardTokenBody, request: Request):
         raise HTTPException(status_code=400, detail="Complete step 1 first.")
     code = "".join(secrets.choice(string.digits) for _ in range(6))
     ts.create_otp_challenge(row["id"], email, code)
+    if dev_bypass:
+        log.warning("DEV ONBOARDING OTP (no email transport configured) for %s: %s", email, code)
+        return {"ok": True}
     subj = "Your Archangel Health verification code"
     html_body = build_verification_email(code=code)
     ok = await send_html_email(email, subj, html_body)
@@ -1163,6 +1171,18 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     )
     ts.complete_asclepius_onboarding(row["id"])
 
+    # Mint an Asclepius session token so the wizard drops the doctor straight into
+    # their workspace with no re-login (mirrors the doctor-portal auto-auth). The
+    # credentials are still emailed for future sign-ins.
+    session_token = None
+    try:
+        from asclepius import auth as asc_auth
+        asc_user = asc_auth.authenticate(_asclepius_store(request), director_email, director_pwd)
+        if asc_user:
+            session_token = asc_auth.create_token(asc_user)
+    except Exception:
+        session_token = None
+
     invited = [p for p in ts.list_asclepius_people(row["id"]) if not p.get("is_director")]
     workspace_url = _asclepius_workspace_url()
     html_body = build_asclepius_complete_email(
@@ -1180,7 +1200,7 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     await send_html_email(
         director_email, "Your Asclepius workspace is ready", html_body, importance_headers=True
     )
-    return {"ok": True, "workspace_url": workspace_url}
+    return {"ok": True, "workspace_url": workspace_url, "token": session_token}
 
 
 # ─── Invited-member flow (link → credentials → attestations → workspace) ──────

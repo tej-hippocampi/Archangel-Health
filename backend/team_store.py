@@ -873,6 +873,7 @@ class TeamStore:
         invite_base_url: str,
         expires_days: int = 30,
         director_email: Optional[str] = None,
+        product: str = "archangel",
     ) -> Dict[str, Any]:
         """New pending health system + one-time onboarding URL (token shown once).
 
@@ -880,7 +881,15 @@ class TeamStore:
         ``onboarding_step`` — the wizard still runs its full identity + OTP
         flow. Self-serve (non-admin) callers pass it so the row is tied to a
         reachable inbox, alongside a shorter ``expires_days``.
+
+        ``product`` pre-locks the row to a single product so the wizard never
+        has to ask the signer to choose (self-serve physician-contributor
+        links pass ``"asclepius"``; admin-generated health-system links keep
+        the ``"archangel"`` default).
         """
+        prod = (product or "archangel").strip().lower()
+        if prod not in ("archangel", "asclepius"):
+            prod = "archangel"
         raw_token = secrets.token_urlsafe(32)
         token_hash = self._hash_onboarding_token(raw_token)
         expires = (datetime.utcnow() + timedelta(days=expires_days)).replace(microsecond=0).isoformat()
@@ -899,10 +908,10 @@ class TeamStore:
                             id, slug, name, surgery_department, phone, health_system_code, status,
                             onboarding_token_hash, onboarding_token_expires_at, onboarding_completed_at,
                             director_email, director_first_name, director_last_name, onboarding_step,
-                            last_generated_invite_url, created_at
+                            last_generated_invite_url, created_at, product
                         )
                         VALUES (?, ?, NULL, NULL, NULL, NULL, 'pending_onboarding', ?, ?, NULL,
-                                ?, NULL, NULL, 0, ?, ?)
+                                ?, NULL, NULL, 0, ?, ?, ?)
                         """,
                         (
                             hs_id,
@@ -912,6 +921,7 @@ class TeamStore:
                             (director_email or "").lower().strip() or None,
                             invite_url,
                             now,
+                            prod,
                         ),
                     )
                 break

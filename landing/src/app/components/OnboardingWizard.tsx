@@ -1,17 +1,20 @@
 /**
  * OnboardingWizard — Archangel Health onboarding.
  *
- * Two products, one account. After identity (Step 1) + email verification
- * (Step 2), the director picks a product (Step 3):
+ * Two internal products share this wizard, distinguished server-side by the
+ * `product` column set at invite creation — the signer is never asked to
+ * choose:
  *
- *   Archangel (clinical TEAM platform) — unchanged 5-step flow:
- *     identity → verify → product → health system → your TEAM → sign in → success
- *     (backend: /step1-identity, /request-otp+/verify-otp, /select-product,
+ *   "archangel" (clinical TEAM platform, admin-generated health-system
+ *   invites) — unchanged 5-step flow:
+ *     identity → verify → health system → your TEAM → sign in → success
+ *     (backend: /step1-identity, /request-otp+/verify-otp,
  *      /step3-organization, /add-team-member + /finish, /tenant login)
  *
- *   Asclepius (data-training product) — Steps 4–8:
- *     identity → verify → product → institution → credentials → attestations
- *       → team → success
+ *   "asclepius" (data-training product, self-serve physician-contributor
+ *   invites — user-facing copy calls this "Archangel", never "Asclepius")
+ *   — Steps 3–6:
+ *     identity → verify → institution → credentials → attestations → success
  *     (backend: /asclepius/{institution,credentials,attestations,add-member,finish})
  *     Compliance/HIPAA gates do not apply to this plane — no PHI is collected.
  *
@@ -37,7 +40,6 @@ import {
   Step1NameEmail,
   Step2Verify,
   Step3Org,
-  Step3Product,
   Step4Institution,
   Step4YourTeam,
   Step5Credentials,
@@ -62,7 +64,6 @@ type Props = { token: string; mode?: Mode };
 type StepKey =
   | "identity"
   | "verify"
-  | "product"
   | "org"
   | "team"
   | "signin"
@@ -76,7 +77,6 @@ type StepKey =
 const STEP_LABELS: Partial<Record<StepKey, string>> = {
   identity: "You",
   verify: "Verify",
-  product: "Product",
   org: "Health system",
   team: "Your TEAM",
   signin: "Sign in",
@@ -86,12 +86,16 @@ const STEP_LABELS: Partial<Record<StepKey, string>> = {
   ascTeam: "Team",
 };
 
-/** Ordered step list for the active flow (drives Back + the stepper). */
+/** Ordered step list for the active flow (drives Back + the stepper).
+ * Product is decided server-side at invite creation (self-serve links are
+ * pre-locked to "asclepius"; admin-generated health-system links default to
+ * "archangel") — the wizard never asks the signer to choose. */
 function orderFor(mode: Mode, product: Product | ""): StepKey[] {
   if (mode === "member") return ["credentials", "attestations", "verify", "ascSuccess"];
-  const head: StepKey[] = ["identity", "verify", "product"];
+  const head: StepKey[] = ["identity", "verify"];
   if (product === "asclepius") {
-    return [...head, "institution", "credentials", "attestations", "ascTeam", "ascSuccess"];
+    // Team invites moved to the dashboard, so sign-up ends at attestations.
+    return [...head, "institution", "credentials", "attestations", "ascSuccess"];
   }
   return [...head, "org", "team", "signin", "success"];
 }
@@ -252,16 +256,16 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     }
     // Resume to the right screen. `step` is the backend's highest completed
     // step (0 identity, 1 verify-done, 2 verified, 3 org/institution saved).
-    // Below step 3 we always show product selection so a reload right after
-    // verification doesn't silently default to Archangel (product col defaults
-    // to 'archangel'). Credentials/attestations don't bump the counter, so for
-    // Asclepius we resume by inspecting what's already saved.
+    // Product is fixed server-side at invite creation, so a reload right
+    // after verification routes straight into that product's branch instead
+    // of showing a choice. Credentials/attestations don't bump the counter,
+    // so for Asclepius we resume by inspecting what's already saved.
     const stepNum = Number(d.step) || 0;
     const savedAtts =
       d.director_attestations && Object.keys(d.director_attestations).length > 0;
     if (stepNum < 1) setStep("identity");
     else if (stepNum < 2) setStep("verify");
-    else if (stepNum < 3) setStep("product");
+    else if (stepNum < 3) setStep(product === "asclepius" ? "institution" : "org");
     else if (product === "asclepius") {
       if (!savedCreds) setStep("credentials");
       else if (!savedAtts) setStep("attestations");
@@ -377,29 +381,12 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         setStepError(formatApiError(body) || "Invalid code");
         return false;
       }
-      setStep("product");
+      // Product was decided server-side at invite creation — go straight to
+      // the right branch instead of asking the signer to choose.
+      setStep(data.product === "asclepius" ? "institution" : "org");
       return true;
     },
-    [token],
-  );
-
-  const selectProduct = useCallback(
-    async (product: Product) => {
-      setStepError("");
-      const r = await api("/api/onboarding/select-product", {
-        method: "POST",
-        body: JSON.stringify({ token, product }),
-      });
-      const body = await readResponseJson(r);
-      if (!r.ok) {
-        setStepError(formatApiError(body) || `HTTP ${r.status}`);
-        return false;
-      }
-      setData({ product });
-      setStep(product === "asclepius" ? "institution" : "org");
-      return true;
-    },
-    [token, setData],
+    [token, data.product],
   );
 
   // ─────────────────────────────────────────
@@ -509,7 +496,9 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       method: "POST",
       body: JSON.stringify({
         token,
-        org_name: data.orgName,
+        // Org name is optional now; fall back to the physician's own name so the
+        // workspace slug is still sensible. Specialty comes from credentials.
+        org_name: data.orgName.trim() || `${data.firstName} ${data.lastName}`.trim() || "My workspace",
         specialty: data.specialty,
         phone: data.phone,
       }),
@@ -564,9 +553,25 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       setStepError(formatApiError(body) || `HTTP ${r.status}`);
       return false;
     }
-    setStep("ascTeam");
+    // Team invites moved to the dashboard, so provision the workspace right
+    // after attestations: sign-up ends here and lands the doctor in.
+    const fr = await api("/api/onboarding/asclepius/finish", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+    const fbody = await readResponseJson(fr);
+    if (!fr.ok) {
+      setStepError(formatApiError(fbody) || `HTTP ${fr.status}`);
+      return false;
+    }
+    const d = fbody as { workspace_url?: string; token?: string };
+    if (d.token) {
+      try { authApi.storeAsclepiusSession(d.token); } catch { /* fall back to manual sign-in */ }
+    }
+    setData({ workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl() });
+    setStep("ascSuccess");
     return true;
-  }, [token, data.attestations]);
+  }, [token, data.attestations, setData]);
 
   const addAscMember = useCallback(
     async (m: Omit<AsclepiusMember, "id" | "status">) => {
@@ -730,8 +735,6 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             eyebrow={mode === "member" ? "Step 3 of 3" : "Step 2"}
           />
         );
-      case "product":
-        return <Step3Product data={data} onSelect={selectProduct} onBack={goBack} error={stepError} />;
       // Archangel
       case "org":
         return <Step3Org data={data} setData={setData} onNext={submitOrg} onBack={goBack} error={stepError} />;
@@ -761,7 +764,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             onNext={mode === "member" ? submitMemberCredentials : submitCredentials}
             onBack={goBack}
             error={stepError}
-            eyebrow={mode === "member" ? "Step 1 of 3" : "Step 5 of 7"}
+            eyebrow={mode === "member" ? "Step 1 of 3" : "Step 4 of 5"}
             memberMode={mode === "member"}
           />
         );
@@ -773,8 +776,8 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             onNext={mode === "member" ? submitMemberAttestations : submitAttestations}
             onBack={goBack}
             error={stepError}
-            eyebrow={mode === "member" ? "Step 2 of 3" : "Step 6 of 7"}
-            finishLabel="Sign & continue"
+            eyebrow={mode === "member" ? "Step 2 of 3" : "Step 5 of 5"}
+            finishLabel={mode === "member" ? "Sign & continue" : "Sign & open my workspace"}
           />
         );
       case "ascTeam":
@@ -801,7 +804,6 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     submitStep1,
     sendOtp,
     verifyOtp,
-    selectProduct,
     submitOrg,
     addTeamMember,
     removeMember,

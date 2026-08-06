@@ -501,7 +501,7 @@ DEFAULT_GROUNDING_MODE = "optional"
 # the task is grounding_mode=required.
 GROUNDED_PREMIUM_DISCLAIMER = (
     "⏱️💲 Premium grounded task. This task asks you to cite the clinical guideline "
-    "or source behind your judgment. It takes a bit more time per task — but "
+    "or source behind your judgment. It takes a bit more time per task, but "
     "grounded, guideline-cited data sells at a premium, so you earn more per task. "
     "Your effort and citations are tracked and credited."
 )
@@ -1266,7 +1266,7 @@ def company_name() -> str:
 
 # Header watermark stamped on every Further Credential Summary page (spec §6).
 CREDENTIAL_SUMMARY_WATERMARK = (
-    "CONFIDENTIAL — credential verification, provided under NDA / non-circumvention."
+    "CONFIDENTIAL: credential verification, provided under NDA / non-circumvention."
 )
 
 
@@ -1275,7 +1275,7 @@ def non_circumvention_notice() -> str:
     Further Credential Summary and surfaced as a click-through acknowledgment
     before generation. ``[Company]`` is substituted with ``company_name()``."""
     co = company_name()
-    return f"""CONFIDENTIAL — CREDENTIAL VERIFICATION
+    return f"""CONFIDENTIAL: CREDENTIAL VERIFICATION
 
 This Credential Verification Summary (the "Summary") is provided by {co} solely to enable the recipient ("Recipient") to verify the qualifications of the credentialed contributor(s) associated with data licensed from or evaluated through {co}. By accessing this Summary, Recipient agrees to the following:
 

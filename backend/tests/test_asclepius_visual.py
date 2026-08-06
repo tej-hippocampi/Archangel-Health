@@ -422,22 +422,22 @@ def test_original_bar_truncates_at_the_true_edge(page):
     assert "…" not in geo["text"], "JS inserted an ellipsis; CSS should own that"
 
 
-def test_experience_badge_reads_as_two_groups(page):
-    """§13: ``space-between`` over three children marooned the two links at
-    opposite edges. Grouped, it reads label-left / controls-right."""
+def test_experience_badge_is_label_only(page):
+    """Case type and specialty are assigned by us (queue routing +
+    qualification), not chosen by the doctor: a later product decision
+    removed the badge's "Change experience"/"Change specialty" controls
+    entirely, so it renders as a single label with no interactive children."""
     geo = page.evaluate(
         """() => {
           const badge = document.querySelector('.asc-exp-badge');
-          const links = badge.querySelector('.asc-exp-links');
-          const [a, b] = links.children;
           return { children: badge.children.length,
-                   gap: b.getBoundingClientRect().left - a.getBoundingClientRect().right,
-                   divider: getComputedStyle(b).borderLeftWidth };
+                   links: badge.querySelector('.asc-exp-links'),
+                   controls: badge.querySelectorAll('button').length };
         }"""
     )
-    assert geo["children"] == 2
-    assert geo["gap"] < 4, "the two links are not adjacent — they read as separate controls"
-    assert geo["divider"] != "0px", "the hairline divider is not drawn"
+    assert geo["children"] == 1
+    assert geo["links"] is None, "the removed links group was reintroduced"
+    assert geo["controls"] == 0, "the badge must carry no controls"
 
 
 def test_specificity_chip_sits_at_the_edge_not_mid_sentence(page):
