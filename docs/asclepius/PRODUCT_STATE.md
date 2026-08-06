@@ -4,6 +4,22 @@
 This is the in-repo reference for what Asclepius is and what ships today. Everything
 below is **on `main`** — there is no unmerged delta.
 
+> **Addendum (2026-08-04, branch `claude/asclepius-tutorial`): first-run tutorial.**
+> New evaluators now land in **Calibration Case 1** — a guided practice case
+> (spotlight tour over the real V3 flow, action-gated steps, skippable, replayable
+> from the header `?` menu) ending in a scored reveal against a reference answer
+> key. The practice task is fully **virtual**: `backend/asclepius/tutorial_case.py`
+> + `GET /tutorial/task`, `POST /tutorial/reveal`, `POST /tutorial/submit` — no
+> `tasks`/`submissions`/`records` rows are ever written (only `events`), so queue,
+> exports, stats, agreement, and value metrics are structurally isolated. Per-user
+> state lives in `users.tutorial_json` (surfaced as `tutorial` on `/auth/me`,
+> transitions via `PATCH /me/tutorial`; completion/skip is permanent server-side —
+> the tutorial never re-triggers). The tour engine, chapter content, scored-reveal
+> screen, and the persistent instruction drawer (generated from the same step
+> content) live in the fenced "Tutorial — Calibration Case 1" section of
+> `frontend/asclepius/asclepius.js`. Tests: `tests/test_asclepius_tutorial.py`
+> (fixture gate, blinding, grading, state machine, isolation proofs).
+
 ---
 
 ## 1 — What Asclepius is

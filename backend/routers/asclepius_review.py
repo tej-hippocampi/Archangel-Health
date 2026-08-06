@@ -22,9 +22,47 @@ from pydantic import BaseModel
 
 from asclepius import auth as asc_auth
 from asclepius import review as asc_review
+from asclepius import routing as asc_routing
 from asclepius.store import get_store
 
 log = logging.getLogger("asclepius.review")
+
+# ─── The Agent P seam (PRD R §4 / context pack §3.1) ──────────────────────────
+# A review session is a BILLING primitive, not a review primitive. R decides what
+# a reviewer sees; P decides whether they get paid for the time. The ENTIRE
+# integration is: call open_session when a reviewer draws their first pair, and
+# forward whatever P returns to the client, opaquely.
+#
+# Forwarded opaquely on purpose. Naming P's fields here would (a) put payment
+# vocabulary in a review module, which §4 forbids, and (b) make R the second
+# place that has to change when P adds a field. This router therefore never
+# reads P's tables, never computes elapsed time, never decides whether a session
+# has met its threshold, and never writes a payout row. ``tests/
+# test_paired_review.py`` greps this file for those concepts and fails if any of
+# them appear here — including in a comment, which is why this one paraphrases.
+#
+# The import is guarded because R merges LAST: on a tree where P has not landed
+# yet the review flow must still work, minus the countdown, rather than 500.
+try:  # pragma: no cover - exercised by whichever tree it lands in
+    from asclepius import payments as _asc_payments
+except Exception:  # ImportError before Agent P merges
+    _asc_payments = None
+
+
+def _open_review_session(store: Any, user_id: str) -> Optional[Dict[str, Any]]:
+    """Open (or re-open, idempotently) this reviewer's billable session.
+
+    Failure is non-fatal by design: a physician must never be blocked from
+    reviewing because the payments module is absent or unhappy. The absence is
+    logged and surfaced to the client as "no session", which the page renders as
+    no countdown — visibly missing rather than silently wrong."""
+    if _asc_payments is None:
+        return None
+    try:
+        return _asc_payments.open_session(store, user_id=user_id, kind="review")
+    except Exception:
+        log.exception("asclepius-review: could not open a review session")
+        return None
 
 router = APIRouter(tags=["asclepius-review"])
 
@@ -107,12 +145,117 @@ async def review_me(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
         "dimensions": asc_review.REVIEW_DIMENSIONS,
         "dimension_states": list(asc_review.DIMENSION_STATES),
         "verdicts": list(asc_review.REVIEW_VERDICTS),
+        # PRD R §2.3 — served so the page and the server can never disagree
+        # about the paired vocabulary, exactly as with the dimensions.
+        "strength_choices": list(asc_review.PAIR_STRENGTH),
+        "paired": True,
     }
 
 
 @router.get("/api/asclepius/review/stats")
 async def review_stats(_reviewer: Dict[str, Any] = Depends(require_reviewer)):
-    return _store().review_queue_stats()
+    stats = _store().review_queue_stats()
+    # PRD R: the phases a TR can actually act on, alongside the submission-level
+    # counts the single-submission flow still reports. Merged rather than
+    # replaced — the old keys have readers.
+    stats.update(_store().review_pair_queue_stats())
+    return stats
+
+
+# ─── Draw a PAIR (PRD R §2.1) ─────────────────────────────────────────────────
+@router.get("/api/asclepius/review/pair/next")
+async def next_review_pair(
+    background: BackgroundTasks = None,
+    reviewer: Dict[str, Any] = Depends(require_reviewer),
+):
+    """Draw + claim the oldest ``review_ready`` CASE for this reviewer.
+
+    Returns the case with BOTH labels side by side, blinded, in an A/B order
+    seeded on ``(task_id, reviewer_id)`` — stable across reloads so a refresh
+    does not swap the columns, and uncorrelated with submission order so position
+    never leaks who went first.
+
+    The store query already excludes cases this reviewer labelled or reviewed;
+    the claim is compare-and-set on the TASK, so two reviewers drawing
+    concurrently can never hold the same pair.
+    """
+    store = _store()
+    # Same off-request discipline as the single-submission draw: the fleet-wide
+    # routing sweep is throttled and handed to a background task so no reviewer
+    # waits on it. Under the paired flow it is a SECOND path to capacity — the
+    # labeler queue lifts capacity synchronously as it serves — so its latency
+    # can no longer hide a case from the priority queue.
+    if background is not None and _sweep_due():
+        background.add_task(_run_sweep)
+
+    lease = asc_review.review_lease_minutes()
+    seen: set = set()
+    for _ in range(5):  # claim race: lose the CAS -> draw the next candidate
+        task = store.next_review_pair_for(
+            reviewer["id"], specialty=reviewer.get("specialty"), lease_minutes=lease)
+        if task is None:
+            return {"pair": None, "message": "No cases awaiting review."}
+        if task["task_id"] in seen:
+            break                       # never revisit a candidate within one draw
+        seen.add(task["task_id"])
+
+        subs = [s for s in store.submissions_for_task(task["task_id"]) if s.get("verdict")]
+        if not asc_routing.pair_is_independent(subs):
+            # Two labels by one physician is not a pair. Both queues exclude
+            # prior submitters in SQL so this should be unreachable — which is
+            # exactly why it is checked where the pair is served rather than
+            # assumed. Park it so it stops re-occupying the head of the queue
+            # (the A-3.2 lesson), and say so loudly: reaching this line means a
+            # SQL independence invariant broke, and κ's whole premise with it.
+            log.error(
+                "asclepius-review: task %s has two labels from one physician; "
+                "parking it rather than serving a pair that is not independent",
+                task["task_id"])
+            store.mark_task_reviewed(task["task_id"])
+            store.log_event(
+                entity_type="task", entity_id=task["task_id"],
+                event_type="review_pair_rejected", actor=reviewer["id"],
+                payload={"reason": "not_independent"},
+            )
+            continue
+
+        shown_a, shown_b = asc_routing.ab_pair(
+            subs, task_id=task["task_id"], reviewer_id=reviewer["id"])
+        view = asc_review.blinded_pair_view(task, shown_a, shown_b)
+        labelers = [store.get_user_by_id(s.get("evaluator_id") or "") for s in subs]
+        # Redact FIRST, then derive blinding from what we are actually about to
+        # serve (PRD R §2.2). Measuring a leak and recording blinded=0 satisfies
+        # the statistic but not the requirement — the reviewer has already read
+        # the name by then, and the adjudication is already biased.
+        view, redacted = asc_review.redact_identity(view, labelers)
+        blinded = asc_review.pair_is_blinded(
+            view, reviewer_role=reviewer.get("role") or "", labelers=labelers)
+        if redacted:
+            # Never the strings themselves — that would put the identity into the
+            # event log, one hop from where it was removed.
+            store.log_event(
+                entity_type="task", entity_id=task["task_id"],
+                event_type="review_pair_redacted", actor=reviewer["id"],
+                payload={"n_redactions": len(redacted)},
+            )
+
+        if not store.claim_task_for_review(
+            task["task_id"], reviewer_id=reviewer["id"],
+            blinded=blinded, lease_minutes=lease,
+        ):
+            continue  # lost the CAS to a concurrent draw — take the next one
+        store.log_event(
+            entity_type="task", entity_id=task["task_id"], event_type="review_pair_claimed",
+            actor=reviewer["id"], payload={"lease_minutes": lease, "blinded": blinded},
+        )
+        return {
+            "pair": {**view, "blinded": blinded},
+            # Opaque passthrough of Agent P's session (PRD R §4). None before P
+            # merges, or if P is unhappy — the page renders no countdown rather
+            # than a fabricated one.
+            "session": _open_review_session(store, reviewer["id"]),
+        }
+    return {"pair": None, "message": "Queue is contended; try again."}
 
 
 # ─── Draw ─────────────────────────────────────────────────────────────────────
@@ -222,6 +365,32 @@ async def submit_review(
     if store.has_review_by(submission_id, reviewer["id"]):
         raise HTTPException(status_code=409, detail="You already reviewed this submission")
 
+    # Audit R H2. The single-review queue's predicates — one label, never lifted
+    # to a pair — were checked at DRAW time and never again, while the labeler
+    # queue deliberately kept the same task servable to a second labeler. So a
+    # reviewer could be reading a submission at the moment its case became a
+    # pair, and their POST would land: two case_reviews rows for one case, and an
+    # expert-acceptance rate counting it twice.
+    #
+    # The claim check below would already 409 this once the pair review retires
+    # the submission — but with "your claim is missing or has expired", which is
+    # FALSE and offers no way forward. Say what actually happened, and hand their
+    # judgment back so the pair review can be finished rather than retyped.
+    _task = store.get_task(sub["task_id"]) or {}
+    _labels = [s for s in store.submissions_for_task(sub["task_id"]) if s.get("verdict")]
+    if len(_labels) >= asc_routing.PAIR_LABELS or asc_routing.target_labels(_task) >= asc_routing.PAIR_LABELS:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "became_a_pair",
+                "message": "This case became a pair while you were reading it. It is "
+                           "reviewed against both labels together — your judgment is "
+                           "below, ready to carry over.",
+                "task_id": sub["task_id"],
+                "your_review": body.model_dump(),
+            },
+        )
+
     errors = asc_review.validate_review_payload(body.model_dump())
     if errors:
         raise HTTPException(status_code=422, detail={"errors": errors})
@@ -285,6 +454,132 @@ async def submit_review(
         "review_status": "reviewed",
         # Surfaced so the reviewer can rewrite the note rather than discovering
         # months later that their correction never shipped.
+        "identifier_flags": identifier_flags,
+        "corrections_withheld": bool(identifier_flags),
+    }
+
+
+# ─── Submit a PAIRED adjudication (PRD R §2.3) ────────────────────────────────
+class PairReviewSubmitBody(BaseModel):
+    verdict: str
+    stronger: str
+    accepted_side: Optional[str] = None
+    dimensions: Dict[str, str] = {}
+    corrections: Optional[Dict[str, Any]] = None
+    reviewer_notes: Optional[str] = None
+    time_spent_sec: Optional[int] = None
+
+
+@router.post("/api/asclepius/review/pair/{task_id}")
+async def submit_pair_review(
+    task_id: str,
+    body: PairReviewSubmitBody,
+    reviewer: Dict[str, Any] = Depends(require_reviewer),
+):
+    """The reviewer's adjudication of a pair: which is stronger, and is either
+    right.
+
+    ``accepted_side`` is a POSITION ('A' or 'B') in what this reviewer was shown.
+    The server re-derives the same seeded A/B map it served and resolves the
+    position to a submission id, so the client never learns — and never gets to
+    assert — whose work it accepted.
+    """
+    store = _store()
+    task = store.get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    subs = [s for s in store.submissions_for_task(task_id) if s.get("verdict")]
+    if len(subs) < asc_routing.PAIR_LABELS:
+        raise HTTPException(
+            status_code=409, detail="This case does not yet carry two independent labels")
+    if len(subs) > asc_routing.PAIR_LABELS:
+        # Audit R H3: a paired review is defined over exactly two labels. Serving
+        # two of three silently drops a physician's work and then retires it.
+        raise HTTPException(
+            status_code=409,
+            detail=f"This case carries {len(subs)} labels; a paired review "
+                   f"adjudicates exactly two.")
+    # One adjudication per case, from either queue (Audit R H2). The draw already
+    # excludes it; a hand-crafted POST must hit the same wall, or the acceptance
+    # rate counts one case twice.
+    if store.reviews_for_task(task_id):
+        raise HTTPException(status_code=409, detail="This case has already been adjudicated")
+    # Belt and braces: both queues exclude own work in SQL, but a hand-crafted
+    # POST must hit the same wall.
+    if any(s.get("evaluator_id") == reviewer["id"] for s in subs):
+        raise HTTPException(status_code=403, detail="You cannot review your own submission")
+    if store.has_task_review_by(task_id, reviewer["id"]):
+        raise HTTPException(status_code=409, detail="You already reviewed this case")
+
+    # PRD R §2.3: 400, server-side, on an unexplained rejection or an
+    # "accept with edits" with no edits. Same rule as the single flow, and for
+    # the same reason — it is unusable to the labeler, the buyer, and us.
+    errors = asc_review.validate_pair_review_payload(body.model_dump())
+    if errors:
+        raise HTTPException(status_code=400, detail={"errors": errors})
+
+    # The claim is the authority (FIX A A-3.1, moved to the task): without it any
+    # reviewer could POST onto a guessed task id, evicting in-flight work.
+    lease = asc_review.review_lease_minutes()
+    claim = store.task_review_claim(task_id, lease_minutes=lease)
+    if claim["status"] != "in_review" or claim["expired"]:
+        raise HTTPException(
+            status_code=409,
+            detail="Draw this case for review before submitting; your claim is "
+                   "missing or has expired.",
+        )
+    if claim["holder"] != reviewer["id"]:
+        raise HTTPException(
+            status_code=409, detail="Another reviewer currently holds this case.")
+
+    identifier_flags = asc_review.scan_review_free_text(
+        body.reviewer_notes, body.corrections)
+
+    pair_a, pair_b = asc_routing.canonical_pair_ids(subs)
+    accepted = asc_routing.resolve_side(
+        body.accepted_side, subs, task_id=task_id, reviewer_id=reviewer["id"])
+    # Audit R H1: ``stronger`` arrives as a position in what THIS reviewer was
+    # shown. Resolve it to a submission, then re-express it in the canonical
+    # frame so it means the same thing as the pair columns it is stored beside.
+    # 'equivalent' names no side and stays as-is.
+    stronger_sub = asc_routing.resolve_side(
+        body.stronger, subs, task_id=task_id, reviewer_id=reviewer["id"])
+    stronger = asc_routing.canonical_side(stronger_sub, subs) or body.stronger
+
+    review = store.insert_pair_review(
+        task_id=task_id,
+        reviewer_user_id=reviewer["id"],
+        reviewer_id_hashed=reviewer.get("id_hashed") or "",
+        verdict=body.verdict,
+        stronger=stronger,
+        stronger_submission_id=stronger_sub,
+        pair_sub_a=pair_a,
+        pair_sub_b=pair_b,
+        accepted_submission_id=accepted,
+        dimensions=body.dimensions,
+        corrections=body.corrections,
+        reviewer_notes=(body.reviewer_notes or "").strip() or None,
+        time_spent_sec=body.time_spent_sec,
+        # Read back from the claim, DERIVED at draw time from the payload
+        # actually served. Deliberately not recomputed from a payload we are no
+        # longer serving — that would reintroduce the assumption in a new place.
+        blinded=claim["blinded"],
+        identifier_flags=identifier_flags,
+    )
+    # The task status and the retirement of the two labels commit INSIDE
+    # ``insert_pair_review`` (Audit R M2) — they used to be three more writes
+    # here, on three more connections, so a crash between them left a review row
+    # counting in the acceptance rate beside a task still `in_review`.
+    store.log_event(
+        entity_type="task", entity_id=task_id, event_type="review_pair_submitted",
+        actor=reviewer["id"],
+        payload={"review_id": review["review_id"], "verdict": body.verdict,
+                 "stronger": body.stronger},
+    )
+    return {
+        "review": review,
+        "review_status": "reviewed",
         "identifier_flags": identifier_flags,
         "corrections_withheld": bool(identifier_flags),
     }

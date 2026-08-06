@@ -165,6 +165,74 @@ def open_vault(blob: Optional[str], encrypted: int) -> Dict[str, Any]:
         return {}
 
 
+# ═══ PRD-R ROUTING SQL — owned by Agent R, do not edit from other PRDs ═══════
+# The labeler queue's eligibility and sort, as SQL fragments, defined ONCE so the
+# classic queue (``next_task_for_evaluator``) and the value-aware candidate set
+# (``eligible_tasks_for_evaluator``) cannot drift apart. Two copies of this rule
+# is the same defect shape PRD R §7 names: two representations of one fact, one
+# of which goes stale.
+
+# Per-task submission counts, MATERIALIZED ONCE (Audit R H4).
+#
+# This used to be a correlated scalar subquery, textually inlined three times per
+# query and joined by two more — five correlated scans per candidate row, on an
+# unbounded fetch, on the single SQLite writer that labeler SUBMISSIONS also
+# need. Measured at 20,000 open tasks: 0.167 s and 98.5 MB per labeler draw. No
+# index can serve a sort over a computed expression, so PRD R §1.2's "add the
+# index the sort needs" was not satisfiable as written; a grouped join is.
+#
+# ``n_labels`` counts VERDICT-BEARING rows only. A row without a verdict is a
+# prompt flag or a draft, not a label, and must not count toward the pair —
+# capacity, eligibility and the priority sort now all read this one number
+# (Audit R M1: capacity used to count every row, so a single verdict-less write
+# could wedge a case at "awaiting second" with nobody able to take it).
+_PRD_R_COUNTS_JOIN = (
+    "LEFT JOIN (SELECT task_id, COUNT(*) AS n_all, "
+    "                  SUM(CASE WHEN verdict IS NOT NULL THEN 1 ELSE 0 END) AS n_labels "
+    "             FROM submissions GROUP BY task_id) c ON c.task_id = t.task_id"
+)
+_PRD_R_LABEL_COUNT = "COALESCE(c.n_labels, 0)"
+
+# The same count, as a correlated subquery, for the two queries that do not (and
+# should not) carry the join: ``next_review_pair_for`` returns ONE task and is
+# already windowed, and ``review_pair_queue_stats`` aggregates over its own
+# derived table. Named separately so nobody reintroduces the H4 shape by reaching
+# for the wrong constant in the hot path.
+_PRD_R_LABEL_COUNT_CORRELATED = (
+    "(SELECT COUNT(*) FROM submissions sv "
+    " WHERE sv.task_id = t.task_id AND sv.verdict IS NOT NULL)"
+)
+
+# How many eligible candidates a single draw will consider. Applied AFTER every
+# per-labeler exclusion is resolved in SQL, which is what makes it safe: the
+# window counts only work this labeler could actually take, so it can never
+# produce the empty queue the unbounded scan existed to avoid.
+_PRD_R_SCAN_WINDOW = 300
+
+# A task is servable to a labeler when it is open, OR when it is 'done' but
+# carries exactly one label and has never been lifted to a pair. That second
+# branch is the load-bearing one: ``refresh_task_status`` closes a max_labels=1
+# task on its first submission (it is on the hot submit path and PRD R §7 forbids
+# editing it), so between "TL#1 submits" and "something lifts max_labels" the
+# case is 'done' and invisible. Deriving eligibility means the queue is correct
+# on the very next draw instead of waiting on a sweep. The Python-side capacity
+# check (``routing.effective_capacity``) is what decides whether the policy
+# actually wants that second label — this clause only widens the candidate set.
+_PRD_R_SERVABLE = (
+    "(t.status = 'open' OR (t.status = 'done' AND COALESCE(t.max_labels, 1) < 2 "
+    f"AND {_PRD_R_LABEL_COUNT} = 1))"
+)
+
+# PRD R §1.2 — a singly-labelled task outranks a fresh one, so cases finish
+# instead of accumulating half-done and κ never filling. A DESC SORT, NOT A
+# FILTER: an awaiting-second task this labeler cannot take (they wrote the first
+# label) simply loses its place at the head, and the scan falls through to fresh
+# work. The moment this becomes a WHERE clause, a labeler with no eligible
+# second-label work sees an empty queue and stops working (PRD R §7).
+_PRD_R_PRIORITY_ORDER = f"ORDER BY {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
+# ═══ END PRD-R ═══════════════════════════════════════════════════════════════
+
+
 class AsclepiusStore:
     def __init__(self, db_path: Optional[str] = None):
         base_dir = os.path.dirname(__file__)
@@ -888,6 +956,11 @@ class AsclepiusStore:
                 # cases) is served ONLY to contributors flagged approved (BAA /
                 # training complete). Default off for everyone.
                 ("real_data_approved", "INTEGER NOT NULL DEFAULT 0"),
+                # First-run tutorial ("Calibration Case 1") state. JSON blob —
+                # {status, step, version, started_at, completed_at, skipped_at,
+                # score} — because the shape evolves and nothing filters on it
+                # in SQL (same reasoning as credentials_json above).
+                ("tutorial_json", "TEXT"),
             ):
                 if col not in user_cols:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
@@ -1030,6 +1103,73 @@ class AsclepiusStore:
             if "identifier_flags" not in cols("case_reviews"):
                 conn.execute("ALTER TABLE case_reviews ADD COLUMN identifier_flags TEXT")
             # ═══ END PRD-A ═══
+            # ═══ PRD-R ROUTING / PAIRED REVIEW SCHEMA — owned by Agent R ═══════
+            # The review unit moves from a SUBMISSION to a TASK (PRD R §2.1): a
+            # reviewer draws the PAIR and adjudicates the case, so the claim,
+            # the lease and the blinding assertion all belong on the task row.
+            # All nullable, none defaulted — NULL means "no draw has asserted
+            # this yet", which must stay distinguishable from a decided value
+            # (context pack §6). The submission-level columns above are left
+            # exactly as they are: single-submission review still exists for a
+            # task that will only ever carry one label.
+            for _col, _ddl in (
+                ("review_status",     "TEXT"),     # NULL | in_review | reviewed
+                ("review_claimed_by", "TEXT"),
+                ("review_claimed_at", "TEXT"),     # the lease clock, never updated_at
+                ("review_blinded",    "INTEGER"),  # 1 | 0 | NULL(never asserted)
+            ):
+                if _col not in cols("tasks"):
+                    conn.execute(f"ALTER TABLE tasks ADD COLUMN {_col} {_ddl}")
+            # The paired verdict, alongside the existing single-submission one.
+            #   pair_sub_a / pair_sub_b — the pair in CANONICAL (oldest-first)
+            #     order, so two reviewers' rows on the same case are comparable.
+            #     NEVER the per-reviewer A/B order, which is a presentation fact.
+            #   stronger        — 'A' | 'B' | 'equivalent', in the REVIEWER's
+            #     positions, resolved to a submission id in accepted_submission_id.
+            #   accepted_submission_id — which physician's work the verdict
+            #     accepts; NULL for 'reject both'.
+            # ``verdict`` deliberately keeps the existing three-value vocabulary
+            # so ``agreement.review_acceptance`` — the ONE definition of expert
+            # acceptance — keeps counting it. A fourth verdict token would land
+            # in n_unclassified and silently zero the headline rate (PRD R §2.4:
+            # extend the inputs, never the names).
+            for _col, _ddl in (
+                ("pair_sub_a",             "TEXT"),
+                ("pair_sub_b",             "TEXT"),
+                ("stronger",               "TEXT"),
+                # Audit R H1. ``stronger`` is a POSITION, and a position only
+                # means something next to the frame it was measured in. It is
+                # now written in CANONICAL terms (the same frame as pair_sub_a /
+                # pair_sub_b, which sit beside it) and this column carries the
+                # unambiguous form so no reader has to know that. NULL when the
+                # reviewer answered 'equivalent' — there is no stronger side.
+                ("stronger_submission_id", "TEXT"),
+                ("accepted_submission_id", "TEXT"),
+            ):
+                if _col not in cols("case_reviews"):
+                    conn.execute(f"ALTER TABLE case_reviews ADD COLUMN {_col} {_ddl}")
+            # The priority sort (PRD R §1.2) counts verdict-bearing submissions
+            # per task on every labeler draw, and the pair query joins the same
+            # two columns. Unindexed that is a full scan of ``submissions`` per
+            # draw, per labeler.
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sub_task_verdict "
+                "ON submissions(task_id, verdict)")
+            # The independence check — "has THIS labeler already submitted here?"
+            # — runs as a NOT EXISTS on every labeler draw and on every reviewer
+            # pair draw. Without this it resolves through idx_sub_task_verdict
+            # and then filters, which is a scan of the task's submissions rather
+            # than a point lookup (Audit R H4).
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sub_task_evaluator "
+                "ON submissions(task_id, evaluator_id)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_task_review_status "
+                "ON tasks(review_status)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_review_task_reviewer "
+                "ON case_reviews(task_id, reviewer_user_id)")
+            # ═══ END PRD-R ═══
             # ═══ PRD-C HEALTH SYSTEM SCHEMA — owned by Agent 3, do not edit from other PRDs ═══
             conn.execute(
                 """
@@ -1243,6 +1383,292 @@ class AsclepiusStore:
             if "signoff_status" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN signoff_status TEXT")
             # ═══ END PRD-D ═══
+            # ═══ PRD-I INGESTION SCHEMA — owned by Agent I, do not edit from other PRDs ═══
+            # Purpose (PRD-I §2.1). 'task_creation' | 'brokering' | NULL.
+            #
+            # NO DEFAULT, deliberately, and this is the one column where that rule
+            # carries real consequence rather than tidiness: NULL means "minted
+            # before purpose existed", and the ONLY place it may be read as
+            # task_creation is the promotion gate (§4.1). Everywhere else it renders
+            # as an unresolved work item, because a legacy link silently defaulting
+            # to task_creation is exactly how brokering data would become a task.
+            #
+            # Purpose lives on the row that AUTHORIZES an upload, and there are two
+            # such rows because there are two doors: the magic-link door authorizes
+            # on ingest_upload_links, and the health-system portal authorizes on
+            # hs_portal_users (it has no link row at all — it carries the 'hs-portal'
+            # sentinel link_id). PRD-I §2.1 names only the link table; putting it
+            # solely there would leave every hospital-portal upload with no purpose,
+            # which is the door the PRD's own §1 handshake is built on.
+            for _tbl in ("ingest_upload_links", "hs_portal_users", "ingest_uploads",
+                         "ingest_cases"):
+                if "purpose" not in cols(_tbl):
+                    conn.execute(f"ALTER TABLE {_tbl} ADD COLUMN purpose TEXT")
+            # The chain-of-custody triple (PRD-I §1.1). sha256/size_bytes already
+            # exist on ingest_uploads; verified_at is what makes them a CLAIM rather
+            # than two numbers — it is stamped only after the whole-file digest was
+            # recomputed over the assembled bytes and matched the declared value.
+            if "verified_at" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN verified_at TEXT")
+            # Resumable chunked upload sessions (PRD-I §1.1). A session is NOT an
+            # upload: no ingest_uploads row exists until `complete` verifies the
+            # whole-file digest, which is what makes "an assembled file with no
+            # verified row is invisible to the application" true by construction
+            # rather than by convention.
+            #
+            # Per-part progress is deliberately NOT stored here — it is derived from
+            # the parts on disk. Writing a row per chunk would put a single-writer
+            # SQLite under a tight write loop for state the filesystem already holds.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ingest_upload_sessions (
+                    session_id      TEXT PRIMARY KEY,
+                    owner_kind      TEXT NOT NULL,   -- 'health_system'
+                    owner_id        TEXT NOT NULL,
+                    actor           TEXT,            -- portal username, for audit
+                    filename        TEXT,
+                    content_type    TEXT,
+                    declared_sha256 TEXT NOT NULL,
+                    declared_size   INTEGER NOT NULL,
+                    chunk_size      INTEGER NOT NULL,
+                    part_count      INTEGER NOT NULL,
+                    storage_dir     TEXT NOT NULL,
+                    -- No purpose column, deliberately. What an upload is FOR is a
+                    -- mutable admin decision, and a session outlives it: 24 h,
+                    -- resumable. A snapshot taken at declare is stale for every
+                    -- byte that arrives after an admin corrects the mint, and the
+                    -- single-request door resolves live — so the two doors would
+                    -- record the same bytes differently. ``actor`` is stored and
+                    -- everything derived is joined through it at completion.
+                    status          TEXT,            -- NULL(open) | completing | verified | failed | aborted
+                    upload_id       TEXT,            -- set at complete
+                    verified_at     TEXT,
+                    created_at      TEXT NOT NULL,
+                    updated_at      TEXT NOT NULL
+                )
+                """
+            )
+            # Idempotency key (PRD-I §1.1): re-declaring the same bytes from the same
+            # ACCOUNT returns the EXISTING session rather than starting a second one,
+            # so "the contact refreshed the tab at 3.2 GB" is a non-event. Partial
+            # index over OPEN sessions only — a failed session must not block a
+            # genuine retry of the same file.
+            #
+            # ``actor`` is in the key, and that is a correctness requirement rather
+            # than a refinement. Purpose lives on the ACCOUNT, and an organization
+            # may legitimately hold one account of each kind. Keyed on the health
+            # system alone, a brokering account re-declaring the same bytes as a
+            # task-creation account would be handed that account's session — and
+            # the completed upload would inherit its purpose. A brokering bundle
+            # stamped task_creation and filed under Ready to promote: fail-open on
+            # the one invariant this whole release exists to hold.
+            #
+            # The v1 index is dropped rather than left in place: it is UNIQUE, so
+            # leaving it would keep enforcing the weaker key and still collapse the
+            # two accounts onto one session.
+            conn.execute("DROP INDEX IF EXISTS idx_ingest_sessions_idem")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_ingest_sessions_idem_v2 "
+                "ON ingest_upload_sessions(owner_kind, owner_id, actor, "
+                "declared_sha256, declared_size) WHERE status IS NULL"
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_sessions_owner "
+                         "ON ingest_upload_sessions(owner_kind, owner_id)")
+            # The reaper scans on (status, updated_at); without this it is a full
+            # table scan on every declare.
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ingest_sessions_reap "
+                         "ON ingest_upload_sessions(status, updated_at)")
+            # A DB created before purpose became live-resolved still carries the
+            # snapshot column. Drop it rather than leave a stale value that reads
+            # as authoritative — a dead column holding a plausible-looking answer
+            # is worse than no column. Guarded: DROP COLUMN needs SQLite >= 3.35,
+            # and where it is unavailable the column simply stays NULL and unread.
+            if "purpose" in cols("ingest_upload_sessions"):
+                try:
+                    conn.execute("ALTER TABLE ingest_upload_sessions DROP COLUMN purpose")
+                except sqlite3.OperationalError:
+                    conn.execute("UPDATE ingest_upload_sessions SET purpose = NULL")
+            # ═══ END PRD-I ═══
+            # ═══ PRD-CRED TIERING SCHEMA — owned by Agent C, do not edit from other PRDs ═══
+            # The context pack calls this Agent C's "PRD-C sentinel". That label is already
+            # taken, at :1033 and :4808, by the HEALTH-SYSTEM schema from an earlier release
+            # owned by a different agent. Reusing it would make the expected four-way merge
+            # conflict unresolvable by inspection, so this block is PRD-CRED and sits at the
+            # same insertion point. Nothing above is touched.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tiering_weights (
+                    feature    TEXT PRIMARY KEY,
+                    m          REAL NOT NULL,
+                    q          REAL NOT NULL,
+                    pinned     INTEGER NOT NULL DEFAULT 0,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tiering_decisions (
+                    decision_id     TEXT PRIMARY KEY,
+                    user_id         TEXT NOT NULL,
+                    case_domain     TEXT,
+                    features_json   TEXT NOT NULL,
+                    proposed_tier   TEXT,
+                    admin_tier      TEXT,
+                    was_flip        INTEGER,
+                    was_exploration INTEGER,
+                    -- 'admin' (an opinion label) | 'shadow_tr' (a REAL outcome label, scored
+                    -- against a settled gold adjudication). The distinction is the only thing
+                    -- that breaks the circularity of learning from the system's own routing,
+                    -- so it is a column rather than something inferred later.
+                    outcome_source  TEXT,
+                    score           REAL,
+                    decided_by      TEXT,
+                    decided_at      TEXT NOT NULL,
+                    -- NULL until folded into the weights, exactly once. This is the guard
+                    -- against replaying old decisions: each event contributes precision once,
+                    -- or you fabricate confidence.
+                    applied_at      TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tiering_dec_user "
+                         "ON tiering_decisions(user_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tiering_dec_unapplied "
+                         "ON tiering_decisions(applied_at)")
+
+            # ── Calibration exam (PRD C §4) ─────────────────────────────────────────────
+            # key_json is the AGGREGATE of a reference panel, never one person's opinion.
+            # active is nullable-free but responses are raw: an item can be re-keyed and every
+            # past attempt rescored without re-testing anyone.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS calibration_items (
+                    item_id        TEXT PRIMARY KEY,
+                    specialty      TEXT NOT NULL,
+                    source_task_id TEXT,
+                    vignette_json  TEXT NOT NULL,
+                    key_json       TEXT NOT NULL,
+                    panel_n        INTEGER,
+                    active         INTEGER NOT NULL DEFAULT 1,
+                    created_at     TEXT NOT NULL,
+                    updated_at     TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_calib_items_spec "
+                         "ON calibration_items(specialty)")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS calibration_attempts (
+                    attempt_id     TEXT PRIMARY KEY,
+                    user_id        TEXT NOT NULL,
+                    specialty      TEXT NOT NULL,
+                    item_ids_json  TEXT NOT NULL,
+                    -- The RAW per-item responses, always. Storing only the score would make
+                    -- every future re-key a re-recruitment (PRD C §4).
+                    responses_json TEXT,
+                    scores_json    TEXT,
+                    composite      REAL,
+                    -- Deliberately no DEFAULT on either gate column: NULL means "not yet
+                    -- graded" and must stay distinguishable from a graded fail.
+                    tr_gate_passed INTEGER,
+                    tl_gate_passed INTEGER,
+                    started_at     TEXT NOT NULL,
+                    submitted_at   TEXT,
+                    rescored_at    TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_calib_att_user "
+                         "ON calibration_attempts(user_id)")
+
+            # ── OIG LEIE exclusions (gate A5) ───────────────────────────────────────────
+            # Loaded from the monthly CSV. leie_meta records WHEN, so a stale or never-loaded
+            # list resolves to UNKNOWN rather than silently to "clear" — an exclusion check
+            # that fails open is not a check.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS leie_exclusions (
+                    npi        TEXT PRIMARY KEY,
+                    excl_type  TEXT,
+                    excl_date  TEXT,
+                    loaded_at  TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS leie_meta (
+                    id          INTEGER PRIMARY KEY CHECK (id = 1),
+                    loaded_at   TEXT NOT NULL,
+                    row_count   INTEGER NOT NULL,
+                    source_note TEXT
+                )
+                """
+            )
+
+            # ── Fairness monitor (PRD C §6) ─────────────────────────────────────────────
+            # Voluntary, self-reported demographics, in a table that is NOT joinable into the
+            # feature store — and the non-joinability is structural, not a naming convention:
+            # the row is keyed by an HMAC of the user id under a secret the scorer never
+            # holds, and the tier is COPIED IN at decision time. The monitor therefore needs
+            # no join at all, and possession of this table does not re-identify anyone.
+            # Collecting it separately is exactly what makes the monitor possible without
+            # making the model able to see it.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS fairness_observations (
+                    obs_id       TEXT PRIMARY KEY,
+                    subject_key  TEXT NOT NULL,
+                    demographics_json TEXT NOT NULL,
+                    decided_tier TEXT,
+                    -- AUDIT H2: the FEATURE VECTOR, copied in at decision time alongside the
+                    -- tier. structured_review_exp reaches the score at 0.70 and correlates
+                    -- with IMG status and national origin — both of which are pinned to zero,
+                    -- so the model cannot use them directly but this feature can route around
+                    -- the pin. It cannot itself be pinned without gutting a real criterion, so
+                    -- it is MONITORED instead, which means the monitor has to be able to see
+                    -- it. Copied rather than joined for the same reason the tier is: a join
+                    -- back to `users` would make the non-joinability of this table a naming
+                    -- convention again.
+                    features_json TEXT,
+                    decided_at   TEXT NOT NULL
+                )
+                """
+            )
+            if "features_json" not in cols("fairness_observations"):
+                conn.execute("ALTER TABLE fairness_observations ADD COLUMN features_json TEXT")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_fairness_subject "
+                         "ON fairness_observations(subject_key)")
+            # ═══ END PRD-CRED ═══
+
+            # ── Specialty-tagged task notifications (outbox + drain) ─────────
+            # One row per (recipient, specialty, upload batch): the admin request
+            # enqueues these synchronously (fast, transactional) and a background
+            # drain sends the emails, so a crash mid-send leaves rows `pending`
+            # for the manual re-drain endpoint rather than losing the tail.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS task_notify_outbox (
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    idempotency_key   TEXT NOT NULL UNIQUE,
+                    batch_id          TEXT NOT NULL,
+                    specialty         TEXT NOT NULL,
+                    task_count        INTEGER NOT NULL,
+                    recipient_user_id TEXT NOT NULL,
+                    recipient_email   TEXT NOT NULL,
+                    status            TEXT NOT NULL DEFAULT 'pending',
+                    send_attempts     INTEGER NOT NULL DEFAULT 0,
+                    last_error        TEXT,
+                    sent_at           TEXT,
+                    created_at        TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_task_notify_status ON task_notify_outbox(status)"
+            )
 
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
@@ -1636,22 +2062,85 @@ class AsclepiusStore:
         with self._conn() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
 
+    def list_evaluators_by_specialty(self, specialty: str) -> List[Dict[str, Any]]:
+        """Active evaluators whose specialty matches, for task-notify recipient
+        resolution. Mirrors ``next_task_for_evaluator``'s match (equality on
+        ``specialty``), just inverted: users for a specialty instead of a task
+        for a user."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users WHERE role = 'evaluator' AND active = 1 "
+                "AND lower(trim(specialty)) = lower(trim(?))",
+                (specialty,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # ─── Task-notify outbox (specialty-tagged task notifications) ───────────
+    def enqueue_task_notification(
+        self, *, idempotency_key: str, batch_id: str, specialty: str, task_count: int,
+        recipient_user_id: str, recipient_email: str,
+    ) -> Optional[int]:
+        """Insert a pending outbox row, deduped on ``idempotency_key`` (one email
+        per clinician per specialty per upload batch). Returns the new row id, or
+        None if this (recipient, specialty, batch) was already enqueued."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT OR IGNORE INTO task_notify_outbox
+                  (idempotency_key, batch_id, specialty, task_count,
+                   recipient_user_id, recipient_email, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+                """,
+                (
+                    idempotency_key, batch_id, specialty, task_count,
+                    recipient_user_id, recipient_email, _utcnow_iso(),
+                ),
+            )
+            return int(cur.lastrowid) if cur.rowcount else None
+
+    def list_pending_task_notifications(self, limit: int = 500) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM task_notify_outbox WHERE status = 'pending' "
+                "ORDER BY created_at ASC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def mark_task_notification_sent(self, notification_id: int) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE task_notify_outbox SET status = 'sent', sent_at = ?, "
+                "send_attempts = send_attempts + 1 WHERE id = ?",
+                (_utcnow_iso(), notification_id),
+            )
+
+    def mark_task_notification_failed(self, notification_id: int, error: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE task_notify_outbox SET status = 'failed', last_error = ?, "
+                "send_attempts = send_attempts + 1 WHERE id = ?",
+                (error, notification_id),
+            )
+
     # ─── Real EHR ingestion (EHR PRD §4, §5, §8) ─────────────────────────────
     def create_upload_link(
         self, *, token_hash: str, partner_id: str, partner_label: Optional[str],
         specialty: str, expires_at: str, one_time: bool, max_bytes: int,
         created_by: Optional[str], contact_email: Optional[str] = None,
+        purpose: Optional[str] = None,
     ) -> Dict[str, Any]:
         lid = _new_id("lnk")
         with self._conn() as conn:
             conn.execute(
                 """INSERT INTO ingest_upload_links
                    (link_id, token_hash, partner_id, partner_label, specialty,
-                    expires_at, one_time, max_bytes, created_by, contact_email, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    expires_at, one_time, max_bytes, created_by, contact_email,
+                    purpose, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (lid, token_hash, partner_id, partner_label, specialty, expires_at,
                  1 if one_time else 0, int(max_bytes), created_by,
-                 (contact_email or None), _utcnow_iso()),
+                 (contact_email or None), purpose, _utcnow_iso()),
             )
         return self.get_upload_link(lid)  # type: ignore[return-value]
 
@@ -2084,6 +2573,30 @@ class AsclepiusStore:
                 (1 if approved else 0, user_id),
             )
 
+    def get_tutorial_state(self, user_id: str) -> Dict[str, Any]:
+        """The user's first-run tutorial state; a default not_started shape when
+        unset or unparseable (a corrupt blob must never lock someone out)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT tutorial_json FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+        raw = row[0] if row else None
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict) and parsed.get("status"):
+                    return parsed
+            except (ValueError, TypeError):
+                pass
+        return {"status": "not_started", "version": None}
+
+    def set_tutorial_state(self, user_id: str, state: Dict[str, Any]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET tutorial_json = ? WHERE id = ?",
+                (json.dumps(state), user_id),
+            )
+
     def mock_annotator_id_hashes(self) -> set:
         """The ``id_hashed`` of every mock/sandbox contributor. Records carry the
         annotator's ``id_hashed``; export hard-excludes these by default and the
@@ -2343,25 +2856,41 @@ class AsclepiusStore:
                 ).fetchone()[0]
             )
 
-    def next_task_for_evaluator(
+    # ─── PRD-R: ONE labeler-queue builder (Audit R H4) ────────────────────────
+    def labeler_queue_sql(
         self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
         real_only: bool = False, multimodal_only: bool = False,
         require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
-    ) -> Optional[Dict[str, Any]]:
-        """Oldest open task in the evaluator's specialty that (a) they have not
-        already submitted and (b) still has label capacity (max_labels).
-        ``hard_only`` (Seamless PRD WS2, the V3 hard-case queue) restricts to
-        ``difficulty='hard'`` tasks.
+        window: int = _PRD_R_SCAN_WINDOW,
+    ) -> tuple:
+        """``(sql, params)`` for the labeler queue — the ONE definition, shared by
+        the classic draw and the value-aware candidate set so they cannot drift.
 
-        ``real_only`` is the V4 wall (EHR PRD §9.5), enforced in SQL: True serves
-        ONLY ``case_source='real_deid'`` tasks (the V4 queue); False EXCLUDES
-        them entirely (v1/v2/v3 can never be served a real patient case).
+        Three things make this cheap enough to sit on the submit-path writer:
 
-        TODO(scale): this scans candidate open tasks in Python; fine at pod scale.
-        Push the not-mine + capacity filter fully into SQL when volume grows."""
-        clauses = ["t.status = 'open'"]
-        # NOTE: the ``mine`` correlated subquery placeholder appears BEFORE the
-        # WHERE clause in the SQL text, so ``evaluator_id`` must bind first.
+        * the per-task counts are materialized ONCE by a grouped join, not by a
+          correlated scalar subquery inlined five times per row (H4);
+        * ``not mine`` is resolved IN SQL, so the window below counts only work
+          this labeler could actually take;
+        * a lean projection — the full task row is fetched only for candidates
+          actually considered, which under the priority sort is normally one.
+
+        The window is therefore safe in the way the unbounded scan was protecting
+        against: it cannot hide eligible work behind ineligible work, because
+        ineligible work is already gone.
+        """
+        clauses = [
+            _PRD_R_SERVABLE,
+            # Independence, in SQL rather than by caller discipline.
+            "NOT EXISTS (SELECT 1 FROM submissions sm WHERE sm.task_id = t.task_id"
+            " AND sm.evaluator_id = ?)",
+            # An exact NECESSARY condition for remaining capacity: no policy can
+            # raise a task's effective capacity above max(max_labels, 2). The
+            # exact test still runs in Python, against ``routing`` — one policy,
+            # one place — but this keeps the fleet's finished cases out of the
+            # window entirely.
+            f"{_PRD_R_LABEL_COUNT} < MAX(COALESCE(t.max_labels, 1), 2)",
+        ]
         params: List[Any] = [evaluator_id]
         if specialty:
             clauses.append("t.specialty = ?")
@@ -2377,6 +2906,9 @@ class AsclepiusStore:
         if require_measured_difficulty:
             clauses.append("(t.difficulty_measured = 1 AND t.empirical_difficulty >= ?)")
             params.append(float(min_empirical_difficulty))
+        # The V4 wall (EHR PRD §9.5), enforced in SQL: real_only serves ONLY
+        # case_source='real_deid'; otherwise they are excluded entirely, so a real
+        # patient case can never reach a v1/v2/v3 session.
         clauses.append(
             "t.case_source = 'real_deid'" if real_only
             else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
@@ -2390,101 +2922,149 @@ class AsclepiusStore:
             "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id "
             "AND ic.status = 'needs_review')"
         )
-        where = " AND ".join(clauses)
+        sql = f"""
+            SELECT t.task_id, {_PRD_R_LABEL_COUNT} AS label_count,
+                   COALESCE(c.n_all, 0) AS sub_count
+            FROM tasks t
+            {_PRD_R_COUNTS_JOIN}
+            WHERE {' AND '.join(clauses)}
+            {_PRD_R_PRIORITY_ORDER}
+            LIMIT ?
+            """
+        params.append(int(window))
+        return sql, tuple(params)
+
+    def _labeler_candidates(self, **kw) -> List[Dict[str, Any]]:
+        sql, params = self.labeler_queue_sql(**kw)
         with self._conn() as conn:
-            row = conn.execute(
-                f"""
-                SELECT t.*,
-                       (SELECT COUNT(*) FROM submissions s WHERE s.task_id = t.task_id) AS sub_count,
-                       (SELECT COUNT(*) FROM submissions s2
-                         WHERE s2.task_id = t.task_id AND s2.evaluator_id = ?) AS mine
-                FROM tasks t
-                WHERE {where}
-                ORDER BY t.created_at ASC
-                """,
-                tuple(params),
-            ).fetchall()
-        for r in row:
-            rec = self._task_row(r)
-            if rec.get("mine"):
+            return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+    def next_task_for_evaluator(
+        self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
+        real_only: bool = False, multimodal_only: bool = False,
+        require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
+    ) -> Optional[Dict[str, Any]]:
+        """Oldest servable task in the evaluator's specialty that they have not
+        already submitted and that still has label capacity.
+
+        PRD R §1.2: the candidate set also admits a 'done' task carrying a single
+        label (see ``_PRD_R_SERVABLE``) and is sorted so a task awaiting its
+        second label is offered before a fresh one.
+        """
+        from asclepius import routing as asc_routing   # pure module; no cycle
+        rows = self._labeler_candidates(
+            evaluator_id=evaluator_id, specialty=specialty, hard_only=hard_only,
+            real_only=real_only, multimodal_only=multimodal_only,
+            require_measured_difficulty=require_measured_difficulty,
+            min_empirical_difficulty=min_empirical_difficulty,
+        )
+        for r in rows:
+            task = self.get_task(r["task_id"])
+            if task is None:
                 continue
-            if int(r["sub_count"]) >= int(rec.get("max_labels") or 1):
+            label_count = int(r["label_count"] or 0)
+            # PRD R §1.2: capacity is DERIVED, so a case not yet flagged for its
+            # second label is still servable. Counted in LABELS (Audit R M1) —
+            # the same number eligibility and the priority sort use.
+            if label_count >= asc_routing.effective_capacity(task):
                 continue
-            rec.pop("sub_count", None)
-            rec.pop("mine", None)
-            return rec
+            # Catch the stored capacity up to the derived one, on the same
+            # request, for the ONE task we are about to serve.
+            if self._prd_r_lift_capacity([(task, label_count)]):
+                return self.get_task(task["task_id"]) or task
+            return task
         return None
+
+    # ─── PRD-R capacity catch-up ──────────────────────────────────────────────
+    def _prd_r_lift_capacity(self, pairs: List[tuple]) -> List[str]:
+        """Persist ``max_labels = 2`` (+ reopen) for singly-labelled candidates
+        the policy wants double-labelled, in one batched UPDATE. Returns the
+        task_ids actually changed.
+
+        ``pairs`` is ``[(task_dict, verdict_bearing_label_count), ...]``.
+
+        PRD R §1.1 asks for this on the submit path. The submit route lives in
+        ``routers/asclepius.py``, which Agent R does not own (context pack §2),
+        and ``refresh_task_status`` — the one hook Agent R can reach on that path
+        — is explicitly read-only. So the write happens at the next moment it can
+        possibly matter: the draw that is about to serve the case. The queue
+        itself never depends on it having happened (eligibility and capacity are
+        derived), which makes this bookkeeping rather than a race — and leaves
+        the existing background sweep as a second, independent path to the same
+        state.
+
+        Only tasks that ALREADY carry a label are lifted. Pre-flagging an
+        unlabelled task would be defensible under a 1.0 rate, but ``max_labels``
+        means "capacity we have committed to", and committing before a first
+        label exists would silently re-price every task in the queue.
+        """
+        from asclepius import routing as asc_routing
+        want = [t["task_id"] for (t, n) in pairs
+                if int(n or 0) >= 1
+                and asc_routing.target_labels(t) < asc_routing.PAIR_LABELS
+                and asc_routing.wants_second_label(t)]
+        if not want:
+            return []
+        return self.flag_tasks_for_double_label(
+            [{"task_id": tid, "specialty": None, "current_rate": None} for tid in want])
 
     def eligible_tasks_for_evaluator(
         self, *, evaluator_id: str, specialty: Optional[str], limit: Optional[int] = None,
         hard_only: bool = False, real_only: bool = False, multimodal_only: bool = False,
         require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
     ) -> List[Dict[str, Any]]:
-        """All open tasks this evaluator may take (not already theirs + still has
-        label capacity), oldest first — the candidate set value-aware routing
-        (Value-per-Minute PRD B3) ranks by expected value-per-minute.
-        ``hard_only`` (Seamless PRD WS2) restricts to ``difficulty='hard'`` (the
-        V3 hard-case queue).
+        """Tasks this evaluator may take, priority-ordered — the candidate set
+        value-aware routing (Value-per-Minute PRD B3) ranks by value-per-minute.
 
-        The scan is UNBOUNDED, exactly like the classic ``next_task_for_evaluator``
-        (both filter ``mine``/capacity in Python at pod scale). A SQL ``LIMIT``
-        applied before that filter would starve value-aware routing: if the N
-        oldest open tasks are all already-labeled or at capacity, a capped fetch
-        returns nothing even though eligible tasks exist further down — and a
-        newer high-value task could never enter the ranked set. ``limit`` (if
-        given) caps only the returned candidate count AFTER filtering."""
-        clauses = ["t.status = 'open'"]
-        params: List[Any] = [evaluator_id]
-        if specialty:
-            clauses.append("t.specialty = ?")
-            params.append(specialty)
-        if hard_only:
-            clauses.append("t.difficulty = 'hard'")
-        # V3 multimodal-only queue (default): structured cases only.
-        if multimodal_only:
-            clauses.append("t.modality = 'multimodal'")
-        # Empirical-difficulty gate (PRD §9) — same rule as next_task_for_evaluator.
-        if require_measured_difficulty:
-            clauses.append("(t.difficulty_measured = 1 AND t.empirical_difficulty >= ?)")
-            params.append(float(min_empirical_difficulty))
-        # The V4 wall (EHR PRD §9.5) — same rule as next_task_for_evaluator.
-        clauses.append(
-            "t.case_source = 'real_deid'" if real_only
-            else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
+        Shares ``labeler_queue_sql`` with the classic draw, so the two cannot
+        disagree about who may take what.
+
+        On the window (Audit R H4): this scan used to be deliberately UNBOUNDED,
+        because a ``LIMIT`` applied BEFORE the not-mine/capacity filter starves
+        the ranker — if the N oldest candidates are all ineligible, a capped
+        fetch returns nothing while eligible work sits further down. Those
+        filters now run IN SQL, so the window contains only work this evaluator
+        can actually take and that objection no longer holds. What the window
+        does cost is reach: with more eligible cases than the window, the ranker
+        sees the highest-PRIORITY ones rather than every one. That is the right
+        trade — the priority sort is the throughput rule — and it is stated here
+        rather than discovered later.
+
+        ``limit`` caps the returned candidates after the exact capacity check.
+
+        PRD R §1.2: lifting an awaiting-second task to ``max_labels = 2`` also
+        turns on ``value._tier_mult``'s double-labeled-credentialed multiplier,
+        so the case the queue wants finished scores higher on its own merits and
+        the priority survives the re-rank rather than only breaking ties."""
+        from asclepius import routing as asc_routing   # pure module; no cycle
+        rows = self._labeler_candidates(
+            evaluator_id=evaluator_id, specialty=specialty, hard_only=hard_only,
+            real_only=real_only, multimodal_only=multimodal_only,
+            require_measured_difficulty=require_measured_difficulty,
+            min_empirical_difficulty=min_empirical_difficulty,
         )
-        # Hold blocking-review cases out of the candidate set too (Audit PRD §21.6) —
-        # same rule as next_task_for_evaluator, so value-aware routing never ranks a
-        # case a human has not yet cleared.
-        clauses.append(
-            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id "
-            "AND ic.status = 'needs_review')"
-        )
-        where = " AND ".join(clauses)
-        with self._conn() as conn:
-            rows = conn.execute(
-                f"""
-                SELECT t.*,
-                       (SELECT COUNT(*) FROM submissions s WHERE s.task_id = t.task_id) AS sub_count,
-                       (SELECT COUNT(*) FROM submissions s2
-                         WHERE s2.task_id = t.task_id AND s2.evaluator_id = ?) AS mine
-                FROM tasks t
-                WHERE {where}
-                ORDER BY t.created_at ASC
-                """,
-                tuple(params),
-            ).fetchall()
         out: List[Dict[str, Any]] = []
+        lift: List[tuple] = []
         for r in rows:
-            rec = self._task_row(r)
-            if rec.get("mine"):
+            task = self.get_task(r["task_id"])
+            if task is None:
                 continue
-            if int(r["sub_count"]) >= int(rec.get("max_labels") or 1):
+            label_count = int(r["label_count"] or 0)
+            if label_count >= asc_routing.effective_capacity(task):
                 continue
-            rec.pop("sub_count", None)
-            rec.pop("mine", None)
-            out.append(rec)
+            lift.append((task, label_count))
+            out.append(task)
             if limit is not None and len(out) >= limit:
                 break
+        # One batched catch-up over the candidate window (see
+        # ``_prd_r_lift_capacity``). Bounded by the window, idempotent, and empty
+        # in steady state — the UPDATE carries ``AND max_labels < 2``, so a task
+        # is only ever written once. Re-read the lifted rows so the caller ranks
+        # on the capacity it will actually be served with.
+        lifted = set(self._prd_r_lift_capacity(lift))
+        if lifted:
+            out = [(self.get_task(t["task_id"]) or t) if t["task_id"] in lifted else t
+                   for t in out]
         return out
 
     def evaluator_median_seconds(self, evaluator_id: str) -> Optional[float]:
@@ -3267,6 +3847,31 @@ class AsclepiusStore:
             out.append(rec)
         return out
 
+    def evaluator_self_stats(self, evaluator_id: str) -> Dict[str, Any]:
+        """Real, personal counts for the dashboard's own tracking widget: total
+        cases this evaluator has completed, how many in the last 7 days, and
+        when they last submitted one. No earnings/streak data exists anywhere
+        in this schema, so this stays limited to what's actually true."""
+        week_cutoff = (datetime.utcnow().replace(microsecond=0) - timedelta(days=7)).isoformat()
+        with self._conn() as conn:
+            total = conn.execute(
+                "SELECT COUNT(*) AS n FROM submissions WHERE evaluator_id = ?",
+                (evaluator_id,),
+            ).fetchone()["n"]
+            this_week = conn.execute(
+                "SELECT COUNT(*) AS n FROM submissions WHERE evaluator_id = ? AND created_at >= ?",
+                (evaluator_id, week_cutoff),
+            ).fetchone()["n"]
+            last_at = conn.execute(
+                "SELECT MAX(created_at) AS t FROM submissions WHERE evaluator_id = ?",
+                (evaluator_id,),
+            ).fetchone()["t"]
+        return {
+            "submissions_total": total,
+            "submissions_this_week": this_week,
+            "last_submission_at": last_at,
+        }
+
     # ─── Buyers & buyer requests (opt §2.5) ──────────────────────────────────
     def create_buyer(
         self, *, name: str, contact: Optional[str] = None,
@@ -3659,10 +4264,23 @@ class AsclepiusStore:
         self, *, task_id: str, specialty: Optional[str], sub_a: str, sub_b: str,
         verdict_a: Optional[str], verdict_b: Optional[str],
         tags_a: List[str], tags_b: List[str], jaccard_tags: float,
-        verdict_agree: bool, n_labels: int, flagged: bool, blinded: bool = True,
+        verdict_agree: bool, n_labels: int, flagged: bool,
+        blinded: Optional[bool] = None,
     ) -> None:
         # ``blinded`` (Buyer Response PRD §7 F1): whether the second annotator was
         # blind to the first's verdict. Only blinded observations enter κ.
+        #
+        # TRI-STATE, and the default is None (Audit R C2). This used to default
+        # to ``True`` while its only caller never passed it, so every observation
+        # was stamped blind, ``agreement._blinded_only`` was a permanent no-op,
+        # and two buyer-facing artifacts asserted a property nobody measured:
+        # quality_report.md's "unblinded observations excluded" was always 0, and
+        # every packaged record claimed ``independent_second_label`` on the
+        # strength of an observation merely existing. A default of True on a
+        # column whose whole purpose is to record a MEASUREMENT is the same
+        # defect ``payload_is_blinded`` was built to remove — one layer down.
+        # None means "not verified", which ``aggregate_kappa`` reports separately
+        # from a measured False and excludes from κ either way.
         with self._conn() as conn:
             conn.execute(
                 """
@@ -3675,7 +4293,9 @@ class AsclepiusStore:
                     task_id, specialty, sub_a, sub_b, verdict_a, verdict_b,
                     json.dumps(tags_a or []), json.dumps(tags_b or []),
                     jaccard_tags, 1 if verdict_agree else 0, int(n_labels),
-                    1 if flagged else 0, 1 if blinded else 0, _utcnow_iso(),
+                    1 if flagged else 0,
+                    None if blinded is None else (1 if blinded else 0),
+                    _utcnow_iso(),
                 ),
             )
 
@@ -4476,6 +5096,14 @@ class AsclepiusStore:
             " AND cr.reviewer_user_id = ?)",
             "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = s.task_id"
             " AND ic.status = 'needs_review')",
+            # PRD R §1, defect 1: this queue gated on a SINGLE submission, so a
+            # reviewer drew one labeler's work and never saw the second — which
+            # both double-serves the case and destroys the comparison. A task
+            # that is or will be a PAIR belongs to next_review_pair_for; only a
+            # task that will never carry a second label is served here.
+            "(SELECT COUNT(*) FROM submissions sc WHERE sc.task_id = s.task_id"
+            " AND sc.verdict IS NOT NULL) = 1",
+            "COALESCE(t.max_labels, 1) < 2",
         ]
         params: List[Any] = [user_id, cutoff, user_id]
         if specialty:
@@ -4821,6 +5449,312 @@ class AsclepiusStore:
         rec["tags_b"] = json.loads(rec.pop("tags_b_json", "[]") or "[]")
         return rec
     # ═══ END PRD-A ═══
+    # ═══ PRD-R PAIRED REVIEW STORE METHODS — owned by Agent R ════════════════
+    # The review unit is the TASK (PRD R §2.1). The lease mechanics and the
+    # compare-and-swap are the PRD-A ones verbatim — they work — moved from the
+    # submission row to the task row.
+
+    def next_review_pair_for(
+        self,
+        user_id: str,
+        *,
+        specialty: Optional[str] = None,
+        lease_minutes: int = 45,
+        scan_limit: int = 200,
+    ) -> Optional[Dict[str, Any]]:
+        """Oldest ``review_ready`` task this reviewer may adjudicate, or None.
+
+        Every requirement is enforced IN SQL, never by caller discipline:
+
+          * ``review_ready`` — at least two verdict-bearing submissions;
+          * the reviewer authored neither submission (``NOT EXISTS`` on their
+            own submissions for the task) — a physician grading their own work
+            is not a review, and κ's blinding claim collapses with it;
+          * the reviewer has not already reviewed this task;
+          * unclaimed, or holding a claim whose lease has expired, so an
+            abandoned draw re-queues instead of vanishing forever;
+          * the specialty matches;
+          * the task is not held for blocking ingest review (Audit §21.6) — a
+            reviewer must not see a case whose image may carry burned-in PHI.
+
+        Returns the task row; the caller pairs it with
+        ``submissions_for_task`` and claims it with ``claim_task_for_review``.
+        """
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        clauses = [
+            # ``review_ready`` in the SQL exactly as ``routing.phase`` derives it:
+            # EXACTLY two labels, and the task has reached the capacity it was
+            # provisioned for.
+            #
+            # ``= 2``, not ``>= 2`` (Audit R H3). A paired review is defined over
+            # two labels; ``routing.ab_pair`` truncates to two in Python, so a
+            # three-label case used to be served with one physician's work simply
+            # absent — and then retired as 'reviewed' by a reviewer who never saw
+            # it. Paid work, adjudicated never, invisible to both queues. A case
+            # that carries more than two labels is not review_ready; it is a data
+            # condition, and ``review_pair_queue_stats`` counts it so a human can
+            # see it rather than it vanishing.
+            #
+            # The capacity clause is the other half: an admin-set max_labels of 3
+            # with two labels in is awaiting_second, and if only the state machine
+            # knew that, the SQL and ``routing.phase`` would be two truths.
+            f"{_PRD_R_LABEL_COUNT_CORRELATED} = 2",
+            f"{_PRD_R_LABEL_COUNT_CORRELATED} >= COALESCE(t.max_labels, 1)",
+            "NOT EXISTS (SELECT 1 FROM submissions sm WHERE sm.task_id = t.task_id"
+            " AND sm.evaluator_id = ?)",
+            # ONE ADJUDICATION PER CASE, from EITHER queue (Audit R H2). This was
+            # scoped to ``cr.reviewer_user_id = ?``, which let a case that had
+            # already been reviewed through the single-submission flow be drawn
+            # again as a pair — two ``case_reviews`` rows for one case, and an
+            # expert-acceptance rate that counts it twice. The per-reviewer
+            # exclusion PRD R §2.1 asks for is subsumed by this stricter one.
+            "NOT EXISTS (SELECT 1 FROM case_reviews cr WHERE cr.task_id = t.task_id)",
+            # NULL = never drawn; an 'in_review' claim past its lease re-queues;
+            # and a reviewer is always re-served the case THEY are holding, so a
+            # page reload resumes their work instead of telling them the queue is
+            # empty while their own claim blocks it. 'reviewed' is terminal: one
+            # adjudication per case is the product, and the per-reviewer
+            # exclusion above is the belt to that brace.
+            "(t.review_status IS NULL OR (t.review_status = 'in_review'"
+            " AND (t.review_claimed_at IS NULL OR t.review_claimed_at < ?"
+            "      OR t.review_claimed_by = ?)))",
+            "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id"
+            " AND ic.status = 'needs_review')",
+        ]
+        params: List[Any] = [user_id, cutoff, user_id]
+        if specialty:
+            clauses.append("t.specialty = ?")
+            params.append(specialty)
+        params.append(int(scan_limit))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT t.* FROM tasks t
+                WHERE {' AND '.join(clauses)}
+                ORDER BY t.created_at ASC LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        return self._task_row(rows[0]) if rows else None
+
+    def claim_task_for_review(
+        self, task_id: str, *, reviewer_id: str, blinded: Optional[bool] = None,
+        lease_minutes: int = 45,
+    ) -> bool:
+        """Atomically claim a TASK for paired review. True when this caller won.
+
+        Compare-and-set: the UPDATE only matches while the row is unclaimed or
+        its prior claim's lease has expired, so two reviewers drawing
+        concurrently can never both hold the same case.
+
+        ``review_claimed_at`` is the lease clock rather than ``updated_at`` —
+        any unrelated write bumps ``updated_at`` and would silently extend a
+        reviewer's claim (the defect FIX A A-3.7 named on the submission row).
+        ``review_blinded`` records the blinding DERIVED from the payload we are
+        actually about to serve; an asserted constant is the defect F2 named.
+        """
+        now = _utcnow_iso()
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE tasks
+                   SET review_status = 'in_review', review_claimed_by = ?,
+                       review_claimed_at = ?, review_blinded = ?
+                WHERE task_id = ?
+                  AND (review_status IS NULL
+                       OR (review_status = 'in_review'
+                           AND (review_claimed_at IS NULL OR review_claimed_at < ?
+                                OR review_claimed_by = ?)))
+                """,
+                (reviewer_id, now, None if blinded is None else (1 if blinded else 0),
+                 task_id, cutoff, reviewer_id),
+            )
+            return cur.rowcount > 0
+
+    def task_review_claim(self, task_id: str, *, lease_minutes: int = 45) -> Dict[str, Any]:
+        """The current review claim on a task: ``{holder, claimed_at, blinded,
+        expired, status}``. ``blinded`` is tri-state — None means no draw ever
+        asserted it, which is NOT the same as unblinded."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT review_status, review_claimed_by, review_claimed_at, "
+                "review_blinded FROM tasks WHERE task_id = ?", (task_id,)
+            ).fetchone()
+        if row is None:
+            return {"holder": None, "claimed_at": None, "blinded": None,
+                    "expired": True, "status": None}
+        rec = dict(row)
+        claimed_at = rec.get("review_claimed_at")
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        blinded = rec.get("review_blinded")
+        return {
+            "holder": rec.get("review_claimed_by"),
+            "claimed_at": claimed_at,
+            "blinded": None if blinded is None else bool(blinded),
+            "expired": (claimed_at is None) or (claimed_at < cutoff),
+            "status": rec.get("review_status"),
+        }
+
+    def has_task_review_by(self, task_id: str, reviewer_user_id: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM case_reviews WHERE task_id = ? AND reviewer_user_id = ? LIMIT 1",
+                (task_id, reviewer_user_id),
+            ).fetchone()
+        return row is not None
+
+    def mark_task_reviewed(self, task_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE tasks SET review_status = 'reviewed' WHERE task_id = ?", (task_id,))
+
+    def insert_pair_review(
+        self,
+        *,
+        task_id: str,
+        reviewer_user_id: str,
+        reviewer_id_hashed: str,
+        verdict: str,
+        stronger: str,
+        stronger_submission_id: Optional[str],
+        pair_sub_a: Optional[str],
+        pair_sub_b: Optional[str],
+        accepted_submission_id: Optional[str],
+        dimensions: Optional[Dict[str, str]] = None,
+        corrections: Optional[Dict[str, Any]] = None,
+        reviewer_notes: Optional[str] = None,
+        time_spent_sec: Optional[int] = None,
+        blinded: Optional[bool] = None,
+        identifier_flags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """One senior-reviewer adjudication of a PAIR (PRD R §2.3).
+
+        Writes through :meth:`insert_case_review` rather than issuing a second
+        INSERT against the same table: one row shape, one place that knows how a
+        review is written, and every existing reader (``reviews_for_task``,
+        ``agreement.review_acceptance``, the export block) keeps working
+        unchanged. The pair columns are then stamped on.
+
+        ``submission_id`` — a NOT NULL column, and the anchor
+        ``reviews_for_submission`` reads — is set to the ACCEPTED submission when
+        there is one, and to the canonical first otherwise, so a review always
+        resolves to a real row. ``accepted_submission_id`` is the field that
+        carries the meaning: NULL there means "no side was accepted", which
+        ``submission_id`` cannot express.
+
+        ``pair_sub_a``/``pair_sub_b`` are CANONICAL (oldest-first), never this
+        reviewer's shuffled positions — two reviewers' rows on the same case have
+        to be comparable to each other. ``stronger`` is canonical for the same
+        reason and is stored alongside ``stronger_submission_id``, which is the
+        form no reader can misinterpret (Audit R H1).
+
+        ONE TRANSACTION (Audit R M2). An adjudication is four writes — the review
+        row, its pair columns, the task's review status, and retiring the two
+        labels — and they used to happen across FIVE independent connections,
+        two here and three in the router. A crash in the middle left a
+        ``case_reviews`` row that COUNTS in ``review_acceptance`` with NULL pair
+        columns, beside a task still ``in_review`` that reproduces H2 the moment
+        its lease expires. They now commit together or not at all.
+
+        The cost of that is a second writer for ``case_reviews``: this issues the
+        INSERT itself rather than routing through :meth:`insert_case_review`,
+        because that method opens its own connection and there is no way to join
+        it to this transaction. Atomicity on a row that feeds a buyer-facing
+        statistic is worth more than a single INSERT site, and
+        ``test_both_review_writers_produce_the_same_row_shape`` is the guard that
+        keeps the two honest.
+        """
+        anchor = accepted_submission_id or pair_sub_a or pair_sub_b or ""
+        review_id = _new_id("rev")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO case_reviews
+                  (review_id, task_id, submission_id, reviewer_user_id, reviewer_id_hashed,
+                   verdict, dimension_json, corrections_json, reviewer_notes,
+                   time_spent_sec, blinded, identifier_flags, created_at,
+                   pair_sub_a, pair_sub_b, stronger, stronger_submission_id,
+                   accepted_submission_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    review_id, task_id, anchor, reviewer_user_id, reviewer_id_hashed,
+                    verdict,
+                    json.dumps(dimensions or {}),
+                    json.dumps(corrections) if corrections is not None else None,
+                    reviewer_notes,
+                    int(time_spent_sec) if time_spent_sec is not None else None,
+                    None if blinded is None else (1 if blinded else 0),
+                    None if identifier_flags is None else json.dumps(sorted(identifier_flags)),
+                    now,
+                    pair_sub_a, pair_sub_b, stronger, stronger_submission_id,
+                    accepted_submission_id,
+                ),
+            )
+            conn.execute(
+                "UPDATE tasks SET review_status = 'reviewed' WHERE task_id = ?", (task_id,))
+            # Retire EXACTLY the two labels this adjudication covers (Audit R H3).
+            for sid in (pair_sub_a, pair_sub_b):
+                if sid:
+                    conn.execute(
+                        "UPDATE submissions SET review_status = 'reviewed', updated_at = ? "
+                        "WHERE submission_id = ?", (now, sid))
+        return self.get_case_review(review_id)  # type: ignore[return-value]
+
+    def review_pair_queue_stats(self) -> Dict[str, Any]:
+        """Counts for the TR page header, in one pass per phase.
+
+        Reported as the lifecycle phases the reviewer actually cares about —
+        how many cases are waiting for a second label, how many pairs are ready,
+        how many are adjudicated — rather than the submission-level review states,
+        which under the paired flow no longer describe anything a TR can act on.
+
+        Audit R M4: this ran a correlated subquery per task over the whole task
+        table, unbounded, on a header refreshed by every draw. It now shares the
+        SAME grouped-join shape as the labeler queue — one pass over an index —
+        so a header can no longer cost more than the work it describes.
+
+        ``parked`` (Audit R M5) counts cases a draw refused as not-independent
+        and set terminal. Two physicians' paid labels are stranded in each one,
+        and until this they existed only in an ERROR log nothing reads.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                f"""
+                SELECT
+                  SUM(CASE WHEN lc = 1 THEN 1 ELSE 0 END) AS awaiting_second,
+                  SUM(CASE WHEN lc = 2 AND rc = 0 THEN 1 ELSE 0 END) AS review_ready,
+                  SUM(CASE WHEN rc > 0 THEN 1 ELSE 0 END) AS adjudicated,
+                  -- Audit R H3: a case carrying more than two labels cannot be
+                  -- adjudicated by a PAIRED review. Counted, not dropped — the
+                  -- whole failure was that this work was invisible.
+                  SUM(CASE WHEN lc > 2 AND rc = 0 THEN 1 ELSE 0 END) AS over_labelled,
+                  -- Audit R M5: terminal, never adjudicated, nobody notified.
+                  SUM(CASE WHEN rs = 'reviewed' AND rc = 0 THEN 1 ELSE 0 END) AS parked
+                FROM (
+                  SELECT COALESCE(c.n_labels, 0) AS lc,
+                         COALESCE(r.n_reviews, 0) AS rc,
+                         t.review_status AS rs
+                  FROM tasks t
+                  {_PRD_R_COUNTS_JOIN}
+                  LEFT JOIN (SELECT task_id, COUNT(*) AS n_reviews
+                               FROM case_reviews GROUP BY task_id) r
+                         ON r.task_id = t.task_id
+                  WHERE t.status IN ('open', 'done')
+                )
+                """
+            ).fetchone()
+        rec = dict(row) if row else {}
+        return {
+            "awaiting_second": int(rec.get("awaiting_second") or 0),
+            "review_ready": int(rec.get("review_ready") or 0),
+            "adjudicated": int(rec.get("adjudicated") or 0),
+            "over_labelled": int(rec.get("over_labelled") or 0),
+            "parked": int(rec.get("parked") or 0),
+        }
+    # ═══ END PRD-R ═══
     # ═══ PRD-C HEALTH SYSTEM STORE METHODS — owned by Agent 3, do not edit from other PRDs ═══
     @staticmethod
     def hs_id_for_name(name: str) -> str:
@@ -6008,6 +6942,958 @@ class AsclepiusStore:
                 (limit,)).fetchall()
         return [dict(r) for r in rows]
     # ═══ END PRD-D STORE METHODS ═══
+
+    # ═══ PRD-I INGESTION STORE METHODS — owned by Agent I, do not edit elsewhere ═══
+    # ─── Purpose (PRD-I §2) ──────────────────────────────────────────────────
+    def set_upload_link_purpose(self, link_id: str, purpose: Optional[str]) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE ingest_upload_links SET purpose = ? WHERE link_id = ?",
+                         (purpose, link_id))
+
+    def set_hs_portal_purpose(self, username: str, purpose: Optional[str]) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_portal_users SET purpose = ? WHERE username = ?",
+                         (purpose, (username or "").lower()))
+
+    def hs_portal_account_has_activity(self, username: str) -> bool:
+        """Has this account sent anything, or started to?
+
+        Purpose is resolved LIVE at completion so the two upload doors always
+        agree — which also means changing an account's purpose reaches bytes that
+        are already in flight. This is how a caller tells "correcting a fresh
+        mis-click" (no activity) from "converting a partner's data" (any)."""
+        uname = (username or "").lower()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT ("
+                "  (SELECT COUNT(*) FROM ingest_upload_sessions "
+                "     WHERE actor = ? AND status IS NOT 'aborted') + "
+                "  (SELECT COUNT(*) FROM events "
+                "     WHERE actor = ? AND event_type = 'upload_received')"
+                ") AS n", (uname, uname)).fetchone()
+        return bool(row and int(row["n"] or 0) > 0)
+
+    def hs_purposes_for(self, hs_id: str) -> List[Optional[str]]:
+        """Every distinct purpose across a health system's ACTIVE portal accounts.
+
+        For ADMIN DISPLAY only. Uploads are stamped from the specific account that
+        sent them (``attach_upload_provenance``), never from this aggregate — an
+        organization may legitimately hold one account of each kind, and picking a
+        winner between them is how a brokering upload would acquire a
+        task_creation stamp."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT purpose FROM hs_portal_users "
+                "WHERE hs_id = ? AND active = 1", (hs_id,)).fetchall()
+        return [r["purpose"] for r in rows]
+
+    def attach_upload_provenance(
+        self, upload_id: str, *, portal_username: Optional[str] = None,
+        session_id: Optional[str] = None, link_id: Optional[str] = None,
+    ) -> None:
+        """Record where an upload came from, and copy forward what that implies.
+
+        The caller names the ORIGIN — the portal account, the chunked session, or
+        the magic link — and this resolves everything derived from it by joining
+        server-side, LIVE, at this instant. Deliberately not a
+        ``set_purpose(value)`` call: the upload doors have no business holding a
+        purpose value, so they are given no way to express one. Nothing a provider
+        sends reaches this.
+
+        All three doors resolve through this one function, which is what makes
+        "the same bytes are recorded the same way whichever door they came in"
+        true by construction rather than by three implementations agreeing."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            if session_id:
+                # Resolved LIVE from the account the session belongs to, never
+                # from a value snapshotted when the session opened. A session
+                # lives 24 h and resumes across that window, so a snapshot taken
+                # at declare is stale for every byte that arrives after an admin
+                # corrects the mint — and the multipart door, which resolves live,
+                # would record the same bytes differently. Two doors that disagree
+                # about what an upload is for is the same defect class as the
+                # cross-account hijack: the answer must not depend on which door
+                # or which moment.
+                conn.execute(
+                    "UPDATE ingest_uploads SET purpose = (SELECT p.purpose FROM "
+                    "hs_portal_users p JOIN ingest_upload_sessions s "
+                    "ON s.actor = p.username WHERE s.session_id = ?), "
+                    "updated_at = ? WHERE upload_id = ?",
+                    (session_id, now, upload_id))
+            elif portal_username:
+                conn.execute(
+                    "UPDATE ingest_uploads SET purpose = (SELECT purpose FROM "
+                    "hs_portal_users WHERE username = ?), updated_at = ? "
+                    "WHERE upload_id = ?",
+                    ((portal_username or "").lower(), now, upload_id))
+            elif link_id:
+                # The magic-link door. Same shape as the other two: the caller
+                # names the authorizing ROW and the value is joined here, so the
+                # door itself never handles a purpose.
+                conn.execute(
+                    "UPDATE ingest_uploads SET purpose = (SELECT purpose FROM "
+                    "ingest_upload_links WHERE link_id = ?), updated_at = ? "
+                    "WHERE upload_id = ?", (link_id, now, upload_id))
+
+    def set_upload_purpose(self, upload_id: str, purpose: Optional[str]) -> None:
+        """Admin-side correction only (resolving a legacy row). The upload doors
+        do not call this — they call ``attach_upload_provenance``."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET purpose = ?, updated_at = ? WHERE upload_id = ?",
+                (purpose, _utcnow_iso(), upload_id))
+
+    def set_ingest_case_purpose(self, ingest_case_id: str, purpose: Optional[str]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_cases SET purpose = ?, updated_at = ? WHERE ingest_case_id = ?",
+                (purpose, _utcnow_iso(), ingest_case_id))
+
+    def propagate_purpose_to_cases(self, upload_id: str) -> int:
+        """Copy the upload's purpose onto every case it produced, server-side.
+
+        A JOIN from the authorizing row, never a value a client sent: the purpose
+        is not accepted from a request body anywhere, so there is no path by which
+        a provider could influence it."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE ingest_cases SET purpose = "
+                "(SELECT purpose FROM ingest_uploads WHERE upload_id = ?), "
+                "updated_at = ? WHERE upload_id = ?",
+                (upload_id, _utcnow_iso(), upload_id))
+            return int(cur.rowcount or 0)
+
+    def ingest_case_effective_purpose(self, ingest_case_id: str) -> Optional[str]:
+        """The purpose the PROMOTION GATE must read: the case's own, falling back
+        to its upload's.
+
+        The fallback is the point. Purpose is copied onto cases at the end of
+        ingest, and that copy is best-effort — it must never strand an upload, so
+        a failure there is logged and swallowed. Reading only the case column would
+        turn that swallowed failure into a brokering case with a NULL purpose,
+        which the gate resolves as task_creation. Fail-open on the one check whose
+        whole job is to fail closed. COALESCE removes the possibility rather than
+        relying on the copy having happened."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(c.purpose, u.purpose) AS purpose FROM ingest_cases c "
+                "LEFT JOIN ingest_uploads u ON u.upload_id = c.upload_id "
+                "WHERE c.ingest_case_id = ?", (ingest_case_id,)).fetchone()
+        return row["purpose"] if row else None
+
+    def ingest_case_purposes_for_upload(self, upload_id: str) -> Dict[str, Optional[str]]:
+        """``{ingest_case_id: effective purpose}`` for a whole upload — one query
+        for the batch promote, same COALESCE semantics as above."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT c.ingest_case_id, COALESCE(c.purpose, u.purpose) AS purpose "
+                "FROM ingest_cases c LEFT JOIN ingest_uploads u "
+                "ON u.upload_id = c.upload_id WHERE c.upload_id = ?",
+                (upload_id,)).fetchall()
+        return {r["ingest_case_id"]: r["purpose"] for r in rows}
+
+    def mark_upload_verified(self, upload_id: str, *, verified_at: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET verified_at = ?, updated_at = ? WHERE upload_id = ?",
+                (verified_at, _utcnow_iso(), upload_id))
+
+    # ─── Chunked upload sessions (PRD-I §1.1) ────────────────────────────────
+    def create_upload_session(
+        self, *, owner_kind: str, owner_id: str, actor: Optional[str],
+        filename: Optional[str], content_type: Optional[str],
+        declared_sha256: str, declared_size: int, chunk_size: int,
+        part_count: int, storage_root: str, portal_username: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Open a session. ``portal_username`` names the ACCOUNT that authorized it;
+        anything derived from that account is resolved here by a server-side join,
+        so the upload door never handles the derived value (PRD-I §3.1)."""
+        sid = _new_id("ups")
+        now = _utcnow_iso()
+        # Derived from the SERVER-minted session id, so no component of the parts
+        # directory is ever client-controlled.
+        storage_dir = os.path.join(storage_root, sid)
+        # ``actor`` is the ONLY record of who authorized this session, and it is
+        # what everything derived is joined through at completion. Nothing is
+        # snapshotted here: a session lives 24 h and a stored copy of a mutable
+        # admin decision is stale the moment the admin changes it.
+        actor = (portal_username or actor or "").lower() or None
+        try:
+            with self._conn() as conn:
+                conn.execute(
+                    """INSERT INTO ingest_upload_sessions
+                       (session_id, owner_kind, owner_id, actor, filename, content_type,
+                        declared_sha256, declared_size, chunk_size, part_count,
+                        storage_dir, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (sid, owner_kind, owner_id, actor, filename, content_type,
+                     declared_sha256, int(declared_size), int(chunk_size),
+                     int(part_count), storage_dir, now, now))
+        except sqlite3.IntegrityError:
+            # Two declares for the same bytes raced. The idempotency index did its
+            # job — return the session that won rather than surfacing a 500 for
+            # what is, from the partner's side, one upload they asked for twice.
+            existing = self.find_open_upload_session(
+                owner_kind=owner_kind, owner_id=owner_id, actor=actor,
+                declared_sha256=declared_sha256, declared_size=int(declared_size))
+            if existing:
+                return existing
+            raise
+        return self.get_upload_session(sid)  # type: ignore[return-value]
+
+    def get_upload_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ingest_upload_sessions WHERE session_id = ?",
+                (session_id,)).fetchone()
+        return dict(row) if row else None
+
+    def find_open_upload_session(
+        self, *, owner_kind: str, owner_id: str, actor: Optional[str],
+        declared_sha256: str, declared_size: int,
+    ) -> Optional[Dict[str, Any]]:
+        """The idempotency lookup. Matches an OPEN session first (a resume), then a
+        VERIFIED one (a duplicate declare of bytes already ingested — returning the
+        existing upload_id is both idempotent and the only answer that does not
+        ingest the same content twice).
+
+        Scoped to the ACCOUNT, not just the health system. See the note on
+        ``idx_ingest_sessions_idem_v2``: purpose lives on the account, so matching
+        on the organization alone would hand a brokering account a task-creation
+        account's session and let the completed upload inherit its purpose."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ingest_upload_sessions "
+                "WHERE owner_kind = ? AND owner_id = ? AND actor IS ? "
+                "AND declared_sha256 = ? "
+                "AND declared_size = ? AND (status IS NULL OR status = 'verified') "
+                "ORDER BY CASE WHEN status IS NULL THEN 0 ELSE 1 END, created_at DESC "
+                "LIMIT 1",
+                (owner_kind, owner_id, actor, declared_sha256,
+                 int(declared_size))).fetchone()
+        return dict(row) if row else None
+
+    def claim_upload_session_for_completion(self, session_id: str) -> bool:
+        """ATOMIC claim on the assembly step. True for exactly one caller.
+
+        Two concurrent ``complete`` calls on one session would otherwise both pass
+        the "is it still open" read and both assemble: two ``ingest_uploads`` rows
+        and two pipeline runs for the same bytes, and — because the winner's
+        ``finalize`` deletes the parts while the loser is still reading them — an
+        unhandled FileNotFoundError from inside the loser. A conditional UPDATE
+        settles it in one statement, the same pattern ``consume_upload_link``
+        already uses for the one-time link race."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE ingest_upload_sessions SET status = 'completing', "
+                "updated_at = ? WHERE session_id = ? AND status IS NULL",
+                (_utcnow_iso(), session_id))
+            return cur.rowcount == 1
+
+    def release_upload_session_claim(self, session_id: str) -> str:
+        """Hand a claimed session back after a failed assembly, so the partner can
+        retry rather than being locked out by our own crash.
+
+        Returns ``"open"`` or ``"aborted"``. **Never raises** — this is called from
+        inside an ``except`` block, so an exception here would replace the real
+        assembly failure with a database error the operator cannot act on.
+
+        The subtlety: the idempotency index is partial over ``status IS NULL``, and
+        a partner who gives up on a stuck assembly re-declares — producing a fresh
+        OPEN session for the same bytes. Setting the stuck one back to NULL then
+        collides with the live one. When that happens the stuck session is
+        genuinely obsolete (its replacement already exists and is being uploaded
+        to), so it is retired instead. Blindly retrying the NULL write is what let
+        the reaper abort the live retry and leave the stuck one behind."""
+        now = _utcnow_iso()
+        try:
+            with self._conn() as conn:
+                conn.execute(
+                    "UPDATE ingest_upload_sessions SET status = NULL, updated_at = ? "
+                    "WHERE session_id = ? AND status = 'completing'", (now, session_id))
+            return "open"
+        except sqlite3.IntegrityError:
+            pass
+        try:
+            with self._conn() as conn:
+                conn.execute(
+                    "UPDATE ingest_upload_sessions SET status = 'aborted', "
+                    "updated_at = ? WHERE session_id = ? AND status = 'completing'",
+                    (now, session_id))
+        except sqlite3.Error:  # pragma: no cover - defensive; never mask the caller
+            return "open"
+        return "aborted"
+
+    def update_upload_session(self, session_id: str, **fields: Any) -> None:
+        allowed = {"status", "upload_id", "verified_at"}
+        # 'completing' is a claim, not a terminal state — release_upload_session_claim
+        # is the only way back to NULL.
+        sets, params = [], []
+        for k, v in fields.items():
+            if k in allowed:
+                sets.append(f"{k} = ?")
+                params.append(v)
+        if not sets:
+            return
+        sets.append("updated_at = ?")
+        params.extend([_utcnow_iso(), session_id])
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE ingest_upload_sessions SET {', '.join(sets)} "
+                "WHERE session_id = ?", tuple(params))
+
+    def list_stale_upload_sessions(self, *, older_than_iso: str) -> List[Dict[str, Any]]:
+        """Sessions past the reaper cutoff (PRD-I §1.1: unverified parts are deleted
+        after 24 h).
+
+        Four states, three reasons:
+
+        * ``NULL`` — open and possibly abandoned; parts are deleted if idle.
+        * ``completing`` — a claim that outlived the process that took it. A hard
+          crash during assembly would otherwise lock a partner out of an upload
+          they could still finish, so the reaper hands these back.
+        * ``aborted`` / ``failed`` — already retired, but their parts may still be
+          on disk if whichever path retired them did not purge. Included so part
+          cleanup CONVERGES rather than depending on every caller remembering;
+          the reaper only releases their disk, never touches the row.
+
+        ``verified`` is never a candidate: its parts are gone and its row is
+        chain-of-custody history."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ingest_upload_sessions "
+                "WHERE (status IS NULL OR status IN ('completing', 'aborted', 'failed')) "
+                "AND updated_at < ?",
+                (older_than_iso,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def hs_uploads_bytes_in_open_sessions(self, hs_id: str) -> int:
+        """Bytes already committed to open sessions for this health system. Counted
+        against the quota at DECLARE time — otherwise a partner could declare
+        unlimited concurrent multi-GB sessions and only trip the quota at complete,
+        after the disk was already spent."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(declared_size), 0) FROM ingest_upload_sessions "
+                "WHERE owner_kind = 'health_system' AND owner_id = ? AND status IS NULL",
+                (hs_id,)).fetchone()
+        return int(row[0] or 0)
+    # ═══ END PRD-I STORE METHODS ═══
+    # ═══ PRD-CRED TIERING STORE METHODS — owned by Agent C, do not edit from other PRDs ═══
+
+    # ─── Weights ──────────────────────────────────────────────────────────────
+    def get_tiering_weights(self) -> Dict[str, Dict[str, float]]:
+        """The current posterior, seeded from the priors on first read.
+
+        Seeding on read rather than in ``_init_schema`` keeps the priors in
+        ``tiering.py`` where they are documented and reviewable, instead of
+        duplicating nine numbers into a migration where they would drift.
+        """
+        from asclepius import tiering
+
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM tiering_weights").fetchall()
+            existing = {r["feature"]: {"m": float(r["m"]), "q": float(r["q"]),
+                                       "pinned": int(r["pinned"] or 0)} for r in rows}
+            defaults = tiering.default_weights()
+            missing = {k: v for k, v in defaults.items() if k not in existing}
+            if missing:
+                now = _utcnow_iso()
+                conn.executemany(
+                    "INSERT OR IGNORE INTO tiering_weights (feature, m, q, pinned, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    [(k, v["m"], v["q"], int(v["pinned"]), now) for k, v in missing.items()],
+                )
+                existing.update({k: dict(v) for k, v in missing.items()})
+        return existing
+
+    def record_tiering_decision(
+        self,
+        *,
+        user_id: str,
+        case_domain: Optional[str],
+        features: Dict[str, float],
+        proposed_tier: Optional[str],
+        admin_tier: Optional[str] = None,
+        was_exploration: bool = False,
+        outcome_source: str = "admin",
+        score: Optional[float] = None,
+        decided_by: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """One row per decision the model made or a human overrode.
+
+        ``was_flip`` is computed here rather than passed in: it is a fact about the two
+        columns beside it, and a caller that computes it separately is a caller that can get
+        it wrong. NULL when there is no admin decision yet — "not yet decided" is not "the
+        admin agreed".
+        """
+        decision_id = _new_id("tdec")
+        flip: Optional[int] = None
+        if admin_tier:
+            flip = 1 if admin_tier != proposed_tier else 0
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO tiering_decisions (decision_id, user_id, case_domain, "
+                "features_json, proposed_tier, admin_tier, was_flip, was_exploration, "
+                "outcome_source, score, decided_by, decided_at, applied_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+                (decision_id, user_id, case_domain, json.dumps(features), proposed_tier,
+                 admin_tier, flip, 1 if was_exploration else 0, outcome_source, score,
+                 decided_by, _utcnow_iso()),
+            )
+        return self.get_tiering_decision(decision_id) or {"decision_id": decision_id}
+
+    def get_tiering_decision(self, decision_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM tiering_decisions WHERE decision_id = ?",
+                               (decision_id,)).fetchone()
+        return dict(row) if row else None
+
+    def pending_tiering_decisions(self, *, limit: int = 500) -> List[Dict[str, Any]]:
+        """The un-applied batch. ``applied_at IS NULL`` is the whole guard against replay —
+        rows carrying no admin decision yet are excluded because an unlabelled row is not an
+        observation."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tiering_decisions WHERE applied_at IS NULL "
+                "AND admin_tier IS NOT NULL ORDER BY decided_at ASC LIMIT ?",
+                (max(1, int(limit)),),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def apply_tiering_batch(self, decision_ids: List[str],
+                            *, weights: Optional[Dict[str, Dict[str, float]]]) -> int:
+        """Stamp ``applied_at`` and write the new weights in ONE transaction.
+
+        Atomicity is the point. Written as two statements, a crash between them either
+        double-counts a batch (fabricated confidence) or loses it (silent non-learning), and
+        both failures look exactly like a healthy system from the outside.
+        """
+        if not decision_ids and weights is None:
+            return 0
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            if weights:
+                conn.executemany(
+                    "INSERT INTO tiering_weights (feature, m, q, pinned, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?) ON CONFLICT(feature) DO UPDATE SET "
+                    "m = excluded.m, q = excluded.q, pinned = excluded.pinned, "
+                    "updated_at = excluded.updated_at",
+                    [(k, float(v["m"]), float(v["q"]), int(v.get("pinned") or 0), now)
+                     for k, v in weights.items()],
+                )
+            if decision_ids:
+                marks = ",".join("?" for _ in decision_ids)
+                conn.execute(
+                    f"UPDATE tiering_decisions SET applied_at = ? "
+                    f"WHERE applied_at IS NULL AND decision_id IN ({marks})",
+                    [now, *decision_ids],
+                )
+        return len(decision_ids)
+
+    def tiering_decision_history(self, *, user_id: Optional[str] = None,
+                                 limit: int = 100) -> List[Dict[str, Any]]:
+        clause, params = "", []
+        if user_id:
+            clause, params = "WHERE user_id = ?", [user_id]
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM tiering_decisions {clause} ORDER BY decided_at DESC LIMIT ?",
+                [*params, max(1, int(limit))],
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ─── Calibration ──────────────────────────────────────────────────────────
+    @staticmethod
+    def _calibration_item_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["vignette"] = json.loads(rec.pop("vignette_json", "{}") or "{}")
+        rec["key"] = json.loads(rec.pop("key_json", "{}") or "{}")
+        return rec
+
+    def upsert_calibration_item(self, *, specialty: str, vignette: Dict[str, Any],
+                                key: Dict[str, Any], source_task_id: Optional[str] = None,
+                                item_id: Optional[str] = None,
+                                active: bool = True) -> Dict[str, Any]:
+        item_id = item_id or _new_id("cal")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO calibration_items (item_id, specialty, source_task_id, "
+                "vignette_json, key_json, panel_n, active, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(item_id) DO UPDATE SET "
+                "vignette_json = excluded.vignette_json, key_json = excluded.key_json, "
+                "panel_n = excluded.panel_n, active = excluded.active, "
+                "updated_at = excluded.updated_at",
+                (item_id, (specialty or "").strip().lower(), source_task_id,
+                 json.dumps(vignette), json.dumps(key), int(key.get("panel_n") or 0),
+                 1 if active else 0, now, now),
+            )
+            row = conn.execute("SELECT * FROM calibration_items WHERE item_id = ?",
+                               (item_id,)).fetchone()
+        return self._calibration_item_row(row)
+
+    def list_calibration_items(self, *, specialty: Optional[str] = None,
+                               active_only: bool = True) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if specialty:
+            clauses.append("specialty = ?")
+            params.append((specialty or "").strip().lower())
+        if active_only:
+            clauses.append("active = 1")
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM calibration_items {where} ORDER BY created_at ASC",
+                params).fetchall()
+        return [self._calibration_item_row(r) for r in rows]
+
+    def get_calibration_items(self, item_ids: List[str]) -> List[Dict[str, Any]]:
+        if not item_ids:
+            return []
+        marks = ",".join("?" for _ in item_ids)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM calibration_items WHERE item_id IN ({marks})", item_ids
+            ).fetchall()
+        by_id = {r["item_id"]: self._calibration_item_row(r) for r in rows}
+        return [by_id[i] for i in item_ids if i in by_id]
+
+    def start_calibration_attempt(self, *, user_id: str, specialty: str,
+                                  item_ids: List[str]) -> Dict[str, Any]:
+        attempt_id = _new_id("catt")
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO calibration_attempts (attempt_id, user_id, specialty, "
+                "item_ids_json, started_at) VALUES (?, ?, ?, ?, ?)",
+                (attempt_id, user_id, (specialty or "").strip().lower(),
+                 json.dumps(item_ids), _utcnow_iso()),
+            )
+        return {"attempt_id": attempt_id, "user_id": user_id, "specialty": specialty,
+                "item_ids": item_ids}
+
+    @staticmethod
+    def _calibration_attempt_row(row: sqlite3.Row) -> Dict[str, Any]:
+        rec = dict(row)
+        rec["item_ids"] = json.loads(rec.pop("item_ids_json", "[]") or "[]")
+        rec["responses"] = json.loads(rec.pop("responses_json", "null") or "null") or {}
+        rec["scores"] = json.loads(rec.pop("scores_json", "null") or "null")
+        # Tri-state preserved on the way out: NULL ("not yet graded") must not become False.
+        for gate in ("tr_gate_passed", "tl_gate_passed"):
+            rec[gate] = None if rec.get(gate) is None else bool(rec[gate])
+        return rec
+
+    def get_calibration_attempt(self, attempt_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM calibration_attempts WHERE attempt_id = ?",
+                               (attempt_id,)).fetchone()
+        return self._calibration_attempt_row(row) if row else None
+
+    def record_calibration_responses(self, attempt_id: str,
+                                     responses: Dict[str, Any]) -> None:
+        """The RAW responses, exactly as submitted. Never the graded form — see PRD C §4."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE calibration_attempts SET responses_json = ?, submitted_at = ? "
+                "WHERE attempt_id = ?",
+                (json.dumps(responses), _utcnow_iso(), attempt_id),
+            )
+
+    def record_calibration_score(self, attempt_id: str, result: Dict[str, Any],
+                                 *, rescored: bool = False) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE calibration_attempts SET scores_json = ?, composite = ?, "
+                "tr_gate_passed = ?, tl_gate_passed = ?, rescored_at = COALESCE(?, "
+                "rescored_at) WHERE attempt_id = ?",
+                (json.dumps(result), result.get("composite"),
+                 1 if result.get("tr_gate_passed") else 0,
+                 1 if result.get("tl_gate_passed") else 0,
+                 _utcnow_iso() if rescored else None, attempt_id),
+            )
+
+    def latest_calibration_for_user(self, user_id: str,
+                                    specialty: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        clauses, params = ["user_id = ?", "submitted_at IS NOT NULL"], [user_id]
+        if specialty:
+            clauses.append("specialty = ?")
+            params.append((specialty or "").strip().lower())
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM calibration_attempts WHERE " + " AND ".join(clauses) +
+                " ORDER BY submitted_at DESC LIMIT 1", params
+            ).fetchone()
+        return self._calibration_attempt_row(row) if row else None
+
+    def calibration_attempts_for_user(self, user_id: str,
+                                      specialty: Optional[str] = None) -> List[Dict[str, Any]]:
+        clauses, params = ["user_id = ?"], [user_id]
+        if specialty:
+            clauses.append("specialty = ?")
+            params.append((specialty or "").strip().lower())
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM calibration_attempts WHERE " + " AND ".join(clauses) +
+                " ORDER BY started_at ASC", params).fetchall()
+        return [self._calibration_attempt_row(r) for r in rows]
+
+    def open_calibration_attempt(self, user_id: str,
+                                 specialty: str) -> Optional[Dict[str, Any]]:
+        """An attempt this candidate started and never submitted.
+
+        Returned instead of minting a second one, so a reload or a dropped connection does not
+        silently spend one of two attempts — and so a candidate cannot reroll the item sample
+        by refreshing until an easier draw comes up.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM calibration_attempts WHERE user_id = ? AND specialty = ? "
+                "AND submitted_at IS NULL ORDER BY started_at DESC LIMIT 1",
+                (user_id, (specialty or "").strip().lower())).fetchone()
+        return self._calibration_attempt_row(row) if row else None
+
+    def calibration_population(self, specialty: str) -> List[float]:
+        """Every graded composite in a specialty — the population ``calibration_z``
+        standardizes against once there are enough of them to mean anything."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT composite FROM calibration_attempts WHERE specialty = ? "
+                "AND composite IS NOT NULL", ((specialty or "").strip().lower(),)
+            ).fetchall()
+        return [float(r["composite"]) for r in rows]
+
+    # ─── OIG LEIE (gate A5) ───────────────────────────────────────────────────
+    def replace_leie_exclusions(self, rows: List[Dict[str, Any]],
+                                *, source_note: Optional[str] = None) -> int:
+        """Swap in a freshly downloaded LEIE snapshot, atomically.
+
+        DELETE-then-INSERT inside one transaction, so a reader never observes an empty table
+        and concludes that every physician is clear. That window is the difference between a
+        hard gate and a formality.
+        """
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute("DELETE FROM leie_exclusions")
+            conn.executemany(
+                "INSERT OR REPLACE INTO leie_exclusions (npi, excl_type, excl_date, loaded_at) "
+                "VALUES (?, ?, ?, ?)",
+                [(str(r.get("npi") or "").strip(), r.get("excl_type"), r.get("excl_date"), now)
+                 for r in rows if str(r.get("npi") or "").strip()],
+            )
+            n = conn.execute("SELECT COUNT(*) AS n FROM leie_exclusions").fetchone()["n"]
+            conn.execute(
+                "INSERT INTO leie_meta (id, loaded_at, row_count, source_note) "
+                "VALUES (1, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET loaded_at = excluded.loaded_at, "
+                "row_count = excluded.row_count, source_note = excluded.source_note",
+                (now, int(n), source_note),
+            )
+        return int(n)
+
+    def leie_loaded_at(self) -> Optional[str]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT loaded_at, row_count FROM leie_meta WHERE id = 1"
+                               ).fetchone()
+        return row["loaded_at"] if row else None
+
+    def leie_status(self, npi: str) -> str:
+        """``excluded`` | ``clear`` | ``unknown``.
+
+        ``unknown`` when no snapshot has ever been loaded. A never-loaded exclusion list must
+        not answer "clear" — that is a check that fails open, which is not a check. Gate A5
+        reads this and routes UNKNOWN to the admin, exactly as an unreachable NPPES does.
+        """
+        npi = (npi or "").strip()
+        if not npi:
+            return "unknown"
+        if not self.leie_loaded_at():
+            return "unknown"
+        with self._conn() as conn:
+            row = conn.execute("SELECT 1 FROM leie_exclusions WHERE npi = ?", (npi,)).fetchone()
+        return "excluded" if row else "clear"
+
+    # ─── Fairness monitor (PRD C §6) ──────────────────────────────────────────
+    @staticmethod
+    def _fairness_subject_key(user_id: str) -> str:
+        """A per-purpose pseudonym, not the user id.
+
+        The demographics table must not be joinable into the feature store. Storing
+        ``user_id`` would make that a naming convention enforced by good intentions; an HMAC
+        under a secret the scorer never reads makes it a property of the data. The monitor
+        needs no join because the decided tier is copied onto the row at decision time.
+        """
+        secret = (os.getenv("ASCLEPIUS_FAIRNESS_SALT")
+                  or os.getenv("ASCLEPIUS_AUTH_SECRET") or "asclepius-fairness")
+        return hashlib.blake2b(f"{user_id}".encode("utf-8"),
+                               key=secret.encode("utf-8")[:64], digest_size=16).hexdigest()
+
+    def record_fairness_observation(self, *, user_id: str, demographics: Dict[str, Any],
+                                    decided_tier: Optional[str] = None) -> Optional[str]:
+        """Voluntary and self-reported, written STRAIGHT here at signup.
+
+        Deliberately not a column on ``users``. Every feature path loads a physician with
+        ``SELECT * FROM users``, so a demographics column there would be a column the model
+        can reach — and "we remembered not to read it" is not the guarantee §6 asks for. No
+        demographics ⇒ no row, never an inferred one.
+
+        One row per subject: re-submitting replaces the answers rather than accumulating
+        duplicates that would each be counted by the monitor.
+        """
+        if not demographics:
+            return None
+        key = self._fairness_subject_key(user_id)
+        with self._conn() as conn:
+            existing = conn.execute(
+                "SELECT obs_id, decided_tier FROM fairness_observations WHERE subject_key = ?",
+                (key,)).fetchone()
+            if existing:
+                conn.execute(
+                    "UPDATE fairness_observations SET demographics_json = ?, "
+                    "decided_tier = COALESCE(?, decided_tier) WHERE obs_id = ?",
+                    (json.dumps(demographics), decided_tier, existing["obs_id"]))
+                return existing["obs_id"]
+            obs_id = _new_id("fair")
+            conn.execute(
+                "INSERT INTO fairness_observations (obs_id, subject_key, demographics_json, "
+                "decided_tier, decided_at) VALUES (?, ?, ?, ?, ?)",
+                (obs_id, key, json.dumps(demographics), decided_tier, _utcnow_iso()),
+            )
+        return obs_id
+
+    def stamp_fairness_tier(self, user_id: str, tier: Optional[str],
+                            features: Optional[Dict[str, Any]] = None) -> None:
+        """Copy the decided tier — and the feature vector — onto the pseudonymous row, so the
+        monitor needs no join.
+
+        A no-op when the physician declined to supply demographics, which is most of them and
+        is fine: the four-fifths rule is a rate comparison, not a census.
+
+        ``features`` (AUDIT H2) is what lets the monitor report *why* a group's selection rate
+        differs, not only *that* it does. An outcome monitor with no view of the mechanism can
+        tell you a gap exists and never which feature opened it.
+        """
+        payload = None
+        if features:
+            payload = json.dumps({k: float(v) for k, v in features.items()
+                                  if isinstance(v, (int, float))
+                                  and not isinstance(v, bool)})
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE fairness_observations SET decided_tier = ?, "
+                "features_json = COALESCE(?, features_json) WHERE subject_key = ?",
+                (tier, payload, self._fairness_subject_key(user_id)))
+
+    def fairness_selection_rates(self, *, since: Optional[str] = None) -> Dict[str, Any]:
+        """TR selection rate by self-reported group, with the four-fifths comparison.
+
+        The four-fifths (80%) rule: if any group's selection rate falls below 80% of the
+        highest group's, that is the EEOC's rule-of-thumb threshold for adverse impact. It is
+        a screening signal, not a verdict — small groups swing wildly, so ``n`` is reported
+        beside every rate and a group under ``MIN_GROUP_N`` is listed but never triggers the
+        alert on its own.
+        """
+        MIN_GROUP_N = 5
+        rows = self.fairness_observations(since=since)
+        buckets: Dict[str, Dict[str, Dict[str, int]]] = {}
+        # AUDIT H2: feature means per group, so the monitor can name the MECHANISM and not
+        # only the outcome. {dimension: {group: {feature: [sum, n]}}}
+        feats: Dict[str, Dict[str, Dict[str, List[float]]]] = {}
+        for row in rows:
+            if not row.get("decided_tier"):
+                continue        # not yet decided is not a negative outcome
+            for dimension, value in (row.get("demographics") or {}).items():
+                if value in (None, "", "prefer_not_to_say"):
+                    continue
+                slot = buckets.setdefault(dimension, {}).setdefault(
+                    str(value), {"n": 0, "tr": 0})
+                slot["n"] += 1
+                slot["tr"] += 1 if row["decided_tier"] == "reviewer" else 0
+                fslot = feats.setdefault(dimension, {}).setdefault(str(value), {})
+                for feature, fval in (row.get("features") or {}).items():
+                    if not isinstance(fval, (int, float)):
+                        continue
+                    acc = fslot.setdefault(feature, [0.0, 0.0])
+                    acc[0] += float(fval)
+                    acc[1] += 1.0
+
+        out: Dict[str, Any] = {"dimensions": {}, "alerts": [], "min_group_n": MIN_GROUP_N,
+                               "by_feature": {}, "feature_alerts": []}
+        for dimension, groups in buckets.items():
+            rates = {g: (v["tr"] / v["n"] if v["n"] else 0.0) for g, v in groups.items()}
+            eligible = {g: r for g, r in rates.items() if groups[g]["n"] >= MIN_GROUP_N}
+            best = max(eligible.values(), default=0.0)
+            detail = {}
+            for g, v in groups.items():
+                ratio = (rates[g] / best) if best > 0 else None
+                detail[g] = {"n": v["n"], "tr": v["tr"], "rate": round(rates[g], 4),
+                             "impact_ratio": None if ratio is None else round(ratio, 4),
+                             "counted": groups[g]["n"] >= MIN_GROUP_N}
+                if detail[g]["counted"] and ratio is not None and ratio < 0.8:
+                    out["alerts"].append(
+                        {"dimension": dimension, "group": g, "impact_ratio": round(ratio, 4),
+                         "n": v["n"],
+                         "message": f"{dimension}={g} TR selection rate is "
+                                    f"{round(ratio * 100)}% of the highest group — below the "
+                                    f"four-fifths threshold."})
+            out["dimensions"][dimension] = detail
+
+        # AUDIT H2 — per-feature breakdown, and an alert on the same four-fifths shape.
+        #
+        # Applied to the feature MEAN rather than a selection rate, because that is what
+        # answers the question the audit actually asked: is a demographic-adjacent feature
+        # doing the work that the pinned weights were meant to prevent? A feature whose mean
+        # is level across groups cannot be routing around a pin, however heavy its weight —
+        # and a monitor that flags every feature is a monitor nobody reads.
+        for dimension, groups in feats.items():
+            names = sorted({f for g in groups.values() for f in g})
+            per_group: Dict[str, Dict[str, Any]] = {}
+            for group, acc in groups.items():
+                per_group[group] = {
+                    f: {"mean": round(acc[f][0] / acc[f][1], 4), "n": int(acc[f][1])}
+                    for f in acc if acc[f][1]
+                }
+            out["by_feature"][dimension] = per_group
+            counted = {g for g in groups
+                       if (buckets.get(dimension, {}).get(g, {}).get("n", 0)) >= MIN_GROUP_N}
+            for feature in names:
+                means = {g: per_group[g][feature]["mean"] for g in counted
+                         if feature in per_group.get(g, {})}
+                if len(means) < 2:
+                    continue
+                best = max(means.values())
+                worst_group = min(means, key=lambda g: means[g])
+                if best <= 0:
+                    continue
+                ratio = means[worst_group] / best
+                if ratio < 0.8:
+                    out["feature_alerts"].append({
+                        "dimension": dimension, "feature": feature, "group": worst_group,
+                        "mean": means[worst_group], "best_mean": round(best, 4),
+                        "ratio": round(ratio, 4),
+                        "message": f"{feature} averages {means[worst_group]} for "
+                                   f"{dimension}={worst_group} vs {round(best, 4)} for the "
+                                   f"highest group — this feature may be carrying a "
+                                   f"group difference into the score.",
+                    })
+        out["total_observations"] = len(rows)
+        return out
+
+    def fairness_observations(self, *, since: Optional[str] = None) -> List[Dict[str, Any]]:
+        clause, params = "", []
+        if since:
+            clause, params = "WHERE decided_at >= ?", [since]
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM fairness_observations {clause} ORDER BY decided_at DESC",
+                params).fetchall()
+        out = []
+        for r in rows:
+            rec = dict(r)
+            rec["demographics"] = json.loads(rec.pop("demographics_json", "{}") or "{}")
+            rec["features"] = json.loads(rec.pop("features_json", "null") or "null") or {}
+            rec.pop("subject_key", None)   # never leaves the store
+            out.append(rec)
+        return out
+
+    # ─── Measured quality inputs (PRD C §5.4) ─────────────────────────────────
+    def completed_task_count(self, user_id: str) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM submissions WHERE evaluator_id = ? "
+                "AND status != 'rejected'", (user_id,)).fetchone()
+        return int(row["n"] if row else 0)
+
+    def paired_label_observations(self, *, specialty: Optional[str] = None,
+                                  limit: int = 5000) -> Dict[str, Any]:
+        """``(task_id, labeler_id, chosen_id)`` for every task carrying at least two
+        independent labels, plus the TR adjudication as near-gold where one exists.
+
+        This is exactly the input One-Coin Dawid–Skene needs. The structure is Agent R's; this
+        only reads it, and degrades to an empty result rather than failing when the paired path
+        has not produced anything yet — a physician with no measured work is not a physician
+        with measured-zero work.
+        """
+        params: List[Any] = []
+        spec = ""
+        if specialty:
+            spec = "AND t.specialty = ?"
+            params.append((specialty or "").strip().lower())
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT s.task_id, s.evaluator_id, s.chosen_id, s.submission_id
+                FROM submissions s JOIN tasks t ON t.task_id = s.task_id
+                WHERE s.status != 'rejected' AND s.chosen_id IS NOT NULL {spec}
+                  AND s.task_id IN (
+                      SELECT task_id FROM submissions WHERE status != 'rejected'
+                        AND chosen_id IS NOT NULL
+                      GROUP BY task_id HAVING COUNT(DISTINCT evaluator_id) >= 2)
+                ORDER BY s.created_at ASC LIMIT ?
+                """, [*params, int(limit)]).fetchall()
+            observations = [(r["task_id"], r["evaluator_id"], r["chosen_id"]) for r in rows]
+            gold: Dict[str, str] = {}
+            if observations:
+                task_ids = sorted({o[0] for o in observations})
+                marks = ",".join("?" for _ in task_ids)
+                grows = conn.execute(
+                    f"""SELECT cr.task_id, s.chosen_id, cr.verdict FROM case_reviews cr
+                        JOIN submissions s ON s.submission_id = cr.submission_id
+                        WHERE cr.task_id IN ({marks}) AND cr.verdict IS NOT NULL
+                        ORDER BY cr.created_at ASC""", task_ids).fetchall()
+                for r in grows:
+                    # NOT-REJECTED, deliberately — not "accepted" (context pack Seam 3).
+                    # ``agreement.review_acceptance`` is the single definition of expert
+                    # acceptance, and re-deriving 'accept OR accept_with_edits' here would be
+                    # exactly the rival number that once had the dashboard reading 97% while
+                    # quality_report.md read 84%. What Dawid–Skene needs as a near-gold label
+                    # is weaker and different: a TR who did not reject a submission has
+                    # endorsed its chosen answer well enough to anchor the EM. First
+                    # non-rejection wins; later reviews cannot flip it.
+                    if r["verdict"] == "reject":
+                        continue
+                    gold.setdefault(r["task_id"], r["chosen_id"])
+        return {"observations": observations, "gold": gold}
+    # ═══ END PRD-CRED STORE METHODS ═══
+
+
+# ─── PRD-I §F3: database durability ───────────────────────────────────────────
+def _db_storage_durable() -> tuple:
+    """(ok, detail) — will the SQLite database survive a redeploy, and can we
+    actually write to it? (PRD I-0 §F3)
+
+    Every durability check that existed covered BLOBS. Nothing checked the database,
+    which is the one loss that is unrecoverable in kind rather than degree: losing
+    image blobs degrades cases, losing ``asclepius.db`` destroys every user, task,
+    submission, review and payout record at once.
+
+    Two questions, because they fail differently. Ephemerality is a configuration
+    mistake you can see. Writability is a mount that ATTACHED WRONG — a read-only
+    volume, or a failed attach leaving a bare directory where the mount should be —
+    which looks completely healthy until the first write. So we probe it."""
+    from asclepius.constants import path_is_ephemeral
+
+    db_path = os.getenv("ASCLEPIUS_DB_PATH") or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "asclepius.db")
+    db_dir = os.path.dirname(os.path.abspath(db_path)) or "/"
+    if path_is_ephemeral(db_dir):
+        return False, (
+            f"database directory {db_dir} is on ephemeral storage; a redeploy "
+            "destroys every user, task, submission and payout row. Set "
+            "ASCLEPIUS_DB_PATH to a path on your persistent volume.")
+    if not os.getenv("ASCLEPIUS_DB_PATH", "").strip():
+        return False, (
+            f"ASCLEPIUS_DB_PATH is not set, so the database lives beside the code "
+            f"at {db_path} and is replaced on every redeploy. Set it to a path on "
+            "your persistent volume.")
+    try:
+        os.makedirs(db_dir, exist_ok=True)
+        probe = os.path.join(db_dir, f".durability-probe-{os.getpid()}")
+        with open(probe, "w") as fh:
+            fh.write("ok")
+        os.remove(probe)
+    except OSError as exc:
+        return False, f"database directory {db_dir} is not writable: {exc}"
+    return True, f"database directory {db_dir} is durable and writable"
 
 
 # ─── Process-wide singleton ───────────────────────────────────────────────────

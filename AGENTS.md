@@ -1,5 +1,12 @@
 # AGENTS.md
 
+## Repo identity & git workflow
+
+This repo is **`tej-hippocampi/Archangel-Health`** on GitHub (the codebase covers
+CareGuide, the Asclepius evaluation portal, and the Community platform — the
+product/company naming has shifted over time, but this is the one repo).
+Ship work as a **pull request targeting `main`**, not a direct push to `main`.
+
 ## Cursor Cloud specific instructions
 
 ### Architecture

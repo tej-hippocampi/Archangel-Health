@@ -246,7 +246,51 @@ def fetch_npi_record(npi: str, timeout: float = DEFAULT_TIMEOUT) -> Dict[str, An
     if not isinstance(results, list) or not results or not isinstance(results[0], dict):
         return {"status": "unavailable", "record": None, "reason": "unrecognized_payload"}
 
-    return {"status": "found", "record": results[0], "reason": None}
+    # The protected-attribute strip happens HERE, not at the trim: this is the single point
+    # every consumer of an NPPES record passes through, so no caller downstream can see
+    # ``basic.sex`` even if it goes looking for it (PRD C §2).
+    return {"status": "found", "record": _strip_protected_attributes(results[0]),
+            "reason": None}
+
+
+# ─── Protected-attribute boundary (PRD C §2) ─────────────────────────────────
+# The free NPPES API returns ``basic.sex``. It must never reach a feature vector, a log, or
+# the database — this is a live adverse-impact hazard sitting in an API response, and it is
+# cheapest to close at the one point every path goes through.
+#
+# ``_trim_record`` is an allow-list, so ``sex`` did not survive into ``npi_payload_json`` by
+# accident of construction. That is not the same thing as a boundary: nothing asserted it,
+# nothing tested it, and the RAW record — which does carry it — is handed whole to
+# ``_basic``/``_registry_family_names`` and to anything a future edit adds. One widening of
+# the trim to ``dict(record["basic"])`` reintroduces a protected attribute silently. So the
+# strip happens here, on the way OUT of the network layer, and the record no caller can see
+# it in is the only record that exists downstream.
+_PROTECTED_NPPES_KEYS = ("sex", "gender", "date_of_birth", "dob", "birth_date", "name_prefix")
+
+
+def _strip_protected_attributes(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Drop protected attributes from an NPPES record, at the ingest boundary."""
+    if not isinstance(record, dict):
+        return record
+    out = {k: v for k, v in record.items() if k not in _PROTECTED_NPPES_KEYS}
+    basic = out.get("basic")
+    if isinstance(basic, dict):
+        out["basic"] = {k: v for k, v in basic.items() if k not in _PROTECTED_NPPES_KEYS}
+    return out
+
+
+def assert_no_protected_attributes(payload: Any) -> None:
+    """Recursively assert a payload carries no protected attribute. Used by the audit tests
+    against every shape that reaches the database or a log line."""
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in _PROTECTED_NPPES_KEYS:
+                raise AssertionError(
+                    f"protected attribute {key!r} reached a persisted/serialized payload")
+            assert_no_protected_attributes(value)
+    elif isinstance(payload, (list, tuple)):
+        for item in payload:
+            assert_no_protected_attributes(item)
 
 
 def _basic(record: Dict[str, Any]) -> Dict[str, Any]:

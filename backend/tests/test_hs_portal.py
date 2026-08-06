@@ -548,7 +548,7 @@ def test_definition_of_done_end_to_end(monkeypatch):
     ca = _client()
     # 1. Two fields. Nothing else.
     r = ca.post("/api/asclepius/admin/health-systems/provision",
-                json={"organization": "Mass General Hospital", "email": "data@mgh.harvard.edu"},
+                json={"organization": "Mass General Hospital", "email": "data@mgh.harvard.edu", "purpose": "task_creation"},
                 headers=_A.headers_for(admin))
     assert r.status_code == 200, r.text
     username = r.json()["username"]

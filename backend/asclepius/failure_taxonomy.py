@@ -237,15 +237,15 @@ def taxonomy_markdown(bundle: Dict[str, Any]) -> str:
              "| failure_mode | axis | provider | difficulty | N | rate |",
              "|---|---|---|---|---|---|"]
     for c in agg["cells"][:25]:
-        rate = "—" if c["rate"] is None else f"{c['rate']:.0%}"
+        rate = "n/a" if c["rate"] is None else f"{c['rate']:.0%}"
         lines.append(f"| {c['failure_mode']} | {c['axis']} | {c['provider']} | "
                      f"{c['difficulty']} | {c['n']} | {rate} |")
     lines += ["", "## Definitions", ""]
     for mid, meta in bundle["mode_definitions"].items():
-        lines.append(f"- **{meta['label']}** (`{mid}`) — {meta['definition']}")
+        lines.append(f"- **{meta['label']}** (`{mid}`): {meta['definition']}")
     lines += ["", "## Scored eval (`failure_eval/`)",
               f"A disjoint holdout of {bundle['holdout']['n_cases']} cases + "
-              "`score_failuremode.py` — run YOUR model to get a per-failure-mode score. "
+              "`score_failuremode.py`: run YOUR model to get a per-failure-mode score. "
               "Reuses the rubric grader + critical-negative hard-fail.", ""]
     return "\n".join(lines)
 

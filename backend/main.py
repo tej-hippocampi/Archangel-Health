@@ -4,6 +4,7 @@ FastAPI backend: EHR → Pipeline → Dashboard → SMS
 """
 
 import asyncio
+import hashlib
 import os
 import threading
 import time
@@ -25,7 +26,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, APIRouter, Depends,
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from dotenv import dotenv_values
 
 # Load env from predictable paths (uvicorn cwd is often repo root, not backend/).
@@ -142,6 +143,7 @@ from auth import (
     set_doctor_profile,
 )
 import auth as auth_module
+from onboarding_emails import build_doctor_verification_email, build_task_notification_email
 from team_store import TeamStore
 from preop_survey import (
     WINDOW_SURVEY_DAY,
@@ -575,6 +577,150 @@ def _create_intake_notifications(patient_id: str, intake_form_id: str, notif_typ
             message=message,
         )
 
+
+# ─── Task-assignment email notifications (feed for _task_notification_loop) ──
+def _escalation_doctor_recipients(patient_id: str) -> List[str]:
+    """Tier-3 escalations only notify surgeons — matches the existing
+    surgeon-facing filter in GET /api/escalations."""
+    d = _patient_store.get(patient_id) or {}
+    hs_id = d.get("health_system_id") or ""
+    recipients: List[str] = []
+    if hs_id and hs_id != DEMO_HEALTH_SYSTEM_ID:
+        for member in _team_store.list_team_members(hs_id):
+            if str(member.get("role") or "").lower() == "surgeon":
+                recipients.append(f"tenant:{member.get('email', '').lower().strip()}")
+    if not recipients:
+        recipients.append(f"doctor:{DEMO_DOCTOR_EMAIL.lower().strip()}")
+    return sorted(set(recipients))
+
+
+def _task_recipient_email_for_doctor_id(doctor_id: str) -> Optional[str]:
+    if doctor_id == "doctor:default":
+        return DEMO_DOCTOR_EMAIL
+    if doctor_id.startswith("doctor:") or doctor_id.startswith("tenant:"):
+        email = doctor_id.split(":", 1)[1].strip()
+        return email or None
+    return None
+
+
+def _task_login_url_for_doctor_id(doctor_id: str) -> str:
+    if doctor_id.startswith("tenant:"):
+        email = doctor_id.split(":", 1)[1]
+        tm = _team_store.find_team_member_by_email_any_hs(email)
+        hs = _team_store.get_health_system_by_id((tm or {}).get("health_system_id") or "") if tm else None
+        slug = (hs or {}).get("slug") or "your-workspace"
+        landing = (os.getenv("LANDING_URL") or "http://localhost:5173").strip().rstrip("/")
+        return f"{landing}/t/{slug}/sign-in"
+    base = (os.getenv("BASE_URL") or "http://localhost:8000").strip().rstrip("/")
+    return f"{base}/doctor/sign-in"
+
+
+_TASK_NOTIFICATION_HEADLINES = {
+    ("assigned", False, False): "You have a new item to review.",
+    ("reminder_24h", True, False): "You have a pending item.",
+    ("escalation_48h", False, True): "This still needs your review.",
+}
+
+
+async def _enqueue_and_send_task_notification(
+    *,
+    task_type: str,
+    task_id: str,
+    event_type: str,
+    doctor_id: str,
+    email: str,
+    is_reminder: bool = False,
+    is_escalation: bool = False,
+) -> None:
+    login_url = _task_login_url_for_doctor_id(doctor_id)
+    idempotency_key = hashlib.sha256(
+        f"{task_type}|{task_id}|{event_type}|{doctor_id}|email".encode()
+    ).hexdigest()
+    outbox_id = _team_store.enqueue_task_notification(
+        idempotency_key=idempotency_key,
+        task_type=task_type,
+        task_id=task_id,
+        event_type=event_type,
+        recipient_doctor_id=doctor_id,
+        recipient_email=email,
+        login_url=login_url,
+    )
+    if outbox_id is None:
+        return  # already notified for this exact (task, event, recipient, channel) — idempotent no-op
+    html_body = build_task_notification_email(
+        login_url=login_url, is_reminder=is_reminder, is_escalation=is_escalation
+    )
+    headline = _TASK_NOTIFICATION_HEADLINES.get(
+        (event_type, is_reminder, is_escalation), "You have a new item to review."
+    )
+    ok = await _send_html_email_impl(email, f"CareGuide — {headline}", html_body)
+    if ok:
+        _team_store.mark_outbox_sent(outbox_id)
+    else:
+        _team_store.mark_outbox_failed(outbox_id, "send_html_email returned False")
+
+
+async def _run_task_notification_pass() -> None:
+    reminder_hours = int(os.getenv("TASK_REMINDER_HOURS", "24"))
+    escalation_hours = int(os.getenv("TASK_ESCALATION_HOURS", "48"))
+
+    for row in _team_store.find_unnotified_intake_notifications():
+        doctor_id = row.get("doctor_id") or ""
+        email = _task_recipient_email_for_doctor_id(doctor_id)
+        if not email:
+            continue
+        await _enqueue_and_send_task_notification(
+            task_type="intake_notification",
+            task_id=row["id"],
+            event_type="assigned",
+            doctor_id=doctor_id,
+            email=email,
+        )
+
+    for row in _team_store.find_unnotified_tier3_escalations():
+        patient_id = row.get("patient_id") or ""
+        for doctor_id in _escalation_doctor_recipients(patient_id):
+            email = _task_recipient_email_for_doctor_id(doctor_id)
+            if not email:
+                continue
+            await _enqueue_and_send_task_notification(
+                task_type="escalation",
+                task_id=str(row["id"]),
+                event_type="assigned",
+                doctor_id=doctor_id,
+                email=email,
+            )
+
+    for row in _team_store.find_due_reminders(event_type="reminder_24h", hours_since_assigned=reminder_hours):
+        await _enqueue_and_send_task_notification(
+            task_type=row["task_type"],
+            task_id=row["task_id"],
+            event_type="reminder_24h",
+            doctor_id=row["recipient_doctor_id"],
+            email=row["recipient_email"],
+            is_reminder=True,
+        )
+
+    for row in _team_store.find_due_reminders(event_type="escalation_48h", hours_since_assigned=escalation_hours):
+        await _enqueue_and_send_task_notification(
+            task_type=row["task_type"],
+            task_id=row["task_id"],
+            event_type="escalation_48h",
+            doctor_id=row["recipient_doctor_id"],
+            email=row["recipient_email"],
+            is_escalation=True,
+        )
+
+
+async def _task_notification_loop() -> None:
+    interval = int(os.getenv("TASK_NOTIFICATION_INTERVAL_SECONDS", "60"))
+    while True:
+        try:
+            await _run_task_notification_pass()
+        except Exception as e:
+            print(f"[task-notify] error: {e}")
+        await asyncio.sleep(interval)
+
 SURVEY_DAY_CONFIG = {7: 6, 14: 13, 30: 29}  # days from open_date
 
 DAY_7_QUESTIONS = [
@@ -935,6 +1081,7 @@ def _ensure_demo_doctor() -> None:
             "doctor_type": "General Surgeon",
             "hospital_affiliations": "Cedars-Sinai Medical Center",
             "clinic_code": DEMO_CLINIC_CODE,
+            "email_verified": True,
         }
     )
     auth_module._persist_users()  # noqa: SLF001
@@ -1983,19 +2130,104 @@ class PortalHandoffConsumeRequest(BaseModel):
 
 
 # ─── Auth (Elysium Health landing) ────────────────────────────
+def _account_verification_magic_link(token: str) -> str:
+    landing = (os.getenv("LANDING_URL") or "http://localhost:5173").strip().rstrip("/")
+    return f"{landing}/verify-email/{token}"
+
+
+async def _issue_account_verification(email: str) -> None:
+    code = "".join(secrets.choice(string.digits) for _ in range(6))
+    token = secrets.token_urlsafe(32)
+    _team_store.create_account_verification(email, code, token)
+    html_body = build_doctor_verification_email(
+        code=code, magic_link_url=_account_verification_magic_link(token)
+    )
+    ok = await _send_html_email_impl(email, "Verify your email — Archangel Health", html_body)
+    if not ok:
+        print(f"[auth-verify] failed to send verification email to {email!r}")
+
+
 @app.post("/api/auth/register", dependencies=[Depends(rate_limiter("auth_register", 10, 60))])
 async def auth_register(body: UserCreate):
-    """Register a new user; returns access token and user."""
+    """Register a new user; returns access token and user. The account starts
+    unverified — the portal handoff is gated until the doctor verifies their
+    email (see /api/auth/verify-email)."""
     try:
-        user = register_user(body.email, body.password, body.name)
+        user = register_user(
+            body.email,
+            body.password,
+            body.name,
+            phone=body.phone,
+            sms_consent_opt_in=body.sms_consent_opt_in,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    if not user.get("email_verified"):
+        await _issue_account_verification(user["email"])
     token = create_access_token(user["email"])
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": UserOut(email=user["email"], name=user.get("name"), role=user.get("role")),
+        "user": UserOut(
+            email=user["email"],
+            name=user.get("name"),
+            role=user.get("role"),
+            email_verified=bool(user.get("email_verified")),
+        ),
     }
+
+
+class VerifyEmailCodeBody(BaseModel):
+    email: EmailStr
+    code: str
+
+
+class ResendVerificationBody(BaseModel):
+    email: EmailStr
+
+
+_VERIFICATION_RESEND_EMAIL_CAP = 5
+
+
+@app.post(
+    "/api/auth/verify-email",
+    dependencies=[Depends(rate_limiter("auth_verify_attempt", 10, 60))],
+)
+async def auth_verify_email(body: VerifyEmailCodeBody):
+    ok = _team_store.verify_account_verification_by_code(body.email, body.code)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Invalid or expired code.")
+    auth_module.mark_email_verified(body.email)
+    return {"ok": True, "email_verified": True}
+
+
+@app.get("/api/auth/verify-email/by-token")
+async def auth_verify_email_by_token(token: str):
+    email = _team_store.verify_account_verification_by_token(token)
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification link.")
+    auth_module.mark_email_verified(email)
+    return {"ok": True, "email_verified": True, "email": email}
+
+
+@app.post(
+    "/api/auth/verify-email/resend",
+    dependencies=[Depends(rate_limiter("auth_verify_resend", 3, 600))],
+)
+async def auth_verify_email_resend(body: ResendVerificationBody):
+    email = body.email.lower().strip()
+    if auth_module.is_email_verified(email):
+        return {"ok": True, "email_verified": True}
+    if email not in auth_module._get_users():  # noqa: SLF001
+        # Do not reveal account existence; behave like a successful resend.
+        return {"ok": True}
+    if _team_store.count_recent_verification_requests(email, hours=1) >= _VERIFICATION_RESEND_EMAIL_CAP:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many verification requests. Please wait before trying again.",
+        )
+    await _issue_account_verification(email)
+    return {"ok": True}
 
 
 def _require_staff_mfa() -> bool:
@@ -2006,6 +2238,8 @@ def _issue_login_response(user: dict) -> dict:
     """Return the access-token payload, or an `mfa_required` challenge when the
     account has TOTP enabled (PRD-3, opt-in)."""
     email = user["email"]
+    if not user.get("email_verified") and not auth_module.is_email_verified(email):
+        return {"verification_required": True, "email": email}
     mfa_on = auth_module.user_mfa_enabled(email)
     if _require_staff_mfa() and not mfa_on:
         raise HTTPException(
@@ -2018,7 +2252,7 @@ def _issue_login_response(user: dict) -> dict:
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": UserOut(email=email, name=user.get("name"), role=user.get("role")),
+        "user": UserOut(email=email, name=user.get("name"), role=user.get("role"), email_verified=True),
     }
 
 
@@ -2125,6 +2359,8 @@ async def create_portal_handoff(
         raise HTTPException(status_code=401, detail="Not authenticated")
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
+    if staff.source == "landing" and not auth_module.is_email_verified(staff.email):
+        raise HTTPException(status_code=403, detail="Please verify your email before continuing.")
     _cleanup_portal_handoffs()
     token = authorization.removeprefix("Bearer ").strip()
     code = secrets.token_urlsafe(24)
@@ -5908,17 +6144,92 @@ async def startup_team_scheduler():
             "inactive (relying on volume encryption only). Set a base64 32-byte key to "
             "enable AES-256-GCM field encryption. See docs/security/ENCRYPTION.md."
         )
-    # EHR ingestion durability (the partner-upload 410 incident): warn loudly if
-    # raw bundles would land on non-durable storage, and recover any uploads left
-    # mid-pipeline by a restart — their raw blob is on the persistent volume, so
-    # reprocessing is lossless.
+    # ─── storage durability (PRD I-0 §F2) ────────────────────────────────────
+    # All three stores, checked at BOOT rather than on the first upload. Every
+    # durability check in the tree was reachable only from a request path, so the
+    # way you found out the volume never attached was a hospital getting a 503 —
+    # the worst possible moment, and only for the store that request happened to
+    # touch. The database had no check at any time.
+    #
+    # In production this REFUSES TO START. That is the deliverable, not a rough
+    # edge: a container that will not boot is a five-minute incident with a log
+    # line naming the store; a container that boots onto ephemeral disk accepts
+    # PHI and destroys it at the next redeploy, silently, and costs a partnership.
+    try:
+        from asclepius import assets as _asc_assets_dur
+        from asclepius import ingestion as _asc_ingestion_dur
+        from asclepius.store import _db_storage_durable as _asc_db_durable
+
+        _DURABILITY_CHECKS = (
+            ("database", _asc_db_durable),
+            ("raw ingest", _asc_ingestion_dur.ingest_storage_durable),
+            ("asset store", _asc_assets_dur.asset_storage_durable),
+        )
+        _dur_failures = []
+        for _name, _fn in _DURABILITY_CHECKS:
+            try:
+                _ok, _why = _fn()
+            except Exception as _exc:  # a check that cannot run is a failed check
+                _ok, _why = False, f"durability check raised: {_exc}"
+            if not _ok:
+                _dur_failures.append((_name, _why))
+        if _dur_failures:
+            _detail = " · ".join(f"{n}: {w}" for n, w in _dur_failures)
+            if is_production():
+                raise RuntimeError(f"NON-DURABLE STORAGE, refusing to start — {_detail}")
+            # The fail-closed behaviour is gated on ENV=production, and NOTHING in
+            # this repo's deploy config sets ENV — the same trap that once shipped
+            # a PHI portal's session cookie over plain HTTP. So when storage is
+            # non-durable AND ENV is unset, say so at ERROR and name the cause:
+            # otherwise the deliverable ("refuses to boot") silently degrades to a
+            # warning nobody reads, on exactly the deployment that needs it.
+            if not (os.getenv("ENV") or "").strip():
+                _auth_logger.error(
+                    "[storage] NON-DURABLE STORAGE and ENV is UNSET, so the "
+                    "fail-closed boot gate is INACTIVE. This container will accept "
+                    "PHI and lose it on the next redeploy. Set ENV=production (and "
+                    "the four storage paths) — %s", _detail)
+            else:
+                _auth_logger.warning(
+                    "[storage] NON-DURABLE (dev; would refuse to boot in production) — %s",
+                    _detail)
+        else:
+            _auth_logger.info("[storage] all three stores durable")
+    except RuntimeError:
+        raise
+    except Exception:
+        _auth_logger.warning("[storage] durability gate could not run", exc_info=True)
+    # Asset reconciliation (PRD I-0 §F4) — what a PAST redeploy already took. Off
+    # the event loop: it stats the whole blob tree and must never delay startup.
+    try:
+        from asclepius import assets as _asc_assets_rec
+
+        _asc_store_rec = getattr(app.state, "asclepius_store", None)
+        if _asc_store_rec is not None:
+            async def _reconcile_assets_at_boot() -> None:
+                try:
+                    rep = await asyncio.to_thread(
+                        _asc_assets_rec.reconcile_assets, _asc_store_rec)
+                    app.state.asclepius_asset_reconcile = rep
+                    if rep.get("missing_blobs"):
+                        _auth_logger.error(
+                            "[storage] %d asset reference(s) point at blobs that are "
+                            "GONE from disk — data was lost. See "
+                            "GET /api/asclepius/admin/storage/reconcile",
+                            len(rep["missing_blobs"]))
+                except Exception:
+                    _auth_logger.warning("[storage] asset reconcile failed", exc_info=True)
+
+            asyncio.create_task(_reconcile_assets_at_boot())
+    except Exception:
+        _auth_logger.warning("[storage] asset reconcile could not start", exc_info=True)
+    # ─── end storage durability ──────────────────────────────────────────────
+    # EHR ingestion: recover any uploads left mid-pipeline by a restart — their
+    # raw blob is on the persistent volume, so reprocessing is lossless.
     try:
         from asclepius import ingestion as _asc_ingestion
 
         _asc_store = getattr(app.state, "asclepius_store", None)
-        _dur_ok, _dur_why = _asc_ingestion.ingest_storage_durable()
-        if not _dur_ok:
-            _auth_logger.warning("[ingestion] NON-DURABLE raw upload storage — %s", _dur_why)
         if _asc_store is not None:
             # Off the event loop: reprocessing parses bundles and can be slow.
             asyncio.create_task(
@@ -5947,6 +6258,7 @@ async def startup_team_scheduler():
         app.state.postop_dayx_missed_task = None
         app.state.postop_lost_contact_task = None
         app.state.postop_nightly_task = None
+        app.state.task_notification_task = None
         return
     app.state.team_scheduler_task = asyncio.create_task(_team_scheduler_loop())
     app.state.preop_outreach_task = asyncio.create_task(_preop_outreach_loop())
@@ -5957,6 +6269,7 @@ async def startup_team_scheduler():
     app.state.postop_dayx_missed_task = asyncio.create_task(_postop_dayx_missed_watcher_loop())
     app.state.postop_lost_contact_task = asyncio.create_task(_postop_lost_contact_watcher_loop())
     app.state.postop_nightly_task = asyncio.create_task(_postop_nightly_retier_loop())
+    app.state.task_notification_task = asyncio.create_task(_task_notification_loop())
 
 
 @app.on_event("startup")
@@ -6015,6 +6328,7 @@ async def shutdown_team_scheduler():
         "team_scheduler_task", "preop_outreach_task", "intraop_overdue_task",
         "postop_send_task", "postop_med_close_task", "postop_checkin_missed_task",
         "postop_dayx_missed_task", "postop_lost_contact_task", "postop_nightly_task",
+        "task_notification_task",
     ):
         task = getattr(app.state, attr, None)
         if task:
@@ -6056,6 +6370,14 @@ async def internal_run_event_reminders(authorization: Optional[str] = Header(Non
     from community.router import resolve_member_for_notify as _resolve_member
     sent = await _cevents.send_due_reminders(resolve_member=_resolve_member)
     return {"ok": True, "reminders_sent": sent, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/team/run-task-notifications", include_in_schema=False)
+async def internal_run_task_notifications(authorization: Optional[str] = Header(None)):
+    """Manual trigger for the task-assignment notification pass (local QA/testing)."""
+    _check_internal_auth(authorization)
+    await _run_task_notification_pass()
+    return {"ok": True, "ran_at": _utcnow_iso()}
 
 
 async def _send_sms(

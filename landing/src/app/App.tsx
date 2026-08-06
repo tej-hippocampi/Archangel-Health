@@ -7,6 +7,7 @@ import PodcastAndBlogsPage from "@/app/components/PodcastAndBlogsPage";
 import { SiteHeader, parseLandingView } from "@/app/components/SiteHeader";
 import OnboardingWizard from "@/app/components/OnboardingWizard";
 import TenantSignIn from "@/app/components/TenantSignIn";
+import VerifyEmailPage from "@/app/components/VerifyEmailPage";
 
 // Lazy so the landing's ~535KB of embedded-font CSS becomes a landing-only
 // chunk instead of render-blocking every other route (calculator, onboarding…).
@@ -46,6 +47,10 @@ export default function App() {
         <OnboardingWizard token={decodeURIComponent(onboardMatch[1])} />
       </AuthProvider>
     );
+  }
+  const verifyEmailMatch = path.match(/^\/verify-email\/([^/]+)\/?$/);
+  if (verifyEmailMatch) {
+    return <VerifyEmailPage token={decodeURIComponent(verifyEmailMatch[1])} />;
   }
   const tenantSignInMatch = path.match(/^\/t\/([^/]+)\/sign-in\/?$/);
   if (tenantSignInMatch) {

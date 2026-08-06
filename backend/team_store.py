@@ -641,6 +641,54 @@ class TeamStore:
                 CREATE INDEX IF NOT EXISTS idx_th_enc_status ON telehealth_encounters(status);
                 CREATE INDEX IF NOT EXISTS idx_th_claim_enc ON telehealth_claims(encounter_id);
 
+                -- Doctor email verification at direct sign-up (auth.py `_users`
+                -- owns identity/credential state; this table owns the ephemeral,
+                -- high-write challenge state, same split as `otp_challenges`
+                -- above for the health-system onboarding wizard).
+                CREATE TABLE IF NOT EXISTS account_verifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account_type TEXT NOT NULL DEFAULT 'auth_doctor',
+                    email TEXT NOT NULL,
+                    code_hash TEXT NOT NULL,
+                    token_hash TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    consumed_at TEXT,
+                    superseded_at TEXT,
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
+                    request_count INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_account_verifications_email ON account_verifications(email);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_account_verifications_token_hash ON account_verifications(token_hash);
+
+                -- Task-assignment notification outbox: fed by the
+                -- `_task_notification_loop` watcher in main.py, which polls
+                -- `intake_form_notifications` and tier-3 `escalations` for
+                -- unnotified rows. `idempotency_key` is the dedup guarantee —
+                -- reassignment or a job rerun naturally no-ops via INSERT OR
+                -- IGNORE. SMS columns are unused (NULL) until a later pass.
+                CREATE TABLE IF NOT EXISTS task_notification_outbox (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    task_type TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    recipient_doctor_id TEXT NOT NULL,
+                    recipient_email TEXT NOT NULL,
+                    channel TEXT NOT NULL DEFAULT 'email',
+                    login_url TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    send_attempts INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    sent_at TEXT,
+                    created_at TEXT NOT NULL,
+                    recipient_phone TEXT,
+                    sms_message_sid TEXT,
+                    sms_delivery_status TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_outbox_task ON task_notification_outbox(task_type, task_id);
+                CREATE INDEX IF NOT EXISTS idx_outbox_status ON task_notification_outbox(status);
+
                 CREATE TABLE IF NOT EXISTS _schema_migrations (
                     name TEXT PRIMARY KEY
                 );
@@ -678,6 +726,9 @@ class TeamStore:
                 conn, "telehealth_encounters", "connected_seconds", "INTEGER NOT NULL DEFAULT 0"
             )
             self._add_column_if_missing(conn, "telehealth_encounters", "last_heartbeat_at", "TEXT")
+            # Invited-clinician email verification (parity with the director's
+            # OTP gate): set once the member proves inbox control via OTP.
+            self._add_column_if_missing(conn, "asclepius_people", "email_verified_at", "TEXT")
 
     @staticmethod
     def _migrate_team_member_roles_v4(conn: sqlite3.Connection) -> None:
@@ -870,6 +921,7 @@ class TeamStore:
         invite_base_url: str,
         expires_days: int = 30,
         director_email: Optional[str] = None,
+        product: str = "archangel",
     ) -> Dict[str, Any]:
         """New pending health system + one-time onboarding URL (token shown once).
 
@@ -877,7 +929,15 @@ class TeamStore:
         ``onboarding_step`` — the wizard still runs its full identity + OTP
         flow. Self-serve (non-admin) callers pass it so the row is tied to a
         reachable inbox, alongside a shorter ``expires_days``.
+
+        ``product`` pre-locks the row to a single product so the wizard never
+        has to ask the signer to choose (self-serve physician-contributor
+        links pass ``"asclepius"``; admin-generated health-system links keep
+        the ``"archangel"`` default).
         """
+        prod = (product or "archangel").strip().lower()
+        if prod not in ("archangel", "asclepius"):
+            prod = "archangel"
         raw_token = secrets.token_urlsafe(32)
         token_hash = self._hash_onboarding_token(raw_token)
         expires = (datetime.utcnow() + timedelta(days=expires_days)).replace(microsecond=0).isoformat()
@@ -896,10 +956,10 @@ class TeamStore:
                             id, slug, name, surgery_department, phone, health_system_code, status,
                             onboarding_token_hash, onboarding_token_expires_at, onboarding_completed_at,
                             director_email, director_first_name, director_last_name, onboarding_step,
-                            last_generated_invite_url, created_at
+                            last_generated_invite_url, created_at, product
                         )
                         VALUES (?, ?, NULL, NULL, NULL, NULL, 'pending_onboarding', ?, ?, NULL,
-                                ?, NULL, NULL, 0, ?, ?)
+                                ?, NULL, NULL, 0, ?, ?, ?)
                         """,
                         (
                             hs_id,
@@ -909,6 +969,7 @@ class TeamStore:
                             (director_email or "").lower().strip() or None,
                             invite_url,
                             now,
+                            prod,
                         ),
                     )
                 break
@@ -1062,6 +1123,120 @@ class TeamStore:
                 (hs_id,),
             )
             return True
+
+    # ─── Doctor email verification (direct sign-up, auth.py `_users`) ────────
+    _ACCOUNT_VERIFICATION_MAX_ATTEMPTS = 5
+
+    def create_account_verification(
+        self,
+        email: str,
+        raw_code: str,
+        raw_token: str,
+        *,
+        account_type: str = "auth_doctor",
+        ttl_minutes: int = 15,
+    ) -> None:
+        """Supersede any existing active challenge for this email, then insert a
+        fresh one. Re-registration / resend both funnel through here so an email
+        never has two live codes at once."""
+        e = email.lower().strip()
+        expires = (datetime.utcnow() + timedelta(minutes=ttl_minutes)).replace(microsecond=0).isoformat()
+        code_hash = _pwd.hash(raw_code)
+        token_hash = self._hash_onboarding_token(raw_token)
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE account_verifications SET superseded_at = ?
+                WHERE email = ? AND account_type = ? AND consumed_at IS NULL AND superseded_at IS NULL
+                """,
+                (now, e, account_type),
+            )
+            conn.execute(
+                """
+                INSERT INTO account_verifications (
+                    account_type, email, code_hash, token_hash, expires_at,
+                    consumed_at, superseded_at, attempt_count, request_count, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, NULL, NULL, 0, 1, ?)
+                """,
+                (account_type, e, code_hash, token_hash, expires, now),
+            )
+
+    def _active_account_verification(self, conn: sqlite3.Connection, email: str) -> Optional[sqlite3.Row]:
+        return conn.execute(
+            """
+            SELECT * FROM account_verifications
+            WHERE email = ? AND consumed_at IS NULL AND superseded_at IS NULL
+            ORDER BY id DESC LIMIT 1
+            """,
+            (email.lower().strip(),),
+        ).fetchone()
+
+    def verify_account_verification_by_code(self, email: str, raw_code: str) -> bool:
+        e = email.lower().strip()
+        with self._conn() as conn:
+            row = self._active_account_verification(conn, e)
+            if not row:
+                return False
+            rec = dict(row)
+            if rec["attempt_count"] >= self._ACCOUNT_VERIFICATION_MAX_ATTEMPTS:
+                return False
+            try:
+                expired = datetime.fromisoformat(rec["expires_at"]) < datetime.utcnow()
+            except Exception:
+                expired = True
+            if expired:
+                return False
+            if not _pwd.verify((raw_code or "").strip(), rec["code_hash"]):
+                conn.execute(
+                    "UPDATE account_verifications SET attempt_count = attempt_count + 1 WHERE id = ?",
+                    (rec["id"],),
+                )
+                return False
+            conn.execute(
+                "UPDATE account_verifications SET consumed_at = ? WHERE id = ?",
+                (_utcnow_iso(), rec["id"]),
+            )
+            return True
+
+    def verify_account_verification_by_token(self, raw_token: str) -> Optional[str]:
+        h = self._hash_onboarding_token((raw_token or "").strip())
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM account_verifications
+                WHERE token_hash = ? AND consumed_at IS NULL AND superseded_at IS NULL
+                """,
+                (h,),
+            ).fetchone()
+            if not row:
+                return None
+            rec = dict(row)
+            try:
+                expired = datetime.fromisoformat(rec["expires_at"]) < datetime.utcnow()
+            except Exception:
+                expired = True
+            if expired:
+                return None
+            conn.execute(
+                "UPDATE account_verifications SET consumed_at = ? WHERE id = ?",
+                (_utcnow_iso(), rec["id"]),
+            )
+            return rec["email"]
+
+    def count_recent_verification_requests(self, email: str, *, hours: int = 1) -> int:
+        e = email.lower().strip()
+        since = (datetime.utcnow() - timedelta(hours=hours)).replace(microsecond=0).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT COALESCE(SUM(request_count), 0) AS n FROM account_verifications
+                WHERE email = ? AND datetime(created_at) >= datetime(?)
+                """,
+                (e, since),
+            ).fetchone()
+            return int(row["n"] if row else 0)
 
     def update_health_system_org_details(
         self,
@@ -1385,6 +1560,18 @@ class TeamStore:
                 WHERE health_system_id = ? AND email = ?
                 """,
                 (json.dumps(attestations or {}), _utcnow_iso(), hs_id, email.lower().strip()),
+            )
+
+    def mark_asclepius_member_verified(self, hs_id: str, email: str) -> None:
+        """Stamp ``email_verified_at`` once the invited clinician proves inbox
+        control via OTP (Feature B hard gate, ``member_finish``)."""
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE asclepius_people SET email_verified_at = ?, updated_at = ?
+                WHERE health_system_id = ? AND email = ?
+                """,
+                (_utcnow_iso(), _utcnow_iso(), hs_id, email.lower().strip()),
             )
 
     def finalize_asclepius_person(
@@ -2529,6 +2716,146 @@ class TeamStore:
                 (notification_id, doctor_id),
             )
             return cur.rowcount > 0
+
+    # ─── Task-assignment notification outbox ──────────────────────────────
+    def enqueue_task_notification(
+        self,
+        *,
+        idempotency_key: str,
+        task_type: str,
+        task_id: str,
+        event_type: str,
+        recipient_doctor_id: str,
+        recipient_email: str,
+        login_url: str,
+        channel: str = "email",
+        recipient_phone: Optional[str] = None,
+    ) -> Optional[int]:
+        """INSERT OR IGNORE on the unique idempotency key — this IS the dedup
+        guarantee. Returns the new row id, or None if this exact
+        (task, event, recipient, channel) was already enqueued."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT OR IGNORE INTO task_notification_outbox (
+                    idempotency_key, task_type, task_id, event_type,
+                    recipient_doctor_id, recipient_email, channel, login_url,
+                    status, send_attempts, created_at, recipient_phone
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)
+                """,
+                (
+                    idempotency_key, task_type, task_id, event_type,
+                    recipient_doctor_id, recipient_email, channel, login_url,
+                    now, recipient_phone,
+                ),
+            )
+            if cur.rowcount == 0:
+                return None
+            return int(cur.lastrowid)
+
+    def mark_outbox_sent(self, outbox_id: int) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE task_notification_outbox
+                SET status = 'sent', sent_at = ?, send_attempts = send_attempts + 1
+                WHERE id = ?
+                """,
+                (_utcnow_iso(), outbox_id),
+            )
+
+    def mark_outbox_failed(self, outbox_id: int, error: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE task_notification_outbox
+                SET status = 'failed', last_error = ?, send_attempts = send_attempts + 1
+                WHERE id = ?
+                """,
+                (str(error)[:2000], outbox_id),
+            )
+
+    def find_unnotified_intake_notifications(self, since_row_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """intake_form_notifications rows with no 'assigned' outbox entry yet."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT n.* FROM intake_form_notifications n
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM task_notification_outbox o
+                    WHERE o.task_type = 'intake_notification'
+                      AND o.task_id = n.id
+                      AND o.event_type = 'assigned'
+                )
+                ORDER BY datetime(n.created_at) ASC
+                """,
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def find_unnotified_tier3_escalations(self) -> List[Dict[str, Any]]:
+        """Tier-3 escalations with no 'assigned' outbox entry yet."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT e.* FROM escalations e
+                WHERE e.tier = 3
+                  AND NOT EXISTS (
+                    SELECT 1 FROM task_notification_outbox o
+                    WHERE o.task_type = 'escalation'
+                      AND o.task_id = CAST(e.id AS TEXT)
+                      AND o.event_type = 'assigned'
+                  )
+                ORDER BY datetime(e.created_at) ASC
+                """,
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def find_due_reminders(
+        self,
+        *,
+        event_type: str,
+        hours_since_assigned: int,
+    ) -> List[Dict[str, Any]]:
+        """Outbox rows whose 'assigned' send has aged past `hours_since_assigned`,
+        have no row yet for `event_type`, and whose source task is still open
+        (unread intake notification / unresolved escalation). Reminders stop
+        naturally once the source is read/resolved, or once escalation_48h has
+        fired (no further event_type exists past that)."""
+        cutoff = f"-{int(hours_since_assigned)} hours"
+        with self._conn() as conn:
+            intake_rows = conn.execute(
+                """
+                SELECT o.* FROM task_notification_outbox o
+                JOIN intake_form_notifications n ON n.id = o.task_id AND o.task_type = 'intake_notification'
+                WHERE o.event_type = 'assigned' AND o.status = 'sent'
+                  AND datetime(o.sent_at) <= datetime('now', ?)
+                  AND n.is_read = 0
+                  AND NOT EXISTS (
+                    SELECT 1 FROM task_notification_outbox o2
+                    WHERE o2.task_type = o.task_type AND o2.task_id = o.task_id
+                      AND o2.event_type = ?
+                  )
+                """,
+                (cutoff, event_type),
+            ).fetchall()
+            escalation_rows = conn.execute(
+                """
+                SELECT o.* FROM task_notification_outbox o
+                JOIN escalations e ON CAST(e.id AS TEXT) = o.task_id AND o.task_type = 'escalation'
+                WHERE o.event_type = 'assigned' AND o.status = 'sent'
+                  AND datetime(o.sent_at) <= datetime('now', ?)
+                  AND e.resolved = 0
+                  AND NOT EXISTS (
+                    SELECT 1 FROM task_notification_outbox o2
+                    WHERE o2.task_type = o.task_type AND o2.task_id = o.task_id
+                      AND o2.event_type = ?
+                  )
+                """,
+                (cutoff, event_type),
+            ).fetchall()
+            return [dict(r) for r in intake_rows] + [dict(r) for r in escalation_rows]
 
     # ─── Intra-Op Reassessment (PRD v1.0) ─────────────────────────────────
 
