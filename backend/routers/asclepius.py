@@ -32,6 +32,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from asclepius import agreement as asc_agreement
 from asclepius import auth as asc_auth
+from asclepius import capabilities as asc_caps
 from asclepius import cases as asc_cases
 from asclepius import citations as asc_citations
 from asclepius import corpus as asc_corpus
@@ -483,6 +484,10 @@ async def create_user(
     store = _store()
     if body.role not in ("evaluator", "admin", "qa_reviewer"):
         raise HTTPException(status_code=400, detail="Invalid role")
+    if body.tier is not None and body.tier not in asc_caps.TIERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"tier must be one of {', '.join(asc_caps.TIERS)}, or omitted.")
     if store.get_user_by_email(body.email):
         raise HTTPException(status_code=409, detail="A user with that email already exists")
     user = store.create_user(
@@ -492,6 +497,7 @@ async def create_user(
         specialty=body.specialty,
         board_cert=body.board_cert,
         years_experience=body.years_experience,
+        tier=body.tier,
     )
     store.log_event(entity_type="user", entity_id=user["id"], event_type="user_created", actor=_admin["id"])
     return asc_auth.public_user(user)
@@ -1382,6 +1388,27 @@ def _ensure_gold_cases(store: Any, user: Dict[str, Any], specialty: Optional[str
         return 0
 
 
+# ─── The LABEL capability, enforced ───────────────────────────────────────────
+#
+# ``capabilities.LABEL`` was defined and never checked. Drawing a task and
+# submitting one gated on authentication alone, so the capability table decided
+# nothing: a NULL-tier account could draw and submit, and setting somebody's tier
+# restricted them from nothing. A policy table nobody reads is worse than no
+# policy table, because it reads like a control.
+#
+# Same gate shape as the advisor router's ``_require`` — admins pass, as
+# everywhere else. Accounts that predate tiering are backfilled to ``labeler`` in
+# the store migration, so this locks nobody out of work they are already doing.
+def require_label(user: Dict[str, Any] = Depends(asc_auth.get_current_user)) -> Dict[str, Any]:
+    if not asc_caps.can(user, asc_caps.LABEL):
+        raise HTTPException(
+            status_code=403,
+            detail="Your account is not yet assigned a contributor tier, so it "
+                   "cannot draw or submit tasks. An admin assigns one when your "
+                   "credentials are approved.")
+    return user
+
+
 @router.get("/tasks/next")
 async def next_task(
     portal_version: Optional[str] = Query(
@@ -1396,7 +1423,7 @@ async def next_task(
         "oncology). Drives which specialty's cases are served/generated; an unknown "
         "or disabled value falls back to the evaluator's own specialty.",
     ),
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    user: Dict[str, Any] = Depends(require_label),
 ):
     store = _store()
     # Normalize the picker's specialty to an enabled one, else ignore it (never
@@ -1659,7 +1686,7 @@ async def submit(
         "GET /submissions/{id}/status for backend-stamped phases. Default false "
         "keeps the synchronous 200 + result behavior.",
     ),
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    user: Dict[str, Any] = Depends(require_label),
 ):
     store = _store()
     sid = body.submission_id or f"s-{uuid.uuid4().hex[:12]}"
@@ -3714,6 +3741,49 @@ def _contact_email_for_upload(store: Any, upload: Dict[str, Any]) -> Optional[st
     return email
 
 
+def _promote_block(
+    upload: Dict[str, Any],
+    ingested: List[Dict[str, Any]],
+    promotable: List[Dict[str, Any]],
+    undetermined: List[Dict[str, Any]],
+) -> Optional[Dict[str, str]]:
+    """Why this upload cannot be promoted, or None when it can.
+
+    The server already knows every reason — it enforces all of them — but it only
+    said so at the moment of refusal, by which point the admin had already clicked
+    a button that looked live. Deciding it HERE, in the same place the gate lives,
+    is what lets the admin surfaces render a disabled control with the real reason
+    instead of a clickable button that 409s. Same order as the promote endpoints,
+    so the reason shown is the reason that would fire.
+    """
+    if asc_ingestion.is_brokering(upload.get("purpose")):
+        return {
+            "reason": "brokering",
+            "message": "This upload came in on a brokering link. Brokering data is "
+                       "never promoted to tasks — the server refuses it.",
+        }
+    if not ingested:
+        return {
+            "reason": "no_cases",
+            "message": "No cases in this upload have finished ingesting. Clear any "
+                       "review holds in Partner uploads above.",
+        }
+    if not promotable:
+        return {
+            "reason": "brokering",
+            "message": "Every ingested case in this upload is held for brokering, "
+                       "and brokering data is never promoted to tasks.",
+        }
+    if undetermined:
+        return {
+            "reason": "specialty",
+            "message": "Specialty not set — choose one to promote. Promoting "
+                       "without it would label these cases with a default that "
+                       "routes them to the wrong physician pool.",
+        }
+    return None
+
+
 @router.get("/ingestion/uploads")
 async def list_ingestion_uploads(
     limit: int = Query(50, ge=1, le=200),
@@ -3744,6 +3814,26 @@ async def list_ingestion_uploads(
         cases = store.list_ingest_cases(upload_id=u["upload_id"])
         u["ingested_case_count"] = sum(1 for c in cases if c.get("status") == "ingested")
         u["case_count"] = len(cases)
+        # Whether promotion is even POSSIBLE for this upload, on the same row that
+        # renders the Promote button. Ingest refuses to guess a specialty, so a
+        # hospital-portal upload lands on the neutral 'general' and both promote
+        # endpoints 409 on it — and the admin had no way to see that coming and no
+        # control to fix it. Mirrors _bucket_uploads in routers/asclepius_admin.py;
+        # one query per upload was already being issued above, so this is free.
+        # COALESCE(case.purpose, upload.purpose) — the same effective-purpose rule
+        # the promote endpoints apply, computed from rows already in hand rather
+        # than with a second query per upload.
+        ingested = [c for c in cases if c.get("status") == "ingested"]
+        promotable = [c for c in ingested
+                      if not asc_ingestion.is_brokering(c.get("purpose") or u.get("purpose"))]
+        undetermined = [c for c in promotable
+                        if asc_ingestion.specialty_is_undetermined(c.get("specialty"))]
+        u["specialties"] = sorted({c.get("specialty") for c in cases
+                                   if c.get("specialty")
+                                   and not asc_ingestion.specialty_is_undetermined(c.get("specialty"))})
+        u["specialty_determined"] = bool(promotable) and not undetermined
+        u["specialty_undetermined_cases"] = len(undetermined)
+        u["promote_block"] = _promote_block(u, ingested, promotable, undetermined)
         # Notification affordances for the row (never expose the raw path).
         u["contact_email"] = _contact_email_for_upload(store, u)
         u["failure_notified"] = bool(u.get("failure_notified_at"))

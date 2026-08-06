@@ -23,6 +23,7 @@ import io
 import json
 import logging
 import os
+import re
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -783,6 +784,77 @@ Return ONLY JSON:
   "normalized": <0.0 if critical_failure else score / max_points, 0..1>
 }
 """
+
+
+# ─── The CRITICAL-NEGATIVE HARD FAIL rule, as an importable function ──────────
+#
+# This rule had exactly one implementation and it lived INSIDE the `_SCORE_PY`
+# string literal below — real source to a buyer unzipping an export bundle, and
+# nothing at all to this process. `asclepius/grader_eval.py` imports
+# `apply_critical_hard_fail` from this module inside a `try/except Exception`
+# that returns `{"skipped": True}`, so the ImportError was swallowed on every
+# call: every grader-validity probe (separation, stability, verbosity,
+# hackability) silently skipped, `_rubric_is_validated` returned False for every
+# rubric, and the eval pack reported `n_validated: 0` with nothing saying why.
+#
+# So the rule is defined here, at module level, and `_SCORE_PY` keeps its own
+# textual copy — that copy has to stand alone inside a bundle we do not ship this
+# module with. Two copies of ~20 lines is the price of the standalone scorer; a
+# rule with no importable implementation was the price of not paying it.
+# `test_grader_eval_import.py` asserts the two agree.
+def _norm_criterion_text(s: Any) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip().lower())
+
+
+def _criterion_tier(c: Dict[str, Any]) -> str:
+    """Criticality tier of a criterion by |points| (critical 8-10, important 4-7,
+    helpful 1-3); trusts an explicit matching ``tier`` when present."""
+    try:
+        mag = abs(float(c.get("points") or 0.0))
+    except (TypeError, ValueError):
+        mag = 0.0
+    derived = "critical" if mag >= 8 else "important" if mag >= 4 else "helpful"
+    t = c.get("tier")
+    return t if t in ("critical", "important", "helpful") and t == derived else derived
+
+
+def apply_critical_hard_fail(
+    result: Dict[str, Any], rubric: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Deterministic backstop for the CRITICAL-NEGATIVE HARD FAIL rule: if the judge
+    marked any critical-negative criterion as committed (met), floor normalized to 0
+    and stamp critical_failure — regardless of what the model wrote for normalized.
+
+    Mutates and returns ``result``."""
+    crit_texts = {
+        _norm_criterion_text(c.get("text")): c
+        for c in (rubric.get("criteria") or [])
+        if _points_of(c) < 0 and _criterion_tier(c) == "critical"
+    }
+    failed = []
+    for pc in (result.get("per_criterion") or []):
+        if not pc.get("met"):
+            continue
+        if _norm_criterion_text(pc.get("text")) in crit_texts:
+            failed.append(pc.get("text"))
+    if failed:
+        result["critical_failure"] = True
+        result["failed_critical_criteria"] = failed
+        result["normalized"] = 0.0
+    else:
+        result.setdefault("critical_failure", False)
+    return result
+
+
+def _points_of(c: Dict[str, Any]) -> float:
+    """The bundled copy uses a bare ``float(...)``, which raises on a malformed
+    criterion. In-process this runs against LLM-authored rubrics on a live
+    request, where one bad row must not take down the whole probe."""
+    try:
+        return float(c.get("points") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
 
 _SCORE_PY = '''#!/usr/bin/env python3
 """Rubric-based LLM-as-judge scorer for an Asclepius export (FEAT-2).
@@ -1623,7 +1695,8 @@ def build_export(
         "destination": "local_disk",  # future seam: a cloud writer pushes here.
     }
     (out_dir / MANIFEST_NAME).write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
+        json.dumps(_shippable_manifest(manifest), indent=2, ensure_ascii=False),
+        encoding="utf-8",
     )
 
     # 6. mark exported + provenance
@@ -1650,6 +1723,24 @@ def build_export(
         actor=created_by, payload={"record_count": len(emitted), "filters": filters},
     )
     return manifest
+
+
+# Manifest keys that are OURS, not the buyer's. `batch.json` is a file inside a
+# bundle we hand to an outside lab, and it carried an internal admin user id
+# (`created_by`) plus an absolute path on our own server (`dir_path`) — neither of
+# which describes the data, and both of which describe us. The admin/advisor views
+# already stripped exactly these (see routers/asclepius_advisor.py); the file
+# itself did not, which is the copy that actually leaves the building.
+#
+# They stay on the returned dict and on the stored export row: that is the audit
+# trail, and it is internal.
+_INTERNAL_MANIFEST_KEYS = ("created_by", "dir_path", "destination")
+
+
+def _shippable_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    """The manifest as a BUYER sees it — everything about the data, nothing about
+    the operator who built it or the machine it was built on."""
+    return {k: v for k, v in manifest.items() if k not in _INTERNAL_MANIFEST_KEYS}
 
 
 def _mime_ext(mime: str) -> str:

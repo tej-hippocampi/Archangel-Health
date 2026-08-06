@@ -540,6 +540,16 @@ class AsclepiusStore:
                 )
                 """
             )
+            # PRD-I §2.2 applied to the FOURTH upload door. Every other door
+            # resolves an upload's purpose from the row that authorized it — a
+            # portal account, a chunked session, a magic link. The provider
+            # account door had no such column to join, so it called
+            # attach_upload_provenance not at all and every byte it accepted
+            # landed with purpose NULL, which the promotion gate reads as task
+            # creation. Nullable, like the others: NULL is "nobody has decided",
+            # an admin work item, not a default.
+            if "purpose" not in cols("data_providers"):
+                conn.execute("ALTER TABLE data_providers ADD COLUMN purpose TEXT")
             conn.execute(
                 """
                 -- Buyer ACCOUNTS for the secure data workspace. The account itself
@@ -1045,6 +1055,32 @@ class AsclepiusStore:
             ):
                 if _col not in cols("users"):
                     conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
+
+            # ── Tier backfill for pre-tiering accounts ───────────────────────
+            # ``capabilities.LABEL`` is now ENFORCED at /tasks/next and
+            # /submissions. It was defined and never checked, so those endpoints
+            # gated on authentication alone and a NULL-tier account could draw
+            # and submit — the capability table decided nothing.
+            #
+            # Every account approved through the verification queue is assigned a
+            # tier at the moment of approval, so NULL tier means one of two
+            # things: not yet decided (already blocked by the verification gate,
+            # so enforcement changes nothing for them), or an account that
+            # predates tiering entirely — verification_status NULL, passing the
+            # gate untouched, labeling today. Turning enforcement on without this
+            # would lock that second group out of work they are doing right now,
+            # which is a data-supply outage dressed as a security fix.
+            #
+            # They are granted LABELER: exactly the capability they already
+            # exercise, and nothing more. Scoped to roles a tier can mean
+            # anything for; a data_partner or buyer row carrying one is
+            # meaningless (see capabilities._CAPABLE_ROLES). Idempotent — it can
+            # only ever move NULL to 'labeler'.
+            conn.execute(
+                "UPDATE users SET tier = 'labeler' "
+                "WHERE tier IS NULL AND role IN ('evaluator', 'qa_reviewer') "
+                "AND (verification_status IS NULL OR verification_status = 'approved')"
+            )
             # ═══ END PRD-B ═══
             # ═══ PRD-A REVIEW SCHEMA — owned by Agent 1, do not edit from other PRDs ═══
             # Two-tier review product (PRD A §1): senior reviewers grade a labeler's
@@ -1840,7 +1876,12 @@ class AsclepiusStore:
         years_experience: Optional[int] = None,
         organization: Optional[str] = None,
         is_mock: bool = False,
+        tier: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """``tier`` defaults to NULL — "not yet assigned", which now denies the
+        LABEL capability at /tasks/next and /submissions. Real signups get theirs
+        from the verification queue at the moment of approval; only a caller that
+        legitimately provisions an already-decided contributor passes one here."""
         email = email.lower().strip()
         uid = _new_id("u")
         id_hashed = hashlib.sha256(uid.encode("utf-8")).hexdigest()[:16]
@@ -1848,8 +1889,9 @@ class AsclepiusStore:
             conn.execute(
                 """
                 INSERT INTO users (id, email, password_hash, role, specialty, board_cert,
-                                   years_experience, organization, id_hashed, active, is_mock, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                                   years_experience, organization, id_hashed, active, is_mock,
+                                   tier, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
                 """,
                 (
                     uid,
@@ -1862,6 +1904,7 @@ class AsclepiusStore:
                     organization,
                     id_hashed,
                     1 if is_mock else 0,
+                    tier,
                     _utcnow_iso(),
                 ),
             )
@@ -1999,6 +2042,7 @@ class AsclepiusStore:
         self, *, email: str, password: str, org_name: Optional[str] = None,
         specialty: Optional[str] = None, note: Optional[str] = None,
         invited_by: Optional[str] = None, invite_expires_at: Optional[str] = None,
+        purpose: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create (or rotate) a ``data_partner`` account + its provider record.
         Idempotent: an existing provider gets a fresh password, is re-activated,
@@ -2019,18 +2063,20 @@ class AsclepiusStore:
                 conn.execute(
                     """UPDATE data_providers SET status='invited', must_reset_password=1,
                        org_name=COALESCE(?, org_name), specialty=COALESCE(?, specialty),
-                       note=COALESCE(?, note), invited_by=?, invited_at=?,
+                       note=COALESCE(?, note), purpose=COALESCE(?, purpose),
+                       invited_by=?, invited_at=?,
                        invite_expires_at=?, updated_at=? WHERE provider_id=?""",
-                    (org_name, specialty, note, invited_by, now, invite_expires_at, now, pid),
+                    (org_name, specialty, note, purpose, invited_by, now,
+                     invite_expires_at, now, pid),
                 )
             else:
                 conn.execute(
                     """INSERT INTO data_providers
-                       (provider_id, email, org_name, specialty, note, status,
+                       (provider_id, email, org_name, specialty, note, purpose, status,
                         must_reset_password, invited_by, invited_at, invite_expires_at,
                         created_at, updated_at)
-                       VALUES (?, ?, ?, ?, ?, 'invited', 1, ?, ?, ?, ?, ?)""",
-                    (pid, email.lower().strip(), org_name, specialty, note,
+                       VALUES (?, ?, ?, ?, ?, ?, 'invited', 1, ?, ?, ?, ?, ?)""",
+                    (pid, email.lower().strip(), org_name, specialty, note, purpose,
                      invited_by, now, invite_expires_at, now, now),
                 )
         return self.get_data_provider(pid)  # type: ignore[return-value]
@@ -2795,6 +2841,10 @@ class AsclepiusStore:
                 specialty=specialty, board_cert=board_cert,
                 years_experience=years_experience, organization=organization,
                 is_mock=True,
+                # The sandbox account exists to DEMO labeling, and LABEL is now
+                # enforced at /tasks/next and /submissions. A NULL tier here
+                # would leave the demo login unable to draw a case.
+                tier="labeler",
             )
             self.set_real_data_approved(u["id"], bool(real_data_approved))
             return self.get_user_by_id(u["id"])  # type: ignore[return-value]
@@ -2802,6 +2852,7 @@ class AsclepiusStore:
             conn.execute(
                 """UPDATE users SET password_hash = ?, role = 'evaluator', active = 1,
                        is_mock = 1, real_data_approved = ?,
+                       tier = COALESCE(tier, 'labeler'),
                        specialty = COALESCE(specialty, ?),
                        board_cert = COALESCE(board_cert, ?),
                        years_experience = COALESCE(years_experience, ?),
@@ -7148,6 +7199,7 @@ class AsclepiusStore:
     def attach_upload_provenance(
         self, upload_id: str, *, portal_username: Optional[str] = None,
         session_id: Optional[str] = None, link_id: Optional[str] = None,
+        provider_id: Optional[str] = None,
     ) -> None:
         """Record where an upload came from, and copy forward what that implies.
 
@@ -7158,9 +7210,11 @@ class AsclepiusStore:
         purpose value, so they are given no way to express one. Nothing a provider
         sends reaches this.
 
-        All three doors resolve through this one function, which is what makes
+        All FOUR doors resolve through this one function, which is what makes
         "the same bytes are recorded the same way whichever door they came in"
-        true by construction rather than by three implementations agreeing."""
+        true by construction rather than by four implementations agreeing. The
+        provider-account door was the one that did not call this at all, so its
+        uploads landed with purpose NULL and the gate read them as promotable."""
         now = _utcnow_iso()
         with self._conn() as conn:
             if session_id:
@@ -7193,6 +7247,13 @@ class AsclepiusStore:
                     "UPDATE ingest_uploads SET purpose = (SELECT purpose FROM "
                     "ingest_upload_links WHERE link_id = ?), updated_at = ? "
                     "WHERE upload_id = ?", (link_id, now, upload_id))
+            elif provider_id:
+                # The data-provider account door. Same shape again — the account
+                # row is the authorizing row.
+                conn.execute(
+                    "UPDATE ingest_uploads SET purpose = (SELECT purpose FROM "
+                    "data_providers WHERE provider_id = ?), updated_at = ? "
+                    "WHERE upload_id = ?", (provider_id, now, upload_id))
 
     def set_upload_purpose(self, upload_id: str, purpose: Optional[str]) -> None:
         """Admin-side correction only (resolving a legacy row). The upload doors
@@ -7201,6 +7262,23 @@ class AsclepiusStore:
             conn.execute(
                 "UPDATE ingest_uploads SET purpose = ?, updated_at = ? WHERE upload_id = ?",
                 (purpose, _utcnow_iso(), upload_id))
+
+    def set_data_provider_purpose(self, provider_id: str, purpose: Optional[str]) -> int:
+        """Admin-side assignment of what a provider account's uploads are FOR.
+
+        The provider door never sets this — it names its own account row and
+        ``attach_upload_provenance`` joins the value forward (PRD-I §3.3: a door
+        that can name the distinction is a door that can leak it). This is the
+        admin surface that decides it, exactly like ``set_upload_purpose`` is the
+        admin surface that corrects a single upload.
+
+        Returns the number of provider rows updated (0 if there is no such
+        provider), so the caller can 404 rather than report a silent success."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE data_providers SET purpose = ?, updated_at = ? WHERE provider_id = ?",
+                (purpose, _utcnow_iso(), provider_id))
+            return int(cur.rowcount or 0)
 
     def set_ingest_case_purpose(self, ingest_case_id: str, purpose: Optional[str]) -> None:
         with self._conn() as conn:

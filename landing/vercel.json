@@ -81,6 +81,14 @@
       "destination": "/index.html"
     },
     {
+      "source": "/verify-email/:token",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/verify-email/:token/",
+      "destination": "/index.html"
+    },
+    {
       "source": "/t/:slug/sign-in",
       "destination": "/index.html"
     },

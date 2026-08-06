@@ -594,6 +594,17 @@
         h('span', { class: 'asc-pay-line-count' },
           String(l.count) + ' × ' + money(l.rate_cents)),
         h('span', { class: 'asc-pay-line-total' }, money(l.cents))));
+      // Submitted work awaiting review is real and countable, and it is what
+      // the pending total above is made of. Without this row a labeler's first
+      // ever visit read "$75 pending" beside "Tasks labeled: 0" — the page
+      // contradicting itself about the only thing it exists to report.
+      if (l.pending_count) {
+        wrap.appendChild(h('div', { class: 'asc-pay-line asc-pay-line-pending' },
+          h('span', { class: 'asc-pay-line-label' },
+            '· ' + String(l.pending_count) + ' awaiting review'),
+          h('span', { class: 'asc-pay-line-count' }, ''),
+          h('span', { class: 'asc-pay-line-total' }, money(l.pending_cents || 0))));
+      }
     });
     return wrap;
   }
@@ -679,7 +690,11 @@
   function load() {
     var ctx = rootCtx;
     if (!ctx) return;
-    ctx.api('/asclepius/earnings').then(function (payload) {
+    // ctx.api already prefixes API_BASE = '/api/asclepius' (asclepius.js). The
+    // path here is RELATIVE to that — writing '/asclepius/earnings' doubled the
+    // segment into /api/asclepius/asclepius/earnings, which matches no route, so
+    // every physician's Earnings tab hard-404'd.
+    ctx.api('/earnings').then(function (payload) {
       data = payload; loadError = null;
       rerender();
       watchSession();
@@ -710,7 +725,7 @@
     var id = data.open_session.session_id;
     var every = ((data.params && data.params.beat_interval_seconds) || 15) * 1000;
     pollTimer = setInterval(function () {
-      rootCtx.api('/asclepius/sessions/' + encodeURIComponent(id)).then(function (s) {
+      rootCtx.api('/sessions/' + encodeURIComponent(id)).then(function (s) {
         data.open_session = s.ended ? null : s;
         rerender();
         if (s.ended) { clearInterval(pollTimer); pollTimer = null; load(); }

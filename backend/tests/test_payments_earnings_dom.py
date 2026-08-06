@@ -67,13 +67,27 @@ var apiCalls = [];
 var fetchCalls = [];
 var ROUTES = %(routes)s;
 var FAIL = %(fail)s;
+var API_BASE = '/api/asclepius';
 var ctx = {
   h: h,
   clear: function (el) { while (el.firstChild) el.removeChild(el.firstChild); },
+  // Faithful to asclepius.js: the real ctx.api PREFIXES API_BASE and the caller
+  // passes a path relative to it. Keying ROUTES on the raw argument made the
+  // stub answer any string the caller invented, which is how
+  // `ctx.api('/asclepius/earnings')` — resolving to
+  // /api/asclepius/asclepius/earnings, a route that does not exist — passed
+  // every test in this file while 404ing for every physician in the browser.
+  // ROUTES is keyed on the URL THE SERVER ACTUALLY SERVES, so a doubled (or
+  // missing) prefix misses here exactly as it does in production.
   api: function (path, opts) {
-    apiCalls.push({ path: path, method: (opts && opts.method) || 'GET' });
-    if (FAIL[path]) return Promise.reject(FAIL[path]);
-    return Promise.resolve(ROUTES[path] || {});
+    var url = API_BASE + path;
+    apiCalls.push({ path: path, url: url, method: (opts && opts.method) || 'GET' });
+    if (FAIL[url]) return Promise.reject(FAIL[url]);
+    if (!Object.prototype.hasOwnProperty.call(ROUTES, url)) {
+      return Promise.reject({ status: 404, detail: 'Not Found', message: 'Not Found',
+                              url: url });
+    }
+    return Promise.resolve(ROUTES[url]);
   },
   toast: function () {},
   loadingCard: function (t) { return h('div', {}, t); },
@@ -264,7 +278,7 @@ console.log(JSON.stringify({
 
 # ─── The ledger ───────────────────────────────────────────────────────────────
 def test_the_headline_and_the_ledger_render():
-    out = _run_node(_script({"/asclepius/earnings": _LEDGER}, """
+    out = _run_node(_script({"/api/asclepius/earnings": _LEDGER}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () {
@@ -296,7 +310,7 @@ def test_status_colour_carries_meaning_and_a_rejection_is_never_pink():
     PHI / critical / blocking; a task that did not pass review is not a safety
     event, and colouring it like one would make a doctor think they did something
     dangerous."""
-    out = _run_node(_script({"/asclepius/earnings": _LEDGER}, """
+    out = _run_node(_script({"/api/asclepius/earnings": _LEDGER}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () {
@@ -321,7 +335,7 @@ def test_the_twenty_minute_rule_is_visible_without_a_session_open():
     started a review could not find the rule on the Earnings page at all — and
     once they DID have a session, the sentence was on a tab they were not looking
     at. The rule has to be discoverable before it can cost anybody anything."""
-    out = _run_node(_script({"/asclepius/earnings": _LEDGER}, """
+    out = _run_node(_script({"/api/asclepius/earnings": _LEDGER}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () {
@@ -343,7 +357,7 @@ def test_the_rule_card_is_not_shown_to_someone_it_does_not_apply_to():
     """An advisor is not paid per session, so telling them what a session pays
     would be noise at best and misleading at worst."""
     ledger = dict(_LEDGER, accrues_payment=False, recent=[])
-    out = _run_node(_script({"/asclepius/earnings": ledger}, """
+    out = _run_node(_script({"/api/asclepius/earnings": ledger}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () { console.log(JSON.stringify({ rule: find(body, 'asc-pay-rule').length })); });
@@ -355,7 +369,7 @@ def test_the_page_heading_uses_the_section_scale_not_a_second_h1():
     """Audit U3. The portal shell and each view already own the document's
     heading structure; a section module adding its own ``h1`` puts two at the top
     level of one page."""
-    out = _run_node(_script({"/asclepius/earnings": _LEDGER}, """
+    out = _run_node(_script({"/api/asclepius/earnings": _LEDGER}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () {
@@ -379,7 +393,7 @@ def test_paid_money_is_distinguishable_from_money_still_owed():
     """Audit H2's UI half. "You have been paid $75" and "we owe you $75" are
     different sentences, and the headline used to render them identically."""
     ledger = dict(_LEDGER, approved_cents=247500, paid_cents=200000, unpaid_cents=47500)
-    out = _run_node(_script({"/asclepius/earnings": ledger}, """
+    out = _run_node(_script({"/api/asclepius/earnings": ledger}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () { console.log(JSON.stringify({ sub: find(body, 'asc-pay-sub').map(textOf) })); });
@@ -392,7 +406,7 @@ done(function () { console.log(JSON.stringify({ sub: find(body, 'asc-pay-sub').m
 def test_a_number_that_went_down_carries_its_explanation():
     """§1.2: never show a doctor a number that might go down without an
     explanation next to it."""
-    out = _run_node(_script({"/asclepius/earnings": _LEDGER}, """
+    out = _run_node(_script({"/api/asclepius/earnings": _LEDGER}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () { console.log(JSON.stringify({ notes: find(body, 'asc-pay-note').map(textOf) })); });
@@ -404,7 +418,7 @@ done(function () { console.log(JSON.stringify({ notes: find(body, 'asc-pay-note'
 def test_an_advisor_is_told_why_rather_than_shown_an_unexplained_zero():
     ledger = dict(_LEDGER, accrues_payment=False, approved_cents=0,
                   pending_cents=0, void_cents=0, recent=[])
-    out = _run_node(_script({"/asclepius/earnings": ledger}, """
+    out = _run_node(_script({"/api/asclepius/earnings": ledger}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () {
@@ -441,7 +455,7 @@ done(function () {
   }));
 });
 """,
-        fail={"/asclepius/earnings": {"status": 500, "detail": "Internal Server Error"}}))
+        fail={"/api/asclepius/earnings": {"status": 500, "detail": "Internal Server Error"}}))
     assert len(out["errors"]) == 1
     assert "could not be loaded" in out["errors"][0]
     assert "Internal Server Error" in out["errors"][0]
@@ -460,7 +474,7 @@ def test_the_countdown_value_comes_from_the_response_body():
         "continuous_seconds": 751, "min_seconds": 1200, "remaining_seconds": 449,
         "qualified": False, "rate_cents": 10000,
     })
-    out = _run_node(_script({"/asclepius/earnings": ledger}, """
+    out = _run_node(_script({"/api/asclepius/earnings": ledger}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () {
@@ -489,7 +503,7 @@ def test_a_different_response_body_moves_the_countdown_and_nothing_else_does():
         "continuous_seconds": 185, "min_seconds": 1200, "remaining_seconds": 1015,
         "qualified": False, "rate_cents": 10000,
     })
-    out = _run_node(_script({"/asclepius/earnings": ledger}, """
+    out = _run_node(_script({"/api/asclepius/earnings": ledger}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () {
@@ -506,7 +520,7 @@ def test_a_qualified_session_says_so_instead_of_the_warning():
         "continuous_seconds": 1440, "min_seconds": 1200, "remaining_seconds": 0,
         "qualified": True, "rate_cents": 10000,
     })
-    out = _run_node(_script({"/asclepius/earnings": ledger}, """
+    out = _run_node(_script({"/api/asclepius/earnings": ledger}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () {
@@ -521,7 +535,7 @@ done(function () {
 
 
 def test_no_session_widget_when_no_session_is_open():
-    out = _run_node(_script({"/asclepius/earnings": _LEDGER}, """
+    out = _run_node(_script({"/api/asclepius/earnings": _LEDGER}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () {
@@ -773,3 +787,108 @@ window.AsclepiusSession.open('review', 'pair-1').then(function () {
     assert out["closes"] == 1
     assert out["keepalive"] is True
     assert out["timers"] == 0
+
+
+# ─── Every URL this module resolves must be a route the server serves ─────────
+#
+# The whole class of bug this section shipped with: `ctx.api` prefixes
+# API_BASE = '/api/asclepius', and two calls were converted to it without
+# dropping their own '/asclepius' segment. The result resolved to
+# /api/asclepius/asclepius/earnings — no route, hard 404, on a top-level rail
+# item visible to every signed-in physician. Nothing caught it because the DOM
+# stub answered whatever string it was handed and no test ever compared the
+# resolved URL to the app's route table.
+#
+# These two tests close that gap from both ends: the URL earnings.js builds is
+# asserted literally, and then checked against the LIVE FastAPI route table, so
+# renaming the route on either side fails here rather than in front of a doctor.
+def _app_route_paths() -> set[str]:
+    import tests._asclepius as A  # noqa: F401  (sets env before importing main)
+    from main import app
+
+    return {getattr(r, "path", "") for r in app.routes}
+
+
+def test_the_earnings_call_resolves_to_the_url_the_server_serves():
+    out = _run_node(_script({"/api/asclepius/earnings": _LEDGER}, """
+var body = document.createElement('div');
+window.EarningsSection.render(body, ctx);
+done(function () {
+  console.log(JSON.stringify({ urls: apiCalls.map(function (c) { return c.url; }) }));
+});
+"""))
+    assert out["urls"] == ["/api/asclepius/earnings"], (
+        "earnings.js must call ctx.api('/earnings'); ctx.api already prefixes "
+        "/api/asclepius, so any '/asclepius' of its own doubles the segment"
+    )
+    assert "/api/asclepius/earnings" in _app_route_paths()
+
+
+def test_the_read_only_session_poll_resolves_to_the_url_the_server_serves():
+    """The poll only arms when the ledger reports an open session this tab does
+    not hold, so the fixture has to say so — otherwise the call never fires and
+    the assertion passes vacuously."""
+    ledger = dict(_LEDGER, open_session={"session_id": "ws-9", "kind": "review",
+                                         "credited_seconds": 300, "continuous_seconds": 300,
+                                         "min_seconds": 1200, "qualified": False,
+                                         "ended": False, "rate_cents": 10000})
+    out = _run_node(_script({"/api/asclepius/earnings": ledger,
+                             "/api/asclepius/sessions/ws-9": {"session_id": "ws-9",
+                                                              "ended": False}}, """
+var body = document.createElement('div');
+window.EarningsSection.render(body, ctx);
+done(function () {
+  // Fire the poll tick the widget armed, then read what it asked for.
+  globalThis.__intervals.filter(Boolean).forEach(function (t) { t.fn(); });
+  done(function () {
+    console.log(JSON.stringify({ urls: apiCalls.map(function (c) { return c.url; }) }));
+  });
+});
+"""))
+    assert "/api/asclepius/sessions/ws-9" in out["urls"], (
+        "the read-only session poll must call ctx.api('/sessions/' + id)"
+    )
+    assert "/api/asclepius/sessions/{session_id}" in _app_route_paths()
+
+
+# ─── Submitted work is counted where the money for it is reported ─────────────
+def test_a_submitted_task_is_counted_beside_the_money_it_is_pending_for():
+    """A labeler's first ever visit read "$75 pending" beside "Tasks labeled: 0".
+    The money came from ACCRUED, the count came from APPROVED+PAID, and both sat
+    under one label — the page contradicting itself about the only thing it
+    exists to report."""
+    ledger = dict(_LEDGER, approved_cents=0, paid_cents=0, unpaid_cents=0,
+                  pending_cents=7500,
+                  lines=[{"kind": "task", "label": "Tasks labeled", "count": 0,
+                          "rate_cents": 7500, "cents": 0,
+                          "pending_count": 1, "pending_cents": 7500}])
+    out = _run_node(_script({"/api/asclepius/earnings": ledger}, """
+var body = document.createElement('div');
+window.EarningsSection.render(body, ctx);
+done(function () {
+  console.log(JSON.stringify({ lines: find(body, 'asc-pay-line').map(textOf) }));
+});
+"""))
+    joined = " ".join(out["lines"])
+    assert "1 awaiting review" in joined, (
+        "pending money with no pending count reads as a bug in the thing that pays them"
+    )
+    assert "$75" in joined
+
+
+def test_a_line_with_nothing_pending_grows_no_extra_row():
+    """The sub-row is information, not decoration: a settled line must not carry
+    an empty '0 awaiting review' under it."""
+    ledger = dict(_LEDGER,
+                  lines=[{"kind": "task", "label": "Tasks labeled", "count": 3,
+                          "rate_cents": 7500, "cents": 22500,
+                          "pending_count": 0, "pending_cents": 0}])
+    out = _run_node(_script({"/api/asclepius/earnings": ledger}, """
+var body = document.createElement('div');
+window.EarningsSection.render(body, ctx);
+done(function () {
+  console.log(JSON.stringify({ lines: find(body, 'asc-pay-line').map(textOf) }));
+});
+"""))
+    assert len(out["lines"]) == 1
+    assert "awaiting review" not in " ".join(out["lines"])

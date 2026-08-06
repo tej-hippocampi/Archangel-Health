@@ -6,6 +6,9 @@
   'use strict';
 
   const API_BASE = '/api/asclepius';
+  // Companion header on the credential-verification 403 (asclepius/auth.py
+  // AUTH_GATE_HEADER): 'pending' or 'rejected'.
+  const AUTH_GATE_HEADER = 'X-Asclepius-Auth-Gate';
   const TOKEN_KEY = 'asclepius_token';
   const DRAFT_PREFIX = 'asclepius_draft_';
   // Contributor's chosen evaluator experience: 'v1' classic | 'v2' assisted |
@@ -146,7 +149,15 @@
     }
     if (!res.ok) {
       const detail = data && typeof data === 'object' && 'detail' in data ? data.detail : data;
-      throw { status: res.status, detail, message: detailToMessage(detail, res.status) };
+      throw {
+        status: res.status,
+        detail,
+        message: detailToMessage(detail, res.status),
+        // 'pending' | 'rejected' on a credential-verification 403 (see
+        // asclepius/auth.py AUTH_GATE_HEADER); null for every other failure.
+        // Lets the caller pick the right screen without matching on prose.
+        authGate: res.headers.get(AUTH_GATE_HEADER),
+      };
     }
     return data;
   }
@@ -855,6 +866,38 @@
   };
 
   // ─── Auth / bootstrap ────────────────────────────────────────────────────--
+
+  /** The server's reason when an account exists but is not allowed in yet.
+   *
+   *  A 403 from `/auth/me` or `/taxonomy` is NOT a stale session. It is
+   *  `get_current_user` refusing a `pending` (awaiting credential verification)
+   *  or `rejected` account, and the backend already writes the sentence a
+   *  physician needs to read ("Your account is awaiting credential
+   *  verification — you'll hear from us within 24 hours."). Treating it like an
+   *  expired token — silently dropping the token and rendering a blank login
+   *  form — is how a normal, expected waiting state came to look like a broken
+   *  product. Returns `{state, message}` where `state` is 'pending' or
+   *  'rejected', or null when this is an ordinary auth failure the existing
+   *  paths should handle. */
+  function verificationGate(err) {
+    if (!err || err.status !== 403) return null;
+    const gate = err.authGate === 'pending' || err.authGate === 'rejected'
+      ? err.authGate : null;
+    // A 403 with no gate header is one of the other deny-by-default role gates
+    // (data_partner, buyer). Those are not a waiting state and must not be
+    // dressed as one — return null and let the caller show the plain message.
+    if (!gate) return null;
+    const detail = err.detail;
+    return {
+      state: gate,
+      message: (typeof detail === 'string' && detail.trim())
+        ? detail.trim()
+        : (gate === 'pending'
+          ? 'Your credentials are still being verified.'
+          : 'This account was not approved for the evaluator portal.'),
+    };
+  }
+
   async function boot() {
     // 1) Resume an existing Asclepius session if the stored token is still valid.
     if (state.token) {
@@ -867,9 +910,18 @@
         enterApp();
         return;
       } catch (e) {
+        // `/auth/me` succeeds and `/taxonomy` then 403s for a gated account, so
+        // the email is known here even though the boot did not complete.
+        const knownEmail = (state.user && state.user.email) || null;
         // Stale token (or transient): drop it and try the seamless paths.
         state.token = null;
+        state.user = null;
         try { localStorage.removeItem(TOKEN_KEY); } catch (_) { /* ignore */ }
+        // …unless the account is real and simply gated. SSO would mint a fresh
+        // token for the same account and hit the same 403, so falling through
+        // would just repeat the silence. Say why, and stop here.
+        const gate = verificationGate(e);
+        if (gate) { renderGated(gate, knownEmail); return; }
       }
     }
     // 2) Already signed into the doctor portal? Exchange that session for an
@@ -879,7 +931,15 @@
     //    the doctor-portal identity.
     let suppressSso = false;
     try { suppressSso = localStorage.getItem(SUPPRESS_SSO_KEY) === '1'; } catch (_) { suppressSso = false; }
-    if (!suppressSso && await trySsoLogin()) return;
+    if (!suppressSso) {
+      const sso = await trySsoLogin();
+      if (sso.entered) return;
+      // An SSO account is provisioned `pending` on purpose
+      // (routers/asclepius.py), so "we are still verifying you" is the NORMAL
+      // outcome for a clinician arriving from the doctor portal, not an edge
+      // case — and it gets the screen written for it, not a bare form.
+      if (sso.gate) { renderGated(sso.gate, sso.email); return; }
+    }
     // 3) Otherwise, fall back to the manual login form.
     renderLogin();
   }
@@ -887,10 +947,19 @@
   // Silent SSO: trade a doctor-portal token for an Asclepius session. Uses a raw
   // fetch (not api()) so a rejected probe doesn't trip the 401 session handler;
   // an unknown/expired doctor token just means "fall back to the login form".
+  //
+  // Returns {entered, gate, email}. `entered` is the old boolean — true means we
+  // are inside the app and the caller must stop. `gate` is set when the bridge
+  // failed for a reason the user can act on (today: the account is real but
+  // awaiting credential verification), and carries the state + the server's
+  // message. An ordinary "no doctor session / bad token" failure carries no
+  // gate and the login form renders bare, exactly as before.
+  const SSO_NO = { entered: false, gate: null, email: null };
+
   async function trySsoLogin() {
     let doctorToken = '';
     try { doctorToken = localStorage.getItem(DOCTOR_TOKEN_KEY) || ''; } catch (e) { doctorToken = ''; }
-    if (!doctorToken) return false;
+    if (!doctorToken) return SSO_NO;
     let res;
     try {
       res = await fetch(API_BASE + '/auth/sso', {
@@ -899,12 +968,12 @@
         body: JSON.stringify({ token: doctorToken }),
       });
     } catch (e) {
-      return false; // network error; let renderLogin() show the form
+      return SSO_NO; // network error; let renderLogin() show the form
     }
-    if (!res.ok) return false; // 401 (bad token) / 403 (no evaluator account)
+    if (!res.ok) return SSO_NO; // 401 (bad token) / 403 (no evaluator account)
     let data = null;
-    try { data = await res.json(); } catch (e) { return false; }
-    if (!data || !data.token) return false;
+    try { data = await res.json(); } catch (e) { return SSO_NO; }
+    if (!data || !data.token) return SSO_NO;
     state.token = data.token;
     state.user = data.user;
     try { localStorage.setItem(TOKEN_KEY, data.token); } catch (e) { /* ignore quota */ }
@@ -912,11 +981,22 @@
     try {
       await loadTaxonomy();
     } catch (e) {
-      return false;
+      // /auth/sso hands back 200 + a token WITHOUT running the verification
+      // gate, so a pending clinician gets a valid token and then 403s here.
+      // Leaving that token in localStorage made the next reload resume it, 403
+      // again, and land on the same blank form — the loop that made a normal
+      // waiting state look like a broken login. Drop it and carry the reason
+      // out to the caller.
+      const knownEmail = (state.user && state.user.email) || null;
+      state.token = null;
+      state.user = null;
+      state.taxonomy = null;
+      try { localStorage.removeItem(TOKEN_KEY); } catch (_) { /* ignore */ }
+      return { entered: false, gate: verificationGate(e), email: knownEmail };
     }
     renderHeader();
     enterApp();
-    return true;
+    return { entered: true, gate: null, email: null };
   }
 
   async function loadTaxonomy() {
@@ -986,7 +1066,10 @@
   }
 
   // ─── Login screen ────────────────────────────────────────────────────────--
-  function renderLogin(errorMsg) {
+  /** `tone` is 'error' (default) or 'notice'. A notice is a message about a
+   *  state the physician is legitimately in — "we are still verifying your
+   *  credentials" — not a failure they caused or can retry away. */
+  function renderLogin(errorMsg, tone) {
     // Defensive: the login screen is never behind the portal chrome. Every caller
     // already tears the rail down, but guarantee it here so a stray path can't
     // leave an orphaned rail over the sign-in form.
@@ -996,7 +1079,10 @@
     // it's a plain text field, not type=email (which would block a username).
     const emailInput = h('input', { class: 'asc-input', type: 'text', placeholder: 'you@hospital.org or username', autocomplete: 'username', required: 'required' });
     const pwInput = h('input', { class: 'asc-input', type: 'password', placeholder: '••••••••', autocomplete: 'current-password', required: 'required' });
-    const errBox = h('div', { class: 'asc-login-error', hidden: !errorMsg }, errorMsg || '');
+    const errBox = h('div', {
+      class: 'asc-login-error' + (tone === 'notice' ? ' asc-login-notice' : ''),
+      hidden: !errorMsg,
+    }, errorMsg || '');
     const submitBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-block asc-btn-lg', type: 'submit' }, 'Sign in');
 
     const form = h('form', {
@@ -1022,7 +1108,29 @@
           renderHeader();
           enterApp();
         } catch (err) {
-          errBox.textContent = err.message || 'Sign in failed';
+          // A pending account signing in with the RIGHT password has proved who
+          // they are — the only thing left is the wait, so send them to the
+          // screen that explains it rather than leaving them on a form they have
+          // already completed correctly. Every other failure stays inline.
+          const gate = verificationGate(err);
+          if (gate && gate.state === 'pending') {
+            const signedInEmail = (state.user && state.user.email)
+              || emailInput.value.trim() || null;
+            // The token was minted before the gate rejected the follow-up call;
+            // leaving it would make the next reload resume straight back into
+            // the same 403.
+            state.token = null;
+            state.user = null;
+            state.taxonomy = null;
+            try { localStorage.removeItem(TOKEN_KEY); } catch (_) { /* ignore */ }
+            renderGated(gate, signedInEmail);
+            return;
+          }
+          // A refused account is not waiting for anything: the answer is final
+          // and inline is the right place for it. Still a notice, not an alarm —
+          // pink in this palette means flag / PHI / critical.
+          errBox.classList.toggle('asc-login-notice', !!gate);
+          errBox.textContent = (gate && gate.message) || err.message || 'Sign in failed';
           errBox.removeAttribute('hidden');
           submitBtn.removeAttribute('disabled');
           submitBtn.textContent = 'Sign in';
@@ -1049,7 +1157,13 @@
         class: 'asc-btn-link', type: 'button', style: 'display:block;margin:14px auto 0',
         onClick: async () => {
           try { localStorage.removeItem(SUPPRESS_SSO_KEY); } catch (_) { /* ignore */ }
-          if (!(await trySsoLogin())) renderLogin('Could not resume your clinical session. Sign in above.');
+          const sso = await trySsoLogin();
+          // Prefer the server's reason ("awaiting credential verification") over
+          // the generic one: the clinician pressed this button deliberately, so
+          // "could not resume" would be the second time we told them nothing.
+          if (sso.entered) return;
+          if (sso.gate) renderGated(sso.gate, sso.email);
+          else renderLogin('Could not resume your clinical session. Sign in above.');
         },
       }, 'Continue with my clinical portal session'));
     }
@@ -1063,6 +1177,105 @@
     );
     setRoot(h('div', { class: 'asc-login-wrap' }, card));
     setTimeout(() => emailInput.focus(), 30);
+  }
+
+  // ─── Awaiting verification ───────────────────────────────────────────────--
+  //
+  // The waiting state, as a screen.
+  //
+  // A `pending` physician cannot enter the portal at all — the verification gate
+  // lives in `get_current_user`, so /auth/me and /taxonomy both 403 and no
+  // in-app surface can render for them. The Guide's `awaiting-verification`
+  // section was therefore unreachable no matter what `public_user()` returned:
+  // the reader it was written for never gets far enough to open the Guide. So
+  // the section is rendered HERE, in the one place that user actually lands,
+  // from the same `manual-content.js` data the Guide reads — one copy of the
+  // words, and the gate is not weakened by a single line.
+  //
+  // Only for `pending`. A rejected account is not waiting for anything, and
+  // showing it "most decisions take one to two business days" would be a lie.
+  function awaitingVerificationSection() {
+    const manuals = window.ASC_MANUALS || {};
+    const order = [manuals.labeler, manuals.reviewer, manuals.advisor, window.ASC_MANUAL];
+    for (let i = 0; i < order.length; i++) {
+      const secs = (order[i] && order[i].sections) || [];
+      for (let j = 0; j < secs.length; j++) {
+        if (secs[j] && secs[j].id === 'awaiting-verification') return secs[j];
+      }
+    }
+    return null;
+  }
+
+  function renderAwaitingVerification(gate, email) {
+    teardownSidePanel();
+    document.getElementById('ascHeader').setAttribute('hidden', '');
+    const sec = awaitingVerificationSection();
+
+    const body = h('div', { class: 'asc-login-body' });
+    // The server's own sentence, first and unedited — it is the one that carries
+    // the timeframe the physician is actually waiting on.
+    body.appendChild(h('div', { class: 'asc-login-error asc-login-notice' },
+      gate.message));
+
+    if (sec) {
+      const rows = [['What', sec.what], ['Why', sec.why], ['What to do', sec.how]];
+      const dl = h('div', { class: 'asc-wait-rows' });
+      rows.forEach((r) => {
+        if (!r[1]) return;
+        dl.appendChild(h('div', { class: 'asc-wait-row' },
+          h('div', { class: 'asc-wait-row-label' }, r[0]),
+          h('div', { class: 'asc-wait-row-text' }, r[1])));
+      });
+      body.appendChild(dl);
+      (sec.detail || []).forEach((p) => {
+        body.appendChild(h('p', { class: 'asc-wait-detail' }, p));
+      });
+    }
+
+    if (email) {
+      body.appendChild(h('p', { class: 'asc-login-hint' },
+        'We will email ' + email + ' either way.'));
+    }
+
+    const again = h('button', {
+      class: 'asc-btn asc-btn-primary asc-btn-block asc-btn-lg', type: 'button',
+    }, 'Check again');
+    again.addEventListener('click', async () => {
+      again.setAttribute('disabled', '');
+      again.textContent = 'Checking…';
+      // boot() re-walks resume → SSO → login and lands back here if the answer
+      // has not changed. Nothing is cached, so this is a real re-check.
+      await boot();
+    });
+    body.appendChild(again);
+
+    const other = h('button', {
+      class: 'asc-btn-link', type: 'button', style: 'display:block;margin:14px auto 0',
+    }, 'Sign in with a different account');
+    other.addEventListener('click', () => {
+      // An explicit identity choice: suppress the silent SSO exactly as sign-out
+      // does, or the doctor-portal token pulls them straight back to this screen.
+      try { localStorage.setItem(SUPPRESS_SSO_KEY, '1'); } catch (_) { /* ignore */ }
+      renderLogin();
+    });
+    body.appendChild(other);
+
+    setRoot(h('div', { class: 'asc-login-wrap' },
+      h('div', { class: 'asc-login-card' },
+        h('div', { class: 'asc-login-head' },
+          h('div', { class: 'asc-login-mark', 'aria-hidden': 'true' }),
+          h('h1', {}, (sec && sec.title) || 'Your credentials are being verified'),
+          h('p', {}, 'Asclepius · Expert Evaluation Portal'),
+        ),
+        body)));
+  }
+
+  /** Route a gated 403 to the right screen: the waiting screen for `pending`,
+   *  the login form carrying the reason for `rejected` (there is no wait to
+   *  explain, and the account may not be the one they meant to use). */
+  function renderGated(gate, email) {
+    if (gate.state === 'pending') renderAwaitingVerification(gate, email);
+    else renderLogin(gate.message, 'notice');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1161,6 +1374,7 @@
 
     let data = { tasks: [] };
     let stats = null;
+    let queueError = null;
     try {
       const [tasksRes, statsRes] = await Promise.all([
         api('/tasks/available?portal_version=' + encodeURIComponent(ver)
@@ -1171,6 +1385,12 @@
       stats = statsRes;
     } catch (e) {
       if (e.status === 401) return;
+      // Everything else used to fall through to the empty state, so a 403, a
+      // 500 and a dead backend all rendered "You are all set. No cases to grade
+      // right now." — a reassuring sentence, with a checkmark, that is not true.
+      // "We could not load your queue" and "your queue is empty" are different
+      // facts and must never look the same to a physician.
+      queueError = e;
     }
     const tasks = data.tasks || [];
 
@@ -1183,7 +1403,9 @@
     const cols = h('div', { class: 'asc-dash-cols' });
     const main = h('div', { class: 'asc-dash-main' });
 
-    if (!tasks.length) {
+    if (queueError) {
+      main.appendChild(renderDashboardError(queueError));
+    } else if (!tasks.length) {
       main.appendChild(renderDashboardEmpty(specLabel));
     } else {
       main.appendChild(h('div', { class: 'asc-dash-hero' },
@@ -1295,6 +1517,27 @@
     } catch (e) {
       if (e.status !== 401) toast('Could not open that case: ' + e.message, 'error');
     }
+  }
+
+  /** The queue did not load. Say so — never a reassuring zero.
+   *
+   *  A 403 here is a real answer about this account (a tier not yet assigned,
+   *  a role that cannot label), so the server's own sentence is shown verbatim;
+   *  anything else is ours to explain. Either way the physician learns that the
+   *  number in front of them is not a number. */
+  function renderDashboardError(err) {
+    const gated = err && err.status === 403;
+    const detail = (err && (typeof err.detail === 'string' ? err.detail : err.message))
+      || 'The server did not respond.';
+    const retry = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm' }, 'Try again');
+    retry.addEventListener('click', renderDashboardView);
+    return h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-inline-error' },
+        h('strong', {}, gated
+          ? 'This account cannot draw cases right now.'
+          : 'Your case queue could not be loaded, so nothing below is a real number.'),
+        h('div', { style: 'margin-top:6px' }, detail)),
+      h('div', { style: 'margin-top:16px' }, retry));
   }
 
   function renderDashboardEmpty(specLabel) {
@@ -6306,12 +6549,118 @@
     exports: ['export', 'history'],
   };
 
+  // ─── Specialty resolution for an ingest upload ─────────────────────────────
+  //
+  // Ingest refuses to guess a specialty — a WRONG one routes the case to the
+  // wrong physician pool and mislabels it in the export, invisibly, and neither
+  // is visible again once the bundle ships. So an upload that declared none
+  // (every hospital-portal upload: the `hs-portal` sentinel has no upload-link
+  // row to inherit from) lands on the neutral 'general', and BOTH promote
+  // endpoints 409 on it.
+  //
+  // The resolver endpoint has existed the whole time with zero callers, so the
+  // 409 told the admin to use a control that did not exist and the workflow
+  // dead-ended. This is that control. It is defined ONCE here and handed to
+  // every surface that shows a Promote button, so the two admin screens cannot
+  // drift into disagreeing about how a specialty gets set.
+  let _specialtyOptions = null;
+  let _specialtyOptionsPromise = null;
+
+  function loadSpecialtyOptions() {
+    if (_specialtyOptions) return Promise.resolve(_specialtyOptions);
+    if (!_specialtyOptionsPromise) {
+      _specialtyOptionsPromise = api('/specialties').then((d) => {
+        _specialtyOptions = ((d && d.specialties) || [])
+          .filter((s) => s && s.enabled && s.specialty)
+          .map((s) => s.specialty);
+        return _specialtyOptions;
+      }).catch(() => {
+        // Never cache a failure: a transient blip must not leave the picker
+        // permanently empty for the rest of the session.
+        _specialtyOptionsPromise = null;
+        return [];
+      });
+    }
+    return _specialtyOptionsPromise;
+  }
+
+  /** A `<select>` + Set button that resolves an upload's specialty in place.
+   *
+   *  `onDone(specialty)` fires after the server confirms. The caller re-renders;
+   *  this helper owns only the control and its own error line. */
+  function specialtyResolver(uploadId, onDone) {
+    const wrap = h('span', { class: 'asc-spec-resolver' });
+    const sel = h('select', {
+      class: 'asc-input asc-spec-select',
+      'aria-label': 'Specialty for this upload',
+    }, h('option', { value: '' }, 'Loading specialties…'));
+    sel.setAttribute('disabled', '');
+    const setBtn = h('button', {
+      class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button', disabled: true,
+    }, 'Set specialty');
+    const err = h('span', { class: 'asc-spec-error', hidden: true });
+
+    loadSpecialtyOptions().then((options) => {
+      clear(sel);
+      if (!options.length) {
+        sel.appendChild(h('option', { value: '' }, 'No specialties available'));
+        err.textContent = 'Could not load the specialty list. Reload the page.';
+        err.removeAttribute('hidden');
+        return;
+      }
+      sel.appendChild(h('option', { value: '' }, 'Choose a specialty…'));
+      options.forEach((s) => sel.appendChild(
+        h('option', { value: s }, s.charAt(0).toUpperCase() + s.slice(1))));
+      sel.removeAttribute('disabled');
+    });
+
+    // The button is dead until a real choice is made — an operator cannot submit
+    // the placeholder and cannot type a value that is not in the registry.
+    sel.addEventListener('change', () => {
+      if (sel.value) setBtn.removeAttribute('disabled');
+      else setBtn.setAttribute('disabled', '');
+    });
+
+    setBtn.addEventListener('click', async () => {
+      const chosen = sel.value;
+      if (!chosen) return;
+      setBtn.setAttribute('disabled', '');
+      sel.setAttribute('disabled', '');
+      err.setAttribute('hidden', '');
+      setBtn.textContent = 'Setting…';
+      try {
+        const res = await api('/admin/uploads/' + encodeURIComponent(uploadId) + '/specialty',
+                              { method: 'POST', body: { specialty: chosen } });
+        toast(res.message || ('Specialty set to ' + chosen + '.'), 'success');
+        if (onDone) onDone(chosen);
+      } catch (e) {
+        err.textContent = e.detail || e.message || 'Could not set the specialty.';
+        err.removeAttribute('hidden');
+        sel.removeAttribute('disabled');
+        setBtn.removeAttribute('disabled');
+        setBtn.textContent = 'Set specialty';
+      }
+    });
+
+    wrap.appendChild(sel);
+    wrap.appendChild(setBtn);
+    wrap.appendChild(err);
+    return wrap;
+  }
+
+  // The one sentence an admin reads when Promote is off. Said the same way on
+  // every surface, because it is one fact.
+  const SPECIALTY_BLOCK_REASON =
+    'Specialty not set — choose one to promote. Promoting without it would label '
+    + 'these cases with a default that routes them to the wrong physician pool.';
+
   // Shared helpers handed to the section modules (admin_physicians.js,
   // admin_health.js, admin_export.js): they live in their own files (§3.3
   // ownership) and build DOM exclusively through this ctx.
   function adminSectionCtx() {
     return {
       h, api, clear, toast, loadingCard, downloadBlob, fmtDate,
+      specialtyResolver, specialtyBlockReason: SPECIALTY_BLOCK_REASON,
       // Jump to the pipeline tools (the ingestion review/promote surface),
       // deep-linked to the row that was clicked (C-5.2). The bucket buttons
       // always passed their upload; this used to ignore the argument and just
@@ -7090,28 +7439,61 @@
     eligible.forEach((u) => {
       const st = h('div', { style: 'margin-top:10px' });
       const ready = (u.ingested_case_count || 0) > 0;
-      // A blocking review reason keeps its cases out of promotion: show a
-      // "Held for review" marker in place of the button until it's cleared.
-      const action = ready
-        ? (() => {
-            const b = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Promote to V4 task');
-            b.addEventListener('click', () => openPromoteReview(u, st));
-            return b;
-          })()
-        : h('span', { class: 'asc-badge asc-badge-accent', title: 'A case in this upload is held for admin review: clear it in Partner uploads above.' }, 'Held for review');
+      // Why the server would refuse, decided by the server (see _promote_block in
+      // routers/asclepius.py). A button that is clickable into a 409 is a button
+      // that lies about what it does, so a blocked upload gets a disabled control
+      // carrying the actual reason — and, where the reason is a fixable one, the
+      // control that fixes it.
+      const block = u.promote_block || null;
+      let action;
+      if (block && block.reason === 'brokering') {
+        // Brokering never gets a Promote button at all: the server refusing is
+        // the enforcement, and this is the affordance. A design that relies on
+        // only one of the two is a design that eventually promotes one by
+        // accident (PRD-I §5).
+        action = h('span', { class: 'asc-badge asc-badge-gray', title: block.message }, 'Brokering');
+      } else if (!ready) {
+        action = h('span', { class: 'asc-badge asc-badge-accent', title: 'A case in this upload is held for admin review: clear it in Partner uploads above.' }, 'Held for review');
+      } else if (block) {
+        action = h('button', {
+          class: 'asc-btn asc-btn-primary asc-btn-sm', disabled: true, title: block.message,
+        }, 'Promote to V4 task');
+      } else {
+        const b = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Promote to V4 task');
+        b.addEventListener('click', () => openPromoteReview(u, st));
+        action = b;
+      }
+
       const sub = ready
         ? (u.ingested_case_count || 0) + ' case(s) ready · uploaded ' + fmtDate(u.created_at)
         : 'Held for review · uploaded ' + fmtDate(u.created_at);
-      listBox.appendChild(h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
+      const info = h('div', {},
+        h('strong', {}, (u.partner_label || u.partner_id || 'partner')),
+        h('div', { class: 'asc-card-sub asc-mono' }, u.filename || ''),
+        h('div', { class: 'asc-card-sub' }, sub));
+      if ((u.specialties || []).length) {
+        info.appendChild(h('div', { class: 'asc-card-sub' },
+          'Specialty: ' + u.specialties.join(', ')));
+      }
+
+      const row = h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
         h('div', { style: 'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center' },
-          h('div', {},
-            h('strong', {}, (u.partner_label || u.partner_id || 'partner')),
-            h('div', { class: 'asc-card-sub asc-mono' }, u.filename || ''),
-            h('div', { class: 'asc-card-sub' }, sub)),
+          info,
           h('div', { style: 'display:flex;gap:8px;align-items:center' },
             h('span', { class: 'asc-badge-real' }, 'real · V4'),
-            action)),
-        st));
+            action)));
+      // The reason, inline and unmissable — a disabled button with only a
+      // tooltip is a dead end for anyone who does not hover it.
+      if (block && block.reason === 'specialty') {
+        row.appendChild(h('div', { class: 'asc-promote-block' },
+          h('div', { class: 'asc-promote-block-why' }, block.message),
+          specialtyResolver(u.upload_id, () => loadIngestionLists())));
+      } else if (block && block.reason !== 'brokering' && ready) {
+        row.appendChild(h('div', { class: 'asc-promote-block' },
+          h('div', { class: 'asc-promote-block-why' }, block.message)));
+      }
+      row.appendChild(st);
+      listBox.appendChild(row);
     });
   }
 

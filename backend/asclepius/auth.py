@@ -104,6 +104,14 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         "specialty": user.get("specialty"),
         "board_cert": user.get("board_cert"),
         "years_experience": user.get("years_experience"),
+        # PRD-B credential verification state: NULL (pre-verification-era account),
+        # 'pending', 'approved' or 'rejected'. The portal needs this to explain the
+        # wait — the Guide's `awaiting-verification` section is gated on
+        # `showWhen: 'pending'` and could never match while this key was absent, so
+        # the one screen written to tell a waiting physician what is happening was
+        # unreachable for every user in every state. Display truth only; the gate
+        # itself is get_current_user below.
+        "verification_status": user.get("verification_status"),
         # V4 access gate (EHR PRD §9.5): the client uses this to show the
         # "V4 · Real Cases" box unlocked/locked. Serving is enforced server-side
         # regardless — this is display truth, not the gate itself.
@@ -135,6 +143,12 @@ def _parse_tutorial(raw: Any) -> Dict[str, Any]:
 
 
 # ─── FastAPI dependencies ─────────────────────────────────────────────────────
+
+# Machine-readable companion to the credential-verification 403 below. Values are
+# exactly the stored statuses: "pending" or "rejected".
+AUTH_GATE_HEADER = "X-Asclepius-Auth-Gate"
+
+
 def _bearer(authorization: Optional[str]) -> Optional[str]:
     if not authorization or not authorization.lower().startswith("bearer "):
         return None
@@ -197,6 +211,15 @@ def get_current_user(
                 if status == "pending"
                 else "This account was not approved for the evaluator portal."
             ),
+            # The portal has to tell these two states apart to show the right
+            # screen — a waiting physician gets "here is what is happening and
+            # how long it takes", a refused one must not. Prose is not a
+            # protocol: matching on the detail string would break the moment the
+            # copy is edited. The state travels in a header so `detail` keeps its
+            # shape for every existing consumer. Same-origin by construction (the
+            # portal is served by this app); a client that cannot read it falls
+            # back to showing `detail` alone, which is still correct.
+            headers={AUTH_GATE_HEADER: status},
         )
     return user
 
@@ -395,6 +418,9 @@ def seed_default_admin(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
                 board_cert="board_certified_nephrology",
                 years_experience=12,
                 organization="Riverside Nephrology Associates",
+                # "makes the eval screen usable immediately" is only true if the
+                # account can draw a task: LABEL is enforced at /tasks/next.
+                tier="labeler",
             )
             _seed_demo_contributors(store, demo)
         except Exception:

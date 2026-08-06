@@ -50,6 +50,10 @@ def _admin():
 
 
 def _physician(**kw):
+    # tier=None by default: every test here is about a physician BEFORE a
+    # tier decision. make_user now mints a realistic approved contributor
+    # (LABEL is enforced), so the un-decided state has to be asked for.
+    kw.setdefault("tier", None)
     return A.make_user(asc_store.get_store(), role="evaluator",
                        specialty="nephrology", board_cert="board_certified_nephrology",
                        years_experience=22, **kw)
@@ -63,6 +67,11 @@ def _approve_via_b(admin_h, user_id, tier):
 
 
 def _labeled_submission(admin_h, labeler):
+    # Submitting requires the LABEL capability, which comes from the tier — so
+    # the physician producing this submission has to be approved first. Done
+    # through B's REAL approval route, per this file's rule: nothing is
+    # hand-stitched, no direct ``UPDATE users SET tier``.
+    assert _approve_via_b(admin_h, labeler["id"], "labeler").status_code == 200
     body = {
         "specialty": "nephrology", "difficulty": "hard", "max_labels": 1,
         "prompt": f"Hyperkalemia case {A.uniq(8)}?",

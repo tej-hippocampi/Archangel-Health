@@ -1310,6 +1310,34 @@ STATUS_WORDS = {
 }
 
 
+def _line(
+    totals: Dict[str, Any], kind: str, label: str, rate_cents: int
+) -> Dict[str, Any]:
+    """One breakdown row: what has settled, and what is still in review.
+
+    APPROVED and PAID are both "earned and not in doubt" from the doctor's side,
+    so they make up the settled half. ACCRUED is submitted work awaiting review —
+    real, countable, and not yet money. VOID is excluded from both: it is
+    reported on its own row with the reason attached, never folded into a total.
+    """
+
+    def _n(status: str) -> int:
+        return int(totals.get(status, {}).get(kind, {}).get("n", 0))
+
+    def _c(status: str) -> int:
+        return int(totals.get(status, {}).get(kind, {}).get("cents", 0))
+
+    return {
+        "kind": kind,
+        "label": label,
+        "count": _n(APPROVED) + _n(PAID),
+        "rate_cents": rate_cents,
+        "cents": _c(APPROVED) + _c(PAID),
+        "pending_count": _n(ACCRUED),
+        "pending_cents": _c(ACCRUED),
+    }
+
+
 def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
     """Everything the Earnings page shows, for ONE physician.
 
@@ -1334,9 +1362,6 @@ def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
 
     def _cents(status: str) -> int:
         return sum(v["cents"] for v in totals.get(status, {}).values())
-
-    def _count(status: str, kind: str) -> int:
-        return int(totals.get(status, {}).get(kind, {}).get("n", 0))
 
     # PAID is money that has actually left the building; it belongs in the
     # headline alongside APPROVED, because from the doctor's side both are
@@ -1381,21 +1406,18 @@ def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
         "unpaid_cents": unpaid_cents,
         "pending_cents": _cents(ACCRUED),
         "void_cents": _cents(VOID),
+        # Each line reports SETTLED work and PENDING work separately.
+        #
+        # `count` used to be APPROVED+PAID only, while `pending_cents` above
+        # counts ACCRUED — and a task accrues the moment it is submitted and only
+        # settles after review. So the first thing a new labeler ever saw was
+        # "$75 pending" sitting beside "Tasks labeled: 0", which reads as a bug in
+        # the thing that pays them. The counts now come from the same states as
+        # the money beside them, and the pending half is carried explicitly rather
+        # than being left for the reader to reconcile.
         "lines": [
-            {
-                "kind": KIND_TASK, "label": "Tasks labeled",
-                "count": _count(APPROVED, KIND_TASK) + _count(PAID, KIND_TASK),
-                "rate_cents": tl_rate_cents(),
-                "cents": (totals.get(APPROVED, {}).get(KIND_TASK, {}).get("cents", 0)
-                          + totals.get(PAID, {}).get(KIND_TASK, {}).get("cents", 0)),
-            },
-            {
-                "kind": KIND_REVIEW_SESSION, "label": "Review sessions",
-                "count": _count(APPROVED, KIND_REVIEW_SESSION) + _count(PAID, KIND_REVIEW_SESSION),
-                "rate_cents": tr_session_cents(),
-                "cents": (totals.get(APPROVED, {}).get(KIND_REVIEW_SESSION, {}).get("cents", 0)
-                          + totals.get(PAID, {}).get(KIND_REVIEW_SESSION, {}).get("cents", 0)),
-            },
+            _line(totals, KIND_TASK, "Tasks labeled", tl_rate_cents()),
+            _line(totals, KIND_REVIEW_SESSION, "Review sessions", tr_session_cents()),
         ],
         "recent": recent,
         # Present so the page can say, honestly, "you are not paid per task" to an

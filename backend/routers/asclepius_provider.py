@@ -471,6 +471,14 @@ async def provider_upload(
         sha256=digest, size_bytes=len(data), raw_path=raw_path,
         source_ip=(request.client.host if request.client else None),
     )
+    # The fourth upload door, recording its provenance like the other three: it
+    # names the authorizing ROW (this account) and the store joins everything
+    # derived from it, server-side. Deliberately NOT a setter — this door is given
+    # no way to express what it is handing over, which is what PRD-I §3.3 (and
+    # tests/test_purpose_isolation.py) require of provider-reachable code. Before
+    # this call the door recorded nothing at all, and the admin side had to guess.
+    store.attach_upload_provenance(upload["upload_id"],
+                                   provider_id=provider_user["id"])
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
                     event_type="upload_received", actor=provider_user["id"],
                     payload={"partner_id": provider_user["id"], "sha256": digest,

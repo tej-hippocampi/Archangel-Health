@@ -410,6 +410,49 @@
   border-radius: 50%;
   background: var(--pink);
 }
+/* A sign-in message that is NOT a failure. "Your credentials are being
+   verified — you'll hear from us within 24 hours" is the expected state for a
+   new physician, and pink in this palette means flag / PHI / critical: dressing
+   a normal wait as an incident is how the waiting state came to read as a
+   broken login. Lime is the repo's "needs attention / in progress" accent. */
+.asc-login-error.asc-login-notice { border-color: var(--lime-line); }
+.asc-login-error.asc-login-notice::before { background: var(--lime); }
+
+/* Awaiting-verification screen: the Guide's waiting-state section rendered in
+   the one place the physician it was written for can actually reach. Same card
+   chrome as sign-in — this IS part of the sign-in flow, not a separate product. */
+.asc-wait-rows {
+  border-top: 1px solid var(--asc-line);
+  margin-top: 4px;
+}
+.asc-wait-row {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--asc-line);
+}
+.asc-wait-row-label {
+  flex: 0 0 84px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--asc-muted);
+  padding-top: 2px;
+}
+.asc-wait-row-text {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.asc-wait-detail {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--asc-text);
+}
+.asc-wait-rows + .asc-wait-detail { margin-top: 14px; }
+.asc-wait-detail + .asc-btn { margin-top: 18px; }
+
 .asc-login-hint {
   margin-top: 16px;
   font-size: 12px;
@@ -2890,6 +2933,18 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
   border-bottom: 1px solid var(--asc-line);
 }
 .asc-pay-line-label { font-size: 13px; color: var(--asc-text); }
+/* Submitted, not yet reviewed: subordinate to the line it belongs under, and
+   not money yet — so it reads as a sub-row rather than a second earning. */
+.asc-pay-line-pending {
+  padding: 6px 0 12px;
+  border-bottom: 1px solid var(--asc-line);
+}
+.asc-pay-line-pending .asc-pay-line-label,
+.asc-pay-line-pending .asc-pay-line-total {
+  color: var(--asc-muted);
+  font-size: 12px;
+}
+.asc-pay-line-pending .asc-pay-line-label { padding-left: 8px; }
 .asc-pay-line-count {
   font-family: var(--mono);
   font-size: 12px;
@@ -3109,3 +3164,51 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
   white-space: nowrap;
 }
 .asc-session-note { font-size: var(--t-sm); color: var(--ink-soft); }
+
+/* ═══════════════════════════════════════════════════════════
+   Promote gate: the reason, and the control that clears it
+
+   A Promote button that is clickable into a 409 is a button that
+   lies about what it does. Where the server would refuse, the
+   button is disabled and the reason renders HERE, inline — a
+   tooltip on a dead button is a dead end for anyone who does not
+   hover it. Lime, not pink: an unset specialty is a work item,
+   not a flag. Pink in this palette means PHI / critical.
+   ═══════════════════════════════════════════════════════════ */
+.asc-promote-block {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--card-in);
+  border: 1px solid var(--lime-line);
+  border-radius: var(--r-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.asc-promote-block-why {
+  flex: 1 1 260px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.asc-spec-resolver {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.asc-spec-select {
+  width: auto;
+  min-width: 180px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  font-size: 13px;
+}
+.asc-spec-error {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--asc-text);
+  border-left: 2px solid var(--pink);
+  padding-left: 8px;
+}
