@@ -20,6 +20,34 @@ from asclepius.ingest_notify import _run_coro
 log = logging.getLogger("asclepius.task_notify")
 
 
+def _int_env(name: str, default: int) -> int:
+    try:
+        return max(1, int(os.getenv(name, str(default)).strip()))
+    except (TypeError, ValueError):
+        return default
+
+
+# Delivery tunables (env-overridable). Rows are claimed in pages of
+# ``DRAIN_BATCH``; a single drain sends at most ``DRAIN_MAX_ROWS`` before
+# yielding (the periodic drain / next trigger continues the rest). A send that
+# fails is retried up to ``MAX_ATTEMPTS`` times; a claimed row whose drain
+# crashed is re-claimable after ``LEASE_SECONDS``.
+def _max_attempts() -> int:
+    return _int_env("TASK_NOTIFY_MAX_ATTEMPTS", 5)
+
+
+def _lease_seconds() -> int:
+    return _int_env("TASK_NOTIFY_LEASE_SECONDS", 300)
+
+
+def _drain_batch() -> int:
+    return _int_env("TASK_NOTIFY_DRAIN_BATCH", 200)
+
+
+def _drain_max_rows() -> int:
+    return _int_env("TASK_NOTIFY_DRAIN_MAX_ROWS", 5000)
+
+
 def _app_base() -> str:
     return (os.getenv("BASE_URL") or "http://localhost:8000").strip().rstrip("/")
 
@@ -49,91 +77,113 @@ def _counts_by_specialty(created_tasks: List[Dict[str, Any]]) -> Dict[str, int]:
 
 def enqueue_for_batch(store: Any, *, batch_id: str, created_tasks: List[Dict[str, Any]]) -> int:
     """Group ``created_tasks`` (each ``{"task_id":..., "specialty":...}``) by
-    specialty, then enqueue ONE outbox row per matching evaluator per specialty
-    (task_count = how many new tasks in that specialty this batch). Never
+    specialty, resolve matching evaluators, and enqueue ONE outbox row per
+    (evaluator, specialty) in a SINGLE bulk transaction (task_count = how many
+    new tasks in that specialty this batch). Returns rows enqueued. Never
     raises — a notify problem must not break task upload."""
     try:
         counts = _counts_by_specialty(created_tasks)
-        enqueued = 0
+        rows: List[Dict[str, Any]] = []
+        seen_keys: set = set()
         for specialty, task_count in counts.items():
-            recipients = store.list_evaluators_by_specialty(specialty)
-            for user in recipients:
+            for user in store.list_evaluators_by_specialty(specialty):
                 email = (user.get("email") or "").strip()
                 if not email:
                     continue
                 key = _idempotency_key(batch_id=batch_id, specialty=specialty, recipient_email=email)
-                row_id = store.enqueue_task_notification(
-                    idempotency_key=key,
-                    batch_id=batch_id,
-                    specialty=specialty,
-                    task_count=task_count,
-                    recipient_user_id=user.get("id"),
-                    recipient_email=email,
-                )
-                if row_id is not None:
-                    enqueued += 1
-        return enqueued
+                if key in seen_keys:  # a user mapped twice within one batch build
+                    continue
+                seen_keys.add(key)
+                rows.append({
+                    "idempotency_key": key,
+                    "batch_id": batch_id,
+                    "specialty": specialty,
+                    "task_count": task_count,
+                    "recipient_user_id": user.get("id"),
+                    "recipient_email": email,
+                })
+        return store.enqueue_task_notifications_bulk(rows)
     except Exception as exc:  # pragma: no cover - defensive; never break task upload
         log.warning("task_notify: enqueue_for_batch(batch_id=%s) failed: %s", batch_id, exc)
         return 0
 
 
-def drain_outbox(store: Any, *, limit: int = 500) -> Tuple[int, int]:
-    """Send every ``pending`` outbox row (up to ``limit``). Returns
-    ``(sent_count, failed_count)``. Never raises."""
+def _send_one(store: Any, row: Dict[str, Any], *, workspace_url: str) -> bool:
+    """Send a single claimed row and mark it sent/failed. Returns True on send."""
+    from email_utils import send_html_email_with_reason
+    from onboarding_emails import build_asclepius_task_notification_email
+
+    row_id = row["id"]
+    email = row["recipient_email"]
+    label = _specialty_label(row["specialty"])
+    count = int(row["task_count"])
+    try:
+        html_body = build_asclepius_task_notification_email(
+            specialty_label=label, task_count=count, workspace_url=workspace_url,
+        )
+        subject = (
+            f"{count} new {label} {'task' if count == 1 else 'tasks'} "
+            "ready in your Asclepius workspace"
+        )
+        ok, reason = _run_coro(send_html_email_with_reason(email, subject, html_body))
+    except Exception as exc:  # pragma: no cover - defensive per-row
+        log.warning("task_notify: send row %s raised: %s", row_id, exc)
+        ok, reason = False, str(exc)
+
+    if ok:
+        store.mark_task_notification_sent(row_id)
+        store.log_event(
+            entity_type="task_notify", entity_id=str(row_id),
+            event_type="task_notification_sent",
+            payload={
+                "batch_id": row["batch_id"], "specialty": row["specialty"],
+                "task_count": count,
+                "recipient_domain": email.split("@")[-1] if "@" in email else None,
+            },
+        )
+        return True
+    store.mark_task_notification_failed(row_id, reason or "email transport failed")
+    store.log_event(
+        entity_type="task_notify", entity_id=str(row_id),
+        event_type="task_notification_failed",
+        payload={"batch_id": row["batch_id"], "specialty": row["specialty"],
+                 "reason": reason, "send_attempts": row.get("send_attempts")},
+    )
+    return False
+
+
+def drain_outbox(store: Any, *, max_rows: int | None = None) -> Tuple[int, int]:
+    """Drain the outbox until empty (or ``max_rows`` sent this call), claiming
+    rows atomically in pages so concurrent drains never double-send. Returns
+    ``(sent_count, failed_count)``. Never raises.
+
+    Each claimed row is marked 'sent' on success or 'failed' on transport
+    failure; a failed row is retried by a later claim while under the attempt
+    cap, then becomes a terminal dead-letter. A drain that dies mid-page leaves
+    its rows 'sending', reclaimed after the lease — so nothing is lost."""
     sent = 0
     failed = 0
+    cap = max_rows or _drain_max_rows()
+    page = _drain_batch()
+    max_attempts = _max_attempts()
+    lease = _lease_seconds()
     try:
-        from email_utils import send_html_email_with_reason
-        from onboarding_emails import build_asclepius_task_notification_email
-
         workspace_url = _workspace_url()
-        for row in store.list_pending_task_notifications(limit=limit):
-            row_id = row["id"]
-            email = row["recipient_email"]
-            try:
-                html_body = build_asclepius_task_notification_email(
-                    specialty_label=_specialty_label(row["specialty"]),
-                    task_count=int(row["task_count"]),
-                    workspace_url=workspace_url,
-                )
-                subject = (
-                    f"{row['task_count']} new {_specialty_label(row['specialty'])} "
-                    f"{'task' if row['task_count'] == 1 else 'tasks'} ready in your Asclepius workspace"
-                )
-                ok, reason = _run_coro(
-                    send_html_email_with_reason(email, subject, html_body)
-                )
-                if ok:
-                    store.mark_task_notification_sent(row_id)
-                    store.log_event(
-                        entity_type="task_notify", entity_id=str(row_id),
-                        event_type="task_notification_sent",
-                        payload={
-                            "batch_id": row["batch_id"], "specialty": row["specialty"],
-                            "task_count": row["task_count"],
-                            "recipient_domain": email.split("@")[-1] if "@" in email else None,
-                        },
-                    )
+        processed = 0
+        while processed < cap:
+            claimed = store.claim_task_notifications(
+                limit=min(page, cap - processed),
+                max_attempts=max_attempts,
+                lease_seconds=lease,
+            )
+            if not claimed:
+                break
+            for row in claimed:
+                if _send_one(store, row, workspace_url=workspace_url):
                     sent += 1
                 else:
-                    store.mark_task_notification_failed(row_id, reason or "email transport failed")
-                    store.log_event(
-                        entity_type="task_notify", entity_id=str(row_id),
-                        event_type="task_notification_failed",
-                        payload={
-                            "batch_id": row["batch_id"], "specialty": row["specialty"],
-                            "reason": reason,
-                        },
-                    )
                     failed += 1
-            except Exception as exc:  # pragma: no cover - defensive per-row
-                log.warning("task_notify: drain row %s failed: %s", row_id, exc)
-                try:
-                    store.mark_task_notification_failed(row_id, str(exc))
-                except Exception:
-                    pass
-                failed += 1
+                processed += 1
         return sent, failed
     except Exception as exc:  # pragma: no cover - defensive; never break the caller
         log.warning("task_notify: drain_outbox failed: %s", exc)
