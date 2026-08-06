@@ -86,8 +86,196 @@
     if (rootEl && rootCtx) render(rootEl, rootCtx);
   }
 
+  /* ─── PRD-CRED · model health + fairness monitor (PRD C §5.2, §6) ──────────
+   * Rendered ABOVE the queue, collapsed, because it is not what an admin came
+   * here to do — but it has to be somewhere they will see it weekly.
+   *
+   * Two things live here that nothing else in the product can tell you:
+   *
+   *  1. The per-batch weight delta. §8: "a model that silently stops updating
+   *     looks exactly like a model that has converged." The drift column is the
+   *     only cheap way to tell those apart from a screen.
+   *  2. The four-fifths fairness comparison. It reads a table that carries no
+   *     user ids at all — voluntary self-reported demographics under an HMAC
+   *     pseudonym, with the decided tier copied in at decision time. That is
+   *     what makes the monitor possible without making the model able to see it.
+   *
+   * Mounted here rather than as a new sub-tab because the shell's tab list
+   * lives in asclepius.js, which is outside Agent C's write allowlist.
+   */
+  function renderModelHealth(container, ctx) {
+    const { h, api } = ctx;
+    const box = h('details', { class: 'asc-card' });
+    const body = h('div', { class: 'asc-card-pad' });
+    box.appendChild(h('summary', { class: 'asc-card-pad' },
+      'Model health · learning loop + fairness monitor'));
+    box.appendChild(body);
+    container.appendChild(box);
+
+    let loaded = false;
+    box.addEventListener('toggle', function () {
+      if (!box.open || loaded) return;
+      loaded = true;
+      Promise.all([
+        api('/verify/tiering-weights'),
+        api('/verify/fairness'),
+      ]).then(function (res) {
+        renderModelHealthBody(body, ctx, res[0], res[1]);
+      }).catch(function (e) {
+        clearNode(body);
+        // AUDIT UI: `asc-inline-error` (soft, recoverable) not `asc-error` (loud, blocking).
+        // The two are visually distinct and the file was using them interchangeably. The
+        // split that makes them mean something: inline = "this panel failed, the page is
+        // fine, try again"; asc-error = "a module did not load and physicians cannot be
+        // approved until someone fixes the deploy". A failed metrics fetch is the first.
+        body.appendChild(h('div', { class: 'asc-inline-error' },
+          'Could not load model health: ' + e.message));
+      });
+    });
+  }
+
+  // AUDIT UI: a real table, not space-padded strings in <div>s.
+  //
+  // The previous version emitted `'PINNED  ' + w.feature + '  m=' + …` into `vq-reason`,
+  // which is not a mono face — so the padding aligned nothing and the numbers did not sit in
+  // a column. `.asc-table` already sets `font-variant-numeric: tabular-nums` and `.asc-mono`
+  // exists. This is the screen where you prove to yourself, and to a regulator, that the
+  // model is behaving; it should be the easiest screen in the product to read, not the
+  // hardest.
+  function table(h, headers, rows) {
+    const thead = h('thead', {}, h('tr', {}, headers.map(function (t) {
+      return h('th', {}, t);
+    })));
+    const tbody = h('tbody', {}, rows.map(function (r) {
+      return h('tr', r.attrs || {}, (r.cells || r).map(function (c) {
+        return h('td', c && c.attrs ? c.attrs : {}, c && c.text !== undefined ? c.text : c);
+      }));
+    }));
+    return h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+      thead, tbody));
+  }
+
+  function num(v, digits, signed) {
+    if (v === null || v === undefined || isNaN(v)) return '—';
+    const s = Number(v).toFixed(digits === undefined ? 3 : digits);
+    return signed && v >= 0 ? '+' + s : s;
+  }
+
+  function renderModelHealthBody(body, ctx, weights, fairness) {
+    const { h } = ctx;
+    clearNode(body);
+
+    body.appendChild(h('div', { class: 'vq-section-label' },
+      'Tier weights — posterior vs the rule it started from'));
+    body.appendChild(h('div', { class: 'vq-attempt' },
+      (weights.pending_decisions || 0) + ' decision(s) not yet folded in · '
+      + 'each batch may move any weight by at most ' + weights.max_delta_per_batch
+      + ' · sd should shrink as decisions arrive; if it stops while decisions keep '
+      + 'coming, the loop is dead rather than converged'));
+
+    let pinnedMoved = false;
+    const weightRows = (weights.weights || []).map(function (w) {
+      // A pinned row that has drifted is the single most serious thing this page can show,
+      // so it is the only thing on it painted pink. A large drift on an UNPINNED weight is
+      // the system working.
+      const broken = w.pinned && Math.abs(w.drift) > 0;
+      if (broken) pinnedMoved = true;
+      return {
+        attrs: broken ? { class: 'vq-flag' } : {},
+        cells: [
+          { text: w.feature, attrs: { class: 'asc-mono' } },
+          w.pinned ? 'pinned' : '',
+          { text: num(w.m), attrs: { class: 'asc-mono' } },
+          { text: num(w.drift, 3, true), attrs: { class: 'asc-mono' } },
+          { text: num(w.sd), attrs: { class: 'asc-mono' } },
+        ],
+      };
+    });
+    body.appendChild(table(h, ['Feature', '', 'm', 'Drift', 'sd'], weightRows));
+    if (pinnedMoved) {
+      body.appendChild(h('div', { class: 'vq-flag' },
+        'A PINNED weight has moved. It must be exactly 0.000 forever. Stop applying '
+        + 'batches and investigate before any further tier decision is recorded.'));
+    }
+
+    body.appendChild(h('div', { class: 'vq-section-label' },
+      'Reviewer selection rate by voluntary self-report — four-fifths rule'));
+    const dims = fairness.dimensions || {};
+    if (!Object.keys(dims).length) {
+      body.appendChild(h('div', { class: 'vq-attempt' },
+        'No self-reported demographics on file yet. The monitor needs volunteers, not '
+        + 'inference — nothing here is derived from a name, a school, or a region.'));
+    }
+    Object.keys(dims).sort().forEach(function (dim) {
+      body.appendChild(h('div', { class: 'vq-reason' }, humanize(dim)));
+      const groups = dims[dim];
+      const rows = Object.keys(groups).sort().map(function (g) {
+        const r = groups[g];
+        const flagged = r.counted && r.impact_ratio !== null && r.impact_ratio < 0.8;
+        return {
+          attrs: flagged ? { class: 'vq-flag' } : {},
+          cells: [
+            humanize(g),
+            { text: String(r.n), attrs: { class: 'asc-mono' } },
+            { text: (r.rate * 100).toFixed(0) + '%', attrs: { class: 'asc-mono' } },
+            { text: r.impact_ratio === null ? '—' : num(r.impact_ratio, 2),
+              attrs: { class: 'asc-mono' } },
+            r.counted ? '' : 'below n=' + fairness.min_group_n + ', not alerted on',
+          ],
+        };
+      });
+      body.appendChild(table(h, ['Group', 'n', 'Reviewer rate', 'Impact ratio', ''], rows));
+    });
+    (fairness.alerts || []).forEach(function (a) {
+      body.appendChild(h('div', { class: 'vq-flag' }, a.message));
+    });
+
+    // AUDIT H2 — the per-feature breakdown. An outcome monitor tells you a gap exists; this
+    // tells you which feature opened it. structured_review_exp is the one to watch: it
+    // correlates with IMG status and national origin, both of which are pinned to zero, so
+    // it is the available route around the pin.
+    const byFeature = fairness.by_feature || {};
+    if (Object.keys(byFeature).length) {
+      body.appendChild(h('div', { class: 'vq-section-label' },
+        'Feature means by group — which feature carries the gap'));
+      Object.keys(byFeature).sort().forEach(function (dim) {
+        const groups = byFeature[dim];
+        const names = {};
+        Object.keys(groups).forEach(function (g) {
+          Object.keys(groups[g]).forEach(function (f) { names[f] = true; });
+        });
+        const features = Object.keys(names).sort();
+        const groupNames = Object.keys(groups).sort();
+        body.appendChild(h('div', { class: 'vq-reason' }, humanize(dim)));
+        body.appendChild(table(h, ['Feature'].concat(groupNames.map(humanize)),
+          features.map(function (f) {
+            return {
+              cells: [{ text: f, attrs: { class: 'asc-mono' } }].concat(
+                groupNames.map(function (g) {
+                  const cell = groups[g][f];
+                  return { text: cell ? num(cell.mean, 2) : '—',
+                           attrs: { class: 'asc-mono' } };
+                })),
+            };
+          })));
+      });
+      (fairness.feature_alerts || []).forEach(function (a) {
+        body.appendChild(h('div', { class: 'vq-flag' }, a.message));
+      });
+    }
+  }
+
+  // Dimension and group keys arrive as stored tokens (`race_ethnicity`, `prefer_not_to_say`).
+  // Rendering them raw is the same class of defect as rendering a raw tier token.
+  function humanize(key) {
+    return String(key || '').replace(/_/g, ' ').replace(/^./, function (c) {
+      return c.toUpperCase();
+    });
+  }
+
   function renderVerifyTab(container, ctx) {
     const { h } = ctx;
+    renderModelHealth(container, ctx);
     // PRD-B owns this global (Seam 1). Do not re-derive the name — an invented
     // name is the exact bug this replaced: for a whole build round this tab
     // probed a global nobody defined and quietly rendered a placeholder, while

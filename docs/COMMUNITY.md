@@ -86,10 +86,22 @@ message and deactivate (community-ban) a member.
 | `COMMUNITY_MAX_ATTACHMENT_BYTES` | `10485760` (10 MB) | Upload size cap |
 | `COMMUNITY_BLOCK_FLAG_THRESHOLD` | `3` | PHI-block count that raises the admin repeat-offender flag |
 | `COMMUNITY_DIGEST_INTERVAL_SEC` | `300` | Mention/announcement email digest flush interval |
+| `COMMUNITY_SPECIALTY_MIN_MEMBERS` | `3` | Verified members of a specialty required before its channel appears (v2) |
+| `COMMUNITY_EVENT_REMINDER_MIN` | `60` | Minutes before an event starts that interested members are emailed (v2.1) |
+| `COMMUNITY_NEWS_ENABLED` | `0` (off) | `1` starts the scheduled #medical-ai-news content loop (v2) |
+| `COMMUNITY_NEWS_FEEDS` | built-in reporter set | Comma-separated `key=url` RSS overrides (v2) |
+| `COMMUNITY_NEWS_KEYWORDS` | built-in AI-in-medicine list | Comma-separated keyword filter for reporter feeds (v2) |
+| `COMMUNITY_DIGEST_MAX_ITEMS` | `15` | Max stories per digest post (v2) |
+| `COMMUNITY_DIGEST_MAX_TOKENS` | `1200` | Token cap on the digest compose pass (v2) |
+| `COMMUNITY_DIGEST_NEWS_HOUR_UTC` | `13` | Daily news-digest fire hour (v2) |
+| `COMMUNITY_DIGEST_PAPERS_DOW` | `0` (Monday) | Weekly papers-digest day, Python weekday (v2) |
+| `PUBMED_API_KEY` | unset | Optional free NCBI key — raises the E-utilities rate cap (v2) |
 
 Shared prerequisites: `ASCLEPIUS_AUTH_SECRET` (stable JWT signing — required in
 production), the email transport config used by `email_utils.py`, and
-`PUBLIC_BASE_URL` for links in digest emails.
+`PUBLIC_BASE_URL` for links in digest emails. The content digests additionally
+need `ANTHROPIC_API_KEY` (curation runs on the small-model tier — pennies per
+run) — without it a digest run records a failure and posts nothing.
 
 ## Host packages required for attachment screening
 
@@ -117,9 +129,97 @@ text-layer PDFs, and all messaging work regardless.
   Send failures are logged and not retried (at-most-once by design).
 * **Retention**: messages are retained indefinitely unless an admin removes
   them; this is stated in the community footer.
-* **Channels are fixed** (v1): `#general`, `#task-announcements` (admin-post,
-  threaded replies open to all), `#questions-help`. Seeding is idempotent on
-  boot. Voice/video and user-created channels are deliberately out of scope.
+* **Channels are fixed in code** (v2, +#events in v2.1): core channels —
+  `#general`, `#introductions`, `#task-announcements` (admin-post, threaded
+  replies open), `#events` (admin-post; hosts the pinned event cards),
+  `#medical-ai-news` (bot/admin-post), `#research-and-opportunities`
+  (admin-post), `#future-of-medical-ai`, `#questions-help` — plus one channel
+  per ENABLED specialty, derived from `asclepius/specialties.py`. Seeding is
+  idempotent on boot; a slug removed from the config is DEACTIVATED (hidden
+  everywhere, history preserved), never deleted. Voice/video and user-created
+  channels remain deliberately out of scope.
+
+## Community v2 — bridge, taxonomy, bot, digests
+
+* **Verification gate bridge.** `_passes_gate` (and `member_map`) accept a
+  verified colleague from EITHER credentialing system: the Contributors-vault
+  flag (`contributor_credentials.credentials_verified`) OR the PRD-B admin
+  approval (`users.verification_status = 'approved'`). Before the bridge, a
+  queue-approved physician could not enter the community at all.
+* **Specialty channels are threshold-gated.** A specialty channel appears only
+  once ≥ `COMMUNITY_SPECIALTY_MIN_MEMBERS` verified non-staff members of that
+  specialty exist — and STICKS once it has messages (history is never hidden).
+  Visibility is global (identical for every member), computed per request in
+  `router.visible_channels`; a hidden channel 404s exactly like an unknown
+  slug and is excluded from unread counts and search scope.
+* **System author ("Archangel" bot).** `community/system_posts.py` posts as
+  the virtual `u-system` author (never a users row, never in the directory,
+  not DM-able; renders with an APP badge). The §7 PHI gate still runs on
+  every system post — a finding skips the post entirely (fail-closed, no 422).
+  System posts never trigger the announcement email blast; a welcome queues a
+  mention digest for the welcomed member only.
+* **Welcome on verification.** Queue approval (`asclepius_verify.approve_signup`)
+  and the vault-flag PUT both fire a one-time `#introductions` welcome
+  (`community/onboard.py`), idempotent via `users.slack_joined` (flag set
+  FIRST: the safe failure is a missed welcome, never a double-post), and
+  best-effort (a welcome failure never fails the decision). The approval
+  email gained a community paragraph.
+* **Content digests.** `community/feeds.py` (PubMed E-utilities, arXiv,
+  medRxiv, reporter RSS — all free) → keyword filter → persistent dedup
+  (`community_content_items`, normalized URL + 14-day title match) → two
+  Claude passes (select/score then compose; role `community_digest`, small
+  model tier) → one system post in `#medical-ai-news`. Runs are ledgered in
+  `community_digest_runs` (three-outcome `ok`); zero fresh items or zero kept
+  items = ok run, NO post; a parse failure fails the run and posts nothing;
+  3 consecutive failures log an `ADMIN ATTENTION` line. The scheduler
+  (daily news / weekly papers, restart-safe via the run ledger) ships OFF;
+  `POST /internal/community/run-digest?kind=news|papers` (Bearer
+  `INTERNAL_TOOL_SECRET`) fires a run on demand.
+* **Demo**: `backend/scripts/demo_community_v2.py` seeds a demo world
+  (mixed bridge/vault members across specialties, a pending physician for a
+  live approval, welcomes, chatter) — see its docstring for the runbook.
+
+## Community v2.1 — events, polls, pins, bookmarks, broadcasts
+
+A second additive pass. Store methods live in `community/store.py`; endpoints
+in a NEW router module `community/social.py` (mounted beside the core router);
+`.ics` + the reminder loop in `community/events.py`. `_serialize_messages`
+(router) enriches every message with its `poll`/`event` payload and a `pinned`
+flag, so all read paths render the cards consistently. New WS events
+(`event.*`, `poll.updated`, `pins.updated`, `bookmark.*`) fan out over the hub.
+New tables: `community_events`, `community_event_rsvps`, `community_polls`,
+`community_poll_options`, `community_poll_votes`, `community_pins`,
+`community_bookmarks`.
+
+* **Events** — a structured object (title / start / end / IANA timezone /
+  location-or-join-link / host), posted by an admin into the new `#events`
+  channel and rendered as a **pinned card** at the top; past events collapse
+  into a list below. Each event also gets a linked `kind='event'` message so it
+  threads (the card's **Discuss** opens it). The linked message deliberately
+  omits the calendar date (a full date trips the PHI exact-date rule; the card
+  renders it from the structured field). **RSVP** = a one-tap Interested
+  (count + list) that drives an **email reminder** `COMMUNITY_EVENT_REMINDER_MIN`
+  minutes before start (in-process loop in `startup_community`, at-most-once via
+  `reminded_at`, no-ops without email transport;
+  `POST /internal/community/run-event-reminders` fires a sweep on demand).
+  **Add-to-calendar** is integration-free: a Google Calendar template URL
+  (client-side) + a downloadable `.ics` (`GET /events/{id}/calendar.ics`).
+* **Polls** — any member posts a `kind='poll'` message (`POST /polls`) with 2–6
+  options; single-choice voting (a re-vote replaces), author/admin can close.
+  Results (counts, %, viewer's choice) ride the serialized message. Admin-post
+  channels gate poll creation to admins, same as chat.
+* **Pinned messages** — `POST/DELETE /messages/{id}/pin`, `GET /channels/{slug}/pins`.
+  A message serializes `pinned: bool`; the 📌 action pins, the header
+  "Pinned (n)" opens a side panel. A soft-delete drops the pin.
+* **Channel bookmarks** — a per-channel link bar (`community_bookmarks`,
+  http(s)-validated); any member adds, the adder or an admin removes.
+* **@channel / @here broadcast** — `@channel` is admin-only and **durable**: a
+  `*channel*` sentinel mention lights every member's badge (`unread_counts`
+  OR-matches it) and queues a `broadcast` email digest for all. `@here` is
+  open to any member and **ephemeral** (real-time only, no stored sentinel, no
+  email). Both render as a distinct pill. The demo seed
+  (`scripts/demo_community_v2.py`) now also plants an event, a poll, a pinned
+  message, two bookmarks, and a broadcast.
 
 ## Direct messages
 

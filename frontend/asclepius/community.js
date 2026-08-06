@@ -35,6 +35,10 @@
     editing: null,      // message id being edited inline
     emojiFor: null,     // message id with open emoji popover
     retention: '',
+    // v2.1 social surfaces
+    pins: {},           // channel slug -> [pinned message objects]
+    bookmarks: {},      // channel slug -> [{id,title,url,added_by}]
+    events: { upcoming: [], past: [], pastOpen: false, loadedFor: null },
   };
 
   const QUICK_EMOJI = ['👍', '✅', '🙌', '❤️', '😂', '🤔', '👀', '🎉'];
@@ -165,6 +169,9 @@
       const needle = '@' + esc(m.display_name);
       html = html.split(needle).join('<span class="cm-mention">' + needle + '</span>');
     }
+    // @channel / @here broadcast tokens render as a distinct pill.
+    html = html.replace(/(^|[\s(])@(channel|here)\b/gi,
+      '$1<span class="cm-broadcast-pill">@$2</span>');
     html = html.replace(/\u0000(\d+)\u0000/g, (m, i) =>
       (blocks[Number(i)] !== undefined ? blocks[Number(i)] : m));
     return html;
@@ -366,13 +373,12 @@
 
     const scrollBox = h('div', { class: 'cm-rail-scroll' });
 
-    // channels
-    const chSection = h('div', { class: 'cm-rail-section' },
-      h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Channels')));
-    for (const ch of state.channels) {
+    // channels — core, then threshold-activated specialty channels (the
+    // member's own specialty sorts first in its group)
+    const chanBtn = (ch) => {
       const unread = ch.unread || 0;
       const isActive = ch.slug === state.active;
-      chSection.appendChild(h('button', {
+      return h('button', {
         class: 'cm-chan' + (isActive ? ' active' : ''),
         'aria-current': isActive ? 'page' : null,
         onClick: () => openChannel(ch.slug),
@@ -382,9 +388,23 @@
         ch.post_policy === 'admin' ? h('span', { class: 'cm-chan-lock', title: 'Announcements — Archangel team posts, replies open in threads' }, 'ro') : null,
         unread > 0 && !isActive
           ? h('span', { class: 'cm-chan-unread' }, unread > 99 ? '99+' : String(unread))
-          : (unread > 0 ? h('span', { class: 'dot dot-lime', 'aria-label': 'unread' }) : null)));
-    }
+          : (unread > 0 ? h('span', { class: 'dot dot-lime', 'aria-label': 'unread' }) : null));
+    };
+    const coreChans = state.channels.filter((c) => (c.group || 'core') !== 'specialty');
+    const mySpec = ((state.me && state.me.specialty) || '').toLowerCase();
+    const specChans = state.channels.filter((c) => c.group === 'specialty')
+      .sort((a, b) => ((b.specialty || '').toLowerCase() === mySpec ? 1 : 0)
+                    - ((a.specialty || '').toLowerCase() === mySpec ? 1 : 0));
+    const chSection = h('div', { class: 'cm-rail-section' },
+      h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Channels')));
+    for (const ch of coreChans) chSection.appendChild(chanBtn(ch));
     scrollBox.appendChild(chSection);
+    if (specChans.length) {
+      const spSection = h('div', { class: 'cm-rail-section' },
+        h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Specialty')));
+      for (const ch of specChans) spSection.appendChild(chanBtn(ch));
+      scrollBox.appendChild(spSection);
+    }
 
     // direct messages (user-requested extension)
     const dmSection = h('div', { class: 'cm-rail-section' },
@@ -492,6 +512,18 @@
     });
     searchWrap.appendChild(input);
     head.appendChild(searchWrap);
+
+    // v2.1 channel affordances (not in DMs): pinned-count + bookmark bar.
+    if (!isDmKey(state.active)) {
+      const slug = state.active;
+      const pinCount = (state.pins[slug] || []).length;
+      head.appendChild(h('button', {
+        class: 'cm-head-btn' + (pinCount ? ' has' : ''), 'aria-label': 'Pinned messages',
+        title: 'Pinned messages', onClick: () => openPins(slug),
+      }, '📌 ' + (pinCount || '')));
+      const bar = renderBookmarkBar(slug);
+      if (bar) head.appendChild(bar);
+    }
   }
 
   // ─── Channel / DM open + history ───────────────────────────────────────────
@@ -514,6 +546,14 @@
         toast(e.message, 'error');
         return;
       }
+    }
+    // v2.1: channel-scoped side data (pins, bookmarks, and #events cards).
+    if (!isDmKey(key)) {
+      Promise.all([
+        loadPins(key), loadBookmarks(key),
+        key === 'events' ? loadEvents() : Promise.resolve(),
+      ]).then(() => { if (state.active === key) { renderHead(); renderMessages({}); } })
+        .catch(() => { /* transient */ });
     }
     renderMessages({ stickBottom: true });
     markReadIfAtBottom(true);
@@ -570,7 +610,17 @@
     const atBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 60;
     clear(scroll);
     const inDm = isDmKey(state.active);
+    // #events: the pinned event card(s) sit above the message stream. Its own
+    // banner carries the empty state, so skip the generic "nothing here" copy.
+    if (state.active === 'events') {
+      scroll.appendChild(renderEventsBanner());
+      if (st.list.length) {
+        scroll.appendChild(h('div', { class: 'cm-day-sep' },
+          h('span', { class: 'chrome' }, 'Discussion')));
+      }
+    }
     if (!st.list.length) {
+      if (state.active === 'events') return;
       let copy;
       if (inDm) {
         const peer = (activeDm() || {}).peer || {};
@@ -610,6 +660,9 @@
   }
 
   function specChipEl(author) {
+    if (author.is_bot) {
+      return h('span', { class: 'cm-bot-badge', title: 'Automated post from the Archangel platform' }, 'APP');
+    }
     if (author.is_staff) {
       return h('span', { class: 'cm-spec-chip' },
         h('span', { class: 'dot dot-orange', 'aria-hidden': 'true' }), 'Archangel');
@@ -639,39 +692,432 @@
 
     const bodyEl = h('div', { class: 'cm-msg-body', html: renderBody(m.body, m.mentions) });
 
+    const canPin = !inThread && !isDmKey(state.active);
     const actions = h('div', { class: 'cm-msg-actions', role: 'toolbar', 'aria-label': 'Message actions' },
       h('button', { class: 'cm-act', 'data-emoji-btn': '1', title: 'Add reaction', 'aria-label': 'Add reaction',
         onClick: (e) => { e.stopPropagation(); toggleEmojiPop(m); } }, '😀'),
       !inThread ? h('button', { class: 'cm-act', title: 'Reply in thread', 'aria-label': 'Reply in thread',
         onClick: () => openThread(m.id) }, '💬') : null,
+      canPin ? h('button', { class: 'cm-act' + (m.pinned ? ' on' : ''),
+        title: m.pinned ? 'Unpin' : 'Pin to channel', 'aria-label': m.pinned ? 'Unpin' : 'Pin',
+        onClick: () => togglePin(m) }, '📌') : null,
       mine ? h('button', { class: 'cm-act', title: 'Edit', 'aria-label': 'Edit message',
         onClick: () => startEdit(m) }, '✎') : null,
       canDelete ? h('button', { class: 'cm-act', title: mine ? 'Delete' : 'Delete (admin)',
         'aria-label': 'Delete message',
         onClick: () => deleteMessage(m) }, '🗑') : null);
 
-    const wrap = h('div', { class: 'cm-msg', 'data-mid': m.id, tabindex: '-1' },
-      avatarEl(a),
-      h('div', { class: 'cm-msg-col' },
-        h('div', { class: 'cm-msg-head' },
-          h('button', { class: 'cm-msg-author', onClick: a.user_id ? () => openMember(a.user_id) : null,
-            onMouseenter: (e) => showHoverCard(a, e), onMouseleave: hideHoverCard },
-            a.display_name || 'Former member'),
-          a.verified ? h('span', { class: 'cm-verified', title: 'Credential-verified' }) : null,
-          specChipEl(a),
-          h('span', { class: 'cm-msg-time' }, fmtTime(m.created_at),
-            m.edited_at ? h('span', { class: 'cm-msg-edited' }, '(edited)') : null)),
-        state.editing === m.id ? editBoxEl(m) : bodyEl,
-        attachmentsEl(m),
-        reactionsEl(m),
-        !inThread && m.reply_count > 0 ? threadTeaser(m) : null),
-      actions);
-    return wrap;
+    let kindClass = '';
+    if (m.kind === 'digest_news' || m.kind === 'digest_papers') kindClass = ' cm-msg-digest';
+    else if (m.kind === 'system_welcome') kindClass = ' cm-msg-welcome';
+    else if (m.kind === 'event') kindClass = ' cm-msg-event';
+    else if (m.kind === 'poll') kindClass = ' cm-msg-poll';
+    if (/(^|[\s(])@(channel|here)\b/i.test(m.body || '')) kindClass += ' cm-msg-broadcast';
+
+    const col = h('div', { class: 'cm-msg-col' },
+      h('div', { class: 'cm-msg-head' },
+        h('button', { class: 'cm-msg-author', onClick: a.user_id ? () => openMember(a.user_id) : null,
+          onMouseenter: (e) => showHoverCard(a, e), onMouseleave: hideHoverCard },
+          a.display_name || 'Former member'),
+        a.verified ? h('span', { class: 'cm-verified', title: 'Credential-verified' }) : null,
+        specChipEl(a),
+        m.pinned ? h('span', { class: 'cm-pin-marker', title: 'Pinned' }, '📌') : null,
+        h('span', { class: 'cm-msg-time' }, fmtTime(m.created_at),
+          m.edited_at ? h('span', { class: 'cm-msg-edited' }, '(edited)') : null)),
+      state.editing === m.id ? editBoxEl(m) : bodyEl,
+      m.poll ? pollCardEl(m) : null,
+      attachmentsEl(m),
+      reactionsEl(m),
+      !inThread && m.reply_count > 0 ? threadTeaser(m) : null);
+    return h('div', { class: 'cm-msg' + kindClass, 'data-mid': m.id, tabindex: '-1' },
+      avatarEl(a), col, actions);
   }
 
   function threadTeaser(m) {
     return h('button', { class: 'cm-thread-teaser', onClick: () => openThread(m.id) },
       '💬 ' + m.reply_count + (m.reply_count === 1 ? ' reply' : ' replies'));
+  }
+
+  // ─── v2.1: polls ───────────────────────────────────────────────────────────
+  function pollCardEl(m) {
+    const p = m.poll;
+    if (!p) return null;
+    const total = p.total_votes || 0;
+    const mine = state.me && (p.created_by === state.me.user_id);
+    const box = h('div', { class: 'cm-poll' + (p.closed ? ' closed' : '') });
+    box.appendChild(h('div', { class: 'cm-poll-q' }, p.question));
+    for (const opt of p.options || []) {
+      const pct = total ? Math.round((opt.votes / total) * 100) : 0;
+      const chosen = p.your_vote === opt.id;
+      box.appendChild(h('button', {
+        class: 'cm-poll-opt' + (chosen ? ' chosen' : ''),
+        disabled: p.closed ? true : false,
+        onClick: p.closed ? null : () => votePoll(p.id, opt.id),
+      },
+        h('span', { class: 'cm-poll-fill', style: 'width:' + pct + '%' }),
+        h('span', { class: 'cm-poll-opt-text' }, (chosen ? '✓ ' : '') + opt.text),
+        h('span', { class: 'cm-poll-opt-pct' }, total ? pct + '%' : '')));
+    }
+    const foot = h('div', { class: 'cm-poll-foot' },
+      h('span', {}, total + (total === 1 ? ' vote' : ' votes') + (p.closed ? ' · closed' : '')));
+    if ((mine || state.isAdmin) && !p.closed) {
+      foot.appendChild(h('button', { class: 'cm-linkbtn', onClick: () => closePoll(p.id) }, 'Close poll'));
+    }
+    box.appendChild(foot);
+    return box;
+  }
+
+  async function votePoll(pollId, optionId) {
+    try {
+      const r = await api('/polls/' + pollId + '/vote', { method: 'POST', body: { option_id: optionId } });
+      applyPoll(pollIdMessage(pollId), Object.assign({}, r, { your_vote: optionId }));
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function closePoll(pollId) {
+    try { await api('/polls/' + pollId + '/close', { method: 'POST' }); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+  // Find the message id currently carrying a given poll (for local update).
+  function pollIdMessage(pollId) {
+    for (const key in state.msgs) {
+      for (const m of (state.msgs[key].list || [])) {
+        if (m.poll && m.poll.id === pollId) return m.id;
+      }
+    }
+    return null;
+  }
+  function applyPoll(messageId, poll) {
+    if (!messageId || !poll) return;
+    for (const key in state.msgs) {
+      const st = state.msgs[key];
+      if (!st || !st.list) continue;
+      st.list = st.list.map((m) => {
+        if (m.id !== messageId) return m;
+        // Preserve MY vote (broadcasts null it out for other viewers).
+        const yv = (poll.your_vote != null) ? poll.your_vote
+          : (m.poll ? m.poll.your_vote : null);
+        return Object.assign({}, m, { poll: Object.assign({}, poll, { your_vote: yv }) });
+      });
+    }
+    renderMessages({});
+  }
+
+  // ─── v2.1: events ──────────────────────────────────────────────────────────
+  function toBasicUTC(iso) {
+    // ISO-Z (2026-09-10T17:00:00Z) -> iCal basic UTC (20260910T170000Z)
+    return String(iso || '').replace(/[-:]/g, '').replace(/\.\d+/, '');
+  }
+  function fmtEventTime(ev) {
+    try {
+      const d = new Date(ev.starts_at);
+      const opts = { weekday: 'short', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit' };
+      if (ev.timezone) opts.timeZone = ev.timezone;
+      let s = new Intl.DateTimeFormat([], opts).format(d);
+      return s + (ev.timezone ? ' · ' + ev.timezone.split('/').pop().replace('_', ' ') : ' UTC');
+    } catch (e) { return ev.starts_at; }
+  }
+  function gcalUrl(ev) {
+    const start = toBasicUTC(ev.starts_at);
+    let end = ev.ends_at ? toBasicUTC(ev.ends_at) : null;
+    if (!end) {
+      const d = new Date(ev.starts_at); d.setHours(d.getHours() + 1);
+      end = toBasicUTC(d.toISOString());
+    }
+    const p = new URLSearchParams({
+      action: 'TEMPLATE', text: ev.title || 'Event',
+      dates: start + '/' + end,
+      details: (ev.description || '') + (ev.host ? '\nHost: ' + ev.host : ''),
+      location: ev.location || '',
+    });
+    if (ev.timezone) p.set('ctz', ev.timezone);
+    return 'https://calendar.google.com/calendar/render?' + p.toString();
+  }
+
+  function eventCardEl(ev, opts) {
+    opts = opts || {};
+    const card = h('div', { class: 'cm-event-card' + (opts.pinned ? ' pinned' : '')
+      + (ev.cancelled ? ' cancelled' : '') });
+    if (opts.pinned) {
+      card.appendChild(h('div', { class: 'cm-event-flag' },
+        h('span', { class: 'chrome' }, ev.cancelled ? '📅 Cancelled' : '📌 Next event')));
+    }
+    card.appendChild(h('div', { class: 'cm-event-title' }, ev.title));
+    card.appendChild(h('div', { class: 'cm-event-when' }, '🗓 ' + fmtEventTime(ev)));
+    if (ev.location) {
+      const isUrl = /^https?:\/\//i.test(ev.location);
+      card.appendChild(h('div', { class: 'cm-event-where' }, '📍 ',
+        isUrl ? h('a', { href: ev.location, target: '_blank', rel: 'noopener noreferrer' }, 'Join link')
+          : ev.location));
+    }
+    if (ev.host) card.appendChild(h('div', { class: 'cm-event-host' }, '👤 ' + ev.host));
+    if (ev.description) card.appendChild(h('div', { class: 'cm-event-desc' }, ev.description));
+    if (!ev.cancelled) {
+      const actions = h('div', { class: 'cm-event-actions' },
+        h('button', {
+          class: 'cm-btn ' + (ev.viewer_interested ? 'cm-btn-primary' : 'cm-btn-ghost'),
+          onClick: () => rsvpEvent(ev.id),
+        }, (ev.viewer_interested ? '✓ Interested' : 'Interested')
+          + (ev.rsvp_count ? ' · ' + ev.rsvp_count : '')),
+        h('a', { class: 'cm-btn cm-btn-ghost', href: gcalUrl(ev), target: '_blank', rel: 'noopener noreferrer' },
+          'Add to Google Calendar'),
+        h('a', { class: 'cm-btn cm-btn-ghost', href: API + '/events/' + ev.id + '/calendar.ics?t=' + Date.now(),
+          download: true }, 'Download .ics'));
+      if (ev.message_id) {
+        actions.appendChild(h('button', { class: 'cm-btn cm-btn-ghost',
+          onClick: () => openThread(ev.message_id) }, 'Discuss'));
+      }
+      if (state.isAdmin) {
+        actions.appendChild(h('button', { class: 'cm-linkbtn', onClick: () => cancelEvent(ev.id) }, 'Cancel'));
+      }
+      card.appendChild(actions);
+    }
+    return card;
+  }
+
+  function renderEventsBanner() {
+    const wrap = h('div', { class: 'cm-events-banner' });
+    const up = state.events.upcoming || [];
+    if (state.isAdmin) {
+      wrap.appendChild(h('button', { class: 'cm-btn cm-btn-primary cm-new-event',
+        onClick: openNewEvent }, '+ New event'));
+    }
+    if (up.length) {
+      wrap.appendChild(eventCardEl(up[0], { pinned: true }));
+      if (up.length > 1) {
+        const more = h('div', { class: 'cm-events-more' });
+        more.appendChild(h('div', { class: 'cm-rail-label' },
+          h('span', { class: 'chrome' }, 'More upcoming')));
+        for (const ev of up.slice(1)) more.appendChild(eventCardEl(ev, {}));
+        wrap.appendChild(more);
+      }
+    } else {
+      wrap.appendChild(h('div', { class: 'cm-empty' },
+        h('div', { class: 'cm-empty-title' }, 'No upcoming events'),
+        h('p', {}, state.isAdmin ? 'Post one with “New event” — it pins to the top here.'
+          : 'When the team posts an event, it pins here so you never miss it.')));
+    }
+    const past = state.events.past || [];
+    if (past.length) {
+      const toggle = h('button', { class: 'cm-past-toggle',
+        onClick: () => { state.events.pastOpen = !state.events.pastOpen; renderMessages({}); } },
+        (state.events.pastOpen ? '▾ ' : '▸ ') + 'Past events (' + past.length + ')');
+      wrap.appendChild(toggle);
+      if (state.events.pastOpen) {
+        const list = h('div', { class: 'cm-events-past' });
+        for (const ev of past) {
+          list.appendChild(h('div', { class: 'cm-event-past-row' },
+            h('span', { class: 'cm-event-past-title' }, ev.title),
+            h('span', { class: 'cm-event-past-when' }, fmtEventTime(ev))));
+        }
+        wrap.appendChild(list);
+      }
+    }
+    return wrap;
+  }
+
+  async function loadEvents() {
+    try {
+      const [up, past] = await Promise.all([
+        api('/events?scope=upcoming'), api('/events?scope=past'),
+      ]);
+      state.events.upcoming = up.events || [];
+      state.events.past = past.events || [];
+      state.events.loadedFor = 'events';
+    } catch (e) { /* transient */ }
+  }
+  async function rsvpEvent(eventId) {
+    try {
+      const r = await api('/events/' + eventId + '/rsvp', { method: 'POST' });
+      applyEvent(r);
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function cancelEvent(eventId) {
+    if (!window.confirm('Cancel this event? Interested members keep their calendar entry.')) return;
+    try { const r = await api('/events/' + eventId + '/cancel', { method: 'POST' }); applyEvent(r.event || r); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+  function applyEvent(ev) {
+    if (!ev || !ev.id) return;
+    const patch = (arr) => arr.map((e) => (e.id === ev.id ? Object.assign({}, e, ev) : e));
+    state.events.upcoming = patch(state.events.upcoming);
+    state.events.past = patch(state.events.past);
+    if (state.active === 'events') renderMessages({});
+  }
+
+  // ─── v2.1: modal + creation forms ──────────────────────────────────────────
+  function openModal(title, buildBody) {
+    const overlay = h('div', { class: 'cm-modal-overlay',
+      onClick: (e) => { if (e.target === overlay) overlay.remove(); } });
+    const close = () => overlay.remove();
+    const modal = h('div', { class: 'cm-modal', role: 'dialog', 'aria-label': title });
+    modal.appendChild(h('div', { class: 'cm-modal-head' },
+      h('span', { class: 'cm-side-title' }, title),
+      h('button', { class: 'cm-iconbtn', 'aria-label': 'Close', onClick: close }, '✕')));
+    modal.appendChild(buildBody(close));
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    const first = modal.querySelector('input, textarea');
+    if (first) first.focus();
+  }
+
+  function field(label, input) {
+    return h('label', { class: 'cm-field' }, h('span', {}, label), input);
+  }
+
+  function openNewEvent() {
+    openModal('New event', (close) => {
+      const title = h('input', { type: 'text', maxlength: '200', placeholder: 'Nephrology Journal Club' });
+      const date = h('input', { type: 'date' });
+      const time = h('input', { type: 'time' });
+      const tz = h('input', { type: 'text', placeholder: 'America/New_York',
+        value: (Intl.DateTimeFormat().resolvedOptions().timeZone || '') });
+      const loc = h('input', { type: 'text', maxlength: '500', placeholder: 'Zoom link or address' });
+      const host = h('input', { type: 'text', maxlength: '200', placeholder: 'Dr. Raman' });
+      const desc = h('textarea', { rows: '3', placeholder: 'What is it about? (no patient identifiers)' });
+      const body = h('div', { class: 'cm-modal-body' },
+        field('Title', title),
+        h('div', { class: 'cm-field-row' }, field('Date', date), field('Time', time)),
+        field('Timezone', tz),
+        field('Location or join link', loc),
+        field('Host (optional)', host),
+        field('Description (optional)', desc),
+        h('div', { class: 'cm-modal-actions' },
+          h('button', { class: 'cm-btn cm-btn-ghost', onClick: close }, 'Cancel'),
+          h('button', { class: 'cm-btn cm-btn-primary', onClick: async () => {
+            if (!title.value.trim() || !date.value || !time.value) {
+              toast('Title, date and time are required.', 'error'); return;
+            }
+            try {
+              await api('/events', { method: 'POST', body: {
+                title: title.value.trim(), description: desc.value.trim(),
+                starts_at: date.value + 'T' + time.value,
+                timezone: tz.value.trim() || null,
+                location: loc.value.trim(), host: host.value.trim(),
+                channel_slug: 'events',
+              } });
+              close();
+              toast('Event posted — pinned to the top of #events.');
+            } catch (e) {
+              toast(e.status === 422 ? (e.detail && e.detail.message) || e.message : e.message, 'error');
+            }
+          } }, 'Post event')));
+      return body;
+    });
+  }
+
+  function openNewPoll(slug) {
+    openModal('New poll', (close) => {
+      const q = h('input', { type: 'text', maxlength: '300', placeholder: 'How would you manage this?' });
+      const opts = [
+        h('input', { type: 'text', maxlength: '120', placeholder: 'Option 1' }),
+        h('input', { type: 'text', maxlength: '120', placeholder: 'Option 2' }),
+      ];
+      const optsHost = h('div', { class: 'cm-poll-opts-edit' });
+      function renderOpts() {
+        clear(optsHost);
+        opts.forEach((inp) => optsHost.appendChild(inp));
+        if (opts.length < 6) {
+          optsHost.appendChild(h('button', { class: 'cm-linkbtn', onClick: () => {
+            opts.push(h('input', { type: 'text', maxlength: '120', placeholder: 'Option ' + (opts.length + 1) }));
+            renderOpts();
+          } }, '+ Add option'));
+        }
+      }
+      renderOpts();
+      return h('div', { class: 'cm-modal-body' },
+        field('Question', q),
+        field('Options', optsHost),
+        h('div', { class: 'cm-modal-actions' },
+          h('button', { class: 'cm-btn cm-btn-ghost', onClick: close }, 'Cancel'),
+          h('button', { class: 'cm-btn cm-btn-primary', onClick: async () => {
+            const options = opts.map((i) => i.value.trim()).filter(Boolean);
+            if (!q.value.trim() || options.length < 2) {
+              toast('A question and at least two options are required.', 'error'); return;
+            }
+            try {
+              await api('/polls', { method: 'POST', body: {
+                channel_slug: slug, question: q.value.trim(), options } });
+              close();
+            } catch (e) {
+              toast(e.status === 422 ? (e.detail && e.detail.message) || e.message : e.message, 'error');
+            }
+          } }, 'Post poll')));
+    });
+  }
+
+  // ─── v2.1: pinned messages ─────────────────────────────────────────────────
+  async function togglePin(m) {
+    const pinned = !!m.pinned;
+    try {
+      await api('/messages/' + m.id + '/pin', { method: pinned ? 'DELETE' : 'POST' });
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  function openPins(slug) {
+    state.sidePanel = 'pins';
+    const side = document.getElementById('cmSide');
+    clear(side);
+    side.appendChild(h('div', { class: 'cm-side-head' },
+      h('span', { class: 'cm-side-title' }, 'Pinned messages'),
+      h('button', { class: 'cm-iconbtn', 'aria-label': 'Close panel', onClick: closeSide }, '✕')));
+    const body = h('div', { class: 'cm-side-body' });
+    const pins = state.pins[slug] || [];
+    if (!pins.length) {
+      body.appendChild(h('div', { class: 'cm-empty' },
+        h('p', {}, 'Nothing pinned yet. Use the 📌 on any message to keep it here.')));
+    }
+    for (const m of pins) body.appendChild(messageEl(m, { context: 'thread' }));
+    side.appendChild(body);
+    openSide();
+  }
+  async function loadPins(slug) {
+    try { const d = await api('/channels/' + slug + '/pins'); state.pins[slug] = d.pins || []; }
+    catch (e) { /* transient */ }
+  }
+
+  // ─── v2.1: channel bookmarks ───────────────────────────────────────────────
+  async function loadBookmarks(slug) {
+    try { const d = await api('/channels/' + slug + '/bookmarks'); state.bookmarks[slug] = d.bookmarks || []; }
+    catch (e) { /* transient */ }
+  }
+  function renderBookmarkBar(slug) {
+    const marks = state.bookmarks[slug] || [];
+    if (!marks.length && !state.me) return null;
+    const bar = h('div', { class: 'cm-bookmark-bar' });
+    for (const bm of marks) {
+      bar.appendChild(h('span', { class: 'cm-bookmark' },
+        h('a', { href: bm.url, target: '_blank', rel: 'noopener noreferrer', title: bm.url }, '🔖 ' + bm.title),
+        (bm.added_by === (state.me && state.me.user_id) || state.isAdmin)
+          ? h('button', { class: 'cm-bookmark-x', 'aria-label': 'Remove bookmark',
+              onClick: () => removeBookmark(bm.id) }, '✕') : null));
+    }
+    bar.appendChild(h('button', { class: 'cm-bookmark-add', title: 'Add a bookmark',
+      onClick: () => openNewBookmark(slug) }, '+'));
+    return bar;
+  }
+  function openNewBookmark(slug) {
+    openModal('Add a bookmark', (close) => {
+      const title = h('input', { type: 'text', maxlength: '120', placeholder: 'KDIGO 2024 guideline' });
+      const url = h('input', { type: 'url', maxlength: '1000', placeholder: 'https://…' });
+      return h('div', { class: 'cm-modal-body' },
+        field('Title', title), field('URL', url),
+        h('div', { class: 'cm-modal-actions' },
+          h('button', { class: 'cm-btn cm-btn-ghost', onClick: close }, 'Cancel'),
+          h('button', { class: 'cm-btn cm-btn-primary', onClick: async () => {
+            if (!title.value.trim() || !/^https?:\/\//i.test(url.value.trim())) {
+              toast('A title and an http(s) URL are required.', 'error'); return;
+            }
+            try {
+              await api('/channels/' + slug + '/bookmarks', { method: 'POST',
+                body: { title: title.value.trim(), url: url.value.trim() } });
+              close();
+            } catch (e) { toast(e.message, 'error'); }
+          } }, 'Add')));
+    });
+  }
+  async function removeBookmark(id) {
+    try { await api('/bookmarks/' + id, { method: 'DELETE' }); }
+    catch (e) { toast(e.message, 'error'); }
   }
 
   function reactionsEl(m) {
@@ -860,7 +1306,7 @@
     if (ch.post_policy === 'admin' && !state.isAdmin) {
       wrap.appendChild(h('div', { class: 'cm-composer', style: 'padding: var(--sp-3)' },
         h('div', { class: 'cm-composer-hint' },
-          'Only the Archangel team posts in #task-announcements. Open any announcement’s thread to ask about it.')));
+          'Only the Archangel team posts in #' + ch.slug + '. Open any post’s thread to reply or ask about it.')));
       wrap.appendChild(h('div', { class: 'cm-phi-notice' },
         h('span', { class: 'dot dot-pink', 'aria-hidden': 'true' }), PHI_NOTICE));
       return;
@@ -870,6 +1316,7 @@
       placeholder: 'Message #' + ch.slug + '…',
       onSend: (body, cs) => sendMessage(ch.slug, body, cs, null),
       typingMeta: { channel: ch.slug },
+      pollSlug: ch.slug,   // v2.1: 📊 poll affordance in all-post channels
     }));
   }
 
@@ -1054,6 +1501,8 @@
       h('div', { class: 'cm-composer-row' },
         h('button', { class: 'cm-iconbtn', title: 'Attach a file (screened for identifiers)',
           'aria-label': 'Attach a file', onClick: () => fileInput.click() }, '📎'),
+        cfg.pollSlug ? h('button', { class: 'cm-iconbtn', title: 'Create a poll',
+          'aria-label': 'Create a poll', onClick: () => openNewPoll(cfg.pollSlug) }, '📊') : null,
         h('div', { class: 'cm-composer-hint' }, 'Enter to send · Shift+Enter for a new line · **bold** *italic* `code`'),
         sendBtn),
       fileInput);
@@ -1381,6 +1830,15 @@
   async function resyncLoadedChannels() {
     for (const key in state.msgs) await catchUpChannel(key);
     try { await loadChannels(); await loadDms(); renderRail(); } catch (e) { /* transient */ }
+    // v2.1: pin/bookmark/event WS events aren't replayed by message catch-up —
+    // refetch the side data for the channel in view so it heals after a drop.
+    if (!isDmKey(state.active)) {
+      try {
+        await Promise.all([loadPins(state.active), loadBookmarks(state.active),
+          state.active === 'events' ? loadEvents() : Promise.resolve()]);
+        renderHead(); renderMessages({});
+      } catch (e) { /* transient */ }
+    }
     if (state.thread) {
       try {
         const t = await api('/messages/' + state.thread.rootId + '/thread');
@@ -1435,6 +1893,50 @@
       }
       case 'message.deleted': applyDelete(ev.id, ev.parent_message_id); break;
       case 'reaction': applyReactions(ev.message_id, ev.reactions); break;
+      // ── v2.1 social events ──
+      case 'event.created': {
+        // Refetch both lists so the upcoming/past split + ordering stay correct.
+        if (state.active === 'events') {
+          loadEvents().then(() => { if (state.active === 'events') renderMessages({}); });
+        } else {
+          state.events.loadedFor = null;  // force a reload next time #events opens
+        }
+        break;
+      }
+      case 'event.updated': applyEvent(ev.event || ev); break;
+      case 'event.rsvp': {
+        const patch = (arr) => arr.map((e) => (e.id === ev.event_id
+          ? Object.assign({}, e, { rsvp_count: ev.rsvp_count }) : e));
+        state.events.upcoming = patch(state.events.upcoming);
+        state.events.past = patch(state.events.past);
+        if (state.active === 'events') renderMessages({});
+        break;
+      }
+      case 'poll.updated': applyPoll(ev.message_id, ev.poll); break;
+      case 'pins.updated': {
+        state.pins[ev.channel] = ev.pins || [];
+        // Reflect the pinned flag on the in-stream messages + header count.
+        const pinnedSet = new Set((ev.pins || []).map((m) => m.id));
+        const st = state.msgs[ev.channel];
+        if (st && st.list) st.list = st.list.map((m) =>
+          Object.assign({}, m, { pinned: pinnedSet.has(m.id) }));
+        if (state.active === ev.channel) { renderHead(); renderMessages({}); }
+        if (state.sidePanel === 'pins' && ev.channel === state.active) openPins(ev.channel);
+        break;
+      }
+      case 'bookmark.added': {
+        const list = state.bookmarks[ev.channel] || (state.bookmarks[ev.channel] = []);
+        if (!list.some((b) => b.id === ev.bookmark.id)) list.push(ev.bookmark);
+        if (state.active === ev.channel) renderHead();
+        break;
+      }
+      case 'bookmark.removed': {
+        if (state.bookmarks[ev.channel]) {
+          state.bookmarks[ev.channel] = state.bookmarks[ev.channel].filter((b) => b.id !== ev.bookmark_id);
+        }
+        if (state.active === ev.channel) renderHead();
+        break;
+      }
       case 'typing': {
         if (state.me && ev.user_id === state.me.user_id) break;
         const key = ev.dm ? 'dm:' + ev.dm

@@ -1,5 +1,5 @@
 /* ============================================================
-   Archangel Health — console design system · product tokens
+   Archangel Health: console design system · product tokens
    Single source of truth for every Asclepius product surface
    (evaluation portal, buyer workspace, provider portal, admin).
 
@@ -11,14 +11,14 @@
    ============================================================ */
 
 :root {
-  /* ---- canonical palette (§2.1 — copy of landing) ---- */
+  /* ---- canonical palette (§2.1: copy of landing) ---- */
   --canvas:   #eef0ef;
   --card:     #fbfcfa;
   --card-in:  #f4f5f3;
   --hairline: rgba(26, 27, 26, 0.08);
   --hairline-strong: rgba(26, 27, 26, 0.16);
   --ink:      #1a1b1a;
-  --ink-hover:#0f100f;        /* hover state of ink fills — never #000 */
+  --ink-hover:#0f100f;        /* hover state of ink fills: never #000 */
   --ink-soft: #5c5e5a;
   --ink-faint:#8b8d89;
   --green:    #4ca63c;
@@ -33,7 +33,7 @@
   --shadow-card:  0 1px 2px rgba(26, 27, 26, 0.03);
   --shadow-float: 0 24px 60px -36px rgba(26, 27, 26, 0.28);
 
-  /* ---- accent washes — the only legitimate tinted fills ---- */
+  /* ---- accent washes: the only legitimate tinted fills ---- */
   --green-wash:  rgba(76, 166, 60, 0.10);
   --orange-wash: rgba(236, 148, 64, 0.10);
   --pink-wash:   rgba(232, 68, 123, 0.09);
@@ -43,12 +43,12 @@
   --pink-line:   rgba(232, 68, 123, 0.35);
   --lime-line:   rgba(178, 190, 40, 0.55);
 
-  /* deep accent text — AA-contrast ink for text sitting on a wash */
+  /* deep accent text: AA-contrast ink for text sitting on a wash */
   --green-deep:  #3c7a31;
   --orange-deep: #9c5c1b;
   --pink-deep:   #bb2f60;
 
-  /* ---- product scale (§2.2 — tighter than landing) ---- */
+  /* ---- product scale (§2.2: tighter than landing) ---- */
   --r-chip: 999px;
   --r-sm:   10px;
   --r-md:   14px;
@@ -67,7 +67,7 @@
   --lh-tight: 1.25;
   --lh-body:  1.55;
 
-  /* ---- scrim — canvas, never black (§4 modal law) ---- */
+  /* ---- scrim: canvas, never black (§4 modal law) ---- */
   --scrim: rgba(238, 240, 239, 0.92);
 
   /* ---- legacy Asclepius token remap (§2.4) ----
