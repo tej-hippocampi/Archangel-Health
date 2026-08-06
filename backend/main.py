@@ -5908,17 +5908,92 @@ async def startup_team_scheduler():
             "inactive (relying on volume encryption only). Set a base64 32-byte key to "
             "enable AES-256-GCM field encryption. See docs/security/ENCRYPTION.md."
         )
-    # EHR ingestion durability (the partner-upload 410 incident): warn loudly if
-    # raw bundles would land on non-durable storage, and recover any uploads left
-    # mid-pipeline by a restart — their raw blob is on the persistent volume, so
-    # reprocessing is lossless.
+    # ─── storage durability (PRD I-0 §F2) ────────────────────────────────────
+    # All three stores, checked at BOOT rather than on the first upload. Every
+    # durability check in the tree was reachable only from a request path, so the
+    # way you found out the volume never attached was a hospital getting a 503 —
+    # the worst possible moment, and only for the store that request happened to
+    # touch. The database had no check at any time.
+    #
+    # In production this REFUSES TO START. That is the deliverable, not a rough
+    # edge: a container that will not boot is a five-minute incident with a log
+    # line naming the store; a container that boots onto ephemeral disk accepts
+    # PHI and destroys it at the next redeploy, silently, and costs a partnership.
+    try:
+        from asclepius import assets as _asc_assets_dur
+        from asclepius import ingestion as _asc_ingestion_dur
+        from asclepius.store import _db_storage_durable as _asc_db_durable
+
+        _DURABILITY_CHECKS = (
+            ("database", _asc_db_durable),
+            ("raw ingest", _asc_ingestion_dur.ingest_storage_durable),
+            ("asset store", _asc_assets_dur.asset_storage_durable),
+        )
+        _dur_failures = []
+        for _name, _fn in _DURABILITY_CHECKS:
+            try:
+                _ok, _why = _fn()
+            except Exception as _exc:  # a check that cannot run is a failed check
+                _ok, _why = False, f"durability check raised: {_exc}"
+            if not _ok:
+                _dur_failures.append((_name, _why))
+        if _dur_failures:
+            _detail = " · ".join(f"{n}: {w}" for n, w in _dur_failures)
+            if is_production():
+                raise RuntimeError(f"NON-DURABLE STORAGE, refusing to start — {_detail}")
+            # The fail-closed behaviour is gated on ENV=production, and NOTHING in
+            # this repo's deploy config sets ENV — the same trap that once shipped
+            # a PHI portal's session cookie over plain HTTP. So when storage is
+            # non-durable AND ENV is unset, say so at ERROR and name the cause:
+            # otherwise the deliverable ("refuses to boot") silently degrades to a
+            # warning nobody reads, on exactly the deployment that needs it.
+            if not (os.getenv("ENV") or "").strip():
+                _auth_logger.error(
+                    "[storage] NON-DURABLE STORAGE and ENV is UNSET, so the "
+                    "fail-closed boot gate is INACTIVE. This container will accept "
+                    "PHI and lose it on the next redeploy. Set ENV=production (and "
+                    "the four storage paths) — %s", _detail)
+            else:
+                _auth_logger.warning(
+                    "[storage] NON-DURABLE (dev; would refuse to boot in production) — %s",
+                    _detail)
+        else:
+            _auth_logger.info("[storage] all three stores durable")
+    except RuntimeError:
+        raise
+    except Exception:
+        _auth_logger.warning("[storage] durability gate could not run", exc_info=True)
+    # Asset reconciliation (PRD I-0 §F4) — what a PAST redeploy already took. Off
+    # the event loop: it stats the whole blob tree and must never delay startup.
+    try:
+        from asclepius import assets as _asc_assets_rec
+
+        _asc_store_rec = getattr(app.state, "asclepius_store", None)
+        if _asc_store_rec is not None:
+            async def _reconcile_assets_at_boot() -> None:
+                try:
+                    rep = await asyncio.to_thread(
+                        _asc_assets_rec.reconcile_assets, _asc_store_rec)
+                    app.state.asclepius_asset_reconcile = rep
+                    if rep.get("missing_blobs"):
+                        _auth_logger.error(
+                            "[storage] %d asset reference(s) point at blobs that are "
+                            "GONE from disk — data was lost. See "
+                            "GET /api/asclepius/admin/storage/reconcile",
+                            len(rep["missing_blobs"]))
+                except Exception:
+                    _auth_logger.warning("[storage] asset reconcile failed", exc_info=True)
+
+            asyncio.create_task(_reconcile_assets_at_boot())
+    except Exception:
+        _auth_logger.warning("[storage] asset reconcile could not start", exc_info=True)
+    # ─── end storage durability ──────────────────────────────────────────────
+    # EHR ingestion: recover any uploads left mid-pipeline by a restart — their
+    # raw blob is on the persistent volume, so reprocessing is lossless.
     try:
         from asclepius import ingestion as _asc_ingestion
 
         _asc_store = getattr(app.state, "asclepius_store", None)
-        _dur_ok, _dur_why = _asc_ingestion.ingest_storage_durable()
-        if not _dur_ok:
-            _auth_logger.warning("[ingestion] NON-DURABLE raw upload storage — %s", _dur_why)
         if _asc_store is not None:
             # Off the event loop: reprocessing parses bundles and can be slow.
             asyncio.create_task(

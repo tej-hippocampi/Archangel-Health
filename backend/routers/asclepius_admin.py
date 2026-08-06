@@ -19,10 +19,12 @@ import secrets
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr
 
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
+from asclepius import ingestion as asc_ingestion
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
 
@@ -93,6 +95,16 @@ def generate_portal_passphrase() -> str:
 class HealthSystemProvisionRequest(BaseModel):
     organization: str
     email: EmailStr
+    # Which of the two buttons was pressed (PRD-I §2.2). Same form, same endpoint,
+    # same code path, one different value — and EVERYTHING downstream of the mint
+    # is identical, which is what makes the two indistinguishable to the
+    # recipient. Required: a new partner with no purpose is a decision nobody
+    # made, and the promotion gate would read it as task_creation.
+    purpose: str
+
+
+class UploadPurposeRequest(BaseModel):
+    purpose: str
 
 
 # ─── Credentials email ───────────────────────────────────────────────────────
@@ -320,8 +332,77 @@ async def export_case_bundle(
     }
 
 
+# ─── Storage durability + reconciliation (PRD I-0 §F2/§F4) ───────────────────
+# Reconciliation walks every case and task row and stats the whole blob tree, so
+# it is far too heavy to run on each page load — and the answer changes only when
+# blobs do. The boot run populates this; the page reads it; ``?refresh=1`` forces
+# a fresh pass when an operator is actively investigating.
+_RECONCILE_CACHE: Dict[str, Any] = {}
+_RECONCILE_TTL_SEC = 900
+
+
+@router.get("/storage/reconcile")
+async def storage_reconcile(
+    refresh: bool = False,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """What the storage layer actually holds versus what the database believes.
+
+    Read-only. ``missing_blobs`` is an INCIDENT, not a metric: each entry is a case
+    that will 404 when a physician opens its image, or ship to a buyer as a
+    reference resolving to nothing. ``orphan_blobs`` is disk cost only — reported,
+    never deleted, because a wrongly-deleted blob is unrecoverable once the partner
+    bundle behind it has aged out of its retention window.
+
+    Also returns the live durability verdict for all three stores, so the operator
+    can see *why* blobs went missing rather than only that they did."""
+    import time as _time
+
+    from asclepius import assets as asc_assets
+    from asclepius.store import _db_storage_durable
+
+    store = _store()
+    cached = _RECONCILE_CACHE.get("report")
+    fresh_enough = (cached is not None
+                    and (_time.monotonic() - _RECONCILE_CACHE.get("at", 0))
+                    < _RECONCILE_TTL_SEC)
+    if refresh or not fresh_enough:
+        # Off the event loop: this is two full table walks plus a stat of the
+        # entire blob tree, and doing it inline stalls every other admin request.
+        report = await run_in_threadpool(asc_assets.reconcile_assets, store)
+        _RECONCILE_CACHE.update({"report": report, "at": _time.monotonic()})
+    else:
+        report = cached
+    # Durability, by contrast, is three cheap syscalls and must always be LIVE —
+    # a cached "durable" verdict is exactly the reassurance nobody should get.
+    stores = []
+    for name, fn in (("database", _db_storage_durable),
+                     ("raw ingest", asc_ingestion.ingest_storage_durable),
+                     ("asset store", asc_assets.asset_storage_durable)):
+        try:
+            ok, why = fn()
+        except Exception as exc:  # pragma: no cover - a check that cannot run fails
+            ok, why = False, f"durability check raised: {exc}"
+        stores.append({"store": name, "durable": bool(ok), "detail": why})
+    return {
+        **report,
+        "missing_count": len(report["missing_blobs"]),
+        "orphan_count": len(report["orphan_blobs"]),
+        "storage": stores,
+        "all_durable": all(s["durable"] for s in stores),
+        "cached": not (refresh or not fresh_enough),
+    }
+
+
 # ─── Endpoints ───────────────────────────────────────────────────────────────
-@router.post("/health-systems/provision")
+# include_in_schema=False: /openapi.json is served publicly (it is the Railway
+# healthcheck neighbour), so a path segment named "purpose", a request field of
+# that name, or a docstring mentioning brokering would disclose the business
+# line to any partner who fetched the schema. They still could not tell which
+# purpose is THEIRS, but §0 protects the fact that the distinction exists at
+# all — a partner who learns we broker goes looking for the buyer. The admin UI
+# calls these directly and never reads the schema.
+@router.post("/health-systems/provision", include_in_schema=False)
 async def provision_health_system_portal(
     body: HealthSystemProvisionRequest,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
@@ -339,6 +420,11 @@ async def provision_health_system_portal(
     name = " ".join((body.organization or "").split())
     if not name:
         raise HTTPException(status_code=400, detail="Organization name is required.")
+    purpose = (body.purpose or "").strip().lower()
+    if purpose not in asc_ingestion.PURPOSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"purpose must be one of {', '.join(asc_ingestion.PURPOSES)}.")
     if not is_email_transport_configured():
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
 
@@ -357,7 +443,16 @@ async def provision_health_system_portal(
         store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
                                     password=passphrase, email=str(body.email))
         action = "portal_user_created"
+    # Stamped on the ACCOUNT, which is the row that authorizes an upload on this
+    # door — the health-system portal has no link row (it carries the 'hs-portal'
+    # sentinel link_id), so the account is where a link's purpose would live. Set
+    # BEFORE the email goes out, so a mint that fails to send has still recorded
+    # what the admin chose.
+    store.set_hs_portal_purpose(username, purpose)
 
+    # From here down, nothing branches. The email, its subject, its body, the
+    # response and the timing are byte-identical for both purposes — the value
+    # above selected DATA, and nothing about behaviour.
     ok = await send_html_email(
         str(body.email),
         f"Your Archangel Health secure upload access — {hs['name']}",
@@ -370,13 +465,112 @@ async def provision_health_system_portal(
 
     store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
                     event_type=action, actor=admin["id"],
-                    payload={"username": username, "email": str(body.email), "org": hs["name"]})
+                    payload={"username": username, "email": str(body.email),
+                             "org": hs["name"], "purpose": purpose})
     return {
         "health_system": {"hs_id": hs["hs_id"], "name": hs["name"]},
         "username": username,
+        "purpose": purpose,
         "message": f"Upload access sent to {body.email} — username “{username}”, "
                    "temporary password emailed (shown once, never stored).",
     }
+
+
+@router.post("/health-systems/{hs_id}/accounts/{username}/purpose",
+             include_in_schema=False)
+async def set_portal_account_purpose(
+    hs_id: str, username: str, body: UploadPurposeRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Resolve or change what a portal account's uploads are for.
+
+    Two jobs. It clears a ``Purpose not set`` work item on an account minted before
+    the column existed, and it corrects a mistake. It is NOT retroactive by design:
+    uploads already received keep the purpose they were stamped with, because
+    rewriting history here is how a brokering case that a physician already
+    labelled would silently become promotable."""
+    store = _store()
+    purpose = (body.purpose or "").strip().lower()
+    if purpose not in asc_ingestion.PURPOSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"purpose must be one of {', '.join(asc_ingestion.PURPOSES)}.")
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    accounts = store.list_hs_portal_users(hs_id)
+    matching = [u for u in accounts if u["username"].lower() == username.lower()]
+    if not matching:
+        raise HTTPException(status_code=404,
+                            detail="That portal account does not belong to this health system.")
+    # Purpose resolves LIVE at completion, which is what makes the upload doors
+    # agree — and it also means this change reaches bytes already in flight. So
+    # brokering → task creation is allowed only while the account has sent
+    # nothing: that is correcting a mis-click, not converting a partner's data
+    # into something promotable after the fact.
+    if (matching[0].get("purpose") == asc_ingestion.PURPOSE_BROKERING
+            and purpose == asc_ingestion.PURPOSE_TASK_CREATION
+            and store.hs_portal_account_has_activity(username)):
+        raise HTTPException(
+            status_code=409,
+            detail="This account has already sent data on a brokering mint, so its "
+                   "purpose cannot be changed to task creation — that would convert "
+                   "data the partner sent us to broker. Send this organization a "
+                   "separate task-creation link instead.")
+    store.set_hs_portal_purpose(username, purpose)
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="portal_purpose_set", actor=admin["id"],
+                    payload={"username": username.lower(), "purpose": purpose})
+    return {"ok": True, "username": username.lower(), "purpose": purpose,
+            "message": f"Future uploads from “{username}” are recorded as "
+                       f"{purpose.replace('_', ' ')}. Uploads already received keep "
+                       "the purpose they arrived with."}
+
+
+@router.post("/uploads/{upload_id}/purpose", include_in_schema=False)
+async def set_upload_purpose(
+    upload_id: str, body: UploadPurposeRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Resolve a single upload's ``Purpose not set`` work item.
+
+    Needed because the legacy magic-link door mints links without a purpose (see
+    the note on ``_link_purpose_note``), so an upload can arrive with NULL and the
+    admin has to be able to say which it is BEFORE promotion reads NULL as
+    task_creation."""
+    store = _store()
+    purpose = (body.purpose or "").strip().lower()
+    if purpose not in asc_ingestion.PURPOSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"purpose must be one of {', '.join(asc_ingestion.PURPOSES)}.")
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    # The invariant is "brokering never becomes a task". A one-call relabel from
+    # brokering to task_creation IS that transition, just spelled differently —
+    # and it would apply to cases a physician may already have been shown. This
+    # endpoint exists to RESOLVE an unset purpose, not to overturn a decided one.
+    #
+    # The other direction stays open: task_creation → brokering removes a
+    # promotion path and never adds one.
+    current = upload.get("purpose")
+    if current == asc_ingestion.PURPOSE_BROKERING \
+            and purpose == asc_ingestion.PURPOSE_TASK_CREATION:
+        raise HTTPException(
+            status_code=409,
+            detail="This upload came in on a brokering link. Its purpose cannot be "
+                   "changed to task creation — brokering data never enters the task "
+                   "pipeline. If the link itself was minted wrongly, mint a new one "
+                   "and ask the partner to re-send.")
+    store.set_upload_purpose(upload_id, purpose)
+    cases = store.propagate_purpose_to_cases(upload_id)
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="purpose_resolved", actor=admin["id"],
+                    payload={"purpose": purpose, "cases_updated": cases})
+    return {"ok": True, "upload_id": upload_id, "purpose": purpose,
+            "cases_updated": cases,
+            "message": f"{cases} case{'' if cases == 1 else 's'} recorded as "
+                       f"{purpose.replace('_', ' ')}."}
 
 
 # ─── Physicians (PRD C Phase 3) ──────────────────────────────────────────────
@@ -544,10 +738,33 @@ async def physician_profile(
 # Workflow order (PRD C Phase 2). An upload can appear in more than one bucket
 # when its cases had mixed outcomes — that is honest, not a bug: the operator
 # needs to know that one file produced both live cases and held ones.
+def _purpose_view(purpose: Optional[str]) -> Dict[str, Any]:
+    """How a purpose renders on the admin side (PRD-I §2.2, §5).
+
+    Green for task creation because it becomes physician-authored work; muted grey
+    for brokering because brokering is a normal business line, not a flag — pink
+    would tell an operator it is a problem to be cleaned up. Lime for unset,
+    because lime means *needs attention* and an unresolved purpose genuinely is a
+    work item rather than a default."""
+    if purpose == asc_ingestion.PURPOSE_TASK_CREATION:
+        return {"purpose": purpose, "label": "task creation", "accent": "green",
+                "resolved": True}
+    if purpose == asc_ingestion.PURPOSE_BROKERING:
+        return {"purpose": purpose, "label": "brokering", "accent": "grey",
+                "resolved": True}
+    return {"purpose": None, "label": asc_ingestion.PURPOSE_UNSET_LABEL,
+            "accent": "lime", "resolved": False}
+
+
 def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
     buckets: Dict[str, List[Dict[str, Any]]] = {
         "needs_attention": [], "rejected": [], "needs_review": [],
         "ready_to_promote": [], "in_production": [],
+        # Brokering gets its OWN bucket rather than a badge inside another one
+        # (PRD-I §5). It has a different lifecycle — it is never promoted — and
+        # mixing it into "ready to promote" is exactly how something gets promoted
+        # by accident, which is the failure the whole gate exists to prevent.
+        "brokering": [],
     }
     uploads = store.list_uploads_for_health_system(hs_id)
     # One query for every case on the page instead of one per upload (C-5.4):
@@ -570,6 +787,13 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
             "filename": up.get("filename"),
             "received_at": up.get("created_at"),
             "size_bytes": up.get("size_bytes") or 0,
+            # The chain-of-custody triple, shown on every row (PRD-I §5): what we
+            # hold, how much of it, and when we proved it. Truncated for the mono
+            # chip; the full digest is on the row object for a copy action.
+            "sha256": up.get("sha256"),
+            "sha256_short": (up.get("sha256") or "")[:12] or None,
+            "verified_at": up.get("verified_at"),
+            **_purpose_view(up.get("purpose")),
             "upload_status": up.get("status"),
             "case_total": len(cases),
             "case_counts": {"held": len(held), "clean": len(clean), "promoted": len(promoted)},
@@ -589,6 +813,14 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
         if (up.get("status") or "") in ("rejected", "failed"):
             buckets["rejected"].append({**entry, "note": up.get("reason")
                                         or "We could not read this upload."})
+            continue
+        # A brokering upload leaves the promotion workflow entirely. It is held,
+        # downloadable, and never appears in a bucket that has a Promote button —
+        # the gate in the promote endpoints is the enforcement, and this is the
+        # affordance, and a design that relies on only one of the two is a design
+        # that eventually promotes one by accident.
+        if asc_ingestion.PURPOSE_BROKERING == up.get("purpose"):
+            buckets["brokering"].append(entry)
             continue
         if held:
             # Safety holds must never be buried inside a normal bucket. Surface
@@ -634,13 +866,27 @@ async def health_system_detail(
             "active": bool(hs.get("active", 1)), "created_at": hs.get("created_at"),
         },
         "portal_users": [{"username": u["username"], "email": u.get("email"),
-                          "last_login": u.get("last_login"), "active": bool(u.get("active", 1))}
+                          "last_login": u.get("last_login"),
+                          "active": bool(u.get("active", 1)),
+                          **_purpose_view(u.get("purpose"))}
                          for u in store.list_hs_portal_users(hs_id)],
         "physicians_linked": len(physicians),
         "uploads_total": len(uploads),
         "last_activity": uploads[0]["created_at"] if uploads else None,
         "buckets": _bucket_uploads(store, hs_id),
+        "link_purpose_note": _link_purpose_note(),
     }
+
+
+# The magic-link door (``POST /admin/upload-links`` in routers/asclepius.py) still
+# mints links with no purpose, so an upload arriving through it lands NULL and the
+# admin resolves it per-upload. Wiring the two buttons into that mint form is a
+# one-field change to a file this workstream does not own; it is surfaced here
+# rather than made, and rather than left silent.
+def _link_purpose_note() -> Optional[str]:
+    return ("Links minted from the legacy magic-link form carry no purpose and "
+            "arrive as “Purpose not set”. Resolve them on the upload row before "
+            "promoting.")
 
 
 class UploadSpecialtyRequest(BaseModel):
@@ -763,6 +1009,7 @@ async def list_health_systems(_admin: Dict[str, Any] = Depends(asc_auth.require_
         physicians = [u for u in all_users
                       if u.get("health_system_id") == hs["hs_id"]]  # PRD-B column; absent → 0
         last_activity: Optional[str] = uploads[0]["created_at"] if uploads else None
+        accounts = store.list_hs_portal_users(hs["hs_id"])
         out.append({
             "hs_id": hs["hs_id"],
             "name": hs["name"],
@@ -770,8 +1017,19 @@ async def list_health_systems(_admin: Dict[str, Any] = Depends(asc_auth.require_
             "active": bool(hs.get("active", 1)),
             "created_at": hs.get("created_at"),
             "portal_users": [{"username": u["username"], "email": u.get("email"),
-                              "last_login": u.get("last_login"), "active": bool(u.get("active", 1))}
-                             for u in store.list_hs_portal_users(hs["hs_id"])],
+                              "last_login": u.get("last_login"),
+                              "active": bool(u.get("active", 1)),
+                              **_purpose_view(u.get("purpose"))}
+                             for u in accounts],
+            # Per ACCOUNT, not collapsed to one value for the organization: a
+            # partner may legitimately hold one account of each kind, and a single
+            # summary value would have to pick a winner between them.
+            "purposes": [_purpose_view(p) for p in store.hs_purposes_for(hs["hs_id"])],
+            "purpose_unresolved": sum(
+                1 for u in accounts if u.get("purpose") not in asc_ingestion.PURPOSES),
+            "brokering_uploads": sum(
+                1 for u in uploads
+                if u.get("purpose") == asc_ingestion.PURPOSE_BROKERING),
             "physicians_linked": len(physicians),
             "uploads_count": len(uploads),
             "last_activity": last_activity,

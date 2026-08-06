@@ -6529,28 +6529,43 @@
     // PRD-C: send upload access to a health system. Two fields; everything else
     // (health-system row, username, passphrase, forced reset) is derived
     // server-side. Replaces the old six-field link-minting form.
+    // ═══ PRD-I §2.2 — two buttons, one form, one code path ═══
+    // The two buttons post the SAME body to the SAME endpoint with a different
+    // purpose, and everything downstream of the mint is identical: same email,
+    // same subject, same portal, same URL shape. The recipient cannot tell which
+    // button was pressed, and that is the requirement — not a nicety. Only the
+    // admin knows.
+    //
+    // There is no default and no third "unset" option. A partner minted with no
+    // purpose is a decision nobody made, and the promotion gate would read it as
+    // task creation.
     const hsOrg = h('input', { class: 'asc-input', placeholder: 'Mass General Hospital' });
     const hsEmail = h('input', { type: 'email', class: 'asc-input', placeholder: 'data@mgh.harvard.edu' });
     const mintStatus = h('div', {});
-    const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send upload link');
-    mintBtn.addEventListener('click', async () => {
+    const mintButtons = [];
+    async function sendUploadAccess(purpose) {
       clear(mintStatus);
       const org = hsOrg.value.trim();
       const email = hsEmail.value.trim();
       if (!org) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Organization is required.')); return; }
       if (!email) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Email is required.')); return; }
-      mintBtn.setAttribute('disabled', '');
+      mintButtons.forEach((b) => b.setAttribute('disabled', ''));
       try {
         const res = await api('/admin/health-systems/provision', { method: 'POST', body: {
-          organization: org, email: email,
+          organization: org, email: email, purpose: purpose,
         } });
         mintStatus.appendChild(h('div', { class: 'asc-inline-ok' }, res.message
           || ('Upload access sent to ' + email + '.')));
         hsOrg.value = ''; hsEmail.value = '';
         loadIngestionLists();
       } catch (e) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
-      finally { mintBtn.removeAttribute('disabled'); }
-    });
+      finally { mintButtons.forEach((b) => b.removeAttribute('disabled')); }
+    }
+    const mintTaskBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send link — task creation');
+    const mintBrokerBtn = h('button', { class: 'asc-btn asc-btn-subtle', style: 'margin-left:8px' }, 'Send link — brokering');
+    mintTaskBtn.addEventListener('click', () => sendUploadAccess('task_creation'));
+    mintBrokerBtn.addEventListener('click', () => sendUploadAccess('brokering'));
+    mintButtons.push(mintTaskBtn, mintBrokerBtn);
     const mintCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
         h('div', { class: 'asc-card-title' }, 'Send a health system its upload access'),
@@ -6559,7 +6574,10 @@
         h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Organization'), hsOrg),
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Email'), hsEmail)),
-        mintBtn, mintStatus));
+        mintTaskBtn, mintBrokerBtn,
+        h('div', { class: 'asc-label-hint', style: 'margin-top:8px' },
+          'Both links are byte-identical to the recipient. Which button you press is recorded on our side only, and decides whether the data can ever become a task.'),
+        mintStatus));
 
     const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));
     const casesCard = h('div', { class: 'asc-card', id: 'ascIngestCases' }, loadingCard('Loading ingested cases…'));
