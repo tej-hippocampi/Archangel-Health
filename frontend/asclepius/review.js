@@ -258,7 +258,7 @@
       if (data && data.task) {
         appendChild(card, h('p', { class: 'rv-kv', style: 'margin-top:12px' },
           'A case is waiting for an independent second label (specialty: ',
-          data.task.specialty || 'any', ') \u00b7 ',
+          data.task.specialty || 'any', ') — ',
           h('a', { href: data.portal_url || '/asclepius' }, 'open the evaluation portal'), '.'));
       }
     }).catch(function () { /* pointer is best-effort */ });
@@ -299,7 +299,7 @@
     }
     return h('div', { class: 'rv-card' },
       h('details', { class: 'rv-case' },
-        h('summary', null, 'The case: open only if you doubt something'),
+        h('summary', null, 'The case — open only if you doubt something'),
         kids));
     function sub(title, body) {
       return h('details', { style: 'margin-top:8px' }, h('summary', { class: 'rv-kv' }, title), body);
@@ -309,7 +309,7 @@
   function verdictLabel(v) {
     if (v === 'A_better') return 'Chose candidate A';
     if (v === 'B_better') return 'Chose candidate B';
-    if (v === 'both_inadequate') return 'Both inadequate: wrote from scratch';
+    if (v === 'both_inadequate') return 'Both inadequate — wrote from scratch';
     return v || 'no verdict';
   }
 
@@ -427,7 +427,7 @@
     var defs = [
       ['accept', 'Accept', 'Good as submitted'],
       ['accept_with_edits', 'Accept with edits', 'Right call, needs corrections'],
-      ['reject', 'Reject', 'Unusable: reason required'],
+      ['reject', 'Reject', 'Unusable — reason required'],
     ];
     var wrap = h('div', { class: 'rv-verdicts' }, defs.map(function (d) {
       return h('button', {

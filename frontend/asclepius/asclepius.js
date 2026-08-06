@@ -6275,9 +6275,9 @@
     // look the same to a physician.
     body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
       h('div', { class: 'asc-error' },
-        'The Earnings section failed to load, so no figure is shown. This is '
+        'The Earnings section failed to load, so no figure is shown — this is '
         + 'not a statement that you have earned nothing. Reload the page; if it '
-        + 'persists, this is a deploy problem: check that earnings.js is '
+        + 'persists, this is a deploy problem — check that earnings.js is '
         + 'included in index.html. Nothing you have earned is affected.'))));
   }
 

@@ -88,8 +88,8 @@
           { kind: 'why', text: 'Two things make a record valuable: how specific your correction is, and how explicit your reasoning is.' },
         ],
         detail: [
-          'A record from a physician who fills the rubric precisely is worth several times one that was rushed. You are not answering a quiz. You are writing the reference a lab will train and grade against.',
-          '“Automate the mechanics, never the judgment” means: let the tool split text, pre-fill tags, and suggest structure, but every clinical call (the verdict, the correction, the criterion) must be yours.',
+          'A record from a physician who fills the rubric precisely is worth several times one that was rushed. You are not answering a quiz — you are writing the reference a lab will train and grade against.',
+          '“Automate the mechanics, never the judgment” means: let the tool split text, pre-fill tags, and suggest structure, but every clinical call — the verdict, the correction, the criterion — must be yours.',
         ],
       },
       {
@@ -98,7 +98,7 @@
         chromeLabel: 'CHOOSING YOUR EXPERIENCE',
         title: 'Choosing your experience (V3 vs V4)',
         what: 'V3 is synthetic multimodal cases; V4 is real, de-identified patient cases.',
-        why: 'The task is identical, only the data source differs, so your skill transfers directly.',
+        why: 'The task is identical — only the data source differs — so your skill transfers directly.',
         how: 'Start on V3. V4 unlocks once your real-data approval clears.',
         detail: [
           'Both are static, single point-in-time cases with the same labs / notes / meds / vitals / studies panel and the same staged flow. V4 additionally requires real-data approval (BAA and training) and is enforced server-side, so the option stays locked until you are cleared.',
@@ -111,13 +111,13 @@
         title: 'The case panel',
         what: 'Tabs hold the labs, notes, medications, vitals, and studies for the case.',
         why: 'The decisive datum usually hides in a lab trend or one flagged value.',
-        how: 'Read the whole case before you look at the answers. Always.',
+        how: 'Read the whole case before you look at the answers — always.',
         wireframe: 'casePanel',
         callouts: [
           { kind: 'mistake', text: 'Jumping to the question and skipping the labs trend. The datum that decides the case is often the one you skipped.' },
         ],
         detail: [
-          'The labs tab shows values over time, not just the latest draw: a creatinine of 1.4 means one thing flat and another if it doubled in 48 hours. Open every tab that has data. The notes and meds together usually explain why a value is what it is.',
+          'The labs tab shows values over time, not just the latest draw — a creatinine of 1.4 means one thing flat and another if it doubled in 48 hours. Open every tab that has data. The notes and meds together usually explain why a value is what it is.',
         ],
       },
       {
@@ -129,7 +129,7 @@
         why: 'A broken case poisons the record, so catching it protects the whole dataset.',
         how: 'Flag invalid cases with a reason; flagging a bad case is valuable, not a failure.',
         detail: [
-          'The flag routes to an admin with your reason attached: an impossible lab combination, a contradiction between the note and the meds, a question the data cannot answer. A well-flagged bad case saves the buyer from a corrupt record and is paid work, not a wasted task.',
+          'The flag routes to an admin with your reason attached — an impossible lab combination, a contradiction between the note and the meds, a question the data cannot answer. A well-flagged bad case saves the buyer from a corrupt record and is paid work, not a wasted task.',
         ],
       },
       {
@@ -139,7 +139,7 @@
         title: 'The 10-second gut check',
         what: 'A one-line first impression, captured before the AI answers are revealed.',
         why: 'It anchors your judgment and gives a clean pre-exposure read the buyer trusts.',
-        how: 'Answer fast and honestly. Do not research first. The instinct is the point.',
+        how: 'Answer fast and honestly. Do not research first — the instinct is the point.',
         detail: [
           'Reading the model answers first quietly re-anchors you to their framing. Capturing your instinct one-liner first preserves an independent judgment the buyer can compare against the models. Ten seconds, one sentence, no lookups.',
         ],
@@ -154,7 +154,7 @@
         how: 'Hunt the decisive clinical difference. Ignore length, tone, and formatting.',
         wireframe: 'compare',
         detail: [
-          'Both answers come from frontier models under a byte-identical prompt, so any difference is the model, not the question. The diff view highlights what changed between them, so read the highlighted spans first, then decide which side the clinical difference favors.',
+          'Both answers come from frontier models under a byte-identical prompt, so any difference is the model, not the question. The diff view highlights what changed between them — read the highlighted spans first, then decide which side the clinical difference favors.',
         ],
       },
       {
@@ -170,7 +170,7 @@
           { kind: 'why', text: 'Both inadequate is a real answer, not a cop-out. Use it whenever neither answer is safe to act on.' },
         ],
         detail: [
-          'Practice variation is real signal: two defensible plans can differ. But the verdict asks which answer a patient is better served by, so resolve ties on the one clinical fact that would change what you actually do, not on polish.',
+          'Practice variation is real signal — two defensible plans can differ. But the verdict asks which answer a patient is better served by, so resolve ties on the one clinical fact that would change what you actually do, not on polish.',
         ],
       },
       {
@@ -202,7 +202,7 @@
           weak: 'More thorough and better organized than the other one.',
         },
         detail: [
-          'A rationale that names the mechanism (the right test, the right threshold, the avoided harm) is machine-readable signal. “More thorough” could describe half the answers in the dataset and teaches the model nothing.',
+          'A rationale that names the mechanism — the right test, the right threshold, the avoided harm — is machine-readable signal. “More thorough” could describe half the answers in the dataset and teaches the model nothing.',
         ],
       },
       {
@@ -226,11 +226,11 @@
         why: 'Specific error labels train the model away from the exact failure.',
         how: 'Pick the most specific tag and name the clinical consequence.',
         example: {
-          good: 'Dosing error: metformin at eGFR 22 risks lactic acidosis.',
-          weak: 'Incorrect. The answer is just not very good.',
+          good: 'Dosing error — metformin at eGFR 22 risks lactic acidosis.',
+          weak: 'Incorrect — the answer is just not very good.',
         },
         detail: [
-          'Choose the narrowest tag that fits: “dosing error” over “inaccurate,” “missed contraindication” over “incomplete.” Then the “why it’s worse” line should state the consequence to the patient, which is what makes the label safe to train on.',
+          'Choose the narrowest tag that fits — “dosing error” over “inaccurate,” “missed contraindication” over “incomplete.” Then the “why it’s worse” line should state the consequence to the patient, which is what makes the label safe to train on.',
         ],
       },
       {
@@ -239,7 +239,7 @@
         chromeLabel: 'CHECK THE REASONING',
         title: 'Reasoning steps',
         what: 'Mark the step where the answer’s reasoning first breaks.',
-        why: 'It captures right answer, wrong reason, the failure outcome-grading misses.',
+        why: 'It captures right answer, wrong reason — the failure outcome-grading misses.',
         how: 'Flag the first broken step and write the reasoning it should have used.',
         wireframe: 'reasoning',
         example: {
@@ -250,7 +250,7 @@
           { kind: 'why', text: 'Step-level reasoning is the highest-value artifact we produce. If you spend extra minutes anywhere, spend them here.' },
         ],
         detail: [
-          'A model can reach the right conclusion through wrong logic; outcome-only grading scores that as correct and the error survives into the next model. Marking the first broken step and writing the counterfactual (the correct reasoning at that step) is the only way to catch it. Be concrete: name the test, the drug, the threshold.',
+          'A model can reach the right conclusion through wrong logic; outcome-only grading scores that as correct and the error survives into the next model. Marking the first broken step and writing the counterfactual — the correct reasoning at that step — is the only way to catch it. Be concrete: name the test, the drug, the threshold.',
         ],
       },
       {
@@ -260,17 +260,17 @@
         title: 'The scoring rubric',
         what: 'The scoring guide a lab will use to grade future models on this case.',
         why: 'A machine-checkable criterion turns your judgment into an automated eval.',
-        how: 'Name the fact, drug, dose, or threshold, and include at least one must-never.',
+        how: 'Name the fact, drug, dose, or threshold — and include at least one must-never.',
         wireframe: 'rubric',
         example: {
           good: 'A correct answer states K⁺ must be ≤5.0 before initiating finerenone.',
           weak: 'Manages electrolytes appropriately.',
         },
         callouts: [
-          { kind: 'why', text: 'Weights are Must-have, Important, Nice-to-have. At least one Must-never is required: it hard-fails an unsafe answer.' },
+          { kind: 'why', text: 'Weights are Must-have, Important, Nice-to-have. At least one Must-never is required — it hard-fails an unsafe answer.' },
         ],
         detail: [
-          'Positive criteria say what a correct answer must include; negative criteria say what it must never say. Every criterion should be checkable by reading an answer (a specific fact, drug, dose, or number) and never a vague quality. The axes are accuracy, completeness, safety, and reasoning. Criteria auto-seed from your tags; you confirm, edit, and add.',
+          'Positive criteria say what a correct answer must include; negative criteria say what it must never say. Every criterion should be checkable by reading an answer — a specific fact, drug, dose, or number — never a vague quality. The axes are accuracy, completeness, safety, and reasoning. Criteria auto-seed from your tags; you confirm, edit, and add.',
         ],
       },
       {
@@ -282,7 +282,7 @@
         why: 'Honest low confidence flags a hard case worth more than false certainty.',
         how: 'Rate what you actually feel. Low confidence is a signal, not a weakness.',
         detail: [
-          'The buyer uses confidence to weight and to triage: a low-confidence case may get a second reader. Inflating confidence hides the cases that are most worth a closer look.',
+          'The buyer uses confidence to weight and to triage — a low-confidence case may get a second reader. Inflating confidence hides the cases that are most worth a closer look.',
         ],
       },
       {
@@ -292,7 +292,7 @@
         title: 'Submitting, QA, and payment',
         what: 'On submit, the record is validated, QA-reviewed, then packaged for the buyer.',
         why: 'Clean records clear QA fast; vague ones are routed back for revision.',
-        how: 'Pass the checklist before submitting so your record ships, and pays, first time.',
+        how: 'Pass the checklist before submitting so your record ships — and pays — first time.',
         detail: [
           'Validation catches missing required fields at submit. QA spot-checks for specificity and safety; a record that is generic, internally contradictory, or missing its critical-negative gets sent back with a note. Records that clear QA are packaged into the buyer’s export, which is what your payout is tied to.',
         ],
@@ -363,7 +363,7 @@
         ],
         detail: [
           'Re-doing the case from scratch and then comparing is slower and anchors you to your own framing. Read what they wrote, decide whether a patient is well served by it, and correct the specific thing that is wrong.',
-          'The design target is a sound pair adjudicated in about a minute. Spend your time on the ones where the two physicians disagree: that is where the case was hard.',
+          'The design target is a sound pair adjudicated in about a minute. Spend your time on the ones where the two physicians disagree — that is where the case was hard.',
         ],
       },
       {
