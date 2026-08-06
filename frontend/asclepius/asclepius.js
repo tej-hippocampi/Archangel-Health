@@ -6529,11 +6529,11 @@
     // PRD-C: send upload access to a health system. Two fields; everything else
     // (health-system row, username, passphrase, forced reset) is derived
     // server-side. Replaces the old six-field link-minting form.
-    // ═══ PRD-I §2.2 — two buttons, one form, one code path ═══
+    // ═══ PRD-I §2.2: two buttons, one form, one code path ═══
     // The two buttons post the SAME body to the SAME endpoint with a different
     // purpose, and everything downstream of the mint is identical: same email,
     // same subject, same portal, same URL shape. The recipient cannot tell which
-    // button was pressed, and that is the requirement — not a nicety. Only the
+    // button was pressed, and that is the requirement: not a nicety. Only the
     // admin knows.
     //
     // There is no default and no third "unset" option. A partner minted with no
@@ -6561,8 +6561,8 @@
       } catch (e) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
       finally { mintButtons.forEach((b) => b.removeAttribute('disabled')); }
     }
-    const mintTaskBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send link — task creation');
-    const mintBrokerBtn = h('button', { class: 'asc-btn asc-btn-subtle', style: 'margin-left:8px' }, 'Send link — brokering');
+    const mintTaskBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send link: task creation');
+    const mintBrokerBtn = h('button', { class: 'asc-btn asc-btn-subtle', style: 'margin-left:8px' }, 'Send link: brokering');
     mintTaskBtn.addEventListener('click', () => sendUploadAccess('task_creation'));
     mintBrokerBtn.addEventListener('click', () => sendUploadAccess('brokering'));
     mintButtons.push(mintTaskBtn, mintBrokerBtn);
