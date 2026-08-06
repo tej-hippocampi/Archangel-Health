@@ -208,3 +208,49 @@ def test_task_notification_sends_once_and_is_idempotent_on_rerun(client, monkeyp
         (nid,),
     ).fetchall()
     assert len(rows_again) == 1
+
+
+def test_a_failed_send_is_retried_by_the_drain_not_dropped(client, monkeypatch):
+    """A transient send failure must not permanently drop a notification. Before the
+    drain existed, the enqueue's idempotency made a re-run a no-op and the reminder
+    query required the 'assigned' row to be 'sent', so one blip lost the email plus
+    its reminder and escalation. The drain re-sends rows stuck 'failed'/'pending'."""
+    import main
+
+    db_path = client.app.state.team_store.db_path
+    monkeypatch.setenv("INTERNAL_TOOL_SECRET", "test-internal-secret")
+    nid = _seed_intake_notification(db_path)
+    headers = {"Authorization": "Bearer test-internal-secret"}
+
+    # A flag toggled between passes, not a global call counter: leftover outbox rows
+    # from earlier tests share this db and would otherwise consume the "first" send.
+    sender = {"fail": True, "delivered": 0}
+
+    async def flaky_send(_email, _subject, _html):
+        if sender["fail"]:
+            return False
+        sender["delivered"] += 1
+        return True
+
+    monkeypatch.setattr(main, "_send_html_email_impl", flaky_send)
+
+    # Pass 1: sending is down -> this notification's row lands in 'failed'.
+    assert client.post("/internal/team/run-task-notifications", headers=headers).status_code == 200
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    def status_of(_nid):
+        return conn.execute(
+            "SELECT status FROM task_notification_outbox WHERE task_id = ? AND task_type = 'intake_notification'",
+            (_nid,),
+        ).fetchone()["status"]
+
+    assert status_of(nid) == "failed"
+
+    # Pass 2: sending recovers -> the drain must re-send the failed row and deliver it.
+    sender["fail"] = False
+    assert client.post("/internal/team/run-task-notifications", headers=headers).status_code == 200
+    delivered_status = status_of(nid)
+    conn.close()
+    assert delivered_status == "sent", "a transient send failure must not permanently drop the notification"
+    assert sender["delivered"] >= 1

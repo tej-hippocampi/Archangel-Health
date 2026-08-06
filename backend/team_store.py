@@ -2857,6 +2857,30 @@ class TeamStore:
             ).fetchall()
             return [dict(r) for r in intake_rows] + [dict(r) for r in escalation_rows]
 
+    def list_retryable_task_notifications(
+        self, *, max_attempts: int = 5, limit: int = 500
+    ) -> List[Dict[str, Any]]:
+        """Outbox rows that never reached 'sent': 'pending' (the process died between
+        enqueue and the inline send) or 'failed' (a transient SendGrid/network error),
+        still under the per-row attempt cap. The drain re-sends these.
+
+        Without a drain the outbox was not actually durable despite the docstring: the
+        enqueue is idempotent, so a re-run returns None for the existing row and never
+        resends it, and find_due_reminders requires the 'assigned' row to be 'sent', so
+        one failed initial send permanently dropped the email AND its 24h reminder and
+        48h escalation."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM task_notification_outbox
+                WHERE status IN ('pending', 'failed') AND send_attempts < ?
+                ORDER BY datetime(created_at) ASC
+                LIMIT ?
+                """,
+                (int(max_attempts), int(limit)),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     # ─── Intra-Op Reassessment (PRD v1.0) ─────────────────────────────────
 
     def _row_to_intraop_form(self, row: sqlite3.Row) -> Dict[str, Any]:
