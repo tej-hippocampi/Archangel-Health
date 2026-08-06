@@ -32,6 +32,10 @@ _DOM_SHIM = Path(__file__).resolve().parent / "_asclepius_dom.js"
 _REVIEW_JS = _FRONTEND / "review.js"
 _REVIEW_HTML = _FRONTEND / "review.html"
 _CSS = _FRONTEND / "asclepius.css"
+# The heading that opens the PRD-R block. Named once: three tests split the
+# stylesheet on it, and it has already been edited out from under them by an
+# unrelated house-style rule.
+_PRD_R_CSS_HEADING = "PRD-R: the paired review surface"
 
 
 def _run_node(script: str) -> dict:
@@ -481,7 +485,7 @@ def test_under_two_minutes_the_copy_changes_and_the_colour_does_not():
     # The clock element's class is the same one in both states.
     assert out["classes"].count("asc-session-clock") == 1
     css = _CSS.read_text(encoding="utf-8")
-    block = css.split("PRD-R — the paired review surface")[1]
+    block = css.split(_PRD_R_CSS_HEADING)[1]
     clock_rule = block.split(".asc-session-clock")[1].split("}")[0]
     assert "--lime" in clock_rule and "--pink" not in clock_rule
 
@@ -724,8 +728,8 @@ def test_mobile_collapses_through_the_existing_breakpoint():
     breakpoint = css.split("@media (max-width: 880px)")[1].split("}")[0] + "}"
     assert ".asc-answers { grid-template-columns: 1fr; }" in breakpoint
     # And the PRD-R block reuses that grid rather than defining a second one.
-    assert "PRD-R — the paired review surface" in css
-    prd_r = css.split("PRD-R — the paired review surface")[1]
+    assert _PRD_R_CSS_HEADING in css
+    prd_r = css.split(_PRD_R_CSS_HEADING)[1]
     assert "grid-template-columns" not in prd_r
 
 
@@ -733,5 +737,5 @@ def test_no_raw_hex_is_introduced_by_the_prd_r_block():
     """Design system: do not introduce a hex value outside _tokens.css."""
     import re
     css = _CSS.read_text(encoding="utf-8")
-    prd_r = css.split("PRD-R — the paired review surface")[1]
+    prd_r = css.split(_PRD_R_CSS_HEADING)[1]
     assert re.search(r"#[0-9a-fA-F]{3,8}\b", prd_r) is None

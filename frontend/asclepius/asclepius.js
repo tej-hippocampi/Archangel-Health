@@ -242,8 +242,8 @@
   function setPanel(dest) {
     if (dest === 'community') { openCommunity(); return; }
     // PRD-R: the expert review console is its own page (review.html). It is
-    // external for the same reason Community is — it is not a panel inside this
-    // shell — and gated on the SERVER's capability list, never on a tier string.
+    // external for the same reason Community is: it is not a panel inside this
+    // shell. Gated on the SERVER's capability list, never on a tier string.
     if (dest === 'review') {
       if (!sessionCan('review')) return;
       window.open('/asclepius/review', '_blank', 'noopener');
@@ -286,7 +286,7 @@
     tasks: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 4h9M7 10h9M7 16h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M3.2 4.2l1 1 1.4-1.7M3.2 10.2l1 1 1.4-1.7M3.2 16.2l1 1 1.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     advisor: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.8l5.4 2.1v4.4c0 3.2-2.2 6-5.4 7-3.2-1-5.4-3.8-5.4-7V4.9L10 2.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.7 9.9l1.6 1.7 3-3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     community: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 15V6a1.5 1.5 0 011.5-1.5h9A1.5 1.5 0 0116 6v5.5A1.5 1.5 0 0114.5 13H7l-3 2.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.5 8.5h5M7.5 10.5h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
-    // PRD-R — two panels side by side, the shape of the paired review.
+    // PRD-R: two panels side by side, the shape of the paired review.
     review: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.8" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><rect x="11.2" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><path d="M4.6 8.2h2.4M4.6 11h2.4M13 8.2h2.4M13 11h2.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
     guide: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 4.5A1.5 1.5 0 015.5 3H10v14H5.5A1.5 1.5 0 014 15.5v-11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 3h4.5A1.5 1.5 0 0116 4.5v11a1.5 1.5 0 01-1.5 1.5H10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 7h1.5M6.5 9.5h1.5M12 7h1.5M12 9.5h1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
   };
@@ -294,7 +294,7 @@
   const RAIL_ITEMS = [
     { dest: 'tasks',     label: 'Tasks' },
     // PRD-R: without this entry the review console has no route from the portal
-    // at all — a promoted reviewer signs in and never finds the surface. Same
+    // at all, so a promoted reviewer signs in and never finds the surface. Same
     // capability gate as Advisor below, for the same reason: the client reads
     // the server's capability list and never re-derives a tier.
     { dest: 'review',    label: 'Review', capability: 'review', external: true },
