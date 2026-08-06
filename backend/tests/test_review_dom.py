@@ -61,16 +61,31 @@ globalThis.clearInterval = () => {};
 globalThis.__timers = timers;
 globalThis.__tick = function () { timers.slice().forEach((fn) => fn()); };
 
-// Agent P's heartbeat client, when the page has one. `state()` is the ONLY
-// contract the review surface consumes: server-attested seconds, never a local
-// clock. `__sessionCalls` records what the review page asked of it.
+// Agent P's heartbeat client, when the page has one. The review surface talks to
+// it through exactly three calls — start(payload, progressKey), stop(reason),
+// state() — and reads server-attested seconds from state(), never a local clock.
+// `__sessionCalls` records every one, so a test can assert what the page asked
+// for AND what it passed. The method set is data-driven so a build of P's client
+// that predates `stop` can be simulated.
 globalThis.__sessionCalls = [];
 const SESSION_STATE = %(session_state)s;
+const SESSION_METHODS = %(session_methods)s;
 if (SESSION_STATE !== null) {
-  globalThis.window.AsclepiusSession = {
-    start: function (s) { globalThis.__sessionCalls.push(['start', s && s.session_id]); },
-    state: function () { globalThis.__sessionCalls.push(['state']); return SESSION_STATE; },
-  };
+  const client = {};
+  if (SESSION_METHODS.indexOf('start') !== -1) {
+    client.start = function (s, key) {
+      globalThis.__sessionCalls.push(['start', s && s.session_id, key === undefined ? null : key]);
+    };
+  }
+  if (SESSION_METHODS.indexOf('stop') !== -1) {
+    client.stop = function (reason) {
+      globalThis.__sessionCalls.push(['stop', reason === undefined ? null : reason]);
+    };
+  }
+  if (SESSION_METHODS.indexOf('state') !== -1) {
+    client.state = function () { return SESSION_STATE; };
+  }
+  globalThis.window.AsclepiusSession = client;
 }
 
 const ROUTES = %(routes)s;
@@ -220,6 +235,12 @@ def _pair_body(*, session=None):
     }
 
 
+_EMPTY_QUEUE = {"/review/pair/next": {
+    "status": 200,
+    "body": {"pair": None, "session": None, "message": "No cases awaiting review."},
+}}
+
+
 def _routes(**over):
     routes = {
         "/review/me": {"status": 200, "body": _me()},
@@ -232,16 +253,21 @@ def _routes(**over):
     return routes
 
 
-def _render(routes, drive: str = "", session_state=None) -> dict:
+def _render(routes, drive: str = "", session_state=None,
+            session_methods=("start", "stop", "state")) -> dict:
     """``session_state`` is what Agent P's ``AsclepiusSession.state()`` returns.
     ``None`` means the page has no heartbeat client at all — which is what a
-    reviewer sees today, before P's script is on the page."""
+    reviewer sees before P's script is on the page.
+
+    ``session_methods`` is the method set that client exposes, so a build
+    predating one of them can be simulated."""
     return _run_node(_HARNESS % {
         "shim": json.dumps(str(_DOM_SHIM)),
         "module": json.dumps(str(_REVIEW_JS)),
         "routes": json.dumps(routes),
         "drive": json.dumps(drive) if drive else "null",
         "session_state": json.dumps(session_state) if session_state is not None else "null",
+        "session_methods": json.dumps(list(session_methods)),
     })
 
 
@@ -303,8 +329,110 @@ def test_the_countdown_renders_only_server_attested_seconds():
     )
     assert out["clock"] == ["Session · 12:31 of 20:00"]
     # The page hands P's client the server's session and then only READS it.
-    assert ["start", "ws-1"] in out["sessionCalls"]
-    assert ["state"] in out["sessionCalls"]
+    assert any(c[0] == "start" and c[1] == "ws-1" for c in out["sessionCalls"])
+
+
+# ─── the payments seam: naming the work, and stopping ────────────────────────
+def test_every_beat_names_the_case_it_is_beating_for():
+    """A heartbeat that names no work is not evidence of anything. The progress
+    key must be the TASK — only this page knows what a unit of review work is,
+    which is why payments cannot supply it (PRD-P §8). Without it every beat
+    reads `session:<id>`, per-case accounting becomes unanswerable, and the
+    per-key credit ceiling has nothing to bind to."""
+    out = _render(
+        _routes(**{"/review/pair/next":
+                   {"status": 200, "body": _pair_body(session=_SESSION)}}),
+        session_state={"continuous_seconds": 10, "min_seconds": 1200,
+                       "qualified": False},
+    )
+    starts = [c for c in out["sessionCalls"] if c[0] == "start"]
+    assert starts, "P's client was never started"
+    assert starts[0][1] == "ws-1"
+    assert starts[0][2] == "t-1", "the beat names no work"
+
+
+def test_an_empty_queue_stops_the_clock_the_reviewer_cannot_see():
+    """P's client beats until told to stop or the tab hides. When the queue
+    empties this page sets SESSION to null and hides the clock — so a reviewer
+    idling on an empty queue kept accruing paid time AND could not see that they
+    were, because the clock was correctly hidden. Twenty minutes of that is $100.
+
+    The empty-queue state is the one thing only this page knows."""
+    out = _render(_routes(**_EMPTY_QUEUE),
+                  session_state={"continuous_seconds": 60, "min_seconds": 1200,
+                                 "qualified": False})
+    stops = [c for c in out["sessionCalls"] if c[0] == "stop"]
+    assert stops, "the queue emptied and the beats carried on"
+    assert stops[0][1], "stop was called without a reason"
+    assert out["clock"] == []          # ...and the clock is still correctly hidden
+
+
+def test_a_served_pair_never_stops_the_session():
+    out = _render(
+        _routes(**{"/review/pair/next":
+                   {"status": 200, "body": _pair_body(session=_SESSION)}}),
+        session_state={"continuous_seconds": 60, "min_seconds": 1200,
+                       "qualified": False},
+    )
+    assert not [c for c in out["sessionCalls"] if c[0] == "stop"]
+
+
+def test_a_failed_draw_stops_the_session_too():
+    """Same shape as the empty queue: an error screen is not work, and the
+    reviewer looking at it cannot tell that time is still being counted."""
+    out = _render(
+        _routes(**{"/review/pair/next": {"status": 500, "body": {"detail": "boom"}}}),
+        session_state={"continuous_seconds": 60, "min_seconds": 1200,
+                       "qualified": False},
+    )
+    assert [c for c in out["sessionCalls"] if c[0] == "stop"]
+
+
+def test_signing_out_stops_the_session():
+    drive = "globalThis.__click2 && 0; (function(){\n"
+    drive += "  var btns = [];\n"
+    drive += "  (function walk(el){ if (el.className === 'rv-linkbtn') btns.push(el);\n"
+    drive += "                      (el.children||[]).forEach(walk); })(document.getElementById('reviewRoot'));\n"
+    drive += "  btns[0].dispatch('click', { currentTarget: btns[0] });\n"
+    drive += "})();"
+    out = _render(
+        _routes(**{"/review/pair/next":
+                   {"status": 200, "body": _pair_body(session=_SESSION)}}),
+        drive,
+        session_state={"continuous_seconds": 60, "min_seconds": 1200,
+                       "qualified": False},
+    )
+    assert [c for c in out["sessionCalls"] if c[0] == "stop"]
+
+
+def test_the_page_survives_a_session_client_without_stop():
+    """Feature-detected, like every other call across this seam. A build of P's
+    client that predates `stop` must not take the review page down with it —
+    this seam has already produced one silent failure from a method that was
+    guarded, present in the guard, and simply not there."""
+    out = _render(_routes(**_EMPTY_QUEUE),
+                  session_state={"continuous_seconds": 60, "min_seconds": 1200,
+                                 "qualified": False},
+                  session_methods=("start", "state"))
+    assert "No cases awaiting review" in out["text"]
+    assert out["errors"] == [] or not any(out["errors"])
+
+
+def test_a_resumed_session_carries_no_nonce_and_that_is_fine():
+    """P hands out `nonce: null` on a resumed open — a live nonce on every open
+    turned idempotence into an unlimited credential dispenser. This page forwards
+    the session opaquely and must not grow code that expects a nonce."""
+    resumed = {"session_id": "ws-1", "nonce": None}
+    out = _render(
+        _routes(**{"/review/pair/next":
+                   {"status": 200, "body": _pair_body(session=resumed)}}),
+        session_state={"continuous_seconds": 300, "min_seconds": 1200,
+                       "qualified": False},
+    )
+    assert out["clock"] == ["Session · 5:00 of 20:00"]
+    assert any(c[0] == "start" for c in out["sessionCalls"])
+    src = _REVIEW_JS.read_text(encoding="utf-8")
+    assert "nonce" not in src, "the review page reads a payments field it must not"
 
 
 def test_the_clock_does_not_advance_on_its_own():

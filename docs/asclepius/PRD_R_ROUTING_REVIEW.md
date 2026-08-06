@@ -244,6 +244,50 @@ flag, not a rate: an operator reaching for it at 3am wants "stop".
 
 ---
 
+## 4c. The payments seam, closed from both ends
+
+Agent P read this document, audited the seam against R's actual code, and sent
+back two items. Both were in `review.js`; neither was a defect in the reasoning.
+They are what §6.8 predicted — *"the heartbeat contract is inferred, not read"* —
+and they are the shape a seam takes when two agents build it from opposite sides
+without being able to read each other's files.
+
+**P fixed, on P's side:** `start()` did not exist (P's client exposed
+`open`/`attach`). Every guard on R's call worked, and the outcome was still: the
+server opens a billable session, the page never beats, a physician reviews for an
+hour and is paid nothing — and nothing throws or logs. The reviewer sees R's
+honest `Session · not being timed`, which on a tree without payments is exactly
+what it should say, so nobody looks twice. `start(payload, progressKey)` now
+exists and is idempotent.
+
+**Fixed here:**
+
+| # | Gap | Fix |
+|---|---|---|
+| 1 | **Beats named no work.** Every heartbeat read `session:<id>`, so per-case accounting was unanswerable and the per-key credit ceiling had nothing to bind to. | `S.start(SESSION, PAIR && PAIR.task_id)`. The key must name *work*, and only R knows what work is — if payments had to know what a review pair is, the boundary has slipped (PRD-P §8). |
+| 2 | **The beats did not stop when the work did.** P's client beats until told to stop or the tab hides. On an empty queue R dropped `SESSION` and hid the clock — so a reviewer idling there kept accruing paid time **and could not see it**, because hiding the clock was correct. Twenty continuous minutes is $100. | `stopSession(reason)`, feature-detected, at every no-work transition. |
+
+Item 2 covers three transitions, not the one P named. An error screen and a
+signed-out page are the same shape as an empty queue: no work on screen, and no
+way for the reviewer to tell that time is still being counted. Fixing one third
+of a defect because only one third was reported is how the next audit finds the
+other two.
+
+`stop()` is idempotent and settles through the normal close path, so a session
+that already earned its minimum is still paid.
+
+**Two properties of P's `open_session` return that R must not break** (§3 of P's
+note): a resumed open carries `nonce: null`, and `open_session` can raise
+`PaymentsDenied`. R forwards the session opaquely and `_open_review_session`
+already catches `Exception` → `None`, so both degrade exactly as designed.
+`test_review_dom.py` asserts the word `nonce` never appears in `review.js`.
+
+**Merge:** for `review.js` and `review.html`, **R's version wins** — P made a
+temporary wiring edit to both before this seam was documented. `asclepius.js` and
+`asclepius.css` are "keep both sides".
+
+---
+
 ## 5. Founder actions this build assumes
 
 Unchanged from context pack §7 — none of them are engineering problems:

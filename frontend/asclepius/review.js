@@ -104,6 +104,7 @@
 
   function signOut() {
     token = null;
+    stopSession('signed_out');
     try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ }
     renderLogin();
   }
@@ -142,6 +143,26 @@
     var S = sessionClient();
     if (!S) return null;
     try { return S.state() || null; } catch (e) { return null; }
+  }
+
+  // Tell Agent P's client there is no longer any work on screen.
+  //
+  // P's client beats until it is told to stop or the tab hides. THE EMPTY QUEUE
+  // IS SOMETHING ONLY THIS PAGE KNOWS: when the queue drains we drop SESSION and
+  // hide the clock, and a reviewer left idling on that screen went on accruing
+  // paid time while — correctly — being unable to see it. Twenty continuous
+  // minutes of that is $100 nobody worked for.
+  //
+  // Called at every no-work transition, not just the empty queue: an error
+  // screen and a signed-out page are the same shape. ``stop`` is idempotent and
+  // settles through the normal close path, so a session that already earned its
+  // minimum is still paid. Feature-detected like every call across this seam —
+  // this boundary has already produced one silent failure from a method that was
+  // guarded, present in the guard, and simply not there.
+  function stopSession(reason) {
+    var S = (typeof window !== 'undefined') && window.AsclepiusSession;
+    if (!S || typeof S.stop !== 'function') return;
+    try { S.stop(reason); } catch (e) { /* never block the reviewer */ }
   }
   function mmss(total) {
     var s = Math.max(0, Math.floor(total));
@@ -221,15 +242,24 @@
       SESSION = results[0].session || null;
       // Hand the server's session to Agent P's client and then leave it alone.
       // R decides what a reviewer sees; P decides whether the time is paid for.
+      //
+      // The second argument NAMES THE WORK. A heartbeat that names nothing is
+      // not evidence of anything, and only this page knows what a unit of review
+      // work is — if payments had to know what a review pair is, the boundary
+      // has slipped (PRD-P §8). Without it every beat reads `session:<id>`,
+      // per-case accounting becomes unanswerable, and the per-key credit ceiling
+      // has nothing to bind to.
       if (SESSION) {
         var S = sessionClient();
         if (S && typeof S.start === 'function') {
-          try { S.start(SESSION); } catch (e) { /* never block the review */ }
+          // Idempotent on P's side, so calling it on every draw is how the key
+          // follows the reviewer from one case to the next.
+          try { S.start(SESSION, PAIR && PAIR.task_id); } catch (e) { /* never block the review */ }
         }
       }
       STATS = results[1];
       resetReview();
-      if (!PAIR) { renderEmpty(results[0].message); return; }
+      if (!PAIR) { stopSession('queue_empty'); renderEmpty(results[0].message); return; }
       renderReview();
       startClock();
     }).catch(function (err) {
@@ -300,6 +330,8 @@
   }
 
   function renderFatal(message) {
+    // An error screen is not work either.
+    stopSession('error');
     mount(header(), h('div', { class: 'rv-main' },
       h('div', { class: 'rv-card' },
         h('div', { class: 'rv-error' }, message || 'Something went wrong.'),
