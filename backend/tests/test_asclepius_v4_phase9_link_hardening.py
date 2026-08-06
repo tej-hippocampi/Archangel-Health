@@ -44,7 +44,7 @@ def _store():
 def _link():
     admin = A.headers_for(A.make_user(_store(), role="admin"))
     return client.post("/api/asclepius/admin/upload-links",
-                       json={"partner_id": "mercy", "specialty": "nephrology",
+                       json={"partner_id": "mercy", "purpose": "task_creation", "specialty": "nephrology",
                              "expires_hours": 24, "one_time": False},
                        headers=admin).json()
 

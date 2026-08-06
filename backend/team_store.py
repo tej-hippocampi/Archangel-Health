@@ -678,6 +678,9 @@ class TeamStore:
                 conn, "telehealth_encounters", "connected_seconds", "INTEGER NOT NULL DEFAULT 0"
             )
             self._add_column_if_missing(conn, "telehealth_encounters", "last_heartbeat_at", "TEXT")
+            # Invited-clinician email verification (parity with the director's
+            # OTP gate): set once the member proves inbox control via OTP.
+            self._add_column_if_missing(conn, "asclepius_people", "email_verified_at", "TEXT")
 
     @staticmethod
     def _migrate_team_member_roles_v4(conn: sqlite3.Connection) -> None:
@@ -870,6 +873,7 @@ class TeamStore:
         invite_base_url: str,
         expires_days: int = 30,
         director_email: Optional[str] = None,
+        product: str = "archangel",
     ) -> Dict[str, Any]:
         """New pending health system + one-time onboarding URL (token shown once).
 
@@ -877,7 +881,15 @@ class TeamStore:
         ``onboarding_step`` — the wizard still runs its full identity + OTP
         flow. Self-serve (non-admin) callers pass it so the row is tied to a
         reachable inbox, alongside a shorter ``expires_days``.
+
+        ``product`` pre-locks the row to a single product so the wizard never
+        has to ask the signer to choose (self-serve physician-contributor
+        links pass ``"asclepius"``; admin-generated health-system links keep
+        the ``"archangel"`` default).
         """
+        prod = (product or "archangel").strip().lower()
+        if prod not in ("archangel", "asclepius"):
+            prod = "archangel"
         raw_token = secrets.token_urlsafe(32)
         token_hash = self._hash_onboarding_token(raw_token)
         expires = (datetime.utcnow() + timedelta(days=expires_days)).replace(microsecond=0).isoformat()
@@ -896,10 +908,10 @@ class TeamStore:
                             id, slug, name, surgery_department, phone, health_system_code, status,
                             onboarding_token_hash, onboarding_token_expires_at, onboarding_completed_at,
                             director_email, director_first_name, director_last_name, onboarding_step,
-                            last_generated_invite_url, created_at
+                            last_generated_invite_url, created_at, product
                         )
                         VALUES (?, ?, NULL, NULL, NULL, NULL, 'pending_onboarding', ?, ?, NULL,
-                                ?, NULL, NULL, 0, ?, ?)
+                                ?, NULL, NULL, 0, ?, ?, ?)
                         """,
                         (
                             hs_id,
@@ -909,6 +921,7 @@ class TeamStore:
                             (director_email or "").lower().strip() or None,
                             invite_url,
                             now,
+                            prod,
                         ),
                     )
                 break
@@ -1385,6 +1398,18 @@ class TeamStore:
                 WHERE health_system_id = ? AND email = ?
                 """,
                 (json.dumps(attestations or {}), _utcnow_iso(), hs_id, email.lower().strip()),
+            )
+
+    def mark_asclepius_member_verified(self, hs_id: str, email: str) -> None:
+        """Stamp ``email_verified_at`` once the invited clinician proves inbox
+        control via OTP (Feature B hard gate, ``member_finish``)."""
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE asclepius_people SET email_verified_at = ?, updated_at = ?
+                WHERE health_system_id = ? AND email = ?
+                """,
+                (_utcnow_iso(), _utcnow_iso(), hs_id, email.lower().strip()),
             )
 
     def finalize_asclepius_person(

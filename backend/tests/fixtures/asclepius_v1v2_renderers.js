@@ -61,7 +61,7 @@ function renderStepsList(listId) {
       list.appendChild(h('div', { class: 'asc-step-bulkbar' },
         h('span', { class: 'asc-step-bulk-label' },
           pendingGood.length + ' step' + (pendingGood.length === 1 ? ' looks' : 's look')
-          + ' correct to the model — read them, then confirm in one tap.'),
+          + ' correct to the model. Read them, then confirm in one tap.'),
         h('button', {
           class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
           onClick: () => {
@@ -80,7 +80,7 @@ function renderStepsList(listId) {
           h('div', { class: 'asc-step-head' },
             h('div', { style: 'display:flex;align-items:center;gap:8px;min-width:0' },
               h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)),
-              h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, 'model · looks correct'),
+              h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade: your confirmation is the label' }, 'model · looks correct'),
               pill),
             h('div', { style: 'display:flex;align-items:center;gap:8px' },
               h('button', {
@@ -136,7 +136,7 @@ function renderStepsList(listId) {
       ci.addEventListener('input', () => { s.critique = ci.value; saveDraft(); });
       const critiqueField = h('div', { class: 'asc-field', style: 'margin-top:8px' }, withMic(ci));
       const flaggedBadge = (s.suggested_label === 'bad')
-        ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, 'model · flags this')
+        ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade: verify and confirm or correct' }, 'model · flags this')
         : null;
       const suggestHint = (s.suggested_label === 'bad' && s.suggested_critique)
         ? h('div', { class: 'asc-step-suggest-hint' }, 'Model: ' + s.suggested_critique)
@@ -166,7 +166,7 @@ function renderStepsList(listId) {
         let text = 'pending', cls = 'pending';
         if (added) { text = 'added'; cls = 'added'; }
         else if (corrected) {
-          text = s.correction_reason ? ('corrected · ' + s.correction_reason.replace(/_/g, ' ')) : 'corrected — pick a reason';
+          text = s.correction_reason ? ('corrected · ' + s.correction_reason.replace(/_/g, ' ')) : 'corrected: pick a reason';
           cls = 'corrected';
         } else if (confirmed) { text = 'confirmed ✓'; cls = 'confirmed'; }
         statusPill.textContent = text;
@@ -195,6 +195,6 @@ function renderStepsList(listId) {
       list.appendChild(h('div', { class: 'asc-step' }, head, suggestHint, ta, reasonWrap, originalBox, critiqueField, stepCite, anchorBlock));
     });
     if (!steps.length) {
-      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually, or use “Re-split from answer”.'));
+      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet. Add steps manually, or use “Re-split from answer”.'));
     }
   }

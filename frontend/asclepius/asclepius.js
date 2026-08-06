@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Asclepius — Expert Evaluation Portal (vanilla SPA)
+   Asclepius: Expert Evaluation Portal (vanilla SPA)
    Standalone Asclepius JWT auth. No frameworks, no build step.
    ═══════════════════════════════════════════════════════════════════════════ */
 (function () {
@@ -34,7 +34,7 @@
     taxonomy: null,
     view: 'eval',          // 'eval' | 'admin'  (header-level: evaluate vs admin console)
     panel: 'tasks',        // side-panel destination: 'tasks' | 'guide' (Community is external nav)
-    // Community integration state (Community PRD boundary — every field optional,
+    // Community integration state (Community PRD boundary: every field optional,
     // degrades silently if the community backend is unbuilt). unread drives the
     // badge; handoffToken is pre-minted so the new tab can open synchronously.
     community: { unread: 0, handoffToken: null, unavailable: false, unreadUnavailable: false, pollTimer: null },
@@ -65,7 +65,13 @@
     portalChosen: false,    // has the evaluator picked V1/V2 on the home page yet
     specialtyChosen: false, // has the evaluator picked a specialty this session (V3/V4)
     specialties: null,      // cached GET /specialties listing (drives the picker)
+    // First-run tutorial (Calibration Case 1). Null when not running; set by
+    // startTutorial to {active, replay, idx}. Server state (user.tutorial) is
+    // the launch authority; this is only the live tour position.
+    tutorial: null,
+    instrOpen: false,       // instruction drawer visibility
   };
+  function tutorialActive() { return !!(state.tutorial && state.tutorial.active); }
 
   // ─── Tiny DOM helper ───────────────────────────────────────────────────────
   function h(tag, attrs, ...children) {
@@ -116,7 +122,7 @@
     try {
       res = await fetch(API_BASE + path, { method: opts.method || 'GET', headers, body });
     } catch (e) {
-      throw { status: 0, detail: 'Network error — is the backend running?', message: 'Network error' };
+      throw { status: 0, detail: 'Network error. Is the backend running?', message: 'Network error' };
     }
     // A 401 mid-session means the token expired -> bounce to login. But for
     // foreground auth calls (login, /auth/me probe) a 401 is just "bad creds /
@@ -183,6 +189,11 @@
 
     const nav = document.getElementById('ascNav');
     clear(nav);
+    // Everyone gets a Dashboard tab so a doctor can return home from a case.
+    nav.appendChild(h('button', {
+      class: 'asc-nav-btn' + (state.view === 'home' ? ' active' : ''),
+      onClick: () => switchView('home'),
+    }, 'Dashboard'));
     const isAdmin = state.user.role === 'admin' || state.user.role === 'qa_reviewer';
     if (isAdmin) {
       nav.appendChild(h('button', {
@@ -195,13 +206,17 @@
       }, 'Admin console'));
     }
     // Community entry lives in the persistent SIDE PANEL (per the Community
-    // PRD §1 and the Side Panel PRD), not the header — see renderSidePanel().
+    // PRD §1 and the Side Panel PRD), not the header: see renderSidePanel().
 
     const badge = document.getElementById('ascUserBadge');
     clear(badge);
     badge.appendChild(h('span', { class: 'asc-user-email' }, state.user.email));
     badge.appendChild(h('span', { class: 'asc-user-role' },
       state.user.role.replace('_', ' ') + (state.user.specialty ? ' · ' + state.user.specialty : '')));
+
+    // The corner ? tab (below) is the single help entry point: replay the
+    // practice case or view a summary of it. No separate header control.
+    ensureInstrTab();
 
     document.getElementById('ascLogoutBtn').onclick = logout;
   }
@@ -210,19 +225,20 @@
     if (view === 'admin' && state.view !== 'admin') saveDraft();
     state.view = view;
     // The header nav (Evaluate / Admin console) always lands back inside the
-    // Tasks side-panel destination — the Guide is a peer, not a sub-view of it.
+    // Tasks side-panel destination: the Guide is a peer, not a sub-view of it.
     // Leaving the Guide this way must also stop its scroll-spy observer.
     if (state.panel === 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
     state.panel = 'tasks';
     renderHeader();
     renderSidePanel();
-    if (view === 'eval') renderEvalView();
+    if (view === 'home') renderDashboardView();
+    else if (view === 'eval') renderEvalView();
     else renderAdminView();
   }
 
   // ─── Side panel destination router (Tasks / Guide; Community is external) ────
   // Tasks re-enters the existing header view (eval or admin); Guide renders the
-  // in-portal Instruction Manual. Community never routes here — it opens a tab.
+  // in-portal Instruction Manual. Community never routes here: it opens a tab.
   function setPanel(dest) {
     if (dest === 'community') { openCommunity(); return; }
     // PRD-R: the expert review console is its own page (review.html). It is
@@ -236,10 +252,10 @@
     if (dest !== 'tasks' && dest !== 'guide' && dest !== 'advisor') return;
     // Server-gated destinations are re-checked here, not only hidden in the
     // rail: a stale deep link or a hand-typed state change must not open a
-    // section the session was never granted. (The API 403s regardless — this
+    // section the session was never granted. (The API 403s regardless: this
     // just avoids rendering an empty shell over it.)
     if (dest === 'advisor' && !sessionCan('refer')) return;
-    if (dest === state.panel) return; // already here — no needless re-render/refetch
+    if (dest === state.panel) return; // already here: no needless re-render/refetch
     saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
     // Leaving the Guide: stop the scroll-spy observer so it never watches the
     // detached section nodes that setRoot() is about to replace.
@@ -259,7 +275,7 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
-     SIDE PANEL — a persistent left rail (Tasks / Community / Guide) that lives
+     SIDE PANEL: a persistent left rail (Tasks / Community / Guide) that lives
      OUTSIDE #ascRoot, so the per-view setRoot() re-renders never wipe it. Built
      once, then updated in place. Collapses to icons < 1100px; becomes a bottom
      tab bar on mobile (all handled in CSS).
@@ -285,14 +301,14 @@
     { dest: 'community', label: 'Community', external: true },
     // Advisor PRD §6.2: shown only to a session whose SERVER-supplied
     // capabilities include 'refer'. The gate is `capability`, never a tier
-    // string — re-deriving "is this an advisor?" in the client would push the
+    // string: re-deriving "is this an advisor?" in the client would push the
     // exact two-state check this build removed back into the frontend.
     { dest: 'advisor',   label: 'Advisor', capability: 'refer' },
     { dest: 'guide',     label: 'Guide' },
   ];
 
   // The capability list the server put on the session. Absent (an older token,
-  // a cached payload) means no extra sections — deny, never assume.
+  // a cached payload) means no extra sections: deny, never assume.
   function sessionCan(capability) {
     const caps = (state.user && state.user.capabilities) || [];
     return caps.indexOf(capability) !== -1;
@@ -303,7 +319,7 @@
   }
 
   let chromeMetricsBound = false;
-  let communityGen = 0; // session generation — see resetCommunityState()
+  let communityGen = 0; // session generation: see resetCommunityState()
 
   // Deterministic specialty → accent-dot color (palette only). Purely cosmetic
   // wayfinding; any specialty maps stably to one of the four console accents.
@@ -349,7 +365,7 @@
     }
     // Bind the re-measure listeners exactly once for the app's lifetime, so
     // repeated sign-in/out cycles never stack duplicates. Re-measure on resize,
-    // on full load, and once web fonts settle — the header's height changes when
+    // on full load, and once web fonts settle: the header's height changes when
     // Instrument Sans / IBM Plex Mono swap in, and the rail is pinned to it.
     if (!chromeMetricsBound) {
       window.addEventListener('resize', syncChromeMetrics);
@@ -465,13 +481,13 @@
         headers: state.token ? { 'Authorization': 'Bearer ' + state.token } : {},
         credentials: 'include',
       });
-      if (gen !== communityGen) return; // session changed mid-flight — drop result
+      if (gen !== communityGen) return; // session changed mid-flight: drop result
       if (res.status === 404) { state.community.unavailable = true; return; }
       if (!res.ok) return;
       const data = await res.json().catch(() => null);
       if (gen !== communityGen) return; // re-check after the second await
       if (data && data.token) state.community.handoffToken = data.token;
-    } catch (_) { /* network error — keep any existing token, open bare otherwise */ }
+    } catch (_) { /* network error: keep any existing token, open bare otherwise */ }
   }
 
   async function refreshCommunityUnread() {
@@ -482,7 +498,7 @@
         headers: state.token ? { 'Authorization': 'Bearer ' + state.token } : {},
         credentials: 'include',
       });
-      if (gen !== communityGen) return; // session changed mid-flight — drop result
+      if (gen !== communityGen) return; // session changed mid-flight: drop result
       // 404 → the unread endpoint isn't deployed; back off permanently for this
       // session (mirrors handoff) so we don't hammer a missing route every 60s.
       if (res.status === 404) { state.community.unreadUnavailable = true; return; }
@@ -494,7 +510,7 @@
         state.community.unread = Math.max(0, total | 0);
         updateCommunityBadge();
       }
-    } catch (_) { /* degrade silently — never surface a community error in the rail */ }
+    } catch (_) { /* degrade silently: never surface a community error in the rail */ }
   }
 
   function pollCommunityOnce() {
@@ -516,7 +532,7 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
-     INSTRUCTION MANUAL (Guide) — renders window.ASC_MANUAL (structured data)
+     INSTRUCTION MANUAL (Guide): renders window.ASC_MANUAL (structured data)
      through this one component. Two columns: a sticky scroll-spy TOC + the
      sections. Three-line sections, good/weak examples, collapsed detail,
      per-section anchors, a reading-time estimate, and a print stylesheet.
@@ -536,7 +552,7 @@
 
     const sections = manual.sections;
 
-    // Sticky TOC (desktop) — one link per section, scroll-spy highlights.
+    // Sticky TOC (desktop): one link per section, scroll-spy highlights.
     const tocList = h('ul', { class: 'asc-guide-toc-list' });
     sections.forEach((sec) => {
       tocList.appendChild(h('li', {},
@@ -551,7 +567,7 @@
       h('div', { class: 'chrome asc-guide-toc-head' }, 'Contents'),
       tocList);
 
-    // Mobile TOC — a dropdown that jumps to a section.
+    // Mobile TOC: a dropdown that jumps to a section.
     const mobileSelect = h('select', {
       class: 'asc-guide-toc-select', 'aria-label': 'Jump to section',
       onChange: (e) => { const id = e.target.value; if (id) scrollToSection(id); },
@@ -694,7 +710,7 @@
   function scrollToSection(id) {
     const el = document.getElementById(id);
     if (!el) return;
-    // Honor reduced-motion for programmatic scroll — the JS smooth option ignores
+    // Honor reduced-motion for programmatic scroll: the JS smooth option ignores
     // the CSS scroll-behavior override, so gate it explicitly.
     el.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     setGuideHash(id);
@@ -783,7 +799,7 @@
     if (state.token) {
       try {
         // noAuthHandler: a stale/expired token must NOT short-circuit to the
-        // "session expired" screen — we want to fall through to SSO below.
+        // "session expired" screen. We want to fall through to SSO below.
         state.user = await api('/auth/me', { noAuthHandler: true });
         await loadTaxonomy();
         renderHeader();
@@ -796,7 +812,7 @@
       }
     }
     // 2) Already signed into the doctor portal? Exchange that session for an
-    //    Asclepius one (SSO) — no second login barrier. Skipped right after an
+    //    Asclepius one (SSO): no second login barrier. Skipped right after an
     //    explicit sign-out so the user can choose to sign in with their
     //    onboarding (workspace) credentials instead of being pulled back into
     //    the doctor-portal identity.
@@ -808,7 +824,7 @@
   }
 
   // Silent SSO: trade a doctor-portal token for an Asclepius session. Uses a raw
-  // fetch (not api()) so a rejected probe doesn't trip the 401 session handler —
+  // fetch (not api()) so a rejected probe doesn't trip the 401 session handler;
   // an unknown/expired doctor token just means "fall back to the login form".
   async function trySsoLogin() {
     let doctorToken = '';
@@ -822,7 +838,7 @@
         body: JSON.stringify({ token: doctorToken }),
       });
     } catch (e) {
-      return false; // network error — let renderLogin() show the form
+      return false; // network error; let renderLogin() show the form
     }
     if (!res.ok) return false; // 401 (bad token) / 403 (no evaluator account)
     let data = null;
@@ -849,7 +865,9 @@
   }
 
   function enterApp() {
-    state.view = 'eval';
+    // Land on the dashboard (home), not straight into a case. The dashboard
+    // routes into the existing eval flow when the doctor picks or starts a case.
+    state.view = 'home';
     state.panel = 'tasks';
     // Fresh community state for this session. On a shared device, a prior user's
     // unread count or (more importantly) their signed handoff token must never
@@ -858,13 +876,22 @@
     renderHeader();
     renderSidePanel();
     startCommunityPolling();
-    renderEvalView();
+    // First-run tutorial gate (Calibration Case 1): a brand-new evaluator lands
+    // in the practice case; in_progress resumes it. completed/skipped NEVER
+    // re-trigger (server-authoritative via PATCH /me/tutorial). Admin/QA skip it.
+    const tut = (state.user && state.user.tutorial) || {};
+    if (state.user.role === 'evaluator'
+        && (tut.status === 'not_started' || tut.status === 'in_progress')) {
+      startTutorial({ resume: tut.status === 'in_progress', resumeStep: tut.step });
+      return;
+    }
+    renderDashboardView();
   }
 
   // Bumping the generation invalidates any community fetch that is still in
   // flight: its late-resolving .then() sees a newer generation and drops its
   // result, so a hung request from a previous user can never write that user's
-  // unread count — or, critically, their signed handoff token — into this
+  // unread count (or, critically, their signed handoff token) into this
   // session's state on a shared device.
   function resetCommunityState() {
     communityGen++;
@@ -877,6 +904,13 @@
   function logout() {
     state.token = null;
     state.user = null;
+    // Tear down the logged-in-only chrome (corner ? tab, its menu, the panel).
+    const instrTab = document.getElementById('ascInstrTab');
+    if (instrTab) instrTab.remove();
+    const cornerMenu = document.getElementById('ascCornerMenu');
+    if (cornerMenu) cornerMenu.remove();
+    const instrDrawer = document.getElementById('ascInstrDrawer');
+    if (instrDrawer) instrDrawer.remove();
     localStorage.removeItem(TOKEN_KEY);
     // Suppress the silent doctor-portal SSO on the next boot so signing out
     // actually lands on the sign-in form (otherwise an active doctor session
@@ -921,7 +955,7 @@
           state.token = data.token;
           state.user = data.user;
           localStorage.setItem(TOKEN_KEY, data.token);
-          // The user made an explicit identity choice — allow SSO again later.
+          // The user made an explicit identity choice, so allow SSO again later.
           try { localStorage.removeItem(SUPPRESS_SSO_KEY); } catch (_) { /* ignore */ }
           await loadTaxonomy();
           renderHeader();
@@ -954,7 +988,7 @@
         class: 'asc-btn-link', type: 'button', style: 'display:block;margin:14px auto 0',
         onClick: async () => {
           try { localStorage.removeItem(SUPPRESS_SSO_KEY); } catch (_) { /* ignore */ }
-          if (!(await trySsoLogin())) renderLogin('Could not resume your clinical session — sign in above.');
+          if (!(await trySsoLogin())) renderLogin('Could not resume your clinical session. Sign in above.');
         },
       }, 'Continue with my clinical portal session'));
     }
@@ -974,8 +1008,8 @@
   //  EVALUATOR WORKSPACE
   // ═══════════════════════════════════════════════════════════════════════════
   async function renderEvalView() {
-    // Home page: the evaluator picks their experience (V3 seamless — the
-    // recommended default — / V2 assisted / V1 classic) before any labeling. Shown
+    // Home page: the evaluator picks their experience (V3 seamless (the
+    // recommended default) / V2 assisted / V1 classic) before any labeling. Shown
     // on entry until a choice is made this session (and again on "Change experience").
     if (!state.portalChosen) { renderVersionHome(); return; }
     // V3/V4 are the specialty-scoped flows: pick the specialty before the case
@@ -1000,7 +1034,7 @@
       // Declare the active flow so the server applies it: V3 serves the hard-case
       // queue (difficulty=hard only) with value-aware routing; V2 value-aware;
       // V1 classic. WITHOUT this param the server safely falls back to the classic
-      // oldest-first queue — i.e. the whole V3/V2 serving path is dead unless the
+      // oldest-first queue, i.e. the whole V3/V2 serving path is dead unless the
       // client sends its selected version here.
       const data = await api('/tasks/next?portal_version=' + encodeURIComponent(getPortalVersion())
         + '&specialty=' + encodeURIComponent(getPortalSpecialty()));
@@ -1024,7 +1058,7 @@
 
   function renderEvalEmpty() {
     stopTimer();
-    updateHeaderProgress(); // no open task — the §16 bar hides here
+    updateHeaderProgress(); // no open task, so the §16 bar hides here
     const ver = getPortalVersion();
     const isSpecScoped = ver === 'v3' || ver === 'v4';
     const sp = getPortalSpecialty();
@@ -1035,21 +1069,182 @@
           h('div', { class: 'asc-empty-icon' }, '✓'),
           h('h3', {}, isSpecScoped ? ('No ' + spLabel + ' cases available yet') : 'Your queue is clear'),
           h('p', {}, isSpecScoped
-            ? ('No ' + spLabel + ' cases are available right now — check back soon, or pick another specialty.')
+            ? ('No ' + spLabel + ' cases are available right now. Check back soon.')
             : 'No evaluation tasks are waiting for you right now. Check back soon.'),
           h('div', { style: 'margin-top:16px' },
-            h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', onClick: renderEvalView }, 'Refresh queue'),
-            // §2: the popover, same as the workspace badge. Routing through
-            // `specialtyChosen = false` would re-enter renderEvalView's
-            // first-entry branch, which mounts the picker NON-dismissable —
-            // stranding a physician who opened it here just to look.
-            isSpecScoped ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', style: 'margin-left:8px',
-              onClick: async () => {
-                const before = getPortalSpecialty();
-                const picked = await renderSpecialtyPicker({ dismissable: true });
-                if (picked && picked !== before) renderEvalView();
-              } }, 'Change specialty') : null),
+            h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', onClick: renderEvalView }, 'Refresh queue')),
         ))));
+  }
+
+  // ─── Dashboard (home) ───────────────────────────────────────────────────────
+  // The landing surface after login: shows the cases this reviewer can pick right
+  // now, a "start next case" CTA, or a reassuring empty state. It routes into the
+  // EXISTING case flow (renderEvalView / the task workspace) without changing it.
+  async function renderDashboardView() {
+    state.view = 'home';
+    stopTimer();
+    updateHeaderProgress();
+    renderHeader();
+    // Default the flow so opening a case needs no picker: V3 + the doctor's own
+    // specialty. Both stay changeable from the dashboard / header.
+    state.portalChosen = true;
+    state.specialtyChosen = true;
+    const ver = getPortalVersion();
+    const spec = ((state.user && state.user.specialty) || getPortalSpecialty()).trim().toLowerCase();
+    setPortalSpecialty(spec);
+    const specLabel = spec.charAt(0).toUpperCase() + spec.slice(1);
+
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Loading your dashboard…'))));
+
+    let data = { tasks: [] };
+    let stats = null;
+    try {
+      const [tasksRes, statsRes] = await Promise.all([
+        api('/tasks/available?portal_version=' + encodeURIComponent(ver)
+          + '&specialty=' + encodeURIComponent(spec)),
+        api('/me/stats').catch(() => null), // widget is non-critical; never block the queue on it
+      ]);
+      data = tasksRes;
+      stats = statsRes;
+    } catch (e) {
+      if (e.status === 401) return;
+    }
+    const tasks = data.tasks || [];
+
+    const wrap = h('div', { class: 'asc-wrap' });
+    wrap.appendChild(h('div', { class: 'asc-dash-head' },
+      h('div', {},
+        h('h2', { class: 'asc-dash-hello' }, 'Your dashboard'),
+        h('p', { class: 'asc-dash-sub' }, specLabel + ' cases'))));
+
+    const cols = h('div', { class: 'asc-dash-cols' });
+    const main = h('div', { class: 'asc-dash-main' });
+
+    if (!tasks.length) {
+      main.appendChild(renderDashboardEmpty(specLabel));
+    } else {
+      main.appendChild(h('div', { class: 'asc-dash-hero' },
+        h('div', { class: 'asc-dash-hero-main' },
+          h('span', { class: 'asc-dash-hero-icon', 'aria-hidden': 'true' }, '→'),
+          h('div', {},
+            h('div', { class: 'asc-dash-hero-title' }, 'Start next case'),
+            h('div', { class: 'asc-dash-hero-sub' },
+              String(tasks.length) + (tasks.length === 1 ? ' case available' : ' cases available')))),
+        h('button', {
+          class: 'asc-btn asc-btn-primary asc-btn-lg',
+          onClick: () => { state.view = 'eval'; renderHeader(); renderEvalView(); },
+        }, 'Start →')));
+
+      const VISIBLE_CAP = 6;
+      const list = h('div', { class: 'asc-dash-list' });
+      tasks.slice(0, VISIBLE_CAP).forEach((t) => list.appendChild(renderTaskCard(t)));
+      main.appendChild(list);
+      const hiddenCount = tasks.length - VISIBLE_CAP;
+      if (hiddenCount > 0) {
+        const moreBtn = h('button', {
+          class: 'asc-dash-more', type: 'button',
+          onClick: () => {
+            tasks.slice(VISIBLE_CAP).forEach((t) => list.appendChild(renderTaskCard(t)));
+            moreBtn.remove();
+          },
+        }, 'Show ' + hiddenCount + ' more in your queue ↓');
+        main.appendChild(moreBtn);
+      }
+    }
+    cols.appendChild(main);
+    cols.appendChild(renderDashboardWidget(stats));
+    wrap.appendChild(cols);
+    setRoot(wrap);
+  }
+
+  // ─── "Your activity" tracking widget (side column) ──────────────────────────
+  // Real numbers only, pulled from GET /me/stats: total cases completed, cases
+  // in the last 7 days, and when the doctor last submitted one. No earnings or
+  // streak data exists anywhere in this product, so this stays limited to
+  // what's actually true rather than inventing filler metrics.
+  function formatRelativeTime(iso) {
+    if (!iso) return 'No submissions yet';
+    const then = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z');
+    const diffMs = Date.now() - then.getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + (mins === 1 ? ' minute ago' : ' minutes ago');
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return hours + (hours === 1 ? ' hour ago' : ' hours ago');
+    const days = Math.floor(hours / 24);
+    if (days < 7) return days + (days === 1 ? ' day ago' : ' days ago');
+    return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function renderDashboardWidget(stats) {
+    const total = stats ? stats.submissions_total : null;
+    const week = stats ? stats.submissions_this_week : null;
+    const lastAt = stats ? stats.last_submission_at : null;
+    return h('div', { class: 'asc-dash-widget' },
+      h('div', { class: 'asc-dash-widget-title' }, 'Your activity'),
+      h('div', { class: 'asc-dash-widget-row' },
+        h('span', { class: 'asc-dash-widget-label' }, 'Cases completed'),
+        h('span', { class: 'asc-dash-widget-n' }, total == null ? '–' : String(total))),
+      h('div', { class: 'asc-dash-widget-row' },
+        h('span', { class: 'asc-dash-widget-label' }, 'This week'),
+        h('span', { class: 'asc-dash-widget-n asc-dash-widget-n-sm' }, week == null ? '–' : String(week))),
+      h('div', { class: 'asc-dash-widget-row asc-dash-widget-row-last' },
+        h('span', { class: 'asc-dash-widget-label' }, 'Last submission'),
+        h('span', { class: 'asc-dash-widget-meta' }, formatRelativeTime(lastAt))));
+  }
+
+  function renderTaskCard(t) {
+    const spec = (t.specialty || 'general');
+    const specMeta = ((state.specialties || []).find((s) => s.specialty === spec)) || {};
+    const diff = t.difficulty || 'medium';
+    const isReal = t.case_source === 'real_deid';
+    return h('button', {
+      class: 'asc-dash-card', type: 'button', onClick: () => openTaskById(t.task_id),
+    },
+      h('div', { class: 'asc-dash-card-main' },
+        h('span', { class: 'asc-chip asc-chip-specialty asc-chip-' + (specMeta.accent || 'green') },
+          h('span', { class: 'asc-chip-dot', 'aria-hidden': 'true' }),
+          h('span', {}, spec.charAt(0).toUpperCase() + spec.slice(1))),
+        h('span', { class: 'asc-dash-card-meta' },
+          h('span', { class: 'asc-dot ' + (DIFFICULTY_DOT[diff] || 'asc-dot-orange') }), 'Difficulty: ' + diff),
+        t.modality === 'multimodal' ? h('span', { class: 'asc-dash-card-meta' }, 'Multimodal case') : null,
+        isReal ? h('span', { class: 'asc-dash-card-meta' }, 'Real (de-identified)') : null),
+      h('span', { class: 'asc-dash-card-go' }, 'Open →'));
+  }
+
+  async function openTaskById(id) {
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Opening case…'))));
+    try {
+      const data = await api('/tasks/' + encodeURIComponent(id));
+      if (!data || !data.task) { renderDashboardView(); return; }
+      state.view = 'eval';
+      state.portalChosen = true;
+      state.specialtyChosen = true;
+      state.task = data.task;
+      renderHeader();
+      initDraftForTask(state.task);
+      if (state.draft.stage === 'compare') {
+        try { await loadWithheldAnswersIfNeeded(); } catch (e) { /* compare shows a reload hint */ }
+      }
+      renderTaskWorkspace();
+    } catch (e) {
+      if (e.status !== 401) toast('Could not open that case: ' + e.message, 'error');
+    }
+  }
+
+  function renderDashboardEmpty(specLabel) {
+    return h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-empty' },
+        h('div', { class: 'asc-empty-icon' }, '✓'),
+        h('h3', {}, 'You are all set. No cases to grade right now.'),
+        h('p', {}, 'You are verified and in the ' + specLabel + ' pool. New cases arrive in batches, '
+          + 'and we will email you when the next one is ready.'),
+        h('div', { style: 'margin-top:16px' },
+          h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', onClick: renderDashboardView }, 'Refresh'))));
   }
 
   // ─── Draft + timer ─────────────────────────────────────────────────────────
@@ -1082,7 +1277,7 @@
       // Decisive action (Audit §13): physician-named verifiable outcome, skippable.
       decisive_action: { action: '', tool_name: '', rationale: '', must_precede_final_answer: true },
       reasoning_steps: [],
-      // §1 substage machine (Evaluation UX Overhaul) — V3/V4 only. ``substage``
+      // §1 substage machine (Evaluation UX Overhaul): V3/V4 only. ``substage``
       // is the persisted position INSIDE stage==='compare'; the *_done flags are
       // the explicit per-section completions (a section advances only when its
       // Save/Continue is clicked, never silently). All additive + backfilled.
@@ -1128,14 +1323,14 @@
     if (draft.rubricSeeded === undefined) draft.rubricSeeded = false;
     if (!draft.stage) draft.stage = 'prompt_review';
     // §1 substage machine backfill (all additive; an in-flight draft resumes at
-    // the first incomplete section with its data prefilled — nothing is lost).
+    // the first incomplete section with its data prefilled, so nothing is lost).
     if (draft.substage === undefined) draft.substage = null;
     ['refine_saved', 'why_better_done', 'citations_reviewed', 'critique_done',
       'from_scratch_saved', 'reasoning_done', 'rubric_done', 'confidence_set']
       .forEach((k) => { if (draft[k] === undefined) draft[k] = false; });
     if (draft.rubricCursor === undefined) draft.rubricCursor = 0;
     if (draft.rubricSeedHash === undefined) draft.rubricSeedHash = null;
-    // §13: per-step free-text "what's off" (step_note) — backfill older steps.
+    // §13: per-step free-text "what's off" (step_note); backfill older steps.
     [].concat(draft.reasoning_steps || [], (draft.from_scratch || {}).reasoning_steps || [])
       .forEach((s) => { if (s && s.step_note === undefined) s.step_note = ''; });
     state.draft = draft;
@@ -1198,7 +1393,7 @@
     return ((c && c.specialty) || (state.task && state.task.specialty) || 'nephrology').toLowerCase();
   }
 
-  // Per-specialty case-panel layout — ONE code path, config not a render fork
+  // Per-specialty case-panel layout: ONE code path, config not a render fork
   // (PRD §6). Each entry is an ordered list of tab specs; a tab appears only when
   // its data exists. ``study`` groups the case's ``studies`` by modality; ``strip``
   // renders a scannable ECG findings block; ``timeline`` renders imaging as a
@@ -1324,12 +1519,12 @@
   function refRange(r) {
     const lo = (r.ref_low === null || r.ref_low === undefined) ? '' : r.ref_low;
     const hi = (r.ref_high === null || r.ref_high === undefined) ? '' : r.ref_high;
-    if (lo === '' && hi === '') return '—';
+    if (lo === '' && hi === '') return 'n/a';
     return lo + '–' + hi;
   }
 
   // A compact measurements/variants table (reuses the lab flag classes) for a
-  // study's numeric findings — EF %, valve gradient, SUVmax, molecular VAF, etc.
+  // study's numeric findings: EF %, valve gradient, SUVmax, molecular VAF, etc.
   function renderMeasurements(measurements, valueHead) {
     const ms = (measurements || []).filter((m) => m && m.analyte);
     if (!ms.length) return null;
@@ -1343,7 +1538,7 @@
       h('table', { class: 'asc-lab-table' }, h('thead', {}, head), h('tbody', {}, ...rows)));
   }
 
-  // Fetch a cleaned image asset over the AUTHENTICATED endpoint (Bearer token — an
+  // Fetch a cleaned image asset over the AUTHENTICATED endpoint (Bearer token, an
   // <img src> can't carry it, so we fetch a blob and use an object URL). Blinding
   // holds: the bytes carry no provider/model/partner identity (V4 Image PRD §6).
   async function fetchAssetBlobUrl(assetId) {
@@ -1357,7 +1552,7 @@
 
   // The V4 image viewer (V4 Image Embedding PRD §6): the image renders ABOVE its
   // structured findings, with zoom (scroll / ＋－), pan (drag), fit/reset, and a
-  // full-screen toggle — keyboard-operable (＋/－/0, arrows, Esc). One component,
+  // full-screen toggle, keyboard-operable (＋/－/0, arrows, Esc). One component,
   // design-tokens only, with a real load-failure state (never a broken-image icon).
   function renderStudyImage(study) {
     if (!study || !study.asset || !study.asset.asset_id) return null;
@@ -1389,7 +1584,7 @@
 
     // Zoom on scroll; pan on drag. The pan listeners live on `window` ONLY for the
     // duration of a drag (added on mousedown, removed on mouseup) so they never
-    // accumulate across cases/tabs — the stage-scoped listeners are GC'd with the node.
+    // accumulate across cases/tabs; the stage-scoped listeners are GC'd with the node.
     stage.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 0.25 : -0.25); }, { passive: false });
     let drag = null;
     function onMove(e) { if (!drag) return; view.x = e.clientX - drag.x; view.y = e.clientY - drag.y; apply(); }
@@ -1423,7 +1618,7 @@
       h('button', { class: 'asc-img-btn', type: 'button', title: 'Reset view (0)', onClick: reset }, 'Reset'),
       h('button', { class: 'asc-img-btn', type: 'button', title: 'Full screen', onClick: toggleFull }, '⤢'));
     // Multi-page PDF: the ingested asset is a SINGLE rendered page (page N of the
-    // source), so we show an honest static indicator — never non-functional nav
+    // source), so we show an honest static indicator, never non-functional nav
     // buttons that would let a clinician believe they are viewing a page that isn't
     // loaded. (Per-page fetch is a follow-up; the endpoint serves one page today.)
     if (pageCount > 1) {
@@ -1434,11 +1629,11 @@
     wrap.appendChild(toolbar);
     wrap.appendChild(stage);
 
-    // Load the bytes. On failure show a real error state with a reload — the doctor
+    // Load the bytes. On failure show a real error state with a reload; the doctor
     // must NEVER grade a case whose image didn't render (PRD §6).
     fetchAssetBlobUrl(asset.asset_id).then((url) => {
       objUrl = url;
-      // Revoke once decoded — the browser keeps the rendered image; frees the blob.
+      // Revoke once decoded. The browser keeps the rendered image; frees the blob.
       img.onload = () => { if (skeleton.parentNode) skeleton.parentNode.removeChild(skeleton); apply(); revoke(); };
       img.onerror = () => { revoke(); showError(); };
       img.src = url;
@@ -1458,7 +1653,7 @@
   // One study rendered inside its tab: the image first (if any), then the modality
   // chip, the structured findings report (as a scannable "rhythm strip" block for an
   // ECG), the numeric measurements table, and the impression. This is the grounding
-  // anchor the model is supposed to read — surfaced prominently (PRD §3/§6).
+  // anchor the model is supposed to read, surfaced prominently (PRD §3/§6).
   function renderStudyCard(study, opts) {
     opts = opts || {};
     const modality = String(study.modality || 'study').toLowerCase();
@@ -1499,7 +1694,7 @@
 
   // The tabbed case panel. Tabs are built only for sections that carry data, driven
   // by the per-specialty ``SPECIALTY_UI`` config (one code path, never a render fork
-  // per specialty — PRD §6). State (active tab) lives on ``state._caseTab`` keyed by
+  // per specialty, PRD §6). State (active tab) lives on ``state._caseTab`` keyed by
   // task so it survives re-renders within a task.
   function renderCasePanel() {
     const c = multimodalCase();
@@ -1530,7 +1725,7 @@
       } else if (t.kind === 'notes' && c.notes && c.notes.length) {
         tabs.push({ key: 'notes', label: 'EHR' + (c.notes.length > 1 ? ' (' + c.notes.length + ')' : ''),
           body: h('div', { class: 'asc-case-body' }, ...c.notes.map((n) => h('div', { class: 'asc-case-note' },
-            h('div', { class: 'asc-case-note-meta' }, '[' + (n.note_type || 'Note') + ' — ' + (n.author_role || 'clinician') + ']'),
+            h('div', { class: 'asc-case-note-meta' }, '[' + (n.note_type || 'Note') + ' · ' + (n.author_role || 'clinician') + ']'),
             h('div', { class: 'asc-case-note-text' }, (n.text || '').trim())))) });
       } else if (t.kind === 'meds' && meds.length) {
         tabs.push({ key: 'meds', label: 'Meds', body: h('div', { class: 'asc-case-body' },
@@ -1549,7 +1744,7 @@
     if (!tabs.some((t) => t.key === state._caseTab)) state._caseTab = tabs[0].key;
 
     const bodyHost = h('div', { class: 'asc-case-host' });
-    const tabRow = h('div', { class: 'asc-case-tabs', role: 'tablist' });
+    const tabRow = h('div', { class: 'asc-case-tabs', role: 'tablist', dataset: { tour: 'case-tabs' } });
     function paint() {
       clear(bodyHost);
       const active = tabs.find((t) => t.key === state._caseTab) || tabs[0];
@@ -1564,7 +1759,7 @@
       tabRow.appendChild(btn);
     });
 
-    // Specialty chip (deterministic color — nephrology green, cardiology orange,
+    // Specialty chip (deterministic color: nephrology green, cardiology orange,
     // oncology pink; PRD §6). Accent comes from the cached /specialties listing so
     // a new specialty needs no frontend change.
     const specMeta = ((state.specialties || []).find((s) => s.specialty === spec)) || {};
@@ -1621,7 +1816,7 @@
     for (const s of activeSteps()) {
       if (!(s.text || '').trim()) continue;
       if (!(s.confirmed || s.corrected || s.added)) reasons.push('pending_step');
-      // §13 (V3/V4): a corrected step's "why" is the free-text step_note — the
+      // §13 (V3/V4): a corrected step's "why" is the free-text step_note; the
       // server derives the error-tag classification from it. V1/V2 keep the
       // one-tap correction_reason picker.
       if (s.corrected && !(s.correction_reason || '').trim()
@@ -1644,7 +1839,7 @@
     return (rubric || []).some((c) => (Number(c.points) || 0) < 0
       && tierForPoints(c.points) === 'critical' && (c.text || '').trim());
   }
-  // On V3/V4, a captured rubric must name at least one CRITICAL negative — the one
+  // On V3/V4, a captured rubric must name at least one CRITICAL negative, the one
   // thing a correct answer must never do. An empty rubric is allowed (optional); the
   // gate fires only once criteria exist. Scoped to isV3() (v3+v4), so V1/V2 are
   // unaffected.
@@ -1653,12 +1848,12 @@
     const rubric = (state.draft.rubric || []).filter((c) => (c.text || '').trim());
     if (!rubric.length) return { ok: true };
     if (hasCriticalNegative(rubric)) return { ok: true };
-    // §12: name the control the physician actually taps — "must never", set
+    // §12: name the control the physician actually taps: "must never", set
     // Critical.
     return { ok: false, msg: 'mark one “must never” criterion as Critical (−8 to −10) to continue' };
   }
 
-  // ─── Rubric Rigor (§C) + Model-Failure Taxonomy (§D) — V3/V4 only ──────────
+  // ─── Rubric Rigor (§C) + Model-Failure Taxonomy (§D): V3/V4 only ──────────
   // FIX-1 concreteness. PORTED VERBATIM from backend asclepius/rubric.py so the UI
   // NEVER disagrees with the server about "specific" (a mismatch would mislabel a
   // rubric premium/standard). Kept in lock-step by test/rubric_ui_parity.
@@ -1679,11 +1874,11 @@
     return false;
   }
 
-  // FIX-4 completeness/premium — mirrors backend rubric.rubric_completeness exactly.
+  // FIX-4 completeness/premium: mirrors backend rubric.rubric_completeness exactly.
   const _PREMIUM_MIN_CRITERIA = 5;
   const _PREMIUM_MIN_AXES = 3;
   // FIX-7 (axis-coverage nudge): the three axes a defensible grader almost always
-  // touches. Mirrors backend constants.RUBRIC_CORE_AXES exactly. ADVISORY only —
+  // touches. Mirrors backend constants.RUBRIC_CORE_AXES exactly. ADVISORY only:
   // never affects premium/missing.
   const _RUBRIC_CORE_AXES = ['safety', 'accuracy', 'reasoning'];
   function rubricCompleteness(criteria) {
@@ -1706,7 +1901,7 @@
     if (!hasCritNeg) missing.push('name ≥1 CRITICAL negative (−8 to −10)');
     if (axes.size < _PREMIUM_MIN_AXES) missing.push('cover ≥' + _PREMIUM_MIN_AXES + ' axes (have ' + axes.size + ')');
     if (!allKeySpecific) missing.push('make every critical/important criterion specific (name the fact/drug/dose/threshold)');
-    // FIX-7: advisory core-axis coverage — kept OUT of `missing` so it never gates premium.
+    // FIX-7: advisory core-axis coverage, kept OUT of `missing` so it never gates premium.
     const coreAxesMissing = _RUBRIC_CORE_AXES.filter((a) => !axes.has(a));
     const nudges = [];
     if (coreAxesMissing.length) {
@@ -1739,7 +1934,7 @@
     return { ok: false, msg: 'tag ≥1 failure mode on the rejected answer to continue' };
   }
 
-  // ─── §1 Substage machine (Evaluation UX Overhaul — V3/V4 only) ──────────────
+  // ─── §1 Substage machine (Evaluation UX Overhaul, V3/V4 only) ──────────────
   // One decision per screen: inside stage==='compare', sections mount one at a
   // time, each only when the previous one is explicitly completed. V1/V2 never
   // enter this machine (renderRationale keeps their render-everything path).
@@ -1761,7 +1956,7 @@
     const d = state.draft;
     if (!d || !d.verdict) {
       // No verdict yet: assume the (far more common) A/B path so the §16
-      // progress total is stable — picking a verdict must never make the bar
+      // progress total is stable; picking a verdict must never make the bar
       // jump backwards because the denominator grew.
       const dflt = ['compare', 'refine', 'why_better', 'citations', 'critique_rejected'];
       if (state.task && state.task.capture_reasoning) dflt.push('reasoning');
@@ -1799,7 +1994,7 @@
   function reasoningConditionsMet() {
     if (!stepsReview().ok) return false;
     // Grounding-required tasks hard-gate a citation on EVERY step (the server
-    // 400s otherwise) — enforce it HERE, where the per-step anchor UI lives,
+    // 400s otherwise); enforce it HERE, where the per-step anchor UI lives,
     // so submit can never dead-end later with no way to fix it.
     if ((state.task.grounding_mode || 'optional') === 'required') {
       const steps = activeSteps().filter((s) => (s.text || '').trim());
@@ -1812,7 +2007,7 @@
   }
 
   // Explicit completion per substage: the *_done flag (the Save/Continue click)
-  // AND the section's data conditions — so deleting data from a re-opened
+  // AND the section's data conditions, so deleting data from a re-opened
   // section honestly regresses the flow instead of leaving a stale checkmark.
   function substageComplete(key) {
     const d = state.draft;
@@ -1838,7 +2033,7 @@
     return 'done';
   }
 
-  // Reset every downstream completion when the verdict/chosen side changes —
+  // Reset every downstream completion when the verdict/chosen side changes:
   // sections completed against the previous answer must not survive it.
   function resetStagedFlow() {
     const d = state.draft;
@@ -1857,7 +2052,7 @@
     state._lastSubstage = null;
   }
 
-  // One save + re-render + submit-state pass — every section's Save/Continue
+  // One save + re-render + submit-state pass; every section's Save/Continue
   // funnels through here so advancing is a single code path.
   function refreshStagedFlow() {
     saveDraft();
@@ -1876,7 +2071,7 @@
     catch (e) { window.scrollTo(0, Math.max(0, y)); }
   }
 
-  // ─── §16 Task progress — ONE source of truth ────────────────────────────────
+  // ─── §16 Task progress: ONE source of truth ────────────────────────────────
   // The full ordered step list: prompt_review → independent_answer → the §1
   // compare substages → submit. Both the header bar and stageHeader's step
   // counter read from here, so they can never disagree.
@@ -1893,7 +2088,7 @@
     } else {
       steps.push({ key: 'compare', done: false }); // completes at submit
     }
-    // Submit is the last increment — the bar reads 100% only while submitting.
+    // Submit is the last increment; the bar reads 100% only while submitting.
     steps.push({ key: 'submit', done: !!state.submitting });
     const done = steps.filter((s) => s.done).length;
     return { done, total: steps.length, pct: Math.round((100 * done) / steps.length) };
@@ -1930,7 +2125,7 @@
     if (pctEl) pctEl.textContent = p.pct + '%';
   }
 
-  // ─── §2 Info-dot — the reusable "?" explainer ───────────────────────────────
+  // ─── §2 Info-dot: the reusable "?" explainer ───────────────────────────────
   // A 16px circular "?" after a section title; click/keyboard opens a small
   // anchored popover (two short lines), dismissed on outside-click or Esc.
   // Help, never a gate.
@@ -1965,7 +2160,7 @@
   }
 
   // Section shell: mono chrome step label (STEP N · …), the title, an optional
-  // info dot — every §1 section mounts through this.
+  // info dot; every §1 section mounts through this.
   function sectionCard(key, info, ...children) {
     const meta = SUBSTAGE_META[key] || { chrome: key.toUpperCase(), title: key };
     const n = compareSubstages().indexOf(key) + 1;
@@ -1989,13 +2184,13 @@
     STAGES.forEach((s, i) => dots.appendChild(
       h('span', { class: 'asc-stage-dot' + (i < n ? ' done' : '') + (i === n - 1 ? ' active' : '') })));
     // V1/V2: the compare stage's submit bar owns the live #ascTimer (avoid a
-    // duplicate id — only the first match would update); stages 1–2 host it here.
+    // duplicate id, only the first match would update); stages 1–2 host it here.
     // V3/V4: the submit bar is DEFERRED to the confidence substage (§15), and its
-    // V3 variant carries no timer — this header owns #ascTimer in every stage.
+    // V3 variant carries no timer; this header owns #ascTimer in every stage.
     const timer = (d.stage === 'compare' && !isV3())
       ? null
       : h('span', { class: 'asc-timer', id: 'ascTimer' }, formatTime(getElapsed()));
-    // §16: the step counter reads from taskProgress() — the same single source
+    // §16: the step counter reads from taskProgress(); the same single source
     // of truth as the header bar. V1/V2's 3-stage list yields the same "Step N
     // of 3" text as before; V3/V4 span the full substage flow.
     let stepText;
@@ -2019,37 +2214,37 @@
   const VERSION_OPTS = [
     {
       // V4 (EHR PRD §9.5): the V3 flow over REAL de-identified patient cases.
-      // Shown LOCKED unless the contributor is real_data_approved — serving is
+      // Shown LOCKED unless the contributor is real_data_approved; serving is
       // enforced server-side regardless; the lock is honest UI, not the gate.
       v: 'v4', label: 'Real De-Identified Multimodal Cases', tag: 'Real patient data', dot: 'asc-dot-pink',
       requiresRealData: true,
-      blurb: 'Work through real, de-identified patient cases — labs, notes, and a real clinical snapshot. Same task as synthetic; the data is real.',
+      blurb: 'Work through real, de-identified patient cases: labs, notes, and a real clinical snapshot. Same task as synthetic; the data is real.',
       bullets: [
-        'Read a real de-identified case — labs, notes, meds, vitals',
+        'Read a real de-identified case: labs, notes, meds, vitals',
         'Give a 10-second first impression before you see the AI answers',
         'Pick the better of two AI answers, refine it, and say why',
-        'A single point-in-time (static) case — not a timeline',
+        'A single point-in-time (static) case, not a timeline',
         'Requires real-data approval (BAA / training)',
       ],
     },
     {
       v: 'v3', label: 'Synthetic Multimodal Cases', tag: 'Recommended', dot: 'asc-dot-lime',
-      blurb: 'Structured synthetic cases — labs, EHR notes, and meds — built to be hard.',
+      blurb: 'Structured synthetic cases (labs, EHR notes, and meds) built to be hard.',
       bullets: [
-        'Read a multimodal case — labs, EHR notes, meds, vitals',
+        'Read a multimodal case: labs, EHR notes, meds, vitals',
         'Give a 10-second first impression before the AI answers appear',
         'Compare two AI answers and pick the stronger one',
         'Refine it, flag the weaker one’s errors, and check the reasoning',
       ],
     },
     {
-      // V5 — the AGENTIC tier (Clinical RL Environments PRD). A different KIND of
+      // V5: the AGENTIC tier (Clinical RL Environments PRD). A different KIND of
       // task, not a variant of the single-turn flow, so selecting it navigates to
       // its own surface instead of calling chooseVersion(): the single-turn queue,
       // submit path, and portal_version stamping are never touched by V5.
       v: 'v5', label: 'Clinical RL Environment', tag: 'New', dot: 'asc-dot-orange',
       route: '/asclepius/v5/annotate',
-      blurb: 'Review an AI agent working a case step by step — label each move and write what it should have done instead.',
+      blurb: 'Review an AI agent working a case step by step: label each move and write what it should have done instead.',
       bullets: [
         'Watch an agent order tests and reason across multiple steps',
         'Label each step correct / suboptimal / wrong',
@@ -2058,24 +2253,24 @@
       ],
     },
   ];
-  // The legacy flows — content untouched, tucked behind "Other flows".
+  // The legacy flows, content untouched, tucked behind "Other flows".
   const LEGACY_VERSION_OPTS = [
     {
       v: 'v2', label: 'V2 · Assisted', tag: null, dot: 'asc-dot-orange',
-      blurb: 'The assisted flow — under 10 minutes per task.',
+      blurb: 'The assisted flow, under 10 minutes per task.',
       bullets: [
         'A 30-second quick take before you see the answers',
         'Model-suggested labels you verify (never auto-applied)',
-        'Side-by-side answer diff — read only what differs',
+        'Side-by-side answer diff: read only what differs',
         'Voice dictation on every field',
       ],
     },
     {
       v: 'v1', label: 'V1 · Classic', tag: null, dot: 'asc-dot-faint',
-      blurb: 'The original flow — write your full ideal answer.',
+      blurb: 'The original flow: write your full ideal answer.',
       bullets: [
         'Write your complete ideal answer before reveal',
-        'No AI suggestions — your judgment only',
+        'No AI suggestions, your judgment only',
         'Full-text answer comparison',
       ],
     },
@@ -2127,13 +2322,13 @@
   }
   function renderVersionHome() {
     stopTimer();
-    updateHeaderProgress(); // no open task — the §16 bar hides here
+    updateHeaderProgress(); // no open task, so the §16 bar hides here
     const last = getPortalVersion();
     const approved = !!(state.user && state.user.real_data_approved);
     const cards = h('div', { class: 'asc-ver-cards' });
     VERSION_OPTS.forEach((o) => cards.appendChild(versionCard(o, last, approved)));
 
-    // Legacy flows, folded away — exactly as they were, one click deeper.
+    // Legacy flows, folded away, exactly as they were, one click deeper.
     const legacyCards = h('div', { class: 'asc-ver-cards', hidden: true });
     LEGACY_VERSION_OPTS.forEach((o) => legacyCards.appendChild(versionCard(o, last, approved)));
     const legacyToggle = h('button', {
@@ -2149,7 +2344,7 @@
       h('div', { class: 'asc-ver-home' },
         h('h1', { class: 'asc-ver-home-title' }, 'Choose your evaluation experience'),
         h('p', { class: 'asc-ver-home-sub' },
-          'Same clinical judgment, same training data — pick how you want to work.'),
+          'Same clinical judgment, same training data. Pick how you want to work.'),
         cards,
         legacyToggle,
         legacyCards)));
@@ -2158,13 +2353,13 @@
   // ─── V3/V4 specialty picker (Specialty Hyper-Personalization PRD §1) ────────
   // A popover over the current view (Eval UI Overhaul §2), shown before the case
   // loads. Each option is one card: its palette dot (nephrology green ·
-  // cardiology orange · oncology pink) and the specialty name — nothing else.
+  // cardiology orange · oncology pink) and the specialty name: nothing else.
   // The choice sets ``state.portalSpecialty`` (persisted) and is sent on every
   // task fetch. Reads GET /specialties, so enabling a 4th specialty later needs
   // NO frontend change.
   //
   // §2: a pick sets state and nothing else. The picker is a popover now, so a
-  // pick no longer implies a route — the two call sites decide what it means
+  // pick no longer implies a route: the two call sites decide what it means
   // (first entry continues into the load it is already running; "Change
   // specialty" reloads only when the specialty actually changed).
   function chooseSpecialty(sp) {
@@ -2174,7 +2369,7 @@
 
   // §2: three options, reversible. A full-page route reads as a bigger decision
   // than it is, and the return trip re-renders the whole view. Same data, same
-  // fetch, no navigation — a centred popover over whatever is already on screen.
+  // fetch, no navigation: a centred popover over whatever is already on screen.
   //
   // Resolves with the chosen specialty, or null if dismissed. ``dismissable``
   // is false on first entry: the choice is required there, so an escape hatch
@@ -2206,7 +2401,7 @@
       const cards = h('div', { class: 'asc-spec-grid' });
       list.forEach((s) => {
         const name = s.specialty.charAt(0).toUpperCase() + s.specialty.slice(1);
-        // The card IS the button — a "Grade Nephrology →" button inside a
+        // The card IS the button: a "Grade Nephrology →" button inside a
         // clickable card is the same tap described twice.
         cards.appendChild(h('button', {
           class: 'asc-spec-card' + (last === s.specialty ? ' last-used' : ''),
@@ -2230,7 +2425,7 @@
       function onKeydown(e) {
         if (e.key === 'Escape' && dismissable) { e.preventDefault(); close(null); return; }
         if (e.key !== 'Tab') return;
-        // Keep Tab inside the dialog — aria-modal is a promise to assistive
+        // Keep Tab inside the dialog: aria-modal is a promise to assistive
         // tech that has to be true of the focus order too.
         const focusable = Array.from(sheet.querySelectorAll('button:not([disabled])'));
         if (!focusable.length) return;
@@ -2248,50 +2443,22 @@
   }
 
   // Small read-only indicator inside the workspace: which experience this task
-  // is being graded under, with a one-tap route back to the home chooser.
+  // is being graded under. Case type and specialty are assigned by us (queue
+  // routing + qualification), not chosen by the doctor, so this is
+  // informational only, no controls to switch it.
   function renderExperienceBadge() {
     const v = draftVersion();
-    const meta = { v4: 'Real De-Identified Multimodal Cases', v3: 'Synthetic Multimodal',
-                   v2: 'V2 · Assisted', v1: 'V1 · Classic' }[v] || 'V1 · Classic';
-    // V3/V4 also carry the chosen specialty + a one-tap route back to the picker.
-    const specLink = (v === 'v3' || v === 'v4')
-      ? h('button', { class: 'asc-btn-link', type: 'button',
-          onClick: async () => {
-            // §2: opens over the live workspace. Reload only if the specialty
-            // actually changed — re-picking the one you already had must not
-            // throw away the case you are mid-way through.
-            //
-            // The case timer deliberately keeps running: the physician has not
-            // left the case, and if they dismiss the sheet that time really was
-            // spent on this task. (The old full-page route stopped it because it
-            // genuinely left the view.) If they DO switch, the next task's
-            // initDraftForTask restarts the timer from its own draft.
-            const before = getPortalSpecialty();
-            const picked = await renderSpecialtyPicker({ dismissable: true });
-            if (picked && picked !== before) renderEvalView();
-          } },
-          'Change specialty')
-      : null;
-    // §13: the two links are the same KIND of control, so they read as one
-    // unit. Wrapping them means `space-between` has two children instead of
-    // three — "label left, controls right" — rather than scattering two
-    // related links to opposite edges of the full width.
-    const links = h('div', { class: 'asc-exp-links' },
-      h('button', {
-        class: 'asc-btn-link', type: 'button',
-        onClick: () => { state.portalChosen = false; renderEvalView(); },
-      }, 'Change experience'),
-      specLink);
+    const meta = { v4: ['', 'Real · De-identified Cases'], v3: ['', 'Synthetic Multimodal'], v2: ['', 'V2 · Assisted'], v1: ['', 'V1 · Classic'] }[v] || ['', 'V1 · Classic'];
     return h('div', { class: 'asc-exp-badge' },
-      h('span', { class: 'asc-exp-badge-label' }, meta), links);
+      h('span', { class: 'asc-exp-badge-label' }, meta[0] + meta[1]));
   }
 
   // ─── §6 semantic case-tag chips (V3/V4) ─────────────────────────────────────
-  // Consistent, meaningful color from the console palette (no blue — it left
+  // Consistent, meaningful color from the console palette (no blue, it left
   // with the design-system migration): a stable hue per specialty, semantic
   // difficulty (hard=pink, medium=orange, easy=green), lime=multimodal,
   // orange=reasoning (model), pink=grounding (attention). Color always pairs
-  // with the text label — never the sole carrier.
+  // with the text label, never the sole carrier.
   const SPECIALTY_DOT = { nephrology: 'asc-dot-green', cardiology: 'asc-dot-orange', oncology: 'asc-dot-pink' };
   const _SPECIALTY_CYCLE = ['asc-dot-lime', 'asc-dot-green', 'asc-dot-orange', 'asc-dot-pink'];
   function specialtyDot(spec) {
@@ -2317,14 +2484,14 @@
     const caseObj = multimodalCase();
     // For a multimodal task the case is shown in the structured panel below, so
     // the prompt card carries only the clinical QUESTION (parsed out of the
-    // rendered prompt) — no duplicated wall of serialized case text.
+    // rendered prompt); no duplicated wall of serialized case text.
     const promptText = caseObj ? caseQuestion(task.prompt) : (task.prompt || '');
     const diff = (task.difficulty || 'medium');
     // §6: V3/V4 get the semantic dot chips; V1/V2 keep the muted badges as-is.
     const metaRow = isV3()
       ? h('div', { class: 'asc-meta-row' },
           metaChip(task.specialty || 'general', specialtyDot(task.specialty),
-            'Specialty — same specialty, same color, always'),
+            'Specialty: same specialty, same color, always'),
           metaChip('Difficulty: ' + diff, DIFFICULTY_DOT[diff] || 'asc-dot-orange',
             'hard = pink · medium = orange · easy = green'),
           caseObj ? metaChip('Multimodal case', 'asc-dot-lime') : null,
@@ -2357,25 +2524,75 @@
         ));
     }
 
-    const wrap = h('div', { class: 'asc-wrap' }, renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
+    // ── V1/V2 (classic): unchanged single-column layout ─────────────────────
+    // The staged split-screen is a V3/V4 feature; V1 and V2 render exactly as
+    // before so their submissions and exports stay byte-for-byte identical.
+    if (!isV3()) {
+      const wrap = h('div', { class: 'asc-wrap' }, renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
+      if (d.stage === 'prompt_review') {
+        wrap.appendChild(stageHeader('Review the prompt'));
+        wrap.appendChild(renderPromptGate());
+        wrap.appendChild(blurredPlaceholder('The AI answers stay hidden until you confirm the prompt is clinically valid.'));
+      } else if (d.stage === 'independent_answer') {
+        wrap.appendChild(stageHeader('Write your answer'));
+        wrap.appendChild(renderIndependentAnswer());
+        wrap.appendChild(blurredPlaceholder('Write your ideal answer first, then reveal the AI answers to compare.'));
+      } else {
+        wrap.appendChild(stageHeader('Compare & grade'));
+        renderCompareStage(wrap);
+      }
+      setRoot(wrap);
+      if (d.stage === 'compare') { refreshAnswerHighlight(); renderRationale(); updateSubmitState(); loadAssist(); }
+      updateHeaderProgress();
+      return;
+    }
+
+    // ── V3/V4: split-screen: the case stays pinned beside the workflow ──────
+    // Left rail = clinical question + structured case (its own scroll), right
+    // column = the step-by-step staged flow. The rail collapses to a wide single
+    // column, and on narrow screens it stacks behind the slim sticky case bar.
+    const grid = h('div', { class: 'asc-case-cols' + (state._caseRailCollapsed ? ' is-collapsed' : '') });
+    const workCol = h('div', { class: 'asc-work-col' });
+    const toggleRail = () => {
+      state._caseRailCollapsed = !state._caseRailCollapsed;
+      grid.classList.toggle('is-collapsed', state._caseRailCollapsed);
+    };
+    const caseRail = h('aside', { class: 'asc-case-rail' },
+      h('div', { class: 'asc-rail-head' },
+        h('span', { class: 'asc-rail-title' }, 'Case'),
+        h('button', {
+          class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+          title: 'Hide the case panel', onClick: toggleRail,
+        }, 'Hide ⟨')),
+      promptCard,
+      renderCasePanel() || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, promptText || 'n/a'),
+      groundingBanner);
+
+    // Collapsed-only affordance to bring the rail back; the sticky one-line case
+    // bar is the narrow-screen fallback (CSS gates both by state / width).
+    workCol.appendChild(h('button', {
+      class: 'asc-rail-show asc-btn asc-btn-ghost asc-btn-sm', type: 'button', onClick: toggleRail,
+    }, '▸ Show case'));
+    workCol.appendChild(renderCaseSticky(promptText));
+    workCol.appendChild(renderExperienceBadge());
 
     if (d.stage === 'prompt_review') {
-      wrap.appendChild(stageHeader('Review the prompt'));
-      wrap.appendChild(renderPromptGate());
-      wrap.appendChild(blurredPlaceholder('The AI answers stay hidden until you confirm the prompt is clinically valid.'));
-      setRoot(wrap);
+      workCol.appendChild(stageHeader('Review the prompt'));
+      workCol.appendChild(renderPromptGate());
+      workCol.appendChild(blurredPlaceholder('The AI answers stay hidden until you confirm the prompt is clinically valid.'));
     } else if (d.stage === 'independent_answer') {
-      wrap.appendChild(stageHeader('Write your answer'));
-      wrap.appendChild(renderIndependentAnswer());
-      wrap.appendChild(blurredPlaceholder('Write your ideal answer first — then reveal the AI answers to compare.'));
-      setRoot(wrap);
+      workCol.appendChild(stageHeader('Write your answer'));
+      workCol.appendChild(renderIndependentAnswer());
+      workCol.appendChild(blurredPlaceholder('Write your ideal answer first, then reveal the AI answers to compare.'));
     } else {
-      wrap.appendChild(stageHeader('Compare & grade'));
-      // §17: the linear flow scrolls a lot — keep the case one tap away with a
-      // slim sticky strip (question + "View case") for the whole compare stage.
-      if (isV3()) wrap.appendChild(renderCaseSticky(promptText));
-      renderCompareStage(wrap);
-      setRoot(wrap);
+      workCol.appendChild(stageHeader('Compare & grade'));
+      renderCompareStage(workCol);
+    }
+
+    grid.appendChild(caseRail);
+    grid.appendChild(workCol);
+    setRoot(grid);
+    if (d.stage === 'compare') {
       refreshAnswerHighlight();
       renderRationale();
       updateSubmitState();
@@ -2414,8 +2631,8 @@
       h('div', { class: 'call-team-title' }, 'Case reference'),
       h('div', { class: 'asc-field' },
         h('label', { class: 'asc-label' }, 'Clinical question'),
-        h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, questionText || state.task.prompt || '—')),
-      panel || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, state.task.prompt || '—'),
+        h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, questionText || state.task.prompt || 'n/a')),
+      panel || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, state.task.prompt || 'n/a'),
       h('div', { style: 'display:flex;margin-top:14px' },
         h('button', { class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto', onClick: closeOverlay }, 'Close')));
     overlay.appendChild(popup);
@@ -2437,9 +2654,10 @@
   async function loadAssist() {
     const d = state.draft;
     if (!d || d.stage !== 'compare') return;
+    if (tutorialActive()) return; // /assist/prelabel is task-scoped; the practice case is virtual
     if (!isAssisted()) return;  // model assist is an assisted-flow (V2 + V3) feature
     // V3 anti-rubber-stamp guard (Seamless PRD WS1): AI suggestions are hidden
-    // until the clinician commits their OWN verdict. We don't merely hide them —
+    // until the clinician commits their OWN verdict. We don't merely hide them;
     // we don't even FETCH them, so the suggestion never reaches the client before
     // the verdict. The fetch is (re)triggered from selectVerdict once a side is
     // chosen. V2 keeps fetching on reveal (its established behavior).
@@ -2454,7 +2672,7 @@
     try {
       const res = await api('/assist/prelabel', { method: 'POST', body: { task_id: d.task_id } });
       d.assist = Object.assign({ fetched: true }, res);
-      // The LLM call can take seconds — the doctor may already be on another
+      // The LLM call can take seconds; the doctor may already be on another
       // task. Persist the result onto the draft it belongs to, and only touch
       // the live UI when that task is still the one on screen.
       persistDraft(d);
@@ -2465,7 +2683,7 @@
       if (state.assistLoadingFor === d.task_id) state.assistLoadingFor = null;
     }
   }
-  // Surface freshly-arrived suggestions (BUG-4 — decoupled from the diff):
+  // Surface freshly-arrived suggestions (BUG-4, decoupled from the diff):
   //   * The A/B diff is painted SYNCHRONOUSLY on reveal (renderCompareStage) and
   //     memoized per task_id (computeAnswerDiff), so it never waits on the LLM.
   //   * When the assist arrives LATER, we patch it in ADDITIVELY: update the
@@ -2479,7 +2697,7 @@
     const a = assistData();
     if (!a) return;
     // Only re-render the answer cards if the suggestion carries error spans to
-    // mark — otherwise the already-painted diff is unchanged, so leave it be.
+    // mark; otherwise the already-painted diff is unchanged, so leave it be.
     if ((a.error_spans || []).length) renderAnswersInto(document.getElementById('ascAnswers'));
     const active = document.activeElement;
     const rationale = document.getElementById('ascRationale');
@@ -2491,8 +2709,8 @@
     const el = document.getElementById('ascAssistHint');
     if (!el) return;
     clear(el);
-    // §4 (V3/V4): the model's weaker-answer guess is retained in `assist` — it
-    // still rides the submitted payload for override-rate analysis — but it is
+    // §4 (V3/V4): the model's weaker-answer guess is retained in `assist`
+    // (it still rides the submitted payload for override-rate analysis), but it is
     // never rendered. Surfacing it anchors the physician before they commit,
     // which is the exact bias the blinded A/B exists to prevent.
     if (isV3()) return;
@@ -2500,7 +2718,7 @@
     if (!a) return;
     el.appendChild(h('span', { class: 'asc-assist-chip', 'aria-hidden': 'true' }));
     el.appendChild(h('span', {},
-      'Model thinks ', h('strong', {}, a.suggested_weaker), ' is weaker — tap a verdict to decide.'));
+      'Model thinks ', h('strong', {}, a.suggested_weaker), ' is weaker. Tap a verdict to decide.'));
   }
 
   // A non-peekable stand-in for the answers/verdict during Stages 1–2. The real
@@ -2521,7 +2739,7 @@
   function renderCompareStage(wrap) {
     // Safety net: if the withheld answer texts failed to load (e.g. a network
     // blip when resuming into compare via refresh), don't render blank answer
-    // cards — offer a reload instead of letting the doctor grade nothing.
+    // cards; offer a reload instead of letting the doctor grade nothing.
     if ((state.task.candidate_answers || []).some((c) => c.text == null)) {
       wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'asc-inline-error' }, 'Could not load the AI answers.'),
@@ -2537,9 +2755,9 @@
     const answers = h('div', { class: 'asc-answers', id: 'ascAnswers' });
     renderAnswersInto(answers);
 
-    // Diff view (Speed Optimization §3) — V2 only. §3: V3/V4 drop the diff
+    // Diff view (Speed Optimization §3): V2 only. §3: V3/V4 drop the diff
     // entirely (toggle, legend and help line). The legend used to be appended
-    // INTO `.asc-answers` — a 2-column grid — which pushed A into cell 2 and B
+    // INTO `.asc-answers` (a 2-column grid), which pushed A into cell 2 and B
     // onto row 2; removing it restores the symmetric side-by-side layout with
     // no CSS change. V1 (classic) never had a toggle.
     const assisted = isAssisted();
@@ -2577,8 +2795,8 @@
       verdicts,
       assistHint,
       rationale));
-    // §15 (the single biggest structural gotcha): on V3/V4 the submit bar — and
-    // the confidence pills inside it — must NOT mount at compare entry. It mounts
+    // §15 (the single biggest structural gotcha): on V3/V4 the submit bar (and
+    // the confidence pills inside it) must NOT mount at compare entry. It mounts
     // from the §1 substage machine, only when the flow reaches `confidence`.
     // V1/V2 keep the eager submit bar exactly as before.
     if (!isV3()) wrap.appendChild(h('div', { class: 'asc-card' }, renderSubmitBar()));
@@ -2588,7 +2806,7 @@
   // ─── Sentence-level diff (Speed Optimization §3, dependency-free) ───────────
   // Character-exact split: concatenating the result reproduces the input, so
   // the rendered answer never differs from the real candidate text. A '.'
-  // between two digits is a decimal (e.g. "K+ 1.0"), NOT a boundary — otherwise
+  // between two digits is a decimal (e.g. "K+ 1.0"), NOT a boundary; otherwise
   // dosing error-spans could never match inside a single sentence.
   function splitSentences(text) {
     const t = text || '';
@@ -2660,7 +2878,7 @@
     }
     return { a: aShared, b: bShared, any };
   }
-  // Pure A/B divergence diff (§3.1) — no app state, unit-testable.
+  // Pure A/B divergence diff (§3.1): no app state, unit-testable.
   //   * some sentences shared → dim shared, brighten divergent (as before);
   //   * NOTHING shared and opts.markAllWhenDisjoint → every sentence marked
   //     divergent (allDivergent:true) so fully-divergent answers still highlight
@@ -2684,7 +2902,7 @@
     return null;
   }
   function computeAnswerDiff() {
-    // Candidate texts are immutable for the life of a task — memoize the LCS
+    // Candidate texts are immutable for the life of a task, so memoize the LCS
     // so re-renders (toggle, assist arrival, verdict) don't repay the O(n*m) DP.
     if (state._diffCacheTask === state.task.task_id) return state._diffCache;
     const cands = state.task.candidate_answers || [];
@@ -2717,7 +2935,7 @@
     return appendTextWithMarks(h('span', { class: cls }), sentence, errSpans);
   }
   // Render the revised gold answer with the sentences the doctor CHANGED from the
-  // original chosen answer highlighted (Seamless PRD WS4 — "see what you changed").
+  // original chosen answer highlighted (Seamless PRD WS4, "see what you changed").
   // Reuses the A/B sentence-diff primitives on (original, revised).
   function renderEditDiff(originalText, revisedText) {
     const wrap = h('div', { class: 'asc-editdiff' });
@@ -2730,8 +2948,8 @@
   function renderAnswersInto(container) {
     if (!container) return;
     clear(container);
-    // V1 (classic) renders plain full text — no diff, no error-span marks. V2
-    // keeps the marked A/B diff. §3: V3/V4 render full text side by side — the
+    // V1 (classic) renders plain full text: no diff, no error-span marks. V2
+    // keeps the marked A/B diff. §3: V3/V4 render full text side by side: the
     // highlight asked the physician to trust a machine's notion of "what
     // differs" before they had read either answer.
     //
@@ -2751,11 +2969,11 @@
     // §7 (V3/V4): ONE honest control. The primary action is simply to proceed;
     // a single low-emphasis "Flag as invalid" opens a required-reason capture
     // routed to admin (the former "case is internally inconsistent" mode folds
-    // into the same free-text reason — one flag, one reason, one destination).
+    // into the same free-text reason: one flag, one reason, one destination).
     if (isV3()) return renderPromptGateV3();
     const d = state.draft;
     const reasonBox = h('div', { id: 'ascFlagReason', hidden: true });
-    const reasonInput = h('input', { class: 'asc-input', placeholder: 'One line — why is this prompt invalid? (e.g. ambiguous, not clinically meaningful, unsafe premise)', value: d.prompt_review.note || '' });
+    const reasonInput = h('input', { class: 'asc-input', placeholder: 'One line: why is this prompt invalid? (e.g. ambiguous, not clinically meaningful, unsafe premise)', value: d.prompt_review.note || '' });
     reasonInput.addEventListener('input', () => { d.prompt_review.note = reasonInput.value; saveDraft(); });
     // One confirm button dispatches by the reason box's mode, so the flag and the
     // (multimodal-only) case-incoherent paths share the same reason input without
@@ -2763,7 +2981,7 @@
     const confirmFlag = h('button', { class: 'asc-btn asc-btn-danger', onClick: () => {
       if (reasonBox.getAttribute('data-mode') === 'case_incoherent') flagCaseIncoherent();
       else flagPrompt();
-    } }, 'Confirm — flag & skip');
+    } }, 'Confirm, flag & skip');
     reasonBox.appendChild(h('div', { class: 'asc-field', style: 'margin-top:14px' },
       h('label', { class: 'asc-label' }, 'Reason for flagging'),
       reasonInput,
@@ -2771,15 +2989,15 @@
 
     const isCase = !!multimodalCase();
     // Multimodal (Multimodal PRD §5): a clinician can flag a case whose labs /
-    // notes / problems / meds are internally inconsistent — the human counterpart
+    // notes / problems / meds are internally inconsistent; the human counterpart
     // to the case-judge coherence gate. Routes the case out (0 records) and feeds
     // back to recalibrate case generation.
     const incoherentBtn = isCase
       ? h('button', { class: 'asc-btn asc-btn-ghost', onClick: () => {
-          reasonInput.placeholder = 'One line — what doesn’t add up? (e.g. the sodium contradicts the note)';
+          reasonInput.placeholder = 'One line: what doesn’t add up? (e.g. the sodium contradicts the note)';
           reasonBox.hidden = false;
           reasonBox.setAttribute('data-mode', 'case_incoherent');
-          confirmFlag.textContent = 'Confirm — case is inconsistent & skip';
+          confirmFlag.textContent = 'Confirm, case is inconsistent & skip';
           reasonInput.focus();
         } }, 'Case is internally inconsistent')
       : null;
@@ -2795,10 +3013,10 @@
         h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', onClick: validatePrompt },
           isCase ? 'Case is clinically valid ✓' : 'Prompt is clinically valid ✓'),
         h('button', { class: 'asc-btn asc-btn-ghost', onClick: () => {
-          reasonInput.placeholder = 'One line — why is this invalid? (e.g. ambiguous, not clinically meaningful, unsafe premise)';
+          reasonInput.placeholder = 'One line: why is this invalid? (e.g. ambiguous, not clinically meaningful, unsafe premise)';
           reasonBox.hidden = false;
           reasonBox.removeAttribute('data-mode');
-          confirmFlag.textContent = 'Confirm — flag & skip';
+          confirmFlag.textContent = 'Confirm, flag & skip';
           reasonInput.focus();
         } }, 'Flag as invalid'),
         incoherentBtn),
@@ -2816,7 +3034,7 @@
       value: d.prompt_review.note || '',
     });
     const sendBtn = h('button', {
-      // Enabled when a reason exists — including one prefilled from a resumed
+      // Enabled when a reason exists, including one prefilled from a resumed
       // draft, not only after fresh keystrokes.
       class: 'asc-btn asc-btn-danger', type: 'button',
       disabled: !(d.prompt_review.note || '').trim(),
@@ -2844,11 +3062,12 @@
         isCase ? 'Review the case' : 'Review the prompt'),
       h('p', { class: 'asc-help', style: 'margin-bottom:16px' },
         'Read it through. If it’s a real, answerable clinical '
-        + (isCase ? 'case' : 'question') + ', continue — flagged '
+        + (isCase ? 'case' : 'question') + ', continue; flagged '
         + (isCase ? 'cases' : 'prompts') + ' leave your queue and go to admin review with your reason.'),
       h('div', { class: 'asc-gate-actions' },
-        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', onClick: validatePrompt },
-          'Looks clinically valid — continue →'),
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', dataset: { tour: 'prompt-continue' },
+          onClick: validatePrompt },
+          'Looks clinically valid, continue →'),
         flagBtn),
       reasonBox);
   }
@@ -2862,6 +3081,12 @@
   }
 
   async function flagPrompt() {
+    // The practice case is deliberately valid; flagging it would otherwise POST
+    // a REAL submission (this path bypasses the tutorial submit branch).
+    if (tutorialActive()) {
+      toast('This is the practice case: it’s deliberately valid. Continue instead.', 'info');
+      return;
+    }
     const d = state.draft;
     d.prompt_review.reviewed = true;
     d.prompt_review.verdict = 'flagged';
@@ -2873,7 +3098,7 @@
       await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
       clearDraft(d.task_id);
       stopTimer();
-      toast('Prompt flagged for review — loading the next task', 'success');
+      toast('Prompt flagged for review. Loading the next task', 'success');
       renderEvalView();
     } catch (e) {
       if (e.status !== 401) toast('Could not flag the prompt: ' + e.message, 'error');
@@ -2882,10 +3107,14 @@
     }
   }
 
-  // Multimodal case flagged internally inconsistent (Multimodal PRD §5) — mirrors
+  // Multimodal case flagged internally inconsistent (Multimodal PRD §5): mirrors
   // flagPrompt but stamps the case_incoherent verdict; the server routes the case
   // out (0 records) and feeds the signal back to case-generation recalibration.
   async function flagCaseIncoherent() {
+    if (tutorialActive()) {
+      toast('This is the practice case: it’s deliberately valid. Continue instead.', 'info');
+      return;
+    }
     const d = state.draft;
     d.prompt_review.reviewed = true;
     d.prompt_review.verdict = 'case_incoherent';
@@ -2897,7 +3126,7 @@
       await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
       clearDraft(d.task_id);
       stopTimer();
-      toast('Case flagged as inconsistent — loading the next task', 'success');
+      toast('Case flagged as inconsistent. Loading the next task', 'success');
       renderEvalView();
     } catch (e) {
       if (e.status !== 401) toast('Could not flag the case: ' + e.message, 'error');
@@ -2925,7 +3154,7 @@
       if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (e) { toast('Microphone unavailable — check browser permissions.', 'error'); return; }
+      } catch (e) { toast('Microphone unavailable. Check browser permissions.', 'error'); return; }
       chunks = [];
       try {
         recorder = new MediaRecorder(stream);
@@ -2949,12 +3178,12 @@
             const cur = (getVal() || '').trim();
             setVal(cur ? cur + ' ' + text : text);
           } else {
-            // Provider succeeded but heard nothing — tell the doctor rather than
+            // Provider succeeded but heard nothing; tell the doctor rather than
             // silently doing nothing (the reported "mic opens, nothing happens").
-            toast('No speech detected — tap the mic and try again.', 'info');
+            toast('No speech detected. Tap the mic and try again.', 'info');
           }
         } catch (e) {
-          if (e.status === 503) toast('Dictation is not configured — type instead (or use the Wispr Flow app).', 'info');
+          if (e.status === 503) toast('Dictation is not configured. Type instead (or use the Wispr Flow app).', 'info');
           else if (e.status !== 401) toast('Transcription failed: ' + e.message, 'error');
         } finally {
           btn.textContent = ''; btn.disabled = false;
@@ -2965,7 +3194,7 @@
       recorder.start();
       btn.classList.add('recording');
       btn.textContent = '■';
-      btn.setAttribute('aria-label', 'Listening — tap to stop dictation');
+      btn.setAttribute('aria-label', 'Listening, tap to stop dictation');
       btn.title = 'Listening… tap to stop';
     });
     return btn;
@@ -2974,7 +3203,7 @@
   // Wrap a textarea/input with its mic in one row. setVal writes the transcript
   // to the field AND fires its input handler so the draft stays in sync, then
   // focuses the field with the cursor at the end so the inserted text is visible
-  // and immediately editable (the fix for "mic opens but text isn't written" —
+  // and immediately editable (the fix for "mic opens but text isn't written",
   // WS7). Dictation is an assisted-flow feature (V2 + V3); V1 returns the field
   // unchanged (plain textarea, so the Wispr desktop app still works).
   function withMic(field) {
@@ -3000,7 +3229,7 @@
   //   V3 (seamless)  → INSTINCT: a ~10s single-line "gut check" (Seamless PRD WS1)
   //   V2 (assisted)  → STANCE: a 30–45s quick take (Speed Optimization §1)
   //   V1 / full task → FULL: the long-form blind ideal answer
-  // All are the anti-anchoring guard — committed BEFORE the A/B answers are
+  // All are the anti-anchoring guard, committed BEFORE the A/B answers are
   // revealed. The gold SFT answer stays the refined chosen answer (instinct and
   // stance ride the record as a lightweight context field, never gold).
   function renderIndependentAnswer() {
@@ -3019,7 +3248,7 @@
         ? h('textarea', { class: 'asc-textarea', style: 'min-height:200px',
             placeholder: 'Write your full ideal answer to this prompt…' }, ia.text || '')
         : h('textarea', { class: 'asc-textarea', style: 'min-height:90px',
-            placeholder: 'Your quick take — key points you\'d expect (bullets are fine). e.g. continue reduced-dose metformin · recheck eGFR 3 mo · watch for lactic acidosis.' }, ia.text || '');
+            placeholder: 'Your quick take: key points you\'d expect (bullets are fine). e.g. continue reduced-dose metformin · recheck eGFR 3 mo · watch for lactic acidosis.' }, ia.text || '');
     const revealBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascRevealBtn', onClick: commitIndependentAnswerAndReveal }, 'Reveal AI answers →');
     const hint = h('span', { class: 'asc-submit-hint', id: 'ascRevealHint' });
     // Soft length cue for the instinct one-liner (guidance, not a gate).
@@ -3041,16 +3270,16 @@
 
     const card = h('div', { class: 'asc-card asc-card-pad asc-gate' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' },
-        instinctMode ? 'Quick gut check — in one line, what\'s the crux of the right answer?'
+        instinctMode ? 'Quick gut check: in one line, what\'s the crux of the right answer?'
           : fullMode ? 'Before you see the AI answers, write your ideal answer'
-          : 'Before you see the answers — your quick take'),
+          : 'Before you see the answers, your quick take'),
       h('p', { class: 'asc-help', style: 'margin-bottom:16px' },
         instinctMode
-          ? '~10 seconds. This commits your instinct before the A/B answers can anchor you — your refined chosen answer later is the gold.'
+          ? '~10 seconds. This commits your instinct before the A/B answers can anchor you; your refined chosen answer later is the gold.'
           : fullMode
-            ? 'This is captured uncontaminated — your own gold answer, before the A/B answers can anchor your judgment.'
-            : 'A few key points, captured before the A/B answers can anchor your judgment. 30–45 seconds is plenty — your refined chosen answer later is the gold answer.'),
-      h('div', { class: 'asc-field' }, withMic(field), counter),
+            ? 'This is captured uncontaminated: your own gold answer, before the A/B answers can anchor your judgment.'
+            : 'A few key points, captured before the A/B answers can anchor your judgment. 30–45 seconds is plenty; your refined chosen answer later is the gold answer.'),
+      h('div', { class: 'asc-field', dataset: { tour: 'instinct-field' } }, withMic(field), counter),
       renderAnchorBlock(ia.evidence_anchor, { label: 'citation for your answer', required: false }),
       h('div', { class: 'asc-gate-reveal' }, hint, revealBtn));
     setTimeout(syncReveal, 0);
@@ -3067,10 +3296,19 @@
 
   // Commit the blind independent answer server-side and reveal the AI answers in
   // one gated step (v2 anti-peeking). This is the ONLY way to obtain the answer
-  // text under withholding — the server records the independent answer as
+  // text under withholding; the server records the independent answer as
   // pre-reveal and treats it as authoritative at packaging.
   async function revealAnswers() {
     const ia = state.draft.independent_answer;
+    // Tutorial: same non-empty-instinct rule, but against the virtual practice
+    // case (no independent_commits row is written server-side).
+    if (tutorialActive()) {
+      const res = await api('/tutorial/reveal', {
+        method: 'POST', body: { text: (ia.text || '').trim() },
+      });
+      mergeAnswers(res.answers);
+      return;
+    }
     const res = await api('/tasks/' + state.draft.task_id + '/reveal', {
       method: 'POST',
       body: {
@@ -3124,7 +3362,7 @@
 
   function renderAnswerCard(c, diff, assist) {
     // Error spans (from the prelabel suggestion) only ever highlight inside the
-    // suggested-weaker answer — and never in full-text mode (nothing decorated).
+    // suggested-weaker answer, and never in full-text mode (nothing decorated).
     const errSpans = (!state.showFullText && assist && assist.suggested_weaker === c.id)
       ? (assist.error_spans || []) : [];
     let body;
@@ -3157,7 +3395,7 @@
   }
 
   function selectVerdict(verdict) {
-    // Never switch verdicts while a submit is in flight — on V3/V4 the switch
+    // Never switch verdicts while a submit is in flight; on V3/V4 the switch
     // resets the staged flow and would tear down the live submit progress UI
     // (and desync the draft from the posted payload).
     if (state.submitting) return;
@@ -3175,7 +3413,7 @@
       d.chosen_revision.revised_text = null;
       d.reasoning_steps = [];
       state.splitAttemptedFor = null;
-      // §1: sections completed against the previous answer must not survive it —
+      // §1: sections completed against the previous answer must not survive it;
       // the staged flow restarts at refine (data the doctor typed is kept).
       if (isV3()) resetStagedFlow();
     }
@@ -3189,7 +3427,7 @@
     renderRationale();
     updateSubmitState();
     // V3 (Seamless PRD WS1): AI suggestions were withheld until the clinician
-    // committed a verdict — now that one exists, fetch + reveal them for the
+    // committed a verdict; now that one exists, fetch + reveal them for the
     // "confirm/adjust" step. loadAssist is idempotent and a no-op for V2/V1.
     if (isV3() && verdict) loadAssist();
   }
@@ -3207,7 +3445,7 @@
 
   // ─── Rationale ───────────────────────────────────────────────────────────
   // V1/V2: the original render-everything rationale, untouched.
-  // V3/V4 (§1): a substage-gated renderer — one active section at a time,
+  // V3/V4 (§1): a substage-gated renderer, one active section at a time,
   // completed sections collapse to re-openable summary chips, upcoming sections
   // simply do not exist yet.
   function renderRationale() {
@@ -3257,7 +3495,7 @@
     updateHeaderProgress();
   }
 
-  // One-line summary chip for a completed section (§1) — keeps context without
+  // One-line summary chip for a completed section (§1); keeps context without
   // the control surface; click to re-open.
   function substageSummaryText(key) {
     const d = state.draft;
@@ -3327,7 +3565,7 @@
         h('button', {
           class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
           onClick: () => { state._reopenedSubstage = null; refreshStagedFlow(); },
-        }, '✓ Done — collapse')));
+        }, '✓ Done, collapse')));
     }
     return el;
   }
@@ -3435,13 +3673,13 @@
         h('label', { class: 'asc-label' }, 'Why-better tags ',
           infoDot('Why-better tags', [
             'Tag the dimensions on which it’s better.',
-            'Pick every reason that applies — accuracy, completeness, safety, reasoning.',
+            'Pick every reason that applies: accuracy, completeness, safety, reasoning.',
           ])),
         chips),
       sectionActions(hint, contBtn));
   }
 
-  // ─── §11 Citations (reviewed, not blocking — unless grounding is required) ──
+  // ─── §11 Citations (reviewed, not blocking unless grounding is required) ──
   function renderCitationsSection() {
     const d = state.draft;
     const rev = d.chosen_revision;
@@ -3468,7 +3706,7 @@
     const sync = () => {
       const ok = !required || isValidAnchor(rev.evidence_anchor);
       contBtn.disabled = !ok;
-      hint.textContent = ok ? '' : 'this task requires a citation — attach one to continue';
+      hint.textContent = ok ? '' : 'this task requires a citation: attach one to continue';
     };
     const card = sectionCard('citations',
       infoDot('Citations', [
@@ -3477,8 +3715,8 @@
       ]),
       h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
         required
-          ? 'This task requires evidence — attach the source your judgment rests on.'
-          : 'Not every case needs one — open a suggested source to attach it, or continue.'),
+          ? 'This task requires evidence: attach the source your judgment rests on.'
+          : 'Not every case needs one. Open a suggested source to attach it, or continue.'),
       cite,
       anchorBlock,
       sectionActions(hint, contBtn));
@@ -3488,15 +3726,19 @@
     return card;
   }
 
-  // ─── §12 Critique the rejected answer — popover-per-tag, no model hints ─────
+  // ─── §12 Critique the rejected answer: popover-per-tag, no model hints ─────
   function closeTagPopover() {
     if (state._tagPop) {
       state._tagPop.remove();
       state._tagPop = null;
     }
-    // Always detach the Esc handler — a re-render can tear the popover out of
-    // the DOM without going through here, leaving only the listener behind.
+    // Always detach the listeners. A re-render can tear the popover out of the
+    // DOM without going through here, leaving only the listeners behind.
     document.removeEventListener('keydown', _tagPopKey, true);
+    if (state._tagPopDocClick) {
+      document.removeEventListener('click', state._tagPopDocClick, true);
+      state._tagPopDocClick = null;
+    }
   }
   function _tagPopKey(e) { if (e.key === 'Escape') closeTagPopover(); }
 
@@ -3543,7 +3785,12 @@
       const reasons = (state.taxonomy.error_tag_reasons || []);
       const sevs = (state.taxonomy.error_severities || ['low', 'medium', 'high']);
       const pop = h('div', { class: 'asc-tag-pop', role: 'dialog', 'aria-label': 'Detail this error' });
-      pop.appendChild(h('div', { class: 'asc-tag-pop-title' }, tag.replace(/_/g, ' ')));
+      pop.appendChild(h('div', { class: 'asc-tag-pop-title' },
+        h('span', {}, tag.replace(/_/g, ' ')),
+        h('button', {
+          class: 'asc-tag-pop-x', type: 'button', 'aria-label': 'Close',
+          onClick: () => { closeTagPopover(); paintChips(); sync(); },
+        }, '×')));
       if (reasons.length) {
         const rRow = h('div', { class: 'asc-sev-pills asc-reason-pills' });
         reasons.forEach((r) => {
@@ -3563,9 +3810,11 @@
           h('div', { class: 'asc-label' }, 'Why?'), rRow));
       }
       const sRow = h('div', { class: 'asc-sev-pills' });
+      // Done just collapses the panel; it is never disabled, so a reviewer can
+      // always close the popover. The substage still cannot advance until a
+      // severity is set, because critiqueConditionsMet() gates the flow.
       const doneBtn = h('button', {
         class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
-        disabled: !crit.severities[tag],
         onClick: () => { closeTagPopover(); paintChips(); sync(); },
       }, 'Done');
       sevs.forEach((sv) => {
@@ -3576,7 +3825,9 @@
             crit.severities[tag] = sv;
             saveDraft();
             Array.from(sRow.children).forEach((x) => x.classList.toggle('active', x.textContent === sv));
-            doneBtn.disabled = false;
+            // Repaint the chip so it shows "✓ tag · severity" immediately, even
+            // if the reviewer then dismisses the popover by clicking outside it.
+            paintChips();
             sync();
           },
         }, sv);
@@ -3600,10 +3851,20 @@
       chipsRow.appendChild(pop);
       state._tagPop = pop;
       document.addEventListener('keydown', _tagPopKey, true);
+      // Click anywhere outside the popover (and outside the chip that opened it)
+      // closes it, the missing dismissal that used to trap reviewers.
+      const onDocClick = (e) => {
+        if (state._tagPop && !state._tagPop.contains(e.target)
+            && e.target !== chipEl && !chipEl.contains(e.target)) {
+          closeTagPopover();
+        }
+      };
+      state._tagPopDocClick = onDocClick;
+      document.addEventListener('click', onDocClick, true);
     }
 
     function paintChips() {
-      // A popover from a previous render is detached — drop the stale handle
+      // A popover from a previous render is detached; drop the stale handle
       // (insertBefore with a non-child reference node would throw).
       if (state._tagPop && state._tagPop.parentNode !== chipsRow) state._tagPop = null;
       Array.from(chipsRow.children).forEach((c) => { if (c !== state._tagPop) c.remove(); });
@@ -3639,19 +3900,19 @@
     });
     whyWorse.addEventListener('input', () => { crit.why_worse = whyWorse.value; saveDraft(); sync(); });
 
-    // §D failure-mode taxonomy chips (baseline pairs) — physician-picked, kept.
+    // §D failure-mode taxonomy chips (baseline pairs), physician-picked, kept.
     const failureField = h('div', {});
     if (isBaselinePair() && (state.taxonomy.failure_modes || []).length) {
       const fmContainer = h('div', { id: 'ascFailureModes' });
       failureField.appendChild(h('div', { class: 'asc-field' },
         h('label', { class: 'asc-label' }, 'How did it fail? ',
-          h('span', { class: 'asc-label-hint' }, '(model-failure taxonomy — select all that apply)')),
+          h('span', { class: 'asc-label-hint' }, '(model-failure taxonomy, select all that apply)')),
         fmContainer));
       renderFailureTags(fmContainer);
       fmContainer.addEventListener('click', () => setTimeout(sync, 0));
     }
 
-    // Optional per-error citation — lightweight, behind a disclosure (§12).
+    // Optional per-error citation, lightweight, behind a disclosure (§12).
     const anchorContainer = h('div', { id: 'ascTagAnchors' });
     const citeDisclosure = h('div', { class: 'asc-disclosure' },
       h('div', { style: 'display:inline-flex;align-items:center;gap:6px' },
@@ -3669,7 +3930,7 @@
         'Pick the error tags that apply; tap a tag to add why and how serious.',
       ]),
       h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
-        'Rejected answer: Model ' + d.rejected_id + '. Pick the error tags yourself — no model hints here.'),
+        'Rejected answer: Model ' + d.rejected_id + '. Pick the error tags yourself; no model hints here.'),
       h('div', { class: 'asc-field' },
         h('label', { class: 'asc-label' }, 'Error tags ',
           h('span', { class: 'asc-label-hint' }, '(tap a tag to add why + severity)')),
@@ -3709,7 +3970,7 @@
     return card;
   }
 
-  // ─── §13 Check the reasoning — one step open at a time, free-text "what's off"
+  // ─── §13 Check the reasoning: one step open at a time, free-text "what's off"
   function renderReasoningSection() {
     const d = state.draft;
     const forBoth = d.verdict === 'both_inadequate';
@@ -3725,7 +3986,7 @@
       },
     }, '+ Add step');
     // §5: no "Re-split from answer". The split already runs automatically on
-    // mount (below) — a button for something that already happened is a
+    // mount (below): a button for something that already happened is a
     // decision the physician has to make about nothing.
 
     const hint = h('span', { class: 'asc-submit-hint', id: 'ascStepsContHint' });
@@ -3742,11 +4003,11 @@
     const card = sectionCard('reasoning',
       infoDot('Check the reasoning', [
         'Review the step-by-step reasoning behind the answer.',
-        'Open any step that’s off and say what’s wrong — we handle the rest.',
+        'Open any step that’s off and say what’s wrong. We handle the rest.',
       ]),
       h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
         forBoth ? 'Optionally lay out the reasoning steps behind your ideal answer.'
-          : 'Confirm each step, or open it and say what’s off — one step at a time.'),
+          : 'Confirm each step, or open it and say what’s off, one step at a time.'),
       h('div', { class: 'asc-steps', id: listId }),
       h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn),
       sectionActions(hint, contBtn));
@@ -3769,7 +4030,7 @@
     if (!btn) return;
     const sr = stepsReview();
     const ok = reasoningConditionsMet();
-    // Never allow Continue while the auto-split is in flight — steps landing
+    // Never allow Continue while the auto-split is in flight; steps landing
     // after the section completed would silently regress the flow.
     btn.disabled = state.splitting || !ok;
     if (hint) {
@@ -3778,20 +4039,20 @@
           : !sr.ok
             ? (sr.reasons.indexOf('missing_correction_reason') !== -1
               ? 'say what’s off with each edited step'
-              : 'review each step — confirm it, or open it and correct it')
-            : 'this task requires a citation on each step — open a step to attach one';
+              : 'review each step: confirm it, or open it and correct it')
+            : 'this task requires a citation on each step: open a step to attach one';
     }
   }
 
   // The status pill for one step. Hoisted out of the list renderer so a single
-  // repainted row (§7) derives its pill identically to a full list render —
+  // repainted row (§7) derives its pill identically to a full list render :
   // two copies of this would drift.
   function stepStatusOf(s) {
     if (s.added) return { text: 'added', cls: 'added' };
     if (s.corrected) {
       return (s.step_note || '').trim()
         ? { text: 'corrected ✎', cls: 'corrected' }
-        : { text: 'corrected — say what’s off', cls: 'corrected' };
+        : { text: 'corrected: say what’s off', cls: 'corrected' };
     }
     if (s.confirmed) return { text: 'confirmed ✓', cls: 'confirmed' };
     return { text: 'pending', cls: 'pending' };
@@ -3805,7 +4066,7 @@
   }
 
   // §7: a scroll-anchor CORRECTION, not a navigation. `_base.css` sets
-  // `html { scroll-behavior: smooth }`, which would make this animate — turning
+  // `html { scroll-behavior: smooth }`, which would make this animate: turning
   // the jolt into a slower visible glide, which is the same defect wearing a
   // nicer coat. Suspending the property beats `behavior: 'instant'`: an engine
   // that doesn't know that enum value throws on the dictionary conversion.
@@ -3820,7 +4081,7 @@
 
   // §7: rebuild exactly ONE step row in place. `renderStepsListV3` clears and
   // rebuilds every row, which collapses the page height and makes the browser
-  // drop its scroll anchor — that is the jolt on steps 4–7. An open/close is a
+  // drop its scroll anchor: that is the jolt on steps 4–7. An open/close is a
   // change to at most two rows, so repaint at most two.
   function repaintStepRow(idx, listId) {
     if (idx == null || idx < 0) return;
@@ -3837,7 +4098,7 @@
   // NO tag picker and NO citation block inside step editing.
   //
   // §7: keep this for GENUINE list changes (add, insert, remove, re-split).
-  // Never call it for a state toggle — use `repaintStepRow` instead.
+  // Never call it for a state toggle: use `repaintStepRow` instead.
   function renderStepsListV3(listId) {
     const list = document.getElementById(listId);
     if (!list) return;
@@ -3848,21 +4109,21 @@
       return;
     }
     if (!steps.length) {
-      // §5: no "Re-split from answer" to point at any more — the split runs
+      // §5: no "Re-split from answer" to point at any more: the split runs
       // automatically on mount, so the only manual route is adding a step.
-      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually.'));
+      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet: add steps manually.'));
       syncStepsCont();
       return;
     }
 
     // Bulk confirm for model-passed, untouched steps (kept from the pre-graded
-    // flow — reading then one tap is still an explicit endorsement).
+    // flow; reading then one tap is still an explicit endorsement).
     const untouchedGood = steps.filter((s) => s.suggested_label === 'good' && !s.confirmed
       && !s.corrected && !s.added && (s.text || '').trim() === (s.original_text || '').trim());
     if (untouchedGood.length > 1) {
       const bulkbar = h('div', { class: 'asc-step-bulkbar' },
         h('span', { class: 'asc-step-bulk-label' },
-          untouchedGood.length + ' steps look correct to the model — read them, then confirm in one tap.'),
+          untouchedGood.length + ' steps look correct to the model. Read them, then confirm in one tap.'),
         h('button', {
           class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
           onClick: () => {
@@ -3895,9 +4156,9 @@
     const open = state._openStep === idx;
     const st = stepStatusOf(s);
     const flaggedBadge = (s.suggested_label === 'bad')
-      ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, 'model · flags this')
+      ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade: verify and confirm or correct' }, 'model · flags this')
       : (s.suggested_label === 'good')
-        ? h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, 'model · looks correct')
+        ? h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade: your confirmation is the label' }, 'model · looks correct')
         : null;
 
     // Repaint just this row's status pill after an in-place mutation.
@@ -3914,7 +4175,7 @@
         e.stopPropagation();
         const wasOpen = state._openStep === idx;
         setStepConfirmed(s, !s.confirmed);
-        // Confirming an open row collapses it — that IS a structural change to
+        // Confirming an open row collapses it: that IS a structural change to
         // this row, so it needs a rebuild (of this row only).
         const collapsing = s.confirmed && wasOpen;
         if (collapsing) state._openStep = null;
@@ -3922,7 +4183,7 @@
         if (collapsing) {
           repaintStepRow(idx, listId);
         } else {
-          // §7 surgical update: three properties change — the button's state
+          // §7 surgical update: three properties change: the button's state
           // and label, the row's confirmed class, and the status pill.
           confirmBtn.classList.toggle('active', !!s.confirmed);
           confirmBtn.textContent = s.confirmed ? '✓ Confirmed' : '✓ Correct as-is';
@@ -3964,7 +4225,7 @@
 
     const row = h('div', {
       class: 'asc-step' + (open ? '' : ' asc-step-collapsed') + (s.confirmed ? ' is-confirmed' : ''),
-      // The handle `repaintStepRow` finds the row by — index alone is not
+      // The handle `repaintStepRow` finds the row by: index alone is not
       // enough, since the bulk bar is also a child of the list.
       dataset: { stepIdx: String(idx) },
     }, head);
@@ -3973,7 +4234,7 @@
       row.appendChild(h('div', { class: 'asc-step-collapsed-text' }, s.text || ''));
       if (groundingRequired && (s.text || '').trim() && !isValidAnchor(s.evidence_anchor)) {
         row.appendChild(h('div', { class: 'asc-anchor-valid asc-anchor-invalid', style: 'margin-top:4px' },
-          '· citation needed — open the step to attach one'));
+          '· citation needed: open the step to attach one'));
       }
       return row;
     }
@@ -3983,7 +4244,7 @@
     const noteWrap = h('div', { class: 'asc-field', style: 'margin-top:8px' });
     const note = h('input', {
       class: 'asc-input',
-      placeholder: 'e.g. treats the creatinine bump as intrinsic AKI — it’s decongestion-related hemoconcentration',
+      placeholder: 'e.g. treats the creatinine bump as intrinsic AKI: it’s decongestion-related hemoconcentration',
       value: s.step_note || '',
     });
     note.addEventListener('input', () => {
@@ -4046,7 +4307,7 @@
         onClick: () => {
           activeSteps().splice(idx + 1, 0, newAuthoredStep());
           state._openStep = idx + 1;
-          // A genuine list change — the indices below this row all shift, so
+          // A genuine list change: the indices below this row all shift, so
           // the full renderer is correct here.
           saveDraft(); renderStepsListV3(listId); updateSubmitState();
         },
@@ -4061,7 +4322,7 @@
       }, 'Remove'));
 
     // Per-step citation editor ONLY when the task requires grounding (see
-    // groundingRequired above) — everywhere else §13 keeps step editing lean.
+    // groundingRequired above): everywhere else §13 keeps step editing lean.
     let anchorBlock = null;
     if (groundingRequired) {
       if (!s.evidence_anchor) s.evidence_anchor = emptyAnchor();
@@ -4074,14 +4335,14 @@
     return row;
   }
 
-  // ─── §15 Confidence + submit — mounts ONLY at the confidence substage ───────
+  // ─── §15 Confidence + submit: mounts ONLY at the confidence substage ───────
   function renderConfidenceSection() {
     const d = state.draft;
     const confLevels = (state.taxonomy.confidence_levels || ['low', 'medium', 'high']);
     const confPills = h('div', { class: 'asc-conf-pills', id: 'ascConf' });
     confLevels.forEach((lvl) => {
       confPills.appendChild(h('button', {
-        // Unset until the doctor actively picks — the draft default is never
+        // Unset until the doctor actively picks; the draft default is never
         // presented as a pre-made choice.
         class: 'asc-conf-pill' + (d.confidence_set && d.confidence === lvl ? ' active' : ''),
         type: 'button', dataset: { conf: lvl },
@@ -4104,12 +4365,12 @@
       h('div', { class: 'asc-submit-row' }, hint, submitBtn));
     setTimeout(updateSubmitState, 0);
     // The decisive-action capture is OPTIONAL, so it lives in its own card ABOVE the
-    // confidence + submit gate — never wedged into the commit moment (Audit §13).
+    // confidence + submit gate: never wedged into the commit moment (Audit §13).
     const decisive = renderDecisiveActionCard();
     return decisive ? h('div', {}, decisive, confidenceCard) : confidenceCard;
   }
 
-  // Decisive action (Audit §13): the physician-named verifiable outcome — the test or
+  // Decisive action (Audit §13): the physician-named verifiable outcome: the test or
   // action the correct answer depends on. Naming it turns a preference label into a
   // checkable reward. Its own clearly-OPTIONAL card (not a numbered required step, and
   // not jammed into the submit gate); a physician who can't name one leaves it blank,
@@ -4127,7 +4388,7 @@
     }, da.action || ''));
     action.addEventListener('input', () => { da.action = action.value; saveDraft(); });
 
-    // Secondary field behind progressive disclosure — the default view is one clean
+    // Secondary field behind progressive disclosure: the default view is one clean
     // question, not two stacked inputs. Auto-expanded when a resumed draft has a value.
     const toolInput = h('input', { class: 'asc-input', placeholder: 'e.g. order_pronase_if',
       value: da.tool_name || '' });
@@ -4148,7 +4409,7 @@
 
     const info = infoDot('Why we ask', [
       'If you name the decisive step, we can verify a model actually ordered it before '
-      + 'answering — turning this preference label into a checkable reward.',
+      + 'answering: turning this preference label into a checkable reward.',
       'Skip it when no single step decides the answer. A made-up decisive action is '
       + 'worse than none.',
     ]);
@@ -4166,29 +4427,29 @@
       toolSlot);
   }
 
-  // ─── §14 Rubric — build the scoring guide, one criterion at a time ──────────
+  // ─── §14 Rubric: build the scoring guide, one criterion at a time ──────────
   // V3/V4 only (the rubric never rendered on V1/V2). Replaces the dense
   // all-criteria list with a focused wizard: one criterion per card, a pinned
   // copy of the revised answer for reference, silent auto-seeding from the
   // doctor's tags, and plain-language weights (numeric bands live in the
   // info-dot, not the primary copy).
   const TIER_DEFAULT_PTS = { critical: 9, important: 5, helpful: 2 };
-  // §10: "Must-have" and "Important" are synonyms in ordinary English — nothing
+  // §10: "Must-have" and "Important" are synonyms in ordinary English: nothing
   // in the words says which outranks the other, so the physician had to learn an
   // arbitrary mapping. Critical > Major > Minor is a severity scale clinicians
   // already rank without thinking. The explanations state CONSEQUENCE ("the
   // answer is wrong without this"), which is checkable, rather than priority,
   // which is an opinion. The tier KEYS are unchanged, so `tierForPoints`,
-  // `TIER_DEFAULT_PTS`, the backend, and every stored record keep working —
+  // `TIER_DEFAULT_PTS`, the backend, and every stored record keep working:
   // this is a label-only change.
   const TIER_CHOICES = [
     ['critical', 'Critical', 'the answer is wrong or unsafe without this'],
     ['important', 'Major', 'the answer is clearly worse without this'],
-    ['helpful', 'Minor', 'a refinement — good, not decisive'],
+    ['helpful', 'Minor', 'a refinement: good, not decisive'],
   ];
   // §11: "axis" is ML vocabulary a clinician has no reason to know. The enum
   // keys are the wire format and never change; these are what the physician
-  // reads. [label, explanation] — the explanation is the button's title.
+  // reads. [label, explanation]: the explanation is the button's title.
   const AXIS_LABELS = {
     accuracy: ['Got the facts right', 'values, doses, findings are correct'],
     completeness: ['Didn’t miss anything', 'nothing decisive left out'],
@@ -4207,7 +4468,7 @@
     return c.axes;
   }
 
-  // 14.4: auto-growing textarea (min 2 rows) — the full criterion text is always
+  // 14.4: auto-growing textarea (min 2 rows); the full criterion text is always
   // visible and editable; nothing clips.
   function autoGrow(ta) {
     const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.max(ta.scrollHeight, 52) + 'px'; };
@@ -4216,7 +4477,7 @@
     return ta;
   }
 
-  // Repaint the live rubric section after an async seed lands — never while the
+  // Repaint the live rubric section after an async seed lands, never while the
   // doctor is typing in it (would steal focus).
   function repaintRubricUI() {
     const rub = document.querySelector('[data-substage="rubric"]');
@@ -4231,7 +4492,7 @@
     const d = state.draft;
     // 14.5: SILENT auto-seed. First mount seeds from the doctor's tags; if the
     // tags changed since the last seed (a re-opened earlier section), reseed
-    // additively in the background. No prompt, no reseed button — ever.
+    // additively in the background. No prompt, no reseed button, ever.
     const tagHash = JSON.stringify([
       (d.chosen_revision.why_better_tags || []).slice().sort(),
       (d.rejected_critique.error_tags || []).slice().sort(),
@@ -4255,12 +4516,12 @@
       ? (d.from_scratch.ideal_answer || '')
       : chosenRefinedText();
     const pinned = h('details', { class: 'asc-rubric-pin', open: '' },
-      h('summary', {}, 'Your revised answer — reference'),
+      h('summary', {}, 'Your revised answer (reference)'),
       h('div', { class: 'asc-rubric-pin-body' }, refText));
 
     const body = h('div', { id: 'ascRubricWizard' });
     // While a seed request is in flight and nothing exists yet, hold the wizard
-    // on a placeholder — never flash the empty finish card (a fast "Save &
+    // on a placeholder, never flash the empty finish card (a fast "Save &
     // finish" there would complete the section, only for the seeded criteria to
     // land moments later and honestly-but-jarringly regress it).
     if (state._rubricSeeding && !crits.length) {
@@ -4276,18 +4537,18 @@
         'Weights: critical / major / minor map to high / medium / low points; a “must never” auto-fails the answer.',
         'Confirm or edit each drafted criterion, then add your own if something is missing.',
       ]),
-      // 14.1: layman's description — no numeric tiers in the primary copy.
+      // 14.1: layman's description: no numeric tiers in the primary copy.
       // §12: the phrase in the UI is "must never" (two words, no hyphen), so
       // the copy that names it has to match what the physician actually taps.
       h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
         'List what a correct answer must get right and what it must never do. Each item is weighted by how much it matters. Name at least one ',
         h('strong', {}, 'must never'),
-        ' — the single thing that makes an answer wrong no matter what.'),
+        ': the single thing that makes an answer wrong no matter what.'),
       pinned,
       body);
   }
 
-  // 14.3: one focused criterion card — sentence, type, weight, axis, cite.
+  // 14.3: one focused criterion card: sentence, type, weight, axis, cite.
   function renderRubricCriterionCard(crits, i) {
     const d = state.draft;
     const c = crits[i];
@@ -4307,7 +4568,7 @@
       specChip.textContent = sp ? 'specific' : 'vague';
       specChip.className = 'asc-rubric-spec ' + (sp ? 'ok' : (keyTier ? 'warn' : 'soft'));
       specChip.title = sp
-        ? 'Machine-checkable — names a concrete fact/drug/dose/threshold.'
+        ? 'Machine-checkable: names a concrete fact/drug/dose/threshold.'
         : 'Name the specific fact, drug, dose, or threshold so the grader can check it.';
     };
     ta.addEventListener('input', () => { c.text = ta.value; paintSpec(); saveDraft(); updateSubmitState(); });
@@ -4320,13 +4581,13 @@
     });
     const autoFail = h('span', {
       class: 'asc-badge asc-badge-amber', hidden: true,
-      title: 'A “must never” — the grader hard-fails an answer that does this.',
+      title: 'A “must never”: the grader hard-fails an answer that does this.',
     }, 'auto-fail ✓');
 
     const mag = () => Math.max(1, Math.abs(Number(c.points) || 5));
     const neg = () => (Number(c.points) || 0) < 0;
-    // §9: the polarity toggle IS the sentence stem — "A correct answer [must
-    // never] — give thrombolytics in dissection" reads as one sentence rather
+    // §9: the polarity toggle IS the sentence stem: "A correct answer [must
+    // never] give thrombolytics in dissection" reads as one sentence rather
     // than as two form fields. It still sets the sign of `c.points`, which is
     // what drives auto-fail and the grader's hard-fail, so no data is lost.
     // Pink for “must never” (the flag/critical accent); lime for “must”.
@@ -4342,8 +4603,8 @@
       stemToggle.textContent = neg() ? 'must never' : 'must';
       stemToggle.className = 'asc-rubric-stem-toggle ' + (neg() ? 'neg' : 'pos');
       stemToggle.title = neg()
-        ? 'This is a “must never” — switch to “must” if the answer is required to do it.'
-        : 'This is a “must” — switch to “must never” if the answer is required NOT to do it.';
+        ? 'This is a “must never”: switch to “must” if the answer is required to do it.'
+        : 'This is a “must”: switch to “must never” if the answer is required NOT to do it.';
       Array.from(tierRow.children).forEach((b) => b.classList.toggle('active', b.dataset.tier === tierForPoints(c.points)));
       autoFail.hidden = !(neg() && tierForPoints(c.points) === 'critical');
       paintSpec();
@@ -4367,8 +4628,8 @@
     slider.addEventListener('input', () => setPoints(parseInt(slider.value, 10) || 1, neg()));
 
     // §11: MULTI-select, in plain words. A criterion routinely scores on more
-    // than one axis — "must never give thrombolytics in dissection" is safety
-    // AND accuracy — and forcing a single pick discards a distinction the buyer
+    // than one axis ("must never give thrombolytics in dissection" is safety
+    // AND accuracy), and forcing a single pick discards a distinction the buyer
     // is paying for. `c.axes` is authoritative; `c.axis` mirrors `axes[0]` so
     // stored records and the V2/backend single-value path keep working.
     const axes = (state.taxonomy.rubric_axes
@@ -4423,7 +4684,7 @@
       onClick: () => { c.text = ta.value; d.rubricCursor = i + 1; saveDraft(); renderRationale(); },
     }, 'Next →');
 
-    // §9: the stem replaces the "Type" field entirely — the sentence already
+    // §9: the stem replaces the "Type" field entirely: the sentence already
     // answered the question the field was asking.
     card.appendChild(h('div', { class: 'asc-field' },
       h('div', { class: 'asc-rubric-stem' },
@@ -4432,14 +4693,14 @@
         specChip),
       ta));
     card.appendChild(h('div', { class: 'asc-field' },
-      // §10: the scale sits BESIDE the question, not below the choices — the
+      // §10: the scale sits BESIDE the question, not below the choices: the
       // tier buttons and the slider are two ways to set ONE value, and the
       // readout is what makes that obvious.
       h('div', { class: 'asc-rubric-matter-head' },
         h('label', { class: 'asc-label' }, 'How much does it matter? ',
           infoDot('Weights', [
             'Critical / major / minor map to high / medium / low points.',
-            'A “must never” marked critical is the auto-fail — the grader hard-fails on it.',
+            'A “must never” marked critical is the auto-fail: the grader hard-fails on it.',
           ])),
         h('div', { class: 'asc-rubric-scale' }, slider, ptsLabel, autoFail)),
       tierRow));
@@ -4481,7 +4742,7 @@
         h('span', { class: 'asc-rubric-premium ' + (rc.premium ? 'premium' : 'standard') },
           rc.premium ? 'premium' : 'standard'),
         h('span', { class: 'asc-label-hint' }, rc.premium
-          ? (rc.n_criteria + ' criteria · ' + rc.n_axes + ' axes — meets the premium bar')
+          ? (rc.n_criteria + ' criteria · ' + rc.n_axes + ' axes, meets the premium bar')
           : ('to reach premium: ' + rc.missing.join('; ')))));
     } else {
       card.appendChild(h('p', { class: 'asc-help' },
@@ -4516,10 +4777,13 @@
     return card;
   }
 
-  // 14.5: seeding is SILENT and automatic — invoked on rubric mount and again
+  // 14.5: seeding is SILENT and automatic, invoked on rubric mount and again
   // (additively) whenever the doctor's tags change. Never prompts, never asks.
   async function seedRubric(force) {
     const d = state.draft;
+    // Tutorial: /rubric/suggest is task-scoped (404 on the virtual case), and
+    // authoring criteria by hand IS the lesson: mark seeded, fall to manual.
+    if (tutorialActive()) { d.rubricSeeded = true; updateSubmitState(); return; }
     if (d.rubricSeeded && !force) return;
     d.rubricSeeded = true;
     state._rubricSeeding = true;
@@ -4538,7 +4802,7 @@
       }
       updateSubmitState();
     } catch (e) {
-      // Seeding is a convenience — never surface an error; the placeholder
+      // Seeding is a convenience; never surface an error; the placeholder
       // resolves to the empty wizard below.
     } finally {
       state._rubricSeeding = false;
@@ -4603,7 +4867,7 @@
       saveDraft();
     });
 
-    // V3 (WS3): auto-suggested citation for this rationale — retrieval keys on
+    // V3 (WS3): auto-suggested citation for this rationale; retrieval keys on
     // the refined answer + the "why it's better" note. Confirming re-renders so
     // the anchor block fills and the record reads as grounded.
     const cite = renderCiteSuggest(
@@ -4614,7 +4878,7 @@
     wireCiteSuggest(ta, cite);
 
     return h('div', { class: 'asc-subcard' },
-      h('div', { class: 'asc-subcard-head chosen' }, '✓ Chosen answer (' + d.chosen_id + ') — edit to improve'),
+      h('div', { class: 'asc-subcard-head chosen' }, '✓ Chosen answer (' + d.chosen_id + '): edit to improve'),
       h('div', { class: 'asc-subcard-body' },
         h('div', { class: 'asc-field' },
           h('label', { class: 'asc-label' }, 'Refined answer ',
@@ -4658,20 +4922,20 @@
     whyWorse.addEventListener('input', () => { crit.why_worse = whyWorse.value; saveDraft(); });
 
     // Model-Failure Taxonomy capture (§D-2): failure-mode chips, shown only on V3/V4
-    // for a REAL-MODEL (baseline) pair — the taxonomy attributes provider failures, so
+    // for a REAL-MODEL (baseline) pair; the taxonomy attributes provider failures, so
     // it's meaningless on a generated pair. Physician-verified; multi-select, ~10s.
     const failureField = h('div', {});
     if (isV3() && isBaselinePair() && (state.taxonomy.failure_modes || []).length) {
       const fmContainer = h('div', { id: 'ascFailureModes' });
       failureField.appendChild(h('div', { class: 'asc-field' },
         h('label', { class: 'asc-label' }, 'How did it fail? ',
-          h('span', { class: 'asc-label-hint' }, '(model-failure taxonomy — select all that apply)')),
+          h('span', { class: 'asc-label-hint' }, '(model-failure taxonomy, select all that apply)')),
         fmContainer));
       renderFailureTags(fmContainer);
     }
 
     const card = h('div', { class: 'asc-subcard' },
-      h('div', { class: 'asc-subcard-head rejected' }, '✕ Rejected answer (' + d.rejected_id + ') — what went wrong'),
+      h('div', { class: 'asc-subcard-head rejected' }, '✕ Rejected answer (' + d.rejected_id + '): what went wrong'),
       h('div', { class: 'asc-subcard-body' },
         suggestContainer,
         h('div', { class: 'asc-field' },
@@ -4724,18 +4988,18 @@
     tags.forEach((t) => {
       const meta = modes.find((m) => m.id === t.mode);
       const note = h('input', { class: 'asc-input', style: 'margin-top:6px',
-        placeholder: (meta ? meta.label : t.mode) + ' — one line of specifics (optional)', value: t.note || '' });
+        placeholder: (meta ? meta.label : t.mode) + ': one line of specifics (optional)', value: t.note || '' });
       note.addEventListener('input', () => { t.note = note.value; saveDraft(); });
       container.appendChild(note);
     });
   }
 
   // Model-suggested error tags + draft rationale (Speed Optimization §2):
-  // rendered as visually-distinct "Suggested — tap to accept" chips. NOTHING is
+  // rendered as visually-distinct "Suggested, tap to accept" chips. NOTHING is
   // applied without an explicit tap; accepted values land in the normal editable
   // fields. Suggestions only show on the model's suggested-weaker side.
   // Accepting mutates the draft and re-renders the rationale from state (the
-  // renderers own the DOM — no hand-syncing of chip rows or inputs).
+  // renderers own the DOM; no hand-syncing of chip rows or inputs).
   function renderTagSuggestions(container) {
     if (!container) return;
     clear(container);
@@ -4748,7 +5012,7 @@
     if (!pendingTags.length && !rationalePending) return;
 
     const box = h('div', { class: 'asc-suggest-box' },
-      h('div', { class: 'asc-suggest-label' }, 'Suggested — tap to accept'));
+      h('div', { class: 'asc-suggest-label' }, 'Suggested, tap to accept'));
     if (pendingTags.length) {
       const row = h('div', { class: 'asc-chips' });
       pendingTags.forEach((tag) => {
@@ -4809,14 +5073,14 @@
   }
 
   // Structured-first capture (Speed Optimization §6): one-tap reason chips per
-  // selected error tag. The vocabulary comes from the server taxonomy only —
+  // selected error tag. The vocabulary comes from the server taxonomy only;
   // a local copy would drift from what validation accepts. V2-only; V1 keeps
   // the classic free-text "why it's worse" as the sole reason input.
   function renderTagReasons(container) {
     if (!isAssisted()) { if (container) clear(container); return; }
     renderPerTagPills(container, {
       label: 'Why, per error',
-      hint: '(one tap — optional)',
+      hint: '(one tap, optional)',
       options: state.taxonomy.error_tag_reasons || [],
       dict: state.draft.rejected_critique.error_tag_reasons,
       pillsClass: 'asc-reason-pills',
@@ -4894,24 +5158,24 @@
       original_text: original !== undefined ? original : (text || ''),
       corrected: false, confirmed: false, added: false,
       correction_reason: null,
-      // §13 (V3/V4): the free-text "what's off with this step?" — the backend
+      // §13 (V3/V4): the free-text "what's off with this step?"; the backend
       // derives step_error_tag (and the correction_reason vocab) from it.
       step_note: '',
       label: null, step_reward: null, critique: '', evidence_anchor: emptyAnchor(),
-      // Pre-grade suggestion (Speed Optimization §2) — a hint, never the label.
+      // Pre-grade suggestion (Speed Optimization §2): a hint, never the label.
       suggested_label: (suggested && suggested.suggested_label) || null,
       suggested_critique: (suggested && suggested.suggested_critique) || null,
     };
   }
   // A manually authored step (the doctor's own correct reasoning the AI omitted):
-  // no original_text, added=true, label=good — counts as resolved.
+  // no original_text, added=true, label=good, counts as resolved.
   function newAuthoredStep() {
     const s = newStep('', null);
     s.added = true; s.label = 'good'; s.step_reward = 1;
     return s;
   }
   // The single definition of what "confirmed good" / "back to pending" means
-  // for a step — used by the per-step button (expanded + collapsed) AND the
+  // for a step, used by the per-step button (expanded + collapsed) AND the
   // bulk "Confirm all correct" action, so every confirm path emits an
   // identical record shape.
   function setStepConfirmed(s, on) {
@@ -4929,11 +5193,11 @@
     return (rev.revised_text != null ? rev.revised_text : chosenText()) || '';
   }
 
-  // Auto-split the chosen answer into gradable steps — pre-graded when the LLM
+  // Auto-split the chosen answer into gradable steps, pre-graded when the LLM
   // is available (Speed Optimization §2): each step arrives with a suggested
   // good/bad label so the doctor spends time only on the flagged ones. ``force``
   // re-runs even when steps already exist; §5 removed the button that passed it,
-  // so the only live caller is the on-mount auto-fire. Degrades gracefully —
+  // so the only live caller is the on-mount auto-fire. Degrades gracefully:
   // offline the steps arrive unlabeled and the doctor grades manually; on
   // failure the doctor just adds steps.
   async function autoSplitChosen(listId, force) {
@@ -4943,7 +5207,7 @@
     if (!force && activeSteps().length) return;
     state.splitting = true;
     const list = document.getElementById(listId);
-    // §5 (V3/V4): skeleton rows, not a blank card — "this is arriving" without
+    // §5 (V3/V4): skeleton rows, not a blank card: "this is arriving" without
     // a spinner to interpret. V1/V2 keep the sentence.
     if (list) {
       clear(list);
@@ -5021,7 +5285,7 @@
   }
 
   // Edit-to-Correct per-step UI. Each split step is confirmed as-is (one tap,
-  // label=good) or edited to correct it — on first divergence a required one-tap
+  // label=good) or edited to correct it; on first divergence a required one-tap
   // reason row appears and the label is auto-derived (minor_wording→neutral, else
   // bad). The AI's original step is preserved + shown collapsed for reference.
   function renderStepsList(listId) {
@@ -5036,7 +5300,7 @@
     // Pre-graded flow (Speed Optimization §2): suggested-good steps render
     // collapsed with per-step confirm + one deliberate "Confirm all correct"
     // action; flagged steps render expanded for review/edit-to-correct. Every
-    // step still requires an explicit confirm/correct — silence ≠ endorsement.
+    // step still requires an explicit confirm/correct; silence ≠ endorsement.
     const isCollapsed = (s) => (
       s.suggested_label === 'good' && !s._exp && !s.corrected && !s.added
       && (s.text || '').trim() === (s.original_text || '').trim()
@@ -5046,7 +5310,7 @@
       list.appendChild(h('div', { class: 'asc-step-bulkbar' },
         h('span', { class: 'asc-step-bulk-label' },
           pendingGood.length + ' step' + (pendingGood.length === 1 ? ' looks' : 's look')
-          + ' correct to the model — read them, then confirm in one tap.'),
+          + ' correct to the model. Read them, then confirm in one tap.'),
         h('button', {
           class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
           onClick: () => {
@@ -5068,7 +5332,7 @@
           h('div', { class: 'asc-step-head' },
             h('div', { style: 'display:flex;align-items:center;gap:8px;min-width:0' },
               h('span', { class: 'asc-step-num' }, 'Step ' + (idx + 1)),
-              h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade — your confirmation is the label' }, 'model · looks correct'),
+              h('span', { class: 'asc-step-suggest good', title: 'Model pre-grade: your confirmation is the label' }, 'model · looks correct'),
               pill),
             h('div', { style: 'display:flex;align-items:center;gap:8px' },
               h('button', {
@@ -5092,19 +5356,19 @@
       const statusPill = h('span', { class: 'asc-step-status' }, '');
       const addedBadge = h('span', { class: 'asc-badge asc-badge-accent asc-step-added' }, 'added (AI omitted)');
 
-      // ✓ Correct as-is — explicit positive endorsement (silence ≠ endorsement).
+      // ✓ Correct as-is: explicit positive endorsement (silence ≠ endorsement).
       // Tapping an already-confirmed step toggles it back to pending.
       const confirmBtn = h('button', {
         class: 'asc-btn asc-btn-ghost asc-btn-sm asc-step-confirm', type: 'button',
         onClick: () => {
           setStepConfirmed(s, !s.confirmed);
-          // In-place update only — a full re-render here resets the scroll
+          // In-place update only; a full re-render here resets the scroll
           // position and bounces the page up between steps.
           saveDraft(); syncStepUI(); updateSubmitState();
         },
       }, '✓ Correct as-is');
 
-      // Reason chips (required on an edited step) — single-select, derive label.
+      // Reason chips (required on an edited step): single-select, derive label.
       const chipEls = {};
       const reasonRow = h('div', { class: 'asc-step-reasons' });
       reasons.forEach((r) => {
@@ -5114,7 +5378,7 @@
             s.correction_reason = r;
             s.label = (r === 'minor_wording') ? 'neutral' : 'bad';
             s.step_reward = s.label === 'good' ? 1 : 0;
-            // In-place update only — avoid the full re-render scroll jump.
+            // In-place update only; avoid the full re-render scroll jump.
             saveDraft(); syncStepUI(); updateSubmitState();
           },
         }, r.replace(/_/g, ' '));
@@ -5125,7 +5389,7 @@
         h('div', { class: 'asc-label asc-step-reason-hint' }, 'What was wrong with the AI step? (pick one)'),
         reasonRow);
 
-      // Collapsed "original:" reference — the AI's split step we're correcting.
+      // Collapsed "original:" reference: the AI's split step we're correcting.
       const originalBox = hasOriginal
         // V1/V2 (classic) keeps the original 80-char JS truncation. The §8
         // fill-the-width fix is scoped to the V3/V4 renderer.
@@ -5135,14 +5399,14 @@
             h('div', { class: 'asc-step-original-full' }, s.original_text || ''))
         : null;
 
-      // Optional one-line critique — kept available on a corrected step.
+      // Optional one-line critique, kept available on a corrected step.
       const ci = h('input', { class: 'asc-input', placeholder: "What's off with this step? (optional, one line)", value: s.critique || '' });
       ci.addEventListener('input', () => { s.critique = ci.value; saveDraft(); });
       const critiqueField = h('div', { class: 'asc-field', style: 'margin-top:8px' }, withMic(ci));
 
-      // Model pre-grade flag (Speed Optimization §2) — a review hint, never a label.
+      // Model pre-grade flag (Speed Optimization §2): a review hint, never a label.
       const flaggedBadge = (s.suggested_label === 'bad')
-        ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade — verify and confirm or correct' }, 'model · flags this')
+        ? h('span', { class: 'asc-step-suggest bad', title: 'Model pre-grade: verify and confirm or correct' }, 'model · flags this')
         : null;
       const suggestHint = (s.suggested_label === 'bad' && s.suggested_critique)
         ? h('div', { class: 'asc-step-suggest-hint' }, 'Model: ' + s.suggested_critique)
@@ -5165,7 +5429,7 @@
       const anchorBlock = renderAnchorBlock(s.evidence_anchor, { label: 'citation for this step', required });
 
       // V3 (WS3, audit P2): one-click citation auto-suggest on EACH reasoning
-      // step — the highest-value place to ground (PRM step-level supervision).
+      // step, the highest-value place to ground (PRM step-level supervision).
       // Retrieval keys on the step text + its critique; Confirm fills the step's
       // evidence_anchor exactly like the rationale chip. Mounted only on this
       // expanded card (collapsed model-passed steps have no anchor UI), and the
@@ -5184,7 +5448,7 @@
         let text = 'pending', cls = 'pending';
         if (added) { text = 'added'; cls = 'added'; }
         else if (corrected) {
-          text = s.correction_reason ? ('corrected · ' + s.correction_reason.replace(/_/g, ' ')) : 'corrected — pick a reason';
+          text = s.correction_reason ? ('corrected · ' + s.correction_reason.replace(/_/g, ' ')) : 'corrected: pick a reason';
           cls = 'corrected';
         } else if (confirmed) { text = 'confirmed ✓'; cls = 'confirmed'; }
         statusPill.textContent = text;
@@ -5216,7 +5480,7 @@
       list.appendChild(h('div', { class: 'asc-step' }, head, suggestHint, ta, reasonWrap, originalBox, critiqueField, stepCite, anchorBlock));
     });
     if (!steps.length) {
-      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet — add steps manually, or use “Re-split from answer”.'));
+      list.appendChild(h('p', { class: 'asc-help' }, 'No steps yet. Add steps manually, or use “Re-split from answer”.'));
     }
   }
 
@@ -5225,15 +5489,15 @@
   // rationale/answer text, fetch the 1–3 most relevant library citations; the
   // doctor opens the snippet inline and Confirms (one tap) to set the
   // evidence_anchor + mark the record grounded (value ×1.3). Nothing is
-  // auto-attached — the confirm is required (mission line). V3 only; returns
+  // auto-attached; the confirm is required (mission line). V3 only; returns
   // null elsewhere so V1/V2 keep the manual citation field unchanged.
   function renderCiteSuggest(anchor, getText, onConfirm) {
     if (!isV3()) return null;
     const wrap = h('div', { class: 'asc-cite-suggest' });
     let lastQuery = null, dismissed = false;
-    // §11: a clean list — opening the source IS the action (the citation is
+    // §11: a clean list; opening the source IS the action (the citation is
     // recorded as entry_method:'opened'); no separate Confirm step. An entry
-    // with no verified link renders reference-only (no Open source button —
+    // with no verified link renders reference-only (no Open source button,
     // never a constructed/guessed URL), citable via a subtle "Cite".
     const applyCite = (s, method) => {
       anchor.citation_text = (s.snippet || s.title || s.identifier || '').trim();
@@ -5248,9 +5512,9 @@
       saveDraft();
       // Toast the TRUTH: only claim grounded when the anchor actually
       // validates (else cleanAnchor would strip it on submit / block a
-      // grounding=required task — the misleading-success case).
-      if (isValidAnchor(anchor)) toast('Citation attached — this record is now grounded.', 'success');
-      else toast('Citation attached — finish the source fields below to ground it.', 'info');
+      // grounding=required task, the misleading-success case).
+      if (isValidAnchor(anchor)) toast('Citation attached. This record is now grounded.', 'success');
+      else toast('Citation attached. Finish the source fields below to ground it.', 'info');
       // Defer the re-render one tick: the 'opened' path fires from an <a
       // target=_blank> click, and tearing the anchor out of the DOM inside its
       // own click handler can cancel the new-tab navigation in some browsers.
@@ -5260,7 +5524,7 @@
       clear(wrap);
       if (!suggestions.length) return;
       wrap.appendChild(h('div', { class: 'asc-cite-head' },
-        h('span', { class: 'asc-cite-title' }, 'Suggested source' + (suggestions.length > 1 ? 's' : '') + ' — open one to check it; opening attaches it'),
+        h('span', { class: 'asc-cite-title' }, 'Suggested source' + (suggestions.length > 1 ? 's' : '') + ': open one to check it; opening attaches it'),
         h('button', { class: 'asc-btn-link', type: 'button', onClick: () => { dismissed = true; clear(wrap); } }, 'dismiss')));
       suggestions.slice(0, 3).forEach((s) => {
         const hasUrl = !!(s.url && /^https?:\/\//i.test(s.url));
@@ -5317,7 +5581,7 @@
         if (dismissed || isValidAnchor(anchor)) return;
         if (res.skipped || !(res.suggestions || []).length) { clear(wrap); return; }
         renderChips(res.suggestions);
-      } catch (e) { /* suggestions are a bonus — never surface an error to the doctor */ }
+      } catch (e) { /* suggestions are a bonus; never surface an error to the doctor */ }
     };
     wrap._fetch = fetchSuggest;
     setTimeout(fetchSuggest, 400);
@@ -5341,7 +5605,7 @@
     if (!required && !isValidAnchor(anchor) && !(anchor.citation_text || '').trim()) body.setAttribute('hidden', '');
     body.appendChild(anchorFields(anchor));
 
-    // Escape hatch: search the library (BUG-3c) — always one tap away.
+    // Escape hatch: search the library (BUG-3c), always one tap away.
     const search = renderLibrarySearch(anchor, () => { block._rebuild(); });
     const searchBtn = h('button', { class: 'asc-btn-link', type: 'button', onClick: () => search._toggle() }, 'Search the library');
     body.appendChild(h('div', { style: 'margin:8px 0' }, searchBtn));
@@ -5450,7 +5714,7 @@
       ...types.map((t) => h('option', { value: t, selected: anchor.source_type === t ? 'selected' : null }, t.replace(/_/g, ' '))));
     sourceSel.value = anchor.source_type || '';
     sourceSel.addEventListener('change', () => { anchor.source_type = sourceSel.value; saveDraft(); updateSubmitState(); });
-    const identifier = h('input', { class: 'asc-input', placeholder: 'Identifier — PMID:…, DOI:…, KDIGO 2024', value: anchor.identifier || '' });
+    const identifier = h('input', { class: 'asc-input', placeholder: 'Identifier: PMID:…, DOI:…, KDIGO 2024', value: anchor.identifier || '' });
     identifier.addEventListener('input', () => {
       anchor.identifier = identifier.value;
       if (isV3() && !anchor.entry_method) anchor.entry_method = 'manual';
@@ -5459,7 +5723,7 @@
     // Paste-your-own URL (BUG-3c escape hatch): a link the doctor pastes rides the
     // anchor + is clickable. Pasting a URL with no source type defaults to "other".
     const openLink = openSourceLink(anchor);
-    const url = h('input', { class: 'asc-input', placeholder: 'Paste a source URL (optional) — https://…', value: anchor.url || '' });
+    const url = h('input', { class: 'asc-input', placeholder: 'Paste a source URL (optional): https://…', value: anchor.url || '' });
     url.addEventListener('input', () => {
       anchor.url = url.value.trim();
       // Paste-your-own (BUG-3c): a bare URL should be a usable citation, not
@@ -5485,13 +5749,13 @@
   }
 
   // ── Library search box + multi-anchor (BUG-3b/c) ────────────────────────────
-  // "Search the library" is always one tap away — the doctor types a query and
+  // "Search the library" is always one tap away; the doctor types a query and
   // picks a source (fills the anchor). An escape hatch when the auto-suggest is
   // wrong (it is better to show nothing than a wrong citation, so search is
   // deliberately more permissive than the suggestion).
   function renderLibrarySearch(anchor, onPick) {
     const box = h('div', { class: 'asc-lib-search', hidden: true });
-    const input = h('input', { class: 'asc-input', placeholder: 'Search the citation library — drug, analyte, guideline…' });
+    const input = h('input', { class: 'asc-input', placeholder: 'Search the citation library: drug, analyte, guideline…' });
     const results = h('div', { class: 'asc-lib-results' });
     let t = null;
     const run = async () => {
@@ -5500,8 +5764,8 @@
         const res = await api('/citations/search', { method: 'POST',
           body: { text: input.value.trim(), specialty: (state.task && state.task.specialty) || 'nephrology', k: 12 } });
         const list = (res && res.suggestions) || [];
-        if (res.skipped) { results.appendChild(h('div', { class: 'asc-label-hint' }, 'No citation library for this specialty — type or paste your own.')); return; }
-        if (!list.length) { results.appendChild(h('div', { class: 'asc-label-hint' }, 'No matches — try a drug name or lab analyte.')); return; }
+        if (res.skipped) { results.appendChild(h('div', { class: 'asc-label-hint' }, 'No citation library for this specialty. Type or paste your own.')); return; }
+        if (!list.length) { results.appendChild(h('div', { class: 'asc-label-hint' }, 'No matches. Try a drug name or lab analyte.')); return; }
         list.forEach((s) => {
           results.appendChild(h('div', { class: 'asc-lib-row' },
             h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button',
@@ -5616,7 +5880,7 @@
         if (!rg.ok) { ok = false; msg = rg.msg; }
         else if (!fg.ok) { ok = false; msg = fg.msg; }
         // §10/§12 (V3/V4): the required sections stay required even if the
-        // doctor re-opens a completed section and deletes its data — submit
+        // doctor re-opens a completed section and deletes its data; submit
         // must never ship an empty "why better" or critique.
         else if (isV3() && abVerdict && !whyBetterConditionsMet()) {
           ok = false; msg = 'finish “why it’s better” (one line + ≥1 tag) to submit';
@@ -5632,7 +5896,7 @@
   }
 
   // Human-readable label per backend-stamped phase (BUG-5). The percentages are
-  // the backend's — we only translate the phase name; a phase without a pct shows
+  // the backend's; we only translate the phase name; a phase without a pct shows
   // an indeterminate spinner (honest "we don't know how long this takes").
   const _PHASE_LABEL = {
     queued: 'Queued…', packaging: 'Packaging training records…',
@@ -5663,7 +5927,7 @@
     if (!sr.ok) { updateSubmitState(); return; }
     if (!rubricGate().ok) { updateSubmitState(); return; }
     if (!failureTagGate().ok) { updateSubmitState(); return; }
-    // §10/§12/§15 (V3/V4): mirror every staged-flow gate — a submit must never
+    // §10/§12/§15 (V3/V4): mirror every staged-flow gate; a submit must never
     // ship with a re-opened section's required data deleted, or the draft
     // default confidence.
     if (isV3()) {
@@ -5672,6 +5936,9 @@
       if (abVerdict && (!whyBetterConditionsMet() || !critiqueConditionsMet())) { updateSubmitState(); return; }
       if (!d0.confidence_set) { updateSubmitState(); return; }
     }
+    // Tutorial: grade against the answer key and show the reveal: the real
+    // submit pipeline (and its records/QA routing) is never touched.
+    if (tutorialActive()) { await submitTutorialEvaluation(); return; }
     state.submitting = true;
     updateHeaderProgress(); // §16: the bar reads 100% while the submit runs
     const btn = document.getElementById('ascSubmit');
@@ -5703,15 +5970,15 @@
       }
       const n = recordCount != null ? recordCount : 0;
       // The submission is committed server-side the moment we got the 202, so a
-      // poll timeout is "still finalizing", NOT a failure — never lose the work.
+      // poll timeout is "still finalizing", NOT a failure; never lose the work.
       clearDraft(taskId);
       stopTimer();
       if (timedOut) {
-        toast('Submitted — still finalizing in the background. It will appear once the pipeline completes.', 'success');
+        toast('Submitted. Still finalizing in the background. It will appear once the pipeline completes.', 'success');
       } else if (finalStatus === 'needs_qa') {
-        toast('Submitted — routed to QA review (' + n + ' record' + (n === 1 ? '' : 's') + ').', 'success');
+        toast('Submitted. Routed to QA review (' + n + ' record' + (n === 1 ? '' : 's') + ').', 'success');
       } else {
-        toast('Submitted — packaged ' + n + ' record' + (n === 1 ? '' : 's'), 'success');
+        toast('Submitted. Packaged ' + n + ' record' + (n === 1 ? '' : 's'), 'success');
       }
       renderEvalView();
     } catch (e) {
@@ -5737,7 +6004,7 @@
   }
 
   // Poll GET /submissions/{id}/status until the backend reports a terminal phase.
-  // Shows the real, backend-stamped phase — never an invented percentage.
+  // Shows the real, backend-stamped phase, never an invented percentage.
   async function pollSubmissionStatus(sid, progressHost) {
     const deadline = Date.now() + 60000;  // safety cap
     let last = null;
@@ -5746,7 +6013,7 @@
         last = await api('/submissions/' + sid + '/status');
       } catch (e) {
         if (e.status === 401) throw e;
-        // transient — keep polling until the deadline
+        // transient; keep polling until the deadline
       }
       if (last && progressHost) _renderProgress(progressHost, last.phase, last.pct);
       if (last && last.done) return last;
@@ -5762,7 +6029,7 @@
     // (Seamless PRD WS3) so the record distinguishes a confirmed source.
     if ((a.url || '').trim()) out.url = a.url.trim();
     if (a.citation_confirmed) out.citation_confirmed = true;
-    // §11: how the citation was captured — 'opened' (clicked through to the
+    // §11: how the citation was captured: 'opened' (clicked through to the
     // source), 'typeahead' (picked from the library), 'manual' (hand-typed).
     if (a.entry_method) out.entry_method = a.entry_method;
     return out;
@@ -5776,7 +6043,7 @@
       confirmed: !!s.confirmed,
       added: !!s.added,
       correction_reason: s.correction_reason || null,
-      // §13: the free-text "what's off" — the server derives step_error_tag
+      // §13: the free-text "what's off"; the server derives step_error_tag
       // (and a correction_reason) from it. Additive; null when untouched.
       step_note: (s.step_note || '').trim() || null,
       label: s.label || null,
@@ -5829,7 +6096,7 @@
         const entry = {
           text: (c.text || '').trim(), points: c.points || 0,
           axes: axs, axis: axs[0] || c.axis || null, source: c.source || 'manual',
-          // Tier (Two-Model PRD WS-B) — the server re-derives from |points| when it
+          // Tier (Two-Model PRD WS-B): the server re-derives from |points| when it
           // doesn't match, so this is a hint, never authoritative.
           tier: tierForPoints(c.points),
           // FIX-1 concreteness hint (server recomputes from the final text).
@@ -5902,7 +6169,7 @@
       };
       payload.reasoning_steps = payload.from_scratch.reasoning_steps;
     }
-    // Decisive action (Audit §13): the physician-named verifiable outcome — the test
+    // Decisive action (Audit §13): the physician-named verifiable outcome: the test
     // or action the correct answer depends on. Skippable by design, so it's only sent
     // when the clinician actually named one; a fabricated one is worse than none.
     const da = d.decisive_action || {};
@@ -5922,7 +6189,7 @@
   //  ADVISOR SECTION (Advisor PRD §6.2)
   // ═══════════════════════════════════════════════════════════════════════════
   // Lives in its own file (frontend/asclepius/advisor.js) and is mounted here
-  // the same way AdminPhysiciansSection is — this file is already 8,000 lines
+  // the same way AdminPhysiciansSection is: this file is already 8,000 lines
   // and does not need 400 more.
   function renderAdvisorView() {
     stopTimer();
@@ -5934,12 +6201,12 @@
       return;
     }
     // A VISIBLE error, never a quiet placeholder. A silent fallback is how a
-    // shipped feature stayed invisible for an entire build round — the advisor
+    // shipped feature stayed invisible for an entire build round: the advisor
     // must be able to see that something is broken and say so.
     body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
       h('div', { class: 'asc-error' },
         'The Advisor section failed to load. Reload the page; if it persists, '
-        + 'this is a deploy problem — check that advisor.js is included in '
+        + 'this is a deploy problem: check that advisor.js is included in '
         + 'index.html. Your referrals and sign-offs are unaffected.'))));
   }
 
@@ -5954,7 +6221,7 @@
   };
 
   // Shared helpers handed to the section modules (admin_physicians.js,
-  // admin_health.js, admin_export.js) — they live in their own files (§3.3
+  // admin_health.js, admin_export.js): they live in their own files (§3.3
   // ownership) and build DOM exclusively through this ctx.
   function adminSectionCtx() {
     return {
@@ -5974,7 +6241,7 @@
 
   function renderAdminView() {
     stopTimer();
-    updateHeaderProgress(); // admin view — the §16 bar hides here
+    updateHeaderProgress(); // admin view: the §16 bar hides here
     const alias = ADMIN_TAB_ALIASES[state.adminTab];
     if (alias) { state.adminTab = alias[0]; state.adminSub[alias[0]] = alias[1]; }
     const tabs = [
@@ -5990,7 +6257,7 @@
           onClick: () => { state.adminTab = id; renderAdminView(); },
         }, label);
         // QA (BUG-2): the pending-count badge stays visible at the top level so
-        // the backlog is never invisible — it now rides on Physicians (QA lives
+        // the backlog is never invisible: it now rides on Physicians (QA lives
         // inside it as a sub-tab).
         if (id === 'physicians') btn.appendChild(h('span', { class: 'asc-badge asc-badge-count', id: 'ascQaBadge', style: 'margin-left:6px', hidden: true }));
         return btn;
@@ -6018,11 +6285,11 @@
   function sectionModuleMissing(body, name) {
     body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
       h('div', { class: 'asc-inline-error' },
-        name + ' failed to load — refresh the page. If it persists, check that the ' +
+        name + ' failed to load: refresh the page. If it persists, check that the ' +
         'script is included in index.html.'))));
   }
 
-  // Physicians — who supplies our judgment. Tasks and QA live here now, next to
+  // Physicians: who supplies our judgment. Tasks and QA live here now, next to
   // the people who produce them.
   function renderAdminPhysiciansSection(body) {
     clear(body);
@@ -6041,7 +6308,7 @@
     } else sectionModuleMissing(inner, 'The Physicians section');
   }
 
-  // Health Systems — who supplies our data. The ingestion review/promote surface
+  // Health Systems: who supplies our data. The ingestion review/promote surface
   // lives here as "Pipeline tools".
   function renderAdminHealthSection(body) {
     clear(body);
@@ -6055,7 +6322,7 @@
     else sectionModuleMissing(inner, 'The Health Systems section');
   }
 
-  // Export — what can we sell, and how do we cut it. By-case is the primary
+  // Export: what can we sell, and how do we cut it. By-case is the primary
   // view; buyer relationships and past export batches stay reachable beside it.
   function renderAdminExportSection(body) {
     clear(body);
@@ -6129,7 +6396,7 @@
         h('div', { class: 'asc-card-title' }, 'Pending (' + subs.length + ')')));
       if (!subs.length) {
         listCard.appendChild(h('div', { class: 'asc-card-pad' },
-          h('div', { class: 'asc-card-sub' }, 'Queue is clear — nothing needs QA right now.')));
+          h('div', { class: 'asc-card-sub' }, 'Queue is clear. Nothing needs QA right now.')));
         return;
       }
       const table = h('table', { class: 'asc-table' },
@@ -6141,19 +6408,19 @@
         const ann = s.annotator || {};
         const ident = s.contributor || {};
         const reasons = (s.qa_reason || '').split(',').filter(Boolean);
-        // Contributor identity is admin-visible (name / org / email) — it never
+        // Contributor identity is admin-visible (name / org / email); it never
         // ships in a data package, but the admin is allowed to see who labelled.
         const contribCell = h('td', {},
-          h('div', { style: 'font-weight:600' }, ident.name || ann.credentials || ann.specialty || '—'),
+          h('div', { style: 'font-weight:600' }, ident.name || ann.credentials || ann.specialty || 'n/a'),
           ident.organization ? h('div', { class: 'asc-card-sub' }, ident.organization) : null,
           ident.email ? h('div', { class: 'asc-card-sub asc-mono' }, ident.email) : null);
         tbody.appendChild(h('tr', {},
           h('td', { class: 'asc-mono' }, (s.submission_id || '').slice(0, 12)),
           contribCell,
-          h('td', {}, s.verdict || '—'),
+          h('td', {}, s.verdict || 'n/a'),
           h('td', {}, reasons.length
             ? reasons.map((r) => h('span', { class: 'asc-chip asc-chip-warn', style: 'margin:2px' }, r))
-            : h('span', { class: 'asc-label-hint' }, '—')),
+            : h('span', { class: 'asc-label-hint' }, 'n/a')),
           h('td', {}, (s.time_spent_sec || 0) + 's'),
           h('td', {}, h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
             onClick: () => openQaDetail(s.submission_id) }, 'Review'))));
@@ -6186,7 +6453,7 @@
       const pad = h('div', { class: 'asc-card-pad' });
       pad.appendChild(h('div', { class: 'asc-field' },
         h('label', { class: 'asc-label' }, 'Prompt'),
-        h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, task.prompt || '—')));
+        h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, task.prompt || 'n/a')));
 
       // Verdict + the doctor's chosen/rejected + rationale (diff-style).
       const verdict = sub.verdict || payload.verdict;
@@ -6198,7 +6465,7 @@
         pad.appendChild(qaDiffBlock('Chosen (' + (sub.chosen_id || '') + ')',
           cands[sub.chosen_id] || '', rev.edited ? rev.revised_text : null));
         pad.appendChild(qaField('Rejected (' + (sub.rejected_id || '') + ')', cands[sub.rejected_id] || ''));
-        pad.appendChild(qaField('Why worse', crit.why_worse || '—'));
+        pad.appendChild(qaField('Why worse', crit.why_worse || 'n/a'));
         if ((crit.error_tags || []).length) {
           pad.appendChild(h('div', { class: 'asc-field' },
             h('label', { class: 'asc-label' }, 'Error tags on rejected'),
@@ -6206,7 +6473,7 @@
         }
       } else if (verdict === 'both_inadequate') {
         const fs = payload.from_scratch || {};
-        pad.appendChild(qaField('Ideal answer (from scratch)', fs.ideal_answer || '—'));
+        pad.appendChild(qaField('Ideal answer (from scratch)', fs.ideal_answer || 'n/a'));
       }
       const critic = (sub.critic || {}).consistency || {};
       if (critic && critic.consistent === false) {
@@ -6240,7 +6507,7 @@
   function qaField(label, value) {
     return h('div', { class: 'asc-field' },
       h('label', { class: 'asc-label' }, label),
-      h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, value || '—'));
+      h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, value || 'n/a'));
   }
   function qaDiffBlock(label, original, revised) {
     const field = h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, label));
@@ -6248,7 +6515,7 @@
       field.appendChild(h('div', { class: 'asc-readbox' }, renderEditDiff(original || '', revised)));
       field.appendChild(h('div', { class: 'asc-label-hint', style: 'margin-top:4px' }, 'Highlighted sentences were revised by the specialist.'));
     } else {
-      field.appendChild(h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, original || '—'));
+      field.appendChild(h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, original || 'n/a'));
     }
     return field;
   }
@@ -6269,7 +6536,7 @@
 
   // ─── Admin: Real EHR Ingestion (EHR PRD §4, §8, §9) ─────────────────────────
   // The ONLY door that produces V4 real cases (the Seedmaker card produces V3
-  // synthetic — two doors, clearly signed). Mint secure partner links, watch
+  // synthetic: two doors, clearly signed). Mint secure partner links, watch
   // uploads land, triage quarantine, and promote ingested cases to V4 tasks.
   function renderAdminIngestion(body) {
     clear(body);
@@ -6277,37 +6544,55 @@
     // PRD-C: send upload access to a health system. Two fields; everything else
     // (health-system row, username, passphrase, forced reset) is derived
     // server-side. Replaces the old six-field link-minting form.
+    // ═══ PRD-I §2.2: two buttons, one form, one code path ═══
+    // The two buttons post the SAME body to the SAME endpoint with a different
+    // purpose, and everything downstream of the mint is identical: same email,
+    // same subject, same portal, same URL shape. The recipient cannot tell which
+    // button was pressed, and that is the requirement: not a nicety. Only the
+    // admin knows.
+    //
+    // There is no default and no third "unset" option. A partner minted with no
+    // purpose is a decision nobody made, and the promotion gate would read it as
+    // task creation.
     const hsOrg = h('input', { class: 'asc-input', placeholder: 'Mass General Hospital' });
     const hsEmail = h('input', { type: 'email', class: 'asc-input', placeholder: 'data@mgh.harvard.edu' });
     const mintStatus = h('div', {});
-    const mintBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send upload link');
-    mintBtn.addEventListener('click', async () => {
+    const mintButtons = [];
+    async function sendUploadAccess(purpose) {
       clear(mintStatus);
       const org = hsOrg.value.trim();
       const email = hsEmail.value.trim();
       if (!org) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Organization is required.')); return; }
       if (!email) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Email is required.')); return; }
-      mintBtn.setAttribute('disabled', '');
+      mintButtons.forEach((b) => b.setAttribute('disabled', ''));
       try {
         const res = await api('/admin/health-systems/provision', { method: 'POST', body: {
-          organization: org, email: email,
+          organization: org, email: email, purpose: purpose,
         } });
         mintStatus.appendChild(h('div', { class: 'asc-inline-ok' }, res.message
           || ('Upload access sent to ' + email + '.')));
         hsOrg.value = ''; hsEmail.value = '';
         loadIngestionLists();
       } catch (e) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
-      finally { mintBtn.removeAttribute('disabled'); }
-    });
+      finally { mintButtons.forEach((b) => b.removeAttribute('disabled')); }
+    }
+    const mintTaskBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send link: task creation');
+    const mintBrokerBtn = h('button', { class: 'asc-btn asc-btn-subtle', style: 'margin-left:8px' }, 'Send link: brokering');
+    mintTaskBtn.addEventListener('click', () => sendUploadAccess('task_creation'));
+    mintBrokerBtn.addEventListener('click', () => sendUploadAccess('brokering'));
+    mintButtons.push(mintTaskBtn, mintBrokerBtn);
     const mintCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
         h('div', { class: 'asc-card-title' }, 'Send a health system its upload access'),
-        h('div', { class: 'asc-card-sub' }, 'The contact receives a username and one-time passphrase by email, signs into the password-protected portal, and uploads. Specialty is determined at ingest — not asked of hospital IT.'))),
+        h('div', { class: 'asc-card-sub' }, 'The contact receives a username and one-time passphrase by email, signs into the password-protected portal, and uploads. Specialty is determined at ingest: not asked of hospital IT.'))),
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Organization'), hsOrg),
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Email'), hsEmail)),
-        mintBtn, mintStatus));
+        mintTaskBtn, mintBrokerBtn,
+        h('div', { class: 'asc-label-hint', style: 'margin-top:8px' },
+          'Both links are byte-identical to the recipient. Which button you press is recorded on our side only, and decides whether the data can ever become a task.'),
+        mintStatus));
 
     const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));
     const casesCard = h('div', { class: 'asc-card', id: 'ascIngestCases' }, loadingCard('Loading ingested cases…'));
@@ -6316,7 +6601,7 @@
     body.appendChild(uploadsCard);
     body.appendChild(casesCard);
     // Deep-linked from a Health Systems bucket row (C-5.2): say which upload the
-    // operator arrived for, and scroll to it once the lists land — otherwise
+    // operator arrived for, and scroll to it once the lists land: otherwise
     // [Review] / [Promote to task] drop them into an unfiltered page.
     if (state.pipelineFocus) {
       const focus = state.pipelineFocus;
@@ -6338,7 +6623,7 @@
   // the on-demand trigger with a live count readout.
   function renderReconcileCard() {
     const out = h('div', { class: 'asc-card-sub', style: 'margin-top:10px' },
-      'Checks ingested cases for an unbound answer key or a missing image blob — defects that develop after ingest.');
+      'Checks ingested cases for an unbound answer key or a missing image blob: defects that develop after ingest.');
     const btn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm' }, 'Run reconciliation');
     btn.addEventListener('click', async () => {
       btn.setAttribute('disabled', ''); btn.textContent = 'Reconciling…';
@@ -6377,13 +6662,13 @@
   // uploads table. null == All. `needs_review` surfaces the review queue.
   let _uploadsStatus = null;
 
-  // Every other status on this screen is a real word — render 'Needs review',
+  // Every other status on this screen is a real word: render 'Needs review',
   // never the raw `needs_review` token (§21.7).
   const UPLOAD_STATUS_LABEL = {
     ingested: 'Ready', needs_review: 'Needs review', quarantined: 'Quarantined',
     rejected: 'Rejected', received: 'Received', parsing: 'Parsing', failed: 'Failed',
   };
-  const uploadStatusLabel = (s) => UPLOAD_STATUS_LABEL[s] || s || '—';
+  const uploadStatusLabel = (s) => UPLOAD_STATUS_LABEL[s] || s || '–';
   // `asc-badge-accent` already exists and is unused in this table, so no CSS change.
   const uploadBadgeClass = (s) => (
     s === 'ingested' ? 'asc-badge-green'
@@ -6408,7 +6693,7 @@
   }
 
   // Full-history, server-paginated uploads table. Each row: Download the original
-  // file, and — for anything that didn't cleanly ingest — Notify the sender.
+  // file, and (for anything that didn't cleanly ingest) notify the sender.
   async function renderUploadsTable(offset) {
     const up = document.getElementById('ascIngestUploads');
     if (!up) return;
@@ -6434,7 +6719,7 @@
       ];
       const chips = chipDefs.map((d) => {
         const active = (_uploadsStatus || null) === (d.key || null);
-        // `.active.err` is the design-system pink emphasis — use it for the review
+        // `.active.err` is the design-system pink emphasis: use it for the review
         // chip when there's a real queue so the hold is visible even unselected.
         const accent = d.key === 'needs_review' && (d.n || 0) > 0;
         const chip = h('button', {
@@ -6447,7 +6732,7 @@
       if (!uploads.length) {
         up.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
           _uploadsStatus ? ('No uploads with status "' + uploadStatusLabel(_uploadsStatus) + '".')
-                         : 'No uploads yet — mint a link above and send it to the partner.')));
+                         : 'No uploads yet: send a health system its upload access above.')));
         return;
       }
       const rows = [];
@@ -6457,7 +6742,7 @@
           '⬇ Download file');
         const actions = [dlBtn];
         // A held upload gets a Review action that expands an inline drawer (never a
-        // modal — the table already renders rows).
+        // modal: the table already renders rows).
         if (u.status === 'needs_review') {
           const rbtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Review');
           rbtn.addEventListener('click', () => toggleReviewDrawer(u, rbtn));
@@ -6468,7 +6753,7 @@
           const nbtn = h('button', {
             class: 'asc-btn asc-btn-subtle asc-btn-sm',
             title: canNotify ? ('Email ' + u.contact_email + ' that this upload didn’t come through')
-                             : 'No contact email on this upload’s link — set one when minting the link',
+                             : 'No contact email on this upload’s link. Set one when minting the link',
             onClick: () => notifySender(u),
           }, u.failure_notified ? 'Re-notify sender' : 'Notify sender');
           if (!canNotify) nbtn.disabled = true;
@@ -6476,7 +6761,7 @@
         }
         const row = h('tr', { 'data-upload': u.upload_id },
           h('td', {}, fmtDate(u.created_at)),
-          h('td', {}, u.partner_label || u.partner_id || '—'),
+          h('td', {}, u.partner_label || u.partner_id || 'n/a'),
           h('td', { class: 'asc-mono' }, (u.filename || '') + ' · ' + Math.round((u.size_bytes || 0) / 1024) + 'KB'),
           h('td', {}, h('span', { class: 'asc-badge ' + uploadBadgeClass(u.status) }, uploadStatusLabel(u.status))),
           h('td', {}, h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' }, actions)));
@@ -6509,7 +6794,7 @@
   async function notifySender(u) {
     try {
       const res = await api('/ingestion/uploads/' + u.upload_id + '/notify-sender', { method: 'POST' });
-      toast('Sender notified' + (res && res.detail ? ' — ' + res.detail : ''), 'success');
+      toast('Sender notified' + (res && res.detail ? ': ' + res.detail : ''), 'success');
       renderUploadsTable(_uploadsOffset);   // reflect the notified state
     } catch (e) {
       toast('Could not notify sender: ' + (e.detail || e.message || ''), 'error');
@@ -6568,7 +6853,7 @@
     wrap.appendChild(h('div', { class: 'asc-card-sub asc-mono', style: 'margin-bottom:8px' },
       'case ' + c.ingest_case_id + (c.review_status ? ' · ' + c.review_status : '')));
 
-    // Blocking reasons FIRST — the PHI hold outranks the advisory note.
+    // Blocking reasons FIRST: the PHI hold outranks the advisory note.
     blocking.forEach((r) => {
       const block = h('div', { style: 'margin-bottom:12px' });
       block.appendChild(h('div', { style: 'display:flex;align-items:center;gap:8px' },
@@ -6582,14 +6867,14 @@
         block.appendChild(renderBandedImage(withAsset));
       } else {
         block.appendChild(h('div', { class: 'asc-inline-warn' },
-          'No render is available for this study — its pixels were withheld from the content store '
+          'No render is available for this study: its pixels were withheld from the content store '
           + 'until a human clears them. Download the original bundle above to inspect the source image '
           + 'before certifying no PHI.'));
       }
       wrap.appendChild(block);
     });
 
-    // Advisory reasons — the case is clinically intact and, if not otherwise held,
+    // Advisory reasons: the case is clinically intact and, if not otherwise held,
     // already in the annotation queue. Nobody needs to chase it.
     advisory.forEach((r) => {
       const adv = h('div', { style: 'margin-bottom:10px' });
@@ -6599,7 +6884,7 @@
       adv.appendChild(h('div', { class: 'asc-card-sub', style: 'margin:4px 0' }, r.detail || ''));
       adv.appendChild(h('div', { class: 'asc-card-sub' },
         blocking.length ? 'This note travels with the case; it did not hold it.'
-                        : 'This case is already in the annotation queue — no action needed.'));
+                        : 'This case is already in the annotation queue: no action needed.'));
       wrap.appendChild(adv);
     });
 
@@ -6608,9 +6893,9 @@
     const status = h('div', { style: 'margin-top:8px' });
     const actions = h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' });
     if (blocking.length) {
-      const clearBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'No PHI — clear');
+      const clearBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'No PHI: clear');
       clearBtn.addEventListener('click', () => clearReview(upload, c, status));
-      const rejectBtn = h('button', { class: 'asc-btn asc-btn-danger asc-btn-sm' }, 'PHI present — reject case');
+      const rejectBtn = h('button', { class: 'asc-btn asc-btn-danger asc-btn-sm' }, 'PHI present: reject case');
       rejectBtn.addEventListener('click', () => rejectReview(upload, c, status));
       actions.appendChild(clearBtn);
       actions.appendChild(rejectBtn);
@@ -6635,7 +6920,7 @@
   }
 
   // Render a study image at review size with the top and bottom 12% bands outlined
-  // in the design-system flag colour — the regions where burned-in PHI lives.
+  // in the design-system flag colour: the regions where burned-in PHI lives.
   function renderBandedImage(study) {
     const frame = h('div', { style: 'position:relative;max-width:420px;border:1px solid var(--asc-line);border-radius:8px;overflow:hidden;background:var(--asc-surface-2)' });
     const img = h('img', { alt: (study.label || study.modality || 'clinical') + ' image', style: 'display:block;width:100%;height:auto' });
@@ -6660,7 +6945,7 @@
     try {
       await api('/ingestion/cases/' + c.ingest_case_id + '/review/clear',
         { method: 'POST', body: { note: note, reason: (c.reasons && c.reasons[0] && c.reasons[0].reason) || null } });
-      toast('Case cleared — back in the annotation queue.', 'success');
+      toast('Case cleared: back in the annotation queue.', 'success');
       loadIngestionLists();
     } catch (e) {
       clear(status);
@@ -6694,8 +6979,8 @@
     const search = h('input', { class: 'asc-input', placeholder: 'Search a partner upload (e.g. "Gray Scrubs Lab") or file name…', value: query || '' });
     search.addEventListener('input', () => renderPromoteList(listBox, search.value));
     cc.appendChild(h('div', { class: 'asc-card-head' }, h('div', { style: 'flex:1' },
-      h('div', { class: 'asc-card-title' }, 'Ready to promote — by partner upload'),
-      h('div', { class: 'asc-card-sub' }, 'Pick a partner file and promote it to V4. We convert the real records, run automated tests, and show you one sample case (labs, notes, EHR + candidates) to review — then extend case creation to the rest of the file.'),
+      h('div', { class: 'asc-card-title' }, 'Ready to promote, by partner upload'),
+      h('div', { class: 'asc-card-sub' }, 'Pick a partner file and promote it to V4. We convert the real records, run automated tests, and show you one sample case (labs, notes, EHR + candidates) to review, then extend case creation to the rest of the file.'),
       h('div', { class: 'asc-field', style: 'margin-top:12px;margin-bottom:0' }, search))));
     cc.appendChild(listBox);
     renderPromoteList(listBox, query || '');
@@ -6704,8 +6989,8 @@
   function renderPromoteList(listBox, query) {
     clear(listBox);
     const q = (query || '').trim().toLowerCase();
-    // Include held uploads too (V4 §4.7) so a `needs_review` file is visible here —
-    // with a "Held for review" marker instead of a promote button — rather than
+    // Include held uploads too (V4 §4.7) so a `needs_review` file is visible here,
+    // with a "Held for review" marker instead of a promote button, rather than
     // silently vanishing while an unresolved blocking reason keeps its cases out.
     const eligible = (_ingestUploads || []).filter((u) => ((u.ingested_case_count || 0) > 0 || u.status === 'needs_review')
       && (!q || (u.partner_label || '').toLowerCase().includes(q)
@@ -6719,7 +7004,7 @@
     eligible.forEach((u) => {
       const st = h('div', { style: 'margin-top:10px' });
       const ready = (u.ingested_case_count || 0) > 0;
-      // A blocking review reason keeps its cases out of promotion — show a
+      // A blocking review reason keeps its cases out of promotion: show a
       // "Held for review" marker in place of the button until it's cleared.
       const action = ready
         ? (() => {
@@ -6727,7 +7012,7 @@
             b.addEventListener('click', () => openPromoteReview(u, st));
             return b;
           })()
-        : h('span', { class: 'asc-badge asc-badge-accent', title: 'A case in this upload is held for admin review — clear it in Partner uploads above.' }, 'Held for review');
+        : h('span', { class: 'asc-badge asc-badge-accent', title: 'A case in this upload is held for admin review: clear it in Partner uploads above.' }, 'Held for review');
       const sub = ready
         ? (u.ingested_case_count || 0) + ' case(s) ready · uploaded ' + fmtDate(u.created_at)
         : 'Held for review · uploaded ' + fmtDate(u.created_at);
@@ -6773,7 +7058,7 @@
             h('div', { class: 'asc-gb-text' }, 'The sample case cleared the real-case gate (coherence, multimodal necessity, reasoning divergence).')))
       : h('div', { class: 'asc-inline-warn', style: 'margin-bottom:14px' },
           'Sample did not pass the automated gate: ' + ((s.failures || []).join('; ') || 'see scores below') +
-          '. You can still promote — cases that fail the gate stay ingested with the reason recorded.');
+          '. You can still promote; cases that fail the gate stay ingested with the reason recorded.');
 
     // Case panel: labs, notes, meds, problems, demographics.
     const demo = kase.demographics || {};
@@ -6789,7 +7074,7 @@
       h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap;max-height:160px;overflow:auto' }, c.text || '')));
 
     const status = h('div', { style: 'margin-top:12px' });
-    const promoteAllBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '✓ Looks good — create the rest (' + (prep.ingested_count || 0) + ')');
+    const promoteAllBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '✓ Looks good, create the rest (' + (prep.ingested_count || 0) + ')');
     promoteAllBtn.addEventListener('click', async () => {
       promoteAllBtn.setAttribute('disabled', ''); promoteAllBtn.textContent = 'Creating cases…';
       clear(status);
@@ -6804,16 +7089,16 @@
       } catch (e) {
         clear(status);
         status.appendChild(h('div', { class: 'asc-inline-error' }, typeof e.message === 'string' ? e.message : 'Promotion failed.'));
-        promoteAllBtn.removeAttribute('disabled'); promoteAllBtn.textContent = '✓ Looks good — create the rest (' + (prep.ingested_count || 0) + ')';
+        promoteAllBtn.removeAttribute('disabled'); promoteAllBtn.textContent = '✓ Looks good, create the rest (' + (prep.ingested_count || 0) + ')';
       }
     });
 
     const popup = h('div', { class: 'call-team-popup', style: 'max-width:820px;max-height:90vh;overflow:auto;text-align:left', onClick: (e) => e.stopPropagation() },
-      h('div', { class: 'call-team-title' }, 'Review a sample case — ' + (prep.partner_label || upload.partner_id || 'partner')),
+      h('div', { class: 'call-team-title' }, 'Review a sample case: ' + (prep.partner_label || upload.partner_id || 'partner')),
       h('div', { class: 'call-team-sub' }, (prep.filename || '') + ' · ' + (prep.ingested_count || 0) + ' case(s) in this file'),
       testBanner,
       h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Clinical question'),
-        h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, s.question || '—')),
+        h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, s.question || 'n/a')),
       h('div', { class: 'asc-card-sub', style: 'margin:4px 0 14px' },
         (s.specialty || '') + ' · ' + (demo.age_band || '?') + ' ' + (demo.sex || '') + ' · ' +
         (kase.lab_panels || []).length + ' lab panel(s) · ' + (kase.notes || []).length + ' note(s)'),
@@ -6937,7 +7222,7 @@
         }, 'Generate'),
         genStatus));
 
-    // Seedmaker auto-generation (Mode A) — generate N validated tasks (prompt + 2
+    // Seedmaker auto-generation (Mode A): generate N validated tasks (prompt + 2
     // candidates) from the curated seed corpus, as TEXT prompts or structured
     // MULTIMODAL cases (labs + notes the specialist reasons across, Multimodal PRD).
     const agSpecialty = selectFrom(['nephrology', 'cardiology'], 'nephrology');
@@ -6950,7 +7235,7 @@
     const agNote = h('div', { class: 'asc-card-sub', style: 'margin:8px 0 12px' });
     const agBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Generate tasks');
     // Multimodal cases are definitionally hard + always capture the reasoning
-    // trace (that's the value), so those controls don't apply — reflect that.
+    // trace (that's the value), so those controls don't apply. Reflect that.
     function syncCaseType() {
       const mm = agCaseType.value === 'multimodal';
       agDiff.disabled = mm; agCapture.disabled = mm;
@@ -6962,8 +7247,8 @@
     agCaseType.addEventListener('change', syncCaseType);
     const autoGenCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Auto-generate tasks (Seedmaker — SYNTHETIC, V1–V3)'),
-        h('div', { class: 'asc-card-sub' }, 'Text prompts or structured multimodal cases — all SYNTHETIC (V3 tier). Real patient cases (V4) come only from the Ingestion tab. Quality-gated before they enter the queue.'))),
+        h('div', { class: 'asc-card-title' }, 'Auto-generate tasks (Seedmaker, SYNTHETIC, V1–V3)'),
+        h('div', { class: 'asc-card-sub' }, 'Text prompts or structured multimodal cases, all SYNTHETIC (V3 tier). Real patient cases (V4) come only from the Ingestion tab. Quality-gated before they enter the queue.'))),
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), agSpecialty),
@@ -7014,7 +7299,7 @@
       } catch (e) {
         clear(agStatus);
         const msg = e.status === 503
-          ? (e.message || 'Auto-generation unavailable — no LLM key configured.')
+          ? (e.message || 'Auto-generation unavailable: no LLM key configured.')
           : e.message;
         agStatus.appendChild(h('div', { class: 'asc-inline-error' }, msg));
       } finally {
@@ -7022,9 +7307,9 @@
       }
     });
 
-    // Load GOLD cases (Two-Model PRD Workstream C — the "load gold" half of the
+    // Load GOLD cases (Two-Model PRD Workstream C, the "load gold" half of the
     // load-vs-generate split). Distinct from auto-generate: inserts the ratified,
-    // hand-authored seed cases with NO LLM required — the reliable way to populate
+    // hand-authored seed cases with NO LLM required, the reliable way to populate
     // the V3 queue immediately, independent of the LLM key.
     const goldSpecialty = selectFrom(['nephrology'], 'nephrology');
     const goldStatus = h('div', {});
@@ -7050,8 +7335,8 @@
     });
     const goldCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Load gold cases (RATIFIED — no LLM needed)'),
-        h('div', { class: 'asc-card-sub' }, 'Insert the hand-authored, clinician-ratified multimodal seed cases (real labs + EHR + an authored A/B pair) straight into the V3 queue. Idempotent — safe to click repeatedly. Use this to populate V3 without an LLM key; use "Auto-generate" above for NOVEL cases.'))),
+        h('div', { class: 'asc-card-title' }, 'Load gold cases (RATIFIED, no LLM needed)'),
+        h('div', { class: 'asc-card-sub' }, 'Insert the hand-authored, clinician-ratified multimodal seed cases (real labs + EHR + an authored A/B pair) straight into the V3 queue. Idempotent: safe to click repeatedly. Use this to populate V3 without an LLM key; use "Auto-generate" above for NOVEL cases.'))),
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), goldSpecialty),
@@ -7087,14 +7372,14 @@
       const failures = data.failures || [];
       card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
         h('div', { class: 'asc-card-title' }, 'Frontier-model failures'),
-        h('div', { class: 'asc-card-sub' }, 'Cases a real frontier model got wrong, with the expert correction — the artifact to put in front of a lab.'))));
+        h('div', { class: 'asc-card-sub' }, 'Cases a real frontier model got wrong, with the expert correction, the artifact to put in front of a lab.'))));
       if (!summary.length && !failures.length) {
         card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' },
           'No model failures captured yet. On a task, admins can "Grade the real models" to A/B two real frontier answers; a rejected model is recorded here.')));
         return;
       }
       const pad = h('div', { class: 'asc-card-pad' });
-      // Provider rollup headline ("OpenAI failed N; Anthropic failed K") — the
+      // Provider rollup headline ("OpenAI failed N; Anthropic failed K"); the
       // two-frontier lab-facing framing.
       const byProv = data.by_provider || {};
       const provKeys = Object.keys(byProv);
@@ -7118,7 +7403,7 @@
           h('div', { style: 'font-weight:700;margin-bottom:4px' }, f.model,
             (f.error_tags || []).map((t) => h('span', { class: 'asc-chip asc-chip-warn', style: 'margin-left:6px' }, t))),
           h('div', { class: 'asc-label-hint', style: 'margin-bottom:6px;white-space:pre-wrap' }, (f.prompt || '').slice(0, 400)),
-          h('div', {}, h('strong', {}, 'Expert correction: '), (f.expert_correction || '—'))));
+          h('div', {}, h('strong', {}, 'Expert correction: '), (f.expert_correction || 'n/a'))));
       });
       card.appendChild(pad);
     } catch (e) {
@@ -7142,8 +7427,8 @@
       const rows = (m.taxonomy || []).map((b) => h('tr', {},
         h('td', {}, b.label || b.id),
         h('td', {}, String(b.have != null ? b.have : 0)),
-        h('td', {}, String(b.target_count != null ? b.target_count : '—')),
-        h('td', {}, b.min_difficulty || '—')));
+        h('td', {}, String(b.target_count != null ? b.target_count : 'n/a')),
+        h('td', {}, b.min_difficulty || 'n/a')));
       card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
         h('thead', {}, h('tr', {}, ['Bucket', 'Have', 'Target', 'Min difficulty'].map((c) => h('th', {}, c)))),
         h('tbody', {}, rows))));
@@ -7173,12 +7458,12 @@
         const dsum = dkeys.reduce((a, k) => a + dropped[k], 0);
         // Per-reason breakdown, permanently visible (Multimodal Debug PRD P1.5):
         // a batch that drops to 0 accepted must SHOW why (case_incoherent,
-        // multimodal_not_necessary, near_duplicate, …), not just a count — that's
+        // multimodal_not_necessary, near_duplicate, …), not just a count; that's
         // the difference between "broken" and "thresholds need tuning".
         const breakdown = dkeys.length
           ? dkeys.sort((a, b) => dropped[b] - dropped[a])
               .map((k) => k.replace(/_/g, ' ') + ' ' + dropped[k]).join(' · ')
-          : '—';
+          : 'n/a';
         const zeroYield = !j.accepted && dsum > 0;
         return h('tr', {},
           h('td', {}, fmtDate(j.created_at)),
@@ -7211,7 +7496,7 @@
       if (!tasks.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No tasks yet.'))); return; }
       const rows = tasks.slice(0, 200).map((t) => h('tr', {},
         h('td', { class: 'asc-mono' }, (t.task_id || '').slice(0, 10)),
-        h('td', {}, h('span', { class: 'asc-badge asc-badge-primary' }, t.specialty || '—')),
+        h('td', {}, h('span', { class: 'asc-badge asc-badge-primary' }, t.specialty || 'n/a')),
         // Modality badge (Multimodal Debug PRD P0.3): multimodal batches must be
         // distinguishable at a glance, not invisible among text tasks.
         h('td', {}, (t.modality || 'text') === 'multimodal'
@@ -7221,14 +7506,14 @@
         // REAL case for a synthetic one at a glance. Real ⇒ V4, always.
         h('td', {}, t.case_source === 'real_deid'
           ? h('span', { class: 'asc-badge asc-badge-real' }, 'real · V4')
-          : (t.case_source ? 'synthetic' : '—')),
-        h('td', {}, t.difficulty || '—'),
+          : (t.case_source ? 'synthetic' : 'n/a')),
+        h('td', {}, t.difficulty || 'n/a'),
         h('td', {}, (t.prompt || '').slice(0, 90) + ((t.prompt || '').length > 90 ? '…' : '')),
         h('td', {}, t.grounding_mode === 'required' ? h('span', { class: 'asc-badge asc-badge-amber' }, 'required') : 'optional'),
         h('td', {}, String(t.submission_count != null ? t.submission_count : 0)),
         h('td', {}, t.status === 'prompt_flagged'
           ? h('span', { class: 'asc-badge asc-badge-amber' }, 'prompt flagged')
-          : (t.status || '—')),
+          : (t.status || 'n/a')),
         // Frontier-model failure capture (FEAT-1) + two-frontier provenance (§4.2).
         h('td', {}, baselineCell(t))));
       card.appendChild(h('div', { class: 'asc-table-wrap' },
@@ -7242,7 +7527,7 @@
     }
   }
 
-  // §4.2 two-frontier provenance (ADMIN-ONLY — ab_meta/needs_baseline exist only
+  // §4.2 two-frontier provenance (ADMIN-ONLY; ab_meta/needs_baseline exist only
   // on the admin /tasks payload; the blinded evaluator payload never carries a
   // provider). Shows which provider filled each blinded slot and whether both
   // answers share one prompt_hash, plus a held-task "needs baseline" alert.
@@ -7257,17 +7542,17 @@
         ? h('span', { class: 'asc-badge asc-badge-green',
             title: 'Both answers were produced from byte-identical input (one prompt_hash).' }, 'same prompt ✓')
         : h('span', { class: 'asc-badge asc-badge-red',
-            title: 'prompt_hash mismatch — the pair compares prompts, not models. It should have been discarded.' }, 'prompt divergence'));
+            title: 'prompt_hash mismatch: the pair compares prompts, not models. It should have been discarded.' }, 'prompt divergence'));
       if (!meta.two_providers) {
         flags.appendChild(h('span', { class: 'asc-badge asc-badge-amber',
-          title: 'Both slots came from one provider (legacy/fallback pair) — not a two-frontier comparison.' }, 'one provider'));
+          title: 'Both slots came from one provider (legacy/fallback pair), not a two-frontier comparison.' }, 'one provider'));
       }
       cell.appendChild(flags);
     }
     if (t.needs_baseline) {
       cell.appendChild(h('div', { style: 'margin-top:4px' },
         h('span', { class: 'asc-badge asc-badge-amber',
-          title: 'No two-frontier pair could be assembled (e.g. OPENAI_API_KEY unset or a provider down). The task is HELD — never silently served two same-provider answers.' },
+          title: 'No two-frontier pair could be assembled (e.g. OPENAI_API_KEY unset or a provider down). The task is HELD; never silently served two same-provider answers.' },
           'needs baseline')));
     }
     return cell;
@@ -7282,7 +7567,7 @@
       btn.setAttribute('disabled', ''); btn.textContent = 'Running…';
       try {
         const res = await api('/tasks/' + t.task_id + '/grade-real-models', { method: 'POST' });
-        toast('Swapped in ' + (res.candidate_count || 0) + ' real-model answers — this task now grades the real models.', 'success');
+        toast('Swapped in ' + (res.candidate_count || 0) + ' real-model answers. This task now grades the real models.', 'success');
       } catch (e) {
         toast(e.status === 503 ? (e.message || 'Baseline generation unavailable (no LLM key?).') : e.message, 'error');
       } finally { btn.removeAttribute('disabled'); btn.textContent = 'Grade real'; }
@@ -7419,12 +7704,12 @@
           note: notes.value.trim() || null,
         }, scope) });
         overlay.remove();
-        toast('Sent ' + (r.record_count || 0) + ' record(s) to ' + r.buyer_email + (r.email_sent ? ' — email delivered.' : ' — but email failed.'), r.email_sent ? 'success' : 'info');
+        toast('Sent ' + (r.record_count || 0) + ' record(s) to ' + r.buyer_email + (r.email_sent ? '. Email delivered.' : ', but email failed.'), r.email_sent ? 'success' : 'info');
         loadBuyerDeliveries();
       } catch (e) {
         clear(status);
         const msg = e.status === 400 ? (e.message || 'Nothing to export for that selection/window.')
-          : (e.status === 503 ? 'Email is not configured — set SendGrid/SMTP (or EMAIL_DEV_MODE=1 for local).'
+          : (e.status === 503 ? 'Email is not configured. Set SendGrid/SMTP (or EMAIL_DEV_MODE=1 for local).'
           : (e.status === 422 ? 'Export blocked: ' + e.message : (e.message || 'Send failed')));
         status.appendChild(h('div', { class: 'asc-inline-error' }, msg));
         sendBtn.removeAttribute('disabled'); sendBtn.textContent = 'Send to buyer';
@@ -7455,13 +7740,13 @@
       clear(card);
       card.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Delivery history (' + deliveries.length + ')')));
       if (!deliveries.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No datasets delivered yet.'))); return; }
-      const verMix = (bpv) => { const keys = Object.keys(bpv || {}); return keys.length ? keys.sort().map((k) => ascVerLabel(k) + ' ' + bpv[k]).join(' · ') : '—'; };
+      const verMix = (bpv) => { const keys = Object.keys(bpv || {}); return keys.length ? keys.sort().map((k) => ascVerLabel(k) + ' ' + bpv[k]).join(' · ') : 'n/a'; };
       const rows = deliveries.map((d) => h('tr', {},
         h('td', {}, fmtDate(d.sent_at)),
         h('td', { class: 'asc-mono' }, d.buyer_email),
-        h('td', { style: 'max-width:220px' }, d.label || '—'),
-        h('td', {}, String(d.record_count != null ? d.record_count : '—')),
-        h('td', {}, d.data_format || '—'),
+        h('td', { style: 'max-width:220px' }, d.label || 'n/a'),
+        h('td', {}, String(d.record_count != null ? d.record_count : 'n/a')),
+        h('td', {}, d.data_format || 'n/a'),
         h('td', {}, verMix(d.by_portal_version))));
       card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
         h('thead', {}, h('tr', {}, ['Sent (PT)', 'Buyer', 'Organizations', 'Records', 'Format', 'Version'].map((c) => h('th', {}, c)))),
@@ -7486,7 +7771,7 @@
       else bl.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
         h('thead', {}, h('tr', {}, ['Name', 'Contact', 'Profile'].map((c) => h('th', {}, c)))),
         h('tbody', {}, buyers.map((b) => h('tr', {},
-          h('td', {}, b.name), h('td', {}, b.contact || '—'), h('td', {}, b.export_profile || 'default')))))));
+          h('td', {}, b.name), h('td', {}, b.contact || 'n/a'), h('td', {}, b.export_profile || 'default')))))));
     }
 
     // Request form
@@ -7504,8 +7789,8 @@
           const c = r.constraints || {};
           return h('tr', {},
             h('td', { class: 'asc-mono' }, (r.request_id || '').slice(0, 10)),
-            h('td', {}, r.source || '—'),
-            h('td', {}, (c.specialty || '—') + ' / ' + (c.difficulty || '—')),
+            h('td', {}, r.source || 'n/a'),
+            h('td', {}, (c.specialty || 'n/a') + ' / ' + (c.difficulty || 'n/a')),
             h('td', {}, c.grounding_mode === 'required' ? h('span', { class: 'asc-badge asc-badge-amber' }, 'required') : 'optional'),
             h('td', {}, h('span', { class: 'asc-badge asc-badge-gray' }, r.status || 'new')),
             h('td', {}, h('button', { class: 'asc-btn-link', onClick: () => openBatchDialog(r) }, 'New batch')));
@@ -7587,9 +7872,9 @@
     const status = h('div', {});
     const popup = h('div', { class: 'call-team-popup', style: 'max-width:560px', onClick: (e) => e.stopPropagation() },
       h('div', { class: 'call-team-title' }, 'New batch from request'),
-      h('div', { class: 'call-team-sub' }, 'Request ' + (req.request_id || '').slice(0, 10) + ' · source ' + (req.source || '—')),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'From internal bank — count'), countInput),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'From uploaded prompts ', h('span', { class: 'asc-label-hint' }, '(optional JSON — overrides count)')), promptsTa),
+      h('div', { class: 'call-team-sub' }, 'Request ' + (req.request_id || '').slice(0, 10) + ' · source ' + (req.source || 'n/a')),
+      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'From internal bank: count'), countInput),
+      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'From uploaded prompts ', h('span', { class: 'asc-label-hint' }, '(optional JSON, overrides count)')), promptsTa),
       status,
       h('div', { style: 'display:flex;gap:10px;margin-top:8px' },
         h('button', {
@@ -7603,7 +7888,7 @@
             const reqBody = { count: parseInt(countInput.value || '0', 10), prompts };
             try {
               const res = await api('/buyer-requests/' + req.request_id + '/batch', { method: 'POST', body: reqBody });
-              toast('Batch created — ' + res.count + ' task(s)', 'success');
+              toast('Batch created: ' + res.count + ' task(s)', 'success');
               overlay.remove();
               loadBuyersAndRequests();
             } catch (e) { status.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
@@ -7634,13 +7919,13 @@
       });
       const n = manifest.record_count != null ? manifest.record_count : 0;
       statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
-        'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' — downloading…'));
+        'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + '. Downloading…'));
       await downloadExport(manifest.export_id);
       loadExportsHistory();
       refreshExportReadyCount();
     } catch (e) {
       const msg = e.status === 400
-        ? 'Nothing to export yet — complete an evaluation first.'
+        ? 'Nothing to export yet. Complete an evaluation first.'
         : (e.status === 422 ? 'Schema validation failed: ' + e.message : (e.message || 'Export failed'));
       statusBox.appendChild(h('div', { class: 'asc-inline-error' }, msg));
     } finally {
@@ -7649,7 +7934,7 @@
     }
   }
 
-  // Approve everything stuck in QA, then export — the "label -> export now" path.
+  // Approve everything stuck in QA, then export: the "label -> export now" path.
   async function approveAllAndExport(btn, statusBox) {
     const orig = btn.textContent;
     btn.setAttribute('disabled', '');
@@ -7659,7 +7944,7 @@
       const res = await api('/qa/approve-all', { method: 'POST' });
       const k = res.approved != null ? res.approved : 0;
       statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
-        'Approved ' + k + ' submission' + (k === 1 ? '' : 's') + ' from QA — exporting…'));
+        'Approved ' + k + ' submission' + (k === 1 ? '' : 's') + ' from QA. Exporting…'));
       await quickExportAll(btn, statusBox, false);
     } catch (e) {
       statusBox.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Approve failed'));
@@ -7688,7 +7973,7 @@
       btn.textContent = '⬇ Export all ready records';
       btn.onclick = () => quickExportAll(btn, statusBox(), false);
       if (noteEl && qaPending > 0) noteEl.appendChild(h('span', {},
-        '(' + qaPending + ' more submission' + (qaPending === 1 ? ' is' : 's are') + ' in QA review — approve in the QA Queue tab to add them.)'));
+        '(' + qaPending + ' more submission' + (qaPending === 1 ? ' is' : 's are') + ' in QA review. Approve in the QA Queue tab to add them.)'));
     } else if (qaPending > 0) {
       // The usual reason a just-labeled submission isn't exportable: it was
       // sampled/flagged into QA. Let the admin release + export in one click.
@@ -7697,12 +7982,12 @@
       if (noteEl) noteEl.appendChild(h('span', {},
         qaPending + ' submission' + (qaPending === 1 ? '' : 's') + ' from your evaluators ' +
         (qaPending === 1 ? 'is' : 'are') + ' held in QA review (quality sampling). Approve to make ' +
-        (qaPending === 1 ? 'it' : 'them') + ' exportable — or review individually in the QA Queue tab.'));
+        (qaPending === 1 ? 'it' : 'them') + ' exportable, or review individually in the QA Queue tab.'));
     } else if (exported > 0) {
       btn.textContent = '⬇ Re-export all records (' + exported + ')';
       btn.onclick = () => quickExportAll(btn, statusBox(), true);
       if (noteEl) noteEl.appendChild(h('span', {},
-        'All ' + exported + ' record' + (exported === 1 ? '' : 's') + ' already exported — re-package to download again, or grab any prior bundle from the history below.'));
+        'All ' + exported + ' record' + (exported === 1 ? '' : 's') + ' already exported. Re-package to download again, or grab any prior bundle from the history below.'));
     } else {
       btn.textContent = '⬇ Export all ready records';
       btn.setAttribute('disabled', '');
@@ -7753,9 +8038,9 @@
         const manifest = await api('/exports', { method: 'POST', body: body2 });
         const n = manifest.record_count != null ? manifest.record_count : 0;
         const bpv = (manifest.counts || {}).by_portal_version || {};
-        const mix = Object.keys(bpv).map((k) => k + ':' + bpv[k]).join(' · ') || '—';
+        const mix = Object.keys(bpv).map((k) => k + ':' + bpv[k]).join(' · ') || 'n/a';
         cohortStatus.appendChild(h('div', { class: 'asc-inline-ok' },
-          'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' (' + mix + ') — downloading…'));
+          'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' (' + mix + '). Downloading…'));
         await downloadExport(manifest.export_id);
         loadExportsHistory();
         refreshExportReadyCount();
@@ -7769,7 +8054,7 @@
     body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title' }, 'Export by product version'),
       h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
-        'Package a single cohort — V2 (assisted), V1 (classic), or both. Every record is also stamped with its source version.'),
+        'Package a single cohort: V2 (assisted), V1 (classic), or both. Every record is also stamped with its source version.'),
       h('div', { class: 'asc-form-row', style: 'align-items:flex-end' },
         h('div', { class: 'asc-field', style: 'margin-bottom:0' },
           h('label', { class: 'asc-label' }, 'Product version'), cohortSel),
@@ -7788,7 +8073,7 @@
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  Contributors browser — shared org → contributor drill-down used by both the
+  //  Contributors browser: shared org → contributor drill-down used by both the
   //  Exports tab (mode 'export': Export Data + Further Credential Summary) and
   //  the Metrics tab (mode 'metrics': per-org / per-contributor metric tiles).
   // ═══════════════════════════════════════════════════════════════════════════
@@ -7801,12 +8086,12 @@
   }
 
   function browseTitle(mode) {
-    return mode === 'export' ? 'Contributors — export by organization' : 'Metrics by organization & contributor';
+    return mode === 'export' ? 'Contributors: export by organization' : 'Metrics by organization & contributor';
   }
   function browseSub(mode) {
     return mode === 'export'
       ? 'Browse every contributor by organization. Export all the data an organization labelled, or open a contributor to export their data or generate a credential verification summary.'
-      : 'Drill from overall metrics into a single organization, then a single contributor — including when they last labelled.';
+      : 'Drill from overall metrics into a single organization, then a single contributor, including when they last labelled.';
   }
 
   async function renderOrgList(card, mode) {
@@ -7879,7 +8164,7 @@
       const role = c.role_title || (c.degree ? c.degree : (c.role || 'contributor'));
       const meta = [
         role,
-        c.primary_specialty || c.specialty || '—',
+        c.primary_specialty || c.specialty || 'n/a',
         c.record_count + ' record' + (c.record_count === 1 ? '' : 's'),
         'last labelled ' + fmtDate(c.last_labeled_at),
       ];
@@ -7935,11 +8220,11 @@
           cr.credentials_verified ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:10px' }, 'verified ✓') : null),
         c.email ? h('div', { class: 'asc-card-sub asc-mono', style: 'margin-top:2px' }, c.email) : null,
         h('div', { class: 'asc-meta-row', style: 'margin-top:6px' },
-          h('span', { class: 'asc-badge asc-badge-primary' }, cr.role_title || '—'),
-          h('span', { class: 'asc-badge asc-badge-gray' }, (cr.ship && cr.ship.primary_specialty) || c.primary_specialty || '—'),
+          h('span', { class: 'asc-badge asc-badge-primary' }, cr.role_title || 'n/a'),
+          h('span', { class: 'asc-badge asc-badge-gray' }, (cr.ship && cr.ship.primary_specialty) || c.primary_specialty || 'n/a'),
           h('span', { class: 'asc-badge asc-badge-gray' }, 'id ' + (c.id_hashed || '').slice(0, 12)),
           h('span', { class: 'asc-badge asc-badge-amber' }, (c.record_count || 0) + ' records')))));
-    pad.appendChild(h('div', { class: 'asc-blurb' }, prof.blurb || '—'));
+    pad.appendChild(h('div', { class: 'asc-blurb' }, prof.blurb || 'n/a'));
 
     // Tier A attribute chips (what ships).
     const ship = cr.ship || {};
@@ -7957,7 +8242,7 @@
       pad.appendChild(h('div', { class: 'asc-grounding-banner', style: 'margin-top:14px' },
         h('div', { class: 'asc-gb-icon', 'aria-hidden': 'true' }),
         h('div', {},
-          h('div', { class: 'asc-gb-title' }, 'Sandbox account — excluded from exports'),
+          h('div', { class: 'asc-gb-title' }, 'Sandbox account, excluded from exports'),
           h('div', { class: 'asc-gb-text' }, 'This is the Mock Contributor Account. Its submissions are hard-excluded from every export batch by default so a demo never contaminates a shipped dataset.'))));
     }
     const statusBox = h('div', { style: 'margin-top:14px' });
@@ -8008,7 +8293,7 @@
         return h('tr', {},
           h('td', {}, fmtDate(s.created_at)),
           h('td', {}, h('span', { class: 'asc-badge asc-badge-gray' }, ascVerLabel(s.portal_version))),
-          h('td', { style: 'max-width:340px' }, s.prompt_preview || '—'),
+          h('td', { style: 'max-width:340px' }, s.prompt_preview || 'n/a'),
           h('td', {}, btn, st));
       });
       box.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
@@ -8030,7 +8315,7 @@
         { method: 'POST', body: Object.assign({ profile: 'default' }, scopeBody) });
       clear(statusBox);
       const n = manifest.record_count || 0;
-      statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' (' + label + ') — downloading…'));
+      statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' (' + label + '). Downloading…'));
       await downloadExport(manifest.export_id);
       loadExportsHistory();
     } catch (e) {
@@ -8066,15 +8351,15 @@
         h('div', { class: 'asc-profile-name' }, c.display_name || c.id_hashed,
           c.credentials_verified ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left:10px' }, 'verified ✓') : null),
         h('div', { class: 'asc-meta-row', style: 'margin-top:6px' },
-          h('span', { class: 'asc-badge asc-badge-primary' }, c.role_title || c.role || '—'),
-          h('span', { class: 'asc-badge asc-badge-gray' }, c.primary_specialty || c.specialty || '—')))));
+          h('span', { class: 'asc-badge asc-badge-primary' }, c.role_title || c.role || 'n/a'),
+          h('span', { class: 'asc-badge asc-badge-gray' }, c.primary_specialty || c.specialty || 'n/a')))));
     pad.appendChild(h('div', { class: 'asc-stat-grid', style: 'margin-top:14px' },
       stat(c.submission_count || 0, 'Submissions', null, true),
       stat(c.record_count || 0, 'Records labelled'),
       stat(c.grounded_submissions || 0, 'Grounded subs'),
       stat((c.total_hours != null ? c.total_hours : 0) + 'h', 'Total hours'),
       stat(c.premium_submissions || 0, 'Premium subs'),
-      stat(c.avg_time_sec != null ? formatTime(Math.round(c.avg_time_sec)) : '—', 'Avg time / task'),
+      stat(c.avg_time_sec != null ? formatTime(Math.round(c.avg_time_sec)) : 'n/a', 'Avg time / task'),
       stat(fmtDate(c.last_labeled_at), 'Last labelled')));
   }
 
@@ -8086,7 +8371,7 @@
       const manifest = await api('/organizations/' + encodeURIComponent(org) + '/export', { method: 'POST', body: { profile: 'default' } });
       clear(statusBox);
       const n = manifest.record_count || 0;
-      statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' — downloading…'));
+      statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + '. Downloading…'));
       await downloadExport(manifest.export_id);
       loadExportsHistory();
       refreshExportReadyCount();
@@ -8106,7 +8391,7 @@
       const manifest = await api('/contributors/' + encodeURIComponent(idHashed) + '/export', { method: 'POST', body: { profile: 'default' } });
       clear(statusBox);
       const n = manifest.record_count || 0;
-      statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' — downloading…'));
+      statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + '. Downloading…'));
       await downloadExport(manifest.export_id);
       loadExportsHistory();
       refreshExportReadyCount();
@@ -8152,11 +8437,11 @@
     };
 
     const noticeText = policy.non_circumvention_notice
-      || 'CONFIDENTIAL — credential verification, provided under NDA / non-circumvention.';
+      || 'CONFIDENTIAL: credential verification, provided under NDA / non-circumvention.';
     const popup = h('div', { class: 'call-team-popup', style: 'max-width:720px;max-height:90vh;overflow:auto;text-align:left', onClick: (e) => e.stopPropagation() },
       h('div', { class: 'call-team-title' }, 'Further Credential Summary'),
       h('p', { class: 'asc-help' }, 'Verification dossier for ', h('strong', {}, displayName),
-        ' — releases the private (Tier B) credentials under NDA. Watermarked confidential and logged for audit.'),
+        '. It releases the private (Tier B) credentials under NDA. Watermarked confidential and logged for audit.'),
       h('div', { class: 'asc-notice-box' }, noticeText),
       policy.legal_disclaimer ? h('p', { class: 'asc-label-hint' }, policy.legal_disclaimer) : null,
       h('div', { class: 'asc-field', style: 'margin-top:12px' }, h('label', { class: 'asc-label' }, 'Intended recipient'), recipient),
@@ -8208,15 +8493,15 @@
         if (filt) return verLabel(filt) + ' only';
         const bpv = (m.counts || {}).by_portal_version || {};
         const keys = Object.keys(bpv);
-        if (!keys.length) return '—';
+        if (!keys.length) return 'n/a';
         if (keys.length === 1) return verLabel(keys[0]);
         return keys.sort().map((k) => k + ' ' + bpv[k]).join(' · '); // mixed
       };
       const rows = exports.map((x) => h('tr', {},
         h('td', { class: 'asc-mono' }, (x.export_id || '').slice(0, 12)),
-        h('td', {}, x.profile || '—'),
+        h('td', {}, x.profile || 'n/a'),
         h('td', {}, versionCell(x)),
-        h('td', {}, String(x.record_count != null ? x.record_count : (x.count != null ? x.count : '—'))),
+        h('td', {}, String(x.record_count != null ? x.record_count : (x.count != null ? x.count : 'n/a'))),
         h('td', {}, fmtDate(x.created_at)),
         h('td', {}, h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: () => downloadExport(x.export_id) }, '⬇ Download'))));
       card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
@@ -8281,7 +8566,7 @@
     const grounded = (s && s.grounded) || {};
     // Operator diagnostics that the four-question restructure dropped on the
     // floor (C-5.1). They belong INSIDE the questions they answer, not in a
-    // separate wall of tiles — but they do have to be on the page.
+    // separate wall of tiles: but they do have to be on the page.
     const qpr = (s && s.qa_pass_rate) || {};
     const flaw = (s && s.flaw_catch_rate) || {};
     const omc = (s && s.open_modality_counts) || {};
@@ -8289,9 +8574,9 @@
     // Tri-state acceptance: null means "no reviews yet", which must never be
     // shown as a 0% acceptance rate.
     const acc = quality.expert_acceptance;
-    const accHeadline = acc == null ? '—' : Math.round(acc * 100) + '%';
+    const accHeadline = acc == null ? '–' : Math.round(acc * 100) + '%';
     const accSub = acc == null
-      ? 'expert acceptance — no reviews yet'
+      ? 'expert acceptance: no reviews yet'
       : 'expert acceptance (' + (quality.reviews_scored || 0) + ' reviews)';
     mount.appendChild(h('div', { class: 'asc-metric-questions' },
       metricQuestionCard('Supply', supply.physicians_active_week || 0,
@@ -8299,7 +8584,7 @@
           ['Cases labeled', supply.cases_labeled || 0],
           ['Cases reviewed', supply.cases_reviewed || 0]]),
       // Expert acceptance and Cohen's κ are DIFFERENT statistics, presented
-      // separately and labeled — merging them would misreport the number a
+      // separately and labeled: merging them would misreport the number a
       // buyer audits most closely. "Not rejected" is the combined figure
       // (accept + accept_with_edits) and carries its own name for the same
       // reason: a different number needs a different word.
@@ -8307,14 +8592,14 @@
         ["Cohen's κ (independent slice)",
          fmtNum(kappa.overall) + ' · n=' + (kappa.n != null ? kappa.n : 0)],
         ['Not rejected', quality.not_rejected == null
-          ? '—' : Math.round(quality.not_rejected * 100) + '%'],
+          ? '–' : Math.round(quality.not_rejected * 100) + '%'],
         ['Citation rate', (grounded.grounded_pct != null ? grounded.grounded_pct : 0) + '%'],
         // Restored (C-5.1): the restructure was right, deleting these was not.
         ['QA pass rate', (qpr.pass_rate != null ? Math.round(qpr.pass_rate * 100) : 0) + '%'
           + ' (' + (qpr.passed || 0) + '/' + (qpr.reviewed || 0) + ')'],
         ['Flaw catch rate', flaw.rate != null
           ? Math.round(flaw.rate * 100) + '% (' + (flaw.caught || 0) + '/' + (flaw.scored || 0) + ')'
-          : '—'],
+          : '–'],
         ['Avg agreement', fmtNum(s.average_agreement)]]),
       metricQuestionCard('Pipeline', pipeline.uploads_received || 0,
         'uploads received', pipeline.spark, [
@@ -8347,7 +8632,7 @@
     const flaw = s.flaw_catch_rate || {};
 
     // PRD-C Phase 6: the wall of undifferentiated numbers becomes FOUR
-    // QUESTIONS — Supply, Quality, Pipeline, Demand — one headline figure and a
+    // QUESTIONS: Supply, Quality, Pipeline, Demand: one headline figure and a
     // sparkline each. Cohen's κ (from /stats, the independent slice) and expert
     // acceptance (from PRD-A's reviews) render SEPARATELY and labeled: expert
     // acceptance is not κ, and merging them would misreport the number a buyer
@@ -8359,7 +8644,7 @@
     renderMetricQuestions(questionsMount, s);
 
     // Model-Failure view (FEAT-1): "cases where model X failed, with the expert
-    // correction" — the artifact you put in front of a lab.
+    // correction", the artifact you put in front of a lab.
     const mfCard = h('div', { class: 'asc-card', id: 'ascModelFailures' }, loadingCard('Loading model failures…'));
     body.appendChild(mfCard);
     loadModelFailures();
@@ -8370,7 +8655,7 @@
     const v1n = pvc.v1 || 0, v2n = pvc.v2 || 0, v3n = pvc.v3 || 0, v4n = pvc.v4 || 0, pvTotal = v1n + v2n + v3n + v4n;
     const pct = (n) => pvTotal ? Math.round((100 * n) / pvTotal) + '%' : '0%';
     // Position-bias QC (Seamless PRD WS6): the A/B slot is randomized 50/50 so a
-    // reward model can't learn "A is better" — a rate drifting from ~50% is an alarm.
+    // reward model can't learn "A is better"; a rate drifting from ~50% is an alarm.
     const abb = s.ab_balance || {};
     const abRate = abb.a_stronger_rate;
     const abOk = abRate == null || (abRate >= 0.4 && abRate <= 0.6);
@@ -8381,7 +8666,7 @@
         stat(v3n, 'V3 · Seamless', pct(v3n) + ' of labeled data'),
         stat(v2n, 'V2 · Assisted', pct(v2n) + ' of labeled data'),
         stat(v1n, 'V1 · Classic', pct(v1n) + ' of labeled data'),
-        stat(abRate == null ? '—' : Math.round(abRate * 100) + '%',
+        stat(abRate == null ? 'n/a' : Math.round(abRate * 100) + '%',
           (abOk ? '' : 'alert · ') + 'A-is-stronger rate',
           'target ~50% · n=' + (abb.n || 0) + ' (position-bias QC)'),
         (function () {
@@ -8389,21 +8674,21 @@
           const sb = s.ab_slot_balance || {};
           const r = sb.openai_as_A_rate;
           const ok = r == null || (r >= 0.4 && r <= 0.6);
-          return stat(r == null ? '—' : Math.round(r * 100) + '%',
+          return stat(r == null ? 'n/a' : Math.round(r * 100) + '%',
             (ok ? '' : 'alert · ') + 'OpenAI-as-A rate',
             'target ~50% · n=' + (sb.pairs || 0) + ' (two-frontier QC)');
         })(),
         (function () {
           // Two-frontier fallback health (PRD §A3 Rung 3): a RED chip when the rolling
-          // legacy-fallback rate exceeds the ceiling — a provider is likely down and new
+          // legacy-fallback rate exceeds the ceiling; a provider is likely down and new
           // pairs are being held (needs_baseline) instead of shipping mostly-legacy data.
           const fb = s.ab_fallback || {};
           const r = fb.rate;
           const alert = !!fb.alert;
-          return stat(r == null ? '—' : Math.round(r * 100) + '%',
+          return stat(r == null ? 'n/a' : Math.round(r * 100) + '%',
             (alert ? 'alert · ' : '') + 'Legacy-fallback rate',
             alert
-              ? 'ABOVE ceiling ' + Math.round((fb.ceiling || 0) * 100) + '% — a provider looks down; new pairs held. Fix OPENAI_API_KEY / the provider.'
+              ? 'ABOVE ceiling ' + Math.round((fb.ceiling || 0) * 100) + '%. A provider looks down; new pairs held. Fix OPENAI_API_KEY / the provider.'
               : 'ceiling ' + Math.round((fb.ceiling || 0) * 100) + '% · two-frontier fallback health');
         })()),
       h('p', { class: 'asc-help', style: 'margin-top:10px' },
@@ -8411,7 +8696,7 @@
         + 'The A/B slot is randomized 50/50 so preference data carries no position bias.')));
 
     // Value per clinician-minute (Value-per-Minute PRD Part A): the north-star
-    // metric — sellable dollars produced per minute of clinician time — reported
+    // metric (sellable dollars produced per minute of clinician time) reported
     // REALIZED (bankable) with the PROJECTED reuse forecast alongside, and always
     // next to κ + the assist override rate so a rising ratio with falling quality
     // reads as the regression it is.
@@ -8420,12 +8705,12 @@
     const vTarget = (s.value_per_time_target != null) ? s.value_per_time_target : (vpt.target != null ? vpt.target : 10);
     const byVer = vpt.by_portal_version || {};
     const ovr = s.override_rate || {};
-    const ratio = (v) => (v == null ? '—' : (Math.round(v * 10) / 10) + ' : 1');
+    const ratio = (v) => (v == null ? 'n/a' : (Math.round(v * 10) / 10) + ' : 1');
     const realizedOverall = vptOverall.realized_vpm;
     const meets = (realizedOverall != null && realizedOverall >= vTarget);
     const pctOr = (o) => {
       const r = o && o.override_rate;
-      return r == null ? '—' : Math.round(r * 100) + '%';
+      return r == null ? 'n/a' : Math.round(r * 100) + '%';
     };
     body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' }, 'Value per clinician-minute'),
@@ -8474,9 +8759,9 @@
     const thr = s.evaluator_throughput || [];
     if (thr.length) {
       const rows = thr.map((t) => h('tr', {},
-        h('td', {}, t.email || t.evaluator_id || '—'),
+        h('td', {}, t.email || t.evaluator_id || 'n/a'),
         h('td', {}, String(t.count != null ? t.count : (t.submissions != null ? t.submissions : 0))),
-        h('td', {}, t.avg_time_sec != null ? formatTime(Math.round(t.avg_time_sec)) : (t.average_time_sec != null ? formatTime(Math.round(t.average_time_sec)) : '—'))));
+        h('td', {}, t.avg_time_sec != null ? formatTime(Math.round(t.avg_time_sec)) : (t.average_time_sec != null ? formatTime(Math.round(t.average_time_sec)) : 'n/a'))));
       body.appendChild(h('div', { class: 'asc-card' },
         h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Evaluator throughput')),
         h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
@@ -8485,15 +8770,15 @@
     }
 
     // Contributor stats. (contributor_stats() returns submissions / grounded /
-    // premium / total_hours — not count/approved.)
+    // premium / total_hours, not count/approved.)
     const contrib = s.contributor_stats || [];
     if (contrib.length) {
       const rows = contrib.map((t) => h('tr', {},
-        h('td', {}, t.email || t.evaluator_id || '—'),
-        h('td', {}, t.specialty || '—'),
+        h('td', {}, t.email || t.evaluator_id || 'n/a'),
+        h('td', {}, t.specialty || 'n/a'),
         h('td', {}, String(t.submissions != null ? t.submissions : 0)),
         h('td', {}, String(t.grounded_submissions != null ? t.grounded_submissions : 0)),
-        h('td', {}, t.total_hours != null ? t.total_hours + 'h' : '—')));
+        h('td', {}, t.total_hours != null ? t.total_hours + 'h' : 'n/a')));
       body.appendChild(h('div', { class: 'asc-card' },
         h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Contributors')),
         h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
@@ -8527,10 +8812,10 @@
     return names.length ? names : ['default'];
   }
   function sumValues(obj) { return Object.keys(obj || {}).reduce((a, k) => a + (Number(obj[k]) || 0), 0); }
-  function fmtNum(n) { return (n == null || isNaN(n)) ? '—' : (Math.round(n * 1000) / 1000).toString(); }
+  function fmtNum(n) { return (n == null || isNaN(n)) ? 'n/a' : (Math.round(n * 1000) / 1000).toString(); }
   function trunc(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
   // All admin timestamps are STORED as naive UTC ISO strings (Python
-  // datetime.utcnow().isoformat() — no trailing 'Z'/offset). new Date() would
+  // datetime.utcnow().isoformat(); no trailing 'Z'/offset). new Date() would
   // otherwise parse them as browser-local time, so we append 'Z' to pin them to
   // UTC, then render in Pacific (America/Los_Angeles handles PST/PDT itself). One
   // choke point → every admin wall-clock display reads in Pacific time.
@@ -8546,14 +8831,14 @@
     return new Date(d);
   }
   function fmtDate(d) {
-    if (!d) return '—';
+    if (!d) return 'n/a';
     const dt = toUtcDate(d);
     if (isNaN(dt.getTime())) return String(d);
     return dt.toLocaleString('en-US', { timeZone: ASC_TZ }) + ' PT';
   }
   // Product-version label shared by the exports history + per-task version badges.
   function ascVerLabel(v) {
-    return { v4: 'V4 · Real', v3: 'V3', v2: 'V2', v1: 'V1' }[v] || (v || '—');
+    return { v4: 'V4 · Real', v3: 'V3', v2: 'V2', v1: 'V1' }[v] || (v || 'n/a');
   }
 
   // ─── Keyboard shortcuts (eval view) ────────────────────────────────────────
@@ -8573,7 +8858,821 @@
   window.addEventListener('beforeunload', saveDraft);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveDraft(); });
 
-  // Expand every manual disclosure for printing, then restore — so a printed /
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Tutorial: Calibration Case 1 (first-run guided practice case)
+  //  A custom action-gated tour over the REAL labeling flow: each step advances
+  //  only when the doctor performs the real action (read via the same
+  //  state.draft flags the app itself gates on), never on a bare "Next". The
+  //  practice case is virtual server-side; the scored reveal compares the
+  //  doctor to the reference panel. Skippable everywhere, replayable forever
+  //  from the help menu, and the instruction drawer below is generated from the
+  //  SAME step content so tour and manual can never drift.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const TUTORIAL_TASK_ID = 'tutorial-calibration-1';
+  const INSTR_SEEN_KEY = 'asc_instr_seen';
+
+  // ─── Tour targets: THE contract with the labeling UI ───────────────────────
+  // Every selector the tour points at lives HERE, in one map, so a UI redesign
+  // (case panel, substage cards, buttons) is a one-place fix. Preference order:
+  // data-tour attributes > stable ids > data-substage. If a redesign removes a
+  // target entirely, the step auto-skips after a short wait (see
+  // renderTourSpotlight): a missing element must never strand the doctor.
+  const TOUR_TARGETS = {
+    caseTabs: '[data-tour="case-tabs"]',
+    labsTab: '[data-tour="case-tabs"] [data-tab="labs"]',
+    promptContinue: '[data-tour="prompt-continue"]',
+    instinct: '[data-tour="instinct-field"]',
+    revealBtn: '#ascRevealBtn',
+    answers: '#ascAnswers',
+    verdicts: '#ascVerdicts',
+    refine: '[data-substage="refine"], [data-substage="from_scratch"]',
+    whyBetter: '[data-substage="why_better"]',
+    citations: '[data-substage="citations"]',
+    critique: '[data-substage="critique_rejected"]',
+    reasoning: '[data-substage="reasoning"]',
+    rubric: '[data-substage="rubric"]',
+    confidence: '[data-substage="confidence"]',
+    submit: '#ascSubmit',
+  };
+
+  // ─── Content: functionality-first, both-path cues, no clinical spoilers ────
+  // copy: one plain instruction (do this with the case). Where the doctor might
+  // legitimately do nothing (no edits, no citation), the copy names BOTH paths.
+  // intro: shown as a smaller second line on the chapter's first step (chapter
+  // interstitials were cut: one welcome screen, then an uninterrupted flow).
+  // advanceOn: {state: (d) => bool} | {click: selector} | {manual: true}.
+  // "Skip this step" for a step that requires real app state to progress
+  // (everything below except the two pure-reading beats) does not just move
+  // a pointer: it performs a reasonable version of the real action through
+  // the app's own handlers/state, exactly as if the doctor had done it, so
+  // the underlying draft (and, for reveal/submit, the backend) actually
+  // advances and the tour lands on a REAL next step. Placeholder text is
+  // always visibly marked "(practice run)" and this data is never recorded
+  // (the tutorial submission is graded, never saved: see tutorial_case.py).
+  const TUTORIAL_CHAPTERS = [
+    {
+      id: 'ch1', title: 'Read the case',
+      intro: 'The tabs hold the chart: labs, notes, meds, vitals.',
+      steps: [
+        { id: 'ch1-tabs', target: TOUR_TARGETS.caseTabs,
+          copy: 'Read the case: open each tab, starting with Labs.',
+          advanceOn: { click: TOUR_TARGETS.labsTab },
+          doneWhen: (d) => d.stage !== 'prompt_review',
+          note: 'Every case starts with the chart. Open each tab (Patient, Labs, EHR, Meds, Vitals) and read it through before judging anything.' },
+        { id: 'ch1-valid', target: TOUR_TARGETS.promptContinue,
+          copy: 'If the case reads as real and answerable, continue. If not, flag it.',
+          advanceOn: { state: (d) => d.stage !== 'prompt_review' },
+          autofill: () => validatePrompt(),
+          note: 'Step 1 is a sanity gate: continue when the case is valid, or flag it with a reason: flagged cases leave your queue for admin review.' },
+      ],
+    },
+    {
+      id: 'ch2', title: 'Your take first',
+      intro: 'You commit one line before seeing any AI answers, so they can’t anchor you.',
+      steps: [
+        { id: 'ch2-instinct', target: TOUR_TARGETS.instinct,
+          copy: 'Type your first take on the case: one line.',
+          advanceOn: { state: (d) => !!((d.independent_answer || {}).text || '').trim() },
+          autofill: () => {
+            const d = state.draft;
+            if ((d.independent_answer.text || '').trim()) return;
+            d.independent_answer.text = 'Skipped (practice run).';
+            saveDraft();
+            renderTaskWorkspace();
+          },
+          note: 'The one-line gut check. It’s why the AI answers look blurred at first: deliberate, not broken.' },
+        { id: 'ch2-reveal', target: TOUR_TARGETS.revealBtn,
+          copy: 'Now reveal the two AI answers.',
+          advanceOn: { state: (d) => d.stage === 'compare' },
+          autofill: () => commitIndependentAnswerAndReveal(),
+          note: 'Reveal commits your line and unblinds the answers (Enter works too).' },
+      ],
+    },
+    {
+      id: 'ch3', title: 'Compare & pick',
+      intro: 'Two anonymized model answers to the same case. Judge the reasoning.',
+      steps: [
+        { id: 'ch3-read', target: TOUR_TARGETS.answers,
+          copy: 'Read both answers, then continue.',
+          advanceOn: { manual: true },
+          doneWhen: (d) => !!d.verdict,
+          note: 'Answers are anonymized (Model A / Model B) and order-randomized.' },
+        { id: 'ch3-verdict', target: TOUR_TARGETS.verdicts,
+          copy: 'Pick the stronger answer: or mark both inadequate.',
+          advanceOn: { state: (d) => !!d.verdict },
+          autofill: () => selectVerdict('B_better'),
+          note: 'Keys 1 / 2 / 3 work. "Both inadequate" asks you to write the ideal answer yourself instead.' },
+        { id: 'ch3-refine', target: TOUR_TARGETS.refine,
+          copy: 'Edit the answer if anything is off: or save it unchanged if it’s right.',
+          advanceOn: { state: (d) => !!d.refine_saved || !!d.from_scratch_saved },
+          autofill: () => {
+            const d = state.draft;
+            if (d.verdict === 'both_inadequate') {
+              if (!(d.from_scratch.ideal_answer || '').trim()) {
+                d.from_scratch.ideal_answer = 'Intensify decongestion given persistent volume overload (practice run).';
+              }
+              d.from_scratch_saved = true;
+            } else {
+              d.refine_saved = true;
+            }
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
+          note: 'Your saved version becomes the gold answer. Saving with no edits is a valid choice when the answer is already correct.' },
+      ],
+    },
+    {
+      id: 'ch4', title: 'Say what’s right and wrong',
+      intro: 'The structured critique is the product: tagged errors, severities, sources.',
+      steps: [
+        { id: 'ch4-why', target: TOUR_TARGETS.whyBetter,
+          copy: 'Write one line on why it won, and tag at least one reason.',
+          skipIf: (d) => d.verdict === 'both_inadequate',
+          advanceOn: { state: () => substageComplete('why_better') },
+          autofill: () => {
+            const d = state.draft;
+            const rev = d.chosen_revision;
+            if (!(rev.why_better_notes || '').trim()) {
+              rev.why_better_notes = 'Reads the persistent-congestion evidence rather than the creatinine trend alone (practice run).';
+            }
+            if (!(rev.why_better_tags || []).length) {
+              rev.why_better_tags = [(state.taxonomy.why_better_tags || ['safer'])[0]];
+            }
+            d.why_better_done = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
+          note: 'One sentence plus at least one why-better tag.' },
+        { id: 'ch4-cite', target: TOUR_TARGETS.citations,
+          copy: 'Attach a supporting citation: or continue without one.',
+          skipIf: (d) => d.verdict === 'both_inadequate',
+          advanceOn: { state: () => substageComplete('citations') },
+          autofill: () => {
+            const d = state.draft;
+            const rev = d.chosen_revision;
+            if ((state.task.grounding_mode === 'required') && !isValidAnchor(rev.evidence_anchor)) {
+              rev.evidence_anchor = { citation_text: 'KDIGO 2024 (practice placeholder)', source_type: 'guideline', identifier: '' };
+            }
+            d.citations_reviewed = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
+          note: 'Citations are optional here (required on some tasks); the search box knows the major guidelines.' },
+        { id: 'ch4-critique', target: TOUR_TARGETS.critique,
+          copy: 'Tag each error in the other answer. Tap a tag again to set severity.',
+          skipIf: (d) => d.verdict === 'both_inadequate',
+          advanceOn: { state: () => substageComplete('critique_rejected') },
+          autofill: () => {
+            const d = state.draft;
+            const crit = d.rejected_critique;
+            if (!(crit.error_tags || []).length) {
+              const tag = (state.taxonomy.error_tags || ['unsafe_recommendation'])[0];
+              crit.error_tags = [tag];
+              crit.severities[tag] = crit.severities[tag] || 'high';
+            } else {
+              crit.error_tags.forEach((t) => { crit.severities[t] = crit.severities[t] || 'high'; });
+            }
+            if (!(crit.why_worse || '').trim()) {
+              crit.why_worse = 'A fluid bolus in a still-congested patient re-congests them (practice run).';
+            }
+            closeTagPopover();
+            d.critique_done = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
+          note: 'Error tags come from a fixed taxonomy; the severity picker is behind a second tap on the tag: easy to miss.' },
+        { id: 'ch4-reasoning', target: TOUR_TARGETS.reasoning,
+          copy: 'Confirm each reasoning step that’s right; open any that aren’t.',
+          skipIf: () => !(state.task && state.task.capture_reasoning),
+          advanceOn: { state: () => substageComplete('reasoning') },
+          autofill: () => autofillReasoningSteps(),
+          note: 'The answer splits into steps; confirm the good ones, correct the bad ones.' },
+      ],
+    },
+    {
+      id: 'ch5', title: 'Score & submit',
+      intro: 'Your scoring guide becomes a reusable grader for future models.',
+      steps: [
+        { id: 'ch5-rubric', target: TOUR_TARGETS.rubric,
+          copy: 'Add scoring criteria: include at least one critical negative.',
+          advanceOn: { state: () => substageComplete('rubric') },
+          autofill: () => {
+            const d = state.draft;
+            if (!hasCriticalNegative(d.rubric)) {
+              d.rubric.push({
+                text: 'Recommends holding diuresis or giving IV fluids despite persistent congestion (practice run)',
+                points: -9, axis: 'safety', source: 'manual',
+              });
+            }
+            d.rubric_done = true;
+            state._reopenedSubstage = null;
+            refreshStagedFlow();
+          },
+          note: 'Criteria carry points; a −8 to −10 negative is a critical negative (auto-fail) and each case needs at least one.' },
+        { id: 'ch5-confidence', target: TOUR_TARGETS.confidence,
+          copy: 'Rate your confidence.',
+          advanceOn: { state: (d) => !!d.confidence_set },
+          autofill: () => {
+            const d = state.draft;
+            if (!d.confidence_set) { d.confidence = 'high'; d.confidence_set = true; saveDraft(); }
+            renderTaskWorkspace();
+          },
+          note: 'Low / medium / high: honest calibration beats looking sure.' },
+        { id: 'ch5-submit', target: TOUR_TARGETS.submit,
+          copy: 'Submit: and see how you compare with the reference panel.',
+          advanceOn: { state: () => false },  // the submit path ends the tour
+          autofill: () => submitEvaluation(),
+          note: 'Submit packages your work into training records. On the practice case it scores you against the reference panel instead.' },
+      ],
+    },
+  ];
+
+  // ch4-reasoning's autofill needs to wait out the async auto-split (heuristic
+  // or LLM-pregraded) before confirm buttons exist: retries briefly rather
+  // than assuming they're already on screen.
+  function autofillReasoningSteps(triesLeft) {
+    triesLeft = triesLeft == null ? 15 : triesLeft;
+    let btn;
+    let guard = 0;
+    while ((btn = document.querySelector(TOUR_TARGETS.reasoning + ' .asc-step-confirm:not(.active)')) && guard++ < 50) {
+      btn.click();
+    }
+    const cont = document.querySelector('#ascStepsCont');
+    if (cont && !cont.disabled) { cont.click(); return; }
+    if (triesLeft > 0) setTimeout(() => autofillReasoningSteps(triesLeft - 1), 200);
+  }
+
+  const TUTORIAL_STEPS = [];
+  TUTORIAL_CHAPTERS.forEach((ch) => ch.steps.forEach((s, i) => {
+    TUTORIAL_STEPS.push(Object.assign({ chapter: ch, chapterFirst: i === 0 }, s));
+  }));
+
+  // ─── Engine ────────────────────────────────────────────────────────────────
+  let _tourObserver = null;
+  let _tourTickTimer = null;
+  let _tourPatchTimer = null;
+  let _tourScrolledFor = null; // step id already auto-centered (scroll once per step)
+
+  function tutCurrentStep() {
+    const t = state.tutorial;
+    return (t && TUTORIAL_STEPS[t.idx]) || null;
+  }
+
+  function tutStepSatisfied(step) {
+    const d = state.draft;
+    if (!d) return false;
+    try {
+      if (step.skipIf && step.skipIf(d)) return true;
+      // doneWhen lets a click/manual step fast-forward on resume once its
+      // moment has passed (the draft is the truth, not the click history).
+      if (step.doneWhen && step.doneWhen(d)) return true;
+      const adv = step.advanceOn || {};
+      if (adv.state) return !!adv.state(d);
+    } catch (e) { return false; }
+    return false; // click/manual steps only advance on their explicit action
+  }
+
+  function tutPersistStep(stepId) {
+    if (!state.tutorial || state.tutorial.replay) return;
+    clearTimeout(_tourPatchTimer);
+    _tourPatchTimer = setTimeout(() => {
+      api('/me/tutorial', { method: 'PATCH', body: { action: 'advance', step: stepId } })
+        .then((u) => { state.user = u; })
+        .catch(() => { /* position sync is best-effort */ });
+    }, 600);
+  }
+
+  function tutAdvance() {
+    const t = state.tutorial;
+    if (!t) return;
+    t.idx += 1;
+    const step = tutCurrentStep();
+    if (step) tutPersistStep(step.id);
+    tutTick();
+  }
+
+  // "Skip this step" moves the pointer forward, but many steps only render
+  // once the REAL section before them is actually finished (the app shows one
+  // decision at a time). If the app hasn't gotten there, the target the tour
+  // just jumped to doesn't exist yet and skipping would strand the doctor
+  // staring at nothing. Detect that and walk back to the nearest not-yet-done
+  // step whose target IS on screen right now: that's the true blocker, and
+  // re-spotlighting it (rather than a blank corner) is what keeps guiding
+  // them. A real "Continue" click on that section resumes forward motion the
+  // moment its state predicate is satisfied.
+  function resolveTourIndex() {
+    const t = state.tutorial;
+    if (!t) return;
+    const cur = TUTORIAL_STEPS[t.idx];
+    if (!cur || document.querySelector(cur.target)) return; // nothing to resolve
+    for (let i = t.idx - 1; i >= 0; i--) {
+      const s = TUTORIAL_STEPS[i];
+      if (tutStepSatisfied(s)) continue; // already done: not the blocker
+      if (document.querySelector(s.target)) { t.idx = i; t.bounced = true; return; }
+    }
+  }
+
+  // The tick: fast-forward past satisfied/skipped steps, then render the
+  // current beat (interstitial or spotlight). Runs after every DOM mutation,
+  // scroll, and resize: cheap by design.
+  function tutTick() {
+    if (!tutorialActive()) return;
+    // A modal (the welcome screen or the skip-tutorial confirm) OWNS the
+    // screen while it's open. tutTick runs on a timer and on every DOM
+    // mutation/scroll/resize, so without this guard a stray re-tick while the
+    // confirm dialog is up would silently re-show the spotlight ring and
+    // tooltip right on top of it: exactly the "box is still there" bug.
+    if (document.getElementById('ascTourSkipConfirm')) return;
+    const t = state.tutorial;
+    resolveTourIndex();
+    let step = tutCurrentStep();
+    let moved = false;
+    while (step && tutStepSatisfied(step)) { t.idx += 1; moved = true; step = tutCurrentStep(); t.bounced = false; }
+    if (moved && step) tutPersistStep(step.id);
+    if (!step) { hideTourLayer(); return; }  // waiting on the submit path
+    // One welcome screen, then an uninterrupted flow (chapter intros ride
+    // along as a second line on each chapter's first tooltip instead).
+    if (!t.welcomed) { renderTourWelcome(); return; }
+    renderTourSpotlight(step);
+  }
+  function scheduleTutTick() {
+    clearTimeout(_tourTickTimer);
+    _tourTickTimer = setTimeout(tutTick, 80);
+  }
+
+  function mountTourEngine() {
+    if (_tourObserver) return;
+    _tourObserver = new MutationObserver((muts) => {
+      // Ignore mutations inside the tour's own layer or the drawer.
+      for (const m of muts) {
+        const n = m.target;
+        if (n && n.closest && (n.closest('#ascTourLayer') || n.closest('#ascInstrDrawer'))) continue;
+        scheduleTutTick();
+        return;
+      }
+    });
+    _tourObserver.observe(root(), { childList: true, subtree: true, attributes: true });
+    window.addEventListener('resize', scheduleTutTick);
+    window.addEventListener('scroll', scheduleTutTick, true);
+    document.addEventListener('click', tutClickAdvance, true);
+    document.addEventListener('keydown', tutKeydown, true);
+  }
+
+  function teardownTutorial() {
+    if (_tourObserver) { _tourObserver.disconnect(); _tourObserver = null; }
+    window.removeEventListener('resize', scheduleTutTick);
+    window.removeEventListener('scroll', scheduleTutTick, true);
+    document.removeEventListener('click', tutClickAdvance, true);
+    document.removeEventListener('keydown', tutKeydown, true);
+    clearTimeout(_tourTickTimer);
+    const layer = document.getElementById('ascTourLayer');
+    if (layer) layer.remove();
+    state.tutorial = null;
+  }
+
+  function tutClickAdvance(e) {
+    if (!tutorialActive()) return;
+    const step = tutCurrentStep();
+    if (!step || !step.advanceOn || !step.advanceOn.click) return;
+    const hit = e.target && e.target.closest && e.target.closest(step.advanceOn.click);
+    if (hit) setTimeout(tutAdvance, 40); // let the app's own handler run first
+  }
+
+  function tutKeydown(e) {
+    if (!tutorialActive()) return;
+    if (e.key === 'Escape') {
+      // Don't fight app overlays (case overlay closes on Esc too).
+      if (document.querySelector('.call-team-overlay.is-open:not(.asc-tour-interstitial)')) return;
+      e.stopPropagation();
+      confirmSkipTutorial();
+    }
+  }
+
+  // ─── Spotlight renderer (4-rect mask + popover, Console design system) ─────
+  function ensureTourLayer() {
+    let layer = document.getElementById('ascTourLayer');
+    if (layer) return layer;
+    layer = h('div', { id: 'ascTourLayer' },
+      h('div', { class: 'asc-tour-mask', dataset: { edge: 'top' } }),
+      h('div', { class: 'asc-tour-mask', dataset: { edge: 'left' } }),
+      h('div', { class: 'asc-tour-mask', dataset: { edge: 'right' } }),
+      h('div', { class: 'asc-tour-mask', dataset: { edge: 'bottom' } }),
+      h('div', { class: 'asc-tour-ring', 'aria-hidden': 'true' }),
+      h('div', { class: 'asc-tour-pop', role: 'dialog', 'aria-label': 'Tutorial step' }));
+    document.body.appendChild(layer);
+    return layer;
+  }
+  function hideTourLayer() {
+    const layer = document.getElementById('ascTourLayer');
+    if (layer) layer.style.display = 'none';
+  }
+
+  function tutStepNumber(step) {
+    return { n: TUTORIAL_STEPS.indexOf(TUTORIAL_STEPS.find((s) => s.id === step.id)) + 1,
+             total: TUTORIAL_STEPS.length };
+  }
+
+  function renderTourSpotlight(step) {
+    const target = document.querySelector(step.target);
+    const layer = ensureTourLayer();
+    const pop = layer.querySelector('.asc-tour-pop');
+    if (!target) {
+      // Target not rendered yet. NEVER block the app here: the section may be
+      // gated on work the doctor still has to do (e.g. after "Skip this step"),
+      // so masks stay off and the popover waits quietly in the corner.
+      // Auto-skip applies ONLY to DOM-gated steps (click / manual): if a UI
+      // redesign removed their target, the step is dead and must not brick the
+      // tutorial. State-gated steps wait indefinitely: their predicate (or the
+      // fast-forward loop) advances them the moment the doctor gets there.
+      const domGated = !!(step.advanceOn && (step.advanceOn.click || step.advanceOn.manual));
+      if (!step._waitSince) step._waitSince = Date.now();
+      if (domGated && Date.now() - step._waitSince > 8000) {
+        try { console.warn('[tutorial] target missing, skipping step:', step.id, step.target); } catch (e) { /* ok */ }
+        step._waitSince = null;
+        tutAdvance();
+        return;
+      }
+      layer.style.display = '';
+      hideMasks(layer);
+      renderTourPop(pop, step, true);
+      pop.style.transform = '';
+      pop.style.top = 'auto';
+      pop.style.left = '16px';
+      pop.style.bottom = '16px';
+      scheduleTutTick(); // keep polling for the target (or the auto-skip)
+      return;
+    }
+    step._waitSince = null;
+    pop.style.bottom = 'auto';
+    // Auto-center the target ONCE per step. Never on later ticks: repositioning
+    // runs on every scroll, and re-centering there would yank the page back and
+    // fight the user's own scrolling.
+    const r = target.getBoundingClientRect();
+    const vh = window.innerHeight;
+    if (_tourScrolledFor !== step.id && (r.top < 0 || r.bottom > vh)) {
+      _tourScrolledFor = step.id;
+      const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      try { target.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); } catch (e) { /* ok */ }
+    }
+    layer.style.display = '';
+    positionMasks(target.getBoundingClientRect(), layer);
+    const t = state.tutorial;
+    const bounced = !!(t && t.bounced);
+    if (t) t.bounced = false; // one-shot: show the note once, not on every re-tick
+    renderTourPop(pop, step, false, bounced); // content first: position needs real height
+    positionPop(target.getBoundingClientRect(), pop);
+  }
+
+  const TOUR_PAD = 6;
+  function hideMasks(layer) {
+    layer.querySelectorAll('.asc-tour-mask').forEach((m) => setRect(m, 0, 0, 0, 0));
+    layer.querySelector('.asc-tour-ring').style.display = 'none';
+  }
+  function positionMasks(r, layer) {
+    const masks = layer.querySelectorAll('.asc-tour-mask');
+    const ring = layer.querySelector('.asc-tour-ring');
+    const vw = window.innerWidth, vh = window.innerHeight;
+    if (!r) { // full dim, no hole
+      setRect(masks[0], 0, 0, vw, vh);
+      setRect(masks[1], 0, 0, 0, 0); setRect(masks[2], 0, 0, 0, 0); setRect(masks[3], 0, 0, 0, 0);
+      ring.style.display = 'none';
+      return;
+    }
+    const top = Math.max(0, r.top - TOUR_PAD), left = Math.max(0, r.left - TOUR_PAD);
+    const right = Math.min(vw, r.right + TOUR_PAD), bottom = Math.min(vh, r.bottom + TOUR_PAD);
+    setRect(masks[0], 0, 0, vw, top);                       // top strip
+    setRect(masks[1], 0, top, left, bottom - top);          // left strip
+    setRect(masks[2], right, top, vw - right, bottom - top); // right strip
+    setRect(masks[3], 0, bottom, vw, vh - bottom);          // bottom strip
+    ring.style.display = '';
+    ring.style.left = left + 'px'; ring.style.top = top + 'px';
+    ring.style.width = (right - left) + 'px'; ring.style.height = (bottom - top) + 'px';
+  }
+  function setRect(el, x, y, w, hgt) {
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+    el.style.width = Math.max(0, w) + 'px'; el.style.height = Math.max(0, hgt) + 'px';
+  }
+  function positionPop(r, pop) {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    pop.style.transform = '';
+    const popW = Math.min(340, vw - 24);
+    pop.style.width = popW + 'px';
+    const below = r.bottom + TOUR_PAD + 12;
+    const popH = pop.offsetHeight || 120;
+    let top;
+    if (below + popH < vh - 12) top = below;
+    else top = Math.max(12, r.top - TOUR_PAD - popH - 12);
+    let left = Math.min(Math.max(12, r.left), vw - popW - 12);
+    pop.style.top = top + 'px';
+    pop.style.left = left + 'px';
+  }
+
+  function renderTourPop(pop, step, waiting, bounced) {
+    const num = tutStepNumber(step);
+    clear(pop);
+    pop.appendChild(h('div', { class: 'asc-tour-chrome' },
+      'STEP ' + num.n + ' OF ' + num.total + ' · ' + step.chapter.title.toUpperCase()));
+    pop.appendChild(h('div', { class: 'asc-tour-copy', 'aria-live': 'polite' },
+      waiting ? 'Next up: ' + step.copy.replace(/\.$/, '') + '. This appears when the step before it is done.'
+        : step.copy));
+    if (bounced) {
+      pop.appendChild(h('div', { class: 'asc-tour-sub' }, 'This one has to happen here before the tour can move on.'));
+    } else if (!waiting && step.chapterFirst && step.chapter.intro) {
+      pop.appendChild(h('div', { class: 'asc-tour-sub' }, step.chapter.intro));
+    }
+    const row = h('div', { class: 'asc-tour-actions' });
+    if (step.advanceOn && step.advanceOn.manual && !waiting) {
+      row.appendChild(h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
+        onClick: tutAdvance }, 'Next →'));
+    } else if (!waiting && !bounced) {
+      // Per-step skip: for steps the app requires real data/action from
+      // (nearly all of them), this performs a reasonable version of that
+      // action through the app's own handlers: filling required fields with
+      // clearly-marked placeholder text, picking sensible defaults: so the
+      // draft (and, for reveal/submit, the backend) genuinely advances and
+      // the tour lands on the real next step, not a dead pointer. Read-only
+      // beats with no real state (ch1-tabs, ch3-read) have no autofill and
+      // just move the pointer on, since their next target already exists.
+      row.appendChild(h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+        onClick: () => {
+          if (step.autofill) {
+            try { step.autofill(); }
+            catch (e) { try { console.warn('[tutorial] autofill failed for', step.id, e); } catch (_e) { /* ok */ } }
+            tutTick(); // resync immediately; async actions catch up via their own re-render
+          } else {
+            tutAdvance();
+          }
+        } }, 'Skip this step'));
+    }
+    row.appendChild(h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button',
+      onClick: confirmSkipTutorial }, 'Skip tutorial'));
+    pop.appendChild(row);
+    const frac = h('div', { class: 'asc-tour-bar' });
+    frac.appendChild(h('div', { class: 'asc-tour-bar-fill',
+      style: 'width:' + Math.round(((num.n - 1) / num.total) * 100) + '%' }));
+    pop.appendChild(frac);
+  }
+
+  // ─── Welcome screen (the ONLY interstitial: then an uninterrupted flow) ───
+  function renderTourWelcome() {
+    hideTourLayer();
+    if (document.getElementById('ascTourInterstitial')) return;
+    const overlay = h('div', { class: 'call-team-overlay is-open asc-tour-interstitial', id: 'ascTourInterstitial' });
+    const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
+      h('div', { class: 'asc-tour-chrome' }, 'CALIBRATION CASE 1'),
+      h('div', { class: 'call-team-title' }, 'One practice case. About 4 minutes.'),
+      h('p', { class: 'asc-help', style: 'margin:6px 0 16px' },
+        'A guided walk through labeling one case: read it, give your take, compare two AI answers, '
+        + 'say what’s right and wrong, score it. Then you’ll see how your reads compare with the '
+        + 'reference panel. Nothing here is recorded or sold.'),
+      h('div', { style: 'display:flex;gap:10px;align-items:center' },
+        h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: proceed }, 'Start the case →'),
+        h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button', onClick: () => { overlay.remove(); confirmSkipTutorial(); } },
+          'Skip tutorial')));
+    function proceed() {
+      state.tutorial.welcomed = true;
+      overlay.remove();
+      tutTick();
+    }
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+  }
+
+  // ─── Start / skip / submit ─────────────────────────────────────────────────
+  async function startTutorial(opts) {
+    opts = opts || {};
+    if (opts.replay) {
+      clearDraft(TUTORIAL_TASK_ID); // a fresh replay, not a resume of old work
+    } else {
+      api('/me/tutorial', { method: 'PATCH', body: { action: 'start' } })
+        .then((u) => { state.user = u; }).catch(() => { /* best-effort */ });
+    }
+    state.tutorial = { active: true, replay: !!opts.replay, idx: 0, welcomed: false };
+    state.portalChosen = true;
+    state.specialtyChosen = true;
+    const wrap = h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Preparing your practice case…')));
+    setRoot(wrap);
+    let data;
+    try {
+      data = await api('/tutorial/task');
+    } catch (e) {
+      // Never trap the doctor: fall back to the dashboard if the practice
+      // case cannot load. Not the experience/specialty picker: that choice is
+      // ours to make, not the doctor's.
+      teardownTutorial();
+      state.portalChosen = false; state.specialtyChosen = false;
+      if (e.status !== 401) {
+        toast('Could not load the practice case: ' + e.message, 'error');
+        renderDashboardView();
+      }
+      return;
+    }
+    state.task = data.task;
+    initDraftForTask(state.task);
+    state.draft.portal_version = 'v3'; // the tutorial teaches the seamless flow
+    saveDraft();
+    if (state.draft.stage === 'compare') {
+      try { await loadWithheldAnswersIfNeeded(); } catch (e) { /* compare shows a reload hint */ }
+    }
+    mountTourEngine();
+    renderTaskWorkspace();
+    tutTick();
+  }
+
+  function confirmSkipTutorial() {
+    if (document.getElementById('ascTourSkipConfirm')) return;
+    // The spotlight box + tooltip sit ABOVE this confirm dialog (z 1200 vs
+    // 1000): hide them first, or the old highlight and copy stay pasted on
+    // screen behind/around the dialog instead of clearing out of the way.
+    hideTourLayer();
+    const overlay = h('div', { class: 'call-team-overlay is-open asc-tour-interstitial', id: 'ascTourSkipConfirm' });
+    const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
+      h('div', { class: 'call-team-title' }, 'Skip the practice case?'),
+      h('p', { class: 'asc-help', style: 'margin:6px 0 16px' },
+        'You can replay it any time from the ? tab in the corner. The written instructions stay there too.'),
+      h('div', { style: 'display:flex;gap:10px' },
+        h('button', { class: 'asc-btn asc-btn-primary', type: 'button',
+          onClick: () => { overlay.remove(); tutTick(); } }, 'Keep going'),
+        h('button', { class: 'asc-btn asc-btn-ghost', type: 'button',
+          onClick: () => { overlay.remove(); skipTutorial(); } }, 'Skip')));
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+  }
+
+  function skipTutorial() {
+    const wasReplay = state.tutorial && state.tutorial.replay;
+    if (!wasReplay) {
+      api('/me/tutorial', { method: 'PATCH', body: { action: 'skip' } })
+        .then((u) => { state.user = u; }).catch(() => { /* server no-ops are fine */ });
+    }
+    teardownTutorial();
+    clearDraft(TUTORIAL_TASK_ID);
+    stopTimer();
+    state.task = null;
+    state.portalChosen = false;
+    state.specialtyChosen = false;
+    renderDashboardView();
+    // First skip: pulse the corner ? tab once so they know where the written
+    // instructions live: never auto-open a panel over their screen.
+    let seen = null;
+    try { seen = localStorage.getItem(INSTR_SEEN_KEY); } catch (e) { seen = null; }
+    if (!wasReplay && !seen) {
+      try { localStorage.setItem(INSTR_SEEN_KEY, '1'); } catch (e) { /* ignore */ }
+      pulseInstrTab();
+    }
+  }
+
+  async function submitTutorialEvaluation() {
+    state.submitting = true;
+    const btn = document.getElementById('ascSubmit');
+    if (btn) { btn.disabled = true; btn.textContent = 'Scoring…'; }
+    const wasReplay = state.tutorial && state.tutorial.replay;
+    let res;
+    try {
+      res = await api('/tutorial/submit', { method: 'POST', body: buildSubmissionPayload() });
+    } catch (e) {
+      state.submitting = false;
+      if (btn) { btn.disabled = false; btn.textContent = 'Submit evaluation'; }
+      if (e.status !== 401) toast('Could not score the practice case: ' + e.message, 'error');
+      return;
+    }
+    state.submitting = false;
+    if (res.user) state.user = res.user;
+    teardownTutorial();
+    clearDraft(TUTORIAL_TASK_ID);
+    stopTimer();
+    state.task = null;
+    state.draft = null;
+    updateHeaderProgress(); // no open task: the header bar hides on the reveal
+    renderTutorialReveal(res.result, { replay: wasReplay });
+  }
+
+  // ─── The scored reveal ─────────────────────────────────────────────────────
+  function renderTutorialReveal(result, opts) {
+    opts = opts || {};
+    const rows = (result.findings || []).map((f) => h('div', { class: 'asc-tour-finding' + (f.matched ? ' matched' : '') },
+      h('span', { class: 'asc-tour-finding-glyph', 'aria-hidden': 'true' }, f.matched ? '✓' : '–'),
+      h('div', {},
+        h('div', { class: 'asc-tour-finding-label' }, f.label),
+        h('div', { class: 'asc-tour-finding-reason' }, f.reason))));
+    const planted = result.planted_finding;
+    const card = h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-tour-chrome' }, 'CALIBRATION CASE 1 · REFERENCE PANEL'),
+      h('h2', { class: 'asc-tour-headline' }, result.headline),
+      h('div', { class: 'asc-tour-findings' }, rows),
+      planted ? h('div', { class: 'asc-tour-planted' },
+        h('div', { class: 'asc-tour-planted-title' },
+          planted.matched ? 'You caught the one most physicians miss' : 'The one most physicians miss'),
+        h('div', { class: 'asc-tour-finding-reason' }, planted.reason)) : null,
+      h('p', { class: 'asc-help', style: 'margin:14px 0 0' },
+        opts.replay ? 'Practice case: nothing was recorded.'
+          : 'Nothing from this case is recorded or sold. Your real cases start now.'),
+      h('div', { style: 'display:flex;gap:10px;margin-top:18px;align-items:center' },
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
+          onClick: () => { state.portalChosen = false; state.specialtyChosen = false; renderDashboardView(); } },
+          'Start real cases →'),
+        h('button', { class: 'asc-btn asc-btn-ghost', type: 'button', onClick: openInstructionDrawer },
+          'Open the instructions')));
+    setRoot(h('div', { class: 'asc-wrap asc-tour-reveal' }, card));
+  }
+
+  // ─── Help menu + instruction drawer ────────────────────────────────────────
+  // Floating corner tab: the SINGLE, always-there entry point back into the
+  // tutorial: replay the guided practice case, or open a summary of it. Sits
+  // at the corner of the labeling screen so it's always reachable but never
+  // in the way.
+  function ensureInstrTab() {
+    if (document.getElementById('ascInstrTab')) return;
+    const tab = h('button', {
+      id: 'ascInstrTab', class: 'asc-instr-tab', type: 'button',
+      title: 'Tutorial', 'aria-label': 'Tutorial menu', 'aria-haspopup': 'true',
+    }, '?');
+    tab.addEventListener('click', toggleCornerMenu);
+    document.body.appendChild(tab);
+  }
+  function toggleCornerMenu() {
+    const existing = document.getElementById('ascCornerMenu');
+    if (existing) { existing.remove(); return; }
+    const tab = document.getElementById('ascInstrTab');
+    const r = tab.getBoundingClientRect();
+    const menu = h('div', { id: 'ascCornerMenu', class: 'asc-help-menu', role: 'menu' },
+      h('button', { class: 'asc-help-menu-item', type: 'button', role: 'menuitem',
+        onClick: () => { menu.remove(); startTutorial({ replay: true }); } },
+        'Replay tutorial'),
+      h('button', { class: 'asc-help-menu-item', type: 'button', role: 'menuitem',
+        onClick: () => { menu.remove(); toggleInstructionDrawer(); } },
+        'View tutorial summary'));
+    // The tab lives at the bottom-right corner: open the menu UPWARD from it.
+    menu.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+    menu.style.right = Math.max(12, window.innerWidth - r.right) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => {
+      const onDoc = (e) => { if (!menu.contains(e.target) && e.target !== tab) { menu.remove(); document.removeEventListener('click', onDoc, true); } };
+      document.addEventListener('click', onDoc, true);
+    }, 0);
+  }
+  function pulseInstrTab() {
+    ensureInstrTab();
+    const tab = document.getElementById('ascInstrTab');
+    tab.classList.add('pulse');
+    setTimeout(() => tab.classList.remove('pulse'), 6000);
+  }
+  function toggleInstructionDrawer() {
+    if (document.getElementById('ascInstrDrawer')) closeInstructionDrawer();
+    else openInstructionDrawer();
+  }
+  function closeInstructionDrawer() {
+    const d = document.getElementById('ascInstrDrawer');
+    if (d) d.remove();
+    state.instrOpen = false;
+  }
+  function openInstructionDrawer() {
+    if (document.getElementById('ascInstrDrawer')) return;
+    state.instrOpen = true;
+    // Which section applies right now (during a real case)?
+    let activeChapter = null;
+    if (state.draft && state.task) {
+      const stg = state.draft.stage;
+      if (stg === 'prompt_review') activeChapter = 'ch1';
+      else if (stg === 'independent_answer') activeChapter = 'ch2';
+      else if (stg === 'compare') {
+        const sub = currentSubstage();
+        if (sub === 'compare' || sub === 'refine' || sub === 'from_scratch') activeChapter = 'ch3';
+        else if (sub === 'why_better' || sub === 'citations' || sub === 'critique_rejected' || sub === 'reasoning') activeChapter = 'ch4';
+        else activeChapter = 'ch5';
+      }
+    }
+    const sections = TUTORIAL_CHAPTERS.map((ch) => {
+      const det = h('details', { class: 'asc-instr-section' },
+        h('summary', { class: 'asc-instr-summary' }, ch.title),
+        h('p', { class: 'asc-help asc-instr-intro' }, ch.intro),
+        h('ol', { class: 'asc-instr-list' },
+          ch.steps.map((s) => h('li', {},
+            h('span', { class: 'asc-instr-step-copy' }, s.copy),
+            h('span', { class: 'asc-instr-step-note' }, ' ' + (s.note || ''))))));
+      if (ch.id === activeChapter) det.setAttribute('open', '');
+      return det;
+    });
+    const flowNote = h('details', { class: 'asc-instr-section' },
+      h('summary', { class: 'asc-instr-summary' }, 'Choosing your flow & specialty'),
+      h('p', { class: 'asc-help asc-instr-intro' },
+        'Real cases start at the experience chooser: Synthetic Multimodal (recommended) or Real De-identified once approved. '
+        + 'V3/V4 then ask for your specialty. "Change experience" in the badge above a case returns you to the chooser.'));
+    const drawer = h('aside', { id: 'ascInstrDrawer', class: 'asc-instr-drawer', 'aria-label': 'Instructions' },
+      h('div', { class: 'asc-instr-head' },
+        h('div', { class: 'asc-tour-chrome' }, 'HOW TO LABEL A CASE'),
+        h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+          onClick: closeInstructionDrawer, 'aria-label': 'Close instructions' }, '✕')),
+      h('div', { class: 'asc-instr-body' }, sections, flowNote),
+      h('div', { class: 'asc-instr-foot' },
+        h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+          onClick: () => { closeInstructionDrawer(); startTutorial({ replay: true }); } },
+          'Replay practice case')));
+    document.body.appendChild(drawer);
+  }
+  // Expand every manual disclosure for printing, then restore: so a printed /
   // PDF'd guide carries its full depth, not just the three-line summaries.
   window.addEventListener('beforeprint', () => {
     document.querySelectorAll('.asc-guide-detail').forEach((d) => {

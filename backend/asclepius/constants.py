@@ -501,7 +501,7 @@ DEFAULT_GROUNDING_MODE = "optional"
 # the task is grounding_mode=required.
 GROUNDED_PREMIUM_DISCLAIMER = (
     "⏱️💲 Premium grounded task. This task asks you to cite the clinical guideline "
-    "or source behind your judgment. It takes a bit more time per task — but "
+    "or source behind your judgment. It takes a bit more time per task, but "
     "grounded, guideline-cited data sells at a premium, so you earn more per task. "
     "Your effort and citations are tracked and credited."
 )
@@ -932,10 +932,34 @@ def asset_store() -> str:
     return os.path.join(os.path.dirname(__file__), "_assetstore")
 
 
+# ─── PRD I-0 §F1: the ONE definition of "this path does not survive a redeploy" ──
+# Container filesystems where a redeploy/restart wipes the contents. This tuple was
+# copy-pasted into assets.py and ingestion.py; both now import it from here, because
+# three copies of a security-relevant list is how they drift apart.
+EPHEMERAL_PREFIXES = ("/tmp", "/var/tmp", "/dev/shm", "/run")
+
+
+def path_is_ephemeral(path: str) -> bool:
+    """True when ``path`` sits on storage a redeploy erases."""
+    root = os.path.abspath((path or "").strip() or ".")
+    return any(root == p or root.startswith(p + "/") for p in EPHEMERAL_PREFIXES)
+
+
 def asset_store_is_ephemeral() -> bool:
-    """True when the asset store fell back to the code-tree default (no
-    ASCLEPIUS_ASSET_STORE / DATA_DIR / DB_PATH configured) — images would NOT survive
-    a redeploy. Used to emit a startup warning."""
+    """True when the asset store will NOT survive a redeploy — whether because
+    nothing was configured, or because what WAS configured points at ephemeral
+    storage (PRD I-0 §F1).
+
+    The previous version answered "did anyone set the variable", not "is this
+    durable". That inverted the whole point of the warning in the worst possible
+    way: an operator reads *"ASCLEPIUS_ASSET_STORE is not set … WILL BE LOST on
+    redeploy"*, sets it to ``/tmp/assets``, and the warning goes away while the data
+    loss does not. Silencing the alarm without touching the fire is strictly worse
+    than having no alarm, because now nobody is looking."""
+    if asset_store().startswith("s3://"):
+        return False
+    if path_is_ephemeral(asset_store()):
+        return True
     return not any(os.getenv(k, "").strip() for k in
                    ("ASCLEPIUS_ASSET_STORE", "ASCLEPIUS_DATA_DIR", "ASCLEPIUS_DB_PATH"))
 
@@ -1242,7 +1266,7 @@ def company_name() -> str:
 
 # Header watermark stamped on every Further Credential Summary page (spec §6).
 CREDENTIAL_SUMMARY_WATERMARK = (
-    "CONFIDENTIAL — credential verification, provided under NDA / non-circumvention."
+    "CONFIDENTIAL: credential verification, provided under NDA / non-circumvention."
 )
 
 
@@ -1251,7 +1275,7 @@ def non_circumvention_notice() -> str:
     Further Credential Summary and surfaced as a click-through acknowledgment
     before generation. ``[Company]`` is substituted with ``company_name()``."""
     co = company_name()
-    return f"""CONFIDENTIAL — CREDENTIAL VERIFICATION
+    return f"""CONFIDENTIAL: CREDENTIAL VERIFICATION
 
 This Credential Verification Summary (the "Summary") is provided by {co} solely to enable the recipient ("Recipient") to verify the qualifications of the credentialed contributor(s) associated with data licensed from or evaluated through {co}. By accessing this Summary, Recipient agrees to the following:
 

@@ -5908,17 +5908,92 @@ async def startup_team_scheduler():
             "inactive (relying on volume encryption only). Set a base64 32-byte key to "
             "enable AES-256-GCM field encryption. See docs/security/ENCRYPTION.md."
         )
-    # EHR ingestion durability (the partner-upload 410 incident): warn loudly if
-    # raw bundles would land on non-durable storage, and recover any uploads left
-    # mid-pipeline by a restart — their raw blob is on the persistent volume, so
-    # reprocessing is lossless.
+    # ─── storage durability (PRD I-0 §F2) ────────────────────────────────────
+    # All three stores, checked at BOOT rather than on the first upload. Every
+    # durability check in the tree was reachable only from a request path, so the
+    # way you found out the volume never attached was a hospital getting a 503 —
+    # the worst possible moment, and only for the store that request happened to
+    # touch. The database had no check at any time.
+    #
+    # In production this REFUSES TO START. That is the deliverable, not a rough
+    # edge: a container that will not boot is a five-minute incident with a log
+    # line naming the store; a container that boots onto ephemeral disk accepts
+    # PHI and destroys it at the next redeploy, silently, and costs a partnership.
+    try:
+        from asclepius import assets as _asc_assets_dur
+        from asclepius import ingestion as _asc_ingestion_dur
+        from asclepius.store import _db_storage_durable as _asc_db_durable
+
+        _DURABILITY_CHECKS = (
+            ("database", _asc_db_durable),
+            ("raw ingest", _asc_ingestion_dur.ingest_storage_durable),
+            ("asset store", _asc_assets_dur.asset_storage_durable),
+        )
+        _dur_failures = []
+        for _name, _fn in _DURABILITY_CHECKS:
+            try:
+                _ok, _why = _fn()
+            except Exception as _exc:  # a check that cannot run is a failed check
+                _ok, _why = False, f"durability check raised: {_exc}"
+            if not _ok:
+                _dur_failures.append((_name, _why))
+        if _dur_failures:
+            _detail = " · ".join(f"{n}: {w}" for n, w in _dur_failures)
+            if is_production():
+                raise RuntimeError(f"NON-DURABLE STORAGE, refusing to start — {_detail}")
+            # The fail-closed behaviour is gated on ENV=production, and NOTHING in
+            # this repo's deploy config sets ENV — the same trap that once shipped
+            # a PHI portal's session cookie over plain HTTP. So when storage is
+            # non-durable AND ENV is unset, say so at ERROR and name the cause:
+            # otherwise the deliverable ("refuses to boot") silently degrades to a
+            # warning nobody reads, on exactly the deployment that needs it.
+            if not (os.getenv("ENV") or "").strip():
+                _auth_logger.error(
+                    "[storage] NON-DURABLE STORAGE and ENV is UNSET, so the "
+                    "fail-closed boot gate is INACTIVE. This container will accept "
+                    "PHI and lose it on the next redeploy. Set ENV=production (and "
+                    "the four storage paths) — %s", _detail)
+            else:
+                _auth_logger.warning(
+                    "[storage] NON-DURABLE (dev; would refuse to boot in production) — %s",
+                    _detail)
+        else:
+            _auth_logger.info("[storage] all three stores durable")
+    except RuntimeError:
+        raise
+    except Exception:
+        _auth_logger.warning("[storage] durability gate could not run", exc_info=True)
+    # Asset reconciliation (PRD I-0 §F4) — what a PAST redeploy already took. Off
+    # the event loop: it stats the whole blob tree and must never delay startup.
+    try:
+        from asclepius import assets as _asc_assets_rec
+
+        _asc_store_rec = getattr(app.state, "asclepius_store", None)
+        if _asc_store_rec is not None:
+            async def _reconcile_assets_at_boot() -> None:
+                try:
+                    rep = await asyncio.to_thread(
+                        _asc_assets_rec.reconcile_assets, _asc_store_rec)
+                    app.state.asclepius_asset_reconcile = rep
+                    if rep.get("missing_blobs"):
+                        _auth_logger.error(
+                            "[storage] %d asset reference(s) point at blobs that are "
+                            "GONE from disk — data was lost. See "
+                            "GET /api/asclepius/admin/storage/reconcile",
+                            len(rep["missing_blobs"]))
+                except Exception:
+                    _auth_logger.warning("[storage] asset reconcile failed", exc_info=True)
+
+            asyncio.create_task(_reconcile_assets_at_boot())
+    except Exception:
+        _auth_logger.warning("[storage] asset reconcile could not start", exc_info=True)
+    # ─── end storage durability ──────────────────────────────────────────────
+    # EHR ingestion: recover any uploads left mid-pipeline by a restart — their
+    # raw blob is on the persistent volume, so reprocessing is lossless.
     try:
         from asclepius import ingestion as _asc_ingestion
 
         _asc_store = getattr(app.state, "asclepius_store", None)
-        _dur_ok, _dur_why = _asc_ingestion.ingest_storage_durable()
-        if not _dur_ok:
-            _auth_logger.warning("[ingestion] NON-DURABLE raw upload storage — %s", _dur_why)
         if _asc_store is not None:
             # Off the event loop: reprocessing parses bundles and can be slow.
             asyncio.create_task(
@@ -5972,6 +6047,16 @@ async def startup_community():
 
         app.state.community_store = _get_cstore()
         _cnotify.start_digest_loop(resolve_member=_resolve_member)
+        # Community v2: the #medical-ai-news content loop is OPT-IN
+        # (COMMUNITY_NEWS_ENABLED=1); the internal trigger endpoint below
+        # fires a run on demand either way.
+        from community import digest as _cdigest
+        if _cdigest.news_enabled():
+            _cdigest.start_content_loop()
+        # Community v2.1: the event-reminder loop (emails interested members
+        # before an event starts). No-ops without email transport.
+        from community import events as _cevents
+        _cevents.start_reminder_loop(resolve_member=_resolve_member)
     except Exception:
         _auth_logger.warning("[community] startup init failed; community disabled", exc_info=True)
 
@@ -5982,6 +6067,18 @@ async def shutdown_community():
         from community import notify as _cnotify
 
         _cnotify.stop_digest_loop()
+    except Exception:
+        pass
+    try:
+        from community import digest as _cdigest
+
+        _cdigest.stop_content_loop()
+    except Exception:
+        pass
+    try:
+        from community import events as _cevents
+
+        _cevents.stop_reminder_loop()
     except Exception:
         pass
 
@@ -6004,6 +6101,30 @@ async def internal_run_team_daily_jobs(authorization: Optional[str] = Header(Non
     _check_internal_auth(authorization)
     await _run_team_daily_jobs()
     return {"ok": True, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/community/run-digest", include_in_schema=False)
+async def internal_run_community_digest(
+    kind: str = "news", authorization: Optional[str] = Header(None)
+):
+    """Manual trigger for a Community v2 content digest run (demo/QA — works
+    whether or not the scheduled loop is enabled)."""
+    _check_internal_auth(authorization)
+    if kind not in ("news", "papers"):
+        raise HTTPException(status_code=400, detail="kind must be 'news' or 'papers'")
+    from community import digest as _cdigest
+    result = await _cdigest.run_digest(kind)
+    return {**result, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/community/run-event-reminders", include_in_schema=False)
+async def internal_run_event_reminders(authorization: Optional[str] = Header(None)):
+    """Manual trigger for the Community v2.1 event-reminder sweep (demo/QA)."""
+    _check_internal_auth(authorization)
+    from community import events as _cevents
+    from community.router import resolve_member_for_notify as _resolve_member
+    sent = await _cevents.send_due_reminders(resolve_member=_resolve_member)
+    return {"ok": True, "reminders_sent": sent, "ran_at": _utcnow_iso()}
 
 
 async def _send_sms(
@@ -6060,6 +6181,11 @@ except Exception as _asc_env_exc:  # pragma: no cover
     )
 app.include_router(community_router)
 app.include_router(community_page_router)
+try:
+    from community.social import router as community_social_router  # noqa: E402
+    app.include_router(community_social_router)  # v2.1: events/polls/pins/bookmarks
+except Exception as _social_exc:  # pragma: no cover
+    _auth_logger.warning("Community social router not mounted: %s", _social_exc)
 app.include_router(leads_router)
 
 # Gold Standard — conversation-capture training data (Data Training tab). Mounted

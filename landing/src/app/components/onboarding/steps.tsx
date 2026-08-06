@@ -20,7 +20,6 @@ import {
   InlineError,
   OnboardingCard,
   PrimaryButton,
-  ProductOption,
   RolePill,
   SelectField,
   StatusPill,
@@ -97,20 +96,83 @@ export type Credentials = {
   boardCertifications: BoardCert[];
   fellowship: Fellowship[];
   residency: TrainingRow[];
-  medicalSchool: TrainingRow;
   primarySpecialty: string;
   subspecialties: string[];
   practiceSettings: string[];
   currentlyActive: boolean | null;
   yearsInActivePractice: string;
   languages: string[];
+  /* ── Reviewer eligibility (PRD C §2 gates + §3.2 features) ──────────────
+     Every field below is read exactly once and reduced to a boolean or a
+     licence cross-check. None is stored as a magnitude the model can scale on. */
+  licenseNumber: string;
+  licenseState: string;
+  residencyCompleted: boolean | null;
+  /* Consumed as `post_residency_ge_3yr`, a CAPPED BINARY, and discarded. The
+     Choudhry review found an INVERSE relationship between years in practice and
+     quality of care, and years-in-practice is simultaneously the most direct
+     available proxy for age — so it is a gate, never a continuous scaling term. */
+  residencyCompletionYear: string;
+  /* Threshold input for `currently_practicing` (>= 4 = practising). Someone
+     doing 20 half-days is not "more practising" than someone doing 4. */
+  clinicalHalfDaysPerMonth: string;
+  /* AUDIT H1. `currently_practicing` used to be a hard binary cliff at four
+     half-days a month, worth 0.80 — the third-largest term in the model. Part-time
+     clinical practice is not evenly distributed by sex, caregiving status or
+     disability, and a physician on parental or medical leave scored identically to
+     one who had left medicine, because leave produces the same number: zero.
+
+     These two fields are what let the encoder tell those apart. `practiceStatus`
+     is enumerated rather than inferred from a zero count precisely because "0
+     because I am on leave" and "0 because I stopped in 2019" are the same number
+     and opposite facts. See docs/PRD_C_COUNSEL_MEMO.md §3.1. */
+  practiceStatus: "" | "active" | "on_leave" | "not_practising";
+  halfDaysBeforeLeave: string;
+  continuingCertification: boolean | null;
+  structuredReviewExperience: string[];
 };
+
+/* NOT ON THIS TYPE, DELIBERATELY, AND NOT TO BE RE-ADDED (PRD C §3.3):
+   medical school name or rank · US-MD vs IMG · ECFMG certification as a SCORE
+   input (it satisfies gate A3 as one of several equivalent degrees, and nothing
+   more) · graduation year · date of birth · sex · continuous years in practice ·
+   practice ZIP or region · self-rated expertise.
+
+   `medicalSchool` was on this type and on the form until this release. It
+   satisfied no gate, and both of its fields — institution and year — are on the
+   never-collect list. `backend/asclepius/tiering.py` additionally refuses to read
+   any of these keys, and `test_tiering_score.py` asserts that varying each of
+   them across its plausible range changes the score by exactly 0.0, so a legacy
+   row that still carries one cannot influence a tier. */
+
+/* AUDIT H1: "on leave" is a first-class answer, listed alongside the others rather
+   than hidden behind a zero. A physician should not have to decide whether parental
+   leave means they type 0 and get penalised or type their usual number and misreport. */
+const PRACTICE_STATUS_OPTIONS = [
+  { value: "active", label: "Actively seeing patients" },
+  { value: "on_leave", label: "On leave (parental, medical, caregiving, military, sabbatical)" },
+  { value: "not_practising", label: "Not currently in clinical practice" },
+];
+
+const STRUCTURED_REVIEW_SUGGESTIONS = [
+  "cec_dsmb",
+  "journal_peer_review",
+  "board_item_writing",
+  "guideline_panel",
+  "core_faculty",
+  "program_director",
+];
 
 export type Attestations = {
   consentCredentialShare: boolean;
   attestIndependentJudgment: boolean;
   ipAssignment: boolean;
   noPhi: boolean;
+  /* Hard gates A7 and A6 (PRD C §2). Separate from `attestIndependentJudgment`
+     on purpose: confidentiality and independence are two different promises, and
+     a single combined checkbox cannot be revoked or audited separately. */
+  attestConfidentiality: boolean;
+  attestNoDisciplinaryAction: boolean;
   signedInitials: string;
 };
 
@@ -126,13 +188,21 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     boardCertifications: [{ board: "", specialty: "", subspecialty: "", active: true }],
     fellowship: [{ institution: "", specialty: "", year: "" }],
     residency: [{ institution: "", year: "" }],
-    medicalSchool: { institution: "", year: "" },
     primarySpecialty: "",
     subspecialties: [],
     practiceSettings: [],
     currentlyActive: null,
     yearsInActivePractice: "",
     languages: [],
+    licenseNumber: "",
+    licenseState: "",
+    residencyCompleted: null,
+    residencyCompletionYear: "",
+    clinicalHalfDaysPerMonth: "",
+    practiceStatus: "",
+    halfDaysBeforeLeave: "",
+    continuingCertification: null,
+    structuredReviewExperience: [],
   };
 }
 
@@ -142,6 +212,8 @@ export function emptyAttestations(): Attestations {
     attestIndependentJudgment: false,
     ipAssignment: false,
     noPhi: false,
+    attestConfidentiality: false,
+    attestNoDisciplinaryAction: false,
     signedInitials: "",
   };
 }
@@ -246,14 +318,16 @@ export function Step2Verify({
   onVerify,
   onBack,
   error,
+  eyebrow = "Step 2",
 }: {
   data: OnboardingData;
-  /** POST /api/onboarding/request-otp; resolve `false` on error to stay Idle. */
+  /** POST /api/onboarding/request-otp (or /member/request-otp); resolve `false` on error to stay Idle. */
   onSendCode: () => Promise<boolean>;
-  /** POST /api/onboarding/verify-otp with the 6-digit code; resolve `false` to stay Idle. */
+  /** POST /api/onboarding/verify-otp (or /member/verify-otp) with the 6-digit code; resolve `false` to stay Idle. */
   onVerify: (code: string) => Promise<boolean>;
   onBack: () => void;
   error?: string;
+  eyebrow?: string;
 }) {
   const [sent, setSent] = useState(false);
   const [resendIn, setResendIn] = useState(0);
@@ -285,7 +359,7 @@ export function Step2Verify({
 
   return (
     <OnboardingCard
-      eyebrow="Step 2"
+      eyebrow={eyebrow}
       title="Verify your email."
       lede={
         sent ? (
@@ -392,7 +466,7 @@ export function Step3Org({
 
   return (
     <OnboardingCard
-      eyebrow="Step 4 of 6"
+      eyebrow="Step 3 of 5"
       title="Tell us about your health system."
       lede="This is the workspace your team will sign in to."
     >
@@ -539,7 +613,7 @@ export function Step4YourTeam({
   return (
     <OnboardingCard
       maxWidth={720}
-      eyebrow="Step 5 of 6"
+      eyebrow="Step 4 of 5"
       title="Your TEAM."
       lede="Your surgical pod is exactly 4 people: you (director / surgeon), 1 RN care coordinator, and 2 NP / PAs."
     >
@@ -858,7 +932,7 @@ export function Step5SignIn({
 
   return (
     <OnboardingCard
-      eyebrow="Step 6 of 6"
+      eyebrow="Step 5 of 5"
       title="Sign in to your workspace."
       lede={
         <>
@@ -1142,74 +1216,7 @@ function AddRowButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 
-/* ── Step 3 — Product selection ─────────────────────────────────── */
-
-export function Step3Product({
-  data,
-  onSelect,
-  onBack,
-  error,
-}: {
-  data: OnboardingData;
-  onSelect: (product: Product) => Promise<boolean>;
-  onBack: () => void;
-  error?: string;
-}) {
-  const [choice, setChoice] = useState<Product | "">(data.product || "");
-  return (
-    <OnboardingCard
-      maxWidth={760}
-      eyebrow="Step 3"
-      title="Choose your product."
-      lede="Two products, one account. Pick the one you're signing up for — you can always set up the other later."
-    >
-      <InlineError>{error}</InlineError>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-        <ProductOption
-          title="Archangel"
-          tagline="TEAM clinical platform"
-          description="The HIPAA-compliant surgical care platform — patient roster, discharge education, escalations, and TEAM episode tracking for your pod."
-          badges={["HIPAA-compliant", "Doctor portal", "Care team pods"]}
-          selected={choice === "archangel"}
-          onSelect={() => setChoice("archangel")}
-          icon={
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          }
-        />
-        <ProductOption
-          title="Asclepius"
-          tagline="Expert data training"
-          description="The data-training product — board-certified clinicians review and label AI answers in their specialty to build expert-graded datasets."
-          badges={["Label data", "Earn per task", "No PHI"]}
-          selected={choice === "asclepius"}
-          onSelect={() => setChoice("asclepius")}
-          icon={
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2v4M12 2a4 4 0 0 0-4 4c0 2 1 3 1 5a3 3 0 0 0 6 0c0-2 1-3 1-5a4 4 0 0 0-4-4z" />
-              <path d="M9 17h6M10 21h4" />
-            </svg>
-          }
-        />
-      </div>
-      <PrimaryButton
-        fullWidth
-        disabled={choice === ""}
-        onClick={() => onSelect(choice as Product)}
-        loadingLabel="Setting up…"
-        successLabel="Continue ✓"
-      >
-        Continue
-      </PrimaryButton>
-      <div style={CARD_FOOTER_BACK}>
-        <BackLink onClick={onBack} />
-      </div>
-    </OnboardingCard>
-  );
-}
-
-/* ── Step 4 — Health institution (Asclepius) ────────────────────── */
+/* ── Step 3 — Health institution (Asclepius) ────────────────────── */
 
 export function Step4Institution({
   data,
@@ -1224,39 +1231,26 @@ export function Step4Institution({
   onBack: () => void;
   error?: string;
 }) {
-  const valid =
-    data.orgName.trim().length > 0 &&
-    data.specialty.trim().length > 0 &&
-    data.phone.trim().length > 0;
+  // Everything here is optional now: specialty is captured with your credentials,
+  // and a blank organization name defaults to your own name. You're signing up
+  // as an individual clinician; a practice/workspace name only matters if you
+  // plan to invite colleagues later.
+  const valid = true;
   return (
     <OnboardingCard
-      eyebrow="Step 4 of 7"
-      title="Tell us about your institution."
-      lede="This is the organization your data-training workspace belongs to."
+      eyebrow="Step 3 of 5"
+      title="Name your workspace."
+      lede="You're signing up on your own today. If you'd like colleagues from your practice to join later, give your workspace a name so they land in the same place. If not, skip this."
     >
       <InlineError>{error}</InlineError>
       <TextField
-        label="Organization name"
+        label="Practice or workspace name (optional)"
         placeholder="Northridge Nephrology"
         value={data.orgName}
         onChange={(v) => setData({ orgName: v })}
         autoFocus
         autoComplete="organization"
-      />
-      <TextField
-        label="Specialty"
-        placeholder="Nephrology"
-        value={data.specialty}
-        onChange={(v) => setData({ specialty: v })}
-        hint="The clinical specialty your team will label data in."
-      />
-      <TextField
-        label="Organization / front-office phone"
-        placeholder="(555) 123‑4567"
-        type="tel"
-        value={data.phone}
-        onChange={(v) => setData({ phone: v })}
-        autoComplete="tel"
+        hint="Skip this if you're just signing up for yourself. We'll use your name instead."
       />
       <div
         style={{
@@ -1287,7 +1281,7 @@ export function Step4Institution({
           </svg>
         </div>
         <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5 }}>
-          Your role: <strong style={{ color: "var(--ink)" }}>Director of Data Training</strong> — you can label data and invite your clinical team.
+          You can start reviewing and labeling cases right away. If you want to bring people from your practice on board later, you'll be able to invite them from your dashboard.
         </div>
       </div>
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
@@ -1468,7 +1462,17 @@ export function Step5Credentials({
     c.phone.trim().length >= 7 &&
     c.degree.trim().length > 0 &&
     c.primarySpecialty.trim().length > 0 &&
-    c.currentlyActive !== null;
+    c.currentlyActive !== null &&
+    // Gate A2 needs both halves; gate A4 needs the attestation. Required at the
+    // form rather than surfaced later as an "unresolved gate" in the admin queue,
+    // because a physician can answer these in five seconds and an admin cannot.
+    c.licenseNumber.trim().length > 0 &&
+    c.licenseState.trim().length === 2 &&
+    c.residencyCompleted !== null &&
+    // AUDIT H1: required, because the alternative is inferring it from a blank or a
+    // zero — and inferring "not practising" from the zero a physician on parental
+    // leave types is the exact defect this field exists to close.
+    c.practiceStatus !== "";
 
   return (
     <OnboardingCard
@@ -1507,20 +1511,12 @@ export function Step5Credentials({
         />
       </div>
 
-      <div style={TWO_COL}>
-        <TextField
-          label="Primary specialty"
-          placeholder="Nephrology"
-          value={c.primarySpecialty}
-          onChange={(v) => set({ primarySpecialty: v })}
-        />
-        <TextField
-          label="Years in active practice"
-          placeholder="12"
-          value={c.yearsInActivePractice}
-          onChange={(v) => set({ yearsInActivePractice: v.replace(/\D/g, "").slice(0, 2) })}
-        />
-      </div>
+      <TextField
+        label="Primary specialty"
+        placeholder="Nephrology"
+        value={c.primarySpecialty}
+        onChange={(v) => set({ primarySpecialty: v })}
+      />
 
       {/* ── Contact & corroboration (PRD-B Seam 4) ──────────────────────────
           These are the physician's OWN details. `data.phone` elsewhere in this
@@ -1721,24 +1717,86 @@ export function Step5Credentials({
         onClick={() => set({ residency: [...c.residency, { institution: "", year: "" }] })}
       />
 
-      {/* Medical school */}
-      <SectionHeading title="Medical school" sub="Institution + year." />
+      {/* Medical school is DELIBERATELY NOT COLLECTED — see the `medicalSchool`
+          removal note on the Credentials type. It satisfies no gate, and both the
+          institution and the graduation year are on the never-collect list. */}
+
+      {/* Reviewer eligibility (PRD C §2 gates A2/A4 and §3.2 features).
+          Each field below feeds exactly one gate or one binary feature, and none
+          of them is stored as a magnitude. */}
+      <SectionHeading
+        title="Licence & practice"
+        sub="What we verify. Nothing here is scored by seniority."
+      />
       <div style={TWO_COL}>
         <TextField
-          label="Institution"
-          placeholder="UCLA David Geffen School of Medicine"
-          value={c.medicalSchool.institution}
-          onChange={(v) => set({ medicalSchool: { ...c.medicalSchool, institution: v } })}
+          label="State licence number"
+          placeholder="MD-99881"
+          value={c.licenseNumber}
+          onChange={(v) => set({ licenseNumber: v })}
+          hint="Cross-checked against your NPPES record."
         />
         <TextField
-          label="Year"
-          placeholder="2007"
-          value={c.medicalSchool.year}
-          onChange={(v) =>
-            set({ medicalSchool: { ...c.medicalSchool, year: v.replace(/\D/g, "").slice(0, 4) } })
-          }
+          label="Licence state"
+          placeholder="MA"
+          value={c.licenseState}
+          onChange={(v) => set({ licenseState: v.toUpperCase().slice(0, 2) })}
         />
       </div>
+
+      <YesNoToggle
+        label="Residency complete — not currently in training?"
+        value={c.residencyCompleted}
+        onChange={(v) => set({ residencyCompleted: v })}
+      />
+      <TextField
+        label="Year you completed residency"
+        placeholder="2010"
+        value={c.residencyCompletionYear}
+        onChange={(v) => set({ residencyCompletionYear: v.replace(/\D/g, "").slice(0, 4) })}
+        hint="Used once, as a yes/no: at least three years post-residency. It is never scored as a number of years."
+      />
+
+      <SelectField
+        label="Current practice status"
+        placeholder="Select status"
+        value={c.practiceStatus}
+        onChange={(v) => set({ practiceStatus: v as Credentials["practiceStatus"] })}
+        options={PRACTICE_STATUS_OPTIONS}
+      />
+      {c.practiceStatus === "on_leave" ? (
+        <TextField
+          label="Clinical half-days per month before your leave"
+          optional
+          placeholder="8"
+          value={c.halfDaysBeforeLeave}
+          onChange={(v) => set({ halfDaysBeforeLeave: v.replace(/\D/g, "").slice(0, 3) })}
+          hint="We score your practice as it stood before the leave. Leave is not counted against you, and leaving this blank does not count as zero."
+        />
+      ) : (
+        <TextField
+          label="Clinical half-days per month"
+          optional={c.practiceStatus === "not_practising"}
+          placeholder="8"
+          value={c.clinicalHalfDaysPerMonth}
+          onChange={(v) => set({ clinicalHalfDaysPerMonth: v.replace(/\D/g, "").slice(0, 3) })}
+          hint="Averaged over the last 12 months. Part-time practice counts — this is not a threshold you either clear or fail."
+        />
+      )}
+      <YesNoToggle
+        label="Participating in continuing certification (MOC/CC)?"
+        value={c.continuingCertification}
+        onChange={(v) => set({ continuingCertification: v })}
+      />
+
+      <ChipMultiSelect
+        label="Structured review experience"
+        value={c.structuredReviewExperience}
+        onChange={(v) => set({ structuredReviewExperience: v })}
+        placeholder="Select all that apply"
+        suggestions={STRUCTURED_REVIEW_SUGGESTIONS}
+        hint="Adjudicating against a rubric is the skill this work needs, and it is learned in these rooms."
+      />
 
       {/* Focus areas */}
       <SectionHeading title="Clinical focus" />
@@ -1860,7 +1918,8 @@ export function Step6Attestations({
   const set = (patch: Partial<Attestations>) => setData({ attestations: { ...a, ...patch } });
   const initials = a.signedInitials.trim();
   const allChecked =
-    a.consentCredentialShare && a.attestIndependentJudgment && a.ipAssignment && a.noPhi;
+    a.consentCredentialShare && a.attestIndependentJudgment && a.ipAssignment && a.noPhi &&
+    a.attestConfidentiality && a.attestNoDisciplinaryAction;
   const valid = allChecked && initials.length >= 2;
 
   return (
@@ -1894,7 +1953,26 @@ export function Step6Attestations({
         checked={a.noPhi}
         onToggle={() => set({ noPhi: !a.noPhi })}
         title="No PHI"
-        body="I confirm I will not enter any patient health information (PHI) into Asclepius."
+        body="I confirm I will not enter any patient health information (PHI) into Archangel."
+      />
+      {/* Gate A7. Independence is attested above; confidentiality is its own
+          promise and its own checkbox, because they can be breached separately. */}
+      <CheckRow
+        checked={a.attestConfidentiality}
+        onToggle={() => set({ attestConfidentiality: !a.attestConfidentiality })}
+        title="Confidentiality"
+        body="I will keep the cases, prompts, model outputs and other physicians' work I see confidential, and will not reproduce or republish them."
+      />
+      {/* Gate A6. Declining is a definitive answer, not a blank — which is why
+          this is a checkbox and not an optional field: the gate distinguishes
+          'disclosed an action' from 'never asked'. */}
+      <CheckRow
+        checked={a.attestNoDisciplinaryAction}
+        onToggle={() =>
+          set({ attestNoDisciplinaryAction: !a.attestNoDisciplinaryAction })
+        }
+        title="No active board disciplinary action"
+        body="I attest that I am not currently subject to an active disciplinary action by any state medical board, and that my licence is active and unrestricted."
       />
 
       <div style={{ marginTop: 18 }}>
@@ -2336,9 +2414,8 @@ export function Step8AsclepiusSuccess({
           aria-hidden="true"
         />
         <div style={{ fontSize: 13.5, lineHeight: 1.55, color: "var(--ink-soft)" }}>
-          We just emailed <strong style={{ color: "var(--ink)" }}>{data.email}</strong> your workspace
-          credentials. <strong style={{ color: "var(--ink)" }}>Please star that email</strong> — your
-          email and password live there, and everything you need to contribute data lives in it.
+          You're signed in and ready to go. We also emailed <strong style={{ color: "var(--ink)" }}>{data.email}</strong> your
+          login details so you can sign back in any time.
         </div>
       </div>
 
@@ -2373,11 +2450,11 @@ export function Step8AsclepiusSuccess({
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 28 }}>
-        <Stat label="Organization" value={data.orgName || "—"} />
-        <Stat label="Specialty" value={data.specialty || "—"} />
+        <Stat label="Workspace" value={data.orgName || `${data.firstName} ${data.lastName}`.trim() || "Your workspace"} />
+        <Stat label="Specialty" value={data.credentials.primarySpecialty || "Not set"} />
         <Stat
-          label={memberMode ? "Your role" : "Team"}
-          value={memberMode ? data.roleLabel || "Clinician" : `${data.ascMembers.length + 1}`}
+          label="Your role"
+          value={memberMode ? data.roleLabel || "Clinician" : "Director"}
         />
       </div>
 
@@ -2391,12 +2468,11 @@ export function Step8AsclepiusSuccess({
           marginBottom: 26,
         }}
       >
-        When you open your workspace, sign in with the email and password from that email. Your
-        password is permanent — use it every time.
+        You're already signed in. Your login details are in that email whenever you need them.
       </p>
 
       <PrimaryButton fullWidth onClick={onOpenWorkspace} loadingLabel="Opening…" successLabel="Opening ✓">
-        Open your workspace →
+        Open my dashboard →
       </PrimaryButton>
     </OnboardingCard>
   );

@@ -24,9 +24,14 @@ log = logging.getLogger("community.notify")
 _KIND_LABELS = {
     "mention": "mentioned you",
     "announcement": "posted in #task-announcements",
+    "broadcast": "sent a broadcast (@channel)",
     "dm": "sent you a direct message",
 }
 _SNIPPET_LEN = 140
+
+# Mirrors community.router.BROADCAST_MENTION — a sentinel mention that expands
+# to every member at notify time (the @channel broadcast).
+_BROADCAST_MENTION = "*channel*"
 
 
 def digest_interval_sec() -> int:
@@ -48,7 +53,16 @@ def queue_for_message(
     member. Never the author; each user at most once per message."""
     author = message["author_user_id"]
     queued: set = set()
-    for uid in message.get("mentions") or []:
+    mentions = list(message.get("mentions") or [])
+    # @channel broadcast: the sentinel fans out to every member (once each).
+    if _BROADCAST_MENTION in mentions:
+        for uid in member_ids:
+            if uid != author and uid not in queued:
+                cstore.enqueue_notification(user_id=uid, kind="broadcast", message_id=message["id"])
+                queued.add(uid)
+    for uid in mentions:
+        if uid == _BROADCAST_MENTION:
+            continue
         if uid != author and uid in member_ids and uid not in queued:
             cstore.enqueue_notification(user_id=uid, kind="mention", message_id=message["id"])
             queued.add(uid)

@@ -189,7 +189,7 @@ def test_bare_json_accepted_via_magic_link():
     Regression for A1 (the door used to reject a non-zip)."""
     admin = A.headers_for(A.make_user(_store(), role="admin"))
     link = client.post("/api/asclepius/admin/upload-links",
-                       json={"partner_id": "mercy", "specialty": "nephrology",
+                       json={"partner_id": "mercy", "purpose": "task_creation", "specialty": "nephrology",
                              "expires_hours": 24, "one_time": True},
                        headers=admin).json()
     r = client.post(f"/api/asclepius/partner/uploads?t={link['token']}",
