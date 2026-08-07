@@ -6486,10 +6486,41 @@ async def intraop_form_page(patient_id: str):
 
 
 # ─── Static Files ─────────────────────────────────────────────
+class _RevalidatingStatic(StaticFiles):
+    """StaticFiles that tells the browser to check before reusing a file.
+
+    Starlette sends ETag and Last-Modified but no Cache-Control. With neither
+    Cache-Control nor Expires, a browser falls back to HEURISTIC freshness
+    (RFC 9111 §4.2.2) — commonly a tenth of the file's age — and during that
+    window it serves from cache WITHOUT revalidating. So a shipped CSS or JS
+    change is simply invisible to anyone who loaded the page before it, with no
+    error and nothing in the logs. That has already cost us one "the fix didn't
+    work" round trip on a header change that was in fact live.
+
+    This app has no build step, so there are no content-hashed filenames to
+    cache forever. The correct trade is the other one: markup and code always
+    revalidate, which costs a conditional request that answers 304 with an empty
+    body, while fonts and images — which are large, and which change only when
+    their filename does — keep a long cache.
+    """
+
+    REVALIDATE = (".html", ".css", ".js", ".mjs", ".json", ".map")
+
+    def file_response(self, full_path, stat_result, scope, status_code=200):
+        resp = super().file_response(full_path, stat_result, scope, status_code)
+        if str(full_path).lower().endswith(self.REVALIDATE):
+            # no-cache does NOT mean "do not store" — it means "revalidate before
+            # reuse". The ETag above still turns the usual case into a 304.
+            resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        else:
+            resp.headers["Cache-Control"] = "public, max-age=604800"
+        return resp
+
+
 try:
     app.mount(
         "/static",
-        StaticFiles(directory=os.path.join(os.path.dirname(__file__), "../frontend")),
+        _RevalidatingStatic(directory=os.path.join(os.path.dirname(__file__), "../frontend")),
         name="static",
     )
 except Exception:

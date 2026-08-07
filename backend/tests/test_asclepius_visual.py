@@ -575,3 +575,69 @@ def test_popover_scrim_actually_dims_what_is_behind_it(page):
     page.wait_for_timeout(250)                       # let the fade-in settle
     after = page.screenshot(clip={"x": 0, "y": 0, "width": 400, "height": 50})
     assert before != after, "the scrim does not visibly dim the header behind it"
+
+
+def test_the_header_is_full_bleed_not_a_centred_island(page):
+    """The header is the app FRAME, not page content.
+
+    It carried ``max-width: 1180px; margin: 0 auto``, so past 1180px the bar
+    stopped growing and the brand drifted inward while ``.asc-main`` below it
+    stayed pinned to the rail — two competing alignments in one view, and the
+    wider the display the worse it read. Under 1180px the cap does not bind,
+    which is why it only ever looked wrong on the machine it was demoed on.
+
+    Geometry is the paint here, so this measures rather than reads the rule: the
+    brand must sit at the left edge and the account controls at the right edge,
+    separated from it by the header's own padding and nothing else.
+
+    The second half is the mutation check this file requires. It re-applies the
+    historical cap and asserts the SAME measurement then fails — without it a
+    refactor could make the numbers unreachable and leave a green test that
+    proves nothing.
+    """
+    # Wider than the old cap, or the defect cannot express itself at all.
+    page.set_viewport_size({"width": 1900, "height": 900})
+    page.wait_for_timeout(50)
+
+    # Measured from the WINDOW, not from .asc-header-inner. The cap moves that
+    # container bodily and leaves its padding untouched, so a gap measured
+    # against it reads 24px either way and the test would be vacuous — which is
+    # precisely what the mutation check below caught on the first attempt.
+    probe = """() => {
+      const inner = document.querySelector('.asc-header-inner');
+      const logo = document.querySelector('.asc-logo');
+      const right = document.querySelector('.asc-header-right');
+      const pad = parseFloat(getComputedStyle(inner).paddingLeft);
+      const ib = inner.getBoundingClientRect();
+      return { leftGap: logo.getBoundingClientRect().left,
+               rightGap: window.innerWidth - right.getBoundingClientRect().right,
+               innerWidth: ib.width, viewport: window.innerWidth, pad };
+    }"""
+    m = page.evaluate(probe)
+
+    assert m["innerWidth"] == m["viewport"], (
+        f"the header spans {m['innerWidth']}px of a {m['viewport']}px viewport — "
+        "it is capped, so it paints as an island floating over left-aligned content"
+    )
+    # The only thing between the brand and the window edge is the header's padding.
+    assert m["leftGap"] == pytest.approx(m["pad"], abs=1), (
+        f"the brand sits {m['leftGap']}px from the left edge, not the {m['pad']}px "
+        "of header padding — something is indenting it"
+    )
+    assert m["rightGap"] == pytest.approx(m["pad"], abs=1), (
+        f"the account controls sit {m['rightGap']}px from the right edge, not the "
+        f"{m['pad']}px of header padding"
+    )
+
+    # ── mutation check: the assertions above must be able to fail ──────────────
+    page.add_style_tag(content=".asc-header-inner { max-width: 1180px; margin: 0 auto; }")
+    page.wait_for_timeout(50)
+    capped = page.evaluate(probe)
+    assert capped["innerWidth"] < capped["viewport"], (
+        "re-applying the historical cap changed nothing — this test cannot see "
+        "the defect it exists to catch"
+    )
+    assert capped["leftGap"] > m["pad"] + 1, (
+        "the brand did not drift inward under the historical cap — the left-edge "
+        "assertion above is vacuous"
+    )
