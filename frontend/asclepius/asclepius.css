@@ -130,6 +130,9 @@
   gap: 18px;
 }
 .asc-wrap-narrow { max-width: 880px; }
+/* Stages 1–2: the case is the object of judgment, so it gets the full grid
+   width the split view spends on two columns — not 38% of it. */
+.asc-wrap-case { max-width: 1320px; }
 
 /* ─── Split-screen (V3/V4): case rail pinned beside the staged workflow ─────
    The case never scrolls away: a persistent left rail scrolls on its own next
@@ -153,6 +156,17 @@
   flex-direction: column;
   gap: 14px;
   padding-right: 4px;
+}
+/* Arriving at stage 3 relocates the case from centre to left. Ten pixels, not
+   forty: it should read as the case taking its seat, not sliding across the
+   room. */
+.asc-case-cols > .asc-case-rail { animation: ascCaseIn 220ms cubic-bezier(.4,0,.2,1) both; }
+@keyframes ascCaseIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asc-case-cols > .asc-case-rail { animation: none; }
 }
 .asc-work-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .asc-rail-head {

@@ -2863,7 +2863,28 @@
       return;
     }
 
-    // ── V3/V4: split-screen: the case stays pinned beside the workflow ──────
+    // ── V3/V4 stages 1–2: the case IS the thing being judged ────────────────
+    // The case is the object of judgment in stages 1–2 and a reference in stage
+    // 3+. Placement follows that, not the other way round: a physician asked "is
+    // this case valid?" should not be reading it in a 38% sidebar.
+    const CENTRE_STAGE_CASE = d.stage === 'prompt_review' || d.stage === 'independent_answer';
+    if (CENTRE_STAGE_CASE) {
+      // No collapse control on these two stages, deliberately. A "hide the case"
+      // button on the screen that asks *is this case clinically valid* invites
+      // answering without reading, and that gate feeds everything downstream.
+      const wrap = h('div', { class: 'asc-wrap asc-wrap-case' },
+        renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
+      wrap.appendChild(stageHeader(d.stage === 'prompt_review' ? 'Review the prompt' : 'Write your answer'));
+      wrap.appendChild(d.stage === 'prompt_review' ? renderPromptGate() : renderIndependentAnswer());
+      wrap.appendChild(blurredPlaceholder(d.stage === 'prompt_review'
+        ? 'The AI answers stay hidden until you confirm the prompt is clinically valid.'
+        : 'Write your ideal answer first, then reveal the AI answers to compare.'));
+      setRoot(wrap);
+      updateHeaderProgress();
+      return;
+    }
+
+    // ── V3/V4 stage 3+: split-screen: the case stays pinned beside the workflow ──
     // Left rail = clinical question + structured case (its own scroll), right
     // column = the step-by-step staged flow. The rail collapses to a wide single
     // column, and on narrow screens it stacks behind the slim sticky case bar.
@@ -2873,7 +2894,13 @@
       state._caseRailCollapsed = !state._caseRailCollapsed;
       grid.classList.toggle('is-collapsed', state._caseRailCollapsed);
     };
+    // The case just changed jobs — from the thing being judged to the reference
+    // the judgment is made against. Say so once, on first arrival at this stage,
+    // so the relocation reads as "my job changed", not "the page broke".
+    const firstCaseRefEntry = state._caseRefNoteTask !== d.task_id;
+    if (firstCaseRefEntry) state._caseRefNoteTask = d.task_id;
     const caseRail = h('aside', { class: 'asc-case-rail' },
+      firstCaseRefEntry ? h('div', { class: 'asc-rail-title' }, 'CASE · now a reference') : null,
       h('div', { class: 'asc-rail-head' },
         h('span', { class: 'asc-rail-title' }, 'Case'),
         h('button', {
