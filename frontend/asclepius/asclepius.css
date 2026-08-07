@@ -2481,12 +2481,14 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
 /* ─── Compact: the rail collapsed to icons, by choice and across sessions ───
    --asc-rail-w is the single source of truth, so the main padding and the case
    handle's `left` follow for free. Nothing here hardcodes 68px twice. */
+/* The handle is deliberately NOT in this group. It already transitions `left`
+   in its own rule, and since both selectors are (0,1,0) the later one would win
+   outright — taking the handle's background and colour eases with it, so its
+   hover would snap. It follows the rail width from its own transition list. */
 .asc-rail,
-body.asc-has-rail .asc-main,
-.asc-case-handle {
+body.asc-has-rail .asc-main {
   transition: width .18s cubic-bezier(.4,0,.2,1),
-              padding-left .18s cubic-bezier(.4,0,.2,1),
-              left .18s cubic-bezier(.4,0,.2,1);
+              padding-left .18s cubic-bezier(.4,0,.2,1);
 }
 /* Scoped above the mobile breakpoint: below it the rail is a bottom tab bar,
    where "collapse the left rail" has no meaning and the control has no place. */
@@ -2557,8 +2559,13 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   font-family: var(--mono); font-size: 9px; padding: 1px 4px;
   border: 1px solid var(--hairline); border-radius: 3px; color: var(--ink-faint);
 }
+/* Collapsing and entering focus are both motion, so both answer to the same
+   preference the case animation already honours. */
 @media (prefers-reduced-motion: reduce) {
   body.asc-focus .asc-rail { transition: none; }
+  .asc-rail,
+  body.asc-has-rail .asc-main,
+  .asc-case-handle { transition: none; }
 }
 
 /* ─── Rail: icon-collapsed (700–1100px) ────────────────────────────────── */
