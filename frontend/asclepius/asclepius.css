@@ -130,6 +130,9 @@
   gap: 18px;
 }
 .asc-wrap-narrow { max-width: 880px; }
+/* Stages 1–2: the case is the object of judgment, so it gets the full grid
+   width the split view spends on two columns — not 38% of it. */
+.asc-wrap-case { max-width: 1320px; }
 
 /* ─── Split-screen (V3/V4): case rail pinned beside the staged workflow ─────
    The case never scrolls away: a persistent left rail scrolls on its own next
@@ -154,6 +157,17 @@
   gap: 14px;
   padding-right: 4px;
 }
+/* Arriving at stage 3 relocates the case from centre to left. Ten pixels, not
+   forty: it should read as the case taking its seat, not sliding across the
+   room. */
+.asc-case-cols > .asc-case-rail { animation: ascCaseIn 220ms cubic-bezier(.4,0,.2,1) both; }
+@keyframes ascCaseIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asc-case-cols > .asc-case-rail { animation: none; }
+}
 .asc-work-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .asc-rail-head {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -162,22 +176,60 @@
   font-family: var(--mono); font-size: var(--t-chrome); letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--ink-faint);
 }
-/* Collapsed: hide the rail, reveal the "Show case" button, widen the workflow.
-   Scoped under .asc-case-cols so the hide beats the equal-specificity .asc-btn
-   display rule that the button also carries. */
-.asc-case-cols .asc-rail-show { display: none; align-self: flex-start; }
+/* Collapsed: hide the rail, widen the workflow. The way back is the left-edge
+   drawer handle below, which is fixed and therefore still there at step 6. */
 .asc-case-cols.is-collapsed { grid-template-columns: 1fr; max-width: 1180px; }
 .asc-case-cols.is-collapsed .asc-case-rail { display: none; }
-.asc-case-cols.is-collapsed .asc-rail-show { display: inline-flex; }
 /* The sticky one-line case bar is the NARROW-screen fallback only; on wide
    screens the always-visible rail replaces it. */
 .asc-case-cols .asc-case-sticky { display: none; }
 @media (max-width: 900px) {
   .asc-case-cols { grid-template-columns: 1fr; max-width: 880px; }
   .asc-case-cols .asc-case-rail { display: none; }
-  .asc-case-cols .asc-rail-show,
-  .asc-case-cols.is-collapsed .asc-rail-show { display: none; }
   .asc-case-cols .asc-case-sticky { display: flex; }
+  /* The handle points at a gutter that does not exist once the grid stacks. */
+  .asc-case-handle { display: none !important; }
+}
+
+/* ─── The case drawer handle ────────────────────────────────────────────────
+   A vertical tab in the gutter the collapsed grid frees. It costs no vertical
+   space, never covers content, and the panel opens from exactly where it sits,
+   so the affordance is learned once without a tooltip. */
+.asc-case-handle {
+  position: fixed;
+  left: calc(var(--asc-rail-w) + 8px);      /* rides the nav rail at any chrome level */
+  top: 50%; transform: translateY(-50%);
+  z-index: 60;                              /* under the header (100), over content */
+  display: none;                            /* only when the case panel is closed */
+  flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 7px;
+  border: 1px solid var(--hairline-strong); border-left: 0;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--card); box-shadow: var(--shadow-float);
+  color: var(--ink-soft); cursor: pointer;
+  transition: background .16s cubic-bezier(.4,0,.2,1),
+              color .16s cubic-bezier(.4,0,.2,1),
+              left .18s cubic-bezier(.4,0,.2,1);
+}
+.asc-case-handle:hover { background: var(--card-in); color: var(--ink); }
+.asc-case-handle-ico { display: block; }
+.asc-case-handle-ico svg { width: 20px; height: 20px; display: block; }
+.asc-case-handle-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+  writing-mode: vertical-rl; transform: rotate(180deg);
+}
+.asc-case-cols.is-collapsed ~ .asc-case-handle { display: flex; }
+/* The mirrored twin: it lives ON the open rail's right edge and pushes the
+   panel back to where the other one pulls it from. Sticky to the rail's own
+   scrollport so it never scrolls out of reach either. */
+.asc-case-handle.is-close {
+  position: sticky; top: 0; left: auto; z-index: 1;
+  align-self: flex-end;
+  margin-right: -4px;        /* cancel the rail's padding so it meets the edge */
+  display: flex;
+  border: 1px solid var(--hairline-strong); border-right: 0;
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+  transform: none;
 }
 .asc-loading-screen {
   display: flex;
@@ -1976,12 +2028,19 @@ body.asc-sheet-open { overflow: hidden; }
 
 /* ─── §12 error-tag popover ────────────────────────────────────────────── */
 .asc-errtag-wrap { position: relative; }
+/* Portaled to <body>: fixed, so no ancestor's overflow can clip it. z-index
+   alone never fixed this — stacking order and clipping are unrelated. */
 .asc-tag-pop {
-  position: absolute; z-index: 70; width: 320px; max-width: 92vw;
+  position: fixed; z-index: 120; width: 320px; max-width: calc(100vw - 20px);
+  max-height: min(72vh, 560px); overflow: auto;
   background: var(--card); border: 1px solid var(--hairline-strong);
   border-radius: var(--r-sm); box-shadow: var(--shadow-float);
   padding: 12px 14px;
 }
+/* Flipped = placed above the chip because below would have clipped. It grows
+   from the edge nearest its anchor, so the origin follows the flip. */
+.asc-tag-pop { transform-origin: top left; }
+.asc-tag-pop.is-flipped { transform-origin: bottom left; }
 .asc-tag-pop-title {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   font-weight: 600; font-size: 13.5px; color: var(--asc-text);
@@ -1996,9 +2055,12 @@ body.asc-sheet-open { overflow: hidden; }
 .asc-tag-pop-x:hover { background: var(--card-in); color: var(--asc-text); }
 .asc-tag-pop-field { margin-bottom: 10px; }
 .asc-tag-pop-field .asc-label { margin-bottom: 5px; }
+/* Done is how the popover closes, so the footer never scrolls out of reach. */
 .asc-tag-pop-foot {
+  position: sticky; bottom: -12px; background: var(--card);
   display: flex; align-items: center; justify-content: space-between;
-  margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--asc-line);
+  margin: 4px -14px -12px; padding: 8px 14px 12px;
+  border-top: 1px solid var(--asc-line);
 }
 
 /* ─── §11 prominent add-citation ───────────────────────────────────────── */
@@ -2396,8 +2458,115 @@ body.asc-sheet-open { overflow: hidden; }
 }
 .asc-rail-signout:hover { background: var(--card-in); color: var(--ink); }
 
+/* The collapse control. The chevron ROTATES rather than swaps: a glyph that
+   changes identity reads as a different button; a glyph that turns reads as the
+   same button in a different state. */
+.asc-rail-collapse {
+  margin-top: auto;                    /* pins to the bottom of the flex rail */
+  align-self: stretch;
+  display: flex; align-items: center; justify-content: center;
+  height: 34px;
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  background: transparent; color: var(--ink-faint); cursor: pointer;
+  transition: background .16s cubic-bezier(.4,0,.2,1), color .16s cubic-bezier(.4,0,.2,1);
+}
+.asc-rail-collapse:hover { background: var(--card-in); color: var(--ink); }
+.asc-rail-collapse-ico { display: block; transition: transform .18s cubic-bezier(.4,0,.2,1); }
+.asc-rail-collapse-ico svg { width: 20px; height: 20px; display: block; }
+body.asc-rail-compact .asc-rail-collapse-ico { transform: rotate(180deg); }
+
 /* Shift the main content clear of the rail. */
 body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
+
+/* ─── Compact: the rail collapsed to icons, by choice and across sessions ───
+   --asc-rail-w is the single source of truth, so the main padding and the case
+   handle's `left` follow for free. Nothing here hardcodes 68px twice. */
+/* The handle is deliberately NOT in this group. It already transitions `left`
+   in its own rule, and since both selectors are (0,1,0) the later one would win
+   outright — taking the handle's background and colour eases with it, so its
+   hover would snap. It follows the rail width from its own transition list. */
+.asc-rail,
+body.asc-has-rail .asc-main {
+  transition: width .18s cubic-bezier(.4,0,.2,1),
+              padding-left .18s cubic-bezier(.4,0,.2,1);
+}
+/* Scoped above the mobile breakpoint: below it the rail is a bottom tab bar,
+   where "collapse the left rail" has no meaning and the control has no place. */
+@media (min-width: 701px) {
+  body.asc-rail-compact { --asc-rail-w: 68px; }
+  body.asc-rail-compact .asc-rail { padding: var(--sp-4) 10px; align-items: center; }
+  body.asc-rail-compact .asc-rail-item { justify-content: center; gap: 0; padding: 9px 0; }
+  body.asc-rail-compact .asc-rail-label { display: none; }
+  body.asc-rail-compact .asc-rail-item.active::before { top: 18%; bottom: 18%; }
+  body.asc-rail-compact .asc-rail-foot { display: none; }   /* sign out remains in the header */
+  /* Collapsing to icons is only safe if the icons still carry what the labels
+     did. A count with no label is noise; a dot still says something happened. */
+  body.asc-rail-compact .asc-rail-badge {
+    position: absolute; top: 4px; right: 4px;
+    margin: 0; padding: 0; gap: 0; background: none; border: none;
+  }
+  body.asc-rail-compact .asc-rail-badge-n { display: none; }
+}
+@media (max-width: 700px) { .asc-rail-collapse { display: none; } }
+
+/* ─── Focus: zero chrome, with four ways out ────────────────────────────────
+   The rail leaves the flow entirely rather than shrinking, and the case panel
+   takes the room — that is the point of the mode. Focus is a body class only:
+   nothing here is persisted, so a reload always returns to a known state. */
+body.asc-focus .asc-rail {
+  transform: translateX(-100%);
+  transition: transform .2s cubic-bezier(.4,0,.2,1);
+}
+/* The peek floats the rail OVER the case instead of pushing it, so a physician
+   reading a lab trend does not lose their place to check a nav badge. */
+body.asc-focus.asc-rail-peek .asc-rail { transform: none; box-shadow: var(--shadow-float); }
+body.asc-focus .asc-main { padding-left: var(--sp-4) !important; }  /* rail is out of flow */
+body.asc-focus .asc-case-handle { left: var(--sp-2); }              /* rail is gone; hug the edge */
+/* §4.5: the case widens — but the step progress indicator is thinned, never
+   deleted. "Which step am I on" must stay answerable at any chrome level.
+   Scoped twice on purpose. `body.asc-focus .asc-case-cols` out-specifies both
+   `.asc-case-cols.is-collapsed` (0,2,0) and the ≤900px stacking rule (0,1,0),
+   so an unscoped version would hold a two-column template open with an empty
+   gutter after the case is hidden, and force a 420px column onto a narrow
+   window. Focus widens the case; it does not outrank hiding it. */
+@media (min-width: 901px) {
+  body.asc-focus .asc-case-cols:not(.is-collapsed) { grid-template-columns: minmax(420px, 44%) 1fr; }
+}
+body.asc-focus .asc-header-inner { padding: var(--sp-1) var(--sp-5); }
+body.asc-focus .asc-logo-text { display: none; }
+
+/* Exit 1, the primary. Never fades out, never auto-hides on a timer: an exit
+   that disappears is not an exit. The Esc hint rides inline so the chip teaches
+   the keyboard route the first time it is seen. */
+.asc-focus-chip {
+  position: fixed; top: 10px; left: 10px; z-index: 130;   /* above everything */
+  display: none;                                          /* only in focus mode */
+  align-items: center; gap: 7px;
+  padding: 5px 9px 5px 7px;
+  border: 1px solid var(--hairline-strong); border-radius: var(--r-chip);
+  background: var(--card); box-shadow: var(--shadow-float);
+  color: var(--ink-soft); cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  opacity: .55;
+  transition: opacity .18s cubic-bezier(.4,0,.2,1), background .16s cubic-bezier(.4,0,.2,1);
+}
+body.asc-focus .asc-focus-chip { display: inline-flex; }
+.asc-focus-chip:hover, .asc-focus-chip:focus-visible { opacity: 1; background: var(--card-in); }
+.asc-focus-chip-ico { display: block; }
+.asc-focus-chip-ico svg { width: 14px; height: 14px; display: block; }
+.asc-focus-chip-label { display: block; }
+.asc-focus-chip-kbd {
+  font-family: var(--mono); font-size: 9px; padding: 1px 4px;
+  border: 1px solid var(--hairline); border-radius: 3px; color: var(--ink-faint);
+}
+/* Collapsing and entering focus are both motion, so both answer to the same
+   preference the case animation already honours. */
+@media (prefers-reduced-motion: reduce) {
+  body.asc-focus .asc-rail { transition: none; }
+  .asc-rail,
+  body.asc-has-rail .asc-main,
+  .asc-case-handle { transition: none; }
+}
 
 /* ─── Rail: icon-collapsed (700–1100px) ────────────────────────────────── */
 @media (max-width: 1100px) and (min-width: 701px) {
@@ -2683,7 +2852,10 @@ body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
 /* ─── Print: a clean, single-column manual (scoped to the Guide only, so
        printing an eval/admin view keeps its normal chrome) ────────────────── */
 @media print {
-  .asc-rail, .asc-toast-region { display: none !important; }
+  /* Chrome does not print. The handle and the focus chip are position:fixed,
+     which is exactly why they need naming here alongside the rail. */
+  .asc-rail, .asc-toast-region,
+  .asc-case-handle, .asc-focus-chip { display: none !important; }
   body.asc-view-guide .asc-header,
   body.asc-view-guide .asc-guide-toc,
   body.asc-view-guide .asc-guide-toc-select { display: none !important; }

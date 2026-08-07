@@ -113,7 +113,10 @@
   const $ = (sel, root) => (root || document).querySelector(sel);
   const root = () => document.getElementById('ascRoot');
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
-  function setRoot(node) { const r = root(); clear(r); r.appendChild(node); }
+  // The tag popover is portaled to <body>, so clearing #ascRoot no longer takes
+  // it with it. Every re-render goes through here; close it on the way past or
+  // it outlives the chip it belongs to.
+  function setRoot(node) { closeTagPopover(); const r = root(); clear(r); r.appendChild(node); }
 
   // ─── Fetch helper (injects Bearer, parses JSON, handles 401) ────────────────
   async function api(path, opts) {
@@ -309,6 +312,41 @@
     earnings: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3.2v13.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.9 6.3a2.6 2.6 0 00-2.4-1.3h-.8a2.35 2.35 0 000 4.7h.6a2.35 2.35 0 010 4.7h-.8a2.6 2.6 0 01-2.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
 
+  // Chrome affordances that are not nav destinations. Same 20×20 stroke grid,
+  // same currentColor rule, kept apart from RAIL_ICONS because these belong to
+  // the layout controls rather than to a section.
+  const CHROME_ICONS = {
+    // A case folder: what the handle opens.
+    case: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.8 6.2A1.4 1.4 0 014.2 4.8h3.1l1.4 1.7h7.1a1.4 1.4 0 011.4 1.4v6.3a1.4 1.4 0 01-1.4 1.4H4.2a1.4 1.4 0 01-1.4-1.4V6.2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+    // Double chevron pointing left = collapse. It ROTATES rather than swaps: a
+    // glyph that changes identity reads as a different button, a glyph that
+    // turns reads as the same button in a different state.
+    chevrons: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M9.6 5.6L5.2 10l4.4 4.4M15.2 5.6L10.8 10l4.4 4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    // Arrows pulling back into a box = leave the expanded state.
+    collapse: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11.4 8.6h4M11.4 8.6v-4M11.4 8.6L16 4M8.6 11.4h-4M8.6 11.4v4M8.6 11.4L4 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  };
+
+  // A layer that owns the screen owns the keyboard with it. Without this, `f`
+  // pressed inside the specialty picker toggles focus mode behind the modal,
+  // and one Escape fires two handlers — mine and the layer's own — so the
+  // physician loses focus mode AND the dialog they were actually dismissing.
+  function modalLayerOpen() {
+    return !!(state._tagPop
+      || document.body.classList.contains('asc-sheet-open')
+      || document.querySelector('.call-team-overlay.is-open')
+      || tutorialActive());
+  }
+
+  // A keyboard shortcut must never fire inside a field. Steps 2 and 4 are full
+  // of textareas: a physician typing "the patient is afebrile" is not asking for
+  // focus mode on the f.
+  function isTypingTarget(el) {
+    if (!el || !el.tagName) return false;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+    return !!(el.closest && el.closest('[contenteditable]'));
+  }
+
   const RAIL_ITEMS = [
     { dest: 'tasks',     label: 'Tasks' },
     // PRD-R: without this entry the review console has no route from the portal
@@ -372,9 +410,111 @@
     return state.panel === 'tasks' && dest === 'tasks';
   }
 
+  // ─── Compact: the rail collapsed to icons ───────────────────────────────────
+  // Compact is the default answer to "let the case fill the screen": it reclaims
+  // 152px and still keeps the active-section indicator, the Community unread
+  // signal, and a visible way back. It PERSISTS across sessions, unlike Focus —
+  // a physician who collapses the rail meant it and will recognise the icon rail
+  // next week. That asymmetry is the whole safety design.
+  const RAIL_KEY = 'asc_rail_compact';
+  function railCompact() {
+    try { return localStorage.getItem(RAIL_KEY) === '1'; } catch (_) { return false; }
+  }
+  function railCollapseTitle() {
+    return railCompact() ? 'Expand navigation  ( [ )' : 'Collapse navigation  ( [ )';
+  }
+  function applyRailState() {
+    document.body.classList.toggle('asc-rail-compact', railCompact());
+  }
+  function toggleRailCompact() {
+    try { localStorage.setItem(RAIL_KEY, railCompact() ? '0' : '1'); } catch (_) { /* ignore quota */ }
+    applyRailState();
+    // Re-title in place; a full re-render would lose the rail's scroll position.
+    const b = document.querySelector('.asc-rail-collapse');
+    if (b) {
+      b.setAttribute('aria-expanded', String(!railCompact()));
+      b.title = railCollapseTitle();
+      b.setAttribute('aria-label', railCollapseTitle());
+    }
+  }
+
+  // ─── Focus: zero chrome, with four ways out ─────────────────────────────────
+  // Focus removes the rail entirely. It is the state that can trap someone, so
+  // its exits are specified before its entry: the persistent chip below, Esc, F,
+  // and the edge peek. Four independent ways out, because any single mechanism
+  // can fail a user — a chip can be overlooked, a key can be unknown, a hover
+  // can be undiscovered. Together they are safe.
+  //
+  // Focus is SESSION-SCOPED and never persisted: a body class plus one
+  // sessionStorage flag for the one-time toast. A new tab starts in whatever
+  // Compact state the physician chose and never in Focus, which means reloading
+  // always returns them to a known state. That is the single most important
+  // property in this section.
+  function focusOn() { return document.body.classList.contains('asc-focus'); }
+  function enterFocus() {
+    document.body.classList.add('asc-focus');
+    let seen = true;
+    try { seen = sessionStorage.getItem('asc_focus_seen') === '1'; } catch (_) { seen = true; }
+    if (!seen) {
+      try { sessionStorage.setItem('asc_focus_seen', '1'); } catch (_) { /* ignore quota */ }
+      // The one moment you have their attention on how to leave, for 3.2s.
+      toast('Focus mode. Press Esc to exit.');
+    }
+    syncChromeMetrics();   // the header just thinned; the rail is pinned to it
+  }
+  function exitFocus() {
+    document.body.classList.remove('asc-focus', 'asc-rail-peek');
+    syncChromeMetrics();
+  }
+
+  // Exit 1, the primary: a chip where the rail used to be. 55% opacity at rest
+  // and 100% on hover — quiet enough not to compete with the case, present
+  // enough that the eye finds it when it goes looking. It never fades out and
+  // never auto-hides on a timer, because an exit that disappears is not an exit.
+  // It carries the Esc hint inline, which is what makes the keyboard routes
+  // discoverable rather than trivia.
+  function renderFocusChip() {
+    return h('button', {
+      class: 'asc-focus-chip', type: 'button',
+      'aria-label': 'Exit focus mode',
+      title: 'Exit focus mode  ( Esc )',
+      onClick: exitFocus,
+    },
+      h('span', { class: 'asc-focus-chip-ico', html: CHROME_ICONS.collapse, 'aria-hidden': 'true' }),
+      h('span', { class: 'asc-focus-chip-label' }, 'FOCUS'),
+      h('kbd', { class: 'asc-focus-chip-kbd' }, 'esc'));
+  }
+
+  // Exit 4, the accident-recovery path: hovering the extreme left edge slides
+  // the rail back as an OVERLAY. It does not reflow the page, so a physician
+  // reading a lab trend does not lose their place to check a nav badge. 250ms,
+  // not instant: an instant trigger fires every time the cursor crosses the
+  // screen and the rail flaps, while a quarter-second reads as intent.
+  function armEdgePeek() {
+    let t = null;
+    document.addEventListener('mousemove', (e) => {
+      if (!focusOn()) return;
+      if (e.clientX <= 12 && !t) {
+        // Re-check on fire: leaving focus mid-wait must not land a peek class
+        // on a body that is no longer in focus.
+        t = setTimeout(() => { if (focusOn()) document.body.classList.add('asc-rail-peek'); t = null; }, 250);
+      } else if (e.clientX > 12 && t) { clearTimeout(t); t = null; }
+    }, { passive: true });
+    document.addEventListener('mouseover', (e) => {
+      if (document.body.classList.contains('asc-rail-peek')
+          && e.target.closest && !e.target.closest('.asc-rail') && !e.target.closest('.asc-focus-chip')) {
+        document.body.classList.remove('asc-rail-peek');
+      }
+    }, { passive: true });
+  }
+
   function renderSidePanel() {
     if (!state.user) { teardownSidePanel(); return; }
     document.body.classList.add('asc-has-rail');
+    applyRailState();
+    // The chip lives outside #ascRoot, next to the rail, so per-view re-renders
+    // never wipe the only always-visible way out of Focus.
+    if (!document.querySelector('.asc-focus-chip')) document.body.appendChild(renderFocusChip());
     // Mark the guide view so the print stylesheet can scope its aggressive
     // header/padding overrides to the manual only (never to eval/admin prints).
     document.body.classList.toggle('asc-view-guide', state.panel === 'guide');
@@ -431,7 +571,20 @@
           : null),
       h('button', { type: 'button', class: 'asc-rail-signout', onClick: logout }, 'Sign out'));
 
+    // The bottom edge of the rail is the one place that is neither a destination
+    // nor an identity: top-of-rail competes with the wordmark, inline-with-nav
+    // competes with the sections. margin-top:auto pins it above the user block.
+    const collapseBtn = h('button', {
+      class: 'asc-rail-collapse', type: 'button',
+      'aria-expanded': String(!railCompact()),
+      'aria-controls': 'ascRail',
+      'aria-label': railCollapseTitle(),
+      title: railCollapseTitle(),
+      onClick: toggleRailCompact,
+    }, h('span', { class: 'asc-rail-collapse-ico', html: CHROME_ICONS.chevrons, 'aria-hidden': 'true' }));
+
     rail.appendChild(nav);
+    rail.appendChild(collapseBtn);
     rail.appendChild(foot);
   }
 
@@ -439,6 +592,11 @@
     if (guideObserver) { guideObserver.disconnect(); guideObserver = null; }
     const rail = document.getElementById('ascRail');
     if (rail) rail.remove();
+    const chip = document.querySelector('.asc-focus-chip');
+    if (chip) chip.remove();
+    // Signing out must never leave a login screen wearing Focus, whose only
+    // exits were the chrome that just went away.
+    exitFocus();
     document.body.classList.remove('asc-has-rail', 'asc-view-guide');
   }
 
@@ -2860,7 +3018,28 @@
       return;
     }
 
-    // ── V3/V4: split-screen: the case stays pinned beside the workflow ──────
+    // ── V3/V4 stages 1–2: the case IS the thing being judged ────────────────
+    // The case is the object of judgment in stages 1–2 and a reference in stage
+    // 3+. Placement follows that, not the other way round: a physician asked "is
+    // this case valid?" should not be reading it in a 38% sidebar.
+    const CENTRE_STAGE_CASE = d.stage === 'prompt_review' || d.stage === 'independent_answer';
+    if (CENTRE_STAGE_CASE) {
+      // No collapse control on these two stages, deliberately. A "hide the case"
+      // button on the screen that asks *is this case clinically valid* invites
+      // answering without reading, and that gate feeds everything downstream.
+      const wrap = h('div', { class: 'asc-wrap asc-wrap-case' },
+        renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
+      wrap.appendChild(stageHeader(d.stage === 'prompt_review' ? 'Review the prompt' : 'Write your answer'));
+      wrap.appendChild(d.stage === 'prompt_review' ? renderPromptGate() : renderIndependentAnswer());
+      wrap.appendChild(blurredPlaceholder(d.stage === 'prompt_review'
+        ? 'The AI answers stay hidden until you confirm the prompt is clinically valid.'
+        : 'Write your ideal answer first, then reveal the AI answers to compare.'));
+      setRoot(wrap);
+      updateHeaderProgress();
+      return;
+    }
+
+    // ── V3/V4 stage 3+: split-screen: the case stays pinned beside the workflow ──
     // Left rail = clinical question + structured case (its own scroll), right
     // column = the step-by-step staged flow. The rail collapses to a wide single
     // column, and on narrow screens it stacks behind the slim sticky case bar.
@@ -2870,22 +3049,27 @@
       state._caseRailCollapsed = !state._caseRailCollapsed;
       grid.classList.toggle('is-collapsed', state._caseRailCollapsed);
     };
+    // Expose it for the `C` shortcut, which fires from the document and has no
+    // way into this closure otherwise.
+    state._toggleCaseRail = toggleRail;
+    // The case just changed jobs — from the thing being judged to the reference
+    // the judgment is made against. Say so once, on first arrival at this stage,
+    // so the relocation reads as "my job changed", not "the page broke".
+    const firstCaseRefEntry = state._caseRefNoteTask !== d.task_id;
+    if (firstCaseRefEntry) state._caseRefNoteTask = d.task_id;
     const caseRail = h('aside', { class: 'asc-case-rail' },
+      firstCaseRefEntry ? h('div', { class: 'asc-rail-title' }, 'CASE · now a reference') : null,
+      // Closing mirrors opening: the open handle hangs off the left edge and
+      // pulls the panel out, this one hangs off the rail's right edge and pushes
+      // it back. Same shape, facing the other way, so the gesture looks
+      // reversible.
+      renderCaseHandle(toggleRail, true),
       h('div', { class: 'asc-rail-head' },
-        h('span', { class: 'asc-rail-title' }, 'Case'),
-        h('button', {
-          class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
-          title: 'Hide the case panel', onClick: toggleRail,
-        }, 'Hide ⟨')),
+        h('span', { class: 'asc-rail-title' }, 'Case')),
       promptCard,
       renderCasePanel() || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, promptText || 'n/a'),
       groundingBanner);
 
-    // Collapsed-only affordance to bring the rail back; the sticky one-line case
-    // bar is the narrow-screen fallback (CSS gates both by state / width).
-    workCol.appendChild(h('button', {
-      class: 'asc-rail-show asc-btn asc-btn-ghost asc-btn-sm', type: 'button', onClick: toggleRail,
-    }, '▸ Show case'));
     workCol.appendChild(renderCaseSticky(promptText));
     workCol.appendChild(renderExperienceBadge());
 
@@ -2905,6 +3089,10 @@
     grid.appendChild(caseRail);
     grid.appendChild(workCol);
     setRoot(grid);
+    // A following sibling of the grid, not a child of the work column: it is
+    // fixed and vertically centred, so it stays exactly where it was at step 6
+    // as much as step 3. CSS shows it only when the grid is collapsed.
+    root().appendChild(renderCaseHandle(toggleRail));
     if (d.stage === 'compare') {
       refreshAnswerHighlight();
       renderRationale();
@@ -2912,6 +3100,31 @@
       loadAssist(); // fire-and-forget: suggestions appear when ready (Speed Opt §2)
     }
     updateHeaderProgress();
+  }
+
+  // ─── The case drawer handle ─────────────────────────────────────────────────
+  // A vertical tab in the gutter the collapsed grid already frees. Not a
+  // floating pill (blocks content, ambiguous origin) and not a sticky top bar
+  // (steals vertical space from the longest form in the product): it costs zero
+  // vertical space, never covers content, and its position telegraphs the
+  // result, because the panel opens from exactly where the handle is.
+  //
+  // `close` builds the mirrored twin that lives on the case rail's right edge.
+  function renderCaseHandle(onToggle, close) {
+    return h('button', {
+      class: 'asc-case-handle' + (close ? ' is-close' : ''), type: 'button',
+      'aria-label': close ? 'Hide the case panel' : 'Open the case panel',
+      title: (close ? 'Hide case' : 'Open case') + '  ( C )',
+      onClick: onToggle,
+    },
+      h('span', { class: 'asc-case-handle-ico', html: CHROME_ICONS.case, 'aria-hidden': 'true' }),
+      h('span', { class: 'asc-case-handle-label' }, 'CASE'));
+  }
+
+  // `C` toggles the case panel from anywhere in the staged flow, so a physician
+  // doing forty cases learns one key instead of hunting for a control.
+  function toggleCaseRail() {
+    if (state._toggleCaseRail && document.querySelector('.asc-case-cols')) state._toggleCaseRail();
   }
 
   // ─── §17 Sticky case strip + case overlay (V3/V4 compare stage) ─────────────
@@ -2934,11 +3147,19 @@
       onClick: (e) => { if (e.target === overlay) closeOverlay(); },
     });
     const onKey = (e) => { if (e.key === 'Escape') closeOverlay(); };
-    function closeOverlay() { overlay.remove(); document.removeEventListener('keydown', onKey, true); }
+    // Escape closes and focus goes back where it came from, the same contract the
+    // tag popover keeps — this one IS modal, so it says so.
+    const opener = document.activeElement;
+    function closeOverlay() {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey, true);
+      if (opener && opener.isConnected && opener.focus) opener.focus();
+    }
     document.addEventListener('keydown', onKey, true);
     const panel = renderCasePanel();
     const popup = h('div', {
       class: 'call-team-popup asc-case-popup', onClick: (e) => e.stopPropagation(),
+      role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Case reference',
       style: 'max-width:860px;max-height:88vh;overflow:auto;text-align:left',
     },
       h('div', { class: 'call-team-title' }, 'Case reference'),
@@ -4041,6 +4262,15 @@
 
   // ─── §12 Critique the rejected answer: popover-per-tag, no model hints ─────
   function closeTagPopover() {
+    // The popover is portaled to <body> and positioned from the anchor's rect,
+    // so it cannot follow a scroll on its own; drop the tracker first.
+    if (state._tagPopTrack) {
+      window.removeEventListener('scroll', state._tagPopTrack, true);
+      window.removeEventListener('resize', state._tagPopTrack);
+      state._tagPopTrack = null;
+    }
+    if (state._tagPopAnchor && state._tagPopAnchor.isConnected) state._tagPopAnchor.focus();
+    state._tagPopAnchor = null;
     if (state._tagPop) {
       state._tagPop.remove();
       state._tagPop = null;
@@ -4054,6 +4284,32 @@
     }
   }
   function _tagPopKey(e) { if (e.key === 'Escape') closeTagPopover(); }
+
+  // Position the portaled popover against its anchor chip. An absolutely
+  // positioned popover is clipped by any ancestor with overflow != visible
+  // (.asc-answer, .asc-subcard, .asc-case-rail all qualify), and z-index does
+  // nothing about clipping — so the popover lives in <body> and is placed from
+  // the chip's viewport rect instead.
+  function positionTagPopover() {
+    const pop = state._tagPop, anchor = state._tagPopAnchor;
+    if (!pop || !anchor || !anchor.isConnected) return closeTagPopover();
+    const M = 10;
+    const r = anchor.getBoundingClientRect();
+    const w = pop.offsetWidth, hgt = pop.offsetHeight;
+
+    // FLIP: below by default; above when the bottom would overflow AND there is
+    // more room up there. Never pick a side that clips.
+    const below = window.innerHeight - r.bottom, above = r.top;
+    const flip = below < hgt + M && above > below;
+    const top = flip ? r.top - hgt - 6 : r.bottom + 6;
+
+    // SHIFT: stay on screen horizontally without leaving the anchor.
+    const left = Math.min(Math.max(r.left, M), window.innerWidth - w - M);
+
+    pop.style.top = Math.max(M, Math.min(top, window.innerHeight - hgt - M)) + 'px';
+    pop.style.left = left + 'px';
+    pop.classList.toggle('is-flipped', flip);
+  }
 
   function renderCritiqueSection() {
     const d = state.draft;
@@ -4097,7 +4353,10 @@
       closeTagPopover();
       const reasons = (state.taxonomy.error_tag_reasons || []);
       const sevs = (state.taxonomy.error_severities || ['low', 'medium', 'high']);
-      const pop = h('div', { class: 'asc-tag-pop', role: 'dialog', 'aria-label': 'Detail this error' });
+      const pop = h('div', {
+        class: 'asc-tag-pop', role: 'dialog', 'aria-modal': 'false',
+        'aria-label': 'Detail this error',
+      });
       pop.appendChild(h('div', { class: 'asc-tag-pop-title' },
         h('span', {}, tag.replace(/_/g, ' ')),
         h('button', {
@@ -4158,11 +4417,20 @@
           },
         }, 'Remove tag'),
         doneBtn));
-      // Anchor under the tapped chip, clamped to the row.
-      pop.style.left = Math.max(0, Math.min(chipEl.offsetLeft, Math.max(0, chipsRow.offsetWidth - 330))) + 'px';
-      pop.style.top = (chipEl.offsetTop + chipEl.offsetHeight + 6) + 'px';
-      chipsRow.appendChild(pop);
+      // Portal it: nothing in the card tree can clip what is not in the card tree.
+      document.body.appendChild(pop);
       state._tagPop = pop;
+      state._tagPopAnchor = chipEl;
+      positionTagPopover();
+
+      // A fixed element does not follow a scrolling anchor, so track it. Capture
+      // phase catches nested scroll containers; passive so we never block the
+      // scroll we are following.
+      state._tagPopTrack = () => positionTagPopover();
+      window.addEventListener('scroll', state._tagPopTrack, { capture: true, passive: true });
+      window.addEventListener('resize', state._tagPopTrack, { passive: true });
+      const firstBtn = pop.querySelector('button');
+      if (firstBtn) firstBtn.focus();
       document.addEventListener('keydown', _tagPopKey, true);
       // Click anywhere outside the popover (and outside the chip that opened it)
       // closes it, the missing dismissal that used to trap reviewers.
@@ -4177,10 +4445,9 @@
     }
 
     function paintChips() {
-      // A popover from a previous render is detached; drop the stale handle
-      // (insertBefore with a non-child reference node would throw).
-      if (state._tagPop && state._tagPop.parentNode !== chipsRow) state._tagPop = null;
-      Array.from(chipsRow.children).forEach((c) => { if (c !== state._tagPop) c.remove(); });
+      // The popover is portaled to <body>, never a child of the row, so the row
+      // holds nothing but chips and a plain clear-and-append is correct.
+      Array.from(chipsRow.children).forEach((c) => c.remove());
       errorTags.forEach((tag) => {
         const on = crit.error_tags.indexOf(tag) !== -1;
         const sev = crit.severities[tag];
@@ -4201,7 +4468,7 @@
           on && sev ? ('✓ ' + tag.replace(/_/g, ' ') + ' · ' + sev)
             : on ? ('✓ ' + tag.replace(/_/g, ' ') + ' · tap to detail')
               : tag.replace(/_/g, ' '));
-        chipsRow.insertBefore(chip, state._tagPop || null);
+        chipsRow.appendChild(chip);
       });
     }
     paintChips();
@@ -10170,6 +10437,30 @@
       d.open = false; delete d.dataset.printAutoOpened;
     });
   });
+
+  // ─── Chrome shortcuts ───────────────────────────────────────────────────────
+  // One document-level handler, capture phase so it still fires from inside the
+  // case panel's own scroll containers. Every key is guarded by isTypingTarget:
+  // steps 2 and 4 are full of textareas, and a physician typing "the patient is
+  // afebrile" is not reaching for a shortcut. Modifier combos are left alone so
+  // Cmd/Ctrl+C stays copy.
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    // Exit 2, the universal reflex. Deliberately NOT behind isTypingTarget: a
+    // physician who wants out while the cursor sits in a textarea still gets
+    // out. It defers to anything layered above it, so Escape always addresses
+    // the topmost thing rather than dismissing two at once.
+    if (e.key === 'Escape' && focusOn() && !modalLayerOpen()) {
+      exitFocus();
+      return;
+    }
+    if (isTypingTarget(e.target) || modalLayerOpen()) return;
+    if (e.key === 'c' || e.key === 'C') toggleCaseRail();
+    if (e.key === '[') toggleRailCompact();
+    // Exit 3, symmetry: the same key that entered.
+    if (e.key === 'f' || e.key === 'F') { focusOn() ? exitFocus() : enterFocus(); }
+  }, true);
+  armEdgePeek();
 
   // ─── Go ────────────────────────────────────────────────────────────────────
   boot();
