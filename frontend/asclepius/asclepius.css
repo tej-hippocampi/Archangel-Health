@@ -2457,8 +2457,54 @@ body.asc-sheet-open { overflow: hidden; }
 }
 .asc-rail-signout:hover { background: var(--card-in); color: var(--ink); }
 
+/* The collapse control. The chevron ROTATES rather than swaps: a glyph that
+   changes identity reads as a different button; a glyph that turns reads as the
+   same button in a different state. */
+.asc-rail-collapse {
+  margin-top: auto;                    /* pins to the bottom of the flex rail */
+  align-self: stretch;
+  display: flex; align-items: center; justify-content: center;
+  height: 34px;
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  background: transparent; color: var(--ink-faint); cursor: pointer;
+  transition: background .16s cubic-bezier(.4,0,.2,1), color .16s cubic-bezier(.4,0,.2,1);
+}
+.asc-rail-collapse:hover { background: var(--card-in); color: var(--ink); }
+.asc-rail-collapse-ico { display: block; transition: transform .18s cubic-bezier(.4,0,.2,1); }
+.asc-rail-collapse-ico svg { width: 20px; height: 20px; display: block; }
+body.asc-rail-compact .asc-rail-collapse-ico { transform: rotate(180deg); }
+
 /* Shift the main content clear of the rail. */
 body.asc-has-rail .asc-main { padding-left: calc(var(--asc-rail-w) + 24px); }
+
+/* ─── Compact: the rail collapsed to icons, by choice and across sessions ───
+   --asc-rail-w is the single source of truth, so the main padding and the case
+   handle's `left` follow for free. Nothing here hardcodes 68px twice. */
+.asc-rail,
+body.asc-has-rail .asc-main,
+.asc-case-handle {
+  transition: width .18s cubic-bezier(.4,0,.2,1),
+              padding-left .18s cubic-bezier(.4,0,.2,1),
+              left .18s cubic-bezier(.4,0,.2,1);
+}
+/* Scoped above the mobile breakpoint: below it the rail is a bottom tab bar,
+   where "collapse the left rail" has no meaning and the control has no place. */
+@media (min-width: 701px) {
+  body.asc-rail-compact { --asc-rail-w: 68px; }
+  body.asc-rail-compact .asc-rail { padding: var(--sp-4) 10px; align-items: center; }
+  body.asc-rail-compact .asc-rail-item { justify-content: center; gap: 0; padding: 9px 0; }
+  body.asc-rail-compact .asc-rail-label { display: none; }
+  body.asc-rail-compact .asc-rail-item.active::before { top: 18%; bottom: 18%; }
+  body.asc-rail-compact .asc-rail-foot { display: none; }   /* sign out remains in the header */
+  /* Collapsing to icons is only safe if the icons still carry what the labels
+     did. A count with no label is noise; a dot still says something happened. */
+  body.asc-rail-compact .asc-rail-badge {
+    position: absolute; top: 4px; right: 4px;
+    margin: 0; padding: 0; gap: 0; background: none; border: none;
+  }
+  body.asc-rail-compact .asc-rail-badge-n { display: none; }
+}
+@media (max-width: 700px) { .asc-rail-collapse { display: none; } }
 
 /* ─── Rail: icon-collapsed (700–1100px) ────────────────────────────────── */
 @media (max-width: 1100px) and (min-width: 701px) {

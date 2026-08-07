@@ -318,6 +318,10 @@
   const CHROME_ICONS = {
     // A case folder: what the handle opens.
     case: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.8 6.2A1.4 1.4 0 014.2 4.8h3.1l1.4 1.7h7.1a1.4 1.4 0 011.4 1.4v6.3a1.4 1.4 0 01-1.4 1.4H4.2a1.4 1.4 0 01-1.4-1.4V6.2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+    // Double chevron pointing left = collapse. It ROTATES rather than swaps: a
+    // glyph that changes identity reads as a different button, a glyph that
+    // turns reads as the same button in a different state.
+    chevrons: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M9.6 5.6L5.2 10l4.4 4.4M15.2 5.6L10.8 10l4.4 4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
 
   // A keyboard shortcut must never fire inside a field. Steps 2 and 4 are full
@@ -393,9 +397,38 @@
     return state.panel === 'tasks' && dest === 'tasks';
   }
 
+  // ─── Compact: the rail collapsed to icons ───────────────────────────────────
+  // Compact is the default answer to "let the case fill the screen": it reclaims
+  // 152px and still keeps the active-section indicator, the Community unread
+  // signal, and a visible way back. It PERSISTS across sessions, unlike Focus —
+  // a physician who collapses the rail meant it and will recognise the icon rail
+  // next week. That asymmetry is the whole safety design.
+  const RAIL_KEY = 'asc_rail_compact';
+  function railCompact() {
+    try { return localStorage.getItem(RAIL_KEY) === '1'; } catch (_) { return false; }
+  }
+  function railCollapseTitle() {
+    return railCompact() ? 'Expand navigation  ( [ )' : 'Collapse navigation  ( [ )';
+  }
+  function applyRailState() {
+    document.body.classList.toggle('asc-rail-compact', railCompact());
+  }
+  function toggleRailCompact() {
+    try { localStorage.setItem(RAIL_KEY, railCompact() ? '0' : '1'); } catch (_) { /* ignore quota */ }
+    applyRailState();
+    // Re-title in place; a full re-render would lose the rail's scroll position.
+    const b = document.querySelector('.asc-rail-collapse');
+    if (b) {
+      b.setAttribute('aria-expanded', String(!railCompact()));
+      b.title = railCollapseTitle();
+      b.setAttribute('aria-label', railCollapseTitle());
+    }
+  }
+
   function renderSidePanel() {
     if (!state.user) { teardownSidePanel(); return; }
     document.body.classList.add('asc-has-rail');
+    applyRailState();
     // Mark the guide view so the print stylesheet can scope its aggressive
     // header/padding overrides to the manual only (never to eval/admin prints).
     document.body.classList.toggle('asc-view-guide', state.panel === 'guide');
@@ -452,7 +485,20 @@
           : null),
       h('button', { type: 'button', class: 'asc-rail-signout', onClick: logout }, 'Sign out'));
 
+    // The bottom edge of the rail is the one place that is neither a destination
+    // nor an identity: top-of-rail competes with the wordmark, inline-with-nav
+    // competes with the sections. margin-top:auto pins it above the user block.
+    const collapseBtn = h('button', {
+      class: 'asc-rail-collapse', type: 'button',
+      'aria-expanded': String(!railCompact()),
+      'aria-controls': 'ascRail',
+      'aria-label': railCollapseTitle(),
+      title: railCollapseTitle(),
+      onClick: toggleRailCompact,
+    }, h('span', { class: 'asc-rail-collapse-ico', html: CHROME_ICONS.chevrons, 'aria-hidden': 'true' }));
+
     rail.appendChild(nav);
+    rail.appendChild(collapseBtn);
     rail.appendChild(foot);
   }
 
@@ -10311,6 +10357,7 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTypingTarget(e.target)) return;
     if (e.key === 'c' || e.key === 'C') toggleCaseRail();
+    if (e.key === '[') toggleRailCompact();
   }, true);
 
   // ─── Go ────────────────────────────────────────────────────────────────────
