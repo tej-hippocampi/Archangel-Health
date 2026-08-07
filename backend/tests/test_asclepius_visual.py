@@ -641,3 +641,115 @@ def test_the_header_is_full_bleed_not_a_centred_island(page):
         "the brand did not drift inward under the historical cap — the left-edge "
         "assertion above is vacuous"
     )
+
+
+# ── the split view: alignment must be structural, not hand-matched ────────────
+_SPLIT_VIEW = """<!doctype html><html><head>
+<link rel="stylesheet" href="_tokens.css"><link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="asclepius.css"></head>
+<body class="asc-body"><main class="asc-main">
+<div class="asc-task-shell">
+  <div class="asc-exp-badge"><span class="asc-exp-badge-label">Synthetic Multimodal</span>
+    <button type="button" class="asc-btn asc-btn-ghost asc-btn-sm asc-case-toggle">Hide case</button></div>
+  <div class="asc-case-cols">
+    <div class="asc-rail-head"><span class="asc-rail-title">Case</span></div>
+    <div class="asc-stage-head"><div class="asc-stage-meta">
+      <span class="asc-stage-step">Step 3 of 11</span>
+      <span class="asc-stage-label">Compare &amp; grade</span></div></div>
+    <aside class="asc-case-rail"><div class="asc-card"><div class="asc-card-pad">
+      <div class="asc-prompt-label">Clinical prompt</div>
+      <div class="asc-prompt-text">A 78-year-old with atrial fibrillation and CKD stage 4.</div>
+    </div></div></aside>
+    <div class="asc-work-col"><div class="asc-card"><div class="asc-card-pad">
+      <h3 class="asc-card-title">Compare the answers</h3></div></div></div>
+  </div>
+</div></main></body></html>"""
+
+
+def test_the_split_view_card_tops_share_a_baseline(browser, page_url, tmp_path):
+    """The case card and the task card must start at the same y.
+
+    This has been "fixed" twice by matching heights BY HAND across the two
+    columns, and missed both times — by 17px, then by 51px. It cannot work: the
+    columns carry different gaps (14 vs 18) and the work side has one more
+    header row than the rail, so no pair of min-heights can bring the SECOND row
+    into line. The layout now puts both chrome labels in one grid row, which
+    makes the browser guarantee it.
+
+    Hence this asserts geometry rather than the rule, and the mutation check
+    below collapses the grid back to flow order to prove the numbers can move.
+    """
+    src = pathlib.Path(page_url.replace("file://", "")).parent
+    doc = src / "split_view.html"
+    doc.write_text(_SPLIT_VIEW, encoding="utf-8")
+
+    pg = browser.new_page(viewport={"width": 1512, "height": 900})
+    try:
+        pg.goto("file://" + str(doc))
+        probe = """() => {
+          const T = (s) => Math.round(document.querySelector(s).getBoundingClientRect().top);
+          return { caseCard: T('.asc-case-rail .asc-card'),
+                   taskCard: T('.asc-work-col .asc-card'),
+                   railHead: T('.asc-rail-head'), stageHead: T('.asc-stage-head') };
+        }"""
+        m = pg.evaluate(probe)
+        assert m["caseCard"] == m["taskCard"], (
+            f"the case card starts at {m['caseCard']}px and the task card at "
+            f"{m['taskCard']}px — the split reads as two unrelated pages"
+        )
+        assert m["railHead"] == m["stageHead"], (
+            f"the two chrome labels are not peers: {m['railHead']} vs {m['stageHead']}"
+        )
+
+        # Mutation check: without the shared grid row the tops must diverge,
+        # otherwise this test would pass against the very defect it describes.
+        pg.add_style_tag(content=".asc-case-cols { display: block; }")
+        m2 = pg.evaluate(probe)
+        assert m2["caseCard"] != m2["taskCard"], (
+            "flattening the grid changed nothing — this test cannot see the "
+            "misalignment it exists to catch"
+        )
+    finally:
+        pg.close()
+
+
+def test_the_case_toggle_is_one_horizontal_control_that_never_moves(browser, page_url):
+    """One control, one home, upright.
+
+    It was a fixed vertical tab with ``writing-mode: vertical-rl`` floating over
+    the page, then a pair that swapped columns by state. Both read as chrome
+    that had come loose. It is now a single button in the task bar: horizontal,
+    always in the same corner, only its label changing.
+    """
+    src = pathlib.Path(page_url.replace("file://", "")).parent
+    pg = browser.new_page(viewport={"width": 1512, "height": 900})
+    try:
+        pg.goto("file://" + str(src / "split_view.html"))
+        m = pg.evaluate("""() => {
+          const t = [...document.querySelectorAll('.asc-case-toggle')];
+          const sideways = [...document.querySelectorAll('*')].filter(
+            e => (getComputedStyle(e).writingMode || '').startsWith('vertical'));
+          const b = t[0].getBoundingClientRect();
+          const bar = document.querySelector('.asc-task-shell > .asc-exp-badge');
+          const barBox = bar.getBoundingClientRect();
+          return { count: t.length, label: t[0].textContent.trim(),
+                   wider_than_tall: b.width > b.height,
+                   // Distance to the bar's edge, and the bar's own padding. The
+                   // only thing allowed between the two is that padding.
+                   gap: Math.round(barBox.right - b.right),
+                   pad: Math.round(parseFloat(getComputedStyle(bar).paddingRight)),
+                   inTaskBar: !!t[0].closest('.asc-exp-badge'),
+                   sideways: sideways.map(e => e.className) };
+        }""")
+        assert m["count"] == 1, f"{m['count']} case toggles on screen; there must be one"
+        assert m["label"] in ("Open case", "Hide case"), m["label"]
+        assert m["wider_than_tall"], "the toggle is taller than it is wide — it is upright text"
+        assert not m["sideways"], f"sideways text is back on: {m['sideways']}"
+        assert m["inTaskBar"], "the toggle is inside a column again, not in the task bar"
+        assert m["gap"] == m["pad"], (
+            f"the toggle sits {m['gap']}px from the task bar's edge but the bar's "
+            f"padding is {m['pad']}px — something other than the padding is "
+            "pushing it out of the corner"
+        )
+    finally:
+        pg.close()

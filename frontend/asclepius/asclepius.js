@@ -2915,21 +2915,22 @@
   // is being graded under. Case type and specialty are assigned by us (queue
   // routing + qualification), not chosen by the doctor, so this is
   // informational only, no controls to switch it.
-  // The case toggle lives in this row's empty right slot when the panel is
-  // CLOSED. When it is open the control moves to the case rail's own header, so
-  // there is never more than one toggle on screen. Called with no arguments
-  // everywhere except the V3 stage-3 branch, where it renders exactly as before.
+  // This row is the task bar: what kind of case this is on the left, and the one
+  // control that changes the layout on the right. The toggle has a single home
+  // and never moves — only its label flips — so it is muscle memory by the
+  // fortieth case. Called with no arguments everywhere except the V3 stage-3
+  // branch, where the ternary yields null and the row renders as before.
   function renderExperienceBadge(toggle, isOpen) {
     const v = draftVersion();
     const meta = { v4: 'Real · De-identified Cases', v3: 'Synthetic Multimodal',
                    v2: 'V2 · Assisted', v1: 'V1 · Classic' }[v] || 'V1 · Classic';
     return h('div', { class: 'asc-exp-badge' },
       h('span', { class: 'asc-exp-badge-label' }, meta),
-      (toggle && !isOpen)
+      toggle
         ? h('button', {
             class: 'asc-btn asc-btn-ghost asc-btn-sm asc-case-toggle',
-            type: 'button', title: 'Open case', onClick: toggle,
-          }, 'Open case')
+            type: 'button', title: isOpen ? 'Hide case' : 'Open case', onClick: toggle,
+          }, isOpen ? 'Hide case' : 'Open case')
         : null);
   }
 
@@ -3052,46 +3053,72 @@
     // Left rail = clinical question + structured case (its own scroll), right
     // column = the step-by-step staged flow. The rail collapses to a wide single
     // column, and on narrow screens it stacks behind the slim sticky case bar.
+    // The two column headers — "CASE" and "STEP n OF m" — are placed in the SAME
+    // GRID ROW rather than one inside each column. That is what makes the card
+    // tops line up, and it is structural: the browser sizes a row to its tallest
+    // cell, so row 2 starts at the same y on both sides and cannot drift. Two
+    // previous attempts matched heights by hand across separate columns and both
+    // missed — by 17px, then by 51px — because the columns carry different gaps
+    // and the work side has one more header row than the rail.
+    const shell = h('div', {
+      class: 'asc-task-shell' + (state._caseRailCollapsed ? ' is-collapsed' : ''),
+    });
     const grid = h('div', { class: 'asc-case-cols' + (state._caseRailCollapsed ? ' is-collapsed' : '') });
     const workCol = h('div', { class: 'asc-work-col' });
+    const railHead = h('div', { class: 'asc-rail-head' },
+      h('span', { class: 'asc-rail-title' }, 'Case'));
     const toggleRail = () => {
       state._caseRailCollapsed = !state._caseRailCollapsed;
       grid.classList.toggle('is-collapsed', state._caseRailCollapsed);
+      shell.classList.toggle('is-collapsed', state._caseRailCollapsed);
+      paintCaseToggle();
     };
     // Expose it for the `C` shortcut, which fires from the document and has no
     // way into this closure otherwise.
     state._toggleCaseRail = toggleRail;
+    // ONE toggle, one home, above both columns. It changes the whole grid, so it
+    // belongs to the grid and not to a pane inside it — pinned to the right edge
+    // of the left column it landed in the visual centre of the page and read as
+    // belonging to neither side. Only the label moves between states, so the
+    // control itself stays where the hand already is.
+    const taskBar = renderExperienceBadge(toggleRail, !state._caseRailCollapsed);
+    function paintCaseToggle() {
+      const b = taskBar.querySelector('.asc-case-toggle');
+      if (!b) return;
+      const label = state._caseRailCollapsed ? 'Open case' : 'Hide case';
+      b.textContent = label;
+      b.title = label;
+    }
     const caseRail = h('aside', { class: 'asc-case-rail' },
-      h('div', { class: 'asc-rail-head' },
-        h('span', { class: 'asc-rail-title' }, 'Case'),
-        h('button', {
-          class: 'asc-btn asc-btn-ghost asc-btn-sm asc-case-toggle',
-          type: 'button', title: 'Hide case', onClick: toggleRail,
-        }, 'Hide case')),
       promptCard,
       renderCasePanel() || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' },
                              promptText || 'n/a'),
       groundingBanner);
 
     workCol.appendChild(renderCaseSticky(promptText));
-    workCol.appendChild(renderExperienceBadge(toggleRail, !state._caseRailCollapsed));
 
+    let stageHead;
     if (d.stage === 'prompt_review') {
-      workCol.appendChild(stageHeader('Review the prompt'));
+      stageHead = stageHeader('Review the prompt');
       workCol.appendChild(renderPromptGate());
       workCol.appendChild(blurredPlaceholder('The AI answers stay hidden until you confirm the prompt is clinically valid.'));
     } else if (d.stage === 'independent_answer') {
-      workCol.appendChild(stageHeader('Write your answer'));
+      stageHead = stageHeader('Write your answer');
       workCol.appendChild(renderIndependentAnswer());
       workCol.appendChild(blurredPlaceholder('Write your ideal answer first, then reveal the AI answers to compare.'));
     } else {
-      workCol.appendChild(stageHeader('Compare & grade'));
+      stageHead = stageHeader('Compare & grade');
       renderCompareStage(workCol);
     }
 
+    // Row 1: the two chrome labels, side by side. Row 2: the two content columns.
+    grid.appendChild(railHead);
+    grid.appendChild(stageHead);
     grid.appendChild(caseRail);
     grid.appendChild(workCol);
-    setRoot(grid);
+    shell.appendChild(taskBar);
+    shell.appendChild(grid);
+    setRoot(shell);
     if (d.stage === 'compare') {
       refreshAnswerHighlight();
       renderRationale();

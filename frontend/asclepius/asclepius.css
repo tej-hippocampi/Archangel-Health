@@ -141,14 +141,47 @@
    The case never scrolls away: a persistent left rail scrolls on its own next
    to the step-by-step workflow. Collapses to a wide single column for heavy
    editing, and stacks (rail hidden, sticky bar shown) on narrow screens. */
+/* The shell owns the page width so the task bar and the grid share an edge in
+   both states — the collapsed grid is narrower than the open one, and a bar
+   sized independently would step in and out alongside it. */
+.asc-task-shell { max-width: 1320px; margin: 0 auto; }
+.asc-task-shell.is-collapsed { max-width: 1180px; }
+/* TWO ROWS, not two independent columns of stacked children. Row 1 holds both
+   chrome labels, row 2 holds both content columns, so the browser guarantees
+   the card tops share a baseline. Matching heights by hand across separate
+   columns is what failed twice: the columns carry different gaps (14 vs 18) and
+   the work side has one more header row than the rail, so no pair of
+   min-heights can make the SECOND row line up. A grid row makes it structural
+   — there is no number here to get wrong. */
 .asc-case-cols {
-  max-width: 1320px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   display: grid;
   grid-template-columns: minmax(320px, 38%) 1fr;
-  gap: 22px;
+  grid-template-rows: auto 1fr;
+  column-gap: 22px;
+  row-gap: 14px;
   align-items: start;
 }
+/* Row 1 cells: both are mono chrome labels (law five — mono chrome is
+   wayfinding), so they are peers and are styled as peers. align-self:end sits
+   them on a common baseline whichever wraps taller. */
+.asc-case-cols > .asc-rail-head,
+.asc-case-cols > .asc-stage-head {
+  grid-row: 1;
+  align-self: end;
+  margin: 0;
+  min-height: 26px;
+}
+.asc-case-cols > .asc-rail-head { grid-column: 1; }
+.asc-case-cols > .asc-stage-head { grid-column: 2; }
+.asc-case-cols > .asc-case-rail { grid-row: 2; grid-column: 1; }
+.asc-case-cols > .asc-work-col { grid-row: 2; grid-column: 2; }
+/* Collapsed: the rail and its label both leave, and the work side takes the
+   whole width — including row 1, so the step label keeps its place. */
+.asc-case-cols.is-collapsed > .asc-rail-head { display: none; }
+.asc-case-cols.is-collapsed > .asc-stage-head,
+.asc-case-cols.is-collapsed > .asc-work-col { grid-column: 1; }
 .asc-case-rail {
   position: sticky;
   top: 76px;
@@ -179,33 +212,30 @@
   font-family: var(--mono); font-size: var(--t-chrome); letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--ink-faint);
 }
-/* Collapsed: hide the rail, widen the workflow. The way back is the left-edge
-   drawer handle below, which is fixed and therefore still there at step 6. */
-.asc-case-cols.is-collapsed { grid-template-columns: 1fr; max-width: 1180px; }
+/* Collapsed: hide the rail, widen the workflow. The way back is the toggle in
+   the task bar, which never moves. */
+.asc-case-cols.is-collapsed { grid-template-columns: 1fr; }
 .asc-case-cols.is-collapsed .asc-case-rail { display: none; }
 /* The sticky one-line case bar is the NARROW-screen fallback only; on wide
    screens the always-visible rail replaces it. */
 .asc-case-cols .asc-case-sticky { display: none; }
 @media (max-width: 900px) {
-  .asc-case-cols { grid-template-columns: 1fr; max-width: 880px; }
+  .asc-task-shell, .asc-task-shell.is-collapsed { max-width: 880px; }
+  .asc-case-cols { grid-template-columns: 1fr; }
+  .asc-case-cols > .asc-rail-head,
   .asc-case-cols .asc-case-rail { display: none; }
+  .asc-case-cols > .asc-stage-head,
+  .asc-case-cols > .asc-work-col { grid-column: 1; }
   .asc-case-cols .asc-case-sticky { display: flex; }
 }
 
-/* One control, two homes. Same class in the badge row and the rail head so it
-   reads as one button that moves with the panel, not two that do similar things. */
+/* One control, one home. It lives in the task bar above the grid, because it
+   changes the whole grid — inside a pane it read as belonging to neither side. */
 .asc-case-toggle { flex: none; white-space: nowrap; }
 
-/* The rail's first row sits on the same baseline as the work column's badge row,
-   so opening the panel never nudges the workflow. Both rows are pinned to the
-   SAME height, and it has to be a height the toggle itself cannot exceed:
-   .asc-btn-sm renders at ~34px, so a 30px floor never binds and the badge row
-   would swing between ~29px (label alone, panel open) and ~46px (label plus
-   button, panel closed) — a 17px jolt in the work column on every toggle.
-   --sp-7 clears the button in both states, so the height is constant.
-   The other two values mirror .asc-exp-badge exactly; change one, change both. */
-.asc-case-cols .asc-exp-badge,
-.asc-case-rail > .asc-rail-head {
+/* The task bar is the row above the split. It keeps the height it had when it
+   was inside the work column, so the grid below starts where it always did. */
+.asc-task-shell > .asc-exp-badge {
   min-height: var(--sp-7);
   margin-bottom: 12px;
   padding: 6px 4px;
