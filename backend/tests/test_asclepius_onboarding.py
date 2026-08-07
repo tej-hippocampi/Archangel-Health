@@ -110,10 +110,19 @@ def test_director_full_asclepius_flow_provisions_admin(client: TestClient):
     assert r.status_code == 200, r.text
     assert r.json()["workspace_url"].endswith("/asclepius")
 
-    # Director is now an Asclepius admin carrying the credential record.
+    # Director is now an Asclepius CONTRIBUTOR carrying the credential record.
+    #
+    # This used to assert role == "admin", which is how the finding stayed green
+    # in CI: /onboarding/self-serve is public, so that made an Asclepius admin
+    # console reachable by anyone who signed up — exempt from the verification
+    # gate, unscoped across every require_admin endpoint, able to approve itself.
+    # The directorship lives in clinical_role, which is what actually carries it.
     asc = client.app.state.asclepius_store
     u = asc.get_user_by_email(director_email)
-    assert u and u["role"] == "admin"
+    assert u and u["role"] == "evaluator", (
+        "a self-serve signup must never provision an admin: /self-serve is public"
+    )
+    assert u["clinical_role"] == "director", "the directorship is not lost, just not admin"
     assert u["npi"] == "1234567890"
     assert u["full_name"] == "Dr. Tej Patel"
     # Specialty is normalized to the canonical lowercase form so the (case-

@@ -1153,12 +1153,29 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     # one hung NPPES response stalls every request in the process — not just
     # this one. The try/except inside prevents a 500; it does not prevent a
     # hang. The threadpool hop is what makes the "non-blocking" claim true.
+    # The director is a PHYSICIAN CONTRIBUTOR, not an operator of our back office.
+    #
+    # This provisioned ``role="admin"``, and ``/self-serve`` above is a public
+    # endpoint — so anyone who signed up got an Asclepius admin. The consequences
+    # chained in one hop: admins are exempt from the credential-verification gate
+    # (auth.get_current_user), ``require_admin`` is a bare role check with no
+    # tenant scoping across ~120 endpoints, and ``capabilities.can()``
+    # short-circuits entirely on role == "admin". A self-signed-up account could
+    # open the verification queue, read every physician's dossier, and approve
+    # itself.
+    #
+    # Nothing in the product needed it. ``clinical_role="director"`` is stored and
+    # carries the directorship; team members are added through the token-scoped
+    # onboarding wizard (``/asclepius/add-member``), not the admin console. So the
+    # director keeps everything they actually use and goes through credential
+    # verification like every other clinician — which is the claim the whole
+    # product is sold on.
     await run_in_threadpool(
         _provision_asclepius_user,
         request,
         email=director_email,
         password=director_pwd,
-        role="admin",
+        role="evaluator",
         full_name=director.get("full_name") or "",
         org_name=org_name,
         specialty=specialty,

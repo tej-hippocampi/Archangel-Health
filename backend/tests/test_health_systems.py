@@ -471,9 +471,13 @@ def test_physicians_roster_renders_before_prd_b_merges():
     checked instead of crashing."""
     store = _store()
     headers = _admin_headers(store)
-    A.make_user(store, role="evaluator", specialty="nephrology")
-    A.make_user(store, role="evaluator")
-    A.make_user(store, role="qa_reviewer")          # not a physician
+    # tier=None explicitly: this test is ABOUT the unassigned state, and a
+    # fixture that gets it by default would stop asserting it the moment the
+    # default changes (which is exactly what happened when LABEL became enforced
+    # and make_user started minting realistic, tiered contributors).
+    A.make_user(store, role="evaluator", specialty="nephrology", tier=None)
+    A.make_user(store, role="evaluator", tier=None)
+    A.make_user(store, role="qa_reviewer", tier=None)   # not a physician
     store.ensure_mock_user(email="mock@asclepius.example.com", password="pw-12345678")
 
     res = client.get("/api/asclepius/admin/physicians", headers=headers)
@@ -506,9 +510,12 @@ def test_physicians_roster_counts_with_prd_b_columns():
     headers = _admin_headers(store)
     _add_prd_b_columns(store)
     hs = store.ensure_health_system("Roster Health")
-    u1 = A.make_user(store, role="evaluator")
-    u2 = A.make_user(store, role="evaluator")
-    u3 = A.make_user(store, role="evaluator")
+    # u1/u2 get their tier from the UPDATE below; u3 stays unassigned, which is
+    # the distinction this test exists to prove ("pending but unassigned — two
+    # distinct facts"). Stated, not defaulted.
+    u1 = A.make_user(store, role="evaluator", tier=None)
+    u2 = A.make_user(store, role="evaluator", tier=None)
+    u3 = A.make_user(store, role="evaluator", tier=None)
     with store._conn() as conn:
         conn.execute("UPDATE users SET tier='labeler', verification_status='approved', "
                      "slack_joined=1, health_system_id=? WHERE id=?", (hs["hs_id"], u1["id"]))

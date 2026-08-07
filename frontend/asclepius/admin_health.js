@@ -28,10 +28,19 @@
    is lime, because lime means "needs attention" and an unset purpose
    is a work item rather than a default.
 
+   AN UNSET SPECIALTY IS THE SAME KIND OF THING AS AN UNSET PURPOSE:
+   a decision nobody has made, not a default. Ingest refuses to guess
+   one, and both promote endpoints refuse to run without one — so a
+   Promote button on a row that has none is a button that leads to a
+   409 naming a control the operator cannot find. The button is dead
+   until the specialty is set, the reason is inline, and the control
+   that sets it sits in the same row (ctx.specialtyResolver).
+
    Loaded as its own file (§3.3 file ownership); asclepius.js passes
    a ctx of shared helpers {h, api, clear, toast, loadingCard,
-   downloadBlob, fmtDate, openPipeline}. DOM is built exclusively
-   with ctx.h — no innerHTML, no template strings.
+   downloadBlob, fmtDate, openPipeline, specialtyResolver,
+   specialtyBlockReason}. DOM is built exclusively with ctx.h — no
+   innerHTML, no template strings.
    ═══════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -343,8 +352,14 @@
     return wrap;
   }
 
+  const SPECIALTY_BLOCK_FALLBACK =
+    'Specialty not set — choose one to promote.';
+
   function bucketRow(ctx, spec, it, hsId, container) {
-    const { h, toast, downloadBlob, fmtDate, openPipeline } = ctx;
+    const { h, toast, downloadBlob, fmtDate, openPipeline, specialtyResolver } = ctx;
+    // asclepius.js owns the wording so both admin surfaces say it identically;
+    // the fallback only covers a stale cached copy of that file.
+    const blockReason = ctx.specialtyBlockReason || SPECIALTY_BLOCK_FALLBACK;
     const actions = [];
     actions.push(btn(h, 'Download', 'asc-btn-subtle', () =>
       downloadBlob('/ingestion/uploads/' + it.upload_id + '/download',
@@ -352,12 +367,35 @@
     if (spec.actions.includes('review')) {
       actions.push(btn(h, 'Review', 'asc-btn-primary', () => openPipeline(it)));
     }
+    // Ingest refuses to guess a specialty, so a hospital-portal upload arrives
+    // with none and the promote endpoints 409 on it. This row sent the operator
+    // into that 409 with a live-looking button and a message naming a control
+    // that had no frontend caller. The button is now dead until the specialty is
+    // set, and the control that sets it is right here.
+    const needsSpecialty = spec.actions.includes('promote')
+      && (it.specialty_undetermined_cases || 0) > 0;
     if (spec.actions.includes('promote')) {
-      actions.push(btn(h, 'Promote to task', 'asc-btn-primary', () => openPipeline(it)));
+      if (needsSpecialty) {
+        actions.push(h('button', {
+          class: 'asc-btn asc-btn-sm asc-btn-primary',
+          style: 'margin-right: var(--sp-1)',
+          disabled: true,
+          title: blockReason,
+        }, 'Promote to task'));
+      } else {
+        actions.push(btn(h, 'Promote to task', 'asc-btn-primary', () => openPipeline(it)));
+      }
     }
     const notes = [];
     (it.reasons || []).forEach((r) => notes.push(h('div', { class: 'asc-hs-reason' }, r)));
     if (!notes.length && it.note) notes.push(h('div', { class: 'asc-dim' }, it.note));
+    if (needsSpecialty && specialtyResolver) {
+      // Stated, not implied: "Nothing here right now" and "there is one thing
+      // left to decide" must never look the same to an operator.
+      notes.push(h('div', { class: 'asc-promote-block' },
+        h('div', { class: 'asc-promote-block-why' }, blockReason),
+        specialtyResolver(it.upload_id, () => renderDetail(container, ctx, hsId))));
+    }
     // Chain of custody, on every row: what we hold, how much of it, and when we
     // proved it. This is what you show a partner who asks "did you get everything".
     const custody = h('div', { class: 'asc-dim asc-mono', style: 'font-size:11px' },
@@ -372,7 +410,7 @@
         custody),
       h('td', {}, purposeChip(h, it),
         it.resolved ? '' : uploadPurposeResolver(ctx, it.upload_id, hsId, container)),
-      h('td', {}, caseCountText(it)),
+      h('td', {}, caseCountText(it), specialtyNote(h, it)),
       h('td', { class: 'asc-hs-notes' }, notes.length ? notes : '—'),
       h('td', { class: 'asc-hs-actions' }, actions));
   }
@@ -384,6 +422,19 @@
     let v = n / 1024, i = 0;
     while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
     return v.toFixed(v >= 10 ? 0 : 1) + ' ' + units[i];
+  }
+
+  // What these cases are labeled as — or, honestly, that nothing has decided yet.
+  // "Not yet determined" is a work item, so it renders lime like every other
+  // unresolved decision on this screen, not as a specialty nobody chose.
+  function specialtyNote(h, it) {
+    const named = it.specialties || [];
+    if (named.length) {
+      return h('div', { class: 'asc-dim', style: 'font-size:11px' }, named.join(', '));
+    }
+    if (!(it.specialty_undetermined_cases || 0)) return null;
+    return h('div', { style: 'margin-top:4px' },
+      h('span', { class: 'asc-badge asc-badge-lime' }, 'Specialty not set'));
   }
 
   function caseCountText(it) {

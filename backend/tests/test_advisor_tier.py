@@ -62,7 +62,10 @@ def _admin():
 
 def _physician(tier=None):
     store = asc_store.get_store()
-    u = A.make_user(store, role="evaluator", specialty="nephrology")
+    # tier=None by default: every test here is about a physician BEFORE a
+    # tier decision. make_user now mints a realistic approved contributor
+    # (LABEL is enforced), so the un-decided state has to be asked for.
+    u = A.make_user(store, role="evaluator", specialty="nephrology", tier=None)
     if tier:
         with store._conn() as conn:
             conn.execute("UPDATE users SET tier = ? WHERE id = ?", (tier, u["id"]))

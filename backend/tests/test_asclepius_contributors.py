@@ -89,6 +89,21 @@ def _make_contributor(org="Riverside Nephrology Associates", verify=True):
     return user
 
 
+def _approve_as_labeler(store, user):
+    """Give a provision_user() fixture the tier a real onboarded physician gets.
+
+    Onboarding provisions with tier NULL; the verification queue assigns one at
+    the moment of approval, and LABEL (enforced at /tasks/next and /submissions)
+    comes from the tier. These tests are about EXPORT behaviour and need a
+    physician who can actually submit, so they walk the same last step approval
+    does instead of asserting on an account that could not exist in production."""
+    store.record_verification_decision(
+        user["id"], status="approved", decided_by="test@asclepius.example.com",
+        tier="labeler", tier_score=1.0, note=None,
+    )
+    return store.get_user_by_id(user["id"])
+
+
 def _submit_export_ready(admin_h, ev_h):
     body = {
         "specialty": "nephrology", "difficulty": "hard", "max_labels": 1,
@@ -194,6 +209,7 @@ def test_onboarding_tier_b_never_ships_in_export():
         board_cert="board_certified_nephrology", npi="9998887776", years_experience=20,
         credentials={"medical_license_number": "XZ-99021"},
     )
+    user = _approve_as_labeler(store, user)
     store.upsert_contributor_credentials(
         id_hashed=user["id_hashed"], user_id=user["id"],
         organization="Princeton-Plainsboro Teaching Hospital", role_title="Physician (MD)",
@@ -222,6 +238,7 @@ def test_onboarding_identifier_in_record_content_blocks_export():
         full_name="Gregory House", specialty="nephrology",
         board_cert="board_certified_nephrology", npi="9998887776", years_experience=20,
     )
+    user = _approve_as_labeler(store, user)
     store.upsert_contributor_credentials(
         id_hashed=user["id_hashed"], user_id=user["id"], organization="Org",
         role_title="Physician (MD)", credentials_verified=True,
@@ -282,6 +299,7 @@ def test_onboarding_org_name_populates_directory_organization():
         clinical_role="Physician (MD)", specialty="nephrology",
         board_cert="board_certified_nephrology", years_experience=12,
     )
+    user = _approve_as_labeler(store, user)
     # New onboarding writes the canonical organization column directly.
     assert user["organization"] == "Northridge Nephrology"
     _submit_export_ready(admin_h, A.headers_for(user))
@@ -307,6 +325,7 @@ def test_legacy_onboarded_user_with_only_org_name_resolves_via_coalesce():
         email=f"legacy-{A.uniq(6)}@hosp.example", password="pw-12345678", role="evaluator",
         org_name="Lakeside Kidney Institute", specialty="nephrology",
     )
+    user = _approve_as_labeler(store, user)
     # Simulate the legacy row shape: canonical column empty, only org_name set.
     with store._conn() as conn:  # noqa: SLF001 — test reaching into the store
         conn.execute("UPDATE users SET organization = NULL WHERE id = ?", (user["id"],))

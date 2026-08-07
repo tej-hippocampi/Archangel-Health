@@ -78,6 +78,11 @@ class CreateUserRequest(BaseModel):
     specialty: Optional[str] = None
     board_cert: Optional[str] = None
     years_experience: Optional[int] = None
+    # Contributor tier (capabilities.TIERS) or None for "not yet assigned".
+    # LABEL is enforced at /tasks/next and /submissions, so an evaluator created
+    # here with no tier cannot draw a case until one is assigned — stated as a
+    # field rather than left as a surprise the admin discovers from a 403.
+    tier: Optional[str] = None
 
 
 class RealDataApprovalRequest(BaseModel):

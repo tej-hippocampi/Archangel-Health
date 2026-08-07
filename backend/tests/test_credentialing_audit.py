@@ -394,9 +394,34 @@ def test_verification_status_is_never_backfilled():
     assert store.get_user_by_id(legacy["id"])["verification_status"] is None
     store._init_schema()
     assert store.get_user_by_id(legacy["id"])["verification_status"] is None
-    # And a NULL tier grants nothing while remaining distinguishable from a decided 'no'.
+
+
+def test_a_null_tier_grants_nothing():
+    """The capability table's own contract: 'not yet assigned' denies. Asserted on
+    a user dict rather than a stored row, because a stored NULL tier on a legacy
+    contributor is migrated away (see below) — the RULE still has to hold."""
     from asclepius import capabilities
-    assert capabilities.capabilities(store.get_user_by_id(legacy["id"])) == frozenset()
+
+    assert capabilities.capabilities({"role": "evaluator", "tier": None}) == frozenset()
+    assert not capabilities.can({"role": "evaluator", "tier": None}, capabilities.LABEL)
+
+
+def test_the_tier_of_a_pre_tiering_contributor_is_backfilled():
+    """The other half of §8's promise. ``verification_status`` must NOT be
+    backfilled — NULL there is a real, load-bearing state. ``tier`` is different:
+    LABEL is now enforced at /tasks/next and /submissions, and an account from
+    before tiering passes the verification gate untouched and is labeling today.
+    Leaving its tier NULL would take work away from someone doing it."""
+    from asclepius import capabilities
+
+    store = fresh_store()
+    legacy = store.create_user(email=f"{uniq()}@x.com", password="pw-12345678")
+    assert store.get_user_by_id(legacy["id"])["tier"] is None
+    store._init_schema()
+    migrated = store.get_user_by_id(legacy["id"])
+    assert migrated["tier"] == capabilities.LABELER
+    assert migrated["verification_status"] is None, "still not backfilled"
+    assert capabilities.can(migrated, capabilities.LABEL)
 
 
 # ═══ Calibration — the exam cannot leak its own key ══════════════════════════

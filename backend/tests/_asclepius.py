@@ -73,8 +73,26 @@ def fresh_store():
     return asc_store.reset_store_for_tests(db_path=path)
 
 
+#: Roles for which a contributor tier is meaningful (mirrors
+#: ``capabilities._CAPABLE_ROLES``). A ``data_partner`` or ``buyer`` fixture must
+#: NOT be handed one — those roles are denied the evaluator surface outright, and
+#: a fixture that quietly carries a tier would hide a regression in that denial.
+_TIERED_ROLES = ("evaluator", "qa_reviewer")
+
+
 def make_user(store, role: str = "evaluator", **kw):
+    """A fixture physician who can actually work.
+
+    ``tier`` defaults to ``labeler`` for contributor roles, because that is what
+    a real approved account looks like: the verification queue assigns a tier at
+    the moment of approval, and ``capabilities.LABEL`` is enforced at
+    /tasks/next and /submissions. A NULL-tier fixture is a signed-up-but-not-yet-
+    approved account, so tests that want that state pass ``tier=None``
+    explicitly rather than getting it by accident.
+    """
     email = kw.pop("email", f"{role}-{uuid.uuid4().hex[:8]}@asclepius.example.com")
+    if role in _TIERED_ROLES and "tier" not in kw:
+        kw["tier"] = "labeler"
     return store.create_user(email=email, password="pw-12345678", role=role, **kw)
 
 

@@ -39,6 +39,7 @@ from starlette.concurrency import run_in_threadpool
 
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
+from asclepius import export as asc_export
 from asclepius.cases import public_case
 from asclepius.store import get_store
 from ratelimit import rate_limiter
@@ -744,9 +745,13 @@ def _public_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
     ``dir_path`` is a server filesystem path and ``created_by`` is an admin's
     email address; neither is part of judging a bundle, and every other advisor
     payload in this module is a deliberate whitelist.
+
+    Delegated to ``export._shippable_manifest`` so this list and the one applied
+    to the ``batch.json`` a buyer actually downloads cannot drift. They were two
+    copies of the same three keys, which is precisely how one of them ends up
+    missing the fourth.
     """
-    return {k: v for k, v in (manifest or {}).items()
-            if k not in ("dir_path", "created_by", "destination")}
+    return asc_export._shippable_manifest(manifest or {})
 
 
 def _export_bundle_view(store: Any, export_id: str) -> Dict[str, Any]:

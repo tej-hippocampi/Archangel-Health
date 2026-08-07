@@ -25,6 +25,7 @@ from pydantic import BaseModel, EmailStr
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
 from asclepius import ingestion as asc_ingestion
+from asclepius import specialties as asc_specialties
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
 
@@ -780,8 +781,15 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
         # 'general' means nothing declared a specialty (ingest refuses to guess),
         # so the operator is prompted to set the real one before promotion.
         specialties = sorted({c.get("specialty") for c in cases
-                              if c.get("specialty") and c.get("specialty") != "general"})
-        undetermined = [c for c in cases if (c.get("specialty") or "general") == "general"]
+                              if c.get("specialty")
+                              and not asc_ingestion.specialty_is_undetermined(c.get("specialty"))})
+        # Scoped to the cases promotion would actually touch. A quarantined case
+        # with no specialty is not a reason to withhold the Promote button from
+        # the clean ones beside it, and the promote endpoints do not read it.
+        # Same rule as GET /ingestion/uploads, so the two admin surfaces cannot
+        # disagree about whether one upload is ready.
+        undetermined = [c for c in clean
+                        if asc_ingestion.specialty_is_undetermined(c.get("specialty"))]
         entry = {
             "upload_id": up["upload_id"],
             "filename": up.get("filename"),
@@ -802,7 +810,7 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
             # to the operator to set BEFORE promotion, because the promote path
             # still falls back to a literal — a wrong specialty routes the case
             # to the wrong physician pool and mislabels it in the export.
-            "specialty_determined": bool(cases) and not undetermined,
+            "specialty_determined": bool(clean) and not undetermined,
             "specialty_undetermined_cases": len(undetermined),
             "reasons": [],
             "note": up.get("reason"),
@@ -878,15 +886,19 @@ async def health_system_detail(
     }
 
 
-# The magic-link door (``POST /admin/upload-links`` in routers/asclepius.py) still
-# mints links with no purpose, so an upload arriving through it lands NULL and the
-# admin resolves it per-upload. Wiring the two buttons into that mint form is a
-# one-field change to a file this workstream does not own; it is surfaced here
-# rather than made, and rather than left silent.
+# The magic-link door (``POST /admin/upload-links`` in routers/asclepius.py) now
+# REQUIRES a purpose — it 400s without one — so no newly minted link can produce
+# an unresolved upload. What remains is history: links minted before that gate,
+# and uploads that arrived through them, still carry NULL.
+#
+# This note is what the admin reads to know whether an unresolved row is a bug or
+# a leftover, so it has to describe the code as it is. Leaving it saying "the mint
+# form carries no purpose" would send an operator looking for a missing field that
+# is now mandatory — and, worse, teach them that "Purpose not set" is normal.
 def _link_purpose_note() -> Optional[str]:
-    return ("Links minted from the legacy magic-link form carry no purpose and "
-            "arrive as “Purpose not set”. Resolve them on the upload row before "
-            "promoting.")
+    return ("Uploads from links minted before purpose became mandatory arrive as "
+            "“Purpose not set”. Resolve them on the upload row before promoting. "
+            "Newly minted links always carry one.")
 
 
 class UploadSpecialtyRequest(BaseModel):
@@ -908,6 +920,23 @@ async def set_upload_specialty(
     specialty = " ".join((body.specialty or "").split()).lower()
     if not specialty:
         raise HTTPException(status_code=400, detail="A specialty is required.")
+    # The whole reason this endpoint exists is that a WRONG specialty is worse
+    # than a missing one — it routes the case to the wrong physician pool and
+    # mislabels it in the export, invisibly, and neither is visible again once
+    # the bundle ships. A free-text field accepting "nefrology" would reproduce
+    # that failure through the very control built to prevent it, so the value is
+    # checked against the enabled registry the picker is populated from.
+    if asc_ingestion.specialty_is_undetermined(specialty):
+        raise HTTPException(
+            status_code=400,
+            detail=f"{specialty!r} is the absence of a specialty, not a specialty. "
+                   "Choose the real one.")
+    if not asc_specialties.is_enabled(specialty):
+        enabled = ", ".join(sorted(c["specialty"] for c in asc_specialties.list_specialties()
+                                   if c.get("enabled")))
+        raise HTTPException(
+            status_code=400,
+            detail=f"{specialty!r} is not an enabled specialty. Choose one of: {enabled}.")
     upload = store.get_ingest_upload(upload_id)
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
@@ -917,6 +946,50 @@ async def set_upload_specialty(
                     payload={"specialty": specialty, "cases": n})
     return {"ok": True, "upload_id": upload_id, "specialty": specialty, "cases_updated": n,
             "message": f"{n} case{'' if n == 1 else 's'} set to {specialty}."}
+
+
+class DataProviderPurposeRequest(BaseModel):
+    purpose: str
+
+
+# include_in_schema=False for the same reason as the routes above: /openapi.json
+# is served publicly, and a path segment named `purpose` discloses that the
+# distinction exists at all — a weaker leak than naming which one is a partner's,
+# and still the one PRD-I §0 protects against.
+@router.post("/data-providers/{provider_id}/purpose", include_in_schema=False)
+async def set_data_provider_purpose(
+    provider_id: str,
+    body: DataProviderPurposeRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Decide what a data provider account's uploads are FOR (PRD-I §2.2).
+
+    The fourth upload door — a provider posting to their own account — now
+    records provenance like the other three: it names its account row and the
+    store joins the value forward. That join needs something to find, and this is
+    where an admin puts it. It lives HERE, not on the provider router, because a
+    door that can name the distinction is a door that can leak it (§3.3, enforced
+    statically by tests/test_purpose_isolation.py).
+
+    Until it is set, that provider's uploads arrive "Purpose not set" and the
+    admin resolves them per-upload on the upload row — an unresolved purpose is a
+    work item, never a default invented for them."""
+    store = _store()
+    purpose = (body.purpose or "").strip().lower()
+    if purpose not in asc_ingestion.PURPOSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"purpose must be one of {', '.join(asc_ingestion.PURPOSES)}.")
+    if not store.set_data_provider_purpose(provider_id, purpose):
+        raise HTTPException(status_code=404, detail="Data provider not found")
+    store.log_event(entity_type="data_provider", entity_id=provider_id,
+                    event_type="provider_purpose_set", actor=admin["id"],
+                    payload={"purpose": purpose})
+    view = _purpose_view(purpose)
+    return {"ok": True, "provider_id": provider_id, **view,
+            "message": f"Uploads from this provider are now recorded as {view['label']}. "
+                       "Uploads already received keep the value they arrived with — "
+                       "resolve those on the upload row."}
 
 
 class HsAccessRequest(BaseModel):
