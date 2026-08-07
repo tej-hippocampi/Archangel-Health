@@ -206,6 +206,8 @@ html { scroll-behavior: smooth; }
 }
 .arch-landing .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-float); }
 .arch-landing .btn-primary { border-color: rgba(26, 27, 26, 0.55); }
+.arch-landing .btn-lime { background: var(--lime); border-color: transparent; color: var(--ink); font-weight: 700; }
+.arch-landing .btn-lime:hover { border-color: transparent; }
 
 /* aura cards — the only place gradients exist. */
 .arch-landing .aura {

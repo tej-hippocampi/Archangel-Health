@@ -72,8 +72,11 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
     <div className="route">
       <section className="section">
         <p className="crumb chrome reveal"><span className="root">Archangel</span><span className="sep">/</span><span className="here">04 · Physicians</span></p>
-        <div className="reveal">
+        <div className="route-header reveal">
           <h2>Your expertise will power the future of medicine.</h2>
+          <button type="button" className="btn btn-lime route-header-cta" onClick={actions.openPhysicianOnboard}>
+            Become a contributor
+          </button>
         </div>
 
         {/* Two ways to earn — annotate & refer, side by side, equal weight.
