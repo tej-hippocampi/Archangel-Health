@@ -223,8 +223,9 @@
    panel back to where the other one pulls it from. Sticky to the rail's own
    scrollport so it never scrolls out of reach either. */
 .asc-case-handle.is-close {
-  position: sticky; top: 0; z-index: 1;
-  align-self: flex-end; margin: 0 -4px -46px 0;
+  position: sticky; top: 0; left: auto; z-index: 1;
+  align-self: flex-end;
+  margin-right: -4px;        /* cancel the rail's padding so it meets the edge */
   display: flex;
   border: 1px solid var(--hairline-strong); border-right: 0;
   border-radius: var(--r-sm) 0 0 var(--r-sm);
