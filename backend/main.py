@@ -673,9 +673,47 @@ async def _enqueue_and_send_task_notification(
         _team_store.mark_outbox_failed(outbox_id, "send_html_email returned False")
 
 
+_TASK_NOTIFY_MAX_ATTEMPTS = int(os.getenv("TASK_NOTIFY_MAX_ATTEMPTS", "5"))
+
+
+async def _drain_task_notification_outbox() -> None:
+    """Re-send outbox rows that never reached 'sent' — 'pending' (a crash between
+    enqueue and the inline send) or 'failed' (a transient SendGrid/network error) —
+    bounded by a per-row attempt cap so a permanently-bad address cannot loop.
+
+    This is what makes the outbox actually durable. The inline send in
+    _enqueue_and_send_task_notification stays the happy path; this only rescues rows
+    it could not deliver. It runs BEFORE the enqueue passes below so a row created on
+    this same tick is never touched twice. The email is rebuilt purely from the
+    persisted row (login_url + event_type), so a crash loses nothing."""
+    for row in _team_store.list_retryable_task_notifications(max_attempts=_TASK_NOTIFY_MAX_ATTEMPTS):
+        event_type = row.get("event_type") or ""
+        is_reminder = event_type == "reminder_24h"
+        is_escalation = event_type == "escalation_48h"
+        html_body = build_task_notification_email(
+            login_url=row.get("login_url") or "",
+            is_reminder=is_reminder,
+            is_escalation=is_escalation,
+        )
+        headline = _TASK_NOTIFICATION_HEADLINES.get(
+            (event_type, is_reminder, is_escalation), "You have a new item to review."
+        )
+        ok = await _send_html_email_impl(
+            row.get("recipient_email") or "", f"CareGuide — {headline}", html_body
+        )
+        if ok:
+            _team_store.mark_outbox_sent(int(row["id"]))
+        else:
+            _team_store.mark_outbox_failed(int(row["id"]), "drain resend returned False")
+
+
 async def _run_task_notification_pass() -> None:
     reminder_hours = int(os.getenv("TASK_REMINDER_HOURS", "24"))
     escalation_hours = int(os.getenv("TASK_ESCALATION_HOURS", "48"))
+
+    # Retry anything a previous tick could not deliver, before enqueuing new work
+    # (so a row created this tick is never double-sent).
+    await _drain_task_notification_outbox()
 
     for row in _team_store.find_unnotified_intake_notifications():
         doctor_id = row.get("doctor_id") or ""
