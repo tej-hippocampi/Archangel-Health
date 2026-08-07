@@ -118,6 +118,7 @@
         ],
         detail: [
           'The labs tab shows values over time, not just the latest draw — a creatinine of 1.4 means one thing flat and another if it doubled in 48 hours. Open every tab that has data. The notes and meds together usually explain why a value is what it is.',
+          'From step 3 onward the case moves to a panel on the left, and Open case / Hide case sits at the top of the workspace. Pressing C opens or closes that panel from anywhere in the task, which is the quickest way back to the labs when you are deep in the rubric.',
         ],
       },
       {

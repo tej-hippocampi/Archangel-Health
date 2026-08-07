@@ -316,8 +316,6 @@
   // same currentColor rule, kept apart from RAIL_ICONS because these belong to
   // the layout controls rather than to a section.
   const CHROME_ICONS = {
-    // A case folder: what the handle opens.
-    case: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.8 6.2A1.4 1.4 0 014.2 4.8h3.1l1.4 1.7h7.1a1.4 1.4 0 011.4 1.4v6.3a1.4 1.4 0 01-1.4 1.4H4.2a1.4 1.4 0 01-1.4-1.4V6.2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
     // Double chevron pointing left = collapse. It ROTATES rather than swaps: a
     // glyph that changes identity reads as a different button, a glyph that
     // turns reads as the same button in a different state.
@@ -2917,11 +2915,22 @@
   // is being graded under. Case type and specialty are assigned by us (queue
   // routing + qualification), not chosen by the doctor, so this is
   // informational only, no controls to switch it.
-  function renderExperienceBadge() {
+  // The case toggle lives in this row's empty right slot when the panel is
+  // CLOSED. When it is open the control moves to the case rail's own header, so
+  // there is never more than one toggle on screen. Called with no arguments
+  // everywhere except the V3 stage-3 branch, where it renders exactly as before.
+  function renderExperienceBadge(toggle, isOpen) {
     const v = draftVersion();
-    const meta = { v4: ['', 'Real · De-identified Cases'], v3: ['', 'Synthetic Multimodal'], v2: ['', 'V2 · Assisted'], v1: ['', 'V1 · Classic'] }[v] || ['', 'V1 · Classic'];
+    const meta = { v4: 'Real · De-identified Cases', v3: 'Synthetic Multimodal',
+                   v2: 'V2 · Assisted', v1: 'V1 · Classic' }[v] || 'V1 · Classic';
     return h('div', { class: 'asc-exp-badge' },
-      h('span', { class: 'asc-exp-badge-label' }, meta[0] + meta[1]));
+      h('span', { class: 'asc-exp-badge-label' }, meta),
+      (toggle && !isOpen)
+        ? h('button', {
+            class: 'asc-btn asc-btn-ghost asc-btn-sm asc-case-toggle',
+            type: 'button', title: 'Open case', onClick: toggle,
+          }, 'Open case')
+        : null);
   }
 
   // ─── §6 semantic case-tag chips (V3/V4) ─────────────────────────────────────
@@ -3052,26 +3061,20 @@
     // Expose it for the `C` shortcut, which fires from the document and has no
     // way into this closure otherwise.
     state._toggleCaseRail = toggleRail;
-    // The case just changed jobs — from the thing being judged to the reference
-    // the judgment is made against. Say so once, on first arrival at this stage,
-    // so the relocation reads as "my job changed", not "the page broke".
-    const firstCaseRefEntry = state._caseRefNoteTask !== d.task_id;
-    if (firstCaseRefEntry) state._caseRefNoteTask = d.task_id;
     const caseRail = h('aside', { class: 'asc-case-rail' },
-      firstCaseRefEntry ? h('div', { class: 'asc-rail-title' }, 'CASE · now a reference') : null,
-      // Closing mirrors opening: the open handle hangs off the left edge and
-      // pulls the panel out, this one hangs off the rail's right edge and pushes
-      // it back. Same shape, facing the other way, so the gesture looks
-      // reversible.
-      renderCaseHandle(toggleRail, true),
       h('div', { class: 'asc-rail-head' },
-        h('span', { class: 'asc-rail-title' }, 'Case')),
+        h('span', { class: 'asc-rail-title' }, 'Case'),
+        h('button', {
+          class: 'asc-btn asc-btn-ghost asc-btn-sm asc-case-toggle',
+          type: 'button', title: 'Hide case', onClick: toggleRail,
+        }, 'Hide case')),
       promptCard,
-      renderCasePanel() || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, promptText || 'n/a'),
+      renderCasePanel() || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' },
+                             promptText || 'n/a'),
       groundingBanner);
 
     workCol.appendChild(renderCaseSticky(promptText));
-    workCol.appendChild(renderExperienceBadge());
+    workCol.appendChild(renderExperienceBadge(toggleRail, !state._caseRailCollapsed));
 
     if (d.stage === 'prompt_review') {
       workCol.appendChild(stageHeader('Review the prompt'));
@@ -3089,10 +3092,6 @@
     grid.appendChild(caseRail);
     grid.appendChild(workCol);
     setRoot(grid);
-    // A following sibling of the grid, not a child of the work column: it is
-    // fixed and vertically centred, so it stays exactly where it was at step 6
-    // as much as step 3. CSS shows it only when the grid is collapsed.
-    root().appendChild(renderCaseHandle(toggleRail));
     if (d.stage === 'compare') {
       refreshAnswerHighlight();
       renderRationale();
@@ -3100,25 +3099,6 @@
       loadAssist(); // fire-and-forget: suggestions appear when ready (Speed Opt §2)
     }
     updateHeaderProgress();
-  }
-
-  // ─── The case drawer handle ─────────────────────────────────────────────────
-  // A vertical tab in the gutter the collapsed grid already frees. Not a
-  // floating pill (blocks content, ambiguous origin) and not a sticky top bar
-  // (steals vertical space from the longest form in the product): it costs zero
-  // vertical space, never covers content, and its position telegraphs the
-  // result, because the panel opens from exactly where the handle is.
-  //
-  // `close` builds the mirrored twin that lives on the case rail's right edge.
-  function renderCaseHandle(onToggle, close) {
-    return h('button', {
-      class: 'asc-case-handle' + (close ? ' is-close' : ''), type: 'button',
-      'aria-label': close ? 'Hide the case panel' : 'Open the case panel',
-      title: (close ? 'Hide case' : 'Open case') + '  ( C )',
-      onClick: onToggle,
-    },
-      h('span', { class: 'asc-case-handle-ico', html: CHROME_ICONS.case, 'aria-hidden': 'true' }),
-      h('span', { class: 'asc-case-handle-label' }, 'CASE'));
   }
 
   // `C` toggles the case panel from anywhere in the staged flow, so a physician
