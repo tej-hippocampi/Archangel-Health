@@ -2521,8 +2521,15 @@ body.asc-focus.asc-rail-peek .asc-rail { transform: none; box-shadow: var(--shad
 body.asc-focus .asc-main { padding-left: var(--sp-4) !important; }  /* rail is out of flow */
 body.asc-focus .asc-case-handle { left: var(--sp-2); }              /* rail is gone; hug the edge */
 /* §4.5: the case widens — but the step progress indicator is thinned, never
-   deleted. "Which step am I on" must stay answerable at any chrome level. */
-body.asc-focus .asc-case-cols { grid-template-columns: minmax(420px, 44%) 1fr; }
+   deleted. "Which step am I on" must stay answerable at any chrome level.
+   Scoped twice on purpose. `body.asc-focus .asc-case-cols` out-specifies both
+   `.asc-case-cols.is-collapsed` (0,2,0) and the ≤900px stacking rule (0,1,0),
+   so an unscoped version would hold a two-column template open with an empty
+   gutter after the case is hidden, and force a 420px column onto a narrow
+   window. Focus widens the case; it does not outrank hiding it. */
+@media (min-width: 901px) {
+  body.asc-focus .asc-case-cols:not(.is-collapsed) { grid-template-columns: minmax(420px, 44%) 1fr; }
+}
 body.asc-focus .asc-header-inner { padding: var(--sp-1) var(--sp-5); }
 body.asc-focus .asc-logo-text { display: none; }
 
@@ -2838,7 +2845,10 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 /* ─── Print: a clean, single-column manual (scoped to the Guide only, so
        printing an eval/admin view keeps its normal chrome) ────────────────── */
 @media print {
-  .asc-rail, .asc-toast-region { display: none !important; }
+  /* Chrome does not print. The handle and the focus chip are position:fixed,
+     which is exactly why they need naming here alongside the rail. */
+  .asc-rail, .asc-toast-region,
+  .asc-case-handle, .asc-focus-chip { display: none !important; }
   body.asc-view-guide .asc-header,
   body.asc-view-guide .asc-guide-toc,
   body.asc-view-guide .asc-guide-toc-select { display: none !important; }

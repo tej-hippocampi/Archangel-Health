@@ -326,6 +326,17 @@
     collapse: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11.4 8.6h4M11.4 8.6v-4M11.4 8.6L16 4M8.6 11.4h-4M8.6 11.4v4M8.6 11.4L4 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
 
+  // A layer that owns the screen owns the keyboard with it. Without this, `f`
+  // pressed inside the specialty picker toggles focus mode behind the modal,
+  // and one Escape fires two handlers — mine and the layer's own — so the
+  // physician loses focus mode AND the dialog they were actually dismissing.
+  function modalLayerOpen() {
+    return !!(state._tagPop
+      || document.body.classList.contains('asc-sheet-open')
+      || document.querySelector('.call-team-overlay.is-open')
+      || tutorialActive());
+  }
+
   // A keyboard shortcut must never fire inside a field. Steps 2 and 4 are full
   // of textareas: a physician typing "the patient is afebrile" is not asking for
   // focus mode on the f.
@@ -484,7 +495,9 @@
     document.addEventListener('mousemove', (e) => {
       if (!focusOn()) return;
       if (e.clientX <= 12 && !t) {
-        t = setTimeout(() => { document.body.classList.add('asc-rail-peek'); t = null; }, 250);
+        // Re-check on fire: leaving focus mid-wait must not land a peek class
+        // on a body that is no longer in focus.
+        t = setTimeout(() => { if (focusOn()) document.body.classList.add('asc-rail-peek'); t = null; }, 250);
       } else if (e.clientX > 12 && t) { clearTimeout(t); t = null; }
     }, { passive: true });
     document.addEventListener('mouseover', (e) => {
@@ -10435,14 +10448,13 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     // Exit 2, the universal reflex. Deliberately NOT behind isTypingTarget: a
     // physician who wants out while the cursor sits in a textarea still gets
-    // out. It defers to anything dismissible layered above it, so Escape always
-    // addresses the topmost thing rather than skipping past it.
-    if (e.key === 'Escape' && focusOn()
-        && !state._tagPop && !document.querySelector('.call-team-overlay')) {
+    // out. It defers to anything layered above it, so Escape always addresses
+    // the topmost thing rather than dismissing two at once.
+    if (e.key === 'Escape' && focusOn() && !modalLayerOpen()) {
       exitFocus();
       return;
     }
-    if (isTypingTarget(e.target)) return;
+    if (isTypingTarget(e.target) || modalLayerOpen()) return;
     if (e.key === 'c' || e.key === 'C') toggleCaseRail();
     if (e.key === '[') toggleRailCompact();
     // Exit 3, symmetry: the same key that entered.
