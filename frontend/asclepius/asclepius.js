@@ -312,6 +312,24 @@
     earnings: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3.2v13.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.9 6.3a2.6 2.6 0 00-2.4-1.3h-.8a2.35 2.35 0 000 4.7h.6a2.35 2.35 0 010 4.7h-.8a2.6 2.6 0 01-2.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
 
+  // Chrome affordances that are not nav destinations. Same 20×20 stroke grid,
+  // same currentColor rule, kept apart from RAIL_ICONS because these belong to
+  // the layout controls rather than to a section.
+  const CHROME_ICONS = {
+    // A case folder: what the handle opens.
+    case: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.8 6.2A1.4 1.4 0 014.2 4.8h3.1l1.4 1.7h7.1a1.4 1.4 0 011.4 1.4v6.3a1.4 1.4 0 01-1.4 1.4H4.2a1.4 1.4 0 01-1.4-1.4V6.2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+  };
+
+  // A keyboard shortcut must never fire inside a field. Steps 2 and 4 are full
+  // of textareas: a physician typing "the patient is afebrile" is not asking for
+  // focus mode on the f.
+  function isTypingTarget(el) {
+    if (!el || !el.tagName) return false;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+    return !!(el.closest && el.closest('[contenteditable]'));
+  }
+
   const RAIL_ITEMS = [
     { dest: 'tasks',     label: 'Tasks' },
     // PRD-R: without this entry the review console has no route from the portal
@@ -2894,6 +2912,9 @@
       state._caseRailCollapsed = !state._caseRailCollapsed;
       grid.classList.toggle('is-collapsed', state._caseRailCollapsed);
     };
+    // Expose it for the `C` shortcut, which fires from the document and has no
+    // way into this closure otherwise.
+    state._toggleCaseRail = toggleRail;
     // The case just changed jobs — from the thing being judged to the reference
     // the judgment is made against. Say so once, on first arrival at this stage,
     // so the relocation reads as "my job changed", not "the page broke".
@@ -2901,21 +2922,17 @@
     if (firstCaseRefEntry) state._caseRefNoteTask = d.task_id;
     const caseRail = h('aside', { class: 'asc-case-rail' },
       firstCaseRefEntry ? h('div', { class: 'asc-rail-title' }, 'CASE · now a reference') : null,
+      // Closing mirrors opening: the open handle hangs off the left edge and
+      // pulls the panel out, this one hangs off the rail's right edge and pushes
+      // it back. Same shape, facing the other way, so the gesture looks
+      // reversible.
+      renderCaseHandle(toggleRail, true),
       h('div', { class: 'asc-rail-head' },
-        h('span', { class: 'asc-rail-title' }, 'Case'),
-        h('button', {
-          class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
-          title: 'Hide the case panel', onClick: toggleRail,
-        }, 'Hide ⟨')),
+        h('span', { class: 'asc-rail-title' }, 'Case')),
       promptCard,
       renderCasePanel() || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, promptText || 'n/a'),
       groundingBanner);
 
-    // Collapsed-only affordance to bring the rail back; the sticky one-line case
-    // bar is the narrow-screen fallback (CSS gates both by state / width).
-    workCol.appendChild(h('button', {
-      class: 'asc-rail-show asc-btn asc-btn-ghost asc-btn-sm', type: 'button', onClick: toggleRail,
-    }, '▸ Show case'));
     workCol.appendChild(renderCaseSticky(promptText));
     workCol.appendChild(renderExperienceBadge());
 
@@ -2935,6 +2952,10 @@
     grid.appendChild(caseRail);
     grid.appendChild(workCol);
     setRoot(grid);
+    // A following sibling of the grid, not a child of the work column: it is
+    // fixed and vertically centred, so it stays exactly where it was at step 6
+    // as much as step 3. CSS shows it only when the grid is collapsed.
+    root().appendChild(renderCaseHandle(toggleRail));
     if (d.stage === 'compare') {
       refreshAnswerHighlight();
       renderRationale();
@@ -2942,6 +2963,31 @@
       loadAssist(); // fire-and-forget: suggestions appear when ready (Speed Opt §2)
     }
     updateHeaderProgress();
+  }
+
+  // ─── The case drawer handle ─────────────────────────────────────────────────
+  // A vertical tab in the gutter the collapsed grid already frees. Not a
+  // floating pill (blocks content, ambiguous origin) and not a sticky top bar
+  // (steals vertical space from the longest form in the product): it costs zero
+  // vertical space, never covers content, and its position telegraphs the
+  // result, because the panel opens from exactly where the handle is.
+  //
+  // `close` builds the mirrored twin that lives on the case rail's right edge.
+  function renderCaseHandle(onToggle, close) {
+    return h('button', {
+      class: 'asc-case-handle' + (close ? ' is-close' : ''), type: 'button',
+      'aria-label': close ? 'Hide the case panel' : 'Open the case panel',
+      title: (close ? 'Hide case' : 'Open case') + '  ( C )',
+      onClick: onToggle,
+    },
+      h('span', { class: 'asc-case-handle-ico', html: CHROME_ICONS.case, 'aria-hidden': 'true' }),
+      h('span', { class: 'asc-case-handle-label' }, 'CASE'));
+  }
+
+  // `C` toggles the case panel from anywhere in the staged flow, so a physician
+  // doing forty cases learns one key instead of hunting for a control.
+  function toggleCaseRail() {
+    if (state._toggleCaseRail && document.querySelector('.asc-case-cols')) state._toggleCaseRail();
   }
 
   // ─── §17 Sticky case strip + case overlay (V3/V4 compare stage) ─────────────
@@ -10254,6 +10300,18 @@
       d.open = false; delete d.dataset.printAutoOpened;
     });
   });
+
+  // ─── Chrome shortcuts ───────────────────────────────────────────────────────
+  // One document-level handler, capture phase so it still fires from inside the
+  // case panel's own scroll containers. Every key is guarded by isTypingTarget:
+  // steps 2 and 4 are full of textareas, and a physician typing "the patient is
+  // afebrile" is not reaching for a shortcut. Modifier combos are left alone so
+  // Cmd/Ctrl+C stays copy.
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (isTypingTarget(e.target)) return;
+    if (e.key === 'c' || e.key === 'C') toggleCaseRail();
+  }, true);
 
   // ─── Go ────────────────────────────────────────────────────────────────────
   boot();

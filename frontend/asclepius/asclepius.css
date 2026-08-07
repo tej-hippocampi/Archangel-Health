@@ -176,22 +176,59 @@
   font-family: var(--mono); font-size: var(--t-chrome); letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--ink-faint);
 }
-/* Collapsed: hide the rail, reveal the "Show case" button, widen the workflow.
-   Scoped under .asc-case-cols so the hide beats the equal-specificity .asc-btn
-   display rule that the button also carries. */
-.asc-case-cols .asc-rail-show { display: none; align-self: flex-start; }
+/* Collapsed: hide the rail, widen the workflow. The way back is the left-edge
+   drawer handle below, which is fixed and therefore still there at step 6. */
 .asc-case-cols.is-collapsed { grid-template-columns: 1fr; max-width: 1180px; }
 .asc-case-cols.is-collapsed .asc-case-rail { display: none; }
-.asc-case-cols.is-collapsed .asc-rail-show { display: inline-flex; }
 /* The sticky one-line case bar is the NARROW-screen fallback only; on wide
    screens the always-visible rail replaces it. */
 .asc-case-cols .asc-case-sticky { display: none; }
 @media (max-width: 900px) {
   .asc-case-cols { grid-template-columns: 1fr; max-width: 880px; }
   .asc-case-cols .asc-case-rail { display: none; }
-  .asc-case-cols .asc-rail-show,
-  .asc-case-cols.is-collapsed .asc-rail-show { display: none; }
   .asc-case-cols .asc-case-sticky { display: flex; }
+  /* The handle points at a gutter that does not exist once the grid stacks. */
+  .asc-case-handle { display: none !important; }
+}
+
+/* ─── The case drawer handle ────────────────────────────────────────────────
+   A vertical tab in the gutter the collapsed grid frees. It costs no vertical
+   space, never covers content, and the panel opens from exactly where it sits,
+   so the affordance is learned once without a tooltip. */
+.asc-case-handle {
+  position: fixed;
+  left: calc(var(--asc-rail-w) + 8px);      /* rides the nav rail at any chrome level */
+  top: 50%; transform: translateY(-50%);
+  z-index: 60;                              /* under the header (100), over content */
+  display: none;                            /* only when the case panel is closed */
+  flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 7px;
+  border: 1px solid var(--hairline-strong); border-left: 0;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--card); box-shadow: var(--shadow-float);
+  color: var(--ink-soft); cursor: pointer;
+  transition: background .16s cubic-bezier(.4,0,.2,1),
+              color .16s cubic-bezier(.4,0,.2,1),
+              left .18s cubic-bezier(.4,0,.2,1);
+}
+.asc-case-handle:hover { background: var(--card-in); color: var(--ink); }
+.asc-case-handle-ico { display: block; }
+.asc-case-handle-ico svg { width: 20px; height: 20px; display: block; }
+.asc-case-handle-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+  writing-mode: vertical-rl; transform: rotate(180deg);
+}
+.asc-case-cols.is-collapsed ~ .asc-case-handle { display: flex; }
+/* The mirrored twin: it lives ON the open rail's right edge and pushes the
+   panel back to where the other one pulls it from. Sticky to the rail's own
+   scrollport so it never scrolls out of reach either. */
+.asc-case-handle.is-close {
+  position: sticky; top: 0; z-index: 1;
+  align-self: flex-end; margin: 0 -4px -46px 0;
+  display: flex;
+  border: 1px solid var(--hairline-strong); border-right: 0;
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+  transform: none;
 }
 .asc-loading-screen {
   display: flex;
