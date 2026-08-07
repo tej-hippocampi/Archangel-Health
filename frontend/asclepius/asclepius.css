@@ -1976,12 +1976,19 @@ body.asc-sheet-open { overflow: hidden; }
 
 /* ─── §12 error-tag popover ────────────────────────────────────────────── */
 .asc-errtag-wrap { position: relative; }
+/* Portaled to <body>: fixed, so no ancestor's overflow can clip it. z-index
+   alone never fixed this — stacking order and clipping are unrelated. */
 .asc-tag-pop {
-  position: absolute; z-index: 70; width: 320px; max-width: 92vw;
+  position: fixed; z-index: 120; width: 320px; max-width: calc(100vw - 20px);
+  max-height: min(72vh, 560px); overflow: auto;
   background: var(--card); border: 1px solid var(--hairline-strong);
   border-radius: var(--r-sm); box-shadow: var(--shadow-float);
   padding: 12px 14px;
 }
+/* Flipped = placed above the chip because below would have clipped. It grows
+   from the edge nearest its anchor, so the origin follows the flip. */
+.asc-tag-pop { transform-origin: top left; }
+.asc-tag-pop.is-flipped { transform-origin: bottom left; }
 .asc-tag-pop-title {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   font-weight: 600; font-size: 13.5px; color: var(--asc-text);
@@ -1996,9 +2003,12 @@ body.asc-sheet-open { overflow: hidden; }
 .asc-tag-pop-x:hover { background: var(--card-in); color: var(--asc-text); }
 .asc-tag-pop-field { margin-bottom: 10px; }
 .asc-tag-pop-field .asc-label { margin-bottom: 5px; }
+/* Done is how the popover closes, so the footer never scrolls out of reach. */
 .asc-tag-pop-foot {
+  position: sticky; bottom: -12px; background: var(--card);
   display: flex; align-items: center; justify-content: space-between;
-  margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--asc-line);
+  margin: 4px -14px -12px; padding: 8px 14px 12px;
+  border-top: 1px solid var(--asc-line);
 }
 
 /* ─── §11 prominent add-citation ───────────────────────────────────────── */

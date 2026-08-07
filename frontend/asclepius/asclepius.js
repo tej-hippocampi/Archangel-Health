@@ -113,7 +113,10 @@
   const $ = (sel, root) => (root || document).querySelector(sel);
   const root = () => document.getElementById('ascRoot');
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
-  function setRoot(node) { const r = root(); clear(r); r.appendChild(node); }
+  // The tag popover is portaled to <body>, so clearing #ascRoot no longer takes
+  // it with it. Every re-render goes through here; close it on the way past or
+  // it outlives the chip it belongs to.
+  function setRoot(node) { closeTagPopover(); const r = root(); clear(r); r.appendChild(node); }
 
   // ─── Fetch helper (injects Bearer, parses JSON, handles 401) ────────────────
   async function api(path, opts) {
@@ -2934,11 +2937,19 @@
       onClick: (e) => { if (e.target === overlay) closeOverlay(); },
     });
     const onKey = (e) => { if (e.key === 'Escape') closeOverlay(); };
-    function closeOverlay() { overlay.remove(); document.removeEventListener('keydown', onKey, true); }
+    // Escape closes and focus goes back where it came from, the same contract the
+    // tag popover keeps — this one IS modal, so it says so.
+    const opener = document.activeElement;
+    function closeOverlay() {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey, true);
+      if (opener && opener.isConnected && opener.focus) opener.focus();
+    }
     document.addEventListener('keydown', onKey, true);
     const panel = renderCasePanel();
     const popup = h('div', {
       class: 'call-team-popup asc-case-popup', onClick: (e) => e.stopPropagation(),
+      role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Case reference',
       style: 'max-width:860px;max-height:88vh;overflow:auto;text-align:left',
     },
       h('div', { class: 'call-team-title' }, 'Case reference'),
@@ -4041,6 +4052,15 @@
 
   // ─── §12 Critique the rejected answer: popover-per-tag, no model hints ─────
   function closeTagPopover() {
+    // The popover is portaled to <body> and positioned from the anchor's rect,
+    // so it cannot follow a scroll on its own; drop the tracker first.
+    if (state._tagPopTrack) {
+      window.removeEventListener('scroll', state._tagPopTrack, true);
+      window.removeEventListener('resize', state._tagPopTrack);
+      state._tagPopTrack = null;
+    }
+    if (state._tagPopAnchor && state._tagPopAnchor.isConnected) state._tagPopAnchor.focus();
+    state._tagPopAnchor = null;
     if (state._tagPop) {
       state._tagPop.remove();
       state._tagPop = null;
@@ -4054,6 +4074,32 @@
     }
   }
   function _tagPopKey(e) { if (e.key === 'Escape') closeTagPopover(); }
+
+  // Position the portaled popover against its anchor chip. An absolutely
+  // positioned popover is clipped by any ancestor with overflow != visible
+  // (.asc-answer, .asc-subcard, .asc-case-rail all qualify), and z-index does
+  // nothing about clipping — so the popover lives in <body> and is placed from
+  // the chip's viewport rect instead.
+  function positionTagPopover() {
+    const pop = state._tagPop, anchor = state._tagPopAnchor;
+    if (!pop || !anchor || !anchor.isConnected) return closeTagPopover();
+    const M = 10;
+    const r = anchor.getBoundingClientRect();
+    const w = pop.offsetWidth, hgt = pop.offsetHeight;
+
+    // FLIP: below by default; above when the bottom would overflow AND there is
+    // more room up there. Never pick a side that clips.
+    const below = window.innerHeight - r.bottom, above = r.top;
+    const flip = below < hgt + M && above > below;
+    const top = flip ? r.top - hgt - 6 : r.bottom + 6;
+
+    // SHIFT: stay on screen horizontally without leaving the anchor.
+    const left = Math.min(Math.max(r.left, M), window.innerWidth - w - M);
+
+    pop.style.top = Math.max(M, Math.min(top, window.innerHeight - hgt - M)) + 'px';
+    pop.style.left = left + 'px';
+    pop.classList.toggle('is-flipped', flip);
+  }
 
   function renderCritiqueSection() {
     const d = state.draft;
@@ -4097,7 +4143,10 @@
       closeTagPopover();
       const reasons = (state.taxonomy.error_tag_reasons || []);
       const sevs = (state.taxonomy.error_severities || ['low', 'medium', 'high']);
-      const pop = h('div', { class: 'asc-tag-pop', role: 'dialog', 'aria-label': 'Detail this error' });
+      const pop = h('div', {
+        class: 'asc-tag-pop', role: 'dialog', 'aria-modal': 'false',
+        'aria-label': 'Detail this error',
+      });
       pop.appendChild(h('div', { class: 'asc-tag-pop-title' },
         h('span', {}, tag.replace(/_/g, ' ')),
         h('button', {
@@ -4158,11 +4207,20 @@
           },
         }, 'Remove tag'),
         doneBtn));
-      // Anchor under the tapped chip, clamped to the row.
-      pop.style.left = Math.max(0, Math.min(chipEl.offsetLeft, Math.max(0, chipsRow.offsetWidth - 330))) + 'px';
-      pop.style.top = (chipEl.offsetTop + chipEl.offsetHeight + 6) + 'px';
-      chipsRow.appendChild(pop);
+      // Portal it: nothing in the card tree can clip what is not in the card tree.
+      document.body.appendChild(pop);
       state._tagPop = pop;
+      state._tagPopAnchor = chipEl;
+      positionTagPopover();
+
+      // A fixed element does not follow a scrolling anchor, so track it. Capture
+      // phase catches nested scroll containers; passive so we never block the
+      // scroll we are following.
+      state._tagPopTrack = () => positionTagPopover();
+      window.addEventListener('scroll', state._tagPopTrack, { capture: true, passive: true });
+      window.addEventListener('resize', state._tagPopTrack, { passive: true });
+      const firstBtn = pop.querySelector('button');
+      if (firstBtn) firstBtn.focus();
       document.addEventListener('keydown', _tagPopKey, true);
       // Click anywhere outside the popover (and outside the chip that opened it)
       // closes it, the missing dismissal that used to trap reviewers.
@@ -4177,10 +4235,9 @@
     }
 
     function paintChips() {
-      // A popover from a previous render is detached; drop the stale handle
-      // (insertBefore with a non-child reference node would throw).
-      if (state._tagPop && state._tagPop.parentNode !== chipsRow) state._tagPop = null;
-      Array.from(chipsRow.children).forEach((c) => { if (c !== state._tagPop) c.remove(); });
+      // The popover is portaled to <body>, never a child of the row, so the row
+      // holds nothing but chips and a plain clear-and-append is correct.
+      Array.from(chipsRow.children).forEach((c) => c.remove());
       errorTags.forEach((tag) => {
         const on = crit.error_tags.indexOf(tag) !== -1;
         const sev = crit.severities[tag];
@@ -4201,7 +4258,7 @@
           on && sev ? ('✓ ' + tag.replace(/_/g, ' ') + ' · ' + sev)
             : on ? ('✓ ' + tag.replace(/_/g, ' ') + ' · tap to detail')
               : tag.replace(/_/g, ' '));
-        chipsRow.insertBefore(chip, state._tagPop || null);
+        chipsRow.appendChild(chip);
       });
     }
     paintChips();
