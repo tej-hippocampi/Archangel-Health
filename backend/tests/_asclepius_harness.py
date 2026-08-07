@@ -96,6 +96,14 @@ _PAGE = """<!doctype html>
   <a class="asc-logo" href="#"><span class="asc-logo-mark">.</span><strong>Asclepius</strong></a>
   <nav class="asc-nav"><button class="asc-nav-btn active">Evaluate</button>
   <button class="asc-nav-btn">Guide</button><button class="asc-nav-btn">Stats</button></nav>
+  <!-- The right-hand group mirrors index.html. Without it the header has no
+       right edge to measure, and "is the bar full-bleed or a centred island"
+       is not an answerable question. -->
+  <div class="asc-header-right">
+    <div class="asc-user-badge"><span class="asc-user-email">mockadmin</span>
+    <span class="asc-user-role">evaluator · nephrology</span></div>
+    <button type="button" class="asc-btn asc-btn-ghost asc-btn-sm">Sign out</button>
+  </div>
 </div></header>
 <main class="asc-main"><div class="asc-wrap" id="root"></div></main>
 <script>

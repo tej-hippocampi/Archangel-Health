@@ -575,3 +575,181 @@ def test_popover_scrim_actually_dims_what_is_behind_it(page):
     page.wait_for_timeout(250)                       # let the fade-in settle
     after = page.screenshot(clip={"x": 0, "y": 0, "width": 400, "height": 50})
     assert before != after, "the scrim does not visibly dim the header behind it"
+
+
+def test_the_header_is_full_bleed_not_a_centred_island(page):
+    """The header is the app FRAME, not page content.
+
+    It carried ``max-width: 1180px; margin: 0 auto``, so past 1180px the bar
+    stopped growing and the brand drifted inward while ``.asc-main`` below it
+    stayed pinned to the rail — two competing alignments in one view, and the
+    wider the display the worse it read. Under 1180px the cap does not bind,
+    which is why it only ever looked wrong on the machine it was demoed on.
+
+    Geometry is the paint here, so this measures rather than reads the rule: the
+    brand must sit at the left edge and the account controls at the right edge,
+    separated from it by the header's own padding and nothing else.
+
+    The second half is the mutation check this file requires. It re-applies the
+    historical cap and asserts the SAME measurement then fails — without it a
+    refactor could make the numbers unreachable and leave a green test that
+    proves nothing.
+    """
+    # Wider than the old cap, or the defect cannot express itself at all.
+    page.set_viewport_size({"width": 1900, "height": 900})
+    page.wait_for_timeout(50)
+
+    # Measured from the WINDOW, not from .asc-header-inner. The cap moves that
+    # container bodily and leaves its padding untouched, so a gap measured
+    # against it reads 24px either way and the test would be vacuous — which is
+    # precisely what the mutation check below caught on the first attempt.
+    probe = """() => {
+      const inner = document.querySelector('.asc-header-inner');
+      const logo = document.querySelector('.asc-logo');
+      const right = document.querySelector('.asc-header-right');
+      const pad = parseFloat(getComputedStyle(inner).paddingLeft);
+      const ib = inner.getBoundingClientRect();
+      return { leftGap: logo.getBoundingClientRect().left,
+               rightGap: window.innerWidth - right.getBoundingClientRect().right,
+               innerWidth: ib.width, viewport: window.innerWidth, pad };
+    }"""
+    m = page.evaluate(probe)
+
+    assert m["innerWidth"] == m["viewport"], (
+        f"the header spans {m['innerWidth']}px of a {m['viewport']}px viewport — "
+        "it is capped, so it paints as an island floating over left-aligned content"
+    )
+    # The only thing between the brand and the window edge is the header's padding.
+    assert m["leftGap"] == pytest.approx(m["pad"], abs=1), (
+        f"the brand sits {m['leftGap']}px from the left edge, not the {m['pad']}px "
+        "of header padding — something is indenting it"
+    )
+    assert m["rightGap"] == pytest.approx(m["pad"], abs=1), (
+        f"the account controls sit {m['rightGap']}px from the right edge, not the "
+        f"{m['pad']}px of header padding"
+    )
+
+    # ── mutation check: the assertions above must be able to fail ──────────────
+    page.add_style_tag(content=".asc-header-inner { max-width: 1180px; margin: 0 auto; }")
+    page.wait_for_timeout(50)
+    capped = page.evaluate(probe)
+    assert capped["innerWidth"] < capped["viewport"], (
+        "re-applying the historical cap changed nothing — this test cannot see "
+        "the defect it exists to catch"
+    )
+    assert capped["leftGap"] > m["pad"] + 1, (
+        "the brand did not drift inward under the historical cap — the left-edge "
+        "assertion above is vacuous"
+    )
+
+
+# ── the split view: alignment must be structural, not hand-matched ────────────
+_SPLIT_VIEW = """<!doctype html><html><head>
+<link rel="stylesheet" href="_tokens.css"><link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="asclepius.css"></head>
+<body class="asc-body"><main class="asc-main">
+<div class="asc-task-shell">
+  <div class="asc-exp-badge"><span class="asc-exp-badge-label">Synthetic Multimodal</span>
+    <button type="button" class="asc-btn asc-btn-ghost asc-btn-sm asc-case-toggle">Hide case</button></div>
+  <div class="asc-case-cols">
+    <div class="asc-rail-head"><span class="asc-rail-title">Case</span></div>
+    <div class="asc-stage-head"><div class="asc-stage-meta">
+      <span class="asc-stage-step">Step 3 of 11</span>
+      <span class="asc-stage-label">Compare &amp; grade</span></div></div>
+    <aside class="asc-case-rail"><div class="asc-card"><div class="asc-card-pad">
+      <div class="asc-prompt-label">Clinical prompt</div>
+      <div class="asc-prompt-text">A 78-year-old with atrial fibrillation and CKD stage 4.</div>
+    </div></div></aside>
+    <div class="asc-work-col"><div class="asc-card"><div class="asc-card-pad">
+      <h3 class="asc-card-title">Compare the answers</h3></div></div></div>
+  </div>
+</div></main></body></html>"""
+
+
+def test_the_split_view_card_tops_share_a_baseline(browser, page_url, tmp_path):
+    """The case card and the task card must start at the same y.
+
+    This has been "fixed" twice by matching heights BY HAND across the two
+    columns, and missed both times — by 17px, then by 51px. It cannot work: the
+    columns carry different gaps (14 vs 18) and the work side has one more
+    header row than the rail, so no pair of min-heights can bring the SECOND row
+    into line. The layout now puts both chrome labels in one grid row, which
+    makes the browser guarantee it.
+
+    Hence this asserts geometry rather than the rule, and the mutation check
+    below collapses the grid back to flow order to prove the numbers can move.
+    """
+    src = pathlib.Path(page_url.replace("file://", "")).parent
+    doc = src / "split_view.html"
+    doc.write_text(_SPLIT_VIEW, encoding="utf-8")
+
+    pg = browser.new_page(viewport={"width": 1512, "height": 900})
+    try:
+        pg.goto("file://" + str(doc))
+        probe = """() => {
+          const T = (s) => Math.round(document.querySelector(s).getBoundingClientRect().top);
+          return { caseCard: T('.asc-case-rail .asc-card'),
+                   taskCard: T('.asc-work-col .asc-card'),
+                   railHead: T('.asc-rail-head'), stageHead: T('.asc-stage-head') };
+        }"""
+        m = pg.evaluate(probe)
+        assert m["caseCard"] == m["taskCard"], (
+            f"the case card starts at {m['caseCard']}px and the task card at "
+            f"{m['taskCard']}px — the split reads as two unrelated pages"
+        )
+        assert m["railHead"] == m["stageHead"], (
+            f"the two chrome labels are not peers: {m['railHead']} vs {m['stageHead']}"
+        )
+
+        # Mutation check: without the shared grid row the tops must diverge,
+        # otherwise this test would pass against the very defect it describes.
+        pg.add_style_tag(content=".asc-case-cols { display: block; }")
+        m2 = pg.evaluate(probe)
+        assert m2["caseCard"] != m2["taskCard"], (
+            "flattening the grid changed nothing — this test cannot see the "
+            "misalignment it exists to catch"
+        )
+    finally:
+        pg.close()
+
+
+def test_the_case_toggle_is_one_horizontal_control_that_never_moves(browser, page_url):
+    """One control, one home, upright.
+
+    It was a fixed vertical tab with ``writing-mode: vertical-rl`` floating over
+    the page, then a pair that swapped columns by state. Both read as chrome
+    that had come loose. It is now a single button in the task bar: horizontal,
+    always in the same corner, only its label changing.
+    """
+    src = pathlib.Path(page_url.replace("file://", "")).parent
+    pg = browser.new_page(viewport={"width": 1512, "height": 900})
+    try:
+        pg.goto("file://" + str(src / "split_view.html"))
+        m = pg.evaluate("""() => {
+          const t = [...document.querySelectorAll('.asc-case-toggle')];
+          const sideways = [...document.querySelectorAll('*')].filter(
+            e => (getComputedStyle(e).writingMode || '').startsWith('vertical'));
+          const b = t[0].getBoundingClientRect();
+          const bar = document.querySelector('.asc-task-shell > .asc-exp-badge');
+          const barBox = bar.getBoundingClientRect();
+          return { count: t.length, label: t[0].textContent.trim(),
+                   wider_than_tall: b.width > b.height,
+                   // Distance to the bar's edge, and the bar's own padding. The
+                   // only thing allowed between the two is that padding.
+                   gap: Math.round(barBox.right - b.right),
+                   pad: Math.round(parseFloat(getComputedStyle(bar).paddingRight)),
+                   inTaskBar: !!t[0].closest('.asc-exp-badge'),
+                   sideways: sideways.map(e => e.className) };
+        }""")
+        assert m["count"] == 1, f"{m['count']} case toggles on screen; there must be one"
+        assert m["label"] in ("Open case", "Hide case"), m["label"]
+        assert m["wider_than_tall"], "the toggle is taller than it is wide — it is upright text"
+        assert not m["sideways"], f"sideways text is back on: {m['sideways']}"
+        assert m["inTaskBar"], "the toggle is inside a column again, not in the task bar"
+        assert m["gap"] == m["pad"], (
+            f"the toggle sits {m['gap']}px from the task bar's edge but the bar's "
+            f"padding is {m['pad']}px — something other than the padding is "
+            "pushing it out of the corner"
+        )
+    finally:
+        pg.close()
