@@ -2506,6 +2506,53 @@ body.asc-has-rail .asc-main,
 }
 @media (max-width: 700px) { .asc-rail-collapse { display: none; } }
 
+/* ─── Focus: zero chrome, with four ways out ────────────────────────────────
+   The rail leaves the flow entirely rather than shrinking, and the case panel
+   takes the room — that is the point of the mode. Focus is a body class only:
+   nothing here is persisted, so a reload always returns to a known state. */
+body.asc-focus .asc-rail {
+  transform: translateX(-100%);
+  transition: transform .2s cubic-bezier(.4,0,.2,1);
+}
+/* The peek floats the rail OVER the case instead of pushing it, so a physician
+   reading a lab trend does not lose their place to check a nav badge. */
+body.asc-focus.asc-rail-peek .asc-rail { transform: none; box-shadow: var(--shadow-float); }
+body.asc-focus .asc-main { padding-left: var(--sp-4) !important; }  /* rail is out of flow */
+body.asc-focus .asc-case-handle { left: var(--sp-2); }              /* rail is gone; hug the edge */
+/* §4.5: the case widens — but the step progress indicator is thinned, never
+   deleted. "Which step am I on" must stay answerable at any chrome level. */
+body.asc-focus .asc-case-cols { grid-template-columns: minmax(420px, 44%) 1fr; }
+body.asc-focus .asc-header-inner { padding: var(--sp-1) var(--sp-5); }
+body.asc-focus .asc-logo-text { display: none; }
+
+/* Exit 1, the primary. Never fades out, never auto-hides on a timer: an exit
+   that disappears is not an exit. The Esc hint rides inline so the chip teaches
+   the keyboard route the first time it is seen. */
+.asc-focus-chip {
+  position: fixed; top: 10px; left: 10px; z-index: 130;   /* above everything */
+  display: none;                                          /* only in focus mode */
+  align-items: center; gap: 7px;
+  padding: 5px 9px 5px 7px;
+  border: 1px solid var(--hairline-strong); border-radius: var(--r-chip);
+  background: var(--card); box-shadow: var(--shadow-float);
+  color: var(--ink-soft); cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  opacity: .55;
+  transition: opacity .18s cubic-bezier(.4,0,.2,1), background .16s cubic-bezier(.4,0,.2,1);
+}
+body.asc-focus .asc-focus-chip { display: inline-flex; }
+.asc-focus-chip:hover, .asc-focus-chip:focus-visible { opacity: 1; background: var(--card-in); }
+.asc-focus-chip-ico { display: block; }
+.asc-focus-chip-ico svg { width: 14px; height: 14px; display: block; }
+.asc-focus-chip-label { display: block; }
+.asc-focus-chip-kbd {
+  font-family: var(--mono); font-size: 9px; padding: 1px 4px;
+  border: 1px solid var(--hairline); border-radius: 3px; color: var(--ink-faint);
+}
+@media (prefers-reduced-motion: reduce) {
+  body.asc-focus .asc-rail { transition: none; }
+}
+
 /* ─── Rail: icon-collapsed (700–1100px) ────────────────────────────────── */
 @media (max-width: 1100px) and (min-width: 701px) {
   :root { --asc-rail-w: 68px; }

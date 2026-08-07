@@ -322,6 +322,8 @@
     // glyph that changes identity reads as a different button, a glyph that
     // turns reads as the same button in a different state.
     chevrons: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M9.6 5.6L5.2 10l4.4 4.4M15.2 5.6L10.8 10l4.4 4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    // Arrows pulling back into a box = leave the expanded state.
+    collapse: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11.4 8.6h4M11.4 8.6v-4M11.4 8.6L16 4M8.6 11.4h-4M8.6 11.4v4M8.6 11.4L4 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
 
   // A keyboard shortcut must never fire inside a field. Steps 2 and 4 are full
@@ -425,10 +427,81 @@
     }
   }
 
+  // ─── Focus: zero chrome, with four ways out ─────────────────────────────────
+  // Focus removes the rail entirely. It is the state that can trap someone, so
+  // its exits are specified before its entry: the persistent chip below, Esc, F,
+  // and the edge peek. Four independent ways out, because any single mechanism
+  // can fail a user — a chip can be overlooked, a key can be unknown, a hover
+  // can be undiscovered. Together they are safe.
+  //
+  // Focus is SESSION-SCOPED and never persisted: a body class plus one
+  // sessionStorage flag for the one-time toast. A new tab starts in whatever
+  // Compact state the physician chose and never in Focus, which means reloading
+  // always returns them to a known state. That is the single most important
+  // property in this section.
+  function focusOn() { return document.body.classList.contains('asc-focus'); }
+  function enterFocus() {
+    document.body.classList.add('asc-focus');
+    let seen = true;
+    try { seen = sessionStorage.getItem('asc_focus_seen') === '1'; } catch (_) { seen = true; }
+    if (!seen) {
+      try { sessionStorage.setItem('asc_focus_seen', '1'); } catch (_) { /* ignore quota */ }
+      // The one moment you have their attention on how to leave, for 3.2s.
+      toast('Focus mode. Press Esc to exit.');
+    }
+    syncChromeMetrics();   // the header just thinned; the rail is pinned to it
+  }
+  function exitFocus() {
+    document.body.classList.remove('asc-focus', 'asc-rail-peek');
+    syncChromeMetrics();
+  }
+
+  // Exit 1, the primary: a chip where the rail used to be. 55% opacity at rest
+  // and 100% on hover — quiet enough not to compete with the case, present
+  // enough that the eye finds it when it goes looking. It never fades out and
+  // never auto-hides on a timer, because an exit that disappears is not an exit.
+  // It carries the Esc hint inline, which is what makes the keyboard routes
+  // discoverable rather than trivia.
+  function renderFocusChip() {
+    return h('button', {
+      class: 'asc-focus-chip', type: 'button',
+      'aria-label': 'Exit focus mode',
+      title: 'Exit focus mode  ( Esc )',
+      onClick: exitFocus,
+    },
+      h('span', { class: 'asc-focus-chip-ico', html: CHROME_ICONS.collapse, 'aria-hidden': 'true' }),
+      h('span', { class: 'asc-focus-chip-label' }, 'FOCUS'),
+      h('kbd', { class: 'asc-focus-chip-kbd' }, 'esc'));
+  }
+
+  // Exit 4, the accident-recovery path: hovering the extreme left edge slides
+  // the rail back as an OVERLAY. It does not reflow the page, so a physician
+  // reading a lab trend does not lose their place to check a nav badge. 250ms,
+  // not instant: an instant trigger fires every time the cursor crosses the
+  // screen and the rail flaps, while a quarter-second reads as intent.
+  function armEdgePeek() {
+    let t = null;
+    document.addEventListener('mousemove', (e) => {
+      if (!focusOn()) return;
+      if (e.clientX <= 12 && !t) {
+        t = setTimeout(() => { document.body.classList.add('asc-rail-peek'); t = null; }, 250);
+      } else if (e.clientX > 12 && t) { clearTimeout(t); t = null; }
+    }, { passive: true });
+    document.addEventListener('mouseover', (e) => {
+      if (document.body.classList.contains('asc-rail-peek')
+          && e.target.closest && !e.target.closest('.asc-rail') && !e.target.closest('.asc-focus-chip')) {
+        document.body.classList.remove('asc-rail-peek');
+      }
+    }, { passive: true });
+  }
+
   function renderSidePanel() {
     if (!state.user) { teardownSidePanel(); return; }
     document.body.classList.add('asc-has-rail');
     applyRailState();
+    // The chip lives outside #ascRoot, next to the rail, so per-view re-renders
+    // never wipe the only always-visible way out of Focus.
+    if (!document.querySelector('.asc-focus-chip')) document.body.appendChild(renderFocusChip());
     // Mark the guide view so the print stylesheet can scope its aggressive
     // header/padding overrides to the manual only (never to eval/admin prints).
     document.body.classList.toggle('asc-view-guide', state.panel === 'guide');
@@ -506,6 +579,11 @@
     if (guideObserver) { guideObserver.disconnect(); guideObserver = null; }
     const rail = document.getElementById('ascRail');
     if (rail) rail.remove();
+    const chip = document.querySelector('.asc-focus-chip');
+    if (chip) chip.remove();
+    // Signing out must never leave a login screen wearing Focus, whose only
+    // exits were the chrome that just went away.
+    exitFocus();
     document.body.classList.remove('asc-has-rail', 'asc-view-guide');
   }
 
@@ -10355,10 +10433,22 @@
   // Cmd/Ctrl+C stays copy.
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    // Exit 2, the universal reflex. Deliberately NOT behind isTypingTarget: a
+    // physician who wants out while the cursor sits in a textarea still gets
+    // out. It defers to anything dismissible layered above it, so Escape always
+    // addresses the topmost thing rather than skipping past it.
+    if (e.key === 'Escape' && focusOn()
+        && !state._tagPop && !document.querySelector('.call-team-overlay')) {
+      exitFocus();
+      return;
+    }
     if (isTypingTarget(e.target)) return;
     if (e.key === 'c' || e.key === 'C') toggleCaseRail();
     if (e.key === '[') toggleRailCompact();
+    // Exit 3, symmetry: the same key that entered.
+    if (e.key === 'f' || e.key === 'F') { focusOn() ? exitFocus() : enterFocus(); }
   }, true);
+  armEdgePeek();
 
   // ─── Go ────────────────────────────────────────────────────────────────────
   boot();
