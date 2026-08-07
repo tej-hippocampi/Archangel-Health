@@ -969,21 +969,37 @@ def test_rubric_help_text_matches_the_control():
 # ═════════════════════════════════════════════════════════════════════════════
 
 # ─── Test 20 ──────────────────────────────────────────────────────────────────
-def test_exp_badge_is_informational_only():
+def test_exp_badge_carries_the_label_and_at_most_the_case_toggle():
     """Case type and specialty are assigned by us (queue routing + qualification),
-    not chosen by the doctor: a later product decision removed the badge's
-    "Change experience"/"Change specialty" controls entirely, so the badge is
-    now just a static label with no interactive children."""
+    not chosen by the doctor: a product decision removed the badge's
+    "Change experience"/"Change specialty" controls entirely, and they stay gone.
+
+    A later decision gave this row one job beyond the label: it is the empty
+    right slot the case toggle occupies while the case panel is CLOSED (when it
+    is open the control moves to the rail's own header, so only ever one is on
+    screen). That is the ONLY control allowed here — the point of the original
+    rule was that the doctor is not offered a choice about case type or
+    specialty, and a panel toggle is not such a choice.
+    """
     fn = _body_of("renderExperienceBadge")
     ret = re.search(
         r"return h\('div', \{ class: 'asc-exp-badge' \},(.*?)\);\s*\}\s*$", fn, re.S
     )
     assert ret, "the badge's return shape changed unexpectedly"
     children = [c.strip() for c in ret.group(1).split("),") if c.strip()]
-    assert len(children) == 1, f"expected exactly one (label-only) child, got {children}"
+    assert len(children) <= 2, f"expected the label and at most the toggle, got {children}"
     assert "asc-exp-badge-label" in children[0]
-    assert "asc-btn-link" not in fn, "the badge must carry no controls"
+    if len(children) == 2:
+        assert "asc-case-toggle" in children[1], (
+            f"the only control the badge may carry is the case toggle, got {children[1]}"
+        )
+    # The pickers stay gone, which is what this guard has always been for.
+    assert "asc-btn-link" not in fn, "the badge must carry no link controls"
     assert "class: 'asc-exp-links'" not in fn
+    # Counted independently of the child split above, which cannot see a control
+    # appended without a ", " boundary: at most ONE button, and the check above
+    # has already established that it is the case toggle.
+    assert fn.count("h('button'") <= 1, "the badge builds more than one control"
 
 
 def test_no_change_experience_link_anywhere():
@@ -1025,7 +1041,7 @@ def test_v4_parity():
     # product decision), so it no longer needs its own v3/v4 branch: it just
     # looks up a label per version, v4 included.
     badge = _body_of("renderExperienceBadge")
-    assert "v4: ['', 'Real · De-identified Cases']" in badge
+    assert "v4: 'Real · De-identified Cases'" in badge
     eval_view = _body_of("renderEvalView")
     assert "(ver === 'v3' || ver === 'v4')" in eval_view
 

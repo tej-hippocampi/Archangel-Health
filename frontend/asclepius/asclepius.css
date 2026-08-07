@@ -37,8 +37,11 @@
   z-index: 100;
 }
 .asc-header-inner {
-  max-width: 1180px;
-  margin: 0 auto;
+  /* Full-bleed. The header is the app frame, not page content: the brand belongs
+     in the top-left corner of the window and the account controls in the
+     top-right, at every width. Capping it at 1180px turned the bar into a centred
+     island on a wide monitor while the content below aligned to the rail. */
+  width: 100%;
   padding: 12px 24px;
   display: flex;
   align-items: center;
@@ -187,49 +190,25 @@
   .asc-case-cols { grid-template-columns: 1fr; max-width: 880px; }
   .asc-case-cols .asc-case-rail { display: none; }
   .asc-case-cols .asc-case-sticky { display: flex; }
-  /* The handle points at a gutter that does not exist once the grid stacks. */
-  .asc-case-handle { display: none !important; }
 }
 
-/* ─── The case drawer handle ────────────────────────────────────────────────
-   A vertical tab in the gutter the collapsed grid frees. It costs no vertical
-   space, never covers content, and the panel opens from exactly where it sits,
-   so the affordance is learned once without a tooltip. */
-.asc-case-handle {
-  position: fixed;
-  left: calc(var(--asc-rail-w) + 8px);      /* rides the nav rail at any chrome level */
-  top: 50%; transform: translateY(-50%);
-  z-index: 60;                              /* under the header (100), over content */
-  display: none;                            /* only when the case panel is closed */
-  flex-direction: column; align-items: center; gap: 8px;
-  padding: 14px 7px;
-  border: 1px solid var(--hairline-strong); border-left: 0;
-  border-radius: 0 var(--r-sm) var(--r-sm) 0;
-  background: var(--card); box-shadow: var(--shadow-float);
-  color: var(--ink-soft); cursor: pointer;
-  transition: background .16s cubic-bezier(.4,0,.2,1),
-              color .16s cubic-bezier(.4,0,.2,1),
-              left .18s cubic-bezier(.4,0,.2,1);
-}
-.asc-case-handle:hover { background: var(--card-in); color: var(--ink); }
-.asc-case-handle-ico { display: block; }
-.asc-case-handle-ico svg { width: 20px; height: 20px; display: block; }
-.asc-case-handle-label {
-  font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
-  writing-mode: vertical-rl; transform: rotate(180deg);
-}
-.asc-case-cols.is-collapsed ~ .asc-case-handle { display: flex; }
-/* The mirrored twin: it lives ON the open rail's right edge and pushes the
-   panel back to where the other one pulls it from. Sticky to the rail's own
-   scrollport so it never scrolls out of reach either. */
-.asc-case-handle.is-close {
-  position: sticky; top: 0; left: auto; z-index: 1;
-  align-self: flex-end;
-  margin-right: -4px;        /* cancel the rail's padding so it meets the edge */
-  display: flex;
-  border: 1px solid var(--hairline-strong); border-right: 0;
-  border-radius: var(--r-sm) 0 0 var(--r-sm);
-  transform: none;
+/* One control, two homes. Same class in the badge row and the rail head so it
+   reads as one button that moves with the panel, not two that do similar things. */
+.asc-case-toggle { flex: none; white-space: nowrap; }
+
+/* The rail's first row sits on the same baseline as the work column's badge row,
+   so opening the panel never nudges the workflow. Both rows are pinned to the
+   SAME height, and it has to be a height the toggle itself cannot exceed:
+   .asc-btn-sm renders at ~34px, so a 30px floor never binds and the badge row
+   would swing between ~29px (label alone, panel open) and ~46px (label plus
+   button, panel closed) — a 17px jolt in the work column on every toggle.
+   --sp-7 clears the button in both states, so the height is constant.
+   The other two values mirror .asc-exp-badge exactly; change one, change both. */
+.asc-case-cols .asc-exp-badge,
+.asc-case-rail > .asc-rail-head {
+  min-height: var(--sp-7);
+  margin-bottom: 12px;
+  padding: 6px 4px;
 }
 .asc-loading-screen {
   display: flex;
@@ -2521,7 +2500,6 @@ body.asc-focus .asc-rail {
    reading a lab trend does not lose their place to check a nav badge. */
 body.asc-focus.asc-rail-peek .asc-rail { transform: none; box-shadow: var(--shadow-float); }
 body.asc-focus .asc-main { padding-left: var(--sp-4) !important; }  /* rail is out of flow */
-body.asc-focus .asc-case-handle { left: var(--sp-2); }              /* rail is gone; hug the edge */
 /* §4.5: the case widens — but the step progress indicator is thinned, never
    deleted. "Which step am I on" must stay answerable at any chrome level.
    Scoped twice on purpose. `body.asc-focus .asc-case-cols` out-specifies both
@@ -2564,8 +2542,7 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 @media (prefers-reduced-motion: reduce) {
   body.asc-focus .asc-rail { transition: none; }
   .asc-rail,
-  body.asc-has-rail .asc-main,
-  .asc-case-handle { transition: none; }
+  body.asc-has-rail .asc-main { transition: none; }
 }
 
 /* ─── Rail: icon-collapsed (700–1100px) ────────────────────────────────── */
@@ -2852,10 +2829,9 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 /* ─── Print: a clean, single-column manual (scoped to the Guide only, so
        printing an eval/admin view keeps its normal chrome) ────────────────── */
 @media print {
-  /* Chrome does not print. The handle and the focus chip are position:fixed,
-     which is exactly why they need naming here alongside the rail. */
-  .asc-rail, .asc-toast-region,
-  .asc-case-handle, .asc-focus-chip { display: none !important; }
+  /* Chrome does not print. The focus chip is position:fixed, which is exactly
+     why it needs naming here alongside the rail. */
+  .asc-rail, .asc-toast-region, .asc-focus-chip { display: none !important; }
   body.asc-view-guide .asc-header,
   body.asc-view-guide .asc-guide-toc,
   body.asc-view-guide .asc-guide-toc-select { display: none !important; }
