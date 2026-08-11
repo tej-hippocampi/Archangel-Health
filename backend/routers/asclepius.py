@@ -107,6 +107,7 @@ from asclepius.constants import (
     ab_source,
     non_circumvention_notice as _non_circumvention_notice,
     require_measured_difficulty,
+    measure_empirical_difficulty_enabled,
     min_empirical_difficulty,
 )
 from asclepius.schemas import (
@@ -4254,7 +4255,20 @@ async def _convert_and_gate(store: Any, ic: Dict[str, Any], question: str) -> Di
     # the reason ``ASCLEPIUS_REQUIRE_MEASURED_DIFFICULTY=1`` emptied the V4 queue.
     # Structure alone still cannot confer 'hard'; with no live frontier
     # measurement the band is capped at medium and ``measured`` stays False.
-    empirical = await measure_empirical_difficulty(case, question)
+    #
+    # Gated on the SAME flag as synthetic generation. Live measurement spends real
+    # frontier tokens per case, so it is opt-in; calling it unconditionally here
+    # billed 2 models × k attempts of answers AND judge calls on every promote an
+    # admin made, which nobody asked for and which no other path does.
+    if measure_empirical_difficulty_enabled():
+        empirical = await measure_empirical_difficulty(case, question)
+    else:
+        empirical = {
+            "value": None, "measured": False, "both_axes": True,
+            "note": "live empirical measurement disabled "
+                    "(ASCLEPIUS_MEASURE_EMPIRICAL_DIFFICULTY off); difficulty is the "
+                    "structural prior only (PRD §9, Real-Case Generation PRD §3.6)",
+        }
     difficulty = real_cases.score_difficulty(
         case,
         model_failure_rate=(empirical.get("value") if empirical.get("measured") else None),

@@ -29,7 +29,16 @@ jobs:
   backend:
     name: Backend pytest
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The suite is ~3,360 tests and ~13 min on a warm runner. The previous
+    # 20-minute cap was set when it was ~2,400 tests, and a run on main hit it —
+    # which reads in the UI as "the backend tests failed" when what actually
+    # happened is the job was killed mid-run at 19m38s. A cancelled job is worse
+    # than a slow one: it tells you nothing. 30 gives real headroom for a cold
+    # cache or a noisy runner while still catching a genuine hang.
+    #
+    # If this needs raising again, split the job (pytest-xdist, or one job per
+    # top-level area) rather than climbing toward the 6-hour ceiling.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: backend
