@@ -97,6 +97,11 @@ export type Credentials = {
   fellowship: Fellowship[];
   residency: TrainingRow[];
   primarySpecialty: string;
+  /* Optional free text: the doctor's niche within their specialty and the
+     case types they focus on (e.g. a general surgeon's surgical subfocus).
+     Descriptive metadata only, NEVER a scoring input (see the never-collect
+     note below and tiering.py); same treatment as `subspecialties`. */
+  specialtyNiche: string;
   subspecialties: string[];
   practiceSettings: string[];
   currentlyActive: boolean | null;
@@ -189,6 +194,7 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     fellowship: [{ institution: "", specialty: "", year: "" }],
     residency: [{ institution: "", year: "" }],
     primarySpecialty: "",
+    specialtyNiche: "",
     subspecialties: [],
     practiceSettings: [],
     currentlyActive: null,
@@ -204,6 +210,18 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     continuingCertification: null,
     structuredReviewExperience: [],
   };
+}
+
+/* Placeholder for the optional "tell us more about your specialty" box. The
+   example adapts to what the doctor typed as their primary specialty: surgeons
+   get a surgical-niche nudge, everyone else a generic within-specialty nudge,
+   and an empty specialty falls back to a neutral prompt. */
+function nichePlaceholder(specialty: string): string {
+  const s = specialty.trim();
+  if (!s) return "e.g. the subspecialties you focus on and the specific case types you handle most.";
+  if (s.toLowerCase().includes("surg"))
+    return `e.g. in ${s}, your surgical niche (hepatobiliary, colorectal, trauma) and the case types you most want to review.`;
+  return `e.g. within ${s}, the specific case types and clinical scenarios you focus on most.`;
 }
 
 export function emptyAttestations(): Attestations {
@@ -1807,6 +1825,15 @@ export function Step5Credentials({
         placeholder="e.g. dialysis, transplant, CKD"
         suggestions={["Dialysis", "Transplant", "Glomerular disease", "CKD", "Hypertension"]}
         hint="Type and press Enter, or tap a suggestion. Select as many as apply."
+      />
+      <TextArea
+        label="Tell us more about your specialty"
+        optional
+        rows={4}
+        value={c.specialtyNiche}
+        onChange={(v) => set({ specialtyNiche: v })}
+        placeholder={nichePlaceholder(c.primarySpecialty)}
+        hint="Optional. The more specific you are about your niche and the case types you handle, the better we can match you to relevant work."
       />
       <ChipMultiSelect
         label="Practice setting"
