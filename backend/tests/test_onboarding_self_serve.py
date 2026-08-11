@@ -125,3 +125,53 @@ def test_lead_provenance_recorded(client, store):
     with store._conn() as conn:
         rows = conn.execute("SELECT source, email FROM lead_submissions").fetchall()
     assert [(r[0], r[1]) for r in rows] == [("physician_onboard", "doc@hospital.org")]
+
+
+# ─── Resending a stalled signup's link (admin › Physicians › Signups) ────────
+def test_reissue_rotates_the_token_on_the_same_row(client, store):
+    """A physician who stalled must resume on the row holding their answers.
+
+    ``create_health_system_invite`` would mint a SECOND row, so the credentials
+    they already submitted would sit orphaned on the first while the funnel
+    counted them twice.
+    """
+    client.post("/api/onboarding/self-serve", json={"email": "doc@hospital.org"})
+    row = _rows(store)[0]
+    before = row["onboarding_token_hash"]
+
+    out = store.reissue_onboarding_token(row["id"], invite_base_url="https://landing.test")
+    assert out["onboarding_url"].startswith("https://landing.test/onboard/")
+
+    rows = _rows(store)
+    assert len(rows) == 1, "resending minted a duplicate signup row"
+    after = rows[0]
+    assert after["onboarding_token_hash"] != before
+    assert store.onboarding_token_valid(after)
+    assert after["last_generated_invite_url"] == out["onboarding_url"]
+    # The fresh link actually resolves to the same row.
+    token = out["onboarding_url"].rsplit("/", 1)[-1]
+    assert store.get_health_system_by_onboarding_token(token)["id"] == row["id"]
+    # ...and the old one is dead.
+    assert store.get_health_system_by_onboarding_token("nonsense") is None
+
+
+def test_reissue_refuses_completed_and_unknown_rows(client, store):
+    client.post("/api/onboarding/self-serve", json={"email": "doc@hospital.org"})
+    hs_id = _rows(store)[0]["id"]
+    store.complete_asclepius_onboarding(hs_id)
+    with pytest.raises(ValueError):
+        store.reissue_onboarding_token(hs_id, invite_base_url="https://landing.test")
+    with pytest.raises(ValueError):
+        store.reissue_onboarding_token("no-such-row", invite_base_url="https://landing.test")
+
+
+def test_db_path_parent_directory_is_created(tmp_path):
+    """TEAM_DB_PATH must be settable straight to a volume path on first boot.
+
+    Without this, following the storage warning's own advice ("point
+    TEAM_DB_PATH at your persistent volume") crashed the app at import with
+    sqlite3.OperationalError until someone mkdir'd the directory by hand.
+    """
+    target = tmp_path / "not" / "yet" / "there" / "team.db"
+    assert TeamStore(db_path=str(target)).db_path == str(target)
+    assert target.exists()

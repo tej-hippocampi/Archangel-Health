@@ -66,6 +66,15 @@ class TeamStore:
     def __init__(self, db_path: Optional[str] = None):
         base_dir = os.path.dirname(__file__)
         self.db_path = db_path or os.getenv("TEAM_DB_PATH") or os.path.join(base_dir, "team.db")
+        # Create the parent dir so TEAM_DB_PATH can point straight into a mounted
+        # persistent volume (e.g. /data/team.db) on first boot — the Asclepius
+        # store has always done this, and the asymmetry was a live trap: setting
+        # TEAM_DB_PATH to the volume, as the durability warning tells you to,
+        # crashed the whole app at import with "unable to open database file"
+        # until someone happened to mkdir the directory by hand.
+        parent = os.path.dirname(os.path.abspath(self.db_path))
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         self._init_schema()
 
     def _conn(self) -> sqlite3.Connection:
@@ -985,6 +994,47 @@ class TeamStore:
             "expires_at": expires,
         }
 
+    def reissue_onboarding_token(
+        self,
+        hs_id: str,
+        *,
+        invite_base_url: str,
+        expires_days: int = 14,
+    ) -> Dict[str, Any]:
+        """A FRESH token on an EXISTING pending row (admin "resend link").
+
+        Deliberately not ``create_health_system_invite``: that mints a NEW row,
+        so a doctor who stalled at step 3 and asked for another link would come
+        back as a second, empty signup while their credentials sat orphaned on
+        the first. Same row, new token — they resume exactly where they stopped,
+        and the admin's funnel count does not double.
+
+        Refuses a completed row: their onboarding is over, and a live token on a
+        finished workspace is a credential nobody needs.
+        """
+        row = self.get_health_system_by_id(hs_id)
+        if not row:
+            raise ValueError("Unknown health system")
+        if row.get("onboarding_completed_at"):
+            raise ValueError("Onboarding is already complete")
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = self._hash_onboarding_token(raw_token)
+        expires = (
+            (datetime.utcnow() + timedelta(days=expires_days)).replace(microsecond=0).isoformat()
+        )
+        url = f"{invite_base_url.rstrip('/')}/onboard/{raw_token}"
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE health_systems SET
+                    onboarding_token_hash = ?, onboarding_token_expires_at = ?,
+                    last_generated_invite_url = ?
+                WHERE id = ?
+                """,
+                (token_hash, expires, url, hs_id),
+            )
+        return {"health_system_id": hs_id, "onboarding_url": url, "expires_at": expires}
+
     def count_recent_pending_invites_for_email(self, email: str, *, hours: int = 24) -> int:
         """Pending (uncompleted) onboarding rows tied to this email created in the
         last ``hours``. Admin-issued invites carry no email, so this only counts
@@ -1537,6 +1587,46 @@ class TeamStore:
                 (hs_id,),
             ).fetchall()
             return [self._shape_asclepius_person(r) for r in rows]
+
+    def latest_otp_activity(self) -> Dict[tuple, str]:
+        """Most recent OTP challenge per (health system, email), in ONE query.
+
+        The wizard's early steps (name, email verification) write only to the
+        health system row, which carries no ``updated_at`` — so the admin signups
+        view had nothing newer than ``created_at`` to date them by, and reported
+        a physician who verified their email minutes ago as idle since the day
+        their link was issued. Requesting a code is the one timestamped act those
+        steps leave behind.
+
+        Keyed by EMAIL as well as health system, because invited clinicians take
+        their OTP through the same table under the director's ``health_system_id``
+        (see ``member_request_otp``). Grouping by health system alone would credit
+        a member's activity to the director, quietly un-stalling the one person
+        the operator most needs to chase.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT health_system_id, lower(trim(email)) AS email, "
+                "MAX(created_at) AS last_at FROM otp_challenges "
+                "GROUP BY health_system_id, lower(trim(email))"
+            ).fetchall()
+        return {(r["health_system_id"], r["email"]): r["last_at"] for r in rows if r["last_at"]}
+
+    def asclepius_people_by_health_system(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Every person, grouped by health system, in ONE query.
+
+        The admin signups view walks every Asclepius workspace at once; calling
+        ``list_asclepius_people`` per row is a query per workspace on a list that
+        only grows (the same N+1 the verification queue's duplicate-NPI check was
+        rewritten to avoid).
+        """
+        out: Dict[str, List[Dict[str, Any]]] = {}
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM asclepius_people ORDER BY id ASC").fetchall()
+        for r in rows:
+            person = self._shape_asclepius_person(r)
+            out.setdefault(person["health_system_id"], []).append(person)
+        return out
 
     def save_asclepius_credentials(
         self, hs_id: str, email: str, credentials: Dict[str, Any]
