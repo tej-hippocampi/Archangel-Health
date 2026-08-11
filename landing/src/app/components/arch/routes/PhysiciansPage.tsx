@@ -122,14 +122,6 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
             </div>
           ))}
         </div>
-
-        {/* Signup comes only after the offer. */}
-        <div className="route-cta reveal">
-          <button type="button" className="btn btn-primary" onClick={actions.openPhysicianOnboard}>
-            Become a contributor
-          </button>
-          <p className="cta-note">Onboarding takes a few minutes. Your personal link is created instantly. Refer colleagues from your dashboard once you're in.</p>
-        </div>
       </section>
     </div>
   );

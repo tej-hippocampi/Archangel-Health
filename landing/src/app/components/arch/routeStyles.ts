@@ -557,7 +557,14 @@ export const routeStyles = `
   gap: 1.5rem;
   flex-wrap: wrap;
 }
-.arch-landing .route-header-cta { flex: none; white-space: nowrap; }
+/* The page's only contributor CTA, so it carries the weight: bigger and broader
+   than a stock .btn, and lime rather than outlined. */
+.arch-landing .route-header-cta {
+  flex: none;
+  white-space: nowrap;
+  font-size: 1.05rem;
+  padding: 0.95em 2.2em;
+}
 
 /* Pay band — lede left, pay figure right. No card: "scale not boldness". */
 /* The band stacks: the lede, then the two ways to earn side by side below. */
