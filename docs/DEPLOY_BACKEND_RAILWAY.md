@@ -19,7 +19,7 @@ In the project, open your service → **Variables** tab. Add:
 
 | Variable | Value |
 |----------|--------|
-| `BASE_URL` | `https://YOUR-APP.up.railway.app` (see step 4 – replace with your real URL after first deploy) |
+| `BASE_URL` | `https://YOUR-APP.up.railway.app` (see step 5 – replace with your real URL after first deploy) |
 | `LANDING_URL` | `https://archangelhealth.ai` |
 | `AUTH_SECRET` | Long random string (e.g. run `openssl rand -hex 32` in terminal and paste) |
 | `ENABLE_TRIAGE_DEMO` | `1` to load TRIAGEDM demo tenant roster (set `0` to disable in production) |
@@ -29,18 +29,68 @@ In the project, open your service → **Variables** tab. Add:
 
 Optional (add when you have them): `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `ANTHROPIC_API_KEY`, `CARE_TEAM_PHONE`, etc.
 
-## 4. Get your public URL
+## 4. Attach a volume — REQUIRED, or every deploy wipes your data
+
+**Skip this and the app still works perfectly, right up until your first
+redeploy erases every account, patient episode, audit record and in-flight
+physician signup.** Nothing errors. The screens just go quiet, which reads like
+"nobody signed up" rather than "the database was deleted." This section exists
+because that is exactly what happened.
+
+Railway gives a container a fresh filesystem on every deploy. Both SQLite
+databases default to living beside the code, so both are inside that filesystem
+unless you point them somewhere else.
+
+**a. Create the volume.** Service → **Settings** → **Volumes** → **New Volume**.
+Mount path: `/data`. (Any path works except `/app`, which is the code.)
+
+**b. Point the storage variables into it.** Service → **Variables**:
+
+| Variable | Value | What is lost without it |
+|----------|-------|-------------------------|
+| `TEAM_DB_PATH` | `/data/team.db` | Every patient episode, intake form, care-team message, audit sign-in record, health system, and physician mid-onboarding (Admin › Physicians › **Signups**) |
+| `ASCLEPIUS_DB_PATH` | `/data/asclepius.db` | Every physician account, task, submission, review and payout row |
+| `ASCLEPIUS_DATA_DIR` | `/data` | V4 case images (asset store lands at `/data/assets`) |
+
+The raw-ingest directory needs no variable: it defaults to sitting beside
+`ASCLEPIUS_DB_PATH`, so setting that puts partner uploads on the volume too.
+
+**c. Redeploy and read the log.** Two lines tell you whether it worked:
+
+```
+[storage] all three stores durable
+[storage] tenant database durable (/data/team.db)
+```
+
+Anything else names the store and the variable to set. `ERROR ... is on
+EPHEMERAL storage` or `... is not set` means data is still being destroyed on
+each deploy.
+
+**d. Only once those are green, set `ENV=production`.** That flips the boot gate
+from warning to fail-closed: the app refuses to start on non-durable storage
+instead of quietly accepting data it will lose. Set it before the paths are
+correct and the service will not boot.
+
+> **Changing these variables triggers a redeploy, and the redeploy is what
+> destroys the current container's data.** Anything already written to the old
+> ephemeral database is gone at that moment — the new container starts with an
+> empty database on the volume. There is no migration step, because there is
+> nothing durable to migrate from. If the current data matters, copy it out
+> first (`railway ssh` into the running service and read
+> `/app/backend/team.db`) before you save the variables.
+
+## 5. Get your public URL
 
 - Open **Settings** → **Networking** → **Generate Domain**.
 - Railway gives you a URL like `your-app.up.railway.app`.
 - After deploy finishes, open `https://your-app.up.railway.app/docs` to confirm the API is up.
 
-## 5. Point landing to this backend
+## 6. Point landing to this backend
 
 - In **Vercel** (landing): set `VITE_API_URL` and `VITE_DASHBOARD_URL` to your Railway URL (e.g. `https://your-app.up.railway.app`).
 - In Railway **Variables**: set `BASE_URL` to that same URL (e.g. `https://your-app.up.railway.app`).
 
-## 6. (Optional) Use app.archangelhealth.ai
+## 7. (Optional) Use app.archangelhealth.ai
 
 - In Railway: **Settings** → **Networking** → **Custom Domain** → add `app.archangelhealth.ai`.
 - In **Cloudflare** (or your DNS): add CNAME `app` → `your-app.up.railway.app`.
