@@ -2995,6 +2995,13 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-phys-chip.asc-chip-pending { border-color: #ec9440; }
 .asc-phys-chip.asc-chip-pending .asc-chip-count { color: #ec9440; }
 
+/* Signups: the stage badge is a SENTENCE ("Signed attestations — never pressed
+   finish"), not a one-word status, and .asc-badge capitalize-s every word — the
+   same defect that once Title-Cased the plain-language axis labels. Reset it
+   here rather than shortening the copy: the sentence IS the value of the
+   column, because it tells the operator which nudge this physician needs. */
+.asc-stage-badge { text-transform: none; white-space: normal; text-align: left; }
+
 /* Signups: the same chip shape reading as a STAT, not a filter. Default cursor
    because nothing happens on click — a pointer on an inert chip is a promise
    the surface does not keep. */

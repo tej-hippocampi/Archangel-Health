@@ -319,7 +319,7 @@
    * final button: one reminder turns them into a verification-queue decision.
    */
   async function renderSignups(container, ctx) {
-    const { h, api, clear, loadingCard, fmtDate, toast } = ctx;
+    const { h, api, clear, loadingCard, toast } = ctx;
     clear(container);
     container.appendChild(loadingCard('Loading signups…'));
     let data;
@@ -406,7 +406,7 @@
         h('td', {}, stageBadge(c.h, s),
           h('span', { class: 'asc-dim', style: 'margin-left:6px' },
             'step ' + s.stage_index + '/' + s.stage_total)),
-        h('td', {}, s.started_at && fmtDate ? fmtDate(s.started_at) : (s.started_at || '—')),
+        h('td', { class: 'asc-mono', style: 'white-space:nowrap' }, dayOnly(s.started_at)),
         h('td', {}, s.days_idle == null ? '—'
           : (s.days_idle === 0 ? 'today' : s.days_idle + 'd')),
         h('td', {}, s.link_expired
@@ -419,11 +419,18 @@
   function stageBadge(h, s) {
     // Green for the one that converts on a single reminder; amber for a stall
     // the operator can still rescue; grey for a signup that is simply young.
-    if (s.ready_to_finish) return h('span', { class: 'asc-badge asc-badge-green' }, s.stage_word);
-    if (s.stalled || s.link_expired) {
-      return h('span', { class: 'asc-badge asc-badge-amber' }, s.stage_word);
-    }
-    return h('span', { class: 'asc-badge asc-badge-gray' }, s.stage_word);
+    const tone = s.ready_to_finish ? 'asc-badge-green'
+      : ((s.stalled || s.link_expired) ? 'asc-badge-amber' : 'asc-badge-gray');
+    // asc-stage-badge undoes .asc-badge's capitalize — this label is a sentence.
+    return h('span', { class: 'asc-badge asc-stage-badge ' + tone }, s.stage_word);
+  }
+
+  // Date only. fmtDate renders a full timestamp, which wrapped this column to
+  // three lines and pushed the stage — the reason anyone opens this table — off
+  // to the side. Nothing here turns on the minute a physician clicked.
+  function dayOnly(iso) {
+    const s = String(iso || '');
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : (s || '—');
   }
 
   /* An empty roster used to read as "nobody signed up". It never meant that —
