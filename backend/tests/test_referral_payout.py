@@ -334,6 +334,70 @@ def test_a_ninety_one_day_old_invitation_expires_and_can_never_pay():
     assert _bounties_for(referrer) == []
 
 
+def test_an_invitee_who_was_not_verified_stops_counting_as_pending_money():
+    """The other graveyard, and the expiry sweep does not reach it: the invitee
+    DID sign up, so ``user_id`` is set and the row is never expired — but they
+    were refused verification, so no first case is coming. Left alone the funnel
+    renders "+$150 pending" forever beside a colleague who was turned down, which
+    is the page lying to a physician about their own money."""
+    store = _store()
+    referrer = _physician()
+    email = _email()
+    _refer(referrer, email, name="Dr Turned Down")
+    invitee = _signup(email)
+    store.advance_referral_for_user(invitee["id"], "declined")
+
+    funnel = _funnel(referrer)
+    row = funnel["referrals"][0]
+    assert row["status_sentence"] == "Not verified"
+    assert row["bounty_state"] == "closed"
+    assert funnel["pending_count"] == 0
+    assert funnel["pending_cents"] == 0
+
+    # DERIVED, never stored — 'declined' is not on the funnel ladder and is
+    # therefore reversible. A physician refused today can be approved next month,
+    # and the money has to come back with them.
+    assert store.list_referrals_by_referrer(referrer["id"])[0]["bounty_state"] is None
+    store.advance_referral_for_user(invitee["id"], "approved")
+    back = _funnel(referrer)
+    assert back["referrals"][0]["bounty_state"] == "pending"
+    assert back["pending_cents"] == BOUNTY
+
+
+def test_a_rate_change_never_restates_a_bounty_already_earned():
+    """Every rate in this system is stamped on the ledger row at accrual so a
+    change to the env constant cannot rewrite history. The funnel is the one
+    surface where a doctor would READ that restatement, so it reports what the
+    ledger paid rather than what the rate is today."""
+    referrer = _physician()
+    email = _email()
+    _refer(referrer, email, name="Dr Whitfield")
+    invitee = _signup(email, full_name="Dr A. Whitfield")
+    _approved_task(invitee, "sub-1")
+    asc_payments.accrue_referral_bounty(_store(), referred_user_id=invitee["id"])
+    assert _bounties_for(referrer)[0]["amount_cents"] == BOUNTY
+
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setenv("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", str(BOUNTY * 2))
+        assert asc_payments.referral_bounty_cents() == BOUNTY * 2
+        body = client.get("/api/asclepius/earnings",
+                          headers=A.headers_for(referrer)).json()
+    finally:
+        monkey.undo()
+
+    row = body["referrals"]["referrals"][0]
+    assert row["bounty_state"] == "earned"
+    assert row["bounty_cents"] == BOUNTY, "the earned row was restated at the new rate"
+    assert body["referrals"]["earned_cents"] == BOUNTY
+    # And the breakdown, which reads the ledger directly, agrees with it.
+    line = [l for l in body["lines"] if l["kind"] == "referral"][0]
+    assert line["cents"] == BOUNTY
+    # The card's forward-looking promise DOES move — a referral sent tomorrow is
+    # worth the new rate, and saying otherwise would be the opposite error.
+    assert body["referrals"]["bounty_cents"] == BOUNTY * 2
+
+
 def test_a_fresh_invitation_is_not_swept_by_the_expiry_pass():
     """The negative half. A sweep that expires everything is worse than none."""
     referrer = _physician()

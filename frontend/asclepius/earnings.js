@@ -658,6 +658,10 @@
     expired: 'asc-ref-quiet',
     duplicate: 'asc-ref-quiet',
     ineligible: 'asc-ref-quiet',
+    // The invitee was not verified, so no first case is coming. Grey and
+    // silent — NOT "+$150 pending", which would be the page lying, and not
+    // pink, which would suggest the referrer did something wrong.
+    closed: 'asc-ref-quiet',
   };
 
   function referralCard(h) {
@@ -692,6 +696,11 @@
     var list = h('div', { class: 'asc-ref-list' });
     rows.forEach(function (r) {
       var state = r.bounty_state || 'pending';
+      // An EARNED row is worth what the ledger actually paid it, which is not
+      // necessarily what the rate is today — every rate here is stamped at
+      // accrual so a change can never restate a past earning, and this column is
+      // where a doctor would read the restatement.
+      var rowAmount = money(r.bounty_cents == null ? block.bounty_cents : r.bounty_cents);
       var row = h('div', { class: 'asc-ref-row' },
         h('span', { class: 'asc-ref-who' }, r.invitee_display || '—'),
         h('span', { class: 'asc-ref-when' }, shortDate(r.invited_at)),
@@ -702,8 +711,8 @@
           r.status_sentence || 'Invited'),
         h('span', { class: 'asc-ref-amount ' + (BOUNTY_CLASS[state] || '') },
           !block.earns_bounty ? ''
-            : state === 'earned' ? bounty
-              : state === 'pending' ? '+' + bounty + ' pending'
+            : state === 'earned' ? rowAmount
+              : state === 'pending' ? '+' + rowAmount + ' pending'
                 : ''));
       list.appendChild(row);
     });

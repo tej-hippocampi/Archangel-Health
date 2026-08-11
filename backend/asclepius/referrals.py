@@ -159,6 +159,18 @@ BOUNTY_EARNED = "earned"
 BOUNTY_DUPLICATE = "duplicate"
 BOUNTY_EXPIRED = "expired"
 BOUNTY_INELIGIBLE = "ineligible"
+#: The invitee was not verified, so no first case is coming. DERIVED at read
+#: time and never persisted, because ``declined`` is not in ``_REFERRAL_LADDER``
+#: and is therefore reversible: a physician refused today can be approved next
+#: month, and a persisted terminal bounty state would make that reversal invisible
+#: while the funnel silently kept the money it had already written off.
+BOUNTY_CLOSED = "closed"
+
+#: Funnel statuses under which no first case can arrive. A referral sitting on
+#: one of these must NOT be counted as pending money — "+$150 pending" beside a
+#: colleague who was refused verification is the page lying to a physician, and
+#: it is the same failure as showing nothing, reached from the other direction.
+_NO_FIRST_CASE_COMING = frozenset({"declined"})
 
 
 def status_sentence(status: Optional[str], bounty_state: Optional[str]) -> str:
@@ -208,13 +220,19 @@ def display_name(referral: Dict[str, Any]) -> str:
     return mask_email(referral.get("invitee_email"))
 
 
-def public_referral(r: Dict[str, Any], *, bounty_state: Optional[str] = None) -> Dict[str, Any]:
+def public_referral(
+    r: Dict[str, Any], *, bounty_state: Optional[str] = None,
+    bounty_cents: Optional[int] = None,
+) -> Dict[str, Any]:
     """What a referrer is entitled to see — built by WHITELIST.
 
     Deliberately thin: who, when, where they are, what it is worth. No NPI, no
     tier score, no verification notes, no credential assets. Building this by
     STRIPPING fields would leak the next column somebody adds to ``referrals`` or
     to the join upstream of it; a whitelist cannot.
+
+    ``bounty_cents`` is the amount STAMPED ON THE LEDGER for an earned row, not
+    the rate in force today — see ``store.referral_bounty_amounts``.
     """
     status = r.get("status")
     state = bounty_state if bounty_state is not None else (r.get("bounty_state") or BOUNTY_PENDING)
@@ -222,8 +240,12 @@ def public_referral(r: Dict[str, Any], *, bounty_state: Optional[str] = None) ->
         "referral_id": r.get("referral_id"),
         "invitee_display": display_name(r),
         "status": status,
+        # The SENTENCE is always derived from the persisted column, never from a
+        # read-time override: a derived state changes what the money column says,
+        # not what happened to the person.
         "status_sentence": status_sentence(status, r.get("bounty_state")),
         "bounty_state": state,
+        "bounty_cents": bounty_cents,
         "invited_at": r.get("invited_at"),
         "resolved_at": r.get("resolved_at"),
     }
@@ -486,18 +508,35 @@ def funnel(
     # Reporting their referrals as "+$150 pending" would be a promise the
     # compensation model does not keep.
     earns = compensation.accrues_payment(referrer)
+    # What the LEDGER paid, per row. One query, and never the live constant: a
+    # rate change must not restate a bounty already earned, and the funnel is the
+    # surface where the doctor would read the restatement.
+    paid_amounts = store.referral_bounty_amounts([r["referral_id"] for r in rows])
 
     items: List[Dict[str, Any]] = []
     earned = pending = 0
+    earned_cents = 0
     for r in rows:
         state = r.get("bounty_state") or BOUNTY_PENDING
-        if not earns and state == BOUNTY_PENDING:
-            state = BOUNTY_INELIGIBLE
-        items.append(public_referral(r, bounty_state=state))
+        if state == BOUNTY_PENDING:
+            if not earns:
+                state = BOUNTY_INELIGIBLE
+            elif (r.get("status") or "") in _NO_FIRST_CASE_COMING:
+                # Derived, not stored — the invitee may yet be approved on a
+                # second look, and this state has to be able to fall back to
+                # pending when they are.
+                state = BOUNTY_CLOSED
+        row_cents = paid_amounts.get(r["referral_id"])
         if state == BOUNTY_EARNED:
             earned += 1
+            earned_cents += row_cents if row_cents is not None else int(bounty_cents)
         elif state == BOUNTY_PENDING:
             pending += 1
+        items.append(public_referral(
+            r, bounty_state=state,
+            # An unearned row is worth the CURRENT rate if it converts; an earned
+            # one is worth what it was actually paid.
+            bounty_cents=row_cents if row_cents is not None else int(bounty_cents)))
 
     return {
         "can_refer": can_refer(referrer),
@@ -508,7 +547,7 @@ def funnel(
         "referrals": items,
         "total": len(items),
         "earned_count": earned,
-        "earned_cents": earned * int(bounty_cents) if earns else 0,
+        "earned_cents": earned_cents if earns else 0,
         # The line that IS the design. Without it the doctor sees nothing and
         # assumes nothing happened.
         "pending_count": pending,

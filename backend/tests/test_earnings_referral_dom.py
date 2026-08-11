@@ -350,6 +350,85 @@ def test_the_accent_classes_the_card_uses_are_defined_and_never_pink():
         assert banned not in block, f"the referral card reached for {banned}"
 
 
+def test_a_referral_that_can_never_pay_shows_no_pending_money():
+    """Two rows that will never convert — an invitee who was refused
+    verification, and one already credited to another referrer. Neither may
+    render "+$150 pending", because a promise the funnel cannot keep is the same
+    failure as showing nothing, reached from the other direction. Grey, not
+    pink: the referrer did nothing wrong."""
+    funnel = dict(_FUNNEL, referrals=[
+        {"referral_id": "ref-a", "invitee_display": "Dr Turned Down",
+         "status": "declined", "status_sentence": "Not verified",
+         "bounty_state": "closed", "bounty_cents": 15000,
+         "invited_at": "2026-08-02T09:00:00", "resolved_at": "2026-08-20T09:00:00"},
+        {"referral_id": "ref-b", "invitee_display": "Dr Popular",
+         "status": "approved",
+         "status_sentence": "Joined · already credited to another referrer",
+         "bounty_state": "duplicate", "bounty_cents": 15000,
+         "invited_at": "2026-08-03T09:00:00", "resolved_at": None},
+    ], total=2, earned_count=0, earned_cents=0, pending_count=0, pending_cents=0)
+    out = _run_node(_script({
+        "/api/asclepius/earnings": dict(_LEDGER, referrals=funnel),
+        "/api/asclepius/referrals": funnel,
+    }, """
+var body = document.createElement('div');
+window.EarningsSection.render(body, ctx);
+done(function () {
+  console.log(JSON.stringify({
+    amounts: find(body, 'asc-ref-amount').map(function (e) {
+      return { cls: e.className, text: textOf(e).trim() };
+    }),
+    states: find(body, 'asc-ref-state').map(textOf),
+    all: classesOf(body).join(' '),
+  }));
+});
+"""))
+    assert [a["text"] for a in out["amounts"]] == ["", ""], (
+        "a referral that cannot pay must show no figure at all")
+    for a in out["amounts"]:
+        assert "asc-ref-quiet" in a["cls"]
+        assert "asc-ref-flight" not in a["cls"]
+    assert "Not verified" in out["states"][0]
+    assert "already credited to another referrer" in out["states"][1]
+    assert "pink" not in out["all"].lower()
+
+
+def test_an_earned_row_shows_what_the_ledger_paid_not_the_rate_today():
+    """Rates are stamped on the ledger at accrual so a change can never restate a
+    past earning. The card is where a doctor would read the restatement, so the
+    per-row figure comes from the row and only the forward-looking promise moves
+    with the current rate."""
+    funnel = dict(_FUNNEL, bounty_cents=30000, referrals=[
+        {"referral_id": "ref-1", "invitee_display": "Dr A. Whitfield",
+         "status": "approved", "status_sentence": "Completed first case",
+         "bounty_state": "earned", "bounty_cents": 15000,
+         "invited_at": "2026-08-02T09:00:00", "resolved_at": "2026-08-30T09:00:00"},
+        {"referral_id": "ref-2", "invitee_display": "Dr M. Osei",
+         "status": "verified", "status_sentence": "Verified · awaiting first case",
+         "bounty_state": "pending", "bounty_cents": 30000,
+         "invited_at": "2026-08-07T09:00:00", "resolved_at": None},
+    ], total=2, earned_count=1, earned_cents=15000,
+        pending_count=1, pending_cents=30000)
+    out = _run_node(_script({
+        "/api/asclepius/earnings": dict(_LEDGER, referrals=funnel),
+        "/api/asclepius/referrals": funnel,
+    }, """
+var body = document.createElement('div');
+window.EarningsSection.render(body, ctx);
+done(function () {
+  console.log(JSON.stringify({
+    amounts: find(body, 'asc-ref-amount').map(function (e) { return textOf(e).trim(); }),
+    pitch: find(body, 'asc-ref-pitch').map(textOf),
+  }));
+});
+"""))
+    assert out["amounts"][0] == "$150", "the earned row was restated at the new rate"
+    assert out["amounts"][1] == "+$300 pending"
+    # The promise for a referral sent TOMORROW does move — saying otherwise
+    # would be the opposite error.
+    assert "$300 when a colleague" in out["pitch"][0]
+
+
 # ─── 15 · No raw token reaches a human ────────────────────────────────────────
 def test_no_raw_status_token_reaches_the_dom():
     """A physician should never have to learn our state machine to know whether

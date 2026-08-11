@@ -8832,6 +8832,32 @@ class AsclepiusStore:
                 "ORDER BY invited_at ASC, referral_id ASC", (user_id,)).fetchall()
         return [dict(r) for r in rows]
 
+    def referral_bounty_amounts(self, referral_ids: List[str]) -> Dict[str, int]:
+        """``{referral_id: amount_cents}`` for bounties that were actually paid.
+
+        The funnel must report what the LEDGER says a referral earned, not what
+        the current rate would pay for it today. Every rate in this system is
+        stamped on the row at accrual precisely so a change to
+        ``ASCLEPIUS_REFERRAL_BOUNTY_CENTS`` can never restate a past earning —
+        and a funnel that multiplied its earned count by the live constant would
+        restate exactly that, on the one surface where the doctor reads it.
+
+        One query for the page rather than one per row.
+        """
+        ids = [i for i in (referral_ids or []) if i]
+        out: Dict[str, int] = {}
+        if not ids:
+            return out
+        with self._conn() as conn:
+            for i in range(0, len(ids), 400):
+                chunk = ids[i:i + 400]
+                rows = conn.execute(
+                    "SELECT ref_id, amount_cents FROM earnings WHERE kind = 'referral' "
+                    "AND ref_id IN (%s)" % ",".join("?" * len(chunk)), chunk).fetchall()
+                for r in rows:
+                    out[r["ref_id"]] = int(r["amount_cents"])
+        return out
+
     def has_approved_task_earning(self, user_id: str) -> bool:
         """Has this physician had at least one TASK earning reach a settled,
         earned state? ``paid`` counts: money that has already left the building
@@ -9010,10 +9036,18 @@ class AsclepiusStore:
             # That stranding is the advisor bug repeating: a referrer whose
             # colleague demonstrably joined and worked should never be looking at
             # a funnel that still says "awaiting their first case".
+            #
+            # ONLY rows the caller said were payable. A row outside the whitelist
+            # lost for a different reason — an equity-holding referrer, a
+            # self-referral — and the caller has already stamped it with the
+            # reason that is true of it. Marking it 'duplicate' here would
+            # overwrite an accurate answer with a plausible one.
             for r in fresh:
                 if r["referral_id"] == paid["referral_id"]:
                     continue
                 if r.get("bounty_state") is not None:
+                    continue
+                if allowed is not None and r["referral_id"] not in allowed:
                     continue
                 conn.execute(
                     "UPDATE referrals SET bounty_state = ?, bounty_resolved_at = ? "
